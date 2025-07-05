@@ -1,0 +1,29 @@
+{
+  "name": "fan-club-z",
+  "version": "1.0.0",
+  "description": "Fan Club Z - Social Betting Platform",
+  "type": "module",
+  "scripts": {
+    "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
+    "dev:client": "cd client && npm run dev",
+    "dev:server": "cd server && npm run dev",
+    "build": "npm run build:client && npm run build:server",
+    "build:client": "cd client && npm run build",
+    "build:server": "cd server && npm run build",
+    "start": "cd server && npm start",
+    "preview": "cd client && npm run preview",
+    "install:all": "npm install && cd client && npm install && cd ../server && npm install"
+  },
+  "keywords": [
+    "betting",
+    "social",
+    "crypto",
+    "web3",
+    "mobile"
+  ],
+  "author": "Fan Club Z Team",
+  "license": "MIT",
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}
