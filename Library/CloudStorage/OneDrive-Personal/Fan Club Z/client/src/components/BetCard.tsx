@@ -9,6 +9,7 @@ import { useBetStore } from '@/store/betStore'
 import { useToast } from '@/hooks/use-toast'
 import { formatCurrency, formatTimeRemaining, formatRelativeTime, cn } from '@/lib/utils'
 import type { Bet, BetEntry } from '@shared/schema'
+import { useLocation } from 'wouter'
 
 interface BetCardProps {
   bet: Bet
@@ -28,6 +29,7 @@ export const BetCard: React.FC<BetCardProps> = ({
   const { user } = useAuthStore()
   const { placeBet, likeBet, commentOnBet, shareBet, isPlacingBet } = useBetStore()
   const { success, error } = useToast()
+  const [, navigate] = useLocation()
   
   const [showBetModal, setShowBetModal] = useState(false)
   const [selectedOption, setSelectedOption] = useState<string>('')
@@ -282,173 +284,49 @@ export const BetCard: React.FC<BetCardProps> = ({
 
   // Default vertical variant
   return (
-    <Card className={cn("hover:shadow-md transition-shadow duration-200", className)}>
-      <CardHeader className="pb-4">
-        <div className="flex items-start justify-between">
-          <div className="flex-1">
-            <div className="flex items-center space-x-2 mb-2">
-              <span className="text-lg">{getCategoryEmoji(bet.category)}</span>
-              <span className={cn(
-                "px-2 py-1 rounded-full text-xs font-medium",
-                getStatusColor(bet.status)
-              )}>
-                {bet.status.charAt(0).toUpperCase() + bet.status.slice(1)}
-              </span>
-              {bet.clubId && (
-                <span className="px-2 py-1 rounded-full text-xs font-medium bg-purple-50 text-purple-600">
-                  Club
-                </span>
-              )}
-            </div>
-            <h3 className="font-semibold text-gray-900 leading-tight mb-2">
-              {bet.title}
-            </h3>
-            <p className="text-sm text-gray-600 line-clamp-2">
-              {bet.description}
-            </p>
-          </div>
-        </div>
-      </CardHeader>
+    <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+      {/* Hero image or gradient (optional) */}
+      {bet.imageUrl && (
+        <div className="h-32 bg-gradient-to-br from-blue-400 to-purple-500" />
+      )}
       
-      <CardContent className="pt-0">
-        <div className="space-y-4">
-          {/* Options */}
-          <div className="space-y-2">
-            {bet.options.map((option) => {
-              const percentage = bet.poolTotal > 0 ? (option.totalStaked / bet.poolTotal * 100) : 0
-              return (
-                <div key={option.id} className="flex items-center justify-between p-2 bg-gray-50 rounded-lg">
-                  <span className="text-sm font-medium">{option.label}</span>
-                  <div className="text-right">
-                    <div className="text-sm font-semibold">{percentage.toFixed(1)}%</div>
-                    <div className="text-xs text-gray-500">{formatCurrency(option.totalStaked)}</div>
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-
-          {/* Stats */}
-          <div className="grid grid-cols-3 gap-4 text-sm">
-            <div className="text-center">
-              <div className="flex items-center justify-center mb-1">
-                <TrendingUp className="w-4 h-4 text-gray-400" />
-              </div>
-              <p className="font-semibold">{formatCurrency(bet.poolTotal)}</p>
-              <p className="text-gray-500 text-xs">Pool</p>
-            </div>
-            <div className="text-center">
-              <div className="flex items-center justify-center mb-1">
-                <Users className="w-4 h-4 text-gray-400" />
-              </div>
-              <p className="font-semibold">
-                {bet.options.reduce((sum, opt) => sum + opt.totalStaked, 0) > 0 ? '12' : '0'}
-              </p>
-              <p className="text-gray-500 text-xs">Players</p>
-            </div>
-            <div className="text-center">
-              <div className="flex items-center justify-center mb-1">
-                <Clock className="w-4 h-4 text-gray-400" />
-              </div>
-              <p className="font-semibold text-xs">{isExpired ? 'Ended' : timeRemaining}</p>
-              <p className="text-gray-500 text-xs">Time</p>
-            </div>
-          </div>
-
-          {/* Actions */}
-          {showActions && (
-            <div className="flex items-center justify-between pt-2 border-t border-gray-100">
-              <div className="flex items-center space-x-4">
-                <button
-                  onClick={handleLike}
-                  className={cn(
-                    "flex items-center space-x-1 text-sm transition-colors",
-                    isLiked ? "text-red-500" : "text-gray-500 hover:text-red-500"
-                  )}
-                >
-                  <Heart className={cn("w-4 h-4", isLiked && "fill-current")} />
-                  <span>{bet.likes}</span>
-                </button>
-                
-                <button className="flex items-center space-x-1 text-sm text-gray-500 hover:text-blue-500 transition-colors">
-                  <MessageCircle className="w-4 h-4" />
-                  <span>{bet.comments}</span>
-                </button>
-                
-                <button
-                  onClick={handleShare}
-                  className="flex items-center space-x-1 text-sm text-gray-500 hover:text-green-500 transition-colors"
-                >
-                  <Share className="w-4 h-4" />
-                  <span>{bet.shares}</span>
-                </button>
-              </div>
-
-              {!isExpired && user && (
-                <Dialog open={showBetModal} onOpenChange={setShowBetModal}>
-                  <DialogTrigger asChild>
-                    <Button size="sm">
-                      Place Bet
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent>
-                    <DialogHeader>
-                      <DialogTitle>Place Bet: {bet.title}</DialogTitle>
-                    </DialogHeader>
-                    <div className="space-y-4">
-                      <div>
-                        <label className="text-sm font-medium">Select Option</label>
-                        <div className="space-y-2 mt-2">
-                          {bet.options.map((option) => (
-                            <button
-                              key={option.id}
-                              onClick={() => setSelectedOption(option.id)}
-                              className={cn(
-                                "w-full p-3 rounded-lg border text-left transition-colors",
-                                selectedOption === option.id
-                                  ? "border-primary bg-primary/5"
-                                  : "border-gray-200 hover:border-gray-300"
-                              )}
-                            >
-                              <div className="font-medium">{option.label}</div>
-                              <div className="text-sm text-gray-500">
-                                Pool: {formatCurrency(option.totalStaked)}
-                              </div>
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                      
-                      <div>
-                        <label className="text-sm font-medium">Bet Amount</label>
-                        <Input
-                          type="number"
-                          value={betAmount}
-                          onChange={(e) => setBetAmount(e.target.value)}
-                          placeholder={`${formatCurrency(bet.stakeMin)} - ${formatCurrency(bet.stakeMax)}`}
-                          className="mt-2"
-                        />
-                        <p className="text-xs text-gray-500 mt-1">
-                          Range: {formatCurrency(bet.stakeMin)} - {formatCurrency(bet.stakeMax)}
-                        </p>
-                      </div>
-                      
-                      <Button 
-                        onClick={handlePlaceBet} 
-                        disabled={isPlacingBet || !selectedOption || !betAmount}
-                        className="w-full"
-                      >
-                        {isPlacingBet ? 'Placing Bet...' : 'Place Bet'}
-                      </Button>
-                    </div>
-                  </DialogContent>
-                </Dialog>
-              )}
-            </div>
-          )}
-        </div>
-      </CardContent>
-    </Card>
+      {/* Content */}
+      <div className="p-4">
+        {/* Category badge */}
+        <span className="text-caption-1 text-gray-500 uppercase tracking-wide">
+          {bet.category}
+        </span>
+        
+        {/* Title */}
+        <h3 className="text-title-3 font-semibold mt-1 line-clamp-2">
+          {bet.title}
+        </h3>
+        
+                 {/* Metadata row */}
+         <div className="flex items-center mt-3 text-body-sm text-gray-500">
+           <Users className="w-4 h-4 mr-1" />
+           <span>{bet.options.reduce((sum, opt) => sum + opt.totalStaked, 0) > 0 ? '12' : '0'}</span>
+           
+           <span className="mx-3">•</span>
+           
+           <Clock className="w-4 h-4 mr-1" />
+           <span>{timeRemaining}</span>
+           
+           <span className="mx-3">•</span>
+           
+           <TrendingUp className="w-4 h-4 mr-1" />
+           <span>${(bet.poolTotal / 1000).toFixed(0)}K pool</span>
+         </div>
+        
+        {/* Action button */}
+        <button
+          className="mt-4 w-full h-11 bg-gray-100 rounded-[10px] font-medium text-body active:scale-95 transition-transform"
+          onClick={() => navigate(`/bet/${bet.id}`)}
+        >
+          View Details
+        </button>
+      </div>
+    </div>
   )
 }
 

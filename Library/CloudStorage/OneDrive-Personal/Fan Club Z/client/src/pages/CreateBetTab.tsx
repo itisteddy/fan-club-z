@@ -29,157 +29,192 @@ export const CreateBetTab: React.FC = () => {
   }
 
   return (
-    <div className="flex-1 bg-gray-50 min-h-screen">
-      <div className="p-4">
-        {/* Header */}
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">
-            Create Bet ✨
-          </h1>
-          <p className="text-gray-600">
-            Start a prediction and let others join the fun
-          </p>
+    <div className="min-h-screen bg-gray-50">
+      {/* Large Title Navigation */}
+      <header className="sticky top-0 z-40">
+        <div className="bg-white/80 backdrop-blur-md border-b border-gray-100">
+          <div className="px-4 pt-12 pb-2">
+            <h1 className="text-display font-bold">Create Bet</h1>
+          </div>
+        </div>
+      </header>
+
+      <div className="px-4 pb-24">
+        {/* Form */}
+        <div className="bg-white rounded-xl shadow-sm p-6 mb-8">
+          <div className="flex items-center mb-6">
+            <Plus className="w-5 h-5 mr-2 text-blue-500" />
+            <h2 className="text-title-2 font-semibold text-gray-900">New Bet Details</h2>
+          </div>
+          
+          <form onSubmit={handleSubmit} className="space-y-6">
+            {/* Bet Type */}
+            <div>
+              <label className="text-body-sm font-medium text-gray-600 mb-3 block">
+                Bet Type
+              </label>
+              <div className="grid grid-cols-3 gap-3">
+                <button
+                  type="button"
+                  onClick={() => setBetType('binary')}
+                  className={`p-3 rounded-[10px] text-body-sm font-medium transition-colors ${
+                    betType === 'binary'
+                      ? 'bg-blue-500 text-white'
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  }`}
+                >
+                  Yes/No
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setBetType('multi')}
+                  className={`p-3 rounded-[10px] text-body-sm font-medium transition-colors ${
+                    betType === 'multi'
+                      ? 'bg-blue-500 text-white'
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  }`}
+                >
+                  Multiple Choice
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setBetType('pool')}
+                  className={`p-3 rounded-[10px] text-body-sm font-medium transition-colors ${
+                    betType === 'pool'
+                      ? 'bg-blue-500 text-white'
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  }`}
+                >
+                  Pool
+                </button>
+              </div>
+            </div>
+
+            {/* Title */}
+            <div>
+              <label className="text-body-sm font-medium text-gray-600 mb-2 block">
+                Bet Title *
+              </label>
+              <Input
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="What are people betting on?"
+                required
+              />
+            </div>
+
+            {/* Description */}
+            <div>
+              <label className="text-body-sm font-medium text-gray-600 mb-2 block">
+                Description
+              </label>
+              <textarea
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="Provide more details about your bet..."
+                className="w-full p-4 bg-gray-100 rounded-[10px] text-body focus:bg-gray-200 transition-colors resize-none"
+                rows={3}
+              />
+            </div>
+
+            {/* Category */}
+            <div>
+              <label className="text-body-sm font-medium text-gray-600 mb-3 block">
+                Category
+              </label>
+              <div className="grid grid-cols-2 gap-3">
+                {categories.map((cat) => (
+                  <button
+                    key={cat.id}
+                    type="button"
+                    onClick={() => setCategory(cat.id)}
+                    className={`p-4 rounded-[10px] text-left transition-colors ${
+                      category === cat.id
+                        ? 'bg-blue-500 text-white'
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    }`}
+                  >
+                    <div className="flex items-center space-x-3">
+                      <span className="text-xl">{cat.emoji}</span>
+                      <span className="text-body font-medium">{cat.label}</span>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Deadline */}
+            <div>
+              <label className="text-body-sm font-medium text-gray-600 mb-2 block">
+                Entry Deadline *
+              </label>
+              <Input
+                type="datetime-local"
+                value={deadline}
+                onChange={(e) => setDeadline(e.target.value)}
+                required
+              />
+            </div>
+
+            {/* Stake Limits */}
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="text-body-sm font-medium text-gray-600 mb-2 block">
+                  Min Stake ($)
+                </label>
+                <Input
+                  type="number"
+                  value={minStake}
+                  onChange={(e) => setMinStake(e.target.value)}
+                  min="1"
+                />
+              </div>
+              <div>
+                <label className="text-body-sm font-medium text-gray-600 mb-2 block">
+                  Max Stake ($)
+                </label>
+                <Input
+                  type="number"
+                  value={maxStake}
+                  onChange={(e) => setMaxStake(e.target.value)}
+                  min="1"
+                />
+              </div>
+            </div>
+
+            {/* Submit Button */}
+            <Button type="submit" className="w-full" variant="apple">
+              Create Bet
+            </Button>
+          </form>
         </div>
 
-        {/* Form Card */}
-        <Card className="mb-6">
-          <CardHeader>
-            <CardTitle className="flex items-center">
-              <Plus className="w-5 h-5 mr-2" />
-              New Bet Details
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-6">
-              {/* Bet Type */}
-              <div>
-                <label className="text-sm font-medium text-gray-700 mb-3 block">
-                  Bet Type
-                </label>
-                <Tabs value={betType} onValueChange={(value) => setBetType(value as any)}>
-                  <TabsList className="grid w-full grid-cols-3">
-                    <TabsTrigger value="binary">Yes/No</TabsTrigger>
-                    <TabsTrigger value="multi">Multiple Choice</TabsTrigger>
-                    <TabsTrigger value="pool">Pool</TabsTrigger>
-                  </TabsList>
-                </Tabs>
-              </div>
-
-              {/* Title */}
-              <div>
-                <label className="text-sm font-medium text-gray-700 mb-2 block">
-                  Bet Title *
-                </label>
-                <Input
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  placeholder="What are people betting on?"
-                  required
-                />
-              </div>
-
-              {/* Description */}
-              <div>
-                <label className="text-sm font-medium text-gray-700 mb-2 block">
-                  Description
-                </label>
-                <textarea
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  placeholder="Provide more details about your bet..."
-                  className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
-                  rows={3}
-                />
-              </div>
-
-              {/* Category */}
-              <div>
-                <label className="text-sm font-medium text-gray-700 mb-3 block">
-                  Category
-                </label>
-                <div className="grid grid-cols-2 gap-3">
-                  {categories.map((cat) => (
-                    <button
-                      key={cat.id}
-                      type="button"
-                      onClick={() => setCategory(cat.id)}
-                      className={`p-3 rounded-lg border text-left transition-colors ${
-                        category === cat.id
-                          ? 'border-primary bg-primary/5 text-primary'
-                          : 'border-gray-200 hover:border-gray-300'
-                      }`}
-                    >
-                      <div className="flex items-center space-x-2">
-                        <span className="text-lg">{cat.emoji}</span>
-                        <span className="font-medium">{cat.label}</span>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Deadline */}
-              <div>
-                <label className="text-sm font-medium text-gray-700 mb-2 block">
-                  Entry Deadline *
-                </label>
-                <Input
-                  type="datetime-local"
-                  value={deadline}
-                  onChange={(e) => setDeadline(e.target.value)}
-                  required
-                />
-              </div>
-
-              {/* Stake Limits */}
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-sm font-medium text-gray-700 mb-2 block">
-                    Min Stake ($)
-                  </label>
-                  <Input
-                    type="number"
-                    value={minStake}
-                    onChange={(e) => setMinStake(e.target.value)}
-                    min="1"
-                  />
-                </div>
-                <div>
-                  <label className="text-sm font-medium text-gray-700 mb-2 block">
-                    Max Stake ($)
-                  </label>
-                  <Input
-                    type="number"
-                    value={maxStake}
-                    onChange={(e) => setMaxStake(e.target.value)}
-                    min="1"
-                  />
-                </div>
-              </div>
-
-              {/* Submit Button */}
-              <Button type="submit" className="w-full" size="lg">
-                Create Bet
-              </Button>
-            </form>
-          </CardContent>
-        </Card>
-
-        {/* Tips Card */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">💡 Tips for Great Bets</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ul className="space-y-2 text-sm text-gray-600">
-              <li>• Make your question clear and specific</li>
-              <li>• Set a reasonable deadline for entries</li>
-              <li>• Choose appropriate stake limits</li>
-              <li>• Provide enough context in the description</li>
-              <li>• Pick the right category for better discovery</li>
-            </ul>
-          </CardContent>
-        </Card>
+        {/* Tips */}
+        <div className="bg-white rounded-xl shadow-sm p-6">
+          <h3 className="text-title-3 font-semibold text-gray-900 mb-4">💡 Tips for Great Bets</h3>
+          <ul className="space-y-3 text-body-sm text-gray-600">
+            <li className="flex items-start">
+              <span className="text-blue-500 mr-2">•</span>
+              Make your question clear and specific
+            </li>
+            <li className="flex items-start">
+              <span className="text-blue-500 mr-2">•</span>
+              Set a reasonable deadline for entries
+            </li>
+            <li className="flex items-start">
+              <span className="text-blue-500 mr-2">•</span>
+              Choose appropriate stake limits
+            </li>
+            <li className="flex items-start">
+              <span className="text-blue-500 mr-2">•</span>
+              Provide enough context in the description
+            </li>
+            <li className="flex items-start">
+              <span className="text-blue-500 mr-2">•</span>
+              Pick the right category for better discovery
+            </li>
+          </ul>
+        </div>
       </div>
     </div>
   )

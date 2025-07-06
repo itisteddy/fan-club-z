@@ -126,43 +126,45 @@ export const DiscoverTab: React.FC = () => {
   })
 
   return (
-    <div className="flex-1 bg-gray-50 min-h-screen">
-      {/* Header Section */}
-      <div className="bg-white border-b border-gray-200 sticky top-16 z-20">
-        <div className="p-4">
-          {/* Welcome Message */}
-          <div className="mb-4">
-            <h1 className="text-2xl font-bold text-gray-900 mb-1">
+    <div className="min-h-screen bg-gray-50">
+      {/* Large Title Navigation */}
+      <header className="sticky top-0 z-40">
+        <div className="bg-white/80 backdrop-blur-md border-b border-gray-100">
+          <div className="px-4 pt-12 pb-2">
+            <h1 className="text-display font-bold">
               {user ? `Welcome back, ${user.firstName}! 👋` : 'Discover Bets 🚀'}
             </h1>
-            <p className="text-gray-600">
-              {user ? 'Ready to make some predictions?' : 'Join the fun and start betting on what matters to you'}
-            </p>
           </div>
-
+          
           {/* Search Bar */}
-          <div className="relative mb-4">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-            <Input
-              type="text"
-              placeholder="Search bets, topics, or creators..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10 pr-4 py-3 text-base border-gray-200 focus:border-primary focus:ring-primary"
-            />
+          <div className="px-4 pb-2">
+            <div className="relative">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+              <Input
+                type="search"
+                placeholder="Search bets, topics, or creators..."
+                className="w-full h-11 pl-11 pr-4 bg-gray-100 rounded-[10px] text-body placeholder-gray-500 focus:bg-gray-200 transition-colors"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+            </div>
           </div>
-
-          {/* Category Pills */}
-          <div className="flex space-x-2 overflow-x-auto pb-2 mb-4 scrollbar-hide">
+        </div>
+      </header>
+      
+      {/* Categories */}
+      <div className="px-4 py-3">
+        <div className="relative">
+          <div className="flex space-x-3 overflow-x-auto py-3 scrollbar-hide px-4">
             {categories.map((category) => (
               <button
                 key={category.id}
                 onClick={() => setSelectedCategory(category.id)}
                 className={cn(
-                  "flex items-center space-x-2 px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-all duration-200",
+                  "flex items-center space-x-2 px-4 py-2 rounded-full text-body-sm font-medium whitespace-nowrap transition-all duration-200",
                   selectedCategory === category.id
-                    ? "bg-primary text-white shadow-md"
-                    : "bg-white text-gray-600 border border-gray-200 hover:border-primary hover:text-primary"
+                    ? "bg-blue-500 text-white"
+                    : "bg-white text-gray-600 border border-gray-200 hover:border-gray-300"
                 )}
               >
                 <span className="text-base">{category.emoji}</span>
@@ -170,149 +172,38 @@ export const DiscoverTab: React.FC = () => {
               </button>
             ))}
           </div>
-
-          {/* Filter Options */}
-          <div className="flex space-x-2 overflow-x-auto scrollbar-hide">
-            {filterOptions.map((filter) => {
-              const Icon = filter.icon
-              return (
-                <button
-                  key={filter.id}
-                  onClick={() => setSelectedFilter(filter.id)}
-                  className={cn(
-                    "flex items-center space-x-2 px-3 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-all duration-200",
-                    selectedFilter === filter.id
-                      ? "bg-primary/10 text-primary border border-primary/20"
-                      : "bg-white text-gray-600 border border-gray-200 hover:border-gray-300"
-                  )}
-                >
-                  <Icon className="w-4 h-4" />
-                  <span>{filter.label}</span>
-                </button>
-              )
-            })}
-          </div>
+          {/* Left fade */}
+          <div className="pointer-events-none absolute left-0 top-0 h-full w-6 bg-gradient-to-r from-gray-50 via-gray-50/80 to-transparent" />
+          {/* Right fade */}
+          <div className="pointer-events-none absolute right-0 top-0 h-full w-6 bg-gradient-to-l from-gray-50 via-gray-50/80 to-transparent" />
         </div>
       </div>
-
-      {/* Content Section */}
-      <div className="p-4">
-        {/* Quick Stats */}
-        <div className="grid grid-cols-3 gap-4 mb-6">
-          <Card>
-            <CardContent className="p-4 text-center">
-              <div className="text-2xl font-bold text-primary mb-1">
-                {filteredBets.length}
-              </div>
-              <div className="text-sm text-gray-600">Active Bets</div>
-            </CardContent>
-          </Card>
-          
-          <Card>
-            <CardContent className="p-4 text-center">
-              <div className="text-2xl font-bold text-primary mb-1">
-                ${Math.round(filteredBets.reduce((sum, bet) => sum + bet.poolTotal, 0) / 1000)}K
-              </div>
-              <div className="text-sm text-gray-600">Total Volume</div>
-            </CardContent>
-          </Card>
-          
-          <Card>
-            <CardContent className="p-4 text-center">
-              <div className="text-2xl font-bold text-primary mb-1">
-                24h
-              </div>
-              <div className="text-sm text-gray-600">Hot Streak</div>
-            </CardContent>
-          </Card>
+      
+      {/* Featured Section */}
+      <section className="px-4 mb-8">
+        <h2 className="text-title-2 font-bold mb-4">Featured</h2>
+        <div className="bg-gradient-to-br from-blue-500 to-purple-500 rounded-2xl p-6 text-white">
+          <h3 className="text-title-1 font-bold mb-2">
+            Today's Top Bet
+          </h3>
+          <p className="text-body opacity-90 mb-4">
+            Bitcoin to hit $100K by year end?
+          </p>
+          <Button variant="apple-secondary" className="bg-white/20 backdrop-blur-md">
+            View Details
+          </Button>
         </div>
-
-        {/* Trending Horizontal Scroll */}
-        {selectedFilter === 'trending' && (
-          <div className="mb-6">
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="text-lg font-bold text-gray-900 flex items-center">
-                <Flame className="w-5 h-5 text-orange-500 mr-2" />
-                Trending Now
-              </h2>
-              <Button variant="ghost" size="sm">
-                View All
-              </Button>
-            </div>
-            
-            <div className="flex space-x-4 overflow-x-auto pb-2 scrollbar-hide">
-              {filteredBets.slice(0, 5).map((bet) => (
-                <BetCard
-                  key={bet.id}
-                  bet={bet}
-                  variant="horizontal"
-                  className="min-w-0"
-                />
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Main Bet Feed */}
+      </section>
+      
+      {/* Bet List */}
+      <section className="px-4 pb-24">
+        <h2 className="text-title-2 font-bold mb-4">Trending Now</h2>
         <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-bold text-gray-900">
-              {selectedCategory === 'all' ? 'All Bets' : 
-               categories.find(c => c.id === selectedCategory)?.label + ' Bets'}
-            </h2>
-            <div className="flex items-center space-x-2">
-              <Button variant="ghost" size="sm">
-                <Filter className="w-4 h-4 mr-1" />
-                Filters
-              </Button>
-            </div>
-          </div>
-
-          {filteredBets.length > 0 ? (
-            <div className="space-y-4">
-              {filteredBets.map((bet) => (
-                <BetCard
-                  key={bet.id}
-                  bet={bet}
-                  variant="vertical"
-                />
-              ))}
-            </div>
-          ) : (
-            <div className="text-center py-12">
-              <div className="text-6xl mb-4">🔍</div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                No bets found
-              </h3>
-              <p className="text-gray-600 mb-4">
-                Try adjusting your search or browse different categories
-              </p>
-              <Button onClick={() => {
-                setSearchQuery('')
-                setSelectedCategory('all')
-              }}>
-                Clear Filters
-              </Button>
-            </div>
-          )}
+          {filteredBets.map(bet => (
+            <BetCard key={bet.id} bet={bet} />
+          ))}
         </div>
-
-        {/* Create Bet CTA */}
-        {user && (
-          <div className="mt-8 p-6 bg-gradient-to-r from-primary to-primary-600 rounded-xl text-white text-center">
-            <h3 className="text-lg font-bold mb-2">Got a prediction?</h3>
-            <p className="text-primary-100 mb-4">
-              Create your own bet and let others join the fun!
-            </p>
-            <Button variant="secondary" className="bg-white text-primary hover:bg-gray-100">
-              Create Bet
-            </Button>
-          </div>
-        )}
-      </div>
-
-      {/* Bottom padding for mobile navigation */}
-      <div className="h-24"></div>
+      </section>
     </div>
   )
 }

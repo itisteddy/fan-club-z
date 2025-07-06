@@ -37,33 +37,30 @@ export const ProfilePage: React.FC = () => {
   ]
 
   return (
-    <div className="flex-1 bg-gray-50 min-h-screen">
-      {/* Cover Photo */}
-      <div className="h-32 bg-gradient-to-r from-primary to-primary-600 relative">
-        <div className="absolute inset-0 bg-black/20"></div>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="absolute top-4 right-4 text-white hover:bg-white/20"
-        >
-          <Settings className="w-5 h-5" />
-        </Button>
-      </div>
+    <div className="min-h-screen bg-gray-50">
+      {/* Large Title Navigation */}
+      <header className="sticky top-0 z-40">
+        <div className="bg-white/80 backdrop-blur-md border-b border-gray-100">
+          <div className="px-4 pt-12 pb-2">
+            <h1 className="text-display font-bold">Profile</h1>
+          </div>
+        </div>
+      </header>
 
-      <div className="px-4 pb-20">
+      <div className="px-4 pb-24">
         {/* Profile Header */}
-        <div className="relative -mt-16 mb-6">
-          <div className="flex items-end space-x-4">
+        <div className="bg-white rounded-xl shadow-sm p-6 mb-6">
+          <div className="flex items-center space-x-4">
             {/* Profile Picture */}
             <div className="relative">
               {user.profileImage ? (
                 <img
                   src={user.profileImage}
                   alt={user.firstName}
-                  className="w-24 h-24 rounded-full border-4 border-white object-cover shadow-lg"
+                  className="w-20 h-20 rounded-full object-cover"
                 />
               ) : (
-                <div className="w-24 h-24 rounded-full border-4 border-white bg-primary flex items-center justify-center shadow-lg">
+                <div className="w-20 h-20 rounded-full bg-blue-500 flex items-center justify-center">
                   <span className="text-white text-2xl font-bold">
                     {user.firstName?.[0]?.toUpperCase() || 'U'}
                   </span>
@@ -71,250 +68,147 @@ export const ProfilePage: React.FC = () => {
               )}
               <Button
                 size="icon"
-                variant="secondary"
-                className="absolute bottom-0 right-0 w-8 h-8 rounded-full shadow-md"
+                variant="apple-secondary"
+                className="absolute bottom-0 right-0 w-8 h-8 rounded-full shadow-sm"
               >
                 <Edit3 className="w-4 h-4" />
               </Button>
             </div>
 
             {/* Profile Info */}
-            <div className="flex-1 pb-2">
-              <h1 className="text-2xl font-bold text-gray-900">
+            <div className="flex-1">
+              <h2 className="text-title-2 font-bold text-gray-900">
                 {user.firstName} {user.lastName}
-              </h1>
-              <p className="text-gray-600">@{user.username}</p>
+              </h2>
+              <p className="text-body text-gray-500">@{user.username}</p>
               {user.bio && (
-                <p className="text-sm text-gray-600 mt-1">{user.bio}</p>
+                <p className="text-body-sm text-gray-600 mt-1">{user.bio}</p>
               )}
             </div>
           </div>
         </div>
 
         {/* Stats Grid */}
-        <div className="grid grid-cols-2 gap-4 mb-6">
+        <div className="grid grid-cols-2 gap-4 mb-8">
           {stats.map((stat, index) => {
             const Icon = stat.icon
             return (
-              <Card key={index}>
-                <CardContent className="p-4 text-center">
-                  <Icon className={`w-6 h-6 ${stat.color} mx-auto mb-2`} />
-                  <div className="text-xl font-bold text-gray-900">{stat.value}</div>
-                  <div className="text-sm text-gray-600">{stat.label}</div>
-                </CardContent>
-              </Card>
+              <div key={index} className="bg-white rounded-xl shadow-sm p-4 text-center">
+                <Icon className={`w-6 h-6 ${stat.color} mx-auto mb-2`} />
+                <div className="text-title-3 font-bold text-gray-900">{stat.value}</div>
+                <div className="text-body-sm text-gray-500">{stat.label}</div>
+              </div>
             )
           })}
         </div>
 
-        {/* Tabs */}
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-3 mb-6">
-            <TabsTrigger value="profile">Profile</TabsTrigger>
-            <TabsTrigger value="activity">Activity</TabsTrigger>
-            <TabsTrigger value="settings">Settings</TabsTrigger>
-          </TabsList>
+        {/* Wallet Card */}
+        <div className="bg-gradient-to-br from-blue-500 to-purple-500 rounded-2xl p-6 text-white mb-8">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-body opacity-90">Available Balance</span>
+            <WalletIcon className="w-5 h-5 opacity-80" />
+          </div>
+          <div className="text-title-1 font-bold mb-1">
+            {formatCurrency(balance, currency)}
+          </div>
+          <div className="text-body-sm opacity-80">
+            Tap to manage wallet
+          </div>
+        </div>
 
-          <TabsContent value="profile">
-            <div className="space-y-4">
-              {/* Wallet Card */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg flex items-center justify-between">
-                    <span>Wallet</span>
-                    <Link href="/wallet">
-                      <ArrowRight className="w-5 h-5 text-gray-400" />
-                    </Link>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <Link href="/wallet">
-                    <div className="bg-gradient-to-r from-primary to-primary-600 rounded-xl p-6 text-white">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-sm opacity-90">Available Balance</span>
-                        <WalletIcon className="w-5 h-5 opacity-80" />
-                      </div>
-                      <div className="text-3xl font-bold mb-1">
-                        {formatCurrency(balance, currency)}
-                      </div>
-                      <div className="text-sm opacity-80">
-                        Tap to manage wallet
-                      </div>
+        {/* Settings List */}
+        <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+          <div className="divide-y divide-gray-100">
+            {/* Account Settings */}
+            <div className="p-4">
+              <h3 className="text-title-3 font-semibold text-gray-900 mb-4">Account</h3>
+              <div className="space-y-3">
+                <button className="flex items-center justify-between w-full p-3 rounded-[10px] hover:bg-gray-50 transition-colors">
+                  <div className="flex items-center space-x-3">
+                    <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
+                      <Edit3 className="w-4 h-4 text-blue-600" />
                     </div>
-                  </Link>
-                </CardContent>
-              </Card>
-
-              {/* Account Info */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg">Account Information</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="text-sm font-medium text-gray-700">First Name</label>
-                      <p className="text-gray-900">{user.firstName}</p>
-                    </div>
-                    <div>
-                      <label className="text-sm font-medium text-gray-700">Last Name</label>
-                      <p className="text-gray-900">{user.lastName}</p>
-                    </div>
+                    <span className="text-body text-gray-900">Edit Profile</span>
                   </div>
-                  <div>
-                    <label className="text-sm font-medium text-gray-700">Email</label>
-                    <p className="text-gray-900">{user.email}</p>
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-gray-700">Phone</label>
-                    <p className="text-gray-900">{user.phone}</p>
-                  </div>
-                  <Button variant="outline" className="w-full">
-                    <Edit3 className="w-4 h-4 mr-2" />
-                    Edit Profile
-                  </Button>
-                </CardContent>
-              </Card>
-
-              {/* Verification Status */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg">Verification Status</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm">Email Verification</span>
-                      <span className="text-green-600 font-medium text-sm">Verified</span>
+                  <ArrowRight className="w-4 h-4 text-gray-400" />
+                </button>
+                
+                <button className="flex items-center justify-between w-full p-3 rounded-[10px] hover:bg-gray-50 transition-colors">
+                  <div className="flex items-center space-x-3">
+                    <div className="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center">
+                      <Shield className="w-4 h-4 text-green-600" />
                     </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm">Phone Verification</span>
-                      <span className="text-green-600 font-medium text-sm">Verified</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm">KYC Level</span>
-                      <span className="text-blue-600 font-medium text-sm capitalize">
-                        {user.kycLevel}
-                      </span>
-                    </div>
+                    <span className="text-body text-gray-900">Security</span>
                   </div>
-                </CardContent>
-              </Card>
+                  <ArrowRight className="w-4 h-4 text-gray-400" />
+                </button>
+                
+                <button className="flex items-center justify-between w-full p-3 rounded-[10px] hover:bg-gray-50 transition-colors">
+                  <div className="flex items-center space-x-3">
+                    <div className="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center">
+                      <Bell className="w-4 h-4 text-purple-600" />
+                    </div>
+                    <span className="text-body text-gray-900">Notifications</span>
+                  </div>
+                  <ArrowRight className="w-4 h-4 text-gray-400" />
+                </button>
+              </div>
             </div>
-          </TabsContent>
 
-          <TabsContent value="activity">
-            <div className="space-y-4">
-              {/* Recent Bets */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg">Recent Activity</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-center py-8 text-gray-500">
-                    <TrendingUp className="w-12 h-12 mx-auto mb-4 text-gray-300" />
-                    <p>No recent activity</p>
-                    <p className="text-sm">Your betting activity will appear here</p>
+            {/* Financial */}
+            <div className="p-4">
+              <h3 className="text-title-3 font-semibold text-gray-900 mb-4">Financial</h3>
+              <div className="space-y-3">
+                <button className="flex items-center justify-between w-full p-3 rounded-[10px] hover:bg-gray-50 transition-colors">
+                  <div className="flex items-center space-x-3">
+                    <div className="w-8 h-8 bg-orange-100 rounded-lg flex items-center justify-center">
+                      <CreditCard className="w-4 h-4 text-orange-600" />
+                    </div>
+                    <span className="text-body text-gray-900">Payment Methods</span>
                   </div>
-                </CardContent>
-              </Card>
-
-              {/* Achievements */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg">Achievements</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-center py-8 text-gray-500">
-                    <Trophy className="w-12 h-12 mx-auto mb-4 text-gray-300" />
-                    <p>No achievements yet</p>
-                    <p className="text-sm">Start betting to unlock achievements</p>
+                  <ArrowRight className="w-4 h-4 text-gray-400" />
+                </button>
+                
+                <button className="flex items-center justify-between w-full p-3 rounded-[10px] hover:bg-gray-50 transition-colors">
+                  <div className="flex items-center space-x-3">
+                    <div className="w-8 h-8 bg-indigo-100 rounded-lg flex items-center justify-center">
+                      <TrendingUp className="w-4 h-4 text-indigo-600" />
+                    </div>
+                    <span className="text-body text-gray-900">Transaction History</span>
                   </div>
-                </CardContent>
-              </Card>
+                  <ArrowRight className="w-4 h-4 text-gray-400" />
+                </button>
+              </div>
             </div>
-          </TabsContent>
 
-          <TabsContent value="settings">
-            <div className="space-y-4">
-              {/* Account Settings */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg">Account Settings</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <button className="flex items-center justify-between w-full p-3 text-left hover:bg-gray-50 rounded-lg transition-colors">
-                    <div className="flex items-center space-x-3">
-                      <Shield className="w-5 h-5 text-gray-400" />
-                      <div>
-                        <p className="font-medium">Security</p>
-                        <p className="text-sm text-gray-500">Password & 2FA</p>
-                      </div>
+            {/* Support */}
+            <div className="p-4">
+              <h3 className="text-title-3 font-semibold text-gray-900 mb-4">Support</h3>
+              <div className="space-y-3">
+                <button className="flex items-center justify-between w-full p-3 rounded-[10px] hover:bg-gray-50 transition-colors">
+                  <div className="flex items-center space-x-3">
+                    <div className="w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center">
+                      <HelpCircle className="w-4 h-4 text-gray-600" />
                     </div>
-                    <span className="text-gray-400">›</span>
-                  </button>
-
-                  <button className="flex items-center justify-between w-full p-3 text-left hover:bg-gray-50 rounded-lg transition-colors">
-                    <div className="flex items-center space-x-3">
-                      <Bell className="w-5 h-5 text-gray-400" />
-                      <div>
-                        <p className="font-medium">Notifications</p>
-                        <p className="text-sm text-gray-500">Manage preferences</p>
-                      </div>
-                    </div>
-                    <span className="text-gray-400">›</span>
-                  </button>
-
-                  <Link href="/wallet">
-                    <button className="flex items-center justify-between w-full p-3 text-left hover:bg-gray-50 rounded-lg transition-colors">
-                      <div className="flex items-center space-x-3">
-                        <WalletIcon className="w-5 h-5 text-gray-400" />
-                        <div>
-                          <p className="font-medium">Wallet & Payments</p>
-                          <p className="text-sm text-gray-500">Balance & transactions</p>
-                        </div>
-                      </div>
-                      <span className="text-gray-400">›</span>
-                    </button>
-                  </Link>
-                </CardContent>
-              </Card>
-
-              {/* Support */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg">Support</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <button className="flex items-center justify-between w-full p-3 text-left hover:bg-gray-50 rounded-lg transition-colors">
-                    <div className="flex items-center space-x-3">
-                      <HelpCircle className="w-5 h-5 text-gray-400" />
-                      <div>
-                        <p className="font-medium">Help Center</p>
-                        <p className="text-sm text-gray-500">FAQ & guides</p>
-                      </div>
-                    </div>
-                    <span className="text-gray-400">›</span>
-                  </button>
-                </CardContent>
-              </Card>
-
-              {/* Logout */}
-              <Card>
-                <CardContent className="p-4">
-                  <Button
-                    onClick={logout}
-                    variant="destructive"
-                    className="w-full"
-                  >
-                    <LogOut className="w-4 h-4 mr-2" />
-                    Sign Out
-                  </Button>
-                </CardContent>
-              </Card>
+                    <span className="text-body text-gray-900">Help & Support</span>
+                  </div>
+                  <ArrowRight className="w-4 h-4 text-gray-400" />
+                </button>
+              </div>
             </div>
-          </TabsContent>
-        </Tabs>
+
+            {/* Logout */}
+            <div className="p-4">
+              <button 
+                onClick={logout}
+                className="flex items-center justify-center w-full p-3 rounded-[10px] bg-red-50 text-red-600 hover:bg-red-100 transition-colors"
+              >
+                <LogOut className="w-4 h-4 mr-2" />
+                <span className="text-body font-medium">Sign Out</span>
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   )

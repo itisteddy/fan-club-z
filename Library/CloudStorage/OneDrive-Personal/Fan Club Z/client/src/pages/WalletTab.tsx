@@ -78,253 +78,163 @@ export const WalletTab: React.FC = () => {
   }
 
   return (
-    <div className="flex-1 bg-gray-50 min-h-screen">
-      <div className="p-4">
-        {/* Header */}
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">
-            Wallet 💰
-          </h1>
-          <p className="text-gray-600">
-            Manage your funds and track transactions
-          </p>
+    <div className="min-h-screen bg-gray-50">
+      {/* Large Title Navigation */}
+      <header className="sticky top-0 z-40">
+        <div className="bg-white/80 backdrop-blur-md border-b border-gray-100">
+          <div className="px-4 pt-12 pb-2">
+            <h1 className="text-display font-bold">Wallet</h1>
+          </div>
         </div>
+      </header>
 
+      <div className="px-4 pb-24">
         {/* Balance Card */}
-        <Card className="mb-6 bg-gradient-to-r from-primary to-primary-600 text-white">
-          <CardContent className="p-6">
-            <div className="text-center">
-              <p className="text-primary-100 text-sm mb-2">Available Balance</p>
-              <h2 className="text-4xl font-bold mb-4">
-                {formatCurrency(balance, currency)}
-              </h2>
-              
-              {/* Quick Actions */}
-              <div className="grid grid-cols-3 gap-3">
-                <Button
-                  onClick={openDepositModal}
-                  variant="secondary"
-                  size="sm"
-                  className="bg-white/20 text-white border-white/30 hover:bg-white/30"
-                >
-                  <Plus className="w-4 h-4 mr-1" />
-                  Deposit
-                </Button>
-                
-                <Button
-                  onClick={openWithdrawModal}
-                  variant="secondary"
-                  size="sm"
-                  className="bg-white/20 text-white border-white/30 hover:bg-white/30"
-                >
-                  <Minus className="w-4 h-4 mr-1" />
-                  Withdraw
-                </Button>
-                
-                <Button
-                  onClick={openTransferModal}
-                  variant="secondary"
-                  size="sm"
-                  className="bg-white/20 text-white border-white/30 hover:bg-white/30"
-                >
-                  <Send className="w-4 h-4 mr-1" />
-                  Send
-                </Button>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        <div className="bg-gradient-to-br from-blue-500 to-purple-500 rounded-2xl p-6 text-white mb-8">
+          <div className="text-center mb-6">
+            <p className="text-body opacity-90 mb-2">Available Balance</p>
+            <h2 className="text-title-1 font-bold mb-4">
+              {formatCurrency(balance, currency)}
+            </h2>
+          </div>
+          
+          {/* Quick Actions */}
+          <div className="grid grid-cols-3 gap-3">
+            <Button
+              onClick={openDepositModal}
+              variant="apple-secondary"
+              size="apple-sm"
+              className="bg-white/20 text-white hover:bg-white/30"
+            >
+              <Plus className="w-4 h-4 mr-1" />
+              Deposit
+            </Button>
+            
+            <Button
+              onClick={openWithdrawModal}
+              variant="apple-secondary"
+              size="apple-sm"
+              className="bg-white/20 text-white hover:bg-white/30"
+            >
+              <Minus className="w-4 h-4 mr-1" />
+              Withdraw
+            </Button>
+            
+            <Button
+              onClick={openTransferModal}
+              variant="apple-secondary"
+              size="apple-sm"
+              className="bg-white/20 text-white hover:bg-white/30"
+            >
+              <Send className="w-4 h-4 mr-1" />
+              Send
+            </Button>
+          </div>
+        </div>
 
         {/* Quick Stats */}
-        <div className="grid grid-cols-3 gap-4 mb-6">
-          <Card>
-            <CardContent className="p-4 text-center">
-              <ArrowDownLeft className="w-6 h-6 text-green-500 mx-auto mb-2" />
-              <div className="text-lg font-bold text-gray-900">$1,250</div>
-              <div className="text-xs text-gray-600">Total Deposited</div>
-            </CardContent>
-          </Card>
+        <div className="grid grid-cols-3 gap-4 mb-8">
+          <div className="bg-white rounded-xl shadow-sm p-4 text-center">
+            <ArrowDownLeft className="w-6 h-6 text-green-500 mx-auto mb-2" />
+            <div className="text-title-3 font-bold text-gray-900">$1,250</div>
+            <div className="text-caption-1 text-gray-500">Total Deposited</div>
+          </div>
           
-          <Card>
-            <CardContent className="p-4 text-center">
-              <Plus className="w-6 h-6 text-green-500 mx-auto mb-2" />
-              <div className="text-lg font-bold text-gray-900">$820</div>
-              <div className="text-xs text-gray-600">Total Won</div>
-            </CardContent>
-          </Card>
+          <div className="bg-white rounded-xl shadow-sm p-4 text-center">
+            <Plus className="w-6 h-6 text-green-500 mx-auto mb-2" />
+            <div className="text-title-3 font-bold text-gray-900">$820</div>
+            <div className="text-caption-1 text-gray-500">Total Won</div>
+          </div>
           
-          <Card>
-            <CardContent className="p-4 text-center">
-              <Minus className="w-6 h-6 text-orange-500 mx-auto mb-2" />
-              <div className="text-lg font-bold text-gray-900">$730</div>
-              <div className="text-xs text-gray-600">Total Bet</div>
-            </CardContent>
-          </Card>
+          <div className="bg-white rounded-xl shadow-sm p-4 text-center">
+            <Minus className="w-6 h-6 text-orange-500 mx-auto mb-2" />
+            <div className="text-title-3 font-bold text-gray-900">$730</div>
+            <div className="text-caption-1 text-gray-500">Total Bet</div>
+          </div>
         </div>
 
-        {/* Tabs */}
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-3 mb-6">
-            <TabsTrigger value="overview">Overview</TabsTrigger>
-            <TabsTrigger value="transactions">Transactions</TabsTrigger>
-            <TabsTrigger value="methods">Methods</TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="overview">
-            <div className="space-y-4">
-              {/* Recent Activity */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg">Recent Activity</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    {mockTransactions.slice(0, 3).map((transaction) => (
-                      <div key={transaction.id} className="flex items-center justify-between py-2">
-                        <div className="flex items-center space-x-3">
-                          {getTransactionIcon(transaction.type)}
-                          <div>
-                            <p className="font-medium text-sm">{transaction.description}</p>
-                            <p className="text-xs text-gray-500">
-                              {formatRelativeTime(transaction.createdAt)}
-                            </p>
-                          </div>
-                        </div>
-                        <div className={cn(
-                          "font-semibold text-sm",
-                          getTransactionColor(transaction.type)
-                        )}>
-                          {getTransactionSign(transaction.type)}{formatCurrency(transaction.amount)}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                  <Button variant="ghost" className="w-full mt-4" size="sm">
-                    View All Transactions
-                  </Button>
-                </CardContent>
-              </Card>
-
-              {/* Betting Stats */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg">Betting Performance</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="text-center p-3 bg-green-50 rounded-lg">
-                      <div className="text-2xl font-bold text-green-600">68%</div>
-                      <div className="text-sm text-gray-600">Win Rate</div>
+        {/* Recent Transactions */}
+        <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+          <div className="p-4 border-b border-gray-100">
+            <h3 className="text-title-3 font-semibold text-gray-900">Recent Transactions</h3>
+          </div>
+          
+          <div className="divide-y divide-gray-100">
+            {mockTransactions.map((transaction) => (
+              <div key={transaction.id} className="p-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-3">
+                    <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
+                      {getTransactionIcon(transaction.type)}
                     </div>
-                    <div className="text-center p-3 bg-blue-50 rounded-lg">
-                      <div className="text-2xl font-bold text-blue-600">24</div>
-                      <div className="text-sm text-gray-600">Total Bets</div>
+                    <div>
+                      <p className="text-body font-medium text-gray-900">{transaction.description}</p>
+                      <p className="text-caption-1 text-gray-500">
+                        {formatRelativeTime(transaction.createdAt)}
+                      </p>
                     </div>
                   </div>
-                </CardContent>
-              </Card>
-            </div>
-          </TabsContent>
-
-          <TabsContent value="transactions">
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Transaction History</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  {mockTransactions.map((transaction) => (
-                    <div key={transaction.id} className="flex items-center justify-between p-3 border border-gray-100 rounded-lg">
-                      <div className="flex items-center space-x-3">
-                        {getTransactionIcon(transaction.type)}
-                        <div>
-                          <p className="font-medium text-sm">{transaction.description}</p>
-                          <p className="text-xs text-gray-500">
-                            {formatRelativeTime(transaction.createdAt)}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <div className={cn(
-                          "font-semibold text-sm",
-                          getTransactionColor(transaction.type)
-                        )}>
-                          {getTransactionSign(transaction.type)}{formatCurrency(transaction.amount)}
-                        </div>
-                        <div className="text-xs text-gray-500 capitalize">
-                          {transaction.status}
-                        </div>
-                      </div>
-                    </div>
-                  ))}
+                  <div className={cn(
+                    "text-body font-semibold",
+                    getTransactionColor(transaction.type)
+                  )}>
+                    {getTransactionSign(transaction.type)}{formatCurrency(transaction.amount)}
+                  </div>
                 </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
+              </div>
+            ))}
+          </div>
+          
+          <div className="p-4 border-t border-gray-100">
+            <Button variant="apple-secondary" className="w-full">
+              View All Transactions
+            </Button>
+          </div>
+        </div>
 
-          <TabsContent value="methods">
-            <div className="space-y-4">
-              {/* Payment Methods */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg">Payment Methods</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between p-3 border border-gray-200 rounded-lg">
-                      <div className="flex items-center space-x-3">
-                        <CreditCard className="w-6 h-6 text-gray-400" />
-                        <div>
-                          <p className="font-medium">Credit/Debit Card</p>
-                          <p className="text-sm text-gray-500">Instant deposits</p>
-                        </div>
-                      </div>
-                      <Button variant="outline" size="sm">
-                        Add Card
-                      </Button>
-                    </div>
-                    
-                    <div className="flex items-center justify-between p-3 border border-gray-200 rounded-lg">
-                      <div className="flex items-center space-x-3">
-                        <Smartphone className="w-6 h-6 text-gray-400" />
-                        <div>
-                          <p className="font-medium">Mobile Money</p>
-                          <p className="text-sm text-gray-500">Local payment methods</p>
-                        </div>
-                      </div>
-                      <Button variant="outline" size="sm">
-                        Connect
-                      </Button>
-                    </div>
+        {/* Payment Methods */}
+        <div className="bg-white rounded-xl shadow-sm overflow-hidden mt-6">
+          <div className="p-4 border-b border-gray-100">
+            <h3 className="text-title-3 font-semibold text-gray-900">Payment Methods</h3>
+          </div>
+          
+          <div className="divide-y divide-gray-100">
+            <div className="p-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-3">
+                  <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                    <CreditCard className="w-5 h-5 text-blue-600" />
                   </div>
-                </CardContent>
-              </Card>
-
-              {/* Security */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg">Security</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3 text-sm">
-                    <div className="flex items-center justify-between">
-                      <span>Two-Factor Authentication</span>
-                      <span className="text-green-600 font-medium">Enabled</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span>Withdrawal Limits</span>
-                      <span className="text-gray-600">$10,000/day</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span>KYC Verification</span>
-                      <span className="text-green-600 font-medium">Verified</span>
-                    </div>
+                  <div>
+                    <p className="text-body font-medium text-gray-900">Visa ending in 4242</p>
+                    <p className="text-caption-1 text-gray-500">Expires 12/25</p>
                   </div>
-                </CardContent>
-              </Card>
+                </div>
+                <div className="text-caption-1 text-green-600 font-medium">Default</div>
+              </div>
             </div>
-          </TabsContent>
-        </Tabs>
+            
+            <div className="p-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-3">
+                  <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
+                    <Smartphone className="w-5 h-5 text-green-600" />
+                  </div>
+                  <div>
+                    <p className="text-body font-medium text-gray-900">Apple Pay</p>
+                    <p className="text-caption-1 text-gray-500">Connected</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <div className="p-4 border-t border-gray-100">
+            <Button variant="apple-secondary" className="w-full">
+              Add Payment Method
+            </Button>
+          </div>
+        </div>
       </div>
     </div>
   )

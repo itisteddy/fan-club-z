@@ -4,25 +4,26 @@ import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from "@/lib/utils"
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center whitespace-nowrap rounded-lg text-sm font-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 active:scale-95 select-none",
+  "inline-flex items-center justify-center whitespace-nowrap rounded-[10px] text-body font-semibold transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 active:scale-95 select-none",
   {
     variants: {
       variant: {
-        default: "bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm active:shadow-none",
-        destructive:
-          "bg-destructive text-destructive-foreground hover:bg-destructive/90 shadow-sm active:shadow-none",
-        outline:
-          "border border-input bg-background hover:bg-accent hover:text-accent-foreground active:bg-accent/80",
-        secondary:
-          "bg-secondary text-secondary-foreground hover:bg-secondary/80 shadow-sm active:shadow-none",
-        ghost: "hover:bg-accent hover:text-accent-foreground active:bg-accent/80",
-        link: "text-primary underline-offset-4 hover:underline active:text-primary/80",
+        default: "bg-blue-500 text-white hover:bg-blue-600 shadow-sm active:shadow-none",
+        destructive: "bg-red-500 text-white hover:bg-red-600 shadow-sm active:shadow-none",
+        outline: "border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 active:bg-gray-100",
+        secondary: "bg-gray-100 text-gray-900 hover:bg-gray-200 shadow-sm active:shadow-none",
+        ghost: "hover:bg-gray-100 active:bg-gray-200",
+        link: "text-blue-500 underline-offset-4 hover:underline active:text-blue-600",
+        apple: "bg-blue-500 text-white hover:bg-blue-600 shadow-sm active:shadow-none",
+        "apple-secondary": "bg-gray-100 text-gray-900 hover:bg-gray-200 shadow-sm active:shadow-none",
       },
       size: {
-        default: "min-h-[44px] px-5 py-2.5",
-        sm: "min-h-[40px] rounded-lg px-4 py-2",
-        lg: "min-h-[52px] rounded-lg px-8 py-3",
+        default: "h-[50px] px-6 py-3",
+        sm: "h-11 px-4 py-2.5 text-body-sm",
+        lg: "h-14 px-8 py-4 text-body-lg",
         icon: "h-11 w-11",
+        "apple-sm": "h-11 px-4 py-2.5 text-body-sm",
+        apple: "h-[50px] px-6 py-3",
       },
     },
     defaultVariants: {
