@@ -7,6 +7,7 @@ import { useAuthStore } from '@/store/authStore'
 import { useToast } from '@/hooks/use-toast'
 import { validateEmail } from '@/lib/utils'
 import { cn } from '@/lib/utils'
+import { socialAuthService } from '@/services/socialAuthService'
 
 interface AuthModalProps {
   show: boolean
@@ -40,6 +41,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   })
   const [showPassword, setShowPassword] = useState(false)
   const [errors, setErrors] = useState<Record<string, string>>({})
+  const [socialLoading, setSocialLoading] = useState<'apple' | 'google' | null>(null)
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {}
@@ -113,9 +115,27 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     }
   }
 
-  const handleSocialLogin = (provider: string) => {
-    // TODO: Implement social login
-    showError(`${provider} login not implemented yet`)
+  const handleSocialLogin = async (provider: 'apple' | 'google') => {
+    try {
+      setSocialLoading(provider)
+      clearError()
+
+      const response = provider === 'apple' 
+        ? await socialAuthService.signInWithApple()
+        : await socialAuthService.signInWithGoogle()
+
+      if (response.success && response.user) {
+        success(`Welcome to Fan Club Z, ${response.user.firstName || response.user.email}!`)
+        onClose()
+        onSuccess?.()
+      } else {
+        showError(response.error || `${provider} login failed`)
+      }
+    } catch (error: any) {
+      showError(error.message || `${provider} login failed`)
+    } finally {
+      setSocialLoading(null)
+    }
   }
 
   if (!show) return null
@@ -186,20 +206,21 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           <div className="space-y-3">
             <Button
               type="button"
-              className="w-full h-[50px] bg-black dark:bg-white text-white dark:text-black rounded-apple-md font-semibold text-body transition-apple touch-manipulation active:scale-95"
-              onClick={() => handleSocialLogin('Apple')}
-              disabled={isLoading}
+              className="w-full h-[50px] bg-black text-white rounded-apple-md font-semibold text-body flex items-center justify-center active:scale-95 transition-transform focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-black"
+              onClick={() => handleSocialLogin('apple')}
+              disabled={isLoading || socialLoading === 'apple'}
+              aria-label="Continue with Apple"
             >
-              <AppleIcon className="w-5 h-5 mr-3" />
-              Continue with Apple
+              <AppleIcon className="w-5 h-5 mr-3 text-white" />
+              <span className="text-white">Continue with Apple</span>
             </Button>
 
             <Button
               type="button"
               variant="outline"
               className="w-full h-[50px] bg-white dark:bg-dark-tertiary border border-gray-200 dark:border-gray-700 text-black dark:text-white rounded-apple-md font-semibold text-body transition-apple touch-manipulation active:scale-95"
-              onClick={() => handleSocialLogin('Google')}
-              disabled={isLoading}
+              onClick={() => handleSocialLogin('google')}
+              disabled={isLoading || socialLoading === 'google'}
             >
               <svg className="w-5 h-5 mr-3" viewBox="0 0 24 24">
                 <path

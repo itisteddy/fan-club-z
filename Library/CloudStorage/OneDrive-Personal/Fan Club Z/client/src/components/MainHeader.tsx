@@ -1,10 +1,12 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { Link } from 'wouter'
 import { Bell, Coins, Wallet as WalletIcon } from 'lucide-react'
 import { useAuthStore } from '@/store/authStore'
 import { useWalletStore } from '@/store/walletStore'
 import { formatCurrency } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
+import { useUnreadNotifications } from '@/hooks/use-notifications'
+import NotificationCenter from './NotificationCenter'
 
 interface MainHeaderProps {
   title?: string
@@ -19,6 +21,8 @@ export const MainHeader: React.FC<MainHeaderProps> = ({
 }) => {
   const { user } = useAuthStore()
   const { balance, currency } = useWalletStore()
+  const [showNotificationCenter, setShowNotificationCenter] = useState(false)
+  const unreadCount = useUnreadNotifications()
 
   return (
     <header className="sticky top-0 z-30 bg-white border-b border-gray-200">
@@ -57,13 +61,24 @@ export const MainHeader: React.FC<MainHeaderProps> = ({
               variant="ghost" 
               size="icon" 
               className="relative w-10 h-10"
+              onClick={() => setShowNotificationCenter(true)}
             >
               <Bell className="w-5 h-5" />
-              <span className="absolute top-1.5 right-1.5 w-2.5 h-2.5 bg-red-500 rounded-full ring-2 ring-white" />
+              {unreadCount > 0 && (
+                <span className="absolute top-1.5 right-1.5 w-2.5 h-2.5 bg-red-500 rounded-full ring-2 ring-white text-xs text-white flex items-center justify-center font-medium">
+                  {unreadCount > 9 ? '9+' : unreadCount}
+                </span>
+              )}
             </Button>
           )}
         </div>
       </div>
+
+      {/* Notification Center */}
+      <NotificationCenter 
+        isOpen={showNotificationCenter}
+        onClose={() => setShowNotificationCenter(false)}
+      />
     </header>
   )
 }

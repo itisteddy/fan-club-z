@@ -169,26 +169,14 @@ export function getDeviceType(): 'mobile' | 'tablet' | 'desktop' {
   return 'desktop'
 }
 
+import { config } from './config'
+
 export function getBaseUrl(): string {
-  if (typeof window !== 'undefined') {
-    return window.location.origin
-  }
-  // @ts-ignore
-  if (typeof process !== 'undefined' && process.env.NODE_ENV === 'production') {
-    return 'https://fanclubz.app'
-  }
-  return 'http://localhost:3000'
+  return config.baseUrl
 }
 
 export function getApiUrl(): string {
-  if (typeof window !== 'undefined') {
-    return window.location.origin + '/api'
-  }
-  // @ts-ignore
-  if (typeof process !== 'undefined' && process.env.NODE_ENV === 'production') {
-    return 'https://api.fanclubz.app'
-  }
-  return 'http://localhost:5001/api'
+  return config.apiUrl
 }
 
 interface ShareData {

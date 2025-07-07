@@ -1,13 +1,16 @@
-import React, { useEffect } from 'react'
+import React, { useEffect, useState } from 'react'
 import { Router, Route, Switch, Redirect } from 'wouter'
 import { useAuthStore } from './store/authStore'
 import { useWalletStore } from './store/walletStore'
 import { ToastContainer } from './hooks/use-toast'
+import { useScrollToTop } from './hooks/use-scroll-to-top'
 import DebugPage from './components/DebugPage'
+import { ComplianceManager } from './components/compliance'
 
 // Layout Components
 import MainHeader from './components/MainHeader'
 import BottomNavigation from './components/BottomNavigation'
+import ScrollToTopButton from './components/ScrollToTopButton'
 
 // Pages
 import DiscoverTab from './pages/DiscoverTab'
@@ -62,9 +65,30 @@ class ErrorBoundary extends React.Component<
 function App() {
   const { user, isAuthenticated } = useAuthStore()
   const { refreshBalance } = useWalletStore()
+  const [showCompliance, setShowCompliance] = useState(false)
+
+  // Enable automatic scroll to top on route changes
+  useScrollToTop()
 
   // Add debugging
   console.log('🎯 App rendering...', { user, isAuthenticated })
+
+  // Check compliance status when user is authenticated
+  useEffect(() => {
+    if (isAuthenticated && user) {
+      const complianceStatus = localStorage.getItem('compliance_status')
+      if (!complianceStatus) {
+        setShowCompliance(true)
+      } else {
+        const status = JSON.parse(complianceStatus)
+        const isCompliant = status.ageVerified && status.privacyAccepted && 
+                           status.termsAccepted && status.responsibleGamblingAcknowledged
+        if (!isCompliant) {
+          setShowCompliance(true)
+        }
+      }
+    }
+  }, [isAuthenticated, user])
 
   // Refresh wallet balance when user logs in
   useEffect(() => {
@@ -115,109 +139,114 @@ function App() {
     <ErrorBoundary>
       <Router>
         <div className="min-h-screen bg-gray-50">
-          <Switch>
-            {/* Auth Routes */}
-            <Route path="/auth/login">
-              <PublicRoute>
-                <LoginPage />
-              </PublicRoute>
-            </Route>
-            
-            <Route path="/auth/register">
-              <PublicRoute>
-                <RegisterPage />
-              </PublicRoute>
-            </Route>
-
-            {/* Main App Routes */}
-            <Route>
-              <div className="flex flex-col min-h-screen">
-                {/* Header */}
-                <MainHeader 
-                  showBalance={true}
-                  showNotifications={true}
-                />
-
-                {/* Main Content */}
-                <main className="flex-1 pb-20">
-                  <Switch>
-                    {/* Default redirect */}
-                    <Route path="/">
-                      <Redirect to="/discover" />
-                    </Route>
-
-                    {/* Public Discovery (no auth required) */}
-                    <Route path="/discover">
-                      <DiscoverTab />
-                    </Route>
-
-                    {/* Protected Routes */}
-                    <Route path="/bets">
-                      <ProtectedRoute>
-                        <BetsTab />
-                      </ProtectedRoute>
-                    </Route>
-
-                    <Route path="/create">
-                      <ProtectedRoute>
-                        <CreateBetTab />
-                      </ProtectedRoute>
-                    </Route>
-
-                    <Route path="/clubs">
-                      <ClubsTab />
-                    </Route>
-
-                    <Route path="/wallet">
-                      <ProtectedRoute>
-                        <WalletTab />
-                      </ProtectedRoute>
-                    </Route>
-
-                    <Route path="/profile">
-                      <ProtectedRoute>
-                        <ProfilePage />
-                      </ProtectedRoute>
-                    </Route>
-
-                    {/* Detail Pages */}
-                    <Route path="/bets/:betId">
-                      {(params) => <BetDetailPage betId={params.betId} />}
-                    </Route>
-
-                    <Route path="/clubs/:clubId">
-                      {(params) => <ClubDetailPage clubId={params.clubId} />}
-                    </Route>
-
-                    {/* 404 Fallback */}
-                    <Route>
-                      <div className="flex flex-col items-center justify-center min-h-[60vh] text-center p-4">
-                        <div className="text-6xl mb-4">🤔</div>
-                        <h1 className="text-2xl font-bold text-gray-900 mb-2">
-                          Page Not Found
-                        </h1>
-                        <p className="text-gray-600 mb-4">
-                          The page you're looking for doesn't exist.
-                        </p>
-                        <button
-                          onClick={() => window.history.back()}
-                          className="btn-primary"
-                        >
-                          Go Back
-                        </button>
-                      </div>
-                    </Route>
-                  </Switch>
-                </main>
-
-                {/* Bottom Navigation */}
-                <BottomNavigation />
-              </div>
-            </Route>
-          </Switch>
-
-          {/* Toast Notifications */}
-          <ToastContainer />
+          {showCompliance ? (
+            <ComplianceManager
+              onComplete={() => setShowCompliance(false)}
+            />
+          ) : (
+            <>
+              {/* Demo Mode Banner */}
+              {user && (user.email === 'demo@fanclubz.app' || user.id === 'demo-user-id') && (
+                <div className="w-full bg-yellow-100 text-yellow-800 text-center py-2 text-sm font-medium z-50">
+                  Demo mode: Likes, comments, and bets are not saved.
+                </div>
+              )}
+              <Switch>
+                {/* Auth Routes */}
+                <Route path="/auth/login">
+                  <PublicRoute>
+                    <LoginPage />
+                  </PublicRoute>
+                </Route>
+                <Route path="/auth/register">
+                  <PublicRoute>
+                    <RegisterPage />
+                  </PublicRoute>
+                </Route>
+                {/* Main App Routes */}
+                <Route>
+                  <div className="flex flex-col min-h-screen">
+                    {/* Header */}
+                    <MainHeader 
+                      showBalance={true}
+                      showNotifications={true}
+                    />
+                    {/* Main Content */}
+                    <main className="flex-1 pb-20">
+                      <Switch>
+                        {/* Default redirect */}
+                        <Route path="/">
+                          <Redirect to="/discover" />
+                        </Route>
+                        {/* Public Discovery (no auth required) */}
+                        <Route path="/discover">
+                          <DiscoverTab />
+                        </Route>
+                        {/* Debug Page Route */}
+                        <Route path="/debug">
+                          <DebugPage />
+                        </Route>
+                        {/* Protected Routes */}
+                        <Route path="/bets">
+                          <ProtectedRoute>
+                            <BetsTab />
+                          </ProtectedRoute>
+                        </Route>
+                        <Route path="/create">
+                          <ProtectedRoute>
+                            <CreateBetTab />
+                          </ProtectedRoute>
+                        </Route>
+                        <Route path="/clubs">
+                          <ClubsTab />
+                        </Route>
+                        <Route path="/wallet">
+                          <ProtectedRoute>
+                            <WalletTab />
+                          </ProtectedRoute>
+                        </Route>
+                        <Route path="/profile">
+                          <ProtectedRoute>
+                            <ProfilePage />
+                          </ProtectedRoute>
+                        </Route>
+                        {/* Detail Pages */}
+                        <Route path="/bets/:betId">
+                          {(params) => <BetDetailPage betId={params.betId} />}
+                        </Route>
+                        <Route path="/clubs/:clubId">
+                          {(params) => <ClubDetailPage clubId={params.clubId} />}
+                        </Route>
+                        {/* 404 Fallback */}
+                        <Route>
+                          <div className="flex flex-col items-center justify-center min-h-[60vh] text-center p-4">
+                            <div className="text-6xl mb-4">🤔</div>
+                            <h1 className="text-2xl font-bold text-gray-900 mb-2">
+                              Page Not Found
+                            </h1>
+                            <p className="text-gray-600 mb-4">
+                              The page you're looking for doesn't exist.
+                            </p>
+                            <button
+                              onClick={() => window.history.back()}
+                              className="btn-primary"
+                            >
+                              Go Back
+                            </button>
+                          </div>
+                        </Route>
+                      </Switch>
+                    </main>
+                    {/* Bottom Navigation */}
+                    <BottomNavigation />
+                    <ScrollToTopButton />
+                  </div>
+                </Route>
+              </Switch>
+              {/* Toast Notifications */}
+              <ToastContainer />
+            </>
+          )}
         </div>
       </Router>
     </ErrorBoundary>

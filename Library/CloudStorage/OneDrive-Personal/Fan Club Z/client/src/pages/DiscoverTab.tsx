@@ -8,6 +8,7 @@ import { useBetStore } from '@/store/betStore'
 import { useAuthStore } from '@/store/authStore'
 import { cn } from '@/lib/utils'
 import type { Bet } from '@shared/schema'
+import { useLocation } from 'wouter'
 
 // Mock data for development
 const mockTrendingBets: Bet[] = [
@@ -105,6 +106,7 @@ const filterOptions = [
 export const DiscoverTab: React.FC = () => {
   const { user } = useAuthStore()
   const { fetchTrendingBets, trendingBets, filters, updateFilters } = useBetStore()
+  const [location, navigate] = useLocation()
   
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedCategory, setSelectedCategory] = useState('all')
@@ -189,7 +191,10 @@ export const DiscoverTab: React.FC = () => {
           <p className="text-body opacity-90 mb-4">
             Bitcoin to hit $100K by year end?
           </p>
-          <Button variant="apple-secondary" className="bg-white/20 backdrop-blur-md">
+          <Button
+            className="bg-white/20 backdrop-blur-md px-6 h-11 rounded-[10px] font-medium"
+            onClick={() => navigate(`/bets/${bets[0].id}`)}
+          >
             View Details
           </Button>
         </div>

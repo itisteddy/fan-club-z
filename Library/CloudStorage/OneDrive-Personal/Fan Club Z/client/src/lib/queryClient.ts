@@ -5,7 +5,6 @@ export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       staleTime: 1000 * 60 * 5, // 5 minutes
-      cacheTime: 1000 * 60 * 10, // 10 minutes
       retry: (failureCount, error: any) => {
         // Don't retry on 4xx errors except 408, 429
         if (error?.status >= 400 && error?.status < 500 && ![408, 429].includes(error.status)) {
@@ -24,7 +23,7 @@ export const queryClient = new QueryClient({
 // Base API configuration
 const API_BASE_URL = getApiUrl()
 
-// API client with error handling
+// API client with error handling and timeout
 export async function apiRequest<T>(
   endpoint: string,
   options: RequestInit & { params?: Record<string, string> } = {}
@@ -52,11 +51,17 @@ export async function apiRequest<T>(
     headers.Authorization = `Bearer ${token}`
   }
 
+  // Add timeout (10 seconds)
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 10000)
+
   try {
     const response = await fetch(url, {
       ...requestOptions,
       headers,
+      signal: controller.signal,
     })
+    clearTimeout(timeout)
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}))
@@ -65,9 +70,12 @@ export async function apiRequest<T>(
 
     const data = await response.json()
     return data
-  } catch (error) {
-    console.error('API request failed:', error)
-    throw error
+  } catch (error: any) {
+    clearTimeout(timeout)
+    if (error.name === 'AbortError') {
+      throw new Error('Request timed out. Please check your network connection and try again.')
+    }
+    throw new Error(error.message || 'Network error. Please check your connection and try again.')
   }
 }
 

@@ -1,5 +1,7 @@
 import React from 'react'
 import { getApiUrl } from '@/lib/utils'
+import NotificationTest from './NotificationTest'
+import ComplianceTest from './ComplianceTest'
 
 export const DebugPage: React.FC = () => {
   const [apiStatus, setApiStatus] = React.useState<string>('Testing...')
@@ -58,6 +60,20 @@ export const DebugPage: React.FC = () => {
           <p>✅ TypeScript is working</p>
           <p>✅ Component rendering is working</p>
           <p>✅ Styles are working</p>
+        </div>
+      </div>
+
+      <div style={{ marginBottom: '20px' }}>
+        <h2>🔔 Notification System Test:</h2>
+        <div style={{ background: 'white', borderRadius: '5px', overflow: 'hidden' }}>
+          <NotificationTest />
+        </div>
+      </div>
+
+      <div style={{ marginBottom: '20px' }}>
+        <h2>🛡️ Compliance System Test:</h2>
+        <div style={{ background: 'white', borderRadius: '5px', overflow: 'hidden' }}>
+          <ComplianceTest />
         </div>
       </div>
       

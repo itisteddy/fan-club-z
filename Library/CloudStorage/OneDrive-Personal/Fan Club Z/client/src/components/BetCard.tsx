@@ -321,7 +321,7 @@ export const BetCard: React.FC<BetCardProps> = ({
         {/* Action button */}
         <button
           className="mt-4 w-full h-11 bg-gray-100 rounded-[10px] font-medium text-body active:scale-95 transition-transform"
-          onClick={() => navigate(`/bet/${bet.id}`)}
+          onClick={() => navigate(`/bets/${bet.id}`)}
         >
           View Details
         </button>

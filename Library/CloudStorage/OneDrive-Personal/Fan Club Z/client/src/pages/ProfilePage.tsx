@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { 
   Settings, 
   Edit3, 
@@ -14,18 +14,51 @@ import {
   Wallet as WalletIcon,
   ArrowRight
 } from 'lucide-react'
-import { Link } from 'wouter'
+import { Link, useLocation } from 'wouter'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { useAuthStore } from '@/store/authStore'
 import { useWalletStore } from '@/store/walletStore'
 import { formatCurrency } from '@/lib/utils'
+import { KYCStatus } from '../components/kyc/KYCStatus'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { useToast } from '@/hooks/use-toast'
+import { ComplianceManager } from '../components/compliance/ComplianceManager'
 
 export const ProfilePage: React.FC = () => {
-  const { user, logout } = useAuthStore()
+  const { user, logout, updateUser } = useAuthStore()
   const { balance, currency } = useWalletStore()
   const [activeTab, setActiveTab] = useState('profile')
+  const [editOpen, setEditOpen] = useState(false)
+  const [editData, setEditData] = useState({
+    firstName: user?.firstName || '',
+    lastName: user?.lastName || '',
+    bio: user?.bio || '',
+    dateOfBirth: user?.dateOfBirth ? user.dateOfBirth.slice(0, 10) : ''
+  })
+  const [saving, setSaving] = useState(false)
+  const { success: showSuccess, error: showError } = useToast()
+  const [, setLocation] = useLocation()
+  const [showCompliance, setShowCompliance] = useState(false)
+
+  useEffect(() => {
+    if (editOpen) {
+      setTimeout(() => {
+        const dobInput = document.getElementById('dob-input') as HTMLInputElement | null
+        if (dobInput) dobInput.focus()
+      }, 300)
+    }
+  }, [editOpen])
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search)
+      if (params.get('edit') === '1') {
+        setEditOpen(true)
+      }
+    }
+  }, [])
 
   if (!user) return null
 
@@ -35,6 +68,28 @@ export const ProfilePage: React.FC = () => {
     { label: 'Clubs Joined', value: '3', icon: Users, color: 'text-purple-600' },
     { label: 'Reputation', value: '4.8', icon: Star, color: 'text-yellow-600' },
   ]
+
+  // Compliance re-check function
+  const checkCompliance = () => {
+    console.log('🔍 Checking compliance after profile update')
+    console.log('🔍 Current user:', user)
+    console.log('🔍 Edit data:', editData)
+    // Check if user is compliant (age, etc.)
+    if (editData.dateOfBirth) {
+      const dob = new Date(editData.dateOfBirth)
+      const age = new Date().getFullYear() - dob.getFullYear()
+      console.log('🔍 Calculated age:', age)
+      if (age >= 18) {
+        console.log('✅ User is 18+, closing compliance modal')
+        setShowCompliance(false)
+        setTimeout(() => setLocation('/discover'), 300)
+        return true
+      }
+    }
+    console.log('❌ User not compliant, showing compliance modal')
+    setShowCompliance(true)
+    return false
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -103,7 +158,7 @@ export const ProfilePage: React.FC = () => {
         </div>
 
         {/* Wallet Card */}
-        <div className="bg-gradient-to-br from-blue-500 to-purple-500 rounded-2xl p-6 text-white mb-8">
+        <div className="bg-gradient-to-br from-blue-500 to-purple-500 rounded-2xl p-6 text-white mb-6">
           <div className="flex items-center justify-between mb-2">
             <span className="text-body opacity-90">Available Balance</span>
             <WalletIcon className="w-5 h-5 opacity-80" />
@@ -114,6 +169,11 @@ export const ProfilePage: React.FC = () => {
           <div className="text-body-sm opacity-80">
             Tap to manage wallet
           </div>
+        </div>
+
+        {/* KYC Status */}
+        <div className="mb-6">
+          <KYCStatus userId={user.id} />
         </div>
 
         {/* Settings List */}
@@ -209,6 +269,120 @@ export const ProfilePage: React.FC = () => {
             </div>
           </div>
         </div>
+
+        <Dialog open={editOpen} onOpenChange={setEditOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Edit Profile</DialogTitle>
+            </DialogHeader>
+            <form
+              onSubmit={async e => {
+                e.preventDefault()
+                console.log('🔄 Form submitted, saving:', editData)
+                console.log('📝 Form validation check:', {
+                  firstName: editData.firstName,
+                  lastName: editData.lastName,
+                  dateOfBirth: editData.dateOfBirth,
+                  hasFirstName: !!editData.firstName,
+                  hasLastName: !!editData.lastName,
+                  hasDateOfBirth: !!editData.dateOfBirth
+                })
+                setSaving(true)
+                try {
+                  const updatedUser = await updateUser({
+                    ...user,
+                    firstName: editData.firstName,
+                    lastName: editData.lastName,
+                    bio: editData.bio,
+                    dateOfBirth: editData.dateOfBirth
+                  })
+                  console.log('✅ Profile updated successfully:', updatedUser)
+                  showSuccess('Profile updated successfully!')
+                  setEditOpen(false)
+                  setTimeout(() => {
+                    checkCompliance()
+                  }, 300)
+                } catch (err) {
+                  console.error('❌ Failed to update profile:', err)
+                  showError('Failed to update profile')
+                } finally {
+                  setSaving(false)
+                }
+              }}
+              onClick={() => console.log('📋 Form clicked!')}
+              className="space-y-4"
+            >
+              <div>
+                <label className="block mb-1 font-medium">First Name</label>
+                <input
+                  className="w-full h-11 px-4 bg-gray-100 rounded-[10px]"
+                  value={editData.firstName}
+                  onChange={e => setEditData({ ...editData, firstName: e.target.value })}
+                  required
+                />
+              </div>
+              <div>
+                <label className="block mb-1 font-medium">Last Name</label>
+                <input
+                  className="w-full h-11 px-4 bg-gray-100 rounded-[10px]"
+                  value={editData.lastName}
+                  onChange={e => setEditData({ ...editData, lastName: e.target.value })}
+                  required
+                />
+              </div>
+              <div>
+                <label className="block mb-1 font-medium">Bio</label>
+                <textarea
+                  className="w-full px-4 py-2 bg-gray-100 rounded-[10px]"
+                  value={editData.bio}
+                  onChange={e => setEditData({ ...editData, bio: e.target.value })}
+                />
+              </div>
+              <div>
+                <label className="block mb-1 font-medium">Date of Birth <span className="text-red-500">*</span></label>
+                <input
+                  id="dob-input"
+                  type="date"
+                  className="w-full h-11 px-4 bg-gray-100 rounded-[10px]"
+                  value={editData.dateOfBirth}
+                  onChange={e => setEditData({ ...editData, dateOfBirth: e.target.value })}
+                  required
+                />
+              </div>
+              <Button 
+                type="submit" 
+                className="w-full" 
+                disabled={saving}
+                onClick={async (e) => {
+                  e.preventDefault()
+                  setSaving(true)
+                  try {
+                    const updatedUser = await updateUser({
+                      ...user,
+                      firstName: editData.firstName,
+                      lastName: editData.lastName,
+                      bio: editData.bio,
+                      dateOfBirth: editData.dateOfBirth
+                    })
+                    showSuccess('Profile updated successfully!')
+                    setEditOpen(false)
+                    setTimeout(() => {
+                      checkCompliance()
+                    }, 300)
+                  } catch (err: any) {
+                    showError('Failed to update profile')
+                  } finally {
+                    setSaving(false)
+                  }
+                }}
+              >
+                {saving ? 'Saving...' : 'Save Changes'}
+              </Button>
+            </form>
+          </DialogContent>
+        </Dialog>
+
+        {showCompliance && <ComplianceManager onComplete={() => setShowCompliance(false)} showOnFirstVisit={true} />}
       </div>
     </div>
   )

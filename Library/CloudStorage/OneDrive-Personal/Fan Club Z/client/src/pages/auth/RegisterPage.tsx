@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { Link, useLocation } from 'wouter'
-import { Eye, EyeOff, Mail, Lock, User, Phone } from 'lucide-react'
+import { Eye, EyeOff, Mail, Lock, User, Phone, Calendar } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -19,13 +19,29 @@ export const RegisterPage: React.FC = () => {
     username: '',
     email: '',
     phone: '',
+    dateOfBirth: '',
     password: '',
     confirmPassword: '',
   })
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [acceptTerms, setAcceptTerms] = useState(false)
+  const [acceptAgeVerification, setAcceptAgeVerification] = useState(false)
   const [errors, setErrors] = useState<Record<string, string>>({})
+
+  // Calculate age from date of birth
+  const calculateAge = (dateOfBirth: string): number => {
+    const today = new Date()
+    const birthDate = new Date(dateOfBirth)
+    let age = today.getFullYear() - birthDate.getFullYear()
+    const monthDiff = today.getMonth() - birthDate.getMonth()
+    
+    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+      age--
+    }
+    
+    return age
+  }
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {}
@@ -58,6 +74,18 @@ export const RegisterPage: React.FC = () => {
       newErrors.phone = 'Please enter a valid phone number'
     }
 
+    // Age verification (18+ required for gambling)
+    if (!formData.dateOfBirth) {
+      newErrors.dateOfBirth = 'Date of birth is required'
+    } else {
+      const age = calculateAge(formData.dateOfBirth)
+      if (age < 18) {
+        newErrors.dateOfBirth = 'You must be at least 18 years old to use this platform'
+      } else if (age > 120) {
+        newErrors.dateOfBirth = 'Please enter a valid date of birth'
+      }
+    }
+
     if (!formData.password) {
       newErrors.password = 'Password is required'
     } else if (formData.password.length < 8) {
@@ -74,6 +102,10 @@ export const RegisterPage: React.FC = () => {
 
     if (!acceptTerms) {
       newErrors.terms = 'You must accept the terms and conditions'
+    }
+
+    if (!acceptAgeVerification) {
+      newErrors.ageVerification = 'You must confirm you are 18 or older'
     }
 
     setErrors(newErrors)
@@ -229,6 +261,31 @@ export const RegisterPage: React.FC = () => {
               )}
             </div>
 
+            {/* Date of Birth */}
+            <div>
+              <label htmlFor="dateOfBirth" className="block text-body-sm font-medium text-gray-600 mb-2">
+                Date of Birth *
+              </label>
+              <div className="relative">
+                <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
+                <Input
+                  id="dateOfBirth"
+                  type="date"
+                  value={formData.dateOfBirth}
+                  onChange={(e) => handleInputChange('dateOfBirth', e.target.value)}
+                  max={new Date().toISOString().split('T')[0]}
+                  className="pl-12"
+                  disabled={isLoading}
+                />
+              </div>
+              {errors.dateOfBirth && (
+                <p className="text-red-500 text-caption-1 mt-1">{errors.dateOfBirth}</p>
+              )}
+              <p className="text-caption-1 text-gray-500 mt-1">
+                You must be 18 or older to use this platform
+              </p>
+            </div>
+
             {/* Password */}
             <div>
               <label htmlFor="password" className="block text-body-sm font-medium text-gray-600 mb-2">
@@ -286,6 +343,30 @@ export const RegisterPage: React.FC = () => {
               </label>
               {errors.terms && (
                 <p className="text-red-500 text-caption-1 mt-1">{errors.terms}</p>
+              )}
+            </div>
+
+            {/* Age Verification */}
+            <div>
+              <label className="flex items-start space-x-3">
+                <input
+                  type="checkbox"
+                  checked={acceptAgeVerification}
+                  onChange={(e) => {
+                    setAcceptAgeVerification(e.target.checked)
+                    if (errors.ageVerification) {
+                      setErrors(prev => ({ ...prev, ageVerification: '' }))
+                    }
+                  }}
+                  className="mt-1 rounded border-gray-300 text-blue-500 focus:ring-blue-500"
+                  disabled={isLoading}
+                />
+                <span className="text-body-sm text-gray-600">
+                  I confirm that I am 18 years or older
+                </span>
+              </label>
+              {errors.ageVerification && (
+                <p className="text-red-500 text-caption-1 mt-1">{errors.ageVerification}</p>
               )}
             </div>
 

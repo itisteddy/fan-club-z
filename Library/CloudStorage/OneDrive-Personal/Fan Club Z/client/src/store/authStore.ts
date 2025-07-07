@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
 import type { User, LoginRequest, RegisterRequest, AuthResponse } from '@shared/schema'
 import { api } from '@/lib/queryClient'
+import { useToast } from '@/hooks/use-toast'
 
 interface AuthState {
   user: User | null
@@ -19,6 +20,8 @@ interface AuthActions {
   completeOnboarding: () => void
   clearError: () => void
   setLoading: (loading: boolean) => void
+  setUser: (user: User) => void
+  setToken: (token: string) => void
 }
 
 type AuthStore = AuthState & AuthActions
@@ -37,13 +40,9 @@ export const useAuthStore = create<AuthStore>()(
       login: async (credentials) => {
         try {
           set({ isLoading: true, error: null })
-          
-          const response = await api.post<AuthResponse>('/users/login', credentials)
-          
-          if (response.success) {
-            // Store auth token
+          const response: { success: boolean, error?: string, data?: AuthResponse } = await api.post('/users/login', credentials)
+          if (response.success && response.data) {
             localStorage.setItem('auth_token', response.data.token)
-            
             set({
               user: response.data.user,
               isAuthenticated: true,
@@ -65,19 +64,15 @@ export const useAuthStore = create<AuthStore>()(
       register: async (userData) => {
         try {
           set({ isLoading: true, error: null })
-          
-          const response = await api.post<AuthResponse>('/users/register', userData)
-          
-          if (response.success) {
-            // Store auth token
+          const response: { success: boolean, error?: string, data?: AuthResponse } = await api.post('/users/register', userData)
+          if (response.success && response.data) {
             localStorage.setItem('auth_token', response.data.token)
-            
             set({
               user: response.data.user,
               isAuthenticated: true,
               isLoading: false,
               error: null,
-              onboardingCompleted: false, // New users need onboarding
+              onboardingCompleted: false,
             })
           } else {
             throw new Error(response.error || 'Registration failed')
@@ -104,12 +99,13 @@ export const useAuthStore = create<AuthStore>()(
         })
       },
 
-      updateUser: (userData) => {
-        const currentUser = get().user
-        if (currentUser) {
-          set({
-            user: { ...currentUser, ...userData },
-          })
+      updateUser: async (userData: Partial<User>) => {
+        const response: { success: boolean, error?: string, data?: AuthResponse } = await api.patch('/users/me', userData)
+        if (response.success && response.data?.user) {
+          set({ user: response.data.user })
+          return response.data.user
+        } else {
+          throw new Error(response.error || 'Failed to update profile')
         }
       },
 
@@ -123,6 +119,15 @@ export const useAuthStore = create<AuthStore>()(
 
       setLoading: (loading) => {
         set({ isLoading: loading })
+      },
+
+      setUser: (user: User) => {
+        set({ user })
+      },
+
+      setToken: (token: string) => {
+        localStorage.setItem('auth_token', token)
+        set({ isAuthenticated: true })
       },
     }),
     {
@@ -163,22 +168,18 @@ export const initializeAuth = async () => {
     try {
       // Validate token with server and get fresh user data
       const response = await api.get<{ user: User }>('/users/me')
-      
-      if (response.success) {
+      if (response.user) {
         useAuthStore.setState({
-          user: response.data.user,
+          user: response.user,
           isAuthenticated: true,
         })
       } else {
-        // Token is invalid, clear it
         useAuthStore.getState().logout()
       }
     } catch (error) {
-      // Token is invalid or network error, clear it
       useAuthStore.getState().logout()
     }
   } else {
-    // No valid token, ensure user is logged out
     useAuthStore.getState().logout()
   }
 }
