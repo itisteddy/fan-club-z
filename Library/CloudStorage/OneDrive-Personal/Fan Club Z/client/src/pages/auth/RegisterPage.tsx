@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { useAuthStore } from '@/store/authStore'
 import { useToast } from '@/hooks/use-toast'
-import { validateEmail, validatePhone } from '@/lib/utils'
+import { validateEmail, validatePhone, getApiUrl } from '@/lib/utils'
 
 export const RegisterPage: React.FC = () => {
   const [, setLocation] = useLocation()
@@ -28,6 +28,12 @@ export const RegisterPage: React.FC = () => {
   const [acceptTerms, setAcceptTerms] = useState(false)
   const [acceptAgeVerification, setAcceptAgeVerification] = useState(false)
   const [errors, setErrors] = useState<Record<string, string>>({})
+  const [backendErrors, setBackendErrors] = useState<string[]>([])
+
+  React.useEffect(() => {
+    // Log API URL for debugging
+    console.log('API URL:', getApiUrl())
+  }, [])
 
   // Calculate age from date of birth
   const calculateAge = (dateOfBirth: string): number => {
@@ -70,8 +76,8 @@ export const RegisterPage: React.FC = () => {
 
     if (!formData.phone) {
       newErrors.phone = 'Phone number is required'
-    } else if (!validatePhone(formData.phone)) {
-      newErrors.phone = 'Please enter a valid phone number'
+    } else if (!/^\+?[\d\s\-\(\)]{10,20}$/.test(formData.phone)) {
+      newErrors.phone = 'Phone number must be 10-20 digits and can include +, spaces, dashes, and parentheses (e.g. +1 555-123-4567)'
     }
 
     // Age verification (18+ required for gambling)
@@ -115,16 +121,50 @@ export const RegisterPage: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     clearError()
+    setBackendErrors([])
+    
+    console.log('🚀 Starting registration process...')
+    console.log('Form data:', formData)
+    console.log('API URL:', getApiUrl())
 
-    if (!validateForm()) return
+    if (!validateForm()) {
+      showError('Please fix the errors in the form and try again.')
+      console.error('❌ Registration validation failed:', errors)
+      return
+    }
 
     try {
       const { confirmPassword, ...registerData } = formData
+      console.log('✅ Client validation passed, calling register API...')
+      
       await register(registerData)
+      
+      console.log('✅ Registration successful!')
       success('Account created successfully!')
       setLocation('/discover')
     } catch (err: any) {
-      showError(err.message || 'Registration failed')
+      console.error('❌ Registration error caught:', err)
+      console.error('Error response:', err.response)
+      console.error('Error details:', err.details)
+      
+      let backendError = err.message || 'Registration failed'
+      let backendFieldErrors: Record<string, string> = {}
+      let backendErrorList: string[] = []
+      
+      if (err.response && err.response.details) {
+        err.response.details.forEach((detail: any) => {
+          if (detail.field && detail.message) {
+            backendFieldErrors[detail.field] = detail.message
+            backendErrorList.push(`${detail.field}: ${detail.message}`)
+          } else if (detail.message) {
+            backendErrorList.push(detail.message)
+          }
+        })
+      }
+      
+      setErrors(prev => ({ ...prev, ...backendFieldErrors }))
+      setBackendErrors(backendErrorList.length > 0 ? backendErrorList : [backendError])
+      showError(backendError)
     }
   }
 
@@ -154,6 +194,16 @@ export const RegisterPage: React.FC = () => {
           </p>
           
           <form onSubmit={handleSubmit} className="space-y-4">
+            {/* Backend Error List */}
+            {backendErrors.length > 0 && (
+              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-[10px] text-body-sm mb-2">
+                <ul className="list-disc pl-5">
+                  {backendErrors.map((msg, idx) => (
+                    <li key={idx}>{msg}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
             {/* Name Fields */}
             <div className="grid grid-cols-2 gap-4">
               <div>
@@ -244,18 +294,15 @@ export const RegisterPage: React.FC = () => {
               <label htmlFor="phone" className="block text-body-sm font-medium text-gray-600 mb-2">
                 Phone Number
               </label>
-              <div className="relative">
-                <Phone className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
-                <Input
-                  id="phone"
-                  type="tel"
-                  value={formData.phone}
-                  onChange={(e) => handleInputChange('phone', e.target.value)}
-                  placeholder="Enter your phone number"
-                  className="pl-12"
-                  disabled={isLoading}
-                />
-              </div>
+              <Input
+                id="phone"
+                type="tel"
+                value={formData.phone}
+                onChange={(e) => handleInputChange('phone', e.target.value)}
+                placeholder="e.g. +1 555-123-4567"
+                disabled={isLoading}
+              />
+              <p className="text-gray-400 text-caption-1 mt-1">Phone number must be 10-20 digits and can include +, spaces, dashes, and parentheses.</p>
               {errors.phone && (
                 <p className="text-red-500 text-caption-1 mt-1">{errors.phone}</p>
               )}
@@ -312,6 +359,35 @@ export const RegisterPage: React.FC = () => {
               </div>
               {errors.password && (
                 <p className="text-red-500 text-caption-1 mt-1">{errors.password}</p>
+              )}
+            </div>
+
+            {/* Confirm Password */}
+            <div>
+              <label htmlFor="confirmPassword" className="block text-body-sm font-medium text-gray-600 mb-2">
+                Confirm Password
+              </label>
+              <div className="relative">
+                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
+                <Input
+                  id="confirmPassword"
+                  type={showConfirmPassword ? 'text' : 'password'}
+                  value={formData.confirmPassword}
+                  onChange={(e) => handleInputChange('confirmPassword', e.target.value)}
+                  placeholder="Confirm your password"
+                  className="pl-12 pr-12"
+                  disabled={isLoading}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                >
+                  {showConfirmPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                </button>
+              </div>
+              {errors.confirmPassword && (
+                <p className="text-red-500 text-caption-1 mt-1">{errors.confirmPassword}</p>
               )}
             </div>
 

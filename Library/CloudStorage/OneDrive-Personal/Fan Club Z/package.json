@@ -24,6 +24,11 @@
   "author": "Fan Club Z Team",
   "license": "MIT",
   "devDependencies": {
-    "concurrently": "^8.2.2"
+    "@playwright/test": "^1.53.2",
+    "concurrently": "^8.2.2",
+    "node-fetch": "^2.7.0"
+  },
+  "dependencies": {
+    "express-validator": "^7.2.1"
   }
 }

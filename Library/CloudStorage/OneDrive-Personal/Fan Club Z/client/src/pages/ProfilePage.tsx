@@ -20,17 +20,29 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { useAuthStore } from '@/store/authStore'
 import { useWalletStore } from '@/store/walletStore'
+import { useStatsStore } from '@/store/statsStore'
 import { formatCurrency } from '@/lib/utils'
 import { KYCStatus } from '../components/kyc/KYCStatus'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { useToast } from '@/hooks/use-toast'
 import { ComplianceManager } from '../components/compliance/ComplianceManager'
+import { SecuritySettings } from '../components/profile/SecuritySettings'
+import { NotificationSettings } from '../components/profile/NotificationSettings'
+import { PaymentMethods } from '../components/profile/PaymentMethods'
+import { TransactionHistory } from '../components/profile/TransactionHistory'
+import { HelpSupport } from '../components/profile/HelpSupport'
 
 export const ProfilePage: React.FC = () => {
   const { user, logout, updateUser } = useAuthStore()
   const { balance, currency } = useWalletStore()
+  const { stats, loading: statsLoading, fetchStats } = useStatsStore()
   const [activeTab, setActiveTab] = useState('profile')
   const [editOpen, setEditOpen] = useState(false)
+  const [securityOpen, setSecurityOpen] = useState(false)
+  const [notificationsOpen, setNotificationsOpen] = useState(false)
+  const [paymentMethodsOpen, setPaymentMethodsOpen] = useState(false)
+  const [transactionHistoryOpen, setTransactionHistoryOpen] = useState(false)
+  const [helpSupportOpen, setHelpSupportOpen] = useState(false)
   const [editData, setEditData] = useState({
     firstName: user?.firstName || '',
     lastName: user?.lastName || '',
@@ -41,6 +53,13 @@ export const ProfilePage: React.FC = () => {
   const { success: showSuccess, error: showError } = useToast()
   const [, setLocation] = useLocation()
   const [showCompliance, setShowCompliance] = useState(false)
+
+  // Fetch stats when component mounts
+  useEffect(() => {
+    if (user?.id) {
+      fetchStats(user.id)
+    }
+  }, [user?.id, fetchStats])
 
   useEffect(() => {
     if (editOpen) {
@@ -62,11 +81,32 @@ export const ProfilePage: React.FC = () => {
 
   if (!user) return null
 
-  const stats = [
-    { label: 'Total Bets', value: '24', icon: TrendingUp, color: 'text-blue-600' },
-    { label: 'Win Rate', value: '68%', icon: Trophy, color: 'text-green-600' },
-    { label: 'Clubs Joined', value: '3', icon: Users, color: 'text-purple-600' },
-    { label: 'Reputation', value: '4.8', icon: Star, color: 'text-yellow-600' },
+  // Calculate stats with fallbacks
+  const calculatedStats = [
+    { 
+      label: 'Total Bets', 
+      value: stats?.totalBets?.toString() || '0', 
+      icon: TrendingUp, 
+      color: 'text-blue-600' 
+    },
+    { 
+      label: 'Win Rate', 
+      value: stats?.winRate ? `${stats.winRate.toFixed(0)}%` : '0%', 
+      icon: Trophy, 
+      color: 'text-green-600' 
+    },
+    { 
+      label: 'Clubs Joined', 
+      value: stats?.clubsJoined?.toString() || '0', 
+      icon: Users, 
+      color: 'text-purple-600' 
+    },
+    { 
+      label: 'Reputation', 
+      value: stats?.reputationScore ? stats.reputationScore.toFixed(1) : '0.0', 
+      icon: Star, 
+      color: 'text-yellow-600' 
+    },
   ]
 
   // Compliance re-check function
@@ -145,7 +185,7 @@ export const ProfilePage: React.FC = () => {
 
         {/* Stats Grid */}
         <div className="grid grid-cols-2 gap-4 mb-8">
-          {stats.map((stat, index) => {
+          {calculatedStats.map((stat, index) => {
             const Icon = stat.icon
             return (
               <div key={index} className="bg-white rounded-xl shadow-sm p-4 text-center">
@@ -183,7 +223,10 @@ export const ProfilePage: React.FC = () => {
             <div className="p-4">
               <h3 className="text-title-3 font-semibold text-gray-900 mb-4">Account</h3>
               <div className="space-y-3">
-                <button className="flex items-center justify-between w-full p-3 rounded-[10px] hover:bg-gray-50 transition-colors">
+                <button 
+                  onClick={() => setEditOpen(true)}
+                  className="flex items-center justify-between w-full p-3 rounded-[10px] hover:bg-gray-50 transition-colors"
+                >
                   <div className="flex items-center space-x-3">
                     <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
                       <Edit3 className="w-4 h-4 text-blue-600" />
@@ -193,7 +236,10 @@ export const ProfilePage: React.FC = () => {
                   <ArrowRight className="w-4 h-4 text-gray-400" />
                 </button>
                 
-                <button className="flex items-center justify-between w-full p-3 rounded-[10px] hover:bg-gray-50 transition-colors">
+                <button 
+                  onClick={() => setSecurityOpen(true)}
+                  className="flex items-center justify-between w-full p-3 rounded-[10px] hover:bg-gray-50 transition-colors"
+                >
                   <div className="flex items-center space-x-3">
                     <div className="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center">
                       <Shield className="w-4 h-4 text-green-600" />
@@ -203,7 +249,10 @@ export const ProfilePage: React.FC = () => {
                   <ArrowRight className="w-4 h-4 text-gray-400" />
                 </button>
                 
-                <button className="flex items-center justify-between w-full p-3 rounded-[10px] hover:bg-gray-50 transition-colors">
+                <button 
+                  onClick={() => setNotificationsOpen(true)}
+                  className="flex items-center justify-between w-full p-3 rounded-[10px] hover:bg-gray-50 transition-colors"
+                >
                   <div className="flex items-center space-x-3">
                     <div className="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center">
                       <Bell className="w-4 h-4 text-purple-600" />
@@ -219,7 +268,10 @@ export const ProfilePage: React.FC = () => {
             <div className="p-4">
               <h3 className="text-title-3 font-semibold text-gray-900 mb-4">Financial</h3>
               <div className="space-y-3">
-                <button className="flex items-center justify-between w-full p-3 rounded-[10px] hover:bg-gray-50 transition-colors">
+                <button 
+                  onClick={() => setPaymentMethodsOpen(true)}
+                  className="flex items-center justify-between w-full p-3 rounded-[10px] hover:bg-gray-50 transition-colors"
+                >
                   <div className="flex items-center space-x-3">
                     <div className="w-8 h-8 bg-orange-100 rounded-lg flex items-center justify-center">
                       <CreditCard className="w-4 h-4 text-orange-600" />
@@ -229,7 +281,10 @@ export const ProfilePage: React.FC = () => {
                   <ArrowRight className="w-4 h-4 text-gray-400" />
                 </button>
                 
-                <button className="flex items-center justify-between w-full p-3 rounded-[10px] hover:bg-gray-50 transition-colors">
+                <button 
+                  onClick={() => setTransactionHistoryOpen(true)}
+                  className="flex items-center justify-between w-full p-3 rounded-[10px] hover:bg-gray-50 transition-colors"
+                >
                   <div className="flex items-center space-x-3">
                     <div className="w-8 h-8 bg-indigo-100 rounded-lg flex items-center justify-center">
                       <TrendingUp className="w-4 h-4 text-indigo-600" />
@@ -245,7 +300,10 @@ export const ProfilePage: React.FC = () => {
             <div className="p-4">
               <h3 className="text-title-3 font-semibold text-gray-900 mb-4">Support</h3>
               <div className="space-y-3">
-                <button className="flex items-center justify-between w-full p-3 rounded-[10px] hover:bg-gray-50 transition-colors">
+                <button 
+                  onClick={() => setHelpSupportOpen(true)}
+                  className="flex items-center justify-between w-full p-3 rounded-[10px] hover:bg-gray-50 transition-colors"
+                >
                   <div className="flex items-center space-x-3">
                     <div className="w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center">
                       <HelpCircle className="w-4 h-4 text-gray-600" />
@@ -383,6 +441,13 @@ export const ProfilePage: React.FC = () => {
         </Dialog>
 
         {showCompliance && <ComplianceManager onComplete={() => setShowCompliance(false)} showOnFirstVisit={true} />}
+
+        {/* Profile Components */}
+        <SecuritySettings open={securityOpen} onOpenChange={setSecurityOpen} />
+        <NotificationSettings open={notificationsOpen} onOpenChange={setNotificationsOpen} />
+        <PaymentMethods open={paymentMethodsOpen} onOpenChange={setPaymentMethodsOpen} />
+        <TransactionHistory open={transactionHistoryOpen} onOpenChange={setTransactionHistoryOpen} />
+        <HelpSupport open={helpSupportOpen} onOpenChange={setHelpSupportOpen} />
       </div>
     </div>
   )

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { Shield, CheckCircle, Clock, AlertCircle, ArrowRight } from 'lucide-react'
 import { KYCModal } from './KYCModal'
+import { config } from '../../lib/config'
 
 interface KYCStatusProps {
   userId: string
@@ -8,18 +9,30 @@ interface KYCStatusProps {
 
 interface KYCStatus {
   kycLevel: 'none' | 'basic' | 'enhanced'
-  status: 'pending' | 'verified'
+  status: 'pending' | 'verified' | 'rejected'
   requirements?: {
     required: boolean
     documents: string[]
     description: string
   }
+  verification?: {
+    id: string
+    status: string
+    submittedAt: string
+  }
+  documents?: Array<{
+    id: string
+    type: string
+    status: string
+    rejectionReason?: string
+  }>
 }
 
 export const KYCStatus: React.FC<KYCStatusProps> = ({ userId }) => {
   const [kycStatus, setKycStatus] = useState<KYCStatus | null>(null)
   const [showKYCModal, setShowKYCModal] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     fetchKYCStatus()
@@ -28,24 +41,37 @@ export const KYCStatus: React.FC<KYCStatusProps> = ({ userId }) => {
   const fetchKYCStatus = async () => {
     try {
       setLoading(true)
-      const response = await fetch('/api/kyc/status', {
+      setError(null)
+      const token = localStorage.getItem('token')
+      if (!token) {
+        throw new Error('No authentication token found')
+      }
+      const response = await fetch(`${config.apiUrl}/kyc/status`, {
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
         },
       })
-      
-      if (response.ok) {
-        const result = await response.json()
-        setKycStatus(result.data)
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
       }
-    } catch (error) {
+        const result = await response.json()
+      if (result.success && (result.data || result.kycLevel)) {
+        setKycStatus(result.data || result)
+      } else {
+        throw new Error(result.error || 'Failed to fetch KYC status')
+      }
+    } catch (error: any) {
       console.error('Failed to fetch KYC status:', error)
+      setError(error.message || 'Failed to fetch KYC status')
     } finally {
       setLoading(false)
     }
   }
 
   const getStatusIcon = () => {
+    if (error) return <AlertCircle className="w-5 h-5 text-red-500" />
+    
     switch (kycStatus?.kycLevel) {
       case 'enhanced':
         return <CheckCircle className="w-5 h-5 text-green-500" />
@@ -57,6 +83,8 @@ export const KYCStatus: React.FC<KYCStatusProps> = ({ userId }) => {
   }
 
   const getStatusText = () => {
+    if (error) return 'Error'
+    
     switch (kycStatus?.kycLevel) {
       case 'enhanced':
         return 'Verified'
@@ -68,6 +96,8 @@ export const KYCStatus: React.FC<KYCStatusProps> = ({ userId }) => {
   }
 
   const getStatusColor = () => {
+    if (error) return 'text-red-600'
+    
     switch (kycStatus?.kycLevel) {
       case 'enhanced':
         return 'text-green-600'
@@ -115,6 +145,19 @@ export const KYCStatus: React.FC<KYCStatusProps> = ({ userId }) => {
           {getStatusIcon()}
         </div>
 
+        {error ? (
+          <div className="space-y-3">
+            <div className="text-red-600 text-body-sm">{error}</div>
+            <button
+              onClick={fetchKYCStatus}
+              className="w-full h-11 bg-blue-500 text-white font-medium 
+                       rounded-[10px] flex items-center justify-center
+                       active:scale-95 transition-transform"
+            >
+              Retry
+            </button>
+          </div>
+        ) : (
         <div className="space-y-3">
           {/* Status */}
           <div className="flex items-center justify-between">
@@ -131,6 +174,47 @@ export const KYCStatus: React.FC<KYCStatusProps> = ({ userId }) => {
               {getBettingLimit()}
             </span>
           </div>
+
+            {/* Verification Details */}
+            {kycStatus?.verification && (
+              <div className="pt-3 border-t border-gray-100">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-body-sm text-gray-600">Verification Status</span>
+                  <span className={`text-body-sm font-medium ${
+                    kycStatus.verification.status === 'verified' ? 'text-green-600' :
+                    kycStatus.verification.status === 'pending' ? 'text-orange-600' :
+                    'text-red-600'
+                  }`}>
+                    {kycStatus.verification.status.charAt(0).toUpperCase() + kycStatus.verification.status.slice(1)}
+                  </span>
+                </div>
+                {/* Documents List */}
+                {kycStatus.documents && kycStatus.documents.length > 0 && (
+                  <div className="mt-2">
+                    <h4 className="text-body-sm font-semibold mb-1">Documents</h4>
+                    <ul className="space-y-1">
+                      {kycStatus.documents.map(doc => (
+                        <li key={doc.id} className="flex items-center justify-between bg-gray-50 rounded px-2 py-1">
+                          <div>
+                            <span className="font-medium capitalize">{doc.type.replace('_', ' ')}</span>
+                            <span className={`ml-2 text-xs px-2 py-0.5 rounded-full ${
+                              doc.status === 'pending' ? 'bg-orange-100 text-orange-700' :
+                              doc.status === 'approved' ? 'bg-green-100 text-green-700' :
+                              'bg-red-100 text-red-700'
+                            }`}>
+                              {doc.status.charAt(0).toUpperCase() + doc.status.slice(1)}
+                            </span>
+                            {doc.status === 'rejected' && doc.rejectionReason && (
+                              <span className="ml-2 text-xs text-red-500">Reason: {doc.rejectionReason}</span>
+                            )}
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            )}
 
           {/* Requirements */}
           {kycStatus?.requirements && (
@@ -153,6 +237,7 @@ export const KYCStatus: React.FC<KYCStatusProps> = ({ userId }) => {
             </div>
           )}
         </div>
+        )}
       </div>
 
       {/* KYC Modal */}

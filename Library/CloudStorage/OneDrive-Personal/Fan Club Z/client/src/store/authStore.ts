@@ -3,6 +3,7 @@ import { persist, createJSONStorage } from 'zustand/middleware'
 import type { User, LoginRequest, RegisterRequest, AuthResponse } from '@shared/schema'
 import { api } from '@/lib/queryClient'
 import { useToast } from '@/hooks/use-toast'
+import { notificationService } from '@/services/notificationService'
 
 interface AuthState {
   user: User | null
@@ -40,17 +41,26 @@ export const useAuthStore = create<AuthStore>()(
       login: async (credentials) => {
         try {
           set({ isLoading: true, error: null })
-          const response: { success: boolean, error?: string, data?: AuthResponse } = await api.post('/users/login', credentials)
+          const response: { success: boolean, error?: string, data?: AuthResponse, details?: any } = await api.post('/users/login', credentials)
           if (response.success && response.data) {
-            localStorage.setItem('auth_token', response.data.token)
+            // Store both access and refresh tokens
+            localStorage.setItem('accessToken', response.data.accessToken)
+            localStorage.setItem('refreshToken', response.data.refreshToken)
+            localStorage.setItem('auth_token', response.data.accessToken) // Keep for backward compatibility
+            
             set({
               user: response.data.user,
               isAuthenticated: true,
               isLoading: false,
               error: null,
             })
+            
+            // Connect WebSocket for real-time notifications
+            notificationService.connect()
           } else {
-            throw new Error(response.error || 'Login failed')
+            const errorObj: any = new Error(response.error || 'Login failed')
+            if (response.details) errorObj.response = { details: response.details }
+            throw errorObj
           }
         } catch (error: any) {
           set({
@@ -63,10 +73,24 @@ export const useAuthStore = create<AuthStore>()(
 
       register: async (userData) => {
         try {
+          console.log('🚀 Auth Store: Starting registration API call...')
+          console.log('User data:', userData)
+          
           set({ isLoading: true, error: null })
-          const response: { success: boolean, error?: string, data?: AuthResponse } = await api.post('/users/register', userData)
+          
+          console.log('🚀 Auth Store: Making POST request to /users/register')
+          const response: { success: boolean, error?: string, data?: AuthResponse, details?: any } = await api.post('/users/register', userData)
+          
+          console.log('🚀 Auth Store: Got response:', response)
+          
           if (response.success && response.data) {
-            localStorage.setItem('auth_token', response.data.token)
+            console.log('✅ Auth Store: Registration successful, storing tokens...')
+            
+            // Store both access and refresh tokens
+            localStorage.setItem('accessToken', response.data.accessToken)
+            localStorage.setItem('refreshToken', response.data.refreshToken)
+            localStorage.setItem('auth_token', response.data.accessToken) // Keep for backward compatibility
+            
             set({
               user: response.data.user,
               isAuthenticated: true,
@@ -74,10 +98,19 @@ export const useAuthStore = create<AuthStore>()(
               error: null,
               onboardingCompleted: false,
             })
+            
+            console.log('✅ Auth Store: State updated, connecting WebSocket...')
+            
+            // Connect WebSocket for real-time notifications
+            notificationService.connect()
           } else {
-            throw new Error(response.error || 'Registration failed')
+            console.error('❌ Auth Store: Registration failed - no success/data in response')
+            const errorObj: any = new Error(response.error || 'Registration failed')
+            if (response.details) errorObj.response = { details: response.details }
+            throw errorObj
           }
         } catch (error: any) {
+          console.error('❌ Auth Store: Registration error:', error)
           set({
             isLoading: false,
             error: error.message || 'Registration failed. Please try again.',
@@ -87,8 +120,13 @@ export const useAuthStore = create<AuthStore>()(
       },
 
       logout: () => {
-        // Clear auth token
+        // Clear auth tokens
         localStorage.removeItem('auth_token')
+        localStorage.removeItem('accessToken')
+        localStorage.removeItem('refreshToken')
+        
+        // Disconnect WebSocket
+        notificationService.destroy()
         
         set({
           user: null,

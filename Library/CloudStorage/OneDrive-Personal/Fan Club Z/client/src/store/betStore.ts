@@ -100,6 +100,7 @@ export const useBetStore = create<BetStore>((set, get) => ({
         queryClient.invalidateQueries({ queryKey: queryKeys.bet(betId) })
         queryClient.invalidateQueries({ queryKey: queryKeys.betEntries })
         queryClient.invalidateQueries({ queryKey: queryKeys.wallet })
+        queryClient.invalidateQueries({ queryKey: queryKeys.userStats })
         
         set({ isPlacingBet: false })
         return response.data.betEntry

@@ -20,6 +20,10 @@ interface NavItem {
   requiresAuth?: boolean
 }
 
+interface BottomNavigationProps {
+  activeTabOverride?: string // e.g., '/bets'
+}
+
 const navItems: NavItem[] = [
   {
     path: '/discover',
@@ -50,7 +54,7 @@ const navItems: NavItem[] = [
   },
 ]
 
-export const BottomNavigation: React.FC = () => {
+export const BottomNavigation: React.FC<BottomNavigationProps> = ({ activeTabOverride }) => {
   const [location, setLocation] = useLocation()
   const { isAuthenticated, user } = useAuthStore()
 
@@ -70,7 +74,7 @@ export const BottomNavigation: React.FC = () => {
   }
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-40">
+    <div className="fixed bottom-0 left-0 right-0 z-40" data-testid="bottom-navigation">
       <div className="bg-white/75 backdrop-blur-xl border-t border-gray-100 pb-safe">
         <div className="flex justify-around items-center h-[49px]">
           {navItems.map((item) => {
@@ -82,19 +86,21 @@ export const BottomNavigation: React.FC = () => {
                   onClick={() => handleNavigation('/auth/login')}
                   className="flex flex-col items-center justify-center min-w-[64px] h-full"
                 >
-                  <div className="relative">
-                    <LogIn className="w-6 h-6" />
-                  </div>
-                  <span className={cn("text-[10px]", "text-gray-400")}>
-                    Sign In
-                  </span>
-                </button>
+                    <div className="relative">
+                      <LogIn className="w-6 h-6" />
+                    </div>
+                    <span className={cn("text-[10px]", "text-gray-400")}>
+                      Sign In
+                    </span>
+                  </button>
               )
             }
 
             const Icon = item.icon
-            const isActive = location === item.path || 
-              (item.path !== '/discover' && location.startsWith(item.path))
+            // Use override if provided, else fallback to location
+            const currentTab = activeTabOverride || location
+            const isActive = currentTab === item.path || 
+              (item.path !== '/discover' && currentTab.startsWith(item.path))
             
             // Show authenticated state for profile tab
             const showUserAvatar = item.path === '/profile' && isAuthenticated && user
@@ -105,36 +111,36 @@ export const BottomNavigation: React.FC = () => {
                 onClick={() => handleNavigation(item.path)}
                 className="flex flex-col items-center justify-center min-w-[64px] h-full"
               >
-                <div className="relative">
-                  {showUserAvatar ? (
-                    <div className={cn("w-6 h-6 rounded-full overflow-hidden ring-2 transition-all duration-200", isActive ? "ring-primary" : "ring-gray-300")}>
-                      {user.profileImage ? (
-                        <img 
-                          src={user.profileImage} 
-                          alt={user.firstName}
-                          className="w-full h-full object-cover"
-                        />
-                      ) : (
-                        <div className="w-full h-full bg-primary flex items-center justify-center">
-                          <span className="text-white text-xs font-medium">
-                            {user.firstName?.[0]?.toUpperCase() || 'U'}
-                          </span>
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    <Icon className={cn("w-6 h-6 mb-1", isActive ? "text-blue-500" : "text-gray-400")} />
-                  )}
-                  {item.badge && (
-                    <div className="absolute -top-2 -right-2 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-medium">
-                      {item.badge > 99 ? '99+' : item.badge}
-                    </div>
-                  )}
-                </div>
-                <span className={cn("text-[10px]", isActive ? "text-blue-500" : "text-gray-400")}>
-                  {item.label}
-                </span>
-              </button>
+                  <div className="relative">
+                    {showUserAvatar ? (
+                      <div className={cn("w-6 h-6 rounded-full overflow-hidden ring-2 transition-all duration-200", isActive ? "ring-primary" : "ring-gray-300")}>
+                        {user.profileImage ? (
+                          <img 
+                            src={user.profileImage} 
+                            alt={user.firstName}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <div className="w-full h-full bg-primary flex items-center justify-center">
+                            <span className="text-white text-xs font-medium">
+                              {user.firstName?.[0]?.toUpperCase() || 'U'}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <Icon className={cn("w-6 h-6 mb-1", isActive ? "text-blue-500" : "text-gray-400")} />
+                    )}
+                    {item.badge && (
+                      <div className="absolute -top-2 -right-2 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-medium">
+                        {item.badge > 99 ? '99+' : item.badge}
+                      </div>
+                    )}
+                  </div>
+                  <span className={cn("text-[10px]", isActive ? "text-blue-500" : "text-gray-400")}>
+                    {item.label}
+                  </span>
+                </button>
             )
           })}
         </div>

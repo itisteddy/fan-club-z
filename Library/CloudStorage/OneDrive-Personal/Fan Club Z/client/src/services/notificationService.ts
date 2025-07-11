@@ -38,13 +38,22 @@ class NotificationService {
 
   constructor() {
     this.loadPreferences()
-    this.initializeWebSocket()
+    // Don't auto-connect - wait for user authentication
   }
 
   // Initialize WebSocket connection for real-time notifications
   private initializeWebSocket() {
     try {
-      this.ws = new WebSocket(`ws://${window.location.hostname}:5001/ws/notifications`)
+      // Get authentication token
+      const token = localStorage.getItem('accessToken') || localStorage.getItem('token')
+      
+      if (!token) {
+        console.log('🔔 No authentication token found, skipping WebSocket connection')
+        return
+      }
+
+      // Connect with authentication token
+      this.ws = new WebSocket(`ws://${window.location.hostname}:5001/ws/notifications?token=${token}`)
       
       this.ws.onopen = () => {
         console.log('🔔 WebSocket connected for notifications')
@@ -67,6 +76,11 @@ class NotificationService {
     } catch (error) {
       console.error('🔔 Failed to initialize WebSocket:', error)
     }
+  }
+
+  // Connect WebSocket when user logs in
+  connect() {
+    this.initializeWebSocket()
   }
 
   // Request push notification permission
@@ -111,13 +125,7 @@ class NotificationService {
       icon: '/favicon.ico',
       badge: '/favicon.ico',
       tag: notification.id,
-      requireInteraction: notification.type === 'payment',
-      actions: notification.actionUrl ? [
-        {
-          action: 'view',
-          title: 'View'
-        }
-      ] : undefined
+      requireInteraction: notification.type === 'payment'
     })
 
     pushNotification.onclick = () => {

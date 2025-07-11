@@ -38,6 +38,7 @@ class InMemoryStorage {
       username: 'demouser',
       firstName: 'Demo',
       lastName: 'User',
+      dateOfBirth: '1990-01-01',
       walletAddress: '0x' + '0'.repeat(40),
       kycLevel: 'basic',
       walletBalance: 1000,
@@ -78,6 +79,7 @@ class InMemoryStorage {
       const hashedPassword = await bcrypt.hash('password123', 10)
       const user: User = {
         ...userData,
+        dateOfBirth: '1990-01-01',
         phone: '+1234567890',
         walletAddress: '0x' + Math.random().toString(16).substr(2, 40),
         kycLevel: 'basic',

@@ -21,6 +21,7 @@ export const LoginPage: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false)
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [socialLoading, setSocialLoading] = useState<'apple' | 'google' | null>(null)
+  const [backendErrors, setBackendErrors] = useState<string[]>([])
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {}
@@ -44,6 +45,7 @@ export const LoginPage: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     clearError()
+    setBackendErrors([])
 
     if (!validateForm()) return
 
@@ -52,6 +54,18 @@ export const LoginPage: React.FC = () => {
       success('Welcome back!')
       setLocation('/discover')
     } catch (err: any) {
+      // Patch: show all backend error details
+      let backendErrorList: string[] = []
+      if (err.response && err.response.details) {
+        err.response.details.forEach((detail: any) => {
+          if (detail.field && detail.message) {
+            backendErrorList.push(`${detail.field}: ${detail.message}`)
+          } else if (detail.message) {
+            backendErrorList.push(detail.message)
+          }
+        })
+      }
+      setBackendErrors(backendErrorList)
       showError(err.message || 'Login failed')
     }
   }
@@ -65,12 +79,24 @@ export const LoginPage: React.FC = () => {
     }
   }
 
-  const handleDemoLogin = () => {
+  const handleDemoLogin = async () => {
     setFormData({
       email: 'demo@fanclubz.app',
       password: 'demo123',
     })
     setErrors({})
+    
+    // Automatically submit the form with demo credentials
+    try {
+      await login({
+        email: 'demo@fanclubz.app',
+        password: 'demo123',
+      })
+      success('Welcome back!')
+      setLocation('/discover')
+    } catch (err: any) {
+      showError(err.message || 'Demo login failed')
+    }
   }
 
   const handleSocialLogin = async (provider: 'apple' | 'google') => {
@@ -174,6 +200,16 @@ export const LoginPage: React.FC = () => {
           </div>
           
           <form onSubmit={handleSubmit} className="space-y-4">
+            {/* Backend Error List */}
+            {backendErrors.length > 0 && (
+              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-[10px] text-body-sm mb-2">
+                <ul className="list-disc pl-5">
+                  {backendErrors.map((msg, idx) => (
+                    <li key={idx}>{msg}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
             {/* Email */}
             <div>
               <label htmlFor="email" className="block text-body-sm font-medium text-gray-600 mb-2">
@@ -241,6 +277,7 @@ export const LoginPage: React.FC = () => {
                   variant="apple-secondary"
                   size="apple-sm"
                   className="bg-blue-100 text-blue-700 hover:bg-blue-200"
+                  data-testid="demo-login-button"
                 >
                   Try Demo
                 </Button>

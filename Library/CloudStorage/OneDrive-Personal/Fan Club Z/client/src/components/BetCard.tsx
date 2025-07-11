@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Heart, MessageCircle, Share, Clock, TrendingUp, Users, Calendar } from 'lucide-react'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -29,7 +29,7 @@ export const BetCard: React.FC<BetCardProps> = ({
   const { user } = useAuthStore()
   const { placeBet, likeBet, commentOnBet, shareBet, isPlacingBet } = useBetStore()
   const { success, error } = useToast()
-  const [, navigate] = useLocation()
+  const [location, navigate] = useLocation()
   
   const [showBetModal, setShowBetModal] = useState(false)
   const [selectedOption, setSelectedOption] = useState<string>('')
@@ -120,7 +120,7 @@ export const BetCard: React.FC<BetCardProps> = ({
   // User Entry variant - shows user's position
   if (variant === 'user-entry' && userEntry) {
     return (
-      <Card className={cn("hover:shadow-md transition-shadow duration-200", className)}>
+      <Card data-testid="bet-card" className={cn("hover:shadow-md transition-shadow duration-200", className)}>
         <CardHeader className="pb-3">
           <div className="flex items-start justify-between">
             <div className="flex-1">
@@ -184,7 +184,7 @@ export const BetCard: React.FC<BetCardProps> = ({
   // Horizontal variant - for discovery scrolling
   if (variant === 'horizontal') {
     return (
-      <Card className={cn("w-64 flex-shrink-0 hover:shadow-md transition-shadow duration-200", className)}>
+      <Card data-testid="bet-card" className={cn("w-64 flex-shrink-0 hover:shadow-md transition-shadow duration-200", className)}>
         <CardHeader className="pb-3">
           <div className="flex items-start justify-between">
             <div className="flex-1">
@@ -284,7 +284,7 @@ export const BetCard: React.FC<BetCardProps> = ({
 
   // Default vertical variant
   return (
-    <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+    <div className="bg-white rounded-xl shadow-sm overflow-hidden" data-testid="bet-card">
       {/* Hero image or gradient (optional) */}
       {bet.imageUrl && (
         <div className="h-32 bg-gradient-to-br from-blue-400 to-purple-500" />
@@ -321,7 +321,7 @@ export const BetCard: React.FC<BetCardProps> = ({
         {/* Action button */}
         <button
           className="mt-4 w-full h-11 bg-gray-100 rounded-[10px] font-medium text-body active:scale-95 transition-transform"
-          onClick={() => navigate(`/bets/${bet.id}`)}
+          onClick={() => navigate(`/bets/${bet.id}?referrer=${location}`)}
         >
           View Details
         </button>

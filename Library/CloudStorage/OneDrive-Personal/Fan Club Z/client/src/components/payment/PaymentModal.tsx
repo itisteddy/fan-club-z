@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { X, CreditCard, CheckCircle } from 'lucide-react'
 
 // Demo mode preset amounts
@@ -11,10 +11,19 @@ interface PaymentModalProps {
   onSuccess: (amount: number) => void
 }
 
-const DemoDepositForm: React.FC<{ onSuccess: (amount: number) => void; onClose: () => void }> = ({ onSuccess, onClose }) => {
-  const [amount, setAmount] = useState(25)
+const DemoDepositForm: React.FC<{ 
+  onSuccess: (amount: number) => void; 
+  onClose: () => void;
+  initialAmount?: number;
+}> = ({ onSuccess, onClose, initialAmount = 25 }) => {
+  const [amount, setAmount] = useState(initialAmount)
   const [success, setSuccess] = useState(false)
   const [loading, setLoading] = useState(false)
+
+  // Update amount when initialAmount changes
+  useEffect(() => {
+    setAmount(initialAmount)
+  }, [initialAmount])
 
   const handleDeposit = async () => {
     setLoading(true)
@@ -163,7 +172,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
         </div>
         {/* Content */}
         <div className="p-6">
-          <DemoDepositForm onSuccess={onSuccess} onClose={onClose} />
+          <DemoDepositForm onSuccess={onSuccess} onClose={onClose} initialAmount={amount} />
         </div>
       </div>
     </div>

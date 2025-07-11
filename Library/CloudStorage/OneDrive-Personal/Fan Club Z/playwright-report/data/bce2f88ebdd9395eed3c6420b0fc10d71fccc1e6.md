@@ -1,0 +1,80 @@
+# Page snapshot
+
+```yaml
+- banner:
+  - link "Z Fan Club Z":
+    - /url: /discover
+    - text: Z
+    - heading "Fan Club Z" [level=1]
+- main:
+  - button:
+    - img
+  - button:
+    - img
+  - text: crypto
+  - heading "Will Bitcoin reach $100K by end of 2025?" [level=1]
+  - img
+  - text: 12 participants •
+  - img
+  - text: $24,000 pool •
+  - img
+  - text: 176d 21h left
+  - paragraph: Bitcoin has been on a bull run. Will it hit the magical 100K mark by December 31st, 2025?
+  - text: By @Unknown OPEN
+  - heading "Place Your Bet" [level=2]
+  - button "Yes 15,000 $15,000"
+  - button "No 8,500 $8,500"
+  - spinbutton
+  - button "Place Bet" [disabled]
+  - img
+  - heading "Comments" [level=2]
+  - text: S Sarah 7/4/2025, 10:20:00 AM
+  - paragraph: I think Bitcoin will definitely hit $100K! The fundamentals are strong.
+  - text: M Mike 7/4/2025, 9:45:00 AM
+  - paragraph: Not so sure... the market is very volatile. Could go either way.
+  - textbox "Sign in to comment" [disabled]
+  - button "Send" [disabled]
+  - button "Sign in to comment"
+  - img
+  - heading "Top Participants" [level=2]
+  - text: A Alice $1,000 B Bob $800
+  - button "Like 234":
+    - img
+    - text: Like 234
+  - button "Share":
+    - img
+    - text: Share
+  - button "Report":
+    - img
+    - text: Report
+  - button "Discover":
+    - img
+    - text: Discover
+  - button "My Bets":
+    - img
+    - text: My Bets
+  - button "Create":
+    - img
+    - text: Create
+  - button "Clubs":
+    - img
+    - text: Clubs
+  - button "Sign In":
+    - img
+    - text: Sign In
+- button "Discover":
+  - img
+  - text: Discover
+- button "My Bets":
+  - img
+  - text: My Bets
+- button "Create":
+  - img
+  - text: Create
+- button "Clubs":
+  - img
+  - text: Clubs
+- button "Sign In":
+  - img
+  - text: Sign In
+```

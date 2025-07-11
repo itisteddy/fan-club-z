@@ -1,3 +1,7 @@
+// Load environment variables from .env file FIRST
+import dotenv from 'dotenv'
+dotenv.config()
+
 import express from 'express'
 import cors from 'cors'
 import helmet from 'helmet'
@@ -5,6 +9,15 @@ import morgan from 'morgan'
 import compression from 'compression'
 import { networkInterfaces } from 'os'
 import router from './routes.js'
+import { testConnection, closeConnection } from './database/config.js'
+import { config, validateConfig } from './config.js'
+import { notificationService } from './services/notificationService.js'
+import { generalLimiter } from './middleware/rateLimit.js'
+import { createServer } from 'http'
+import { WebSocketServer } from 'ws'
+import jwt from 'jsonwebtoken'
+import { realtimeService } from './services/realtimeService.js'
+import { databaseStorage } from './services/databaseStorage.js'
 
 // Extend Express Request type to include user
 declare global {
@@ -29,9 +42,15 @@ function getLocalIP(): string {
   return 'localhost'
 }
 
+// Validate configuration on startup
+validateConfig()
+
 const app = express()
-const PORT = process.env.PORT || 5001
 const LOCAL_IP = getLocalIP()
+const server = createServer(app)
+
+// Create WebSocket server
+const wss = new WebSocketServer({ server })
 
 // Security middleware
 app.use(helmet({
@@ -41,12 +60,18 @@ app.use(helmet({
 
 // CORS configuration
 app.use(cors({
-  origin: process.env.NODE_ENV === 'production' 
-    ? ['https://fanclubz.app', 'https://www.fanclubz.app']
-    : true, // Allow all origins in development
+  origin: [
+    'http://localhost:3000',
+    'http://127.0.0.1:3000',
+    'http://172.20.2.210:3000',
+    'http://172.20.2.210:3001',
+    'http://0.0.0.0:3000',
+    ...(config.nodeEnv === 'development' ? ['*'] : [])
+  ],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  optionsSuccessStatus: 200
 }))
 
 // Body parsing middleware
@@ -57,21 +82,63 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }))
 app.use(compression())
 
 // Logging middleware
-if (process.env.NODE_ENV !== 'production') {
+if (config.nodeEnv !== 'production') {
   app.use(morgan('dev'))
 } else {
   app.use(morgan('combined'))
 }
 
-// API routes
-app.use('/api', router)
+// Apply general rate limiting to all API routes
+app.use('/api', generalLimiter, router)
+
+// WebSocket connection handler
+wss.on('connection', (ws, req) => {
+  const url = new URL(req.url!, `http://${req.headers.host}`)
+  const path = url.pathname
+
+  if (path === '/ws/notifications') {
+    // Handle notification WebSocket
+    const token = url.searchParams.get('token')
+    if (token) {
+      // For notifications, we need to handle the connection differently
+      // since the notification service expects a different interface
+      try {
+        const decoded = jwt.verify(token, config.jwtSecret) as { userId: string }
+        const userId = decoded.userId
+        
+        // Send welcome message
+        notificationService.sendSystemNotification(userId, 'Connected', 'Real-time notifications enabled')
+        
+        console.log(`✅ Notification WebSocket authenticated for user: ${userId}`)
+      } catch (error) {
+        console.log('❌ Invalid token for notification WebSocket connection:', error)
+        ws.close(1008, 'Invalid token')
+      }
+    } else {
+      console.log('No token provided for notification WebSocket connection')
+      ws.close(1008, 'No token provided')
+    }
+  } else if (path === '/ws/realtime') {
+    // Handle realtime WebSocket
+    const token = url.searchParams.get('token')
+    if (token) {
+      realtimeService.handleConnection(ws, token)
+    } else {
+      console.log('No token provided for realtime WebSocket connection')
+      ws.close(1008, 'No token provided')
+    }
+  } else {
+    console.log(`Unknown WebSocket path: ${path}`)
+    ws.close(1008, 'Unknown path')
+  }
+})
 
 // Root endpoint
 app.get('/', (req, res) => {
   res.json({
     message: 'Welcome to Fan Club Z API! 🚀',
-    version: '1.0.0',
-    environment: process.env.NODE_ENV || 'development',
+    version: config.appVersion,
+    environment: config.nodeEnv,
     docs: '/api/health'
   })
 })
@@ -79,12 +146,16 @@ app.get('/', (req, res) => {
 // Health check endpoint
 app.get('/health', (req, res) => {
   res.json({
-    status: 'OK',
-    message: 'Fan Club Z API is healthy',
+    status: 'ok',
     timestamp: new Date().toISOString(),
-    uptime: process.uptime(),
-    memory: process.memoryUsage(),
-    environment: process.env.NODE_ENV || 'development'
+    services: {
+      notifications: {
+        connectedUsers: notificationService.getConnectedUsers(),
+        connectionCount: notificationService.getConnectionCount()
+      },
+      realtime: realtimeService.getStats(),
+      database: 'connected'
+    }
   })
 })
 
@@ -110,71 +181,58 @@ app.use((error: any, req: express.Request, res: express.Response, next: express.
   
   res.status(error.status || 500).json({
     success: false,
-    error: process.env.NODE_ENV === 'production' 
+    error: config.nodeEnv === 'production' 
       ? 'Internal server error' 
       : error.message,
-    ...(process.env.NODE_ENV !== 'production' && { stack: error.stack })
+    ...(config.nodeEnv !== 'production' && { stack: error.stack })
   })
 })
 
-// Graceful shutdown handling
+// Initialize database
+async function initializeDatabase() {
+  try {
+    await testConnection()
+    console.log('✅ Database initialized successfully')
+  } catch (error) {
+    console.error('❌ Failed to initialize database:', error)
+    process.exit(1)
+  }
+}
+
+// Start server
+async function startServer() {
+  await initializeDatabase()
+  
+  server.listen(config.port, '0.0.0.0', () => {
+    console.log(`🚀 Server running on port ${config.port}`)
+    console.log(`📱 Local: http://localhost:${config.port}`)
+    console.log(`📱 Network: http://${LOCAL_IP}:${config.port}`)
+    console.log(`📱 Client URL: http://172.20.2.210:3000`)
+    console.log(`🔌 WebSocket endpoints:`)
+    console.log(`   - Notifications: ws://localhost:${config.port}/ws/notifications`)
+    console.log(`   - Realtime: ws://localhost:${config.port}/ws/realtime`)
+    console.log(`📊 Health check: http://localhost:${config.port}/health`)
+    console.log(`🌐 CORS Origins: http://172.20.2.210:3000, http://localhost:3000`)
+  })
+}
+
+startServer().catch(console.error)
+
+// Graceful shutdown
 process.on('SIGTERM', () => {
-  console.log('SIGTERM received. Shutting down gracefully...')
-  process.exit(0)
+  console.log('🛑 Received SIGTERM, shutting down gracefully...')
+  server.close(() => {
+    console.log('✅ Server closed')
+    process.exit(0)
+  })
 })
 
 process.on('SIGINT', () => {
-  console.log('SIGINT received. Shutting down gracefully...')
-  process.exit(0)
-})
-
-// Start server with error handling
-const server = app.listen(PORT, '0.0.0.0', () => {
-  console.log(`
-🚀 Fan Club Z API Server Started!
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-🌍 Environment: ${process.env.NODE_ENV || 'development'}
-🔗 Local:       http://localhost:${PORT}
-📱 Network:     http://${LOCAL_IP}:${PORT}
-📋 Health:      http://localhost:${PORT}/health
-🔌 API:         http://localhost:${PORT}/api
-
-📊 Available Endpoints:
-   • POST /api/users/register
-   • POST /api/users/login
-   • GET  /api/bets
-   • GET  /api/clubs
-   • GET  /api/health
-
-📱 Mobile Access:
-   Use http://${LOCAL_IP}:${PORT} on your mobile device
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Ready to accept connections! 🎯
-  `)
-})
-
-server.on('error', (error: any) => {
-  if (error.code === 'EADDRINUSE') {
-    console.error(`
-❌ Port ${PORT} is already in use!
-
-💡 Solutions:
-   1. Kill the process using port ${PORT}:
-      lsof -ti:${PORT} | xargs kill -9
-   
-   2. Or change the port in .env.local:
-      PORT=5002
-   
-   3. Or set a different port:
-      PORT=5002 npm run dev:server
-`)
-    process.exit(1)
-  } else {
-    console.error('Server error:', error)
-    process.exit(1)
-  }
+  console.log('🛑 Received SIGINT, shutting down gracefully...')
+  server.close(() => {
+    console.log('✅ Server closed')
+    process.exit(0)
+  })
 })
 
 // Export for testing

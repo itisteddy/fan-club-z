@@ -101,47 +101,53 @@ export const ResponsibleGambling: React.FC<ResponsibleGamblingProps> = ({
   }
 
   return (
-    <div className="max-w-4xl mx-auto p-4 space-y-6">
-      <div className="text-center mb-8">
-        <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
-          <Heart className="w-8 h-8 text-red-500" />
+    <div className="max-w-5xl mx-auto px-6 py-8 lg:px-8">
+      <div className="text-center mb-12">
+        <div className="w-20 h-20 bg-gradient-to-br from-red-500 to-red-600 rounded-full flex items-center justify-center mx-auto mb-6 shadow-lg">
+          <Heart className="w-10 h-10 text-white" />
         </div>
-        <h1 className="text-title-1 font-bold mb-2">Responsible Gambling</h1>
-        <p className="text-body text-gray-500">
-          We're committed to helping you gamble responsibly
+        <h1 className="text-title-1 font-bold mb-4 text-gray-900">Responsible Gambling</h1>
+        <p className="text-body text-gray-600 max-w-2xl mx-auto leading-relaxed">
+          We're committed to helping you gamble responsibly and safely. Learn about our tools and resources.
         </p>
       </div>
 
       {/* Warning Banner */}
-      <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-6">
-        <div className="flex items-start space-x-3">
-          <AlertTriangle className="w-6 h-6 text-red-500 mt-1 flex-shrink-0" />
-          <div>
-            <h3 className="text-title-3 font-semibold text-red-800 mb-2">
+      <div className="bg-gradient-to-r from-red-50 via-pink-50 to-red-50 border border-red-200 rounded-2xl p-8 mb-12">
+        <div className="flex items-start space-x-4">
+          <div className="w-12 h-12 bg-red-500 rounded-full flex items-center justify-center flex-shrink-0">
+            <AlertTriangle className="w-6 h-6 text-white" />
+          </div>
+          <div className="flex-1">
+            <h3 className="text-title-2 font-bold text-red-900 mb-3">
               Gambling Should Be Fun, Not Harmful
             </h3>
-            <p className="text-body text-red-700">
+            <p className="text-body text-red-800 leading-relaxed">
               If gambling is causing problems in your life, help is available. 
-              You can set limits, take breaks, or seek professional support.
+              You can set limits, take breaks, or seek professional support. Remember, gambling should always be enjoyable entertainment, not a way to solve financial problems.
             </p>
           </div>
         </div>
       </div>
 
       {/* Spending Limits */}
-      <Card className="border-gray-200">
-        <CardContent className="p-6">
-          <div className="flex items-center space-x-3 mb-4">
-            <DollarSign className="w-6 h-6 text-green-500" />
-            <h3 className="text-title-3 font-semibold">Set Spending Limits</h3>
+      <Card className="border-gray-200 shadow-sm hover:shadow-md transition-all duration-200 mb-12">
+        <CardContent className="p-8">
+          <div className="flex items-center space-x-4 mb-6">
+            <div className="w-14 h-14 bg-gradient-to-br from-green-100 to-green-200 rounded-2xl flex items-center justify-center">
+              <DollarSign className="w-7 h-7 text-green-600" />
+            </div>
+            <div className="flex-1">
+              <h3 className="text-title-2 font-bold text-gray-900 mb-2">Set Spending Limits</h3>
+              <p className="text-body text-gray-600 leading-relaxed">
+                Control your spending by setting daily, weekly, and monthly limits. These help you stay within your budget.
+              </p>
+            </div>
           </div>
-          <p className="text-body text-gray-600 mb-4">
-            Control your spending by setting daily, weekly, and monthly limits.
-          </p>
           
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-            <div>
-              <label className="text-body font-medium text-gray-900 mb-2 block">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+            <div className="space-y-3">
+              <label className="text-body font-semibold text-gray-900 block">
                 Daily Limit ($)
               </label>
               <input
@@ -151,13 +157,13 @@ export const ResponsibleGambling: React.FC<ResponsibleGamblingProps> = ({
                   ...prev,
                   daily: parseInt(e.target.value) || 0
                 }))}
-                className="w-full h-11 px-4 text-body bg-gray-100 rounded-[10px] 
-                         placeholder-gray-500 focus:bg-gray-200 transition-colors"
+                className="w-full h-12 px-4 text-body bg-gray-50 border border-gray-200 rounded-xl 
+                         placeholder-gray-500 focus:bg-white focus:border-green-500 focus:outline-none transition-all"
                 placeholder="0"
               />
             </div>
-            <div>
-              <label className="text-body font-medium text-gray-900 mb-2 block">
+            <div className="space-y-3">
+              <label className="text-body font-semibold text-gray-900 block">
                 Weekly Limit ($)
               </label>
               <input
@@ -167,13 +173,13 @@ export const ResponsibleGambling: React.FC<ResponsibleGamblingProps> = ({
                   ...prev,
                   weekly: parseInt(e.target.value) || 0
                 }))}
-                className="w-full h-11 px-4 text-body bg-gray-100 rounded-[10px] 
-                         placeholder-gray-500 focus:bg-gray-200 transition-colors"
+                className="w-full h-12 px-4 text-body bg-gray-50 border border-gray-200 rounded-xl 
+                         placeholder-gray-500 focus:bg-white focus:border-green-500 focus:outline-none transition-all"
                 placeholder="0"
               />
             </div>
-            <div>
-              <label className="text-body font-medium text-gray-900 mb-2 block">
+            <div className="space-y-3">
+              <label className="text-body font-semibold text-gray-900 block">
                 Monthly Limit ($)
               </label>
               <input
@@ -183,35 +189,42 @@ export const ResponsibleGambling: React.FC<ResponsibleGamblingProps> = ({
                   ...prev,
                   monthly: parseInt(e.target.value) || 0
                 }))}
-                className="w-full h-11 px-4 text-body bg-gray-100 rounded-[10px] 
-                         placeholder-gray-500 focus:bg-gray-200 transition-colors"
+                className="w-full h-12 px-4 text-body bg-gray-50 border border-gray-200 rounded-xl 
+                         placeholder-gray-500 focus:bg-white focus:border-green-500 focus:outline-none transition-all"
                 placeholder="0"
               />
             </div>
           </div>
           
-          <Button onClick={handleSetLimits} className="w-full">
+          <Button 
+            onClick={handleSetLimits} 
+            className="bg-green-600 hover:bg-green-700 text-white px-8 py-3 rounded-xl font-semibold transition-all duration-200 active:scale-95"
+          >
             Set Limits
           </Button>
         </CardContent>
       </Card>
 
       {/* Warning Signs */}
-      <Card className="border-gray-200">
-        <CardContent className="p-6">
-          <div className="flex items-center space-x-3 mb-4">
-            <AlertTriangle className="w-6 h-6 text-orange-500" />
-            <h3 className="text-title-3 font-semibold">Warning Signs</h3>
+      <Card className="border-gray-200 shadow-sm hover:shadow-md transition-all duration-200 mb-12">
+        <CardContent className="p-8">
+          <div className="flex items-center space-x-4 mb-6">
+            <div className="w-14 h-14 bg-gradient-to-br from-amber-100 to-orange-200 rounded-2xl flex items-center justify-center">
+              <AlertTriangle className="w-7 h-7 text-amber-600" />
+            </div>
+            <div className="flex-1">
+              <h3 className="text-title-2 font-bold text-gray-900 mb-2">Warning Signs</h3>
+              <p className="text-body text-gray-600 leading-relaxed">
+                If you recognize these signs in yourself or someone you know, it may be time to seek help:
+              </p>
+            </div>
           </div>
-          <p className="text-body text-gray-600 mb-4">
-            If you recognize these signs in yourself or someone you know, it may be time to seek help:
-          </p>
           
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             {warningSigns.map((sign, index) => (
-              <div key={index} className="flex items-start space-x-2">
-                <span className="w-1.5 h-1.5 bg-orange-500 rounded-full mt-2 flex-shrink-0" />
-                <span className="text-body text-gray-700">{sign}</span>
+              <div key={index} className="flex items-start space-x-3 p-4 bg-amber-50 rounded-xl border border-amber-100">
+                <span className="w-2 h-2 bg-amber-500 rounded-full mt-2 flex-shrink-0" />
+                <span className="text-body text-amber-800 leading-relaxed">{sign}</span>
               </div>
             ))}
           </div>
@@ -219,28 +232,41 @@ export const ResponsibleGambling: React.FC<ResponsibleGamblingProps> = ({
       </Card>
 
       {/* Self-Exclusion */}
-      <Card className="border-gray-200">
-        <CardContent className="p-6">
-          <div className="flex items-center space-x-3 mb-4">
-            <Clock className="w-6 h-6 text-blue-500" />
-            <h3 className="text-title-3 font-semibold">Take a Break</h3>
+      <Card className="border-gray-200 shadow-sm hover:shadow-md transition-all duration-200 mb-12">
+        <CardContent className="p-8">
+          <div className="flex items-center space-x-4 mb-6">
+            <div className="w-14 h-14 bg-gradient-to-br from-blue-100 to-indigo-200 rounded-2xl flex items-center justify-center">
+              <Clock className="w-7 h-7 text-blue-600" />
+            </div>
+            <div className="flex-1">
+              <h3 className="text-title-2 font-bold text-gray-900 mb-2">Take a Break</h3>
+              <p className="text-body text-gray-600 leading-relaxed">
+                If you need to step away from gambling, you can temporarily or permanently exclude yourself:
+              </p>
+            </div>
           </div>
-          <p className="text-body text-gray-600 mb-4">
-            If you need to step away from gambling, you can temporarily or permanently exclude yourself:
-          </p>
           
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {selfExclusionOptions.map((option, index) => (
-              <div key={index} className="border border-gray-200 rounded-lg p-3">
-                <div className="flex items-center justify-between mb-2">
-                  <Badge variant="outline">{option.duration}</Badge>
+              <div key={index} className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-2xl p-6 hover:shadow-md transition-all">
+                <div className="flex items-center justify-between mb-3">
+                  <Badge 
+                    variant="outline" 
+                    className={`${option.duration === 'Permanent' ? 'border-red-300 text-red-700 bg-red-50' : 'border-blue-300 text-blue-700 bg-blue-50'}`}
+                  >
+                    {option.duration}
+                  </Badge>
                 </div>
-                <p className="text-body-sm text-gray-600 mb-3">{option.description}</p>
+                <p className="text-body-sm text-gray-600 mb-4 leading-relaxed">{option.description}</p>
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={() => handleSelfExclusion(option.duration)}
-                  className="w-full"
+                  className={`w-full rounded-xl font-semibold transition-all ${
+                    option.duration === 'Permanent' 
+                      ? 'border-red-300 text-red-700 hover:bg-red-50' 
+                      : 'border-blue-300 text-blue-700 hover:bg-blue-50'
+                  }`}
                 >
                   {option.duration === 'Permanent' ? 'Close Account' : 'Activate'}
                 </Button>
@@ -251,32 +277,37 @@ export const ResponsibleGambling: React.FC<ResponsibleGamblingProps> = ({
       </Card>
 
       {/* Help Resources */}
-      <Card className="border-gray-200">
-        <CardContent className="p-6">
-          <div className="flex items-center space-x-3 mb-4">
-            <Phone className="w-6 h-6 text-green-500" />
-            <h3 className="text-title-3 font-semibold">Get Help</h3>
+      <Card className="border-gray-200 shadow-sm hover:shadow-md transition-all duration-200 mb-12">
+        <CardContent className="p-8">
+          <div className="flex items-center space-x-4 mb-6">
+            <div className="w-14 h-14 bg-gradient-to-br from-green-100 to-emerald-200 rounded-2xl flex items-center justify-center">
+              <Phone className="w-7 h-7 text-green-600" />
+            </div>
+            <div className="flex-1">
+              <h3 className="text-title-2 font-bold text-gray-900 mb-2">Get Help</h3>
+              <p className="text-body text-gray-600 leading-relaxed">
+                Professional help is available 24/7. These organizations provide confidential support:
+              </p>
+            </div>
           </div>
-          <p className="text-body text-gray-600 mb-4">
-            Professional help is available 24/7. These organizations provide confidential support:
-          </p>
           
-          <div className="space-y-4">
+          <div className="grid gap-6">
             {helpResources.map((resource, index) => {
               const Icon = resource.icon
               return (
-                <div key={index} className="border border-gray-200 rounded-lg p-4">
-                  <div className="flex items-start space-x-3">
-                    <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0">
-                      <Icon className="w-5 h-5 text-green-500" />
+                <div key={index} className="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-2xl p-6 hover:shadow-md transition-all">
+                  <div className="flex items-start space-x-4">
+                    <div className="w-12 h-12 bg-green-500 rounded-xl flex items-center justify-center flex-shrink-0">
+                      <Icon className="w-6 h-6 text-white" />
                     </div>
                     <div className="flex-1">
-                      <h4 className="text-body font-semibold mb-1">{resource.name}</h4>
-                      <p className="text-body-sm text-gray-600 mb-2">{resource.description}</p>
+                      <h4 className="text-title-3 font-bold text-green-900 mb-2">{resource.name}</h4>
+                      <p className="text-body text-green-700 mb-3 leading-relaxed">{resource.description}</p>
                       <a
                         href={`tel:${resource.phone}`}
-                        className="text-green-500 font-medium hover:underline"
+                        className="inline-flex items-center text-green-600 font-semibold hover:text-green-700 transition-colors bg-white px-4 py-2 rounded-xl border border-green-200 hover:border-green-300"
                       >
+                        <Phone className="w-4 h-4 mr-2" />
                         {resource.phone}
                       </a>
                     </div>
@@ -289,19 +320,39 @@ export const ResponsibleGambling: React.FC<ResponsibleGamblingProps> = ({
       </Card>
 
       {/* Additional Information */}
-      <div className="bg-gray-50 border border-gray-200 rounded-xl p-6">
-        <h3 className="text-title-3 font-semibold mb-3">Additional Resources</h3>
-        <div className="space-y-2 text-body text-gray-700">
-          <p><strong>Online Support:</strong> Visit <a href="#" className="text-blue-500 hover:underline">www.ncpgambling.org</a></p>
-          <p><strong>Mobile App:</strong> Download the "Gambling Help" app for 24/7 support</p>
-          <p><strong>Local Resources:</strong> Contact your state's gambling helpline for local support</p>
+      <div className="bg-gradient-to-r from-gray-50 via-white to-gray-50 border border-gray-200 rounded-2xl p-8 mb-12">
+        <div className="text-center">
+          <h3 className="text-title-3 font-semibold mb-4 text-gray-900">Additional Resources</h3>
+          <div className="grid gap-4 max-w-2xl mx-auto">
+            <div className="bg-white rounded-xl p-4 border border-gray-100">
+              <p className="text-body text-gray-700">
+                <strong>Online Support:</strong> Visit <a href="#" className="text-blue-500 hover:underline font-semibold">www.ncpgambling.org</a>
+              </p>
+            </div>
+            <div className="bg-white rounded-xl p-4 border border-gray-100">
+              <p className="text-body text-gray-700">
+                <strong>Mobile App:</strong> Download the "Gambling Help" app for 24/7 support
+              </p>
+            </div>
+            <div className="bg-white rounded-xl p-4 border border-gray-100">
+              <p className="text-body text-gray-700">
+                <strong>Local Resources:</strong> Contact your state's gambling helpline for local support
+              </p>
+            </div>
+          </div>
         </div>
       </div>
 
       {showActions && (
         <div className="flex justify-center pt-6">
-          <Button onClick={onClose} variant="outline">
-            Close
+          <Button 
+            onClick={() => {
+              console.log('🔍 ResponsibleGambling Close button clicked')
+              onClose?.()
+            }} 
+            className="bg-red-600 hover:bg-red-700 text-white px-12 py-4 rounded-2xl text-body font-semibold shadow-lg hover:shadow-xl transition-all duration-200 active:scale-95"
+          >
+            I Understand - Continue
           </Button>
         </div>
       )}

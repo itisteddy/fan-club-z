@@ -65,7 +65,12 @@ export async function apiRequest<T>(
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}))
-      throw new Error(errorData.message || `HTTP error! status: ${response.status}`)
+      // Create error object with all backend error fields
+      const err: any = new Error(errorData.error || errorData.message || `HTTP error! status: ${response.status}`)
+      err.status = response.status
+      err.response = errorData  // Keep the full response for the auth store
+      if (errorData.details) err.details = errorData.details
+      throw err
     }
 
     const data = await response.json()
@@ -123,6 +128,9 @@ export const queryKeys = {
   // Bet Entries
   betEntries: ['bet-entries'] as const,
   userBetEntries: (userId: string) => ['bet-entries', 'user', userId] as const,
+
+  // User Stats
+  userStats: (userId: string) => ['user', 'stats', userId] as const,
 
   // Clubs
   clubs: ['clubs'] as const,

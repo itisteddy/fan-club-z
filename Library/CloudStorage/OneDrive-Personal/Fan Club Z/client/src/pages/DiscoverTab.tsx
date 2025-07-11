@@ -111,7 +111,8 @@ export const DiscoverTab: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedCategory, setSelectedCategory] = useState('all')
   const [selectedFilter, setSelectedFilter] = useState('trending')
-  const [bets, setBets] = useState<Bet[]>(mockTrendingBets) // Using mock data for now
+  // Use trendingBets from store if available, otherwise fallback to mockTrendingBets
+  const bets = trendingBets && trendingBets.length > 0 ? trendingBets : mockTrendingBets
 
   useEffect(() => {
     // Fetch trending bets on component mount
@@ -123,9 +124,11 @@ export const DiscoverTab: React.FC = () => {
     const matchesSearch = bet.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
                          bet.description.toLowerCase().includes(searchQuery.toLowerCase())
     const matchesCategory = selectedCategory === 'all' || bet.category === selectedCategory
-    
     return matchesSearch && matchesCategory
   })
+
+  // Find the Bitcoin bet for the featured card
+  const featuredBet = bets.find(bet => bet.title.toLowerCase().includes('bitcoin') && bet.title.toLowerCase().includes('100k'))
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -141,11 +144,11 @@ export const DiscoverTab: React.FC = () => {
           {/* Search Bar */}
           <div className="px-4 pb-2">
             <div className="relative">
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 z-10" />
               <Input
                 type="search"
                 placeholder="Search bets, topics, or creators..."
-                className="w-full h-11 pl-11 pr-4 bg-gray-100 rounded-[10px] text-body placeholder-gray-500 focus:bg-gray-200 transition-colors"
+                className="w-full h-11 pl-11 pr-4 bg-gray-100 rounded-[10px] text-body placeholder-gray-500 focus:bg-gray-200 transition-colors block"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
@@ -161,6 +164,7 @@ export const DiscoverTab: React.FC = () => {
             {categories.map((category) => (
               <button
                 key={category.id}
+                data-testid="category-button"
                 onClick={() => setSelectedCategory(category.id)}
                 className={cn(
                   "flex items-center space-x-2 px-4 py-2 rounded-full text-body-sm font-medium whitespace-nowrap transition-all duration-200",
@@ -193,7 +197,8 @@ export const DiscoverTab: React.FC = () => {
           </p>
           <Button
             className="bg-white/20 backdrop-blur-md px-6 h-11 rounded-[10px] font-medium"
-            onClick={() => navigate(`/bets/${bets[0].id}`)}
+            onClick={() => featuredBet && navigate(`/bets/${featuredBet.id}`)}
+            disabled={!featuredBet}
           >
             View Details
           </Button>
@@ -203,11 +208,27 @@ export const DiscoverTab: React.FC = () => {
       {/* Bet List */}
       <section className="px-4 pb-24">
         <h2 className="text-title-2 font-bold mb-4">Trending Now</h2>
-        <div className="space-y-4">
-          {filteredBets.map(bet => (
-            <BetCard key={bet.id} bet={bet} />
-          ))}
-        </div>
+        {filteredBets.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-12 px-8">
+            <div className="w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center mb-6">
+              <span className="text-4xl text-gray-400">🤔</span>
+            </div>
+            <h3 className="text-title-3 font-semibold mb-2">
+              {trendingBets && trendingBets.length === 0 ? 'No Bets Found' : 'Unable to load bets'}
+            </h3>
+            <p className="text-body text-gray-500 text-center mb-6">
+              {trendingBets && trendingBets.length === 0
+                ? 'Start exploring trending bets or create your own.'
+                : 'There was a problem loading bets. Please try again later.'}
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {filteredBets.map(bet => (
+              <BetCard key={bet.id} bet={bet} />
+            ))}
+          </div>
+        )}
       </section>
     </div>
   )

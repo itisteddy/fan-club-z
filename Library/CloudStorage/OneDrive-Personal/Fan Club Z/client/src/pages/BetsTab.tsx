@@ -1,14 +1,23 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { TrendingUp, Clock, Trophy, History } from 'lucide-react'
 import { useAuthStore } from '@/store/authStore'
 import { useBetStore } from '@/store/betStore'
+import { useStatsStore } from '@/store/statsStore'
 import BetCard from '@/components/BetCard'
 
 export const BetsTab: React.FC = () => {
   const { user } = useAuthStore()
+  const { stats, loading: statsLoading, fetchStats } = useStatsStore()
   const [activeTab, setActiveTab] = useState('active')
+
+  // Fetch stats when component mounts
+  useEffect(() => {
+    if (user?.id) {
+      fetchStats(user.id)
+    }
+  }, [user?.id, fetchStats])
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -26,13 +35,17 @@ export const BetsTab: React.FC = () => {
         <div className="grid grid-cols-2 gap-4 mb-8">
           <div className="bg-white rounded-xl shadow-sm p-4 text-center">
             <TrendingUp className="w-8 h-8 text-blue-500 mx-auto mb-2" />
-            <div className="text-title-1 font-bold text-gray-900 mb-1">12</div>
+            <div className="text-title-1 font-bold text-gray-900 mb-1">
+              {statsLoading ? '...' : (stats?.activeBets || 0)}
+            </div>
             <div className="text-body-sm text-gray-500">Active Bets</div>
           </div>
           
           <div className="bg-white rounded-xl shadow-sm p-4 text-center">
             <Trophy className="w-8 h-8 text-yellow-500 mx-auto mb-2" />
-            <div className="text-title-1 font-bold text-gray-900 mb-1">68%</div>
+            <div className="text-title-1 font-bold text-gray-900 mb-1">
+              {statsLoading ? '...' : (stats?.winRate ? `${stats.winRate.toFixed(0)}%` : '0%')}
+            </div>
             <div className="text-body-sm text-gray-500">Win Rate</div>
           </div>
         </div>

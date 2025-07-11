@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import { useLocation, useParams } from 'wouter'
 import { 
   ArrowLeft, 
@@ -20,7 +20,10 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Input } from '@/components/ui/input'
 import { useAuthStore } from '@/store/authStore'
+import { useBetStore } from '@/store/betStore'
+import { getUserBetEntry } from '@/store/betStore'
 import { formatCurrency, formatTimeRemaining, formatRelativeTime, cn } from '@/lib/utils'
+import BottomNavigation from '@/components/BottomNavigation'
 
 interface BetDetailPageProps {
   betId: string
@@ -106,10 +109,10 @@ const normalizeComment = (c: any) => ({
 
 type ShareModalProps = { open: boolean, onClose: () => void, link: string }
 
-export const BetDetailPage: React.FC<BetDetailPageProps> = ({ betId }) => {
-  const [, setLocation] = useLocation()
+export const BetDetailPage: React.FC<BetDetailPageProps & { referrer?: string }> = ({ betId, referrer: propReferrer }) => {
+  const [location, setLocation] = useLocation()
   const { user } = useAuthStore()
-  const { id } = useParams()
+  const { trendingBets, fetchUserBets, fetchUserBetEntries, commentOnBet } = useBetStore()
   
   const [activeTab, setActiveTab] = useState('details')
   const [commentText, setCommentText] = useState('')
@@ -117,7 +120,9 @@ export const BetDetailPage: React.FC<BetDetailPageProps> = ({ betId }) => {
   const [showBetModal, setShowBetModal] = useState(false)
   const [selectedOption, setSelectedOption] = useState(mockBet.options[0].id)
   const [stake, setStake] = useState('')
-  const [comments, setComments] = useState(mockComments.map(normalizeComment))
+  const [comments, setComments] = useState<any[]>([])
+  const [loadingComments, setLoadingComments] = useState(false)
+  const [commentsError, setCommentsError] = useState<string | null>(null)
   const [isPlacingBet, setIsPlacingBet] = useState(false)
   const [pool, setPool] = useState(mockBet.pool)
   const [participants, setParticipants] = useState(mockBet.participants)
@@ -125,15 +130,118 @@ export const BetDetailPage: React.FC<BetDetailPageProps> = ({ betId }) => {
   const [likeCount, setLikeCount] = useState(mockBet.likes)
   const [showShareModal, setShowShareModal] = useState(false)
   const [copySuccess, setCopySuccess] = useState(false)
+  const [userBetEntry, setUserBetEntry] = useState<any>(null)
 
-  const bet = mockBet // In real app, fetch by betId
+  // Parse referrer from query string if not provided as prop
+  const referrer = useMemo(() => {
+    if (propReferrer) return propReferrer
+    try {
+      const url = new URL(window.location.href)
+      return url.searchParams.get('referrer') || undefined
+    } catch {
+      return undefined
+    }
+  }, [propReferrer])
+
+  // Find the bet by betId from trendingBets
+  const bet = trendingBets.find(b => b.id === betId) || mockBet
+
+  // Fetch comments from backend for real users
+  useEffect(() => {
+    if (!bet) return
+    if (user && user.id !== 'demo-user-id') {
+      setLoadingComments(true)
+      fetch(`/api/bets/${bet.id}/comments`, {
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+      })
+        .then(res => res.json())
+        .then(async data => {
+          if (data.success && Array.isArray(data.data?.comments)) {
+            // Map backend comment format to frontend format
+            const mappedComments = await Promise.all(
+              data.data.comments.map(async (comment: any) => {
+                // Fetch user info for each comment
+                let userInfo = { name: 'Unknown User', avatar: null }
+                try {
+                  const userRes = await fetch(`/api/user/${comment.authorId}`, {
+                    headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+                  })
+                  if (userRes.ok) {
+                    const userData = await userRes.json()
+                    if (userData.success && userData.data?.user) {
+                      userInfo = {
+                        name: `${userData.data.user.firstName} ${userData.data.user.lastName}`,
+                        avatar: userData.data.user.profileImage
+                      }
+                    }
+                  }
+                } catch (err) {
+                  console.error('Failed to fetch user info for comment:', err)
+                }
+                
+                return {
+                  id: comment.id,
+                  user: userInfo,
+                  text: comment.content,
+                  time: new Date(comment.createdAt).toLocaleString()
+                }
+              })
+            )
+            setComments(mappedComments)
+          } else {
+            setComments([])
+          }
+          setLoadingComments(false)
+        })
+        .catch(err => {
+          setCommentsError('Failed to load comments')
+          setLoadingComments(false)
+        })
+    } else {
+      setComments(mockComments.map(normalizeComment))
+    }
+  }, [betId, user, bet])
+
+  // Determine if user has an entry in this bet
+  useEffect(() => {
+    if (user && bet) {
+      fetchUserBetEntries(user.id).then(() => {
+        const entry = getUserBetEntry(
+          typeof useBetStore.getState === 'function' ? useBetStore.getState().userBetEntries : [],
+          bet.id
+        )
+        setUserBetEntry(entry)
+      })
+    }
+  }, [user, bet])
+
+  // Guard: If bet is not found, show error message and return early
+  if (!bet) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <h2 className="text-2xl font-bold text-red-600 mb-2">Bet not found</h2>
+          <p className="text-gray-500 mb-4">The bet you are looking for does not exist or could not be loaded.</p>
+          <Button onClick={() => setLocation('/discover')}>Back to Discover</Button>
+        </div>
+      </div>
+    )
+  }
+
+  // After this point, bet is guaranteed to be defined
+  // Use bet! to assert non-null
+
   const commentsList = mockComments
 
-  const isExpired = new Date(bet.entryDeadline) <= new Date()
-  const timeRemaining = formatTimeRemaining(bet.entryDeadline)
+  const isExpired = new Date(bet!.entryDeadline) <= new Date()
+  const timeRemaining = formatTimeRemaining(bet!.entryDeadline)
 
   const handleBack = () => {
-    setLocation('/discover')
+    if (referrer) {
+      setLocation(referrer)
+    } else {
+      setLocation('/discover')
+    }
   }
 
   const handleLike = () => {
@@ -151,8 +259,8 @@ export const BetDetailPage: React.FC<BetDetailPageProps> = ({ betId }) => {
   const handleShare = () => {
     if (navigator.share) {
       navigator.share({
-        title: bet.title,
-        text: bet.description,
+        title: bet!.title,
+        text: bet!.description,
         url: window.location.href
       })
     } else {
@@ -160,61 +268,176 @@ export const BetDetailPage: React.FC<BetDetailPageProps> = ({ betId }) => {
     }
   }
 
-  const handlePlaceBet = (e: React.FormEvent) => {
+  const handlePlaceBet = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!stake || !selectedOption) return
     setIsPlacingBet(true)
-    setTimeout(() => {
+    try {
+      await placeBetAndRefresh()
+    } catch (err) {
+      setIsPlacingBet(false)
+    }
+  }
+
+  const placeBetAndRefresh = async () => {
+    if (!user || user.id === 'demo-user-id') {
+      // Demo user: simulate bet placement
+      await new Promise(resolve => setTimeout(resolve, 1000))
       setIsPlacingBet(false)
       setShowConfirmation(true)
       setPool(pool + Number(stake))
       setParticipants(participants + 1)
       setStake('')
-    }, 1000)
+      return
+    }
+
+    // Real user: place bet via API
+    try {
+      const res = await fetch('/api/bet-entries', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
+        body: JSON.stringify({
+          betId: bet!.id,
+          optionId: selectedOption,
+          amount: Number(stake)
+        })
+      })
+
+      const data = await res.json()
+      if (data.success) {
+        setIsPlacingBet(false)
+        setShowConfirmation(true)
+        setPool(pool + Number(stake))
+        setParticipants(participants + 1)
+        setStake('')
+        
+        // Refresh user bets and stats immediately
+        try {
+          await fetchUserBets(user.id)
+          await fetchUserBetEntries(user.id)
+          
+          // Also refresh user stats to update profile screen
+          const statsRes = await fetch(`/api/users/${user.id}/stats`, {
+            headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+          })
+          if (statsRes.ok) {
+            // Invalidate stats query to refresh profile data
+            const { queryClient } = await import('@/lib/queryClient')
+            queryClient.invalidateQueries({ queryKey: ['user', 'stats', user.id] })
+          }
+        } catch (err) {
+          console.error('Failed to refresh user data:', err)
+        }
+      } else {
+        setIsPlacingBet(false)
+        // Show error message
+        console.error('Bet placement failed:', data.error)
+      }
+    } catch (err) {
+      setIsPlacingBet(false)
+      console.error('Bet placement error:', err)
+    }
   }
 
-  const handleAddComment = (e: React.FormEvent) => {
+  const handleAddComment = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!commentText.trim()) return
-    setComments([
-      ...comments,
-      {
-        id: Date.now().toString(),
-        user: { name: 'You', avatar: null },
-        text: commentText,
-        time: 'now'
+    
+    // Early return for unauthenticated users
+    if (!user) {
+      setLocation('/auth/login')
+      return
+    }
+    
+    if (user.id === 'demo-user-id') {
+      setComments([
+        ...comments,
+        {
+          id: Date.now().toString(),
+          user: { name: 'You', avatar: null },
+          text: commentText,
+          time: 'now'
+        }
+      ])
+      setCommentText('')
+      return
+    }
+    // Real user: post to backend
+    try {
+      const res = await fetch(`/api/bets/${bet!.id}/comments`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
+        body: JSON.stringify({ content: commentText })
+      })
+      const data = await res.json()
+      if (data.success) {
+        // Re-fetch comments
+        setCommentText('')
+        setLoadingComments(true)
+        fetch(`/api/bets/${bet!.id}/comments`, {
+          headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+        })
+          .then(res => res.json())
+          .then(async data => {
+            if (data.success && Array.isArray(data.data?.comments)) {
+              const mappedComments = await Promise.all(
+                data.data.comments.map(async (comment: any) => {
+                  let userInfo = { name: 'Unknown User', avatar: null }
+                  try {
+                    const userRes = await fetch(`/api/user/${comment.authorId}`, {
+                      headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+                    })
+                    if (userRes.ok) {
+                      const userData = await userRes.json()
+                      if (userData.success && userData.data?.user) {
+                        userInfo = {
+                          name: `${userData.data.user.firstName} ${userData.data.user.lastName}`,
+                          avatar: userData.data.user.profileImage
+                        }
+                      }
+                    }
+                  } catch (err) {
+                    console.error('Failed to fetch user info for comment:', err)
+                  }
+                  return {
+                    id: comment.id,
+                    user: userInfo,
+                    text: comment.content,
+                    time: new Date(comment.createdAt).toLocaleString()
+                  }
+                })
+              )
+              setComments(mappedComments)
+            }
+            setLoadingComments(false)
+          })
+      } else {
+        setCommentsError('Failed to post comment')
       }
-    ])
-    setCommentText('')
-  }
-
-  const safeComments = Array.isArray(comments) ? comments : []
-
-  if (!bet) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-center">
-          <h2 className="text-2xl font-bold text-red-600 mb-2">Bet not found</h2>
-          <p className="text-gray-500 mb-4">The bet you are looking for does not exist.</p>
-          <Button onClick={() => setLocation('/discover')}>Back to Discover</Button>
-        </div>
-      </div>
-    )
+    } catch (err) {
+      setCommentsError('Failed to post comment')
+    }
   }
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
       {/* Hero Section */}
       <div className="relative h-56 bg-gradient-to-br from-blue-400 to-purple-500">
-        <button className="absolute top-12 left-4 w-8 h-8 bg-black/20 backdrop-blur-md rounded-full flex items-center justify-center">
+        <button className="absolute top-12 left-4 w-8 h-8 bg-black/20 backdrop-blur-md rounded-full flex items-center justify-center" onClick={handleBack}>
           <ArrowLeft className="w-5 h-5 text-white" />
         </button>
         <button className="absolute top-12 right-4 w-8 h-8 bg-black/20 backdrop-blur-md rounded-full flex items-center justify-center">
           <Share2 className="w-5 h-5 text-white" />
         </button>
         <div className="absolute bottom-0 left-0 w-full px-6 pb-4">
-          <span className="text-caption-1 text-white/80 uppercase tracking-wide">{bet.category}</span>
-          <h1 className="text-title-1 font-bold text-white mt-1 line-clamp-2">{bet.title}</h1>
+          <span className="text-caption-1 text-white/80 uppercase tracking-wide">{bet!.category}</span>
+          <h1 className="text-title-1 font-bold text-white mt-1 line-clamp-2">{bet!.title}</h1>
         </div>
       </div>
 
@@ -232,10 +455,10 @@ export const BetDetailPage: React.FC<BetDetailPageProps> = ({ betId }) => {
             <Clock className="w-5 h-5 text-gray-400" />
             <span className="text-body-sm text-gray-700">{timeRemaining}</span>
           </div>
-          <p className="text-body text-gray-600 mb-2">{bet.description}</p>
+          <p className="text-body text-gray-600 mb-2">{bet!.description}</p>
           <div className="flex items-center space-x-2 mt-2">
-            <span className="text-caption-1 text-gray-400">By @{bet.creator.username}</span>
-            <span className="px-2 py-1 bg-gray-100 rounded-full text-caption-1 text-gray-500 ml-2">{bet.status.toUpperCase()}</span>
+            <span className="text-caption-1 text-gray-400">By @{bet!.creator && bet!.creator.username ? bet!.creator.username : 'Unknown'}</span>
+            <span className="px-2 py-1 bg-gray-100 rounded-full text-caption-1 text-gray-500 ml-2">{bet!.status.toUpperCase()}</span>
           </div>
         </div>
 
@@ -244,7 +467,7 @@ export const BetDetailPage: React.FC<BetDetailPageProps> = ({ betId }) => {
           <h2 className="text-title-3 font-semibold mb-3">Place Your Bet</h2>
           <form onSubmit={handlePlaceBet} className="space-y-4">
             <div className="grid grid-cols-2 gap-3">
-              {bet.options.map(opt => (
+              {bet!.options.map(opt => (
                 <button
                   key={opt.id}
                   type="button"
@@ -285,34 +508,56 @@ export const BetDetailPage: React.FC<BetDetailPageProps> = ({ betId }) => {
             <MessageCircle className="w-5 h-5 text-blue-500 mr-2" />
             <h2 className="text-title-3 font-semibold">Comments</h2>
           </div>
-          <div className="space-y-3 max-h-48 overflow-y-auto mb-3">
-            {safeComments.map(c => (
-              <div key={c.id} className="flex items-start space-x-3">
-                <div className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center text-gray-500 font-bold">
-                  {c.user.avatar ? <img src={c.user.avatar} alt={c.user.name} className="w-8 h-8 rounded-full" /> : c.user.name[0]}
-                </div>
-                <div className="flex-1">
-                  <div className="flex items-center space-x-2">
-                    <span className="text-body-sm font-medium">{c.user.name}</span>
-                    <span className="text-caption-1 text-gray-400">{c.time}</span>
+          {loadingComments ? (
+            <div className="text-gray-400 text-sm">Loading comments...</div>
+          ) : commentsError ? (
+            <div className="text-red-500 text-sm">{commentsError}</div>
+          ) : (
+            <div className="space-y-3 max-h-48 overflow-y-auto mb-3">
+              {comments.map((c, idx) => (
+                <div key={c.id || idx} className="flex items-start space-x-3">
+                  <div className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center text-gray-500 font-bold">
+                    {c.user.avatar ? <img src={c.user.avatar} alt={c.user.name} className="w-8 h-8 rounded-full" /> : c.user.name[0]}
                   </div>
-                  <p className="text-body-sm text-gray-700">{c.text}</p>
+                  <div className="flex-1">
+                    <div className="flex items-center space-x-2">
+                      <span className="text-body-sm font-medium">{c.user.name}</span>
+                      <span className="text-caption-1 text-gray-400">{c.time}</span>
+                    </div>
+                    <p className="text-body-sm text-gray-700">{c.text}</p>
+                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
-          <form onSubmit={handleAddComment} className="flex items-center space-x-2">
-            <Input
-              type="text"
-              placeholder="Add a comment..."
-              value={commentText}
-              onChange={e => setCommentText(e.target.value)}
-              className="flex-1"
-            />
-            <Button type="submit" className="h-10 px-4" disabled={!commentText.trim()}>
-              Send
-            </Button>
-          </form>
+              ))}
+            </div>
+          )}
+          
+          {user ? (
+            <form onSubmit={handleAddComment} className="flex items-center space-x-2">
+              <Input
+                type="text"
+                placeholder="Add a comment..."
+                value={commentText}
+                onChange={e => setCommentText(e.target.value)}
+                className="flex-1"
+              />
+              <Button type="submit" className="h-10 px-4" disabled={!commentText.trim()}>
+                Send
+              </Button>
+            </form>
+          ) : (
+            <div className="bg-blue-50 border border-blue-200 rounded-[10px] p-4 text-center">
+              <MessageCircle className="w-6 h-6 text-blue-500 mx-auto mb-2" />
+              <p className="text-body-sm text-blue-900 mb-3">
+                Sign in to join the conversation and share your thoughts!
+              </p>
+              <Button 
+                onClick={() => setLocation('/auth/login')}
+                className="bg-blue-500 text-white hover:bg-blue-600"
+              >
+                Sign In to Comment
+              </Button>
+            </div>
+          )}
         </div>
 
         {/* Participants Section */}
@@ -385,6 +630,9 @@ export const BetDetailPage: React.FC<BetDetailPageProps> = ({ betId }) => {
           <button className="ml-4 underline" onClick={() => setShowConfirmation(false)}>Dismiss</button>
         </div>
       )}
+
+      {/* Bottom Navigation */}
+      <BottomNavigation activeTabOverride={userBetEntry ? '/bets' : referrer || undefined} />
     </div>
   )
 }

@@ -5,12 +5,15 @@ export interface User {
   username: string;
   firstName: string;
   lastName: string;
+  dateOfBirth: string;
   walletAddress: string;
   kycLevel: 'none' | 'basic' | 'enhanced';
   walletBalance: number;
   profileImage?: string;
   coverImage?: string;
   bio?: string;
+  password?: string;
+  stripeCustomerId?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -128,8 +131,8 @@ export interface Reaction {
 export interface Transaction {
   id: string;
   userId: string;
-  type: 'deposit' | 'withdraw' | 'bet_lock' | 'bet_release' | 'transfer';
-  currency: 'USD' | 'NGN' | 'USDT' | 'ETH';
+  type: 'deposit' | 'withdraw' | 'withdrawal' | 'bet_lock' | 'bet_release' | 'transfer';
+  currency: 'USD' | 'NGN' | 'USDT' | 'ETH' | 'EUR' | 'GBP' | 'CAD' | 'AUD' | 'JPY' | 'CHF' | 'SEK' | 'NOK' | 'DKK';
   amount: number;
   status: 'pending' | 'completed' | 'failed';
   reference: string;
@@ -137,6 +140,7 @@ export interface Transaction {
   fromUserId?: string;
   toUserId?: string;
   betId?: string;
+  paymentIntentId?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -177,6 +181,7 @@ export interface RegisterRequest {
   username: string;
   firstName: string;
   lastName: string;
+  dateOfBirth: string;
   password: string;
   authProvider?: string;
 }
@@ -189,8 +194,10 @@ export interface LoginRequest {
 }
 
 export interface AuthResponse {
-  token: string;
+  accessToken: string;
+  refreshToken: string;
   user: User;
+  expiresIn: string;
 }
 
 export interface CreateBetRequest {
