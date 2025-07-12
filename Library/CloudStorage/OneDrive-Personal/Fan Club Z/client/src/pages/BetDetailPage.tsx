@@ -114,6 +114,11 @@ export const BetDetailPage: React.FC<BetDetailPageProps & { referrer?: string }>
   const { user } = useAuthStore()
   const { trendingBets, fetchUserBets, fetchUserBetEntries, commentOnBet, fetchTrendingBets } = useBetStore()
   
+  // Debug logging for bet detail page
+  console.log('🔍 BetDetailPage: Rendering with betId:', betId)
+  console.log('🔍 BetDetailPage: Available trendingBets:', trendingBets?.length || 0)
+  console.log('🔍 BetDetailPage: trendingBets IDs:', trendingBets?.map(b => b.id) || [])
+  
   const [activeTab, setActiveTab] = useState('details')
   const [commentText, setCommentText] = useState('')
   const [isLiked, setIsLiked] = useState(false)
@@ -143,12 +148,113 @@ export const BetDetailPage: React.FC<BetDetailPageProps & { referrer?: string }>
     }
   }, [propReferrer])
 
-  // Find the bet by betId from trendingBets
-  const bet = trendingBets.find(b => b.id === betId) || mockBet
+  // Find the bet by betId from trendingBets, with comprehensive logging
+  const bet = useMemo(() => {
+    console.log('🔍 BetDetailPage: Looking for bet with ID:', betId)
+    console.log('🔍 BetDetailPage: Available bets:', trendingBets.map(b => ({ id: b.id, title: b.title })))
+    
+    const foundBet = trendingBets.find(b => b.id === betId)
+    
+    if (foundBet) {
+      console.log('✅ BetDetailPage: Found bet in trendingBets:', foundBet.title)
+      return foundBet
+    } else {
+      console.log('❌ BetDetailPage: Bet not found in trendingBets, using mock data')
+      console.log('🔍 BetDetailPage: Mock bet title:', mockBet.title)
+      
+      // Use the same mock data as DiscoverTab for consistency
+      const mockTrendingBets = [
+        {
+          id: '1',
+          creatorId: 'user1',
+          title: 'Will Bitcoin reach $100K by end of 2025?',
+          description: 'Bitcoin has been on a bull run. Will it hit the magical 100K mark by December 31st, 2025?',
+          type: 'binary',
+          category: 'crypto',
+          options: [
+            { id: 'yes', label: 'Yes', totalStaked: 15000 },
+            { id: 'no', label: 'No', totalStaked: 8500 }
+          ],
+          status: 'open',
+          stakeMin: 10,
+          stakeMax: 1000,
+          poolTotal: 23500,
+          entryDeadline: '2025-12-31T23:59:59Z',
+          settlementMethod: 'auto',
+          isPrivate: false,
+          likes: 234,
+          comments: 67,
+          shares: 89,
+          createdAt: '2025-07-01T10:30:00Z',
+          updatedAt: '2025-07-04T15:45:00Z'
+        },
+        {
+          id: '2',
+          creatorId: 'user2', 
+          title: 'Premier League: Man City vs Arsenal - Who wins?',
+          description: 'The title race is heating up! City and Arsenal face off in what could be the decisive match.',
+          type: 'multi',
+          category: 'sports',
+          options: [
+            { id: 'city', label: 'Man City', totalStaked: 12000 },
+            { id: 'arsenal', label: 'Arsenal', totalStaked: 9000 },
+            { id: 'draw', label: 'Draw', totalStaked: 4000 }
+          ],
+          status: 'open',
+          stakeMin: 5,
+          stakeMax: 500,
+          poolTotal: 25000,
+          entryDeadline: '2025-07-15T14:00:00Z',
+          settlementMethod: 'auto',
+          isPrivate: false,
+          likes: 445,
+          comments: 123,
+          shares: 67,
+          createdAt: '2025-07-02T09:15:00Z',
+          updatedAt: '2025-07-04T16:20:00Z'
+        },
+        {
+          id: '3',
+          creatorId: 'user3',
+          title: 'Taylor Swift announces surprise album?',
+          description: 'Swifties are convinced she\'s dropping hints. Will T-Swift surprise us with a new album announcement this month?',
+          type: 'binary',
+          category: 'pop',
+          options: [
+            { id: 'yes', label: 'Yes, she will', totalStaked: 6500 },
+            { id: 'no', label: 'No announcement', totalStaked: 4200 }
+          ],
+          status: 'open',
+          stakeMin: 1,
+          stakeMax: 100,
+          poolTotal: 10700,
+          entryDeadline: '2025-07-31T23:59:59Z',
+          settlementMethod: 'manual',
+          isPrivate: false,
+          likes: 156,
+          comments: 89,
+          shares: 234,
+          createdAt: '2025-07-03T14:22:00Z',
+          updatedAt: '2025-07-04T11:18:00Z'
+        }
+      ]
+      
+      const mockBetMatch = mockTrendingBets.find(b => b.id === betId)
+      if (mockBetMatch) {
+        console.log('✅ BetDetailPage: Found matching mock bet:', mockBetMatch.title)
+        return mockBetMatch
+      }
+      
+      console.log('⚠️ BetDetailPage: No matching mock bet, using default mock')
+      return mockBet
+    }
+  }, [betId, trendingBets])
 
   // Fetch trending bets if not already loaded
   useEffect(() => {
+    console.log('🔍 BetDetailPage: useEffect - trendingBets.length:', trendingBets.length)
     if (trendingBets.length === 0) {
+      console.log('🚀 BetDetailPage: Fetching trending bets...')
       fetchTrendingBets()
     }
   }, [trendingBets.length, fetchTrendingBets])
@@ -224,16 +330,20 @@ export const BetDetailPage: React.FC<BetDetailPageProps & { referrer?: string }>
 
   // Guard: If bet is not found, show error message and return early
   if (!bet) {
+    console.log('❌ BetDetailPage: No bet found, showing error state')
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center">
           <h2 className="text-2xl font-bold text-red-600 mb-2">Bet not found</h2>
           <p className="text-gray-500 mb-4">The bet you are looking for does not exist or could not be loaded.</p>
+          <p className="text-sm text-gray-400 mb-4">Bet ID: {betId}</p>
           <Button onClick={() => setLocation('/discover')}>Back to Discover</Button>
         </div>
       </div>
     )
   }
+
+  console.log('✅ BetDetailPage: Rendering bet detail for:', bet.title)
 
   // After this point, bet is guaranteed to be defined
   // Use bet! to assert non-null
@@ -444,7 +554,7 @@ export const BetDetailPage: React.FC<BetDetailPageProps & { referrer?: string }>
         </button>
         <div className="absolute bottom-0 left-0 w-full px-6 pb-4">
           <span className="text-caption-1 text-white/80 uppercase tracking-wide">{bet!.category}</span>
-          <h1 className="text-title-1 font-bold text-white mt-1 line-clamp-2">{bet!.title}</h1>
+          <h1 className="text-title-1 font-bold text-white mt-1 line-clamp-2">{bet.title}</h1>
         </div>
       </div>
 

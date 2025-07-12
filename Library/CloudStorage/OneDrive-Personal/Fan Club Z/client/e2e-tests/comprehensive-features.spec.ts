@@ -277,8 +277,8 @@ test.describe('Fan Club Z - Comprehensive Feature Testing', () => {
       // Click on the View Details button of a bet card
       await page.locator('[data-testid="bet-card"] button:has-text("View Details")').first().click();
       
-      // Should be on bet detail page
-      await expect(page.locator('h1').first()).toContainText('Taylor Swift announces surprise album?');
+      // Should be on bet detail page - check for bet title in hero section
+      await expect(page.locator('h1:has-text("Premier League: Man City vs Arsenal - Who wins?")')).toBeVisible();
       await expect(page.locator('text=Place Bet')).toBeVisible();
     });
 

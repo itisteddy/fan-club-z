@@ -40,6 +40,9 @@ export const BetCard: React.FC<BetCardProps> = ({
   const timeRemaining = formatTimeRemaining(bet.entryDeadline)
   const createdTime = formatRelativeTime(bet.createdAt)
 
+  // Debug logging to ensure component is rendering
+  console.log('🃏 BetCard rendering for bet:', bet.id, bet.title)
+
   const handlePlaceBet = async () => {
     if (!user) {
       error('Please sign in to place a bet')
@@ -282,46 +285,53 @@ export const BetCard: React.FC<BetCardProps> = ({
     )
   }
 
-  // Default vertical variant
+  // Default vertical variant - Apple-inspired design
   return (
     <div className="bg-white rounded-xl shadow-sm overflow-hidden" data-testid="bet-card">
       {/* Hero image or gradient (optional) */}
-      {bet.imageUrl && (
+      {bet.imageUrl ? (
+        <div className="h-32 bg-gradient-to-br from-blue-400 to-purple-500" />
+      ) : (
         <div className="h-32 bg-gradient-to-br from-blue-400 to-purple-500" />
       )}
       
       {/* Content */}
       <div className="p-4">
         {/* Category badge */}
-        <span className="text-caption-1 text-gray-500 uppercase tracking-wide">
-          {bet.category}
+        <span className="text-xs text-gray-500 uppercase tracking-wide font-medium">
+          {bet.category.toUpperCase()}
         </span>
         
         {/* Title */}
-        <h3 className="text-title-3 font-semibold mt-1 line-clamp-2">
+        <h3 className="text-xl font-semibold mt-1 line-clamp-2 text-gray-900">
           {bet.title}
         </h3>
         
-                 {/* Metadata row */}
-         <div className="flex items-center mt-3 text-body-sm text-gray-500">
-           <Users className="w-4 h-4 mr-1" />
-           <span>{bet.options.reduce((sum, opt) => sum + opt.totalStaked, 0) > 0 ? '12' : '0'}</span>
-           
-           <span className="mx-3">•</span>
-           
-           <Clock className="w-4 h-4 mr-1" />
-           <span>{timeRemaining}</span>
-           
-           <span className="mx-3">•</span>
-           
-           <TrendingUp className="w-4 h-4 mr-1" />
-           <span>${(bet.poolTotal / 1000).toFixed(0)}K pool</span>
-         </div>
+        {/* Metadata row */}
+        <div className="flex items-center mt-3 text-sm text-gray-500">
+          <Users className="w-4 h-4 mr-1" />
+          <span>{bet.options.reduce((sum, opt) => sum + opt.totalStaked, 0) > 0 ? '1,234' : '0'}</span>
+          
+          <span className="mx-3">•</span>
+          
+          <Clock className="w-4 h-4 mr-1" />
+          <span>{timeRemaining}</span>
+          
+          <span className="mx-3">•</span>
+          
+          <TrendingUp className="w-4 h-4 mr-1" />
+          <span>${(bet.poolTotal / 1000).toFixed(0)}K pool</span>
+        </div>
         
         {/* Action button */}
         <button
-          className="mt-4 w-full h-11 bg-gray-100 rounded-[10px] font-medium text-body active:scale-95 transition-transform"
-          onClick={() => navigate(`/bets/${bet.id}?referrer=${location}`)}
+          className="mt-4 w-full h-11 bg-gray-100 rounded-[10px] font-medium text-base hover:bg-gray-200 active:scale-95 transition-all duration-100"
+          onClick={() => {
+            const targetUrl = `/bets/${bet.id}?referrer=${location}`
+            console.log('🔗 BetCard: Navigating from:', location, 'to:', targetUrl)
+            console.log('🎯 BetCard: Bet ID:', bet.id, 'Title:', bet.title)
+            navigate(targetUrl)
+          }}
         >
           View Details
         </button>

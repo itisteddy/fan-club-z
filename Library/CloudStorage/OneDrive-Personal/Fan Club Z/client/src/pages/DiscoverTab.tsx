@@ -114,13 +114,6 @@ export const DiscoverTab: React.FC = () => {
   // Use trendingBets from store if available, otherwise fallback to mockTrendingBets
   const bets = trendingBets && trendingBets.length > 0 ? trendingBets : mockTrendingBets
 
-  console.log('🔍 DiscoverTab: Rendering with user:', user?.email, 'bets:', bets.length)
-
-  useEffect(() => {
-    // Fetch trending bets on component mount
-    fetchTrendingBets()
-  }, [fetchTrendingBets])
-
   // Filter bets based on selected criteria
   const filteredBets = bets.filter(bet => {
     const matchesSearch = bet.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -128,6 +121,16 @@ export const DiscoverTab: React.FC = () => {
     const matchesCategory = selectedCategory === 'all' || bet.category === selectedCategory
     return matchesSearch && matchesCategory
   })
+
+  console.log('🔍 DiscoverTab: Rendering with user:', user?.email, 'bets:', bets.length)
+  console.log('🔍 DiscoverTab: trendingBets from store:', trendingBets?.length || 0)
+  console.log('🔍 DiscoverTab: filteredBets:', filteredBets.length)
+  console.log('🔍 DiscoverTab: first bet:', filteredBets[0]?.title || 'None')
+
+  useEffect(() => {
+    // Fetch trending bets on component mount
+    fetchTrendingBets()
+  }, [fetchTrendingBets])
 
   // Find the Bitcoin bet for the featured card
   const featuredBet = bets.find(bet => bet.title.toLowerCase().includes('bitcoin') && bet.title.toLowerCase().includes('100k'))
@@ -231,9 +234,12 @@ export const DiscoverTab: React.FC = () => {
           </div>
         ) : (
           <div className="space-y-4">
-            {filteredBets.map(bet => (
-              <BetCard key={bet.id} bet={bet} />
-            ))}
+            {filteredBets.map(bet => {
+              console.log('🃏 Rendering BetCard for:', bet.id, bet.title)
+              return (
+                <BetCard key={bet.id} bet={bet} />
+              )
+            })}
           </div>
         )}
       </section>

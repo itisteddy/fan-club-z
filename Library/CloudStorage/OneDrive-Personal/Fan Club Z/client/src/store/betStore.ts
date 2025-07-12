@@ -146,12 +146,18 @@ export const useBetStore = create<BetStore>((set, get) => ({
 
   fetchTrendingBets: async () => {
     try {
+      console.log('🚀 BetStore: Fetching trending bets...')
       const response = await api.get<{ bets: Bet[] }>('/bets/trending')
       
       if (response.success) {
-        set({ trendingBets: response.data.bets })
+        console.log('✅ BetStore: Trending bets fetched successfully:', response.data.bets.length)
+        set({ trendingBets: response.data.bets, error: null })
+      } else {
+        console.log('❌ BetStore: API returned unsuccessful response')
+        set({ error: 'Failed to fetch trending bets' })
       }
     } catch (error: any) {
+      console.log('❌ BetStore: Error fetching trending bets:', error.message)
       set({ error: error.message })
     }
   },
