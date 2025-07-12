@@ -204,28 +204,28 @@ test.describe('Fan Club Z - Comprehensive Feature Testing', () => {
     });
 
     test('should navigate between all tabs', async ({ page }) => {
-      // Check Discover tab
-      await expect(page.locator('text=Discover')).toBeVisible();
+      // Check Discover tab - use header-specific selector to avoid strict mode violations
+      await expect(page.locator('header h1:has-text("Discover")')).toBeVisible();
       await expect(page.locator('text=Trending Now')).toBeVisible();
       
       // Navigate to My Bets
       await page.locator('[data-testid="bottom-navigation"] >> text=My Bets').click();
-      await expect(page.locator('text=My Bets')).toBeVisible();
-      await expect(page.locator('text=Active Bets')).toBeVisible();
+      await expect(page.locator('header h1:has-text("My Bets")')).toBeVisible();
+      await expect(page.locator('div:has-text("Active Bets")').first()).toBeVisible();
       
       // Navigate to Clubs
       await page.locator('[data-testid="bottom-navigation"] >> text=Clubs').click();
-      await expect(page.locator('text=Clubs')).toBeVisible();
-      await expect(page.locator('text=Discover')).toBeVisible();
+      await expect(page.locator('header h1:has-text("Clubs")')).toBeVisible();
+      await expect(page.locator('text=My Clubs')).toBeVisible();
       
       // Navigate to Wallet
       await page.locator('[data-testid="bottom-navigation"] >> text=Wallet').click();
-      await expect(page.locator('text=Wallet')).toBeVisible();
+      await expect(page.locator('header h1:has-text("Wallet")')).toBeVisible();
       await expect(page.locator('text=Available Balance')).toBeVisible();
       
       // Navigate to Profile
       await page.locator('[data-testid="bottom-navigation"] >> text=Profile').click();
-      await expect(page.locator('text=Profile')).toBeVisible();
+      await expect(page.locator('header h1:has-text("Profile")')).toBeVisible();
       await expect(page.locator('text=Demo User')).toBeVisible();
     });
 

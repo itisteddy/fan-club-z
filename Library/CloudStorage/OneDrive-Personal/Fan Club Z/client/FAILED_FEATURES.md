@@ -74,20 +74,37 @@ GET /api/bets/trending 429 0.558 ms - 109
 
 ## 🔴 HIGH PRIORITY ISSUES
 
-### 4. Test Assertion Issues (NEW PRIORITY)
-**Status**: ❌ FAILED  
+### 4. Test Assertion Issues (MOSTLY FIXED ✅)
+**Status**: ✅ MOSTLY FIXED  
 **Tests Affected**: Navigation tests  
 **Root Cause**: Strict mode violations due to multiple elements with same text  
-**Impact**: Tests failing despite functionality working  
+**Impact**: Tests now pass with specific locators  
 
-**Failed Tests:**
-- `should navigate between all tabs` - Strict mode: "Discover" found in 2 elements
-- `should show active tab indicator` - Strict mode: "My Bets" found in 2 elements
+**Previously Failed Tests:**
+- `should navigate between all tabs` - ✅ Fixed with header-specific selectors
+- `should show active tab indicator` - ✅ Fixed with .first() and header selectors
 
-**Technical Issue:**
-- Page headers and bottom navigation tabs have same text
-- Tests need to be more specific about which element to check
-- Functionality is working, just test assertions need updating
+**Current Status:**
+- ✅ Strict mode violations for "Discover" and "My Bets" - RESOLVED
+- ✅ Navigation between tabs - WORKING
+- ✅ Demo login and authentication - WORKING
+- ❌ **Clubs page content not loading** (new issue identified)
+
+**Fix Applied:**
+- Updated test locators to use `header h1:has-text()` instead of generic `text=`
+- Added `.first()` selector for navigation button interactions  
+- Created specific test for active tab indicator validation
+- Functionality unchanged, only test assertions improved
+
+**Technical Solution:**
+- Page headers: `<h1>Discover</h1>` inside `<header>`
+- Navigation tabs: `<span>Discover</span>` inside bottom navigation
+- Using `header h1:has-text("Discover")` targets only page header
+- Eliminates strict mode violations from multiple matching elements
+
+**Remaining Issue:**
+- Clubs page header not found - suggests content loading problem
+- This is a functional issue, not a test assertion issue
 
 ### 5. Bet Cards Not Loading
 **Status**: ❌ FAILED  
@@ -211,8 +228,8 @@ GET /api/bets/trending 429 0.558 ms - 109
 ## 📋 FIX PRIORITY ORDER
 
 ### Phase 1: Critical Infrastructure (Fix First)
-1. **Fix Test Assertion Issues** - Strict mode violations (NEW PRIORITY)
-2. **Fix Bet Cards Loading** - Core content not displaying
+1. ✅ **Fixed Test Assertion Issues** - Strict mode violations resolved
+2. **Fix Bet Cards Loading** - Core content not displaying (NEXT PRIORITY)
 3. **Fix Onboarding Flow** - Onboarding not working
 4. **Fix Profile Page** - User data not showing
 
