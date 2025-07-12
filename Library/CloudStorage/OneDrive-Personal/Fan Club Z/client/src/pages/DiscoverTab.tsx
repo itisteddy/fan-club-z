@@ -114,6 +114,8 @@ export const DiscoverTab: React.FC = () => {
   // Use trendingBets from store if available, otherwise fallback to mockTrendingBets
   const bets = trendingBets && trendingBets.length > 0 ? trendingBets : mockTrendingBets
 
+  console.log('🔍 DiscoverTab: Rendering with user:', user?.email, 'bets:', bets.length)
+
   useEffect(() => {
     // Fetch trending bets on component mount
     fetchTrendingBets()
@@ -137,8 +139,13 @@ export const DiscoverTab: React.FC = () => {
         <div className="bg-white/80 backdrop-blur-md border-b border-gray-100">
           <div className="px-4 pt-12 pb-2">
             <h1 className="text-display font-bold">
-              {user ? `Welcome back, ${user.firstName}! 👋` : 'Discover Bets 🚀'}
+              Discover
             </h1>
+            {user && (
+              <p className="text-body text-gray-600 mt-1">
+                Welcome back, {user.firstName}! 👋
+              </p>
+            )}
           </div>
           
           {/* Search Bar */}

@@ -40,9 +40,13 @@ export const useAuthStore = create<AuthStore>()(
       // Actions
       login: async (credentials) => {
         try {
+          console.log('🚀 Auth Store: Starting login with credentials:', credentials)
           set({ isLoading: true, error: null })
           const response: { success: boolean, error?: string, data?: AuthResponse, details?: any } = await api.post('/users/login', credentials)
+          console.log('🚀 Auth Store: Login response:', response)
+          
           if (response.success && response.data) {
+            console.log('✅ Auth Store: Login successful, storing tokens and user data')
             // Store both access and refresh tokens
             localStorage.setItem('accessToken', response.data.accessToken)
             localStorage.setItem('refreshToken', response.data.refreshToken)
@@ -55,14 +59,18 @@ export const useAuthStore = create<AuthStore>()(
               error: null,
             })
             
+            console.log('✅ Auth Store: User state updated, user:', response.data.user)
+            
             // Connect WebSocket for real-time notifications
             notificationService.connect()
           } else {
+            console.error('❌ Auth Store: Login failed - no success/data in response')
             const errorObj: any = new Error(response.error || 'Login failed')
             if (response.details) errorObj.response = { details: response.details }
             throw errorObj
           }
         } catch (error: any) {
+          console.error('❌ Auth Store: Login error:', error)
           set({
             isLoading: false,
             error: error.message || 'Login failed. Please try again.',
@@ -160,7 +168,7 @@ export const useAuthStore = create<AuthStore>()(
       },
 
       setUser: (user: User) => {
-        set({ user })
+        set({ user, isAuthenticated: true })
       },
 
       setToken: (token: string) => {
@@ -204,20 +212,25 @@ export const initializeAuth = async () => {
   
   if (token && isTokenValid(token)) {
     try {
+      console.log('🔐 Initializing auth with existing token...')
       // Validate token with server and get fresh user data
       const response = await api.get<{ user: User }>('/users/me')
       if (response.user) {
+        console.log('✅ Auth initialized successfully with user:', response.user.email)
         useAuthStore.setState({
           user: response.user,
           isAuthenticated: true,
         })
       } else {
+        console.log('❌ Auth initialization failed - no user data')
         useAuthStore.getState().logout()
       }
     } catch (error) {
+      console.log('❌ Auth initialization failed - token invalid')
       useAuthStore.getState().logout()
     }
   } else {
+    console.log('🔐 No valid token found, logging out')
     useAuthStore.getState().logout()
   }
 }

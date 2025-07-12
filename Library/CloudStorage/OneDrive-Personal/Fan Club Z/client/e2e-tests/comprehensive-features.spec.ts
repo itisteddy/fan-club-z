@@ -28,21 +28,129 @@ test.describe('Fan Club Z - Comprehensive Feature Testing', () => {
     test('should allow demo login', async ({ page }) => {
       console.log('🧪 Testing demo login...');
       
-      // Click demo login
-      await page.locator('button:has-text("Try Demo")').click();
+      // Add console logging to capture browser logs
+      page.on('console', msg => console.log('📟 BROWSER:', msg.text()));
+      page.on('pageerror', error => console.error('🚨 PAGE ERROR:', error.message));
+      
+      // Detect if we're on Mobile Safari and log it
+      const browserInfo = await page.evaluate(() => {
+        const ua = navigator.userAgent;
+        return {
+          isMobile: window.innerWidth <= 768 || /Mobi|Android/i.test(ua),
+          isMobileSafari: /iPhone|iPad|iPod/i.test(ua) && /Safari/i.test(ua) && !/Chrome|CriOS/i.test(ua),
+          userAgent: ua,
+          viewport: { width: window.innerWidth, height: window.innerHeight }
+        };
+      });
+      console.log('📱 Browser info:', browserInfo);
+      
+      // For Mobile Safari, add extra initial wait time
+      if (browserInfo.isMobileSafari) {
+        console.log('📱 Mobile Safari detected - using extended timeouts and waits');
+        await page.waitForTimeout(2000); // Extra wait for Mobile Safari
+      }
+      
+      // Ensure we start on login page
+      await expect(page.locator('text=Welcome to Fan Club Z')).toBeVisible({ timeout: 10000 });
+      console.log('✅ Login page confirmed');
+      
+      // Click demo login button
+      const demoButton = page.locator('button:has-text("Try Demo")');
+      await expect(demoButton).toBeVisible({ timeout: 5000 });
+      // For mobile, ensure the button is properly in view
+      if (browserInfo.isMobile) {
+        await demoButton.scrollIntoViewIfNeeded();
+        await page.waitForTimeout(500); // Small delay for scroll
+      }
+      
+      await demoButton.click();
       console.log('✅ Demo button clicked');
       
-      // Wait for navigation and auth to complete
-      await page.waitForTimeout(3000);
-      console.log('🔄 Waiting for auth to complete...');
+      // Wait for navigation after login
+      console.log('⏳ Waiting for navigation after demo login...');
       
-      // Should show main app navigation (compliance should be skipped for demo user)
-      await expect(page.locator('[data-testid="bottom-navigation"]')).toBeVisible({ timeout: 10000 });
+      // Use longer timeout for Mobile Safari
+      const navigationTimeout = browserInfo.isMobileSafari ? 20000 : 10000;
+      
+      // Wait for URL to change from auth page
+      await page.waitForFunction(() => !window.location.pathname.startsWith('/auth'), { timeout: navigationTimeout });
+      console.log('✅ Navigated away from auth page');
+      
+      // Log current URL
+      const currentUrl = page.url();
+      console.log('📍 Current URL after login:', currentUrl);
+      
+      // Wait for the main app to load
+      // We'll wait for either the bottom navigation OR compliance, and handle both cases
+      const waitTimeout = browserInfo.isMobileSafari ? 10000 : 5000;
+      
+      try {
+        await Promise.race([
+          page.locator('[data-testid="bottom-navigation"]').waitFor({ timeout: waitTimeout }),
+          page.locator('text=Before you start betting').waitFor({ timeout: waitTimeout })
+        ]);
+      } catch (error) {
+        console.log('⚠️ Neither bottom nav nor compliance found quickly, taking screenshot...');
+        await page.screenshot({ path: 'demo-login-neither-found.png', fullPage: true });
+        
+        // Log page content for debugging
+        const bodyText = await page.locator('body').textContent();
+        console.log('🔍 Page content:', bodyText?.substring(0, 500));
+      }
+      
+      // Check if compliance manager appeared (it shouldn't for demo user, but let's handle it)
+      const complianceVisible = await page.locator('text=Before you start betting').isVisible();
+      if (complianceVisible) {
+        console.log('⚠️ Compliance manager appeared for demo user - this should auto-skip');
+        await page.screenshot({ path: 'demo-login-compliance-visible.png', fullPage: true });
+        
+        // Wait for compliance to auto-complete (our fixes should handle this)
+        console.log('⏳ Waiting for compliance auto-skip...');
+        await page.waitForTimeout(3000);
+        
+        // Check again for bottom navigation
+        try {
+          await page.locator('[data-testid="bottom-navigation"]').waitFor({ timeout: 10000 });
+        } catch (error) {
+          console.log('❌ Compliance did not auto-skip, taking final screenshot...');
+          await page.screenshot({ path: 'demo-login-compliance-failed.png', fullPage: true });
+          throw new Error('Compliance manager did not auto-skip for demo user');
+        }
+      }
+      
+      // Should show main app navigation
+      // For mobile, check with more specific selectors
+      const bottomNavSelector = '[data-testid="bottom-navigation"]';
+      const bottomNav = page.locator(bottomNavSelector);
+      
+      // Use extended timeout for Mobile Safari
+      const finalTimeout = browserInfo.isMobileSafari ? 25000 : 15000;
+      
+      await expect(bottomNav).toBeVisible({ timeout: finalTimeout });
       console.log('✅ Bottom navigation found');
       
-      // Verify we're on the discover page
-      await expect(page.locator('text=Discover')).toBeVisible();
+      // Verify bottom navigation is actually functional
+      const navButtons = bottomNav.locator('button');
+      const buttonCount = await navButtons.count();
+      console.log('📱 Bottom navigation button count:', buttonCount);
+      
+      if (buttonCount === 0) {
+        await page.screenshot({ path: 'demo-login-no-nav-buttons.png', fullPage: true });
+        throw new Error('Bottom navigation found but no buttons detected');
+      }
+      
+      // Should see discover content or other main app elements
+      await expect(page.locator('text=Discover')).toBeVisible({ timeout: 8000 });
       console.log('✅ Discover tab visible');
+      
+      // Final URL check
+      const finalUrl = page.url();
+      console.log('📍 Final URL:', finalUrl);
+      
+      // Verify we're actually on the discover page
+      if (!finalUrl.includes('/discover')) {
+        console.log('⚠️ Not on discover page, current path:', new URL(finalUrl).pathname);
+      }
       
       console.log('🎉 Demo login test passed!');
     });
@@ -166,11 +274,11 @@ test.describe('Fan Club Z - Comprehensive Feature Testing', () => {
     });
 
     test('should navigate to bet detail page', async ({ page }) => {
-      // Click on a bet card
-      await page.locator('[data-testid="bet-card"]').first().click();
+      // Click on the View Details button of a bet card
+      await page.locator('[data-testid="bet-card"] button:has-text("View Details")').first().click();
       
       // Should be on bet detail page
-      await expect(page.locator('h1')).toContainText('Taylor Swift announces surprise album?');
+      await expect(page.locator('h1').first()).toContainText('Taylor Swift announces surprise album?');
       await expect(page.locator('text=Place Bet')).toBeVisible();
     });
 

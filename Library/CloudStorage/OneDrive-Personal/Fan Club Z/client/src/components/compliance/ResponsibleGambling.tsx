@@ -352,7 +352,7 @@ export const ResponsibleGambling: React.FC<ResponsibleGamblingProps> = ({
             }} 
             className="bg-red-600 hover:bg-red-700 text-white px-12 py-4 rounded-2xl text-body font-semibold shadow-lg hover:shadow-xl transition-all duration-200 active:scale-95"
           >
-            I Understand - Continue
+            Close
           </Button>
         </div>
       )}

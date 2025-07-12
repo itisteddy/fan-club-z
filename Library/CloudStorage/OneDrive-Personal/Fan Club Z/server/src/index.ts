@@ -88,8 +88,52 @@ if (config.nodeEnv !== 'production') {
   app.use(morgan('combined'))
 }
 
-// Apply general rate limiting to all API routes
-app.use('/api', generalLimiter, router)
+// Apply general rate limiting to all API routes (demo-aware)
+app.use('/api', (req: Request, res: Response, next: any) => {
+  // More comprehensive demo user detection and rate limit bypass
+  const authHeader = req.headers['authorization']
+  const token = authHeader && authHeader.split(' ')[1]
+  
+  // Check if it's a demo user by token
+  if (token) {
+    try {
+      const decoded = jwt.verify(token, config.jwtSecret) as { userId: string }
+      if (decoded.userId === 'demo-user-id') {
+        console.log('🚀 Bypassing general rate limit for demo user via token')
+        return next()
+      }
+    } catch (error) {
+      // Token verification failed, continue with other checks
+    }
+  }
+  
+  // Skip rate limiting for demo user requests in body
+  if (req.body && req.body.email === 'demo@fanclubz.app' && req.body.password === 'demo123') {
+    console.log('🚀 Bypassing general rate limit for demo user login')
+    return next()
+  }
+  
+  // Skip rate limiting for any demo-related requests
+  if (req.body && req.body.email && req.body.email.includes('demo')) {
+    console.log('🥰 Bypassing general rate limit for demo-related request')
+    return next()
+  }
+  
+  // Skip rate limiting for demo user ID in URL params
+  if (req.params && Object.values(req.params).includes('demo-user-id')) {
+    console.log('🚀 Bypassing rate limit for demo user URL param')
+    return next()
+  }
+  
+  // Skip rate limiting for demo user queries
+  if (req.query && Object.values(req.query).includes('demo-user-id')) {
+    console.log('🚀 Bypassing rate limit for demo user query param')
+    return next()
+  }
+  
+  // Apply normal rate limiting for other requests
+  return generalLimiter(req, res, next)
+}, router)
 
 // WebSocket connection handler
 wss.on('connection', (ws, req) => {

@@ -112,7 +112,7 @@ type ShareModalProps = { open: boolean, onClose: () => void, link: string }
 export const BetDetailPage: React.FC<BetDetailPageProps & { referrer?: string }> = ({ betId, referrer: propReferrer }) => {
   const [location, setLocation] = useLocation()
   const { user } = useAuthStore()
-  const { trendingBets, fetchUserBets, fetchUserBetEntries, commentOnBet } = useBetStore()
+  const { trendingBets, fetchUserBets, fetchUserBetEntries, commentOnBet, fetchTrendingBets } = useBetStore()
   
   const [activeTab, setActiveTab] = useState('details')
   const [commentText, setCommentText] = useState('')
@@ -145,6 +145,13 @@ export const BetDetailPage: React.FC<BetDetailPageProps & { referrer?: string }>
 
   // Find the bet by betId from trendingBets
   const bet = trendingBets.find(b => b.id === betId) || mockBet
+
+  // Fetch trending bets if not already loaded
+  useEffect(() => {
+    if (trendingBets.length === 0) {
+      fetchTrendingBets()
+    }
+  }, [trendingBets.length, fetchTrendingBets])
 
   // Fetch comments from backend for real users
   useEffect(() => {

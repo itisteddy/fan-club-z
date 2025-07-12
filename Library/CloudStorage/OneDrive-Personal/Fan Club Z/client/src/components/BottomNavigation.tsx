@@ -58,8 +58,12 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = ({ activeTabOve
   const [location, setLocation] = useLocation()
   const { isAuthenticated, user } = useAuthStore()
 
+  console.log('📱 BottomNavigation rendering:', { isAuthenticated, user: user?.email, location, activeTabOverride })
+  console.log('📱 BottomNavigation: Component is rendering at path:', location)
+
   // Function to handle navigation with scroll to top
   const handleNavigation = (path: string) => {
+    console.log('📱 BottomNavigation: Navigating to', path)
     // Only scroll to top if we're actually changing tabs
     if (location !== path) {
       // Smooth scroll to top
@@ -76,7 +80,7 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = ({ activeTabOve
   return (
     <div className="fixed bottom-0 left-0 right-0 z-40" data-testid="bottom-navigation">
       <div className="bg-white/75 backdrop-blur-xl border-t border-gray-100 pb-safe">
-        <div className="flex justify-around items-center h-[49px]">
+        <div className="flex justify-around items-center h-[49px] px-2">
           {navItems.map((item) => {
             // Special handling for profile tab
             if (item.path === '/profile' && !isAuthenticated) {
@@ -84,7 +88,8 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = ({ activeTabOve
                 <button 
                   key={item.path} 
                   onClick={() => handleNavigation('/auth/login')}
-                  className="flex flex-col items-center justify-center min-w-[64px] h-full"
+                  className="flex flex-col items-center justify-center min-w-[64px] h-full touch-manipulation"
+                  style={{ WebkitTapHighlightColor: 'transparent' }}
                 >
                     <div className="relative">
                       <LogIn className="w-6 h-6" />
@@ -109,7 +114,8 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = ({ activeTabOve
               <button 
                 key={item.path} 
                 onClick={() => handleNavigation(item.path)}
-                className="flex flex-col items-center justify-center min-w-[64px] h-full"
+                className="flex flex-col items-center justify-center min-w-[64px] h-full touch-manipulation"
+                style={{ WebkitTapHighlightColor: 'transparent' }}
               >
                   <div className="relative">
                     {showUserAvatar ? (

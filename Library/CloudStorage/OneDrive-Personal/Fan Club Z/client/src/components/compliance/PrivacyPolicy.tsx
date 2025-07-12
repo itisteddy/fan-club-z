@@ -188,7 +188,7 @@ export const PrivacyPolicy: React.FC<PrivacyPolicyProps> = ({
             onClick={onAccept}
             className="bg-blue-600 hover:bg-blue-700 text-white px-12 py-4 rounded-2xl text-body font-semibold shadow-lg hover:shadow-xl transition-all duration-200 active:scale-95"
           >
-            Accept Privacy Policy
+            I Agree
           </Button>
         </div>
       )}
