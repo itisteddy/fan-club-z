@@ -285,47 +285,57 @@ export const BetCard: React.FC<BetCardProps> = ({
     )
   }
 
-  // Default vertical variant - Apple-inspired design
+  // Default vertical variant - Clean modern design
   return (
-    <div className="bg-white rounded-xl shadow-sm overflow-hidden" data-testid="bet-card">
-      {/* Hero image or gradient (optional) */}
-      {bet.imageUrl ? (
-        <div className="h-32 bg-gradient-to-br from-blue-400 to-purple-500" />
-      ) : (
-        <div className="h-32 bg-gradient-to-br from-blue-400 to-purple-500" />
-      )}
-      
+    <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-md transition-all duration-200" data-testid="bet-card">
       {/* Content */}
       <div className="p-4">
-        {/* Category badge */}
-        <span className="text-xs text-gray-500 uppercase tracking-wide font-medium">
-          {bet.category.toUpperCase()}
-        </span>
+        {/* Category badge and status */}
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center space-x-2">
+            <span className="text-lg">{getCategoryEmoji(bet.category)}</span>
+            <span className="text-xs text-gray-500 uppercase tracking-wide font-medium">
+              {bet.category.toUpperCase()}
+            </span>
+          </div>
+          <span className={cn(
+            "px-2 py-1 rounded-full text-xs font-medium",
+            getStatusColor(bet.status)
+          )}>
+            {bet.status.charAt(0).toUpperCase() + bet.status.slice(1)}
+          </span>
+        </div>
         
         {/* Title */}
-        <h3 className="text-xl font-semibold mt-1 line-clamp-2 text-gray-900">
+        <h3 className="text-lg font-semibold mb-3 line-clamp-2 text-gray-900 leading-tight">
           {bet.title}
         </h3>
         
+        {/* Pool and timing info */}
+        <div className="flex items-center justify-between mb-4 text-sm text-gray-600">
+          <div className="flex items-center space-x-1">
+            <TrendingUp className="w-4 h-4" />
+            <span className="font-medium">${(bet.poolTotal / 1000).toFixed(0)}K pool</span>
+          </div>
+          <div className="flex items-center space-x-1">
+            <Clock className="w-4 h-4" />
+            <span>{timeRemaining}</span>
+          </div>
+        </div>
+        
         {/* Metadata row */}
-        <div className="flex items-center mt-3 text-sm text-gray-500">
-          <Users className="w-4 h-4 mr-1" />
-          <span>{bet.options.reduce((sum, opt) => sum + opt.totalStaked, 0) > 0 ? '1,234' : '0'}</span>
+        <div className="flex items-center text-xs text-gray-500 mb-4">
+          <Users className="w-3 h-3 mr-1" />
+          <span>{bet.options.reduce((sum, opt) => sum + opt.totalStaked, 0) > 0 ? '1,234' : '0'} participants</span>
           
-          <span className="mx-3">•</span>
+          <span className="mx-2">•</span>
           
-          <Clock className="w-4 h-4 mr-1" />
-          <span>{timeRemaining}</span>
-          
-          <span className="mx-3">•</span>
-          
-          <TrendingUp className="w-4 h-4 mr-1" />
-          <span>${(bet.poolTotal / 1000).toFixed(0)}K pool</span>
+          <span>Min: {formatCurrency(bet.stakeMin)}</span>
         </div>
         
         {/* Action button */}
         <button
-          className="mt-4 w-full h-11 bg-gray-100 rounded-[10px] font-medium text-base hover:bg-gray-200 active:scale-95 transition-all duration-100"
+          className="w-full h-11 bg-gray-100 rounded-[10px] font-medium text-base hover:bg-gray-200 active:scale-95 transition-all duration-100"
           onClick={() => {
             const targetUrl = `/bets/${bet.id}?referrer=${location}`
             console.log('🔗 BetCard: Navigating from:', location, 'to:', targetUrl)

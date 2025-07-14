@@ -168,6 +168,12 @@
   .animate-bounce-in {
     animation: bounce-in 0.4s ease-out;
   }
+  
+  /* Smooth horizontal scrolling for mobile */
+  .scroll-smooth-x {
+    scroll-behavior: smooth;
+    -webkit-overflow-scrolling: touch;
+  }
 }
 
 /* Custom scrollbar */
@@ -187,6 +193,16 @@
 
 ::-webkit-scrollbar-thumb:hover {
   background: #a8a8a8;
+}
+
+/* Hide scrollbar for categories */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
 }
 
 /* Mobile touch improvements */

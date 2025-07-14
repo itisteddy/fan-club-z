@@ -275,15 +275,15 @@ export const CreateBetTab: React.FC = () => {
                 <Tag className="w-4 h-4 inline mr-1" />
                 Bet Type
               </label>
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-3 gap-2 sm:gap-3">
                 <button
                   type="button"
                   onClick={() => setBetType('binary')}
                   className={cn(
-                    "p-3 rounded-[10px] text-body-sm font-medium transition-all duration-200 active:scale-95",
+                    "p-2 sm:p-3 rounded-[10px] text-xs sm:text-sm font-medium transition-all duration-200 active:scale-95 touch-manipulation min-h-[44px]",
                     betType === 'binary'
                       ? 'bg-blue-500 text-white shadow-md'
-                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200 active:bg-gray-300'
                   )}
                   data-testid="bet-type-binary"
                 >
@@ -293,10 +293,10 @@ export const CreateBetTab: React.FC = () => {
                   type="button"
                   onClick={() => setBetType('multi')}
                   className={cn(
-                    "p-3 rounded-[10px] text-body-sm font-medium transition-all duration-200 active:scale-95",
+                    "p-2 sm:p-3 rounded-[10px] text-xs sm:text-sm font-medium transition-all duration-200 active:scale-95 touch-manipulation min-h-[44px]",
                     betType === 'multi'
                       ? 'bg-blue-500 text-white shadow-md'
-                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200 active:bg-gray-300'
                   )}
                   data-testid="bet-type-multi"
                 >
@@ -306,10 +306,10 @@ export const CreateBetTab: React.FC = () => {
                   type="button"
                   onClick={() => setBetType('pool')}
                   className={cn(
-                    "p-3 rounded-[10px] text-body-sm font-medium transition-all duration-200 active:scale-95",
+                    "p-2 sm:p-3 rounded-[10px] text-xs sm:text-sm font-medium transition-all duration-200 active:scale-95 touch-manipulation min-h-[44px]",
                     betType === 'pool'
                       ? 'bg-blue-500 text-white shadow-md'
-                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200 active:bg-gray-300'
                   )}
                   data-testid="bet-type-pool"
                 >
@@ -365,23 +365,23 @@ export const CreateBetTab: React.FC = () => {
               <label className="text-body-sm font-medium text-gray-600 mb-3 block">
                 Category
               </label>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 gap-2 sm:gap-3">
                 {categories.map((cat) => (
                   <button
                     key={cat.id}
                     type="button"
                     onClick={() => setCategory(cat.id)}
                     className={cn(
-                      "p-4 rounded-[10px] text-left transition-all duration-200 active:scale-95",
+                      "p-3 sm:p-4 rounded-[10px] text-left transition-all duration-200 active:scale-95 touch-manipulation min-h-[56px]",
                       category === cat.id
                         ? 'bg-blue-500 text-white shadow-md'
-                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200 active:bg-gray-300'
                     )}
                     data-testid={`category-${cat.id}`}
                   >
-                    <div className="flex items-center space-x-3">
-                      <span className="text-xl">{cat.emoji}</span>
-                      <span className="text-body font-medium">{cat.label}</span>
+                    <div className="flex items-center space-x-2 sm:space-x-3">
+                      <span className="text-lg sm:text-xl flex-shrink-0">{cat.emoji}</span>
+                      <span className="text-sm sm:text-base font-medium leading-tight">{cat.label}</span>
                     </div>
                   </button>
                 ))}

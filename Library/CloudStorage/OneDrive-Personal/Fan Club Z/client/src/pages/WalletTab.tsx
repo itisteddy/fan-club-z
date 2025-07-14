@@ -12,6 +12,7 @@ import {
   Search,
   X
 } from 'lucide-react'
+import { cn } from '../lib/utils'
 import { PaymentModal } from '../components/payment/PaymentModal'
 import { useAuthStore } from '../store/authStore'
 import { useWalletStore } from '../store/walletStore'
@@ -214,7 +215,7 @@ export const WalletTab: React.FC = () => {
       {/* Quick Deposit */}
       <section className="px-4 mb-6">
         <h3 className="text-title-3 font-semibold mb-4">Quick Deposit</h3>
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-3 gap-2 sm:gap-3">
           {quickAmounts.map((amount) => (
             <button
               key={amount}
@@ -222,9 +223,10 @@ export const WalletTab: React.FC = () => {
                 setDepositAmount(amount)
                 setShowPaymentModal(true)
               }}
-              className="h-12 bg-white rounded-xl border border-gray-200 
-                         font-medium text-body active:scale-95 transition-transform
-                         hover:border-blue-300 hover:bg-blue-50"
+              className="h-11 sm:h-12 bg-white rounded-xl border border-gray-200 
+                         font-medium text-sm sm:text-base transition-all duration-200
+                         hover:border-blue-300 hover:bg-blue-50 active:scale-95
+                         touch-manipulation min-h-[44px]"
             >
               ${amount}
             </button>
@@ -242,25 +244,38 @@ export const WalletTab: React.FC = () => {
         </div>
 
         {/* Filter Tabs */}
-        <div className="flex space-x-2 mb-4 overflow-x-auto">
-          {[
-            { id: 'all', label: 'All' },
-            { id: 'deposits', label: 'Deposits' },
-            { id: 'withdrawals', label: 'Withdrawals' },
-            { id: 'bets', label: 'Bets' },
-          ].map((filter) => (
-            <button
-              key={filter.id}
-              onClick={() => setSelectedFilter(filter.id as any)}
-              className={`px-4 py-2 rounded-full text-body-sm font-medium whitespace-nowrap
-                         ${selectedFilter === filter.id
-                           ? 'bg-blue-500 text-white'
-                           : 'bg-white text-gray-600 border border-gray-200'
-                         }`}
-            >
-              {filter.label}
-            </button>
-          ))}
+        <div className="bg-white border-b border-gray-100 mb-4">
+          <div className="px-4 py-3">
+            <div className="relative">
+              {/* Mobile-optimized horizontal scroll */}
+              <div className="flex gap-2 overflow-x-auto py-2 -mx-2 px-2 scrollbar-hide scroll-smooth-x">
+                {[
+                  { id: 'all', label: 'All' },
+                  { id: 'deposits', label: 'Deposits' },
+                  { id: 'withdrawals', label: 'Withdrawals' },
+                  { id: 'bets', label: 'Bets' },
+                ].map((filter) => (
+                  <button
+                    key={filter.id}
+                    onClick={() => setSelectedFilter(filter.id as any)}
+                    className={cn(
+                      "flex items-center gap-2 px-3 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-all duration-200 min-w-fit touch-manipulation",
+                      "min-h-[36px] active:scale-95",
+                      selectedFilter === filter.id
+                        ? 'bg-blue-500 text-white shadow-sm'
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200 active:bg-gray-300'
+                    )}
+                  >
+                    <span className="text-sm leading-none">{filter.label}</span>
+                  </button>
+                ))}
+              </div>
+              
+              {/* Subtle gradient indicators for scroll */}
+              <div className="pointer-events-none absolute left-0 top-0 h-full w-4 bg-gradient-to-r from-white to-transparent opacity-60" />
+              <div className="pointer-events-none absolute right-0 top-0 h-full w-4 bg-gradient-to-l from-white to-transparent opacity-60" />
+            </div>
+          </div>
         </div>
 
         {/* Transactions List */}

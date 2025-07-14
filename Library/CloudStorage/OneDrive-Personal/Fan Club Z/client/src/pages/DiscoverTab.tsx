@@ -195,30 +195,34 @@ export const DiscoverTab: React.FC = () => {
       </header>
       
       {/* Categories */}
-      <div className="px-4 py-3">
-        <div className="relative">
-          <div className="flex space-x-3 overflow-x-auto py-3 scrollbar-hide px-4">
-            {categories.map((category) => (
-              <button
-                key={category.id}
-                data-testid="category-button"
-                onClick={() => setSelectedCategory(category.id)}
-                className={cn(
-                  "flex items-center space-x-2 px-4 py-2 rounded-full text-body-sm font-medium whitespace-nowrap transition-all duration-200",
-                  selectedCategory === category.id
-                    ? "bg-blue-500 text-white"
-                    : "bg-white text-gray-600 border border-gray-200 hover:border-gray-300"
-                )}
-              >
-                <span className="text-base">{category.emoji}</span>
-                <span>{category.label}</span>
-              </button>
-            ))}
+      <div className="bg-white border-b border-gray-100">
+        <div className="px-4 py-3">
+          <div className="relative">
+            {/* Mobile-optimized horizontal scroll */}
+            <div className="flex gap-2 overflow-x-auto py-2 -mx-2 px-2 scrollbar-hide scroll-smooth-x">
+              {categories.map((category) => (
+                <button
+                  key={category.id}
+                  data-testid="category-button"
+                  onClick={() => setSelectedCategory(category.id)}
+                  className={cn(
+                    "flex items-center gap-2 px-3 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-all duration-200 min-w-fit touch-manipulation",
+                    "min-h-[36px] active:scale-95", // Better touch targets and feedback
+                    selectedCategory === category.id
+                      ? "bg-blue-500 text-white shadow-sm"
+                      : "bg-gray-100 text-gray-700 hover:bg-gray-200 active:bg-gray-300"
+                  )}
+                >
+                  <span className="text-sm leading-none">{category.emoji}</span>
+                  <span className="text-sm leading-none">{category.label}</span>
+                </button>
+              ))}
+            </div>
+            
+            {/* Subtle gradient indicators for scroll */}
+            <div className="pointer-events-none absolute left-0 top-0 h-full w-4 bg-gradient-to-r from-white to-transparent opacity-60" />
+            <div className="pointer-events-none absolute right-0 top-0 h-full w-4 bg-gradient-to-l from-white to-transparent opacity-60" />
           </div>
-          {/* Left fade */}
-          <div className="pointer-events-none absolute left-0 top-0 h-full w-6 bg-gradient-to-r from-gray-50 via-gray-50/80 to-transparent" />
-          {/* Right fade */}
-          <div className="pointer-events-none absolute right-0 top-0 h-full w-6 bg-gradient-to-l from-gray-50 via-gray-50/80 to-transparent" />
         </div>
       </div>
       

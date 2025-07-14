@@ -448,47 +448,63 @@ export const ClubsTab: React.FC = () => {
       </header>
 
       {/* Tabs */}
-      <div className="px-4 py-4">
-        <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="discover">Discover</TabsTrigger>
-            <TabsTrigger value="my-clubs">My Clubs</TabsTrigger>
-            <TabsTrigger value="trending">Trending</TabsTrigger>
-          </TabsList>
-          
-          {/* Content */}
-          <div className="mt-4 pb-24">
-            <TabsContent value="discover" className="mt-0">
-              {/* Categories */}
-              <div className="mb-6">
-                <div className="flex space-x-2 overflow-x-auto pb-2">
-                  {categories.map(category => {
-                    console.log('🏷️ Rendering category:', category.label, 'selected:', selectedCategory === category.id)
-                    return (
-                      <button
-                        key={category.id}
-                        data-testid={`category-${category.id}`}
-                        onClick={() => {
-                          console.log('💆 Category clicked:', category.id)
-                          setSelectedCategory(category.id)
-                        }}
-                        className={cn(
-                          "flex items-center space-x-2 px-4 py-2 rounded-full text-body-sm font-medium whitespace-nowrap transition-colors",
-                          selectedCategory === category.id
-                            ? "bg-blue-500 text-white"
-                            : "bg-white text-gray-600 border border-gray-200 hover:border-blue-300"
-                        )}
-                      >
-                        <span>{category.emoji}</span>
-                        <span>{category.label}</span>
-                      </button>
-                    )
-                  })}
+      <div className="bg-white border-b border-gray-100">
+        <div className="px-4 py-4">
+          <Tabs value={activeTab} onValueChange={setActiveTab}>
+            <TabsList className="grid w-full grid-cols-3 mb-0">
+              <TabsTrigger value="discover">Discover</TabsTrigger>
+              <TabsTrigger value="my-clubs">My Clubs</TabsTrigger>
+              <TabsTrigger value="trending">Trending</TabsTrigger>
+            </TabsList>
+          </Tabs>
+        </div>
+      </div>
+      
+      {/* Tab Content */}
+      <div className="pb-24">
+        {activeTab === 'discover' && (
+          <div className="space-y-0">
+            {/* Categories */}
+            <div className="bg-white border-b border-gray-100">
+              <div className="px-4 py-3">
+                <div className="relative">
+                  {/* Mobile-optimized horizontal scroll */}
+                  <div className="flex gap-2 overflow-x-auto py-2 -mx-2 px-2 scrollbar-hide scroll-smooth-x">
+                    {categories.map(category => {
+                      console.log('🏷️ Rendering category:', category.label, 'selected:', selectedCategory === category.id)
+                      return (
+                        <button
+                          key={category.id}
+                          data-testid={`category-${category.id}`}
+                          onClick={() => {
+                            console.log('💆 Category clicked:', category.id)
+                            setSelectedCategory(category.id)
+                          }}
+                          className={cn(
+                            "flex items-center gap-2 px-3 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-all duration-200 min-w-fit touch-manipulation",
+                            "min-h-[36px] active:scale-95", // Better touch targets and feedback
+                            selectedCategory === category.id
+                              ? "bg-blue-500 text-white shadow-sm"
+                              : "bg-gray-100 text-gray-700 hover:bg-gray-200 active:bg-gray-300"
+                          )}
+                        >
+                          <span className="text-sm leading-none">{category.emoji}</span>
+                          <span className="text-sm leading-none">{category.label}</span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                  
+                  {/* Subtle gradient indicators for scroll */}
+                  <div className="pointer-events-none absolute left-0 top-0 h-full w-4 bg-gradient-to-r from-white to-transparent opacity-60" />
+                  <div className="pointer-events-none absolute right-0 top-0 h-full w-4 bg-gradient-to-l from-white to-transparent opacity-60" />
                 </div>
               </div>
+            </div>
 
-              {/* Create Club CTA */}
-              {user && (
+            {/* Create Club CTA */}
+            {user && (
+              <div className="px-4 pt-6">
                 <Card className="mb-6 bg-gradient-to-r from-blue-500 to-purple-600 text-white">
                   <CardContent className="p-4">
                     <div className="flex items-center justify-between">
@@ -510,9 +526,11 @@ export const ClubsTab: React.FC = () => {
                     </div>
                   </CardContent>
                 </Card>
-              )}
+              </div>
+            )}
 
-              {/* Clubs Grid */}
+            {/* Clubs Grid */}
+            <div className="px-4">
               <div className="space-y-4" data-testid="clubs-list">
                 {loading ? (
                   <div className="text-center py-8" data-testid="clubs-loading">
@@ -545,65 +563,69 @@ export const ClubsTab: React.FC = () => {
                   ))
                 )}
               </div>
-            </TabsContent>
+            </div>
+          </div>
+        )}
 
-            <TabsContent value="my-clubs" className="mt-0">
-              {!user ? (
-                <div className="text-center py-8">
-                  <Users className="w-16 h-16 mx-auto mb-4 text-gray-300" />
-                  <h3 className="text-title-3 font-semibold mb-2">Sign in to see your clubs</h3>
-                  <p className="text-body text-gray-500">Join clubs and manage your memberships</p>
-                </div>
-              ) : userClubs.length === 0 ? (
-                <div className="text-center py-8">
-                  <Users className="w-16 h-16 mx-auto mb-4 text-gray-300" />
-                  <h3 className="text-title-3 font-semibold mb-2">No clubs joined yet</h3>
-                  <p className="text-body text-gray-500 mb-4">
-                    Discover and join clubs to start betting with friends
-                  </p>
-                  <Button onClick={() => setActiveTab('discover')}>
-                    Discover Clubs
-                  </Button>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {userClubs.map(club => (
-                    <ClubCard 
-                      key={club.id} 
-                      club={club} 
-                      onJoin={() => handleJoinClub(club.id)}
-                      onLeave={() => handleLeaveClub(club.id)}
-                      userRole={getMemberRole(club)}
-                      isUserClub={true}
-                    />
-                  ))}
-                </div>
-              )}
-            </TabsContent>
-
-            <TabsContent value="trending" className="mt-0">
+        {activeTab === 'my-clubs' && (
+          <div className="px-4 pt-6">
+            {!user ? (
+              <div className="text-center py-8">
+                <Users className="w-16 h-16 mx-auto mb-4 text-gray-300" />
+                <h3 className="text-title-3 font-semibold mb-2">Sign in to see your clubs</h3>
+                <p className="text-body text-gray-500">Join clubs and manage your memberships</p>
+              </div>
+            ) : userClubs.length === 0 ? (
+              <div className="text-center py-8">
+                <Users className="w-16 h-16 mx-auto mb-4 text-gray-300" />
+                <h3 className="text-title-3 font-semibold mb-2">No clubs joined yet</h3>
+                <p className="text-body text-gray-500 mb-4">
+                  Discover and join clubs to start betting with friends
+                </p>
+                <Button onClick={() => setActiveTab('discover')}>
+                  Discover Clubs
+                </Button>
+              </div>
+            ) : (
               <div className="space-y-4">
-                {trendingClubs.map((club, index) => (
-                  <div key={club.id} className="relative">
-                    {index < 3 && (
-                      <div className="absolute -top-2 -left-2 z-10">
-                        <Badge variant={index === 0 ? "default" : "secondary"}>
-                          {index === 0 ? "🥇" : index === 1 ? "🥈" : "🥉"} #{index + 1}
-                        </Badge>
-                      </div>
-                    )}
-                    <ClubCard 
-                      club={club} 
-                      onJoin={() => handleJoinClub(club.id)}
-                      onLeave={() => handleLeaveClub(club.id)}
-                      userRole={getMemberRole(club)}
-                    />
-                  </div>
+                {userClubs.map(club => (
+                  <ClubCard 
+                    key={club.id} 
+                    club={club} 
+                    onJoin={() => handleJoinClub(club.id)}
+                    onLeave={() => handleLeaveClub(club.id)}
+                    userRole={getMemberRole(club)}
+                    isUserClub={true}
+                  />
                 ))}
               </div>
-            </TabsContent>
+            )}
           </div>
-        </Tabs>
+        )}
+
+        {activeTab === 'trending' && (
+          <div className="px-4 pt-6">
+            <div className="space-y-4">
+              {trendingClubs.map((club, index) => (
+                <div key={club.id} className="relative">
+                  {index < 3 && (
+                    <div className="absolute -top-2 -left-2 z-10">
+                      <Badge variant={index === 0 ? "default" : "secondary"}>
+                        {index === 0 ? "🥇" : index === 1 ? "🥈" : "🥉"} #{index + 1}
+                      </Badge>
+                    </div>
+                  )}
+                  <ClubCard 
+                    club={club} 
+                    onJoin={() => handleJoinClub(club.id)}
+                    onLeave={() => handleLeaveClub(club.id)}
+                    userRole={getMemberRole(club)}
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Debug Panel - Remove in production */}
@@ -736,49 +758,49 @@ const ClubCard: React.FC<ClubCardProps> = ({ club, onJoin, onLeave, userRole, is
 
   return (
     <Card className="hover:shadow-md transition-shadow duration-200" data-testid="club-card">
-      <CardContent className="p-4">
-        <div className="flex items-start justify-between mb-3">
-          <div className="flex-1">
-            <div className="flex items-center space-x-2 mb-2">
-              <span className="text-lg">{getCategoryEmoji(club.category)}</span>
-              <Badge variant={club.isPrivate ? "secondary" : "default"}>
+      <CardContent className="p-3 sm:p-4">
+        <div className="flex items-start gap-3">
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 mb-2 flex-wrap">
+              <span className="text-lg flex-shrink-0">{getCategoryEmoji(club.category)}</span>
+              <Badge variant={club.isPrivate ? "secondary" : "default"} className="text-xs">
                 {club.isPrivate ? <Lock className="w-3 h-3 mr-1" /> : <Globe className="w-3 h-3 mr-1" />}
                 {club.isPrivate ? 'Private' : 'Public'}
               </Badge>
               {isOwner && (
-                <Badge variant="outline">
+                <Badge variant="outline" className="text-xs">
                   <Crown className="w-3 h-3 mr-1" />
                   Owner
                 </Badge>
               )}
               {isAdmin && (
-                <Badge variant="outline">
+                <Badge variant="outline" className="text-xs">
                   <Settings className="w-3 h-3 mr-1" />
                   Admin
                 </Badge>
               )}
             </div>
             
-            <h3 className="text-title-3 font-semibold mb-1">{club.name}</h3>
-            <p className="text-body-sm text-gray-600 mb-3 line-clamp-2">{club.description}</p>
+            <h3 className="text-base sm:text-lg font-semibold mb-1 leading-tight">{club.name}</h3>
+            <p className="text-sm text-gray-600 mb-3 line-clamp-2 leading-relaxed">{club.description}</p>
             
-            <div className="flex items-center space-x-4 text-body-sm text-gray-500 mb-3">
+            <div className="grid grid-cols-3 gap-2 sm:gap-4 text-xs sm:text-sm text-gray-500 mb-3">
               <div className="flex items-center">
-                <Users className="w-4 h-4 mr-1" />
-                <span>{club.memberCount || 0} members</span>
+                <Users className="w-3 h-3 mr-1 flex-shrink-0" />
+                <span className="truncate">{club.memberCount || 0}</span>
               </div>
               <div className="flex items-center">
-                <TrendingUp className="w-4 h-4 mr-1" />
-                <span>{club.activeBets || 0} active bets</span>
-                </div>
+                <TrendingUp className="w-3 h-3 mr-1 flex-shrink-0" />
+                <span className="truncate">{club.activeBets || 0}</span>
+              </div>
               <div className="flex items-center">
-                <MessageCircle className="w-4 h-4 mr-1" />
-                <span>{club.discussions || 0} discussions</span>
+                <MessageCircle className="w-3 h-3 mr-1 flex-shrink-0" />
+                <span className="truncate">{club.discussions || 0}</span>
               </div>
             </div>
           </div>
           
-          <div className="flex flex-col space-y-2">
+          <div className="flex flex-col gap-2 min-w-[80px]">
             {isMember ? (
               <>
                 <Button
@@ -786,6 +808,7 @@ const ClubCard: React.FC<ClubCardProps> = ({ club, onJoin, onLeave, userRole, is
                   size="sm"
                   onClick={() => navigate(`/clubs/${club.id}`)}
                   data-testid="view-club-button"
+                  className="text-xs whitespace-nowrap h-8 px-2 touch-manipulation"
                 >
                   View Club
                 </Button>
@@ -795,6 +818,7 @@ const ClubCard: React.FC<ClubCardProps> = ({ club, onJoin, onLeave, userRole, is
                     size="sm"
                     onClick={onLeave}
                     data-testid="leave-club-button"
+                    className="text-xs whitespace-nowrap h-8 px-2 touch-manipulation"
                   >
                     Leave
                   </Button>
@@ -806,6 +830,7 @@ const ClubCard: React.FC<ClubCardProps> = ({ club, onJoin, onLeave, userRole, is
                 onClick={onJoin}
                 disabled={club.isPrivate}
                 data-testid="join-club-button"
+                className="text-xs whitespace-nowrap h-8 px-2 touch-manipulation"
               >
                 {club.isPrivate ? 'Private' : 'Join'}
               </Button>
@@ -815,35 +840,35 @@ const ClubCard: React.FC<ClubCardProps> = ({ club, onJoin, onLeave, userRole, is
         
         {/* Quick Actions */}
         {isMember && (
-          <div className="flex space-x-2 pt-3 border-t border-gray-100">
+          <div className="grid grid-cols-3 gap-2 pt-3 border-t border-gray-100">
             <Button
               variant="ghost"
               size="sm"
               onClick={() => navigate(`/clubs/${club.id}/bets/create`)}
-              className="flex-1"
+              className="flex-1 text-xs h-8 px-1 touch-manipulation"
             >
-              <Plus className="w-4 h-4 mr-1" />
-              Create Bet
+              <Plus className="w-3 h-3 mr-1" />
+              <span className="hidden sm:inline">Create </span>Bet
             </Button>
             <Button
               variant="ghost"
               size="sm"
               onClick={() => navigate(`/clubs/${club.id}/discussions`)}
-              className="flex-1"
+              className="flex-1 text-xs h-8 px-1 touch-manipulation"
             >
-              <MessageCircle className="w-4 h-4 mr-1" />
-              Discuss
+              <MessageCircle className="w-3 h-3 mr-1" />
+              <span className="hidden sm:inline">Discuss</span><span className="sm:hidden">Chat</span>
             </Button>
             <Button
               variant="ghost"
               size="sm"
               onClick={() => navigate(`/clubs/${club.id}/members`)}
-              className="flex-1"
+              className="flex-1 text-xs h-8 px-1 touch-manipulation"
             >
-              <Users className="w-4 h-4 mr-1" />
-              Members
+              <Users className="w-3 h-3 mr-1" />
+              <span className="hidden sm:inline">Members</span><span className="sm:hidden">Users</span>
             </Button>
-      </div>
+          </div>
         )}
       </CardContent>
     </Card>
