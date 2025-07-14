@@ -6,7 +6,7 @@ import {
   TrendingUp, 
   MessageCircle, 
   Settings, 
-  Plus, 
+  Plus,
   Heart, 
   Share, 
   Clock, 
@@ -91,8 +91,9 @@ interface ClubStats {
   }
 }
 
-export const ClubDetailPage: React.FC = () => {
-  const { clubId } = useParams<{ clubId: string }>()
+export const ClubDetailPage: React.FC<{ clubId?: string }> = ({ clubId: propClubId }) => {
+  const { clubId: paramClubId } = useParams<{ clubId: string }>()
+  const clubId = propClubId || paramClubId
   const [location, setLocation] = useLocation()
   const { user } = useAuthStore()
   const { success, error } = useToast()
@@ -232,7 +233,7 @@ export const ClubDetailPage: React.FC = () => {
 
       if (response.ok) {
         success('Left club successfully')
-        setLocation('/clubs')
+    setLocation('/clubs')
       } else {
         const errorData = await response.json()
         error(errorData.error || 'Failed to leave club')
@@ -405,7 +406,7 @@ export const ClubDetailPage: React.FC = () => {
   }
 
   if (loading) {
-    return (
+  return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
           <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
@@ -481,7 +482,7 @@ export const ClubDetailPage: React.FC = () => {
               {isMember ? (
                 <>
                   {(userRole === 'owner' || userRole === 'admin') && (
-                    <Button
+                <Button
                       variant="outline"
                       size="sm"
                       onClick={() => setShowClubSettings(true)}
@@ -496,8 +497,8 @@ export const ClubDetailPage: React.FC = () => {
                   >
                     Leave
                   </Button>
-                </>
-              ) : (
+                    </>
+                  ) : (
                 <Button
                   size="sm"
                   onClick={handleJoinClub}
@@ -556,48 +557,48 @@ export const ClubDetailPage: React.FC = () => {
                 </CardContent>
               </Card>
               
-              <Card>
-                <CardContent className="p-4 text-center">
+            <Card>
+              <CardContent className="p-4 text-center">
                   <Trophy className="w-8 h-8 text-yellow-500 mx-auto mb-2" />
                   <div className="text-title-1 font-bold text-gray-900 mb-1">
                     {stats.avgWinRate.toFixed(0)}%
                   </div>
                   <div className="text-body-sm text-gray-500">Avg Win Rate</div>
-                </CardContent>
-              </Card>
-              
-              <Card>
-                <CardContent className="p-4 text-center">
+              </CardContent>
+            </Card>
+            
+            <Card>
+              <CardContent className="p-4 text-center">
                   <BarChart3 className="w-8 h-8 text-green-500 mx-auto mb-2" />
                   <div className="text-title-1 font-bold text-gray-900 mb-1">
                     {formatCurrency(stats.totalPool)}
                   </div>
                   <div className="text-body-sm text-gray-500">Total Pool</div>
-                </CardContent>
-              </Card>
-              
-              <Card>
-                <CardContent className="p-4 text-center">
+              </CardContent>
+            </Card>
+            
+            <Card>
+              <CardContent className="p-4 text-center">
                   <MessageCircle className="w-8 h-8 text-purple-500 mx-auto mb-2" />
                   <div className="text-title-1 font-bold text-gray-900 mb-1">
                     {stats.discussions}
                   </div>
                   <div className="text-body-sm text-gray-500">Discussions</div>
-                </CardContent>
-              </Card>
-            </div>
+              </CardContent>
+            </Card>
+          </div>
           )}
 
           {/* Top Performer */}
           {stats?.topPerformer && (
             <Card className="mb-6">
-              <CardHeader>
+                  <CardHeader>
                 <CardTitle className="flex items-center">
                   <Award className="w-5 h-5 mr-2 text-yellow-500" />
                   Top Performer
                 </CardTitle>
-              </CardHeader>
-              <CardContent>
+                  </CardHeader>
+                  <CardContent>
                 <div className="flex items-center space-x-3">
                   <Avatar>
                     <AvatarFallback>{stats.topPerformer.username.charAt(0).toUpperCase()}</AvatarFallback>
@@ -607,30 +608,30 @@ export const ClubDetailPage: React.FC = () => {
                     <p className="text-body-sm text-gray-500">
                       {stats.topPerformer.winRate.toFixed(0)}% win rate • {formatCurrency(stats.topPerformer.totalWinnings)} won
                     </p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          )}
+                      </div>
+                    </div>
+                    </CardContent>
+                  </Card>
+                )}
 
-          {/* Recent Activity */}
-          <Card>
-            <CardHeader>
+                {/* Recent Activity */}
+                <Card>
+                  <CardHeader>
               <CardTitle className="flex items-center">
                 <Activity className="w-5 h-5 mr-2" />
                 Recent Activity
               </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-3">
                 {clubBets.slice(0, 3).map(bet => (
                   <div key={bet.id} className="flex items-center space-x-3">
-                    <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                        <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
                     <div className="flex-1">
                       <p className="text-body-sm font-medium">New bet: {bet.title}</p>
                       <p className="text-caption-1 text-gray-500">{formatRelativeTime(bet.createdAt)}</p>
-                    </div>
-                  </div>
+                      </div>
+                      </div>
                 ))}
                 {discussions.slice(0, 2).map(discussion => (
                   <div key={discussion.id} className="flex items-center space-x-3">
@@ -644,38 +645,38 @@ export const ClubDetailPage: React.FC = () => {
               </div>
             </CardContent>
           </Card>
-        </TabsContent>
+            </TabsContent>
 
         <TabsContent value="bets" className="mt-0">
-          {/* Create Bet CTA */}
+                {/* Create Bet CTA */}
           {isMember && (
             <Card className="mb-6 bg-gradient-to-r from-blue-500 to-purple-600 text-white">
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h3 className="font-bold mb-1">Create a Club Bet</h3>
+                    <CardContent className="p-4">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h3 className="font-bold mb-1">Create a Club Bet</h3>
                     <p className="text-sm text-blue-100">
-                      Start a prediction for club members
-                    </p>
-                  </div>
+                            Start a prediction for club members
+                          </p>
+                        </div>
                   <Button 
                     variant="secondary" 
                     size="sm" 
                     className="bg-white text-blue-600 hover:bg-gray-100"
                     onClick={() => setShowCreateBet(true)}
                   >
-                    <Plus className="w-4 h-4 mr-1" />
+                          <Plus className="w-4 h-4 mr-1" />
                     Create Bet
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          )}
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
 
-          {/* Club Bets */}
-          <div className="space-y-4">
+                {/* Club Bets */}
+                <div className="space-y-4">
             {clubBets.length === 0 ? (
-              <Card>
+                  <Card>
                 <CardContent className="p-8 text-center">
                   <TrendingUp className="w-16 h-16 mx-auto mb-4 text-gray-300" />
                   <h3 className="text-title-3 font-semibold mb-2">No bets yet</h3>
@@ -684,18 +685,18 @@ export const ClubDetailPage: React.FC = () => {
                   </p>
                   {isMember && (
                     <Button onClick={() => setShowCreateBet(true)}>
-                      <Plus className="w-4 h-4 mr-2" />
+                        <Plus className="w-4 h-4 mr-2" />
                       Create First Bet
-                    </Button>
+                      </Button>
                   )}
-                </CardContent>
-              </Card>
+                    </CardContent>
+                  </Card>
             ) : (
               clubBets.map(bet => (
                 <BetCard key={bet.id} bet={bet} />
               ))
             )}
-          </div>
+                          </div>
         </TabsContent>
 
         <TabsContent value="members" className="mt-0">
@@ -704,7 +705,7 @@ export const ClubDetailPage: React.FC = () => {
             {members.map(member => (
               <Card key={member.id}>
                 <CardContent className="p-4">
-                  <div className="flex items-center justify-between">
+                            <div className="flex items-center justify-between">
                     <div className="flex items-center space-x-3">
                       <Avatar>
                         <AvatarFallback>{member.user.username.charAt(0).toUpperCase()}</AvatarFallback>
@@ -714,15 +715,15 @@ export const ClubDetailPage: React.FC = () => {
                           <h4 className="font-semibold">{member.user.username}</h4>
                           {member.role === 'owner' && <Crown className="w-4 h-4 text-yellow-500" />}
                           {member.role === 'admin' && <Settings className="w-4 h-4 text-blue-500" />}
-                        </div>
+                              </div>
                         <p className="text-body-sm text-gray-500">
                           {member.stats.totalBets} bets • {member.stats.winRate.toFixed(0)}% win rate
                         </p>
                         <p className="text-caption-1 text-gray-400">
                           Joined {formatRelativeTime(member.joinedAt)}
                         </p>
-                      </div>
-                    </div>
+                              </div>
+                            </div>
                     
                     {(userRole === 'owner' || (userRole === 'admin' && member.role === 'member')) && (
                       <div className="flex space-x-2">
@@ -753,20 +754,20 @@ export const ClubDetailPage: React.FC = () => {
                             Remove
                           </Button>
                         )}
-                      </div>
+                          </div>
                     )}
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        </TabsContent>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+              </div>
+            </TabsContent>
 
         <TabsContent value="discussions" className="mt-0">
           {/* Create Discussion CTA */}
           {isMember && (
             <Card className="mb-6 bg-gradient-to-r from-green-500 to-blue-600 text-white">
-              <CardContent className="p-4">
+                <CardContent className="p-4">
                 <div className="flex items-center justify-between">
                   <div>
                     <h3 className="font-bold mb-1">Start a Discussion</h3>
@@ -853,7 +854,7 @@ export const ClubDetailPage: React.FC = () => {
               ))
             )}
           </div>
-        </TabsContent>
+            </TabsContent>
       </div>
 
       {/* Create Bet Modal */}

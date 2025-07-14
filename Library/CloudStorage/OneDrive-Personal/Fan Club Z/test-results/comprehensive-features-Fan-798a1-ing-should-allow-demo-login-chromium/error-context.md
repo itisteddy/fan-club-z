@@ -1,0 +1,77 @@
+# Page snapshot
+
+```yaml
+- text: "Demo mode: Likes, comments, and bets are not saved."
+- banner:
+  - link "Z Fan Club Z":
+    - /url: /discover
+    - text: Z
+    - heading "Fan Club Z" [level=1]
+  - link "$2,500":
+    - /url: /wallet
+    - button "$2,500":
+      - img
+      - text: $2,500
+  - button "Open notifications":
+    - img
+    - text: "3"
+- main:
+  - heading "Discover" [level=1]
+  - paragraph: Welcome back, Demo! 👋
+  - img
+  - searchbox "Search bets..."
+  - button "⭐ All"
+  - button "⚽ Sports"
+  - button "🎭 Pop Culture"
+  - button "₿ Crypto"
+  - button "🏛️ Politics"
+  - button "🎯 Custom"
+  - heading "Featured" [level=2]
+  - heading "Today's Top Bet" [level=3]
+  - paragraph: Bitcoin to hit $100K by year end?
+  - button "View Details"
+  - heading "Trending Now" [level=2]
+  - text: SPORTS
+  - 'heading "Premier League: Man City vs Arsenal - Who wins?" [level=3]'
+  - img
+  - text: 1,234 •
+  - img
+  - text: 16h 29m left •
+  - img
+  - text: $25K pool
+  - button "View Details"
+  - text: CRYPTO
+  - heading "Will Bitcoin reach $100K by end of 2025?" [level=3]
+  - img
+  - text: 1,234 •
+  - img
+  - text: 170d 2h left •
+  - img
+  - text: $24K pool
+  - button "View Details"
+  - text: POP
+  - heading "Taylor Swift announces surprise album?" [level=3]
+  - img
+  - text: 1,234 •
+  - img
+  - text: 17d 2h left •
+  - img
+  - text: $11K pool
+  - button "View Details"
+- button "Navigate to Discover":
+  - img
+  - text: Discover
+- button "Navigate to My Bets":
+  - img
+  - text: My Bets
+- button "Navigate to Create":
+  - img
+  - text: Create
+- button "Navigate to Clubs":
+  - img
+  - text: Clubs
+- button "Navigate to Wallet":
+  - img
+  - text: Wallet
+- button "Navigate to Profile": D Profile
+```

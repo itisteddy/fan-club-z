@@ -31,7 +31,11 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({ isOpen, onClose
     // Subscribe to updates
     const unsubscribe = notificationService.subscribe(setNotifications)
 
-    return unsubscribe
+    return () => {
+      if (typeof unsubscribe === 'function') {
+        unsubscribe()
+      }
+    }
   }, [isOpen])
 
   const filteredNotifications = notifications.filter(notification => {
@@ -100,7 +104,7 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({ isOpen, onClose
   if (!isOpen) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center">
+    <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center" data-testid="notification-center-overlay">
       {/* Backdrop */}
       <div 
         className="absolute inset-0 bg-black/50 backdrop-blur-sm"
@@ -108,7 +112,7 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({ isOpen, onClose
       />
       
       {/* Modal */}
-      <div className="relative w-full max-w-md max-h-[80vh] bg-white rounded-t-2xl sm:rounded-2xl shadow-xl overflow-hidden">
+      <div className="relative w-full max-w-md max-h-[80vh] bg-white rounded-t-2xl sm:rounded-2xl shadow-xl overflow-hidden" data-testid="notification-center">
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-gray-200">
           <div className="flex items-center space-x-3">
@@ -199,6 +203,7 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({ isOpen, onClose
             onClick={handleMarkAllAsRead}
             disabled={unreadCount === 0}
             className="text-sm"
+            data-testid="mark-all-read-button"
           >
             Mark all as read
           </Button>
@@ -208,6 +213,7 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({ isOpen, onClose
             onClick={handleClearAll}
             disabled={notifications.length === 0}
             className="text-sm text-red-600 hover:text-red-700"
+            data-testid="clear-all-button"
           >
             Clear all
           </Button>
@@ -239,7 +245,6 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({ isOpen, onClose
                 >
                   <div className="flex items-start space-x-3">
                     {getNotificationIcon(notification.type)}
-                    
                     <div className="flex-1 min-w-0">
                       <div className="flex items-start justify-between">
                         <h4 className="text-sm font-medium text-gray-900">
@@ -249,11 +254,9 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({ isOpen, onClose
                           {formatDistanceToNow(notification.createdAt, { addSuffix: true })}
                         </span>
                       </div>
-                      
                       <p className="text-sm text-gray-600 mt-1">
                         {notification.message}
                       </p>
-                      
                       {notification.actionUrl && (
                         <button
                           onClick={() => {
@@ -266,12 +269,13 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({ isOpen, onClose
                         </button>
                       )}
                     </div>
-                    
                     <div className="flex items-center space-x-1">
                       {!notification.read && (
                         <button
                           onClick={() => handleMarkAsRead(notification.id)}
                           className="p-1 hover:bg-gray-200 rounded transition-colors"
+                          data-testid="mark-as-read-button"
+                          aria-label="Mark as read"
                         >
                           <Check className="w-4 h-4 text-gray-500" />
                         </button>
@@ -279,6 +283,8 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({ isOpen, onClose
                       <button
                         onClick={() => handleDeleteNotification(notification.id)}
                         className="p-1 hover:bg-gray-200 rounded transition-colors"
+                        data-testid="delete-notification-button"
+                        aria-label="Delete notification"
                       >
                         <Trash2 className="w-4 h-4 text-gray-500" />
                       </button>

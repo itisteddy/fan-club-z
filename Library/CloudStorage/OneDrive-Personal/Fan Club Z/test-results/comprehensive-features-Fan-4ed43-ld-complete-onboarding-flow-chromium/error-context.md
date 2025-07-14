@@ -1,0 +1,48 @@
+# Page snapshot
+
+```yaml
+- img
+- heading "Terms of Service" [level=1]
+- paragraph: "Last updated: 7/14/2025"
+- paragraph: Your rights and responsibilities when using our betting platform
+- img
+- heading "Important Notice" [level=3]
+- paragraph: These terms govern your use of Fan Club Z. By using our service, you acknowledge that you have read, understood, and agree to be bound by these terms. If you do not agree, please do not use our service.
+- img
+- heading "Acceptance of Terms" [level=3]
+- paragraph: By using Fan Club Z, you agree to follow these terms and conditions
+- text: By accessing or using Fan Club Z, you agree to these Terms of Service You must be 18 years or older to use our services You must provide accurate and complete information during registration You are responsible for maintaining the security of your account You agree to comply with all applicable laws and regulations We reserve the right to modify these terms at any time
+- img
+- heading "Eligibility & Age Verification" [level=3]
+- paragraph: Requirements to join and use our betting platform
+- text: "Minimum age requirement: 18 years old Valid government-issued ID required for verification No exceptions for parental consent or supervision Immediate account termination for underage users Geographic restrictions may apply based on jurisdiction Compliance with local gambling laws required"
+- img
+- heading "Betting Rules & Responsibilities" [level=3]
+- paragraph: How betting works and your responsibilities as a user
+- text: All bets are final once placed and confirmed You must have sufficient funds before placing bets Odds and payouts are determined by market conditions We reserve the right to void bets in exceptional circumstances Disputes will be resolved according to our dispute resolution process You are responsible for understanding bet terms before placing
+- img
+- heading "Prohibited Activities" [level=3]
+- paragraph: Activities that are not allowed on our platform
+- text: No underage gambling or account sharing No use of automated systems or bots No manipulation of odds or market conditions No fraudulent activities or money laundering No harassment or abusive behavior toward other users No circumvention of platform security measures
+- img
+- heading "Financial Terms" [level=3]
+- paragraph: Payment policies and financial responsibilities
+- text: All transactions are processed in USD unless otherwise stated Minimum deposit and withdrawal amounts apply Processing fees may apply to certain transactions We are not responsible for bank fees or exchange rates Tax reporting is the responsibility of the user We comply with all financial regulations and AML requirements
+- img
+- heading "Intellectual Property" [level=3]
+- paragraph: Rights and ownership of content and technology
+- text: All content and software are owned by Fan Club Z You may not copy, modify, or distribute our content User-generated content remains your property You grant us license to use your content on our platform Trademarks and logos are protected intellectual property Violation of IP rights may result in account termination
+- heading "Contact Information" [level=3]
+- paragraph: "If you have questions about these terms or need legal assistance, please contact us:"
+- paragraph:
+  - strong: "Email:"
+  - text: legal@fanclubz.com
+- paragraph:
+  - strong: "Address:"
+  - text: "[Your Business Address]"
+- paragraph:
+  - strong: "Legal Department:"
+  - text: legal@fanclubz.com
+- button "Decline"
+- button "I Agree"
+```

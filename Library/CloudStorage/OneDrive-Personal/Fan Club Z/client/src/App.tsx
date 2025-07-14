@@ -4,8 +4,10 @@ import { useAuthStore, initializeAuth } from './store/authStore'
 import { useWalletStore } from './store/walletStore'
 import { ToastContainer } from './hooks/use-toast'
 import { useScrollToTop } from './hooks/use-scroll-to-top'
+import { notificationService } from './services/notificationService'
 import DebugPage from './components/DebugPage'
 import { ComplianceManager } from './components/compliance'
+import { OnboardingFlow } from './components/onboarding'
 
 // Layout Components
 import MainHeader from './components/MainHeader'
@@ -19,6 +21,7 @@ import CreateBetTab from './pages/CreateBetTab'
 import ClubsTab from './pages/ClubsTab'
 import WalletTab from './pages/WalletTab'
 import ProfilePage from './pages/ProfilePage'
+import { SettingsPage } from './pages/settings'
 
 // Auth Pages
 import LoginPage from './pages/auth/LoginPage'
@@ -64,17 +67,25 @@ class ErrorBoundary extends React.Component<
 
 function App() {
   const { user, isAuthenticated } = useAuthStore()
-  const { refreshBalance } = useWalletStore()
   const [showCompliance, setShowCompliance] = useState(false)
+  const [showOnboarding, setShowOnboarding] = useState(false)
   const [authInitialized, setAuthInitialized] = useState(false)
+  const [initializing, setInitializing] = useState(true)
 
   // Initialize auth on app startup
   useEffect(() => {
     const initAuth = async () => {
       console.log('🚀 App: Initializing authentication...')
-      await initializeAuth()
-      setAuthInitialized(true)
-      console.log('✅ App: Authentication initialized')
+      setInitializing(true)
+      try {
+        await initializeAuth()
+        console.log('✅ App: Authentication initialized')
+      } catch (error) {
+        console.error('❌ App: Auth initialization failed:', error)
+      } finally {
+        setAuthInitialized(true)
+        setInitializing(false)
+      }
     }
     
     initAuth()
@@ -84,48 +95,96 @@ function App() {
   useScrollToTop()
 
   // Add debugging
-  console.log('🎯 App rendering...', { user, isAuthenticated, showCompliance, authInitialized })
+  console.log('🎯 App rendering...', { 
+    user: user?.email, 
+    isAuthenticated, 
+    showCompliance, 
+    authInitialized,
+    initializing,
+    currentPath: typeof window !== 'undefined' ? window.location.pathname : 'unknown'
+  })
 
   // Check compliance status when user is authenticated
   useEffect(() => {
-    console.log('🎯 App: Compliance check triggered', { isAuthenticated, user: user?.email, showCompliance })
+    console.log('🎯 App: Compliance check triggered', { 
+      isAuthenticated, 
+      userEmail: user?.email, 
+      showCompliance, 
+      showOnboarding,
+      search: window.location.search,
+      sessionStorage: sessionStorage.getItem('force_onboarding'),
+      complianceStatus: localStorage.getItem('compliance_status')
+    })
     
-    if (isAuthenticated && user) {
-      // Always skip compliance for demo users to ensure tests work
+    if (isAuthenticated && user && authInitialized) {
+      // Check if we should show onboarding flow instead of auto-skip
+      // This needs to be checked AFTER authentication to respect query params
+      const shouldShowOnboarding = window.location.search.includes('onboarding=true') ||
+                                   window.location.search.includes('test-onboarding') ||
+                                   window.location.search.includes('show-onboarding') ||
+                                   sessionStorage.getItem('force_onboarding') === 'true'
+      
+      console.log('🎯 App: shouldShowOnboarding decision', { 
+        shouldShowOnboarding, 
+        search: window.location.search, 
+        sessionForceOnboarding: sessionStorage.getItem('force_onboarding'),
+        hasComplianceStatus: !!localStorage.getItem('compliance_status')
+      })
+      
+      // For demo users, either show onboarding or auto-skip
       if (user.email === 'demo@fanclubz.app' || user.id === 'demo-user-id') {
-        console.log('🎯 Demo user detected, always skipping compliance')
-        setShowCompliance(false)
-        // Ensure compliance status is set for demo user
-        const complianceStatus = {
-          ageVerified: true,
-          privacyAccepted: true,
-          termsAccepted: true,
-          responsibleGamblingAcknowledged: true,
-          completedAt: new Date().toISOString()
+        if (shouldShowOnboarding) {
+          console.log('🎯 Demo user detected, showing compliance flow for testing')
+          console.log('🎯 Setting showCompliance=true, showOnboarding=false')
+          setShowCompliance(true)  // Use ComplianceManager instead of OnboardingFlow
+          setShowOnboarding(false)
+          // Clear any existing compliance to force the flow
+          localStorage.removeItem('compliance_status')
+          console.log('🎯 Cleared compliance status to force onboarding')
+          return
+        } else {
+          console.log('🎯 Demo user detected, auto-skipping compliance')
+          setShowCompliance(false)
+          setShowOnboarding(false)
+          // Ensure compliance status is set for demo user
+          const complianceStatus = {
+            ageVerified: true,
+            privacyAccepted: true,
+            termsAccepted: true,
+            responsibleGamblingAcknowledged: true,
+            completedAt: new Date().toISOString()
+          }
+          localStorage.setItem('compliance_status', JSON.stringify(complianceStatus))
+          console.log('🎯 App: Set compliance status for demo user')
+          return
         }
-        localStorage.setItem('compliance_status', JSON.stringify(complianceStatus))
-        console.log('🎯 App: Set compliance status for demo user')
-        return
       }
       
-      // Check for test environment and skip compliance
+      // For test environment, only auto-skip if compliance was already completed
       const isTestEnvironment = window.navigator.userAgent.includes('playwright') || 
                                window.navigator.userAgent.includes('Playwright') ||
                                typeof window.navigator.webdriver !== 'undefined' ||
                                window.location.search.includes('test')
       
       if (isTestEnvironment) {
-        console.log('🎯 Test environment detected, skipping compliance')
-        setShowCompliance(false)
-        const complianceStatus = {
-          ageVerified: true,
-          privacyAccepted: true,
-          termsAccepted: true,
-          responsibleGamblingAcknowledged: true,
-          completedAt: new Date().toISOString()
+        const existingCompliance = localStorage.getItem('compliance_status')
+        if (existingCompliance) {
+          try {
+            const status = JSON.parse(existingCompliance)
+            const isCompliant = status.ageVerified && status.privacyAccepted && 
+                               status.termsAccepted && status.responsibleGamblingAcknowledged
+            if (isCompliant) {
+              console.log('🎯 Test environment detected, compliance already complete, skipping')
+              setShowCompliance(false)
+              setShowOnboarding(false)
+              return
+            }
+          } catch (error) {
+            console.error('Error parsing test compliance status:', error)
+          }
         }
-        localStorage.setItem('compliance_status', JSON.stringify(complianceStatus))
-        return
+        console.log('🎯 Test environment detected, but no compliance status - showing compliance flow')
+        // Fall through to normal compliance check
       }
       
       const complianceStatus = localStorage.getItem('compliance_status')
@@ -149,35 +208,90 @@ function App() {
         }
       }
     } else {
-      // If not authenticated, don't show compliance
-      console.log('🎯 App: Not authenticated, hiding compliance')
+      // If not authenticated, don't show compliance or onboarding
+      console.log('🎯 App: Not authenticated, hiding compliance and onboarding')
       setShowCompliance(false)
+      setShowOnboarding(false)
+    }
+  }, [isAuthenticated, user, authInitialized])
+
+  // Force re-evaluation of compliance state when URL changes and we have onboarding params
+  useEffect(() => {
+    const handleLocationChange = () => {
+      const shouldShowOnboarding = window.location.search.includes('onboarding=true') ||
+                                   window.location.search.includes('test-onboarding') ||
+                                   window.location.search.includes('show-onboarding') ||
+                                   sessionStorage.getItem('force_onboarding') === 'true'
+      
+      console.log('🔄 Location change detected', {
+        pathname: window.location.pathname,
+        search: window.location.search,
+        shouldShowOnboarding,
+        isAuthenticated,
+        userEmail: user?.email
+      })
+      
+      // Force compliance check if we have onboarding params and are authenticated
+      if (isAuthenticated && user && shouldShowOnboarding && (user.email === 'demo@fanclubz.app' || user.id === 'demo-user-id')) {
+        console.log('🔄 Forcing compliance state due to location change with onboarding params')
+        setShowCompliance(true)
+        setShowOnboarding(false)
+        localStorage.removeItem('compliance_status')
+      }
+    }
+    
+    // Listen for popstate events (browser navigation)
+    window.addEventListener('popstate', handleLocationChange)
+    
+    // Check immediately in case we just navigated
+    handleLocationChange()
+    
+    return () => {
+      window.removeEventListener('popstate', handleLocationChange)
     }
   }, [isAuthenticated, user])
 
-  // Failsafe: Force hide compliance for demo users after a delay
+  // Failsafe: Force hide compliance for demo users after a delay (unless showing onboarding)
   useEffect(() => {
     if (isAuthenticated && user && (user.email === 'demo@fanclubz.app' || user.id === 'demo-user-id')) {
-      const timer = setTimeout(() => {
-        if (showCompliance) {
-          console.log('🎯 App: Failsafe triggered - forcing compliance off for demo user')
-          setShowCompliance(false)
-        }
-      }, 1000)
+      const shouldShowOnboarding = window.location.search.includes('onboarding=true') ||
+                                   window.location.search.includes('test-onboarding') ||
+                                   window.location.search.includes('show-onboarding')
       
-      return () => clearTimeout(timer)
+      if (!shouldShowOnboarding) {
+        const timer = setTimeout(() => {
+          if (showCompliance) {
+            console.log('🎯 App: Failsafe triggered - forcing compliance off for demo user')
+            setShowCompliance(false)
+          }
+          if (showOnboarding) {
+            console.log('🎯 App: Failsafe triggered - forcing onboarding off for demo user')
+            setShowOnboarding(false)
+          }
+        }, 1000)
+        
+        return () => clearTimeout(timer)
+      }
     }
-  }, [isAuthenticated, user, showCompliance])
+  }, [isAuthenticated, user, showCompliance, showOnboarding])
 
   // Refresh wallet balance when user logs in
   useEffect(() => {
     if (user) {
+      const { refreshBalance } = useWalletStore.getState()
       refreshBalance(user.id)
+      
+      // Initialize notifications for demo users
+      if (user.email === 'demo@fanclubz.app' || user.id === 'demo-user-id') {
+        console.log('🔔 Initializing notifications for demo user')
+        notificationService.initializeDemoNotifications()
+        notificationService.connect()
+      }
     }
-  }, [user, refreshBalance])
+  }, [user?.id])
 
   // Show loading state while auth is initializing
-  if (!authInitialized) {
+  if (initializing || !authInitialized) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
@@ -215,17 +329,25 @@ function App() {
 
   // Protected Route Component
   const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+    console.log('🔒 ProtectedRoute check:', { isAuthenticated, user: user?.email })
+    
     if (!isAuthenticated) {
+      console.log('🔒 ProtectedRoute: Not authenticated, redirecting to login')
       return <Redirect to="/auth/login" />
     }
+    
+    console.log('🔒 ProtectedRoute: Authenticated, rendering protected content')
     return <>{children}</>
   }
 
-  // Public Route Component (redirect if authenticated)
+  // Public Route Component (FIXED: Only redirect if fully authenticated and initialized)
   const PublicRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-    if (isAuthenticated) {
+    // Only redirect if auth is fully initialized and user is authenticated
+    if (authInitialized && isAuthenticated && !showCompliance && !showOnboarding) {
+      console.log('🔓 PublicRoute: User is authenticated, redirecting to /discover')
       return <Redirect to="/discover" />
     }
+    console.log('🔓 PublicRoute: Showing public content')
     return <>{children}</>
   }
 
@@ -240,6 +362,13 @@ function App() {
                 setShowCompliance(false)
               }}
             />
+          ) : showOnboarding ? (
+            <OnboardingFlow
+              onComplete={() => {
+                console.log('🎯 OnboardingFlow onComplete called')
+                setShowOnboarding(false)
+              }}
+            />
           ) : (
             <>
           {console.log('🎯 App: Rendering main app, user:', user?.email, 'showCompliance:', showCompliance, 'isAuthenticated:', isAuthenticated, 'location:', typeof window !== 'undefined' ? window.location.pathname : 'unknown')}
@@ -251,7 +380,7 @@ function App() {
             </div>
           )}
           <Switch>
-            {/* Auth Routes */}
+            {/* Auth Routes - FIXED: Show login page properly */}
             <Route path="/auth/login">
               <PublicRoute>
                 <LoginPage />
@@ -262,10 +391,21 @@ function App() {
                 <RegisterPage />
               </PublicRoute>
             </Route>
-            {/* Default redirect */}
+            {/* Default redirect - FIXED: Only redirect after auth is initialized */}
             <Route path="/">
-              {console.log('🎯 App: Root route accessed, isAuthenticated:', isAuthenticated)}
-              {isAuthenticated ? <Redirect to="/discover" /> : <Redirect to="/auth/login" />}
+              {console.log('🎯 App: Root route accessed, isAuthenticated:', isAuthenticated, 'authInitialized:', authInitialized)}
+              {authInitialized ? (
+                isAuthenticated ? <Redirect to="/discover" /> : <Redirect to="/auth/login" />
+              ) : (
+                <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+                  <div className="text-center">
+                    <div className="w-16 h-16 bg-blue-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <span className="text-white text-2xl font-bold">Z</span>
+                    </div>
+                    <div className="text-lg font-semibold text-gray-900 mb-2">Loading...</div>
+                  </div>
+                </div>
+              )}
             </Route>
             {/* Public Discovery (no auth required) */}
             <Route path="/discover">
@@ -326,6 +466,7 @@ function App() {
               </div>
             </Route>
             <Route path="/wallet">
+              {console.log('🚀 App: Wallet route accessed, isAuthenticated:', isAuthenticated, 'user:', user?.email)}
               <ProtectedRoute>
                 <div className="flex flex-col min-h-screen">
                   <MainHeader showBalance={true} showNotifications={true} />
@@ -346,6 +487,15 @@ function App() {
                   </main>
                   <BottomNavigation />
                   <ScrollToTopButton />
+                </div>
+              </ProtectedRoute>
+            </Route>
+            <Route path="/settings">
+              <ProtectedRoute>
+                <div className="flex flex-col min-h-screen">
+                  <main className="flex-1">
+                    <SettingsPage />
+                  </main>
                 </div>
               </ProtectedRoute>
             </Route>

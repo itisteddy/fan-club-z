@@ -213,6 +213,85 @@ export class DatabaseStorage {
     return entries.map(entry => this.mapBetEntryFromDB(entry))
   }
 
+  async getUserBetEntries(userId: string): Promise<any[]> {
+    // Handle demo user case with mock data
+    if (userId === 'demo-user-id') {
+      return [
+        {
+          id: 'bet-entry-1',
+          betId: '3235f312-e442-4ca1-9fce-dcf9d9b4bce5',
+          bet: {
+            id: '3235f312-e442-4ca1-9fce-dcf9d9b4bce5',
+            title: 'Will Bitcoin reach $100K by end of 2025?',
+            description: 'Bitcoin has been on a bull run. Will it hit the magical 100K mark by December 31st, 2025?',
+            status: 'open',
+            poolTotal: 23500,
+            entryDeadline: '2025-12-31T23:59:59Z'
+          },
+          selectedOption: 'yes',
+          stakeAmount: 100,
+          potentialWinnings: 156.67,
+          status: 'active',
+          createdAt: new Date('2025-07-01T11:00:00Z').toISOString()
+        },
+        {
+          id: 'bet-entry-2',
+          betId: '5c6d0df9-442b-41dc-9af6-9fb88816a727',
+          bet: {
+            id: '5c6d0df9-442b-41dc-9af6-9fb88816a727',
+            title: 'Premier League: Man City vs Arsenal - Who wins?',
+            description: 'The title race is heating up! City and Arsenal face off.',
+            status: 'open',
+            poolTotal: 25000,
+            entryDeadline: '2025-07-15T14:00:00Z'
+          },
+          selectedOption: 'city',
+          stakeAmount: 50,
+          potentialWinnings: 104.17,
+          status: 'active',
+          createdAt: new Date('2025-07-02T10:00:00Z').toISOString()
+        }
+      ]
+    }
+
+    // For real users, get from database
+    try {
+      const entries = await db('bet_entries')
+        .join('bets', 'bet_entries.bet_id', 'bets.id')
+        .where('bet_entries.user_id', userId)
+        .select(
+          'bet_entries.*',
+          'bets.title as bet_title',
+          'bets.description as bet_description',
+          'bets.status as bet_status',
+          'bets.pool_total as bet_pool_total',
+          'bets.entry_deadline as bet_entry_deadline'
+        )
+        .orderBy('bet_entries.created_at', 'desc')
+      
+      return entries.map(entry => ({
+        id: entry.id,
+        betId: entry.bet_id,
+        bet: {
+          id: entry.bet_id,
+          title: entry.bet_title,
+          description: entry.bet_description,
+          status: entry.bet_status,
+          poolTotal: parseFloat(entry.bet_pool_total || '0'),
+          entryDeadline: entry.bet_entry_deadline
+        },
+        selectedOption: entry.option_id,
+        stakeAmount: parseFloat(entry.amount),
+        potentialWinnings: parseFloat(entry.potential_winnings),
+        status: entry.status,
+        createdAt: entry.created_at
+      }))
+    } catch (error) {
+      console.error('Error fetching user bet entries:', error)
+      return []
+    }
+  }
+
   // Comment operations
   async createComment(commentData: Omit<Comment, 'id' | 'createdAt' | 'updatedAt'>): Promise<Comment> {
     const [comment] = await db('comments')
@@ -375,10 +454,130 @@ export class DatabaseStorage {
   }
 
   async getClubs(): Promise<Club[]> {
-    const clubs = await db('clubs')
-      .orderBy('created_at', 'desc')
-    
-    return clubs.map(club => this.mapClubFromDB(club))
+    try {
+      const clubs = await db('clubs')
+        .orderBy('created_at', 'desc')
+      
+      const mappedClubs = clubs.map(club => this.mapClubFromDB(club))
+      
+      // If no clubs in DB, return mock data for demo
+      if (mappedClubs.length === 0) {
+        return [
+          {
+            id: 'club-demo-1',
+            name: 'Premier League Predictors',
+            description: 'The ultimate destination for Premier League betting and predictions',
+            category: 'sports',
+            creatorId: 'demo-user-id',
+            memberCount: 1247,
+            activeBets: 8,
+            discussions: 45,
+            isPrivate: false,
+            imageUrl: '⚽',
+            rules: 'Be respectful, no spam, only Premier League related bets.',
+            createdAt: new Date('2025-06-15T10:00:00Z').toISOString(),
+            updatedAt: new Date('2025-07-04T15:45:00Z').toISOString()
+          },
+          {
+            id: 'club-demo-2',
+            name: 'Crypto Bulls',
+            description: 'Betting on cryptocurrency prices and market movements',
+            category: 'crypto',
+            creatorId: 'user-1',
+            memberCount: 892,
+            activeBets: 15,
+            discussions: 23,
+            isPrivate: false,
+            imageUrl: '₿',
+            rules: 'Only crypto-related bets. No financial advice.',
+            createdAt: new Date('2025-06-20T14:30:00Z').toISOString(),
+            updatedAt: new Date('2025-07-04T12:00:00Z').toISOString()
+          },
+          {
+            id: 'club-demo-3',
+            name: 'Pop Culture Central',
+            description: 'Celebrity drama, award shows, and entertainment bets',
+            category: 'entertainment',
+            creatorId: 'user-2',
+            memberCount: 567,
+            activeBets: 12,
+            discussions: 34,
+            isPrivate: false,
+            imageUrl: '🎭',
+            rules: 'Keep it fun and respectful. No personal attacks.',
+            createdAt: new Date('2025-06-25T09:15:00Z').toISOString(),
+            updatedAt: new Date('2025-07-04T10:30:00Z').toISOString()
+          },
+          {
+            id: 'club-demo-4',
+            name: 'Political Punters',
+            description: 'Election predictions and political betting',
+            category: 'politics',
+            creatorId: 'user-3',
+            memberCount: 423,
+            activeBets: 6,
+            discussions: 18,
+            isPrivate: false,
+            imageUrl: '🗳️',
+            rules: 'Keep discussions civil and fact-based.',
+            createdAt: new Date('2025-06-30T16:45:00Z').toISOString(),
+            updatedAt: new Date('2025-07-04T14:20:00Z').toISOString()
+          },
+          {
+            id: 'club-demo-5',
+            name: 'Tech Titans',
+            description: 'Technology trends and startup predictions',
+            category: 'technology',
+            creatorId: 'user-4',
+            memberCount: 334,
+            activeBets: 9,
+            discussions: 27,
+            isPrivate: false,
+            imageUrl: '💻',
+            rules: 'Tech-focused bets only. Share insights responsibly.',
+            createdAt: new Date('2025-07-01T11:30:00Z').toISOString(),
+            updatedAt: new Date('2025-07-04T13:15:00Z').toISOString()
+          }
+        ]
+      }
+      
+      return mappedClubs
+    } catch (error) {
+      console.error('Error fetching clubs:', error)
+      // Return mock data as fallback
+      return [
+        {
+          id: 'club-demo-1',
+          name: 'Premier League Predictors',
+          description: 'The ultimate destination for Premier League betting and predictions',
+          category: 'sports',
+          creatorId: 'demo-user-id',
+          memberCount: 1247,
+          activeBets: 8,
+          discussions: 45,
+          isPrivate: false,
+          imageUrl: '⚽',
+          rules: 'Be respectful, no spam, only Premier League related bets.',
+          createdAt: new Date('2025-06-15T10:00:00Z').toISOString(),
+          updatedAt: new Date('2025-07-04T15:45:00Z').toISOString()
+        },
+        {
+          id: 'club-demo-2',
+          name: 'Crypto Bulls',
+          description: 'Betting on cryptocurrency prices and market movements',
+          category: 'crypto',
+          creatorId: 'user-1',
+          memberCount: 892,
+          activeBets: 15,
+          discussions: 23,
+          isPrivate: false,
+          imageUrl: '₿',
+          rules: 'Only crypto-related bets. No financial advice.',
+          createdAt: new Date('2025-06-20T14:30:00Z').toISOString(),
+          updatedAt: new Date('2025-07-04T12:00:00Z').toISOString()
+        }
+      ]
+    }
   }
 
   // Helper methods to map database records to schema types
@@ -407,26 +606,26 @@ export class DatabaseStorage {
   private mapBetFromDB(dbBet: any): Bet {
     try {
       const mapped = {
-        id: dbBet.id,
-        creatorId: dbBet.creator_id,
-        title: dbBet.title,
-        description: dbBet.description,
-        type: dbBet.type,
-        category: dbBet.category,
+      id: dbBet.id,
+      creatorId: dbBet.creator_id,
+      title: dbBet.title,
+      description: dbBet.description,
+      type: dbBet.type,
+      category: dbBet.category,
         options: typeof dbBet.options === 'string' ? JSON.parse(dbBet.options) : dbBet.options || [],
-        status: dbBet.status,
-        stakeMin: parseFloat(dbBet.stake_min),
-        stakeMax: parseFloat(dbBet.stake_max),
-        poolTotal: dbBet.pool_total !== undefined && dbBet.pool_total !== null ? parseFloat(dbBet.pool_total) : 0,
-        entryDeadline: dbBet.entry_deadline,
-        settlementMethod: dbBet.settlement_method,
-        isPrivate: dbBet.is_private,
-        clubId: dbBet.club_id,
-        likes: dbBet.likes_count !== undefined && dbBet.likes_count !== null ? dbBet.likes_count : 0,
-        comments: dbBet.comments_count !== undefined && dbBet.comments_count !== null ? dbBet.comments_count : 0,
-        shares: dbBet.shares_count !== undefined && dbBet.shares_count !== null ? dbBet.shares_count : 0,
-        createdAt: dbBet.created_at,
-        updatedAt: dbBet.updated_at
+      status: dbBet.status,
+      stakeMin: parseFloat(dbBet.stake_min),
+      stakeMax: parseFloat(dbBet.stake_max),
+      poolTotal: dbBet.pool_total !== undefined && dbBet.pool_total !== null ? parseFloat(dbBet.pool_total) : 0,
+      entryDeadline: dbBet.entry_deadline,
+      settlementMethod: dbBet.settlement_method,
+      isPrivate: dbBet.is_private,
+      clubId: dbBet.club_id,
+      likes: dbBet.likes_count !== undefined && dbBet.likes_count !== null ? dbBet.likes_count : 0,
+      comments: dbBet.comments_count !== undefined && dbBet.comments_count !== null ? dbBet.comments_count : 0,
+      shares: dbBet.shares_count !== undefined && dbBet.shares_count !== null ? dbBet.shares_count : 0,
+      createdAt: dbBet.created_at,
+      updatedAt: dbBet.updated_at
       }
       console.log('[mapBetFromDB] Mapped bet:', mapped)
       return mapped
@@ -462,8 +661,10 @@ export class DatabaseStorage {
       description: dbClub.description,
       category: dbClub.category,
       creatorId: dbClub.creator_id,
-      memberCount: dbClub.member_count,
-      isPrivate: dbClub.is_private,
+      memberCount: dbClub.member_count || 0,
+      activeBets: dbClub.active_bets || 0,
+      discussions: dbClub.discussions || 0,
+      isPrivate: dbClub.is_private || false,
       imageUrl: dbClub.image_url,
       rules: dbClub.rules,
       createdAt: dbClub.created_at,

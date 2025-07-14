@@ -12,6 +12,41 @@ router.get('/user/:userId', authenticateToken, async (req, res) => {
   try {
     const { userId } = req.params
     
+    console.log('📊 Stats request for userId:', userId, 'from user:', req.user?.id)
+    
+    // Special handling for demo user
+    if (userId === 'demo-user-id') {
+      console.log('📊 Returning demo user stats')
+      const demoStats = {
+        totalBets: 15,
+        activeBets: 3,
+        wonBets: 8,
+        lostBets: 4,
+        cancelledBets: 0,
+        totalStaked: 750,
+        totalWon: 1200,
+        totalLost: 300,
+        netProfit: 900,
+        winRate: 53.3,
+        clubsJoined: 5,
+        betsCreated: 7,
+        totalLikesReceived: 24,
+        totalCommentsReceived: 18,
+        totalSharesReceived: 6,
+        reputationScore: 4.2,
+        reputationVotes: 12,
+        currentWinStreak: 2,
+        longestWinStreak: 5,
+        currentLossStreak: 0,
+        longestLossStreak: 2,
+        lastBetAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+        lastWinAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
+        lastLoginAt: new Date().toISOString()
+      }
+      
+      return res.json(demoStats)
+    }
+    
     // Check if user is requesting their own stats or has permission
     if (req.user?.id !== userId) {
       return res.status(403).json({ error: 'Unauthorized' })
@@ -37,6 +72,41 @@ router.get('/user/:userId', authenticateToken, async (req, res) => {
 router.post('/user/:userId/refresh', authenticateToken, async (req, res) => {
   try {
     const { userId } = req.params
+    
+    console.log('🔄 Stats refresh request for userId:', userId, 'from user:', req.user?.id)
+    
+    // Special handling for demo user
+    if (userId === 'demo-user-id') {
+      console.log('🔄 Returning refreshed demo user stats')
+      const demoStats = {
+        totalBets: 15,
+        activeBets: 3,
+        wonBets: 8,
+        lostBets: 4,
+        cancelledBets: 0,
+        totalStaked: 750,
+        totalWon: 1200,
+        totalLost: 300,
+        netProfit: 900,
+        winRate: 53.3,
+        clubsJoined: 5,
+        betsCreated: 7,
+        totalLikesReceived: 24,
+        totalCommentsReceived: 18,
+        totalSharesReceived: 6,
+        reputationScore: 4.2,
+        reputationVotes: 12,
+        currentWinStreak: 2,
+        longestWinStreak: 5,
+        currentLossStreak: 0,
+        longestLossStreak: 2,
+        lastBetAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+        lastWinAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
+        lastLoginAt: new Date().toISOString()
+      }
+      
+      return res.json(demoStats)
+    }
     
     // Check if user is requesting their own stats or has permission
     if (req.user?.id !== userId) {

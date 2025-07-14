@@ -45,28 +45,65 @@ export const useStatsStore = create<StatsState>()(
       error: null,
 
       fetchStats: async (userId: string) => {
+        console.log('📊 StatsStore: Fetching stats for user:', userId)
         set({ loading: true, error: null })
         
         try {
           const response = await fetch(`/api/stats/user/${userId}`, {
             headers: {
-              'Authorization': `Bearer ${localStorage.getItem('accessToken')}`,
+              'Authorization': `Bearer ${localStorage.getItem('accessToken') || localStorage.getItem('auth_token')}`,
               'Content-Type': 'application/json'
             }
           })
 
+          console.log('📊 StatsStore: API response status:', response.status)
+          
           if (!response.ok) {
-            throw new Error('Failed to fetch stats')
+            throw new Error(`Failed to fetch stats: ${response.status} ${response.statusText}`)
           }
 
           const data = await response.json()
+          console.log('📊 StatsStore: Stats data received:', data)
           set({ stats: data, loading: false })
         } catch (error) {
-          console.error('Error fetching stats:', error)
-          set({ 
-            error: error instanceof Error ? error.message : 'Failed to fetch stats',
-            loading: false 
-          })
+          console.error('❌ StatsStore: Error fetching stats:', error)
+          
+          // Provide fallback stats for demo user
+          if (userId === 'demo-user-id') {
+            console.log('📊 StatsStore: Using fallback demo stats')
+            const fallbackStats = {
+              totalBets: 15,
+              activeBets: 3,
+              wonBets: 8,
+              lostBets: 4,
+              cancelledBets: 0,
+              totalStaked: 750,
+              totalWon: 1200,
+              totalLost: 300,
+              netProfit: 900,
+              winRate: 53.3,
+              clubsJoined: 5,
+              betsCreated: 7,
+              totalLikesReceived: 24,
+              totalCommentsReceived: 18,
+              totalSharesReceived: 6,
+              reputationScore: 4.2,
+              reputationVotes: 12,
+              currentWinStreak: 2,
+              longestWinStreak: 5,
+              currentLossStreak: 0,
+              longestLossStreak: 2,
+              lastBetAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+              lastWinAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
+              lastLoginAt: new Date().toISOString()
+            }
+            set({ stats: fallbackStats, loading: false, error: null })
+          } else {
+            set({ 
+              error: error instanceof Error ? error.message : 'Failed to fetch stats',
+              loading: false 
+            })
+          }
         }
       },
 

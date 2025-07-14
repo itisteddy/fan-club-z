@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import { Search, Filter, TrendingUp, Flame, Clock, Star } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -6,7 +6,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import BetCard from '@/components/BetCard'
 import { useBetStore } from '@/store/betStore'
 import { useAuthStore } from '@/store/authStore'
-import { cn } from '@/lib/utils'
+import { cn, debounce } from '@/lib/utils'
 import type { Bet } from '@shared/schema'
 import { useLocation } from 'wouter'
 
@@ -109,15 +109,36 @@ export const DiscoverTab: React.FC = () => {
   const [location, navigate] = useLocation()
   
   const [searchQuery, setSearchQuery] = useState('')
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('')
   const [selectedCategory, setSelectedCategory] = useState('all')
   const [selectedFilter, setSelectedFilter] = useState('trending')
+  const [isSearching, setIsSearching] = useState(false)
+  
   // Use trendingBets from store if available, otherwise fallback to mockTrendingBets
   const bets = trendingBets && trendingBets.length > 0 ? trendingBets : mockTrendingBets
 
+  // Debounced search function
+  const debouncedSearch = useCallback(
+    debounce((query: string) => {
+      setDebouncedSearchQuery(query)
+      setIsSearching(false)
+    }, 300),
+    []
+  )
+
+  // Handle search input change
+  const handleSearchChange = (value: string) => {
+    setSearchQuery(value)
+    setIsSearching(value.length > 0)
+    debouncedSearch(value)
+  }
+
   // Filter bets based on selected criteria
   const filteredBets = bets.filter(bet => {
-    const matchesSearch = bet.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         bet.description.toLowerCase().includes(searchQuery.toLowerCase())
+    const matchesSearch = debouncedSearchQuery === '' || 
+                         bet.title.toLowerCase().includes(debouncedSearchQuery.toLowerCase()) ||
+                         bet.description.toLowerCase().includes(debouncedSearchQuery.toLowerCase()) ||
+                         bet.category.toLowerCase().includes(debouncedSearchQuery.toLowerCase())
     const matchesCategory = selectedCategory === 'all' || bet.category === selectedCategory
     return matchesSearch && matchesCategory
   })
@@ -157,11 +178,17 @@ export const DiscoverTab: React.FC = () => {
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 z-10" />
               <Input
                 type="search"
-                placeholder="Search bets, topics, or creators..."
+                placeholder="Search bets..."
                 className="w-full h-11 pl-11 pr-4 bg-gray-100 rounded-[10px] text-body placeholder-gray-500 focus:bg-gray-200 transition-colors block"
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                onChange={(e) => handleSearchChange(e.target.value)}
+                data-testid="search-input"
               />
+              {isSearching && (
+                <div className="absolute right-4 top-1/2 -translate-y-1/2">
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500"></div>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -217,23 +244,59 @@ export const DiscoverTab: React.FC = () => {
       
       {/* Bet List */}
       <section className="px-4 pb-24">
-        <h2 className="text-title-2 font-bold mb-4">Trending Now</h2>
-        {filteredBets.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-12 px-8">
-            <div className="w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center mb-6">
-              <span className="text-4xl text-gray-400">🤔</span>
-            </div>
-            <h3 className="text-title-3 font-semibold mb-2">
-              {trendingBets && trendingBets.length === 0 ? 'No Bets Found' : 'Unable to load bets'}
-            </h3>
-            <p className="text-body text-gray-500 text-center mb-6">
-              {trendingBets && trendingBets.length === 0
-                ? 'Start exploring trending bets or create your own.'
-                : 'There was a problem loading bets. Please try again later.'}
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-title-2 font-bold" data-testid="search-results-header">
+            {debouncedSearchQuery ? `Search Results` : 'Trending Now'}
+          </h2>
+          {debouncedSearchQuery && (
+            <span className="text-body-sm text-gray-500" data-testid="search-results-count">
+              {filteredBets.length} result{filteredBets.length !== 1 ? 's' : ''}
+            </span>
+          )}
+        </div>
+        
+        {debouncedSearchQuery && (
+          <div className="mb-4 p-3 bg-blue-50 rounded-lg" data-testid="search-query-display">
+            <p className="text-body-sm text-blue-700">
+              Showing results for: <span className="font-medium">"{debouncedSearchQuery}"</span>
             </p>
           </div>
+        )}
+        
+        {filteredBets.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-12 px-8" data-testid="empty-state">
+            <div className="w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center mb-6">
+              <span className="text-4xl text-gray-400">
+                {debouncedSearchQuery ? '🔍' : '🤔'}
+              </span>
+            </div>
+            <h3 className="text-title-3 font-semibold mb-2" data-testid="empty-state-title">
+              {debouncedSearchQuery 
+                ? 'No Results Found' 
+                : (trendingBets && trendingBets.length === 0 ? 'No Bets Found' : 'Unable to load bets')}
+            </h3>
+            <p className="text-body text-gray-500 text-center mb-6" data-testid="empty-state-message">
+              {debouncedSearchQuery
+                ? `No bets match "${debouncedSearchQuery}". Try different keywords or browse categories.`
+                : (trendingBets && trendingBets.length === 0
+                  ? 'Start exploring trending bets or create your own.'
+                  : 'There was a problem loading bets. Please try again later.')}
+            </p>
+            {debouncedSearchQuery && (
+              <Button
+                onClick={() => {
+                  setSearchQuery('')
+                  setDebouncedSearchQuery('')
+                }}
+                className="bg-blue-500 text-white px-6 py-2 rounded-lg"
+                data-testid="clear-search-button"
+              >
+                Clear Search
+              </Button>
+            )}
+          </div>
         ) : (
-          <div className="space-y-4">
+          <div className="space-y-4" data-testid="search-results">
             {filteredBets.map(bet => {
               console.log('🃏 Rendering BetCard for:', bet.id, bet.title)
               return (

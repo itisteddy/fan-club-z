@@ -48,6 +48,12 @@ const navItems: NavItem[] = [
     label: 'Clubs',
   },
   {
+    path: '/wallet',
+    icon: Wallet,
+    label: 'Wallet',
+    requiresAuth: true,
+  },
+  {
     path: '/profile',
     icon: User,
     label: 'Profile',
@@ -88,8 +94,10 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = ({ activeTabOve
                 <button 
                   key={item.path} 
                   onClick={() => handleNavigation('/auth/login')}
-                  className="flex flex-col items-center justify-center min-w-[64px] h-full touch-manipulation"
+                  className="flex flex-col items-center justify-center min-w-[64px] h-full touch-manipulation transition-colors duration-200 hover:bg-gray-50 active:bg-gray-100"
                   style={{ WebkitTapHighlightColor: 'transparent' }}
+                  data-testid="nav-sign-in"
+                  aria-label="Sign In"
                 >
                     <div className="relative">
                       <LogIn className="w-6 h-6" />
@@ -114,8 +122,10 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = ({ activeTabOve
               <button 
                 key={item.path} 
                 onClick={() => handleNavigation(item.path)}
-                className="flex flex-col items-center justify-center min-w-[64px] h-full touch-manipulation"
+                className="flex flex-col items-center justify-center min-w-[64px] h-full touch-manipulation transition-colors duration-200 hover:bg-gray-50 active:bg-gray-100"
                 style={{ WebkitTapHighlightColor: 'transparent' }}
+                data-testid={`nav-${item.label.toLowerCase().replace(' ', '-')}`}
+                aria-label={`Navigate to ${item.label}`}
               >
                   <div className="relative">
                     {showUserAvatar ? (

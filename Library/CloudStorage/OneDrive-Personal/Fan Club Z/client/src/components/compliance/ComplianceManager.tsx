@@ -65,7 +65,7 @@ export const ComplianceManager: React.FC<ComplianceManagerProps> = ({
           our key policies.
         </p>
       </div>
-
+      
       <div className="grid gap-6 mb-12 max-w-3xl mx-auto">
         <div className="flex items-center space-x-4 p-6 bg-gradient-to-r from-blue-50 to-blue-100 rounded-2xl border border-blue-200 transition-all hover:shadow-md">
           <div className="w-12 h-12 bg-blue-500 rounded-full flex items-center justify-center flex-shrink-0">
@@ -122,7 +122,7 @@ export const ComplianceManager: React.FC<ComplianceManagerProps> = ({
           data-testid="get-started-button"
         >
           Get Started
-        </Button>
+      </Button>
       </div>
     </div>
   )
@@ -169,7 +169,7 @@ export const ComplianceManager: React.FC<ComplianceManagerProps> = ({
           Welcome to our community of responsible bettors!
         </p>
       </div>
-
+      
       <div className="grid gap-4 mb-12 max-w-2xl mx-auto">
         <div className="flex items-center justify-between p-6 bg-gradient-to-r from-green-50 to-green-100 rounded-2xl border border-green-200">
           <div className="flex items-center space-x-4">
@@ -210,8 +210,8 @@ export const ComplianceManager: React.FC<ComplianceManagerProps> = ({
           <h3 className="text-title-3 font-semibold text-blue-900 mb-3">Remember</h3>
           <p className="text-body text-blue-800 leading-relaxed">
             You can access these policies anytime from your profile settings. 
-            If you need help with responsible gambling, support is always available.
-          </p>
+          If you need help with responsible gambling, support is always available.
+        </p>
         </div>
       </div>
 
@@ -220,8 +220,8 @@ export const ComplianceManager: React.FC<ComplianceManagerProps> = ({
           onClick={handleComplete} 
           className="bg-green-600 hover:bg-green-700 text-white px-12 py-4 rounded-2xl text-body font-semibold shadow-lg hover:shadow-xl transition-all duration-200 active:scale-95"
         >
-          Start Betting
-        </Button>
+        Start Betting
+      </Button>
       </div>
     </div>
   )
@@ -229,6 +229,21 @@ export const ComplianceManager: React.FC<ComplianceManagerProps> = ({
   // Check if compliance is already complete
   React.useEffect(() => {
     console.log('🔍 ComplianceManager: Checking compliance status...')
+    
+    // Check if we should force manual onboarding (for testing)
+    const forceManualOnboarding = window.location.search.includes('onboarding=manual') || 
+                                  window.location.search.includes('test-onboarding') ||
+                                  window.location.search.includes('onboarding=true') ||
+                                  window.location.search.includes('show-onboarding') ||
+                                  sessionStorage.getItem('force_onboarding') === 'true' ||
+                                  showOnFirstVisit
+    
+    console.log('🔍 ComplianceManager: forceManualOnboarding check', { forceManualOnboarding, search: window.location.search, sessionStorage: sessionStorage.getItem('force_onboarding'), showOnFirstVisit })
+    
+    if (forceManualOnboarding) {
+      console.log('🔍 ComplianceManager: Manual onboarding forced, showing full flow')
+      return
+    }
     
     // Always auto-complete for demo users with multiple detection methods
     const checkDemoUser = () => {
@@ -269,12 +284,26 @@ export const ComplianceManager: React.FC<ComplianceManagerProps> = ({
         }
       }
       
-      // Method 4: Check for test environment
+      // Method 4: Check for test environment - but always show onboarding on first visit in tests
       const isTestEnvironment = window.navigator.userAgent.includes('playwright') || 
                                window.navigator.userAgent.includes('Playwright') ||
                                typeof window.navigator.webdriver !== 'undefined'
+      
+      // In test environment, only auto-skip if compliance was already completed
       if (isTestEnvironment) {
-        return true
+        const existingCompliance = localStorage.getItem('compliance_status')
+        if (existingCompliance) {
+          try {
+            const status = JSON.parse(existingCompliance)
+            const isCompliant = status.ageVerified && status.privacyAccepted && 
+                               status.termsAccepted && status.responsibleGamblingAcknowledged
+            return isCompliant // Only auto-skip if already compliant
+          } catch (error) {
+            console.error('Error parsing test compliance status:', error)
+          }
+        }
+        // If no compliance status in test environment, show the flow
+        return false
       }
       
       return false
@@ -314,7 +343,7 @@ export const ComplianceManager: React.FC<ComplianceManagerProps> = ({
         if (isCompliant) {
           console.log('✅ ComplianceManager: Compliance already complete, calling onComplete')
           setTimeout(() => {
-            onComplete?.()
+      onComplete?.()
           }, 100)
         }
       } catch (error) {
@@ -323,8 +352,15 @@ export const ComplianceManager: React.FC<ComplianceManagerProps> = ({
     }
   }, [onComplete, showOnFirstVisit])
 
-  console.log('🔍 ComplianceManager: Rendering with currentStep:', currentStep)
-  
+  console.log('🔍 ComplianceManager: Rendering with currentStep:', currentStep, {
+    showCompliance: true, // We know this is true if we're rendering
+    onComplete: !!onComplete,
+    showOnFirstVisit,
+    search: window.location.search,
+    sessionStorage: sessionStorage.getItem('force_onboarding'),
+    complianceStatus: localStorage.getItem('compliance_status')
+  })
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50">
       <div className="container mx-auto py-4 lg:py-8">

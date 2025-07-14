@@ -1,0 +1,124 @@
+# Page snapshot
+
+```yaml
+- text: "Demo mode: Likes, comments, and bets are not saved."
+- banner:
+  - link "Z Fan Club Z":
+    - /url: /discover
+    - text: Z
+    - heading "Fan Club Z" [level=1]
+  - link "$2,500":
+    - /url: /wallet
+    - button "$2,500":
+      - img
+      - text: $2,500
+  - button "Open notifications":
+    - img
+    - text: "3"
+- main:
+  - heading "Clubs" [level=1]
+  - img
+  - searchbox "Search clubs..."
+  - tablist:
+    - tab "Discover" [selected]
+    - tab "My Clubs"
+    - tab "Trending"
+  - tabpanel "Discover":
+    - button "🏠 All"
+    - button "⚽ Sports"
+    - button "₿ Crypto"
+    - button "🎬 Entertainment"
+    - button "🗳️ Politics"
+    - button "💻 Technology"
+    - button "💰 Finance"
+    - button "🎮 Gaming"
+    - heading "Create Your Own Club" [level=3]
+    - paragraph: Start a community around your favorite topics
+    - button "Create Club":
+      - img
+      - text: Create Club
+    - text: 🏠
+    - img
+    - text: Public
+    - heading "Pop Culture Central" [level=3]
+    - paragraph: Celebrity drama, award shows, and entertainment bets
+    - img
+    - text: 567 members
+    - img
+    - text: 0 active bets
+    - img
+    - text: 0 discussions
+    - button "View Club"
+    - button "Leave"
+    - button "Create Bet":
+      - img
+      - text: Create Bet
+    - button "Discuss":
+      - img
+      - text: Discuss
+    - button "Members":
+      - img
+      - text: Members
+    - text: ₿
+    - img
+    - text: Public
+    - heading "Crypto Bulls" [level=3]
+    - paragraph: Betting on cryptocurrency prices and market movements
+    - img
+    - text: 892 members
+    - img
+    - text: 0 active bets
+    - img
+    - text: 0 discussions
+    - button "View Club"
+    - button "Leave"
+    - button "Create Bet":
+      - img
+      - text: Create Bet
+    - button "Discuss":
+      - img
+      - text: Discuss
+    - button "Members":
+      - img
+      - text: Members
+    - text: ⚽
+    - img
+    - text: Public
+    - heading "Premier League Predictors" [level=3]
+    - paragraph: The ultimate destination for Premier League betting and predictions
+    - img
+    - text: 1247 members
+    - img
+    - text: 0 active bets
+    - img
+    - text: 0 discussions
+    - button "View Club"
+    - button "Leave"
+    - button "Create Bet":
+      - img
+      - text: Create Bet
+    - button "Discuss":
+      - img
+      - text: Discuss
+    - button "Members":
+      - img
+      - text: Members
+  - strong: "Debug Info:"
+  - text: "Loading: No Clubs Count: 3 Filtered Clubs: 3 Selected Category: all Active Tab: discover User: Demo (demo-user-id)"
+- button "Navigate to Discover":
+  - img
+  - text: Discover
+- button "Navigate to My Bets":
+  - img
+  - text: My Bets
+- button "Navigate to Create":
+  - img
+  - text: Create
+- button "Navigate to Clubs":
+  - img
+  - text: Clubs
+- button "Navigate to Wallet":
+  - img
+  - text: Wallet
+- button "Navigate to Profile": D Profile
+```

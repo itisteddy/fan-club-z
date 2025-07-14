@@ -29,13 +29,13 @@ const DemoDepositForm: React.FC<{
     setLoading(true)
     // Simulate API call
     try {
-      const response = await fetch('/api/payments/deposit/intent', {
+      const response = await fetch('/api/wallet/deposit', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
         },
-        body: JSON.stringify({ amount, currency: 'usd' }),
+        body: JSON.stringify({ amount, currency: 'USD', paymentMethod: 'demo' }),
       })
       const result = await response.json()
       if (!result.success) throw new Error(result.error || 'Failed to deposit')

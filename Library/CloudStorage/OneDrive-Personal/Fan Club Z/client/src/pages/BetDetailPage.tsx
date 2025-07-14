@@ -357,7 +357,7 @@ export const BetDetailPage: React.FC<BetDetailPageProps & { referrer?: string }>
     if (referrer) {
       setLocation(referrer)
     } else {
-      setLocation('/discover')
+    setLocation('/discover')
     }
   }
 
@@ -470,16 +470,16 @@ export const BetDetailPage: React.FC<BetDetailPageProps & { referrer?: string }>
     }
     
     if (user.id === 'demo-user-id') {
-      setComments([
-        ...comments,
-        {
-          id: Date.now().toString(),
-          user: { name: 'You', avatar: null },
-          text: commentText,
-          time: 'now'
-        }
-      ])
-      setCommentText('')
+    setComments([
+      ...comments,
+      {
+        id: Date.now().toString(),
+        user: { name: 'You', avatar: null },
+        text: commentText,
+        time: 'now'
+      }
+    ])
+    setCommentText('')
       return
     }
     // Real user: post to backend
@@ -630,37 +630,37 @@ export const BetDetailPage: React.FC<BetDetailPageProps & { referrer?: string }>
           ) : commentsError ? (
             <div className="text-red-500 text-sm">{commentsError}</div>
           ) : (
-            <div className="space-y-3 max-h-48 overflow-y-auto mb-3">
+          <div className="space-y-3 max-h-48 overflow-y-auto mb-3">
               {comments.map((c, idx) => (
                 <div key={c.id || idx} className="flex items-start space-x-3">
-                  <div className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center text-gray-500 font-bold">
-                    {c.user.avatar ? <img src={c.user.avatar} alt={c.user.name} className="w-8 h-8 rounded-full" /> : c.user.name[0]}
-                  </div>
-                  <div className="flex-1">
-                    <div className="flex items-center space-x-2">
-                      <span className="text-body-sm font-medium">{c.user.name}</span>
-                      <span className="text-caption-1 text-gray-400">{c.time}</span>
-                    </div>
-                    <p className="text-body-sm text-gray-700">{c.text}</p>
-                  </div>
+                <div className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center text-gray-500 font-bold">
+                  {c.user.avatar ? <img src={c.user.avatar} alt={c.user.name} className="w-8 h-8 rounded-full" /> : c.user.name[0]}
                 </div>
-              ))}
-            </div>
+                <div className="flex-1">
+                  <div className="flex items-center space-x-2">
+                    <span className="text-body-sm font-medium">{c.user.name}</span>
+                    <span className="text-caption-1 text-gray-400">{c.time}</span>
+                  </div>
+                  <p className="text-body-sm text-gray-700">{c.text}</p>
+                </div>
+              </div>
+            ))}
+          </div>
           )}
           
           {user ? (
-            <form onSubmit={handleAddComment} className="flex items-center space-x-2">
-              <Input
-                type="text"
-                placeholder="Add a comment..."
-                value={commentText}
-                onChange={e => setCommentText(e.target.value)}
-                className="flex-1"
-              />
-              <Button type="submit" className="h-10 px-4" disabled={!commentText.trim()}>
-                Send
-              </Button>
-            </form>
+          <form onSubmit={handleAddComment} className="flex items-center space-x-2">
+            <Input
+              type="text"
+              placeholder="Add a comment..."
+              value={commentText}
+              onChange={e => setCommentText(e.target.value)}
+              className="flex-1"
+            />
+            <Button type="submit" className="h-10 px-4" disabled={!commentText.trim()}>
+              Send
+            </Button>
+          </form>
           ) : (
             <div className="bg-blue-50 border border-blue-200 rounded-[10px] p-4 text-center">
               <MessageCircle className="w-6 h-6 text-blue-500 mx-auto mb-2" />

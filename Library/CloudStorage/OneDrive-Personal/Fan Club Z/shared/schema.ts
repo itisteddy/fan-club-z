@@ -71,10 +71,12 @@ export interface Club {
   id: string;
   name: string;
   description: string;
-  category: 'sports' | 'pop' | 'crypto' | 'general';
+  category: 'sports' | 'pop' | 'crypto' | 'general' | 'entertainment' | 'politics' | 'technology' | 'finance' | 'gaming';
   creatorId: string;
   creator?: User;
   memberCount: number;
+  activeBets?: number;
+  discussions?: number;
   isPrivate: boolean;
   imageUrl?: string;
   coverImage?: string;

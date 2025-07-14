@@ -170,8 +170,8 @@ export const betCreationLimiter = rateLimit({
   }
 })
 
-// Limiter for wallet transactions
-export const walletLimiter = rateLimit({
+// Limiter for wallet transactions (demo-aware)
+export const walletLimiter = createDemoAwareRateLimit({
   windowMs: 60 * 60 * 1000, // 1 hour
   max: 20, // Limit each IP to 20 wallet operations per hour
   message: {

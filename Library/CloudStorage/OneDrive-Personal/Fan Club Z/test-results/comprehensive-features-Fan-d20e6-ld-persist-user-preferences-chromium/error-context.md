@@ -1,0 +1,106 @@
+# Page snapshot
+
+```yaml
+- text: "Demo mode: Likes, comments, and bets are not saved."
+- banner:
+  - link "Z Fan Club Z":
+    - /url: /discover
+    - text: Z
+    - heading "Fan Club Z" [level=1]
+  - link "$2,500":
+    - /url: /wallet
+    - button "$2,500":
+      - img
+      - text: $2,500
+  - button "Open notifications":
+    - img
+    - text: "3"
+- main:
+  - heading "Profile" [level=1]
+  - text: D
+  - button:
+    - img
+  - heading "Demo User" [level=2]
+  - paragraph: "@demo_user"
+  - paragraph: demo@fanclubz.app
+  - paragraph: Demo account for testing Fan Club Z features
+  - img
+  - text: 15 Total Bets
+  - img
+  - text: 53% Win Rate
+  - img
+  - text: $0 Total Winnings
+  - img
+  - text: $900 Net Profit Available Balance
+  - img
+  - text: $2,500 Tap to manage wallet
+  - img
+  - heading "Identity Verification" [level=3]
+  - paragraph: KYC Status
+  - img
+  - text: No authentication token found
+  - button "Retry"
+  - heading "Notification System Test" [level=3]
+  - paragraph: Test the notification system by adding different types of notifications.
+  - paragraph: Unread Count
+  - paragraph: "3"
+  - paragraph: Total Notifications
+  - paragraph: "3"
+  - button "Add Random Notification"
+  - button "Add bet update"
+  - button "Add social"
+  - button "Add payment"
+  - button "Add kyc"
+  - button "Add system"
+  - heading "Notification Statistics" [level=4]
+  - text: system 1 social 1 bet update 1
+  - heading "Quick Actions" [level=3]
+  - button "Edit Profile":
+    - img
+    - text: Edit Profile
+    - img
+  - link "Access Settings and Preferences":
+    - /url: /settings
+    - button "Access Settings and Preferences":
+      - img
+      - text: Settings & Preferences
+      - img
+  - heading "Account" [level=3]
+  - button "Security":
+    - img
+    - text: Security
+    - img
+  - heading "Financial" [level=3]
+  - button "Payment Methods":
+    - img
+    - text: Payment Methods
+    - img
+  - button "Transaction History":
+    - img
+    - text: Transaction History
+    - img
+  - heading "Support" [level=3]
+  - button "Help & Support":
+    - img
+    - text: Help & Support
+    - img
+  - button "Sign Out":
+    - img
+    - text: Sign Out
+- button "Navigate to Discover":
+  - img
+  - text: Discover
+- button "Navigate to My Bets":
+  - img
+  - text: My Bets
+- button "Navigate to Create":
+  - img
+  - text: Create
+- button "Navigate to Clubs":
+  - img
+  - text: Clubs
+- button "Navigate to Wallet":
+  - img
+  - text: Wallet
+- button "Navigate to Profile": D Profile
+```

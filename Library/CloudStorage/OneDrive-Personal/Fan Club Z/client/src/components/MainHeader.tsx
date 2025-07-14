@@ -62,10 +62,15 @@ export const MainHeader: React.FC<MainHeaderProps> = ({
               size="icon" 
               className="relative w-10 h-10"
               onClick={() => setShowNotificationCenter(true)}
+              data-testid="notification-bell"
+              aria-label="Open notifications"
             >
               <Bell className="w-5 h-5" />
               {unreadCount > 0 && (
-                <span className="absolute top-1.5 right-1.5 w-2.5 h-2.5 bg-red-500 rounded-full ring-2 ring-white text-xs text-white flex items-center justify-center font-medium">
+                <span 
+                  className="absolute top-1.5 right-1.5 w-2.5 h-2.5 bg-red-500 rounded-full ring-2 ring-white text-xs text-white flex items-center justify-center font-medium"
+                  data-testid="notification-badge"
+                >
                   {unreadCount > 9 ? '9+' : unreadCount}
                 </span>
               )}

@@ -82,6 +82,32 @@ export const LoginPage: React.FC = () => {
   const handleDemoLogin = async () => {
     console.log('🚀 Demo login clicked')
     
+    // Check if onboarding should be shown
+    const shouldShowOnboarding = window.location.search.includes('onboarding=true') ||
+                                 window.location.search.includes('test-onboarding') ||
+                                 window.location.search.includes('show-onboarding')
+    
+    console.log('🚀 LoginPage: shouldShowOnboarding check', { shouldShowOnboarding, search: window.location.search })
+    
+    // Set sessionStorage flag to persist onboarding preference through login
+    if (shouldShowOnboarding) {
+      sessionStorage.setItem('force_onboarding', 'true')
+      // Clear any existing compliance to force the onboarding flow
+      localStorage.removeItem('compliance_status')
+      console.log('🚀 Onboarding flow requested - cleared compliance status')
+    } else {
+      // Always pre-set compliance for demo user to ensure smooth testing (when not showing onboarding)
+      const complianceStatus = {
+        ageVerified: true,
+        privacyAccepted: true,
+        termsAccepted: true,
+        responsibleGamblingAcknowledged: true,
+        completedAt: new Date().toISOString()
+      }
+      localStorage.setItem('compliance_status', JSON.stringify(complianceStatus))
+      console.log('🚀 Pre-set compliance status for demo user (no onboarding)')
+    }
+    
     setFormData({
       email: 'demo@fanclubz.app',
       password: 'demo123',
@@ -89,17 +115,6 @@ export const LoginPage: React.FC = () => {
     setErrors({})
     clearError()
     setBackendErrors([])
-    
-    // Always pre-set compliance for demo user to ensure smooth testing
-    const complianceStatus = {
-      ageVerified: true,
-      privacyAccepted: true,
-      termsAccepted: true,
-      responsibleGamblingAcknowledged: true,
-      completedAt: new Date().toISOString()
-    }
-    localStorage.setItem('compliance_status', JSON.stringify(complianceStatus))
-    console.log('🚀 Pre-set compliance status for demo user')
     
     // Clear any existing auth tokens to ensure clean login
     localStorage.removeItem('auth_token')
@@ -115,19 +130,34 @@ export const LoginPage: React.FC = () => {
         password: 'demo123',
       })
       
-      console.log('✅ Demo login successful, navigating to /discover')
-      success('Welcome back!')
+      console.log('✅ Demo login successful, verifying authentication state...')
       
-      // Navigate to discover page with longer delay for tests
-      const delay = window.navigator.userAgent.includes('playwright') || 
-                   window.navigator.userAgent.includes('Playwright') ||
-                   typeof window.navigator.webdriver !== 'undefined' ? 1000 : 200
+      // Wait for authentication state to be set
+      let attempts = 0
+      const maxAttempts = 10
+      const checkAuth = () => {
+        const { isAuthenticated, user } = useAuthStore.getState()
+        console.log(`🔍 Auth check attempt ${attempts + 1}:`, { isAuthenticated, userId: user?.id })
+        
+        if (isAuthenticated && user) {
+          console.log('✅ Authentication state confirmed, navigating to /discover')
+          success('Welcome back!')
+          setLocation('/discover')
+          return true
+        }
+        
+        attempts++
+        if (attempts < maxAttempts) {
+          setTimeout(checkAuth, 100) // Check again in 100ms
+        } else {
+          console.error('❌ Authentication state verification timed out')
+          showError('Login completed but navigation failed. Please try clicking Wallet manually.')
+        }
+        return false
+      }
       
-      console.log('🚀 Using navigation delay:', delay, 'ms')
-      setTimeout(() => {
-        console.log('🚀 Navigating to /discover')
-        setLocation('/discover')
-      }, delay)
+      // Start checking authentication state
+      setTimeout(checkAuth, 50) // Small delay to allow state to propagate
       
     } catch (err: any) {
       console.error('❌ Demo login failed:', err)

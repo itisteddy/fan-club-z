@@ -38,6 +38,7 @@ class NotificationService {
 
   constructor() {
     this.loadPreferences()
+    this.loadNotifications()
     // Don't auto-connect - wait for user authentication
   }
 
@@ -81,6 +82,39 @@ class NotificationService {
   // Connect WebSocket when user logs in
   connect() {
     this.initializeWebSocket()
+  }
+
+  // Initialize demo notifications for testing
+  initializeDemoNotifications() {
+    // Only add demo notifications if none exist
+    if (this.notifications.length === 0) {
+      const demoNotifications = [
+        {
+          type: 'bet_update' as const,
+          title: 'Bet Update',
+          message: 'Your bet "Will Bitcoin hit $100K?" has new activity!',
+          actionUrl: '/bets/1'
+        },
+        {
+          type: 'social' as const,
+          title: 'New Comment',
+          message: 'John commented on your bet "Election Results 2024"',
+          actionUrl: '/bets/2'
+        },
+        {
+          type: 'system' as const,
+          title: 'Welcome to Fan Club Z!',
+          message: 'Start creating and participating in bets to earn rewards.',
+          actionUrl: '/discover'
+        }
+      ]
+
+      demoNotifications.forEach(notification => {
+        this.addNotification(notification)
+      })
+
+      console.log('🔔 Demo notifications initialized:', this.notifications.length)
+    }
   }
 
   // Request push notification permission
@@ -222,6 +256,9 @@ class NotificationService {
           ...n,
           createdAt: new Date(n.createdAt)
         }))
+        console.log('🔔 Loaded notifications from storage:', this.notifications.length)
+      } else {
+        console.log('🔔 No saved notifications found')
       }
     } catch (error) {
       console.error('Failed to load notifications:', error)

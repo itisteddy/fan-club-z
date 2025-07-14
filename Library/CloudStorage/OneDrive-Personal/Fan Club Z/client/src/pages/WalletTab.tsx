@@ -29,45 +29,58 @@ interface Transaction {
 
 export const WalletTab: React.FC = () => {
   const { user } = useAuthStore()
-  const { balance, updateBalance } = useWalletStore()
+  const { 
+    balance, 
+    updateBalance, 
+    transactions, 
+    isLoading, 
+    error, 
+    refreshBalance, 
+    fetchTransactions 
+  } = useWalletStore()
+  
   const [showPaymentModal, setShowPaymentModal] = useState(false)
   const [showWithdrawModal, setShowWithdrawModal] = useState(false)
   const [depositAmount, setDepositAmount] = useState(50)
   const [withdrawAmount, setWithdrawAmount] = useState(0)
-  const [transactions, setTransactions] = useState<Transaction[]>([])
-  const [loading, setLoading] = useState(false)
   const [selectedFilter, setSelectedFilter] = useState<'all' | 'deposits' | 'withdrawals' | 'bets'>('all')
 
   // Quick deposit amounts
   const quickAmounts = [10, 25, 50, 100, 250, 500]
 
   useEffect(() => {
-    fetchTransactions()
-  }, [])
-
-  const fetchTransactions = async () => {
-    try {
-      setLoading(true)
-      const response = await fetch('/api/payments/transactions', {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-        },
-      })
+    // Fetch transactions and refresh balance when component mounts
+    if (user?.id) {
+      console.log('💰 WalletTab mounted, fetching data for user:', user.id)
       
-      if (response.ok) {
-        const result = await response.json()
-        setTransactions(result.data.transactions || [])
-      }
-    } catch (error) {
-      console.error('Failed to fetch transactions:', error)
-    } finally {
-      setLoading(false)
+      // Refresh balance from the wallet store
+      const { refreshBalance, fetchTransactions } = useWalletStore.getState()
+      
+      // Fetch both balance and transactions
+      Promise.all([
+        refreshBalance(user.id),
+        fetchTransactions(user.id)
+      ]).catch((error) => {
+        console.error('💰 Error fetching wallet data:', error)
+      })
+    } else {
+      console.log('💰 No user found, skipping wallet data fetch')
+    }
+  }, [user?.id])
+
+  const refreshTransactions = async () => {
+    if (user?.id) {
+      const { fetchTransactions } = useWalletStore.getState()
+      await fetchTransactions(user.id)
     }
   }
 
   const handleDepositSuccess = (amount: number) => {
-    updateBalance(balance + amount)
-    fetchTransactions()
+    updateBalance(amount)
+    // Refresh transactions after deposit
+    if (user?.id) {
+      refreshTransactions()
+    }
   }
 
   const handleWithdraw = async () => {
@@ -76,15 +89,15 @@ export const WalletTab: React.FC = () => {
     }
 
     try {
-      setLoading(true)
-      const response = await fetch('/api/payments/withdraw', {
+      const response = await fetch('/api/wallet/withdraw', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
         },
         body: JSON.stringify({
           amount: withdrawAmount,
+          currency: 'USD',
           destination: 'bank_account', // In real app, user would select destination
         }),
       })
@@ -92,18 +105,19 @@ export const WalletTab: React.FC = () => {
       const result = await response.json()
 
       if (result.success) {
-        updateBalance(balance - withdrawAmount)
+        updateBalance(-withdrawAmount)
         setShowWithdrawModal(false)
         setWithdrawAmount(0)
-        fetchTransactions()
+        // Refresh transactions after withdrawal
+        if (user?.id) {
+          refreshTransactions()
+        }
       } else {
         alert(result.error || 'Withdrawal failed')
       }
     } catch (error) {
       console.error('Withdrawal failed:', error)
       alert('Withdrawal failed')
-    } finally {
-      setLoading(false)
     }
   }
 
@@ -162,12 +176,12 @@ export const WalletTab: React.FC = () => {
 
       {/* Balance Card */}
       <section className="px-4 py-6">
-        <div className="bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl p-6 text-white">
+        <div className="bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl p-6 text-white" data-testid="wallet-balance-card">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-body text-white/90">Available Balance</h2>
             <Wallet className="w-6 h-6 text-white/80" />
           </div>
-          <div className="text-3xl font-bold mb-6">
+          <div className="text-3xl font-bold mb-6" data-testid="wallet-balance-amount">
             ${balance.toFixed(2)}
           </div>
           
@@ -250,14 +264,14 @@ export const WalletTab: React.FC = () => {
         </div>
 
         {/* Transactions List */}
-        <div className="bg-white rounded-xl overflow-hidden">
-          {loading ? (
-            <div className="p-6 text-center">
+        <div className="bg-white rounded-xl overflow-hidden" data-testid="transaction-list">
+          {isLoading ? (
+            <div className="p-6 text-center" data-testid="transaction-loading">
               <div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-2" />
               <p className="text-body-sm text-gray-500">Loading transactions...</p>
             </div>
           ) : filteredTransactions.length === 0 ? (
-            <div className="p-8 text-center">
+            <div className="p-8 text-center" data-testid="transaction-empty">
               <Wallet className="w-12 h-12 text-gray-300 mx-auto mb-4" />
               <h4 className="text-title-3 font-semibold mb-2">No transactions yet</h4>
               <p className="text-body text-gray-500 mb-4">
@@ -271,9 +285,9 @@ export const WalletTab: React.FC = () => {
               </button>
             </div>
           ) : (
-            <div className="divide-y divide-gray-100">
+            <div className="divide-y divide-gray-100" data-testid="transaction-items">
               {filteredTransactions.map((transaction) => (
-                <div key={transaction.id} className="flex items-center p-4">
+                <div key={transaction.id} className="flex items-center p-4" data-testid="transaction-item">
                   <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center mr-4">
                     {getTransactionIcon(transaction.type)}
                   </div>
@@ -360,13 +374,13 @@ export const WalletTab: React.FC = () => {
 
               <button
                 onClick={handleWithdraw}
-                disabled={withdrawAmount <= 0 || withdrawAmount > balance || loading}
+                disabled={withdrawAmount <= 0 || withdrawAmount > balance || isLoading}
                 className="w-full h-[50px] bg-red-500 text-white font-semibold 
                            text-body rounded-[10px] disabled:opacity-50 
                            disabled:cursor-not-allowed active:scale-95 
                            transition-transform"
               >
-                {loading ? 'Processing...' : `Withdraw $${withdrawAmount.toFixed(2)}`}
+                {isLoading ? 'Processing...' : `Withdraw ${withdrawAmount.toFixed(2)}`}
               </button>
             </div>
           </div>

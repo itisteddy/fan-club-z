@@ -20,8 +20,59 @@ export const queryClient = new QueryClient({
   },
 })
 
-// Base API configuration
-const API_BASE_URL = getApiUrl()
+// Base API configuration with fallback URLs
+const FALLBACK_API_URLS = [
+  'http://localhost:3001/api',  // Primary backend port
+  'http://localhost:5001/api',  // Legacy fallback
+  'http://172.20.2.210:3001/api' // Network fallback to correct port
+]
+
+let API_BASE_URL = getApiUrl()
+let workingApiUrl: string | null = null
+
+// Test API connectivity and find working URL
+async function findWorkingApiUrl(): Promise<string> {
+  if (workingApiUrl) return workingApiUrl
+  
+  // First try the configured URL
+  try {
+    const response = await fetch(`${API_BASE_URL}/health`, { 
+      method: 'GET',
+      signal: AbortSignal.timeout(3000)
+    })
+    if (response.ok) {
+      workingApiUrl = API_BASE_URL
+      console.log('✅ API connected:', API_BASE_URL)
+      return API_BASE_URL
+    }
+  } catch (error) {
+    console.log('⚠️ Configured API URL not accessible:', API_BASE_URL)
+  }
+  
+  // Try fallback URLs
+  for (const url of FALLBACK_API_URLS) {
+    if (url === API_BASE_URL) continue // Skip if already tried
+    
+    try {
+      const response = await fetch(`${url}/health`, { 
+        method: 'GET',
+        signal: AbortSignal.timeout(3000)
+      })
+      if (response.ok) {
+        workingApiUrl = url
+        console.log('✅ API connected (fallback):', url)
+        return url
+      }
+    } catch (error) {
+      console.log('⚠️ Fallback API URL not accessible:', url)
+    }
+  }
+  
+  // If no URL works, return the original
+  console.log('❌ No working API URL found, using configured URL')
+  workingApiUrl = API_BASE_URL
+  return API_BASE_URL
+}
 
 // API client with error handling and timeout
 export async function apiRequest<T>(
@@ -30,8 +81,11 @@ export async function apiRequest<T>(
 ): Promise<T> {
   const { params, ...requestOptions } = options
 
+  // Get working API URL
+  const baseUrl = await findWorkingApiUrl()
+
   // Build URL with query parameters
-  let url = `${API_BASE_URL}${endpoint}`
+  let url = `${baseUrl}${endpoint}`
   if (params) {
     const searchParams = new URLSearchParams(params)
     url += `?${searchParams.toString()}`

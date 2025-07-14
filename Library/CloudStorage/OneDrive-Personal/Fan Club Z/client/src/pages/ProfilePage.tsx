@@ -31,6 +31,7 @@ import { NotificationSettings } from '../components/profile/NotificationSettings
 import { PaymentMethods } from '../components/profile/PaymentMethods'
 import { TransactionHistory } from '../components/profile/TransactionHistory'
 import { HelpSupport } from '../components/profile/HelpSupport'
+import NotificationTest from '../components/NotificationTest'
 
 export const ProfilePage: React.FC = () => {
   const { user, logout, updateUser } = useAuthStore()
@@ -57,7 +58,11 @@ export const ProfilePage: React.FC = () => {
   // Fetch stats when component mounts
   useEffect(() => {
     if (user?.id) {
-      fetchStats(user.id)
+      console.log('📈 ProfilePage: Fetching stats for user:', user.id)
+      fetchStats(user.id).catch(error => {
+        console.error('❌ ProfilePage: Failed to fetch stats:', error)
+        // Continue without stats - don't block the UI
+      })
     }
   }, [user?.id, fetchStats])
 
@@ -79,7 +84,14 @@ export const ProfilePage: React.FC = () => {
     }
   }, [])
 
-  if (!user) return null
+  console.log('👤 ProfilePage: Current user:', user)
+  console.log('📊 ProfilePage: Stats loading:', statsLoading, 'Stats:', stats)
+  console.log('💰 ProfilePage: Wallet balance:', balance, 'Currency:', currency)
+  
+  if (!user) {
+    console.log('❌ ProfilePage: No user found, returning null')
+    return null
+  }
 
   // Calculate stats with fallbacks
   const calculatedStats = [
@@ -96,16 +108,16 @@ export const ProfilePage: React.FC = () => {
       color: 'text-green-600' 
     },
     { 
-      label: 'Clubs Joined', 
-      value: stats?.clubsJoined?.toString() || '0', 
-      icon: Users, 
-      color: 'text-purple-600' 
+      label: 'Total Winnings', 
+      value: stats?.totalWinnings ? formatCurrency(stats.totalWinnings, currency) : formatCurrency(0, currency), 
+      icon: WalletIcon, 
+      color: 'text-green-600' 
     },
     { 
-      label: 'Reputation', 
-      value: stats?.reputationScore ? stats.reputationScore.toFixed(1) : '0.0', 
-      icon: Star, 
-      color: 'text-yellow-600' 
+      label: 'Net Profit', 
+      value: stats?.netProfit ? formatCurrency(stats.netProfit, currency) : formatCurrency(0, currency), 
+      icon: TrendingUp, 
+      color: 'text-blue-600' 
     },
   ]
 
@@ -176,6 +188,7 @@ export const ProfilePage: React.FC = () => {
                 {user.firstName} {user.lastName}
               </h2>
               <p className="text-body text-gray-500">@{user.username}</p>
+              <p className="text-body-sm text-gray-500">{user.email}</p>
               {user.bio && (
                 <p className="text-body-sm text-gray-600 mt-1">{user.bio}</p>
               )}
@@ -188,7 +201,11 @@ export const ProfilePage: React.FC = () => {
           {calculatedStats.map((stat, index) => {
             const Icon = stat.icon
             return (
-              <div key={index} className="bg-white rounded-xl shadow-sm p-4 text-center">
+              <div 
+                key={index} 
+                className="bg-white rounded-xl shadow-sm p-4 text-center"
+                data-testid="stat-card"
+              >
                 <Icon className={`w-6 h-6 ${stat.color} mx-auto mb-2`} />
                 <div className="text-title-3 font-bold text-gray-900">{stat.value}</div>
                 <div className="text-body-sm text-gray-500">{stat.label}</div>
@@ -216,12 +233,19 @@ export const ProfilePage: React.FC = () => {
           <KYCStatus userId={user.id} />
         </div>
 
+        {/* Notification Testing - Only for demo users */}
+        {(user.email === 'demo@fanclubz.app' || user.id === 'demo-user-id') && (
+          <div className="mb-6">
+            <NotificationTest />
+          </div>
+        )}
+
         {/* Settings List */}
         <div className="bg-white rounded-xl shadow-sm overflow-hidden">
           <div className="divide-y divide-gray-100">
-            {/* Account Settings */}
+            {/* Quick Actions */}
             <div className="p-4">
-              <h3 className="text-title-3 font-semibold text-gray-900 mb-4">Account</h3>
+              <h3 className="text-title-3 font-semibold text-gray-900 mb-4">Quick Actions</h3>
               <div className="space-y-3">
                 <button 
                   onClick={() => setEditOpen(true)}
@@ -236,6 +260,29 @@ export const ProfilePage: React.FC = () => {
                   <ArrowRight className="w-4 h-4 text-gray-400" />
                 </button>
                 
+                <Link href="/settings">
+                  <button 
+                    className="flex items-center justify-between w-full p-3 rounded-[10px] hover:bg-gray-50 transition-colors"
+                    data-testid="access-settings"
+                    aria-label="Access Settings and Preferences"
+                  >
+                    <div className="flex items-center space-x-3">
+                      <div className="w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center">
+                        <Settings className="w-4 h-4 text-gray-600" />
+                      </div>
+                      <span className="text-body text-gray-900">Settings & Preferences</span>
+                    </div>
+                    <ArrowRight className="w-4 h-4 text-gray-400" />
+                  </button>
+                </Link>
+              </div>
+            </div>
+            
+            {/* Account Settings */}
+            <div className="p-4">
+              <h3 className="text-title-3 font-semibold text-gray-900 mb-4">Account</h3>
+              <div className="space-y-3">
+                
                 <button 
                   onClick={() => setSecurityOpen(true)}
                   className="flex items-center justify-between w-full p-3 rounded-[10px] hover:bg-gray-50 transition-colors"
@@ -245,19 +292,6 @@ export const ProfilePage: React.FC = () => {
                       <Shield className="w-4 h-4 text-green-600" />
                     </div>
                     <span className="text-body text-gray-900">Security</span>
-                  </div>
-                  <ArrowRight className="w-4 h-4 text-gray-400" />
-                </button>
-                
-                <button 
-                  onClick={() => setNotificationsOpen(true)}
-                  className="flex items-center justify-between w-full p-3 rounded-[10px] hover:bg-gray-50 transition-colors"
-                >
-                  <div className="flex items-center space-x-3">
-                    <div className="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center">
-                      <Bell className="w-4 h-4 text-purple-600" />
-                    </div>
-                    <span className="text-body text-gray-900">Notifications</span>
                   </div>
                   <ArrowRight className="w-4 h-4 text-gray-400" />
                 </button>
