@@ -34,10 +34,10 @@ export const ScrollToTopButton: React.FC<ScrollToTopButtonProps> = ({
     <button
       onClick={handleClick}
       className={cn(
-        "fixed bottom-24 right-4 z-50 w-12 h-12 bg-blue-500 text-white rounded-full shadow-lg",
+        "fixed bottom-24 right-20 z-50 w-12 h-12 bg-white/90 text-gray-600 rounded-full shadow-lg",
         "flex items-center justify-center transition-all duration-200",
-        "hover:bg-blue-600 active:scale-95",
-        "backdrop-blur-md bg-blue-500/90",
+        "hover:bg-white hover:text-gray-900 active:scale-95",
+        "backdrop-blur-md border border-gray-200",
         className
       )}
       aria-label="Scroll to top"

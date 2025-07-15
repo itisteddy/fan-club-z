@@ -1851,6 +1851,14 @@ router.get('/health', (req: Request, res: Response) => {
   })
 })
 
+// TODO: WebSocket endpoints for club chat
+// This would require WebSocket server setup in main app
+// Endpoints needed:
+// - /ws/clubs/:clubId/chat - Real-time club chat
+// - Message broadcasting to club members
+// - Online status tracking
+// - Typing indicators
+
 // Notification Routes
 router.get('/notifications/status', authenticateToken, notificationLimiter, (req: Request, res: Response) => {
   const connectedUsers = notificationService.getConnectedUsers()

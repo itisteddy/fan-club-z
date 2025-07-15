@@ -47,6 +47,8 @@ import { useToast } from '../hooks/use-toast'
 import { cn, formatCurrency, formatRelativeTime } from '../lib/utils'
 import BetCard from '../components/BetCard'
 import BottomNavigation from '../components/BottomNavigation'
+import ClubChat from '../components/clubs/ClubChat'
+import ClubBetModal from '../components/clubs/ClubBetModal'
 import type { Club, Bet, User, BetEntry } from '@shared/schema'
 
 interface ClubMember {
@@ -114,6 +116,8 @@ export const ClubDetailPage: React.FC<{ clubId?: string }> = ({ clubId: propClub
   const [showCreateDiscussion, setShowCreateDiscussion] = useState(false)
   const [showInviteMembers, setShowInviteMembers] = useState(false)
   const [showClubSettings, setShowClubSettings] = useState(false)
+  const [showChat, setShowChat] = useState(false)
+  const [showClubBetModal, setShowClubBetModal] = useState(false)
   
   // Forms
   const [newBet, setNewBet] = useState({
@@ -135,6 +139,22 @@ export const ClubDetailPage: React.FC<{ clubId?: string }> = ({ clubId: propClub
   useEffect(() => {
     if (clubId) {
       fetchClubDetails()
+    }
+    
+    // Handle URL parameters for tab and actions
+    const urlParams = new URLSearchParams(window.location.search)
+    const tab = urlParams.get('tab')
+    const action = urlParams.get('action')
+    
+    if (tab) {
+      setActiveTab(tab)
+    }
+    
+    if (action === 'create' && tab === 'bets') {
+      // Small delay to ensure the component is mounted
+      setTimeout(() => {
+        setShowClubBetModal(true)
+      }, 500)
     }
   }, [clubId])
 
@@ -515,9 +535,10 @@ export const ClubDetailPage: React.FC<{ clubId?: string }> = ({ clubId: propClub
       {/* Tabs */}
       <div className="px-4 py-4">
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-5">
             <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="bets">Bets</TabsTrigger>
+            <TabsTrigger value="chat">Chat</TabsTrigger>
             <TabsTrigger value="members">Members</TabsTrigger>
             <TabsTrigger value="discussions">Discussions</TabsTrigger>
           </TabsList>
@@ -647,6 +668,36 @@ export const ClubDetailPage: React.FC<{ clubId?: string }> = ({ clubId: propClub
           </Card>
             </TabsContent>
 
+        <TabsContent value="chat" className="mt-0">
+          {!user ? (
+            <div className="text-center py-8">
+              <MessageCircle className="w-16 h-16 mx-auto mb-4 text-gray-300" />
+              <h3 className="text-title-3 font-semibold mb-2">Sign in to chat</h3>
+              <p className="text-body text-gray-500">Join the conversation with club members</p>
+            </div>
+          ) : !isMember ? (
+            <div className="text-center py-8">
+              <MessageCircle className="w-16 h-16 mx-auto mb-4 text-gray-300" />
+              <h3 className="text-title-3 font-semibold mb-2">Join the club to chat</h3>
+              <p className="text-body text-gray-500 mb-4">
+                Connect with members and discuss bets in real-time
+              </p>
+              <Button onClick={handleJoinClub} disabled={club.isPrivate}>
+                {club.isPrivate ? 'Private Club' : 'Join Club'}
+              </Button>
+            </div>
+          ) : (
+            <div className="-mx-4">
+              <ClubChat
+                clubId={clubId!}
+                clubName={club.name}
+                members={members}
+                isFullScreen={false}
+              />
+            </div>
+          )}
+        </TabsContent>
+
         <TabsContent value="bets" className="mt-0">
                 {/* Create Bet CTA */}
           {isMember && (
@@ -660,14 +711,14 @@ export const ClubDetailPage: React.FC<{ clubId?: string }> = ({ clubId: propClub
                           </p>
                         </div>
                   <Button 
-                    variant="secondary" 
-                    size="sm" 
-                    className="bg-white text-blue-600 hover:bg-gray-100"
-                    onClick={() => setShowCreateBet(true)}
+                  variant="secondary" 
+                  size="sm" 
+                  className="bg-white text-blue-600 hover:bg-gray-100"
+                  onClick={() => setShowClubBetModal(true)}
                   >
-                          <Plus className="w-4 h-4 mr-1" />
-                    Create Bet
-                        </Button>
+                  <Plus className="w-4 h-4 mr-1" />
+                  Create Bet
+                  </Button>
                       </div>
                     </CardContent>
                   </Card>
@@ -684,7 +735,7 @@ export const ClubDetailPage: React.FC<{ clubId?: string }> = ({ clubId: propClub
                     {isMember ? 'Be the first to create a club bet!' : 'Join the club to see and create bets'}
                   </p>
                   {isMember && (
-                    <Button onClick={() => setShowCreateBet(true)}>
+                    <Button onClick={() => setShowClubBetModal(true)}>
                         <Plus className="w-4 h-4 mr-2" />
                       Create First Bet
                       </Button>
@@ -856,6 +907,19 @@ export const ClubDetailPage: React.FC<{ clubId?: string }> = ({ clubId: propClub
           </div>
             </TabsContent>
       </div>
+
+      {/* Club Bet Modal */}
+      <ClubBetModal
+        club={club}
+        isOpen={showClubBetModal}
+        onClose={() => setShowClubBetModal(false)}
+        onBetCreated={(bet) => {
+          // Refresh club data to show new bet
+          fetchClubDetails()
+          // Switch to bets tab to show the new bet
+          setActiveTab('bets')
+        }}
+      />
 
       {/* Create Bet Modal */}
       <Dialog open={showCreateBet} onOpenChange={setShowCreateBet}>

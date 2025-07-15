@@ -828,10 +828,10 @@ const ClubCard: React.FC<ClubCardProps> = ({ club, onJoin, onLeave, userRole, is
                   variant="outline"
                   size="sm"
                   onClick={() => navigate(`/clubs/${club.id}`)}
-                  data-testid="view-club-button"
+                  data-testid="enter-club-button"
                   className="text-xs whitespace-nowrap h-8 px-2 touch-manipulation"
                 >
-                  View Club
+                  Enter Club
                 </Button>
                 {!isOwner && (
                   <Button
@@ -865,7 +865,7 @@ const ClubCard: React.FC<ClubCardProps> = ({ club, onJoin, onLeave, userRole, is
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => navigate(`/clubs/${club.id}/bets/create`)}
+              onClick={() => navigate(`/clubs/${club.id}?tab=bets&action=create`)}
               className="flex-1 text-xs h-8 px-1 touch-manipulation"
             >
               <Plus className="w-3 h-3 mr-1" />
@@ -874,11 +874,11 @@ const ClubCard: React.FC<ClubCardProps> = ({ club, onJoin, onLeave, userRole, is
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => navigate(`/clubs/${club.id}/discussions`)}
+              onClick={() => navigate(`/clubs/${club.id}?tab=chat`)}
               className="flex-1 text-xs h-8 px-1 touch-manipulation"
             >
               <MessageCircle className="w-3 h-3 mr-1" />
-              <span className="hidden sm:inline">Discuss</span><span className="sm:hidden">Chat</span>
+              <span className="hidden sm:inline">Chat</span><span className="sm:hidden">Chat</span>
             </Button>
             <Button
               variant="ghost"

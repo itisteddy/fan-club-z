@@ -15,11 +15,11 @@ export default defineConfig({
         port: 3000,
         proxy: {
             '/api': {
-                target: 'http://127.0.0.1:3001', // Backend server port
+                target: 'http://127.0.0.1:3001',
                 changeOrigin: true,
                 secure: false,
                 ws: true,
-                rewrite: (path) => path.replace(/^\/api/, '/api'),
+                rewrite: function (path) { return path.replace(/^\/api/, '/api'); },
                 configure: function (proxy, _options) {
                     proxy.on('error', function (err, _req, _res) {
                         console.log('Proxy error:', err);
