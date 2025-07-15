@@ -3,9 +3,7 @@ import { Link, useLocation } from 'wouter'
 import { 
   Search, 
   TrendingUp, 
-  Plus, 
   Users, 
-  Wallet, 
   User,
   LogIn
 } from 'lucide-react'
@@ -37,21 +35,9 @@ const navItems: NavItem[] = [
     requiresAuth: true,
   },
   {
-    path: '/create',
-    icon: Plus,
-    label: 'Create',
-    requiresAuth: true,
-  },
-  {
     path: '/clubs',
     icon: Users,
     label: 'Clubs',
-  },
-  {
-    path: '/wallet',
-    icon: Wallet,
-    label: 'Wallet',
-    requiresAuth: true,
   },
   {
     path: '/profile',
@@ -154,24 +140,10 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = ({ activeTabOve
                       )}
                     </div>
                   ) : (
-                    <>
-                      {/* Special styling for Create button */}
-                      {item.path === '/create' ? (
-                        <div className={cn(
-                          "w-7 h-7 rounded-full flex items-center justify-center transition-all duration-200",
-                          isActive 
-                            ? "bg-blue-500 text-white" 
-                            : "bg-gray-200 text-gray-600"
-                        )}>
-                          <Icon className="w-4 h-4" />
-                        </div>
-                      ) : (
-                        <Icon className={cn(
-                          "w-7 h-7 transition-colors duration-200", 
-                          isActive ? "text-blue-500" : "text-gray-500"
-                        )} />
-                      )}
-                    </>
+                    <Icon className={cn(
+                      "w-7 h-7 transition-colors duration-200", 
+                      isActive ? "text-blue-500" : "text-gray-500"
+                    )} />
                   )}
                   {item.badge && (
                     <div className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-medium shadow-sm">

@@ -8,6 +8,7 @@ import { useBetStore } from '@/store/betStore'
 import { useStatsStore } from '@/store/statsStore'
 import { usePullToRefresh } from '@/hooks/usePullToRefresh'
 import BetCard from '@/components/BetCard'
+import FloatingActionButton from '@/components/FloatingActionButton'
 
 export const BetsTab: React.FC = () => {
   const { user } = useAuthStore()
@@ -174,6 +175,9 @@ export const BetsTab: React.FC = () => {
           </div>
         )}
       </div>
+
+      {/* Floating Action Button */}
+      <FloatingActionButton />
     </div>
   )
 }

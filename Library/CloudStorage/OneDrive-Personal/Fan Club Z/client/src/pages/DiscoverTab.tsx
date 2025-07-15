@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input'
 import { Card, CardContent } from '@/components/ui/card'
 import { PullToRefreshIndicator } from '@/components/ui/PullToRefreshIndicator'
 import BetCard from '@/components/BetCard'
+import FloatingActionButton from '@/components/FloatingActionButton'
 import { useBetStore } from '@/store/betStore'
 import { useAuthStore } from '@/store/authStore'
 import { usePullToRefresh } from '@/hooks/usePullToRefresh'
@@ -329,6 +330,9 @@ export const DiscoverTab: React.FC = () => {
           </div>
         )}
       </section>
+
+      {/* Floating Action Button */}
+      <FloatingActionButton />
     </div>
   )
 }

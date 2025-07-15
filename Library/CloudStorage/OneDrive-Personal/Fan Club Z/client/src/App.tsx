@@ -19,7 +19,6 @@ import DiscoverTab from './pages/DiscoverTab'
 import BetsTab from './pages/BetsTab'
 import CreateBetTab from './pages/CreateBetTab'
 import ClubsTab from './pages/ClubsTab'
-import WalletTab from './pages/WalletTab'
 import ProfilePage from './pages/ProfilePage'
 import { SettingsPage } from './pages/settings'
 
@@ -443,7 +442,8 @@ function App() {
                 </div>
               </ProtectedRoute>
             </Route>
-            <Route path="/create">
+
+            <Route path="/create-bet">
               <ProtectedRoute>
                 <div className="flex flex-col min-h-screen">
                   <MainHeader showBalance={true} showNotifications={true} />
@@ -465,19 +465,7 @@ function App() {
                 <ScrollToTopButton />
               </div>
             </Route>
-            <Route path="/wallet">
-              {console.log('🚀 App: Wallet route accessed, isAuthenticated:', isAuthenticated, 'user:', user?.email)}
-              <ProtectedRoute>
-                <div className="flex flex-col min-h-screen">
-                  <MainHeader showBalance={true} showNotifications={true} />
-                  <main className="flex-1 pb-20">
-                    <WalletTab />
-                  </main>
-                  <BottomNavigation />
-                  <ScrollToTopButton />
-                </div>
-              </ProtectedRoute>
-            </Route>
+
             <Route path="/profile">
               <ProtectedRoute>
                 <div className="flex flex-col min-h-screen">
