@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import { 
   Settings, 
   Edit3, 
@@ -17,10 +17,12 @@ import {
 import { Link, useLocation } from 'wouter'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { PullToRefreshIndicator } from '@/components/ui/PullToRefreshIndicator'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { useAuthStore } from '@/store/authStore'
 import { useWalletStore } from '@/store/walletStore'
 import { useStatsStore } from '@/store/statsStore'
+import { usePullToRefresh } from '@/hooks/usePullToRefresh'
 import { formatCurrency } from '@/lib/utils'
 import { KYCStatus } from '../components/kyc/KYCStatus'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -54,6 +56,20 @@ export const ProfilePage: React.FC = () => {
   const { success: showSuccess, error: showError } = useToast()
   const [, setLocation] = useLocation()
   const [showCompliance, setShowCompliance] = useState(false)
+
+  // Pull-to-refresh functionality
+  const handleRefresh = useCallback(async () => {
+    console.log('🔄 Refreshing profile data...')
+    if (user?.id) {
+      await fetchStats(user.id).catch(error => {
+        console.error('❌ Failed to refresh stats:', error)
+      })
+    }
+    // Add a small delay for better UX
+    await new Promise(resolve => setTimeout(resolve, 500))
+  }, [user?.id, fetchStats])
+
+  const { containerRef, isRefreshing, pullDistance, isPulling } = usePullToRefresh(handleRefresh)
 
   // Fetch stats when component mounts
   useEffect(() => {
@@ -144,7 +160,13 @@ export const ProfilePage: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div ref={containerRef} className="min-h-screen bg-gray-50 relative">
+      {/* Pull-to-refresh indicator */}
+      <PullToRefreshIndicator 
+        isRefreshing={isRefreshing}
+        isPulling={isPulling}
+        pullDistance={pullDistance}
+      />
       {/* Large Title Navigation */}
       <header className="sticky top-0 z-40">
         <div className="bg-white/80 backdrop-blur-md border-b border-gray-100">

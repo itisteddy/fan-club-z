@@ -1,16 +1,33 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { PullToRefreshIndicator } from '@/components/ui/PullToRefreshIndicator'
 import { TrendingUp, Clock, Trophy, History } from 'lucide-react'
 import { useAuthStore } from '@/store/authStore'
 import { useBetStore } from '@/store/betStore'
 import { useStatsStore } from '@/store/statsStore'
+import { usePullToRefresh } from '@/hooks/usePullToRefresh'
 import BetCard from '@/components/BetCard'
 
 export const BetsTab: React.FC = () => {
   const { user } = useAuthStore()
   const { stats, loading: statsLoading, fetchStats } = useStatsStore()
   const [activeTab, setActiveTab] = useState('active')
+
+  // Pull-to-refresh functionality
+  const handleRefresh = useCallback(async () => {
+    console.log('🔄 Refreshing bets and stats...')
+    if (user?.id) {
+      await Promise.all([
+        fetchStats(user.id)
+        // Add other refresh calls here as needed
+      ])
+    }
+    // Add a small delay for better UX
+    await new Promise(resolve => setTimeout(resolve, 500))
+  }, [user?.id, fetchStats])
+
+  const { containerRef, isRefreshing, pullDistance, isPulling } = usePullToRefresh(handleRefresh)
 
   // Fetch stats when component mounts
   useEffect(() => {
@@ -20,7 +37,14 @@ export const BetsTab: React.FC = () => {
   }, [user?.id, fetchStats])
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div ref={containerRef} className="min-h-screen bg-gray-50 relative">
+      {/* Pull-to-refresh indicator */}
+      <PullToRefreshIndicator 
+        isRefreshing={isRefreshing}
+        isPulling={isPulling}
+        pullDistance={pullDistance}
+      />
+
       {/* Large Title Navigation */}
       <header className="sticky top-0 z-40">
         <div className="bg-white/80 backdrop-blur-md border-b border-gray-100">

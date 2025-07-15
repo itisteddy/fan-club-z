@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import { 
   Search, 
   Filter, 
@@ -29,9 +29,11 @@ import {
 import { useLocation } from 'wouter'
 import { useAuthStore } from '../store/authStore'
 import { useBetStore } from '../store/betStore'
+import { usePullToRefresh } from '../hooks/usePullToRefresh'
 import { Button } from '../components/ui/button'
 import { Input } from '../components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card'
+import { PullToRefreshIndicator } from '../components/ui/PullToRefreshIndicator'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../components/ui/tabs'
 import { Badge } from '../components/ui/badge'
 import { Avatar, AvatarFallback, AvatarImage } from '../components/ui/avatar'
@@ -111,6 +113,19 @@ export const ClubsTab: React.FC = () => {
     { id: 'finance', label: 'Finance', emoji: '💰' },
     { id: 'gaming', label: 'Gaming', emoji: '🎮' }
   ]
+
+  // Pull-to-refresh functionality
+  const handleRefresh = useCallback(async () => {
+    console.log('🔄 Refreshing clubs...')
+    await Promise.all([
+      fetchClubs(),
+      user ? fetchUserClubs() : Promise.resolve()
+    ])
+    // Add a small delay for better UX
+    await new Promise(resolve => setTimeout(resolve, 500))
+  }, [user])
+
+  const { containerRef, isRefreshing, pullDistance, isPulling } = usePullToRefresh(handleRefresh)
 
   useEffect(() => {
     console.log('🚀 ClubsTab: Component mounted, fetching clubs...')
@@ -423,7 +438,13 @@ export const ClubsTab: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div ref={containerRef} className="min-h-screen bg-gray-50 relative">
+      {/* Pull-to-refresh indicator */}
+      <PullToRefreshIndicator 
+        isRefreshing={isRefreshing}
+        isPulling={isPulling}
+        pullDistance={pullDistance}
+      />
       {/* Header */}
       <header className="sticky top-0 z-40">
         <div className="bg-white/80 backdrop-blur-md border-b border-gray-100">

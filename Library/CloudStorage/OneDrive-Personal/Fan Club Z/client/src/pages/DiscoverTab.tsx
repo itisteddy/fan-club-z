@@ -3,9 +3,11 @@ import { Search, Filter, TrendingUp, Flame, Clock, Star } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent } from '@/components/ui/card'
+import { PullToRefreshIndicator } from '@/components/ui/PullToRefreshIndicator'
 import BetCard from '@/components/BetCard'
 import { useBetStore } from '@/store/betStore'
 import { useAuthStore } from '@/store/authStore'
+import { usePullToRefresh } from '@/hooks/usePullToRefresh'
 import { cn, debounce } from '@/lib/utils'
 import type { Bet } from '@shared/schema'
 import { useLocation } from 'wouter'
@@ -117,6 +119,16 @@ export const DiscoverTab: React.FC = () => {
   // Use trendingBets from store if available, otherwise fallback to mockTrendingBets
   const bets = trendingBets && trendingBets.length > 0 ? trendingBets : mockTrendingBets
 
+  // Pull-to-refresh functionality
+  const handleRefresh = useCallback(async () => {
+    console.log('🔄 Refreshing trending bets...')
+    await fetchTrendingBets()
+    // Add a small delay for better UX
+    await new Promise(resolve => setTimeout(resolve, 500))
+  }, [fetchTrendingBets])
+
+  const { containerRef, isRefreshing, pullDistance, isPulling } = usePullToRefresh(handleRefresh)
+
   // Debounced search function
   const debouncedSearch = useCallback(
     debounce((query: string) => {
@@ -157,7 +169,14 @@ export const DiscoverTab: React.FC = () => {
   const featuredBet = bets.find(bet => bet.title.toLowerCase().includes('bitcoin') && bet.title.toLowerCase().includes('100k'))
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div ref={containerRef} className="min-h-screen bg-gray-50 relative">
+      {/* Pull-to-refresh indicator */}
+      <PullToRefreshIndicator 
+        isRefreshing={isRefreshing}
+        isPulling={isPulling}
+        pullDistance={pullDistance}
+      />
+
       {/* Large Title Navigation */}
       <header className="sticky top-0 z-40">
         <div className="bg-white/80 backdrop-blur-md border-b border-gray-100">

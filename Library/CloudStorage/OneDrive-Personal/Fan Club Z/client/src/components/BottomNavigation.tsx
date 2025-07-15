@@ -85,8 +85,10 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = ({ activeTabOve
 
   return (
     <div className="fixed bottom-0 left-0 right-0 z-40" data-testid="bottom-navigation">
-      <div className="bg-white/75 backdrop-blur-xl border-t border-gray-100 pb-safe">
-        <div className="flex justify-around items-center h-[49px] px-2">
+      {/* Enhanced backdrop with better blur and border */}
+      <div className="bg-white/85 backdrop-blur-xl border-t border-gray-200 pb-safe shadow-lg">
+        {/* Increased height and better touch targets */}
+        <div className="flex justify-around items-center h-[76px] px-1">
           {navItems.map((item) => {
             // Special handling for profile tab
             if (item.path === '/profile' && !isAuthenticated) {
@@ -94,18 +96,18 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = ({ activeTabOve
                 <button 
                   key={item.path} 
                   onClick={() => handleNavigation('/auth/login')}
-                  className="flex flex-col items-center justify-center min-w-[64px] h-full touch-manipulation transition-colors duration-200 hover:bg-gray-50 active:bg-gray-100"
+                  className="flex flex-col items-center justify-center min-w-[52px] min-h-[52px] rounded-xl touch-manipulation transition-all duration-200 hover:bg-gray-100 active:bg-gray-200 active:scale-95"
                   style={{ WebkitTapHighlightColor: 'transparent' }}
                   data-testid="nav-sign-in"
                   aria-label="Sign In"
                 >
-                    <div className="relative">
-                      <LogIn className="w-6 h-6" />
-                    </div>
-                    <span className={cn("text-[10px]", "text-gray-400")}>
-                      Sign In
-                    </span>
-                  </button>
+                  <div className="relative mb-1">
+                    <LogIn className="w-7 h-7" />
+                  </div>
+                  <span className={cn("text-[11px] font-medium", "text-gray-500")}>
+                    Sign In
+                  </span>
+                </button>
               )
             }
 
@@ -122,41 +124,68 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = ({ activeTabOve
               <button 
                 key={item.path} 
                 onClick={() => handleNavigation(item.path)}
-                className="flex flex-col items-center justify-center min-w-[64px] h-full touch-manipulation transition-colors duration-200 hover:bg-gray-50 active:bg-gray-100"
+                className={cn(
+                  "flex flex-col items-center justify-center min-w-[52px] min-h-[52px] rounded-xl touch-manipulation transition-all duration-200",
+                  "hover:bg-gray-100 active:bg-gray-200 active:scale-95",
+                  isActive && "bg-blue-50"
+                )}
                 style={{ WebkitTapHighlightColor: 'transparent' }}
                 data-testid={`nav-${item.label.toLowerCase().replace(' ', '-')}`}
                 aria-label={`Navigate to ${item.label}`}
               >
-                  <div className="relative">
-                    {showUserAvatar ? (
-                      <div className={cn("w-6 h-6 rounded-full overflow-hidden ring-2 transition-all duration-200", isActive ? "ring-primary" : "ring-gray-300")}>
-                        {user.profileImage ? (
-                          <img 
-                            src={user.profileImage} 
-                            alt={user.firstName}
-                            className="w-full h-full object-cover"
-                          />
-                        ) : (
-                          <div className="w-full h-full bg-primary flex items-center justify-center">
-                            <span className="text-white text-xs font-medium">
-                              {user.firstName?.[0]?.toUpperCase() || 'U'}
-                            </span>
-                          </div>
-                        )}
-                      </div>
-                    ) : (
-                      <Icon className={cn("w-6 h-6 mb-1", isActive ? "text-blue-500" : "text-gray-400")} />
-                    )}
-                    {item.badge && (
-                      <div className="absolute -top-2 -right-2 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-medium">
-                        {item.badge > 99 ? '99+' : item.badge}
-                      </div>
-                    )}
-                  </div>
-                  <span className={cn("text-[10px]", isActive ? "text-blue-500" : "text-gray-400")}>
-                    {item.label}
-                  </span>
-                </button>
+                <div className="relative mb-1">
+                  {showUserAvatar ? (
+                    <div className={cn(
+                      "w-7 h-7 rounded-full overflow-hidden ring-2 transition-all duration-200", 
+                      isActive ? "ring-blue-500" : "ring-gray-300"
+                    )}>
+                      {user.profileImage ? (
+                        <img 
+                          src={user.profileImage} 
+                          alt={user.firstName}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <div className="w-full h-full bg-blue-500 flex items-center justify-center">
+                          <span className="text-white text-sm font-medium">
+                            {user.firstName?.[0]?.toUpperCase() || 'U'}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <>
+                      {/* Special styling for Create button */}
+                      {item.path === '/create' ? (
+                        <div className={cn(
+                          "w-7 h-7 rounded-full flex items-center justify-center transition-all duration-200",
+                          isActive 
+                            ? "bg-blue-500 text-white" 
+                            : "bg-gray-200 text-gray-600"
+                        )}>
+                          <Icon className="w-4 h-4" />
+                        </div>
+                      ) : (
+                        <Icon className={cn(
+                          "w-7 h-7 transition-colors duration-200", 
+                          isActive ? "text-blue-500" : "text-gray-500"
+                        )} />
+                      )}
+                    </>
+                  )}
+                  {item.badge && (
+                    <div className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-medium shadow-sm">
+                      {item.badge > 99 ? '99+' : item.badge}
+                    </div>
+                  )}
+                </div>
+                <span className={cn(
+                  "text-[11px] font-medium transition-colors duration-200", 
+                  isActive ? "text-blue-500" : "text-gray-500"
+                )}>
+                  {item.label}
+                </span>
+              </button>
             )
           })}
         </div>
