@@ -42,7 +42,7 @@ const getApiUrl = (): string => {
   // Require explicit environment variable for API URL
   const envApiUrl = getEnv('VITE_API_URL')
   if (envApiUrl) return envApiUrl
-  throw new Error('VITE_API_URL is required in .env.local for API access. Please set it to your backend URL, e.g., http://172.20.2.210:5001/api')
+  throw new Error('VITE_API_URL is required in .env.local for API access. Please set it to your backend URL, e.g., http://172.20.2.210:3001/api')
 }
 
 // Determine base URL

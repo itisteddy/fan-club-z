@@ -23,7 +23,7 @@ export const queryClient = new QueryClient({
 // Base API configuration with fallback URLs
 const FALLBACK_API_URLS = [
   'http://localhost:3001/api',  // Primary backend port
-  'http://localhost:5001/api',  // Legacy fallback
+  'http://localhost:3001/api',  // Legacy fallback
   'http://172.20.2.210:3001/api' // Network fallback to correct port
 ]
 

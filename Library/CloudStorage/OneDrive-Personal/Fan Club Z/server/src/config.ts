@@ -87,7 +87,7 @@ const getCorsOrigins = (): string[] => {
 
 export const config: Config = {
   // Server Configuration
-  port: getNumberEnv('PORT', 5001),
+  port: getNumberEnv('PORT', 3001),
   host: getEnv('HOST', '0.0.0.0') || '0.0.0.0',
   nodeEnv: getEnv('NODE_ENV', 'development') || 'development',
   

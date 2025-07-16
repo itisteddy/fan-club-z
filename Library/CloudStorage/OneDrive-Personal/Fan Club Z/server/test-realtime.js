@@ -7,8 +7,8 @@
 
 import WebSocket from 'ws'
 
-const BASE_URL = 'http://localhost:5001'
-const WS_URL = 'ws://localhost:5001'
+const BASE_URL = 'http://localhost:3001'
+const WS_URL = 'ws://localhost:3001'
 
 // Test user credentials
 const TEST_USER = {
