@@ -1,24 +1,15 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { 
-  MoreVertical, 
+  MoreHorizontal, 
   Reply, 
   Copy, 
   Trash2, 
   Flag,
+  Check,
   Heart,
-  ThumbsUp,
-  Laugh,
-  Angry
+  Smile
 } from 'lucide-react'
 import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar'
-import { Button } from '../ui/button'
-import { 
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-  DropdownMenuSeparator
-} from '../ui/dropdown-menu'
 import { formatRelativeTime, cn } from '../../lib/utils'
 import type { User } from '@shared/schema'
 
@@ -42,6 +33,7 @@ interface ChatMessageProps {
   onReply?: (message: ClubChatMessage) => void
   onReact?: (messageId: string, emoji: string) => void
   onDelete?: (messageId: string) => void
+  onReport?: (messageId: string) => void
 }
 
 const ChatMessage: React.FC<ChatMessageProps> = ({
@@ -51,201 +43,405 @@ const ChatMessage: React.FC<ChatMessageProps> = ({
   isOwnMessage,
   onReply,
   onReact,
-  onDelete
+  onDelete,
+  onReport
 }) => {
+  const [showActions, setShowActions] = useState(false)
+  const [copySuccess, setCopySuccess] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
   const [showReactions, setShowReactions] = useState(false)
+  const [menuPosition, setMenuPosition] = useState<'left' | 'right'>('right')
+  const actionsRef = useRef<HTMLDivElement>(null)
+  const reactionsRef = useRef<HTMLDivElement>(null)
+  const actionButtonRef = useRef<HTMLButtonElement>(null)
 
-  const reactions = [
-    { emoji: '❤️', key: 'heart' },
-    { emoji: '👍', key: 'thumbs_up' },
-    { emoji: '😂', key: 'laugh' },
-    { emoji: '😮', key: 'wow' },
-    { emoji: '😢', key: 'sad' },
-    { emoji: '😡', key: 'angry' }
-  ]
+  // Common reaction emojis
+  const reactionEmojis = ['👍', '❤️', '😂', '😮', '😢', '😡']
 
-  const handleCopyMessage = () => {
-    navigator.clipboard.writeText(message.content)
+  // Close actions menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (actionsRef.current && !actionsRef.current.contains(event.target as Node)) {
+        setShowActions(false)
+      }
+      if (reactionsRef.current && !reactionsRef.current.contains(event.target as Node)) {
+        setShowReactions(false)
+      }
+    }
+
+    if (showActions || showReactions) {
+      document.addEventListener('mousedown', handleClickOutside)
+      return () => {
+        document.removeEventListener('mousedown', handleClickOutside)
+      }
+    }
+  }, [showActions, showReactions])
+
+  const handleCopyMessage = async () => {
+    try {
+      console.log('📋 ChatMessage: Copying message:', message.content)
+      
+      // Try modern clipboard API first
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(message.content)
+      } else {
+        // Fallback for older browsers
+        const textArea = document.createElement('textarea')
+        textArea.value = message.content
+        textArea.style.position = 'fixed'
+        textArea.style.opacity = '0'
+        document.body.appendChild(textArea)
+        textArea.focus()
+        textArea.select()
+        document.execCommand('copy')
+        document.body.removeChild(textArea)
+      }
+      
+      console.log('✅ ChatMessage: Message copied successfully')
+      setCopySuccess(true)
+      setShowActions(false)
+      
+      // Reset copy success indicator after 2 seconds
+      setTimeout(() => setCopySuccess(false), 2000)
+      
+    } catch (error) {
+      console.error('❌ ChatMessage: Failed to copy message:', error)
+      alert('Failed to copy message. Please try again.')
+    }
+  }
+
+  const handleReply = () => {
+    console.log('💬 ChatMessage: Reply clicked for message:', message.id)
+    if (onReply) {
+      onReply(message)
+      setShowActions(false)
+    } else {
+      console.log('⚠️ ChatMessage: No onReply handler provided')
+    }
   }
 
   const handleReaction = (emoji: string) => {
-    onReact?.(message.id, emoji)
-    setShowReactions(false)
+    console.log('😀 ChatMessage: Reaction clicked:', emoji, 'for message:', message.id)
+    if (onReact) {
+      onReact(message.id, emoji)
+      setShowReactions(false)
+    } else {
+      console.log('⚠️ ChatMessage: No onReact handler provided')
+    }
   }
 
-  const getReactionCount = (reactionKey: string) => {
-    return message.reactions?.[reactionKey]?.length || 0
+  const handleDelete = async () => {
+    console.log('🗑️ ChatMessage: Delete clicked for message:', message.id)
+    
+    if (!isOwnMessage) {
+      console.log('❌ ChatMessage: Cannot delete - not own message')
+      return
+    }
+
+    // Confirm deletion
+    const confirmed = window.confirm('Are you sure you want to delete this message?')
+    if (!confirmed) {
+      console.log('❌ ChatMessage: Delete cancelled by user')
+      setShowActions(false)
+      return
+    }
+
+    try {
+      setIsDeleting(true)
+      setShowActions(false)
+      
+      if (onDelete) {
+        console.log('🗑️ ChatMessage: Calling onDelete handler')
+        onDelete(message.id)
+      } else {
+        console.log('⚠️ ChatMessage: No onDelete handler provided')
+      }
+      
+    } catch (error) {
+      console.error('❌ ChatMessage: Failed to delete message:', error)
+      alert('Failed to delete message. Please try again.')
+    } finally {
+      setIsDeleting(false)
+    }
   }
 
-  const hasUserReacted = (reactionKey: string, userId?: string) => {
-    if (!userId || !message.reactions?.[reactionKey]) return false
-    return message.reactions[reactionKey].includes(userId)
+  const handleReport = () => {
+    console.log('🚩 ChatMessage: Report clicked for message:', message.id)
+    
+    if (isOwnMessage) {
+      console.log('❌ ChatMessage: Cannot report own message')
+      return
+    }
+
+    // Confirm report
+    const confirmed = window.confirm('Are you sure you want to report this message for inappropriate content?')
+    if (!confirmed) {
+      console.log('❌ ChatMessage: Report cancelled by user')
+      setShowActions(false)
+      return
+    }
+
+    try {
+      setShowActions(false)
+      
+      if (onReport) {
+        console.log('🚩 ChatMessage: Calling onReport handler')
+        onReport(message.id)
+      } else {
+        console.log('⚠️ ChatMessage: No onReport handler provided, showing default message')
+        alert('Message reported. Thank you for helping keep our community safe.')
+      }
+      
+    } catch (error) {
+      console.error('❌ ChatMessage: Failed to report message:', error)
+      alert('Failed to report message. Please try again.')
+    }
+  }
+
+  // Don't render if message is being deleted
+  if (isDeleting) {
+    return (
+      <div className="px-3 py-2 opacity-50">
+        <div className="text-sm text-gray-500 italic">Message deleted...</div>
+      </div>
+    )
   }
 
   return (
     <div className={cn(
-      "group flex items-start space-x-3",
-      isConsecutive && "mt-1",
-      !isConsecutive && "mt-4"
+      "group flex items-start space-x-2 hover:bg-gray-50/50 rounded-lg relative transition-colors w-full",
+      isConsecutive && "mt-0.5",
+      !isConsecutive && "mt-2"
     )}>
       {/* Avatar */}
       <div className="flex-shrink-0">
         {showAvatar ? (
-          <Avatar className="w-8 h-8">
+          <Avatar className="w-7 h-7 border-2 border-white shadow-sm">
             <AvatarImage src={message.user.profileImage || undefined} />
-            <AvatarFallback>
+            <AvatarFallback className="text-xs bg-gradient-to-r from-blue-500 to-purple-600 text-white">
               {message.user.firstName.charAt(0)}{message.user.lastName.charAt(0)}
             </AvatarFallback>
           </Avatar>
         ) : (
-          <div className="w-8 h-8" /> // Spacer for consecutive messages
+          <div className="w-7 h-7" /> // Spacer for consecutive messages
         )}
       </div>
 
       {/* Message Content */}
-      <div className="flex-1 min-w-0">
+      <div className="flex-1 min-w-0 max-w-full overflow-hidden">
         {/* User name and timestamp */}
         {showAvatar && (
           <div className="flex items-center space-x-2 mb-1">
-            <span className="text-sm font-medium text-gray-900">
+            <span className="text-xs font-semibold text-gray-900 truncate">
               {message.user.firstName} {message.user.lastName}
             </span>
-            <span className="text-xs text-gray-500">
+            <span className="text-xs text-gray-500 flex-shrink-0">
               {formatRelativeTime(message.createdAt)}
             </span>
           </div>
         )}
 
         {/* Message bubble */}
-        <div className="relative group/message">
+        <div className="relative max-w-full">
           <div className={cn(
-            "inline-block px-3 py-2 rounded-lg max-w-xs sm:max-w-sm lg:max-w-md xl:max-w-lg break-words",
+            "inline-block px-3 py-2 rounded-2xl break-words shadow-sm max-w-full",
             isOwnMessage
-              ? "bg-blue-500 text-white ml-auto"
-              : "bg-gray-100 text-gray-900"
+              ? "bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-br-md"
+              : "bg-white border border-gray-100 text-gray-900 rounded-bl-md"
           )}>
             {/* Reply indicator */}
             {message.replyTo && (
-              <div className="text-xs opacity-75 mb-1 italic">
+              <div className="text-xs opacity-75 mb-1 italic border-l-2 border-current pl-2 mb-2">
                 Replying to message...
               </div>
             )}
 
             {/* Message content */}
             {message.type === 'text' && (
-              <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+              <p className="text-sm leading-relaxed word-wrap break-words max-w-full overflow-wrap-anywhere">
+                {message.content}
+              </p>
             )}
             
             {message.type === 'image' && (
-              <div>
+              <div className="max-w-full">
                 <img 
                   src={message.content} 
                   alt="Shared image" 
-                  className="rounded max-w-full h-auto"
+                  className="rounded-lg max-w-full h-auto"
                 />
               </div>
             )}
 
             {message.type === 'file' && (
-              <div className="flex items-center space-x-2">
-                <div className="w-8 h-8 bg-gray-200 rounded flex items-center justify-center">
+              <div className="flex items-center space-x-2 max-w-full">
+                <div className="w-8 h-8 bg-gray-200 rounded-lg flex items-center justify-center flex-shrink-0">
                   📄
                 </div>
-                <span className="text-sm">{message.content}</span>
+                <span className="text-sm truncate">{message.content}</span>
               </div>
             )}
 
             {message.type === 'system' && (
-              <p className="text-xs italic opacity-75">{message.content}</p>
+              <p className="text-xs italic opacity-75 break-words max-w-full">{message.content}</p>
             )}
           </div>
 
-          {/* Message actions (visible on hover) */}
-          <div className="absolute top-0 right-0 opacity-0 group-hover/message:opacity-100 transition-opacity">
-            <div className="flex items-center space-x-1 bg-white border border-gray-200 rounded-lg shadow-sm p-1">
-              {/* Quick reactions */}
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-6 w-6 p-0 hover:bg-gray-100"
-                onClick={() => handleReaction('heart')}
-              >
-                ❤️
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-6 w-6 p-0 hover:bg-gray-100"
-                onClick={() => handleReaction('thumbs_up')}
-              >
-                👍
-              </Button>
+          {/* Reactions */}
+          {message.reactions && Object.keys(message.reactions).length > 0 && (
+            <div className="flex flex-wrap gap-1 mt-2 max-w-full">
+              {Object.entries(message.reactions).map(([emoji, userIds]) => (
+                <button
+                  key={emoji}
+                  onClick={() => handleReaction(emoji)}
+                  className="flex items-center space-x-1 px-2 py-1 bg-gray-100 hover:bg-gray-200 rounded-full text-xs transition-colors flex-shrink-0"
+                >
+                  <span>{emoji}</span>
+                  <span className="text-gray-600">{userIds.length}</span>
+                </button>
+              ))}
+            </div>
+          )}
 
-              {/* More actions */}
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="sm" className="h-6 w-6 p-0 hover:bg-gray-100">
-                    <MoreVertical className="w-3 h-3" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem onClick={() => onReply?.(message)}>
-                    <Reply className="w-4 h-4 mr-2" />
-                    Reply
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={handleCopyMessage}>
-                    <Copy className="w-4 h-4 mr-2" />
-                    Copy
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  {isOwnMessage && (
-                    <DropdownMenuItem 
-                      onClick={() => onDelete?.(message.id)}
-                      className="text-red-600"
+          {/* Quick Actions */}
+          <div className="absolute -top-2 -right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+            <div className="flex items-center space-x-1 bg-white border border-gray-200 rounded-full shadow-sm p-1">
+              {/* Quick Reaction */}
+              <div className="relative" ref={reactionsRef}>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setShowReactions(!showReactions)
+                  }}
+                  className="p-1.5 hover:bg-gray-100 rounded-full transition-colors"
+                >
+                  <Smile className="w-3.5 h-3.5 text-gray-600" />
+                </button>
+
+                {/* Quick Reactions Menu */}
+                {showReactions && (
+                  <div className="absolute top-full right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg p-2 z-50 flex space-x-1">
+                    {reactionEmojis.map((emoji) => (
+                      <button
+                        key={emoji}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleReaction(emoji)
+                        }}
+                        className="p-2 hover:bg-gray-100 rounded-lg text-lg transition-colors active:scale-95"
+                      >
+                        {emoji}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* More Actions */}
+              <div className="relative" ref={actionsRef}>
+                <button
+                  ref={actionButtonRef}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    console.log('⚙️ ChatMessage: Actions button clicked')
+                    
+                    // Calculate menu position based on available space
+                    if (actionButtonRef.current) {
+                      const buttonRect = actionButtonRef.current.getBoundingClientRect()
+                      const viewportWidth = window.innerWidth
+                      const menuWidth = 140 // min-w-[140px]
+                      const spaceOnRight = viewportWidth - buttonRect.right
+                      const spaceOnLeft = buttonRect.left
+                      
+                      // Choose the side with more space, with a preference for right
+                      if (spaceOnRight < menuWidth + 8 && spaceOnLeft > menuWidth + 8) {
+                        setMenuPosition('left')
+                      } else {
+                        setMenuPosition('right')
+                      }
+                    }
+                    
+                    setShowActions(!showActions)
+                  }}
+                  className="p-1.5 hover:bg-gray-100 rounded-full transition-colors"
+                >
+                  <MoreHorizontal className="w-3.5 h-3.5 text-gray-600" />
+                </button>
+
+                {/* Actions menu */}
+                {showActions && (
+                  <div className="absolute top-full right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg py-1 z-50 min-w-[140px]">
+                    {/* Copy button */}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        handleCopyMessage()
+                      }}
+                      className="w-full flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg mx-1 transition-colors"
                     >
-                      <Trash2 className="w-4 h-4 mr-2" />
-                      Delete
-                    </DropdownMenuItem>
-                  )}
-                  {!isOwnMessage && (
-                    <DropdownMenuItem className="text-red-600">
-                      <Flag className="w-4 h-4 mr-2" />
-                      Report
-                    </DropdownMenuItem>
-                  )}
-                </DropdownMenuContent>
-              </DropdownMenu>
+                      {copySuccess ? (
+                        <>
+                          <Check className="w-4 h-4 mr-2 text-green-500" />
+                          <span className="text-green-600">Copied!</span>
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-4 h-4 mr-2" />
+                          Copy
+                        </>
+                      )}
+                    </button>
+
+                    {/* Reply button - only for other's messages */}
+                    {!isOwnMessage && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleReply()
+                        }}
+                        className="w-full flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg mx-1 transition-colors"
+                      >
+                        <Reply className="w-4 h-4 mr-2" />
+                        Reply
+                      </button>
+                    )}
+
+                    {/* Separator */}
+                    <div className="border-t border-gray-100 my-1" />
+
+                    {/* Delete button - only for own messages */}
+                    {isOwnMessage && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleDelete()
+                        }}
+                        className="w-full flex items-center px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-lg mx-1 transition-colors"
+                      >
+                        <Trash2 className="w-4 h-4 mr-2" />
+                        Delete
+                      </button>
+                    )}
+
+                    {/* Report button - only for other's messages */}
+                    {!isOwnMessage && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleReport()
+                        }}
+                        className="w-full flex items-center px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-lg mx-1 transition-colors"
+                      >
+                        <Flag className="w-4 h-4 mr-2" />
+                        Report
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
-
-        {/* Reactions */}
-        {message.reactions && Object.keys(message.reactions).length > 0 && (
-          <div className="flex flex-wrap gap-1 mt-1">
-            {Object.entries(message.reactions).map(([reactionKey, userIds]) => {
-              if (userIds.length === 0) return null
-              
-              const reaction = reactions.find(r => r.key === reactionKey)
-              if (!reaction) return null
-
-              return (
-                <button
-                  key={reactionKey}
-                  onClick={() => handleReaction(reactionKey)}
-                  className={cn(
-                    "inline-flex items-center space-x-1 px-2 py-1 rounded-full text-xs transition-colors",
-                    hasUserReacted(reactionKey, 'current-user-id') // TODO: Pass actual user ID
-                      ? "bg-blue-100 text-blue-800 border border-blue-200"
-                      : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-                  )}
-                >
-                  <span>{reaction.emoji}</span>
-                  <span>{userIds.length}</span>
-                </button>
-              )
-            })}
-          </div>
-        )}
       </div>
     </div>
   )

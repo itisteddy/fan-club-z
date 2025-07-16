@@ -1,21 +1,16 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { 
-  Send, 
-  Smile, 
-  Paperclip, 
-  MoreVertical,
   Users,
   Phone,
   Video,
   Search,
   Settings,
-  Info
+  Info,
+  X,
+  MessageCircle
 } from 'lucide-react'
 import { Button } from '../ui/button'
-import { Input } from '../ui/input'
-import { ScrollArea } from '../ui/scroll-area'
 import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar'
-import { Badge } from '../ui/badge'
 import { useAuthStore } from '../../store/authStore'
 import { useToast } from '../../hooks/use-toast'
 import { formatRelativeTime, cn } from '../../lib/utils'
@@ -183,6 +178,10 @@ export const ClubChat: React.FC<ClubChatProps> = ({
             walletBalance: 2500,
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString()
+          },
+          reactions: {
+            '👋': ['user-1', 'user-2'],
+            '🎉': ['user-1']
           }
         },
         {
@@ -206,6 +205,9 @@ export const ClubChat: React.FC<ClubChatProps> = ({
             walletBalance: 1200,
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString()
+          },
+          reactions: {
+            '💯': ['demo-user-id', 'user-2']
           }
         },
         {
@@ -237,6 +239,7 @@ export const ClubChat: React.FC<ClubChatProps> = ({
       await new Promise(resolve => setTimeout(resolve, 800))
       
       setMessages(mockMessages)
+      setOnlineMembers(['demo-user-id', 'user-1', 'user-2'])
     } catch (err) {
       console.error('Failed to load chat history:', err)
       error('Failed to load chat history')
@@ -246,29 +249,57 @@ export const ClubChat: React.FC<ClubChatProps> = ({
   }
 
   const sendMessage = async (content: string, type: 'text' | 'image' | 'file' = 'text') => {
-    if (!user || !ws || !content.trim()) return
-
-    const messageData = {
-      type: 'message',
-      clubId,
-      content: content.trim(),
-      messageType: type,
-      userId: user.id
+    console.log('📤 ClubChat: sendMessage called with:', { content, type, hasUser: !!user })
+    
+    if (!user || !content.trim()) {
+      console.log('❌ ClubChat: Cannot send message - missing user or content')
+      return
     }
 
+    console.log('📤 ClubChat: Processing message send for:', content.trim())
+
+    // Create a temporary message for immediate display
+    const tempMessage: ClubChatMessage = {
+      id: `temp-${Date.now()}`,
+      clubId,
+      content: content.trim(),
+      type,
+      userId: user.id,
+      createdAt: new Date().toISOString(),
+      user
+    }
+
+    console.log('📥 ClubChat: Adding message to state:', tempMessage)
+    
+    // Add to messages immediately for better UX
+    setMessages(prev => {
+      const newMessages = [...prev, tempMessage]
+      console.log('📥 ClubChat: Updated messages count:', newMessages.length)
+      return newMessages
+    })
+
+    // Stop typing indicator
+    handleStopTyping()
+
     try {
-      // Send via WebSocket
-      ws.send(JSON.stringify(messageData))
-      
-      // Clear input
-      setNewMessage('')
-      
-      // Stop typing indicator
-      handleStopTyping()
-      
+      // In a real app, send via WebSocket or API
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        const messageData = {
+          type: 'message',
+          clubId,
+          content: content.trim(),
+          messageType: type,
+          userId: user.id
+        }
+        ws.send(JSON.stringify(messageData))
+        console.log('📤 ClubChat: Message sent via WebSocket')
+      } else {
+        console.log('📤 ClubChat: WebSocket not connected, message sent locally only')
+      }
     } catch (err) {
-      console.error('Failed to send message:', err)
-      error('Failed to send message')
+      console.error('❌ ClubChat: Failed to send message:', err)
+      // Remove the temporary message on error
+      setMessages(prev => prev.filter(msg => msg.id !== tempMessage.id))
     }
   }
 
@@ -311,6 +342,33 @@ export const ClubChat: React.FC<ClubChatProps> = ({
     }
   }
 
+  const handleReaction = (messageId: string, emoji: string) => {
+    console.log('😀 ClubChat: Reaction added:', emoji, 'to message:', messageId)
+    
+    setMessages(prev => prev.map(msg => {
+      if (msg.id === messageId) {
+        const reactions = { ...msg.reactions }
+        if (reactions[emoji]) {
+          if (reactions[emoji].includes(user?.id || '')) {
+            // Remove reaction
+            reactions[emoji] = reactions[emoji].filter(id => id !== user?.id)
+            if (reactions[emoji].length === 0) {
+              delete reactions[emoji]
+            }
+          } else {
+            // Add reaction
+            reactions[emoji] = [...reactions[emoji], user?.id || '']
+          }
+        } else {
+          // New reaction
+          reactions[emoji] = [user?.id || '']
+        }
+        return { ...msg, reactions }
+      }
+      return msg
+    }))
+  }
+
   const getTypingText = () => {
     if (typingUsers.length === 0) return ''
     
@@ -329,9 +387,9 @@ export const ClubChat: React.FC<ClubChatProps> = ({
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
+      <div className="flex items-center justify-center h-96 bg-white rounded-2xl border border-gray-100">
         <div className="text-center">
-          <div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-2" />
+          <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
           <p className="text-sm text-gray-500">Loading chat...</p>
         </div>
       </div>
@@ -340,108 +398,173 @@ export const ClubChat: React.FC<ClubChatProps> = ({
 
   return (
     <div className={cn(
-      "flex flex-col bg-white border border-gray-200 rounded-lg overflow-hidden",
-      isFullScreen ? "h-screen" : "h-96"
-    )}>
+      "flex flex-col bg-white border border-gray-100 rounded-2xl overflow-hidden shadow-sm w-full max-w-full relative",
+      isFullScreen ? "h-screen" : "h-[calc(100vh-120px)] min-h-[500px]"
+    )}
+    style={{ maxWidth: '100vw', position: 'relative', zIndex: 1 }}>
       {/* Chat Header */}
-      <div className="flex items-center justify-between p-4 border-b border-gray-200 bg-gray-50">
-        <div className="flex items-center space-x-3">
-          <div className="relative">
-            <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
-              <Users className="w-4 h-4 text-white" />
+      <div className="flex items-center justify-between p-2 border-b border-gray-100 bg-gradient-to-r from-blue-50 to-purple-50 flex-shrink-0">
+        <div className="flex items-center space-x-2 min-w-0 flex-1">
+          <div className="relative flex-shrink-0">
+            <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg flex items-center justify-center shadow-sm">
+              <MessageCircle className="w-4 h-4 text-white" />
             </div>
             {onlineMembers.length > 0 && (
-              <div className="absolute -top-1 -right-1 w-3 h-3 bg-green-500 border border-white rounded-full" />
+              <div className="absolute -top-0.5 -right-0.5 w-3 h-3 bg-green-500 border-2 border-white rounded-full flex items-center justify-center">
+                <span className="text-xs text-white font-bold">{onlineMembers.length}</span>
+              </div>
             )}
           </div>
-          <div>
-            <h3 className="font-semibold text-gray-900">{clubName}</h3>
-            <p className="text-xs text-gray-500">
+          <div className="min-w-0 flex-1">
+            <h3 className="font-semibold text-gray-900 text-sm truncate">{clubName}</h3>
+            <p className="text-xs text-gray-500 truncate">
               {onlineMembers.length} online • {members.length} members
             </p>
           </div>
         </div>
         
-        <div className="flex items-center space-x-2">
+        <div className="flex items-center space-x-1 flex-shrink-0">
+          {/* Video Call Button */}
+          <Button
+            variant="ghost"
+            size="sm"
+            className="p-2 hover:bg-white/60 rounded-xl h-8 w-8"
+          >
+            <Video className="w-4 h-4 text-gray-600" />
+          </Button>
+
+          {/* Phone Call Button */}
+          <Button
+            variant="ghost"
+            size="sm"
+            className="p-2 hover:bg-white/60 rounded-xl h-8 w-8"
+          >
+            <Phone className="w-4 h-4 text-gray-600" />
+          </Button>
+          
+          {/* Members Button */}
           <Button
             variant="ghost"
             size="sm"
             onClick={() => setShowMembers(!showMembers)}
-            className="p-2"
+            className="p-2 hover:bg-white/60 rounded-xl h-8 w-8"
           >
-            <Users className="w-4 h-4" />
+            <Users className="w-4 h-4 text-gray-600" />
           </Button>
           
-          <Button variant="ghost" size="sm" className="p-2">
-            <Search className="w-4 h-4" />
-          </Button>
-          
+          {/* Close Button */}
           {onClose && (
-            <Button variant="ghost" size="sm" onClick={onClose} className="p-2">
-              ×
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              onClick={onClose} 
+              className="p-2 hover:bg-white/60 rounded-xl h-8 w-8"
+            >
+              <X className="w-4 h-4 text-gray-600" />
             </Button>
           )}
         </div>
       </div>
 
-      <div className="flex flex-1 min-h-0">
+      <div className="flex flex-1 min-h-0 w-full">
         {/* Messages Area */}
-        <div className="flex-1 flex flex-col">
+        <div className="flex-1 flex flex-col min-w-0 w-full">
           {/* Messages */}
-          <ScrollArea className="flex-1 p-4">
-            <div className="space-y-4">
+          <div className="flex-1 overflow-y-auto bg-gray-50/30 w-full pb-4">
+            <div className="w-full" onClick={(e) => e.stopPropagation()}>
               {messages.map((message, index) => {
                 const showAvatar = index === 0 || messages[index - 1].userId !== message.userId
                 const isConsecutive = index > 0 && messages[index - 1].userId === message.userId
                 
                 return (
-                  <ChatMessage
-                    key={message.id}
-                    message={message}
-                    showAvatar={showAvatar}
-                    isConsecutive={isConsecutive}
-                    isOwnMessage={message.userId === user?.id}
-                  />
+                  <div key={message.id} className="w-full px-2 py-0.5">
+                    <ChatMessage
+                      message={message}
+                      showAvatar={showAvatar}
+                      isConsecutive={isConsecutive}
+                      isOwnMessage={message.userId === user?.id}
+                      onReply={(msg) => {
+                        console.log('💬 ClubChat: Reply requested for message:', msg.id)
+                        alert(`Reply to: "${msg.content.substring(0, 50)}..."`)
+                      }}
+                      onReact={handleReaction}
+                      onDelete={(messageId) => {
+                        console.log('🗑️ ClubChat: Delete requested for message:', messageId)
+                        setMessages(prev => {
+                          const filtered = prev.filter(msg => msg.id !== messageId)
+                          console.log('🗑️ ClubChat: Message deleted, remaining count:', filtered.length)
+                          return filtered
+                        })
+                      }}
+                      onReport={(messageId) => {
+                        console.log('🚩 ClubChat: Report requested for message:', messageId)
+                        alert('Message reported successfully. Thank you for helping keep our community safe.')
+                      }}
+                    />
+                  </div>
                 )
               })}
               
               {/* Typing indicator */}
               {typingUsers.length > 0 && (
-                <div className="flex items-center space-x-2 text-sm text-gray-500">
-                  <div className="flex space-x-1">
-                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                <div className="w-full px-2 py-0.5">
+                  <div className="flex items-center space-x-2">
+                    <div className="w-7 h-7" /> {/* Avatar spacer */}
+                    <div className="flex items-center space-x-2 bg-white border border-gray-100 rounded-2xl rounded-bl-md px-3 py-2 shadow-sm max-w-xs">
+                      <div className="flex space-x-1">
+                        <div className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                        <div className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                        <div className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                      </div>
+                      <span className="text-xs text-gray-500 truncate">{getTypingText()}</span>
+                    </div>
                   </div>
-                  <span>{getTypingText()}</span>
                 </div>
               )}
               
               <div ref={messagesEndRef} />
             </div>
-          </ScrollArea>
+          </div>
 
           {/* Message Input */}
-          <ChatInput
-            value={newMessage}
-            onChange={setNewMessage}
-            onSend={sendMessage}
-            onTyping={handleTyping}
-            onStopTyping={handleStopTyping}
-            placeholder={`Message ${clubName}...`}
-            disabled={!ws}
-          />
+          <div className="flex-shrink-0 w-full">
+            <ChatInput
+              value={newMessage}
+              onChange={(value) => {
+                console.log('ClubChat: Input changed to:', value)
+                setNewMessage(value)
+              }}
+              onSend={(content, type) => {
+                console.log('ClubChat: Received send request for:', content)
+                sendMessage(content, type)
+              }}
+              onTyping={handleTyping}
+              onStopTyping={handleStopTyping}
+              placeholder={`Message ${clubName}...`}
+              disabled={false}
+              showAttachments={true}
+            />
+          </div>
         </div>
 
         {/* Members Sidebar */}
         {showMembers && (
-          <div className="w-64 border-l border-gray-200 bg-gray-50">
-            <MembersList
-              members={members}
-              onlineMembers={onlineMembers}
-              currentUserId={user?.id}
+          <>
+            {/* Backdrop */}
+            <div 
+              className="fixed inset-0 bg-black/20 z-40" 
+              onClick={() => setShowMembers(false)}
             />
-          </div>
+            
+            {/* Sidebar */}
+            <div className="fixed top-0 right-0 h-full w-80 max-w-[85vw] bg-gradient-to-b from-gray-50 to-white shadow-xl z-50 transform transition-transform duration-300">
+              <MembersList
+                members={members}
+                onlineMembers={onlineMembers}
+                currentUserId={user?.id}
+              />
+            </div>
+          </>
         )}
       </div>
     </div>

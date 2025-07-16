@@ -24,6 +24,7 @@ import { useBetStore } from '@/store/betStore'
 import { getUserBetEntry } from '@/store/betStore'
 import { formatCurrency, formatTimeRemaining, formatRelativeTime, cn } from '@/lib/utils'
 import BottomNavigation from '@/components/BottomNavigation'
+import BetComments from '@/components/bets/BetComments'
 
 interface BetDetailPageProps {
   betId: string
@@ -459,10 +460,7 @@ export const BetDetailPage: React.FC<BetDetailPageProps & { referrer?: string }>
     }
   }
 
-  const handleAddComment = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!commentText.trim()) return
-    
+  const handleAddComment = async (commentText: string) => {
     // Early return for unauthenticated users
     if (!user) {
       setLocation('/auth/login')
@@ -470,18 +468,18 @@ export const BetDetailPage: React.FC<BetDetailPageProps & { referrer?: string }>
     }
     
     if (user.id === 'demo-user-id') {
-    setComments([
-      ...comments,
-      {
-        id: Date.now().toString(),
-        user: { name: 'You', avatar: null },
-        text: commentText,
-        time: 'now'
-      }
-    ])
-    setCommentText('')
+      setComments([
+        ...comments,
+        {
+          id: Date.now().toString(),
+          user: { name: `${user.firstName} ${user.lastName}`, avatar: user.profileImage, id: user.id },
+          text: commentText,
+          time: 'now'
+        }
+      ])
       return
     }
+    
     // Real user: post to backend
     try {
       const res = await fetch(`/api/bets/${bet!.id}/comments`, {
@@ -495,7 +493,6 @@ export const BetDetailPage: React.FC<BetDetailPageProps & { referrer?: string }>
       const data = await res.json()
       if (data.success) {
         // Re-fetch comments
-        setCommentText('')
         setLoadingComments(true)
         fetch(`/api/bets/${bet!.id}/comments`, {
           headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
@@ -505,7 +502,7 @@ export const BetDetailPage: React.FC<BetDetailPageProps & { referrer?: string }>
             if (data.success && Array.isArray(data.data?.comments)) {
               const mappedComments = await Promise.all(
                 data.data.comments.map(async (comment: any) => {
-                  let userInfo = { name: 'Unknown User', avatar: null }
+                  let userInfo = { name: 'Unknown User', avatar: null, id: comment.authorId }
                   try {
                     const userRes = await fetch(`/api/user/${comment.authorId}`, {
                       headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
@@ -515,7 +512,8 @@ export const BetDetailPage: React.FC<BetDetailPageProps & { referrer?: string }>
                       if (userData.success && userData.data?.user) {
                         userInfo = {
                           name: `${userData.data.user.firstName} ${userData.data.user.lastName}`,
-                          avatar: userData.data.user.profileImage
+                          avatar: userData.data.user.profileImage,
+                          id: userData.data.user.id
                         }
                       }
                     }
@@ -620,62 +618,18 @@ export const BetDetailPage: React.FC<BetDetailPageProps & { referrer?: string }>
         </div>
 
         {/* Comments/Chat Section */}
-        <div className="bg-white rounded-xl shadow-lg p-4 mb-4">
-          <div className="flex items-center mb-3">
-            <MessageCircle className="w-5 h-5 text-blue-500 mr-2" />
-            <h2 className="text-title-3 font-semibold">Comments</h2>
-          </div>
-          {loadingComments ? (
-            <div className="text-gray-400 text-sm">Loading comments...</div>
-          ) : commentsError ? (
-            <div className="text-red-500 text-sm">{commentsError}</div>
-          ) : (
-          <div className="space-y-3 max-h-48 overflow-y-auto mb-3">
-              {comments.map((c, idx) => (
-                <div key={c.id || idx} className="flex items-start space-x-3">
-                <div className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center text-gray-500 font-bold">
-                  {c.user.avatar ? <img src={c.user.avatar} alt={c.user.name} className="w-8 h-8 rounded-full" /> : c.user.name[0]}
-                </div>
-                <div className="flex-1">
-                  <div className="flex items-center space-x-2">
-                    <span className="text-body-sm font-medium">{c.user.name}</span>
-                    <span className="text-caption-1 text-gray-400">{c.time}</span>
-                  </div>
-                  <p className="text-body-sm text-gray-700">{c.text}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-          )}
-          
-          {user ? (
-          <form onSubmit={handleAddComment} className="flex items-center space-x-2">
-            <Input
-              type="text"
-              placeholder="Add a comment..."
-              value={commentText}
-              onChange={e => setCommentText(e.target.value)}
-              className="flex-1"
-            />
-            <Button type="submit" className="h-10 px-4" disabled={!commentText.trim()}>
-              Send
-            </Button>
-          </form>
-          ) : (
-            <div className="bg-blue-50 border border-blue-200 rounded-[10px] p-4 text-center">
-              <MessageCircle className="w-6 h-6 text-blue-500 mx-auto mb-2" />
-              <p className="text-body-sm text-blue-900 mb-3">
-                Sign in to join the conversation and share your thoughts!
-              </p>
-              <Button 
-                onClick={() => setLocation('/auth/login')}
-                className="bg-blue-500 text-white hover:bg-blue-600"
-              >
-                Sign In to Comment
-              </Button>
-            </div>
-          )}
-        </div>
+        <BetComments
+          comments={comments}
+          onAddComment={handleAddComment}
+          currentUser={user ? {
+            id: user.id,
+            name: `${user.firstName} ${user.lastName}`,
+            avatar: user.profileImage
+          } : null}
+          loading={loadingComments}
+          error={commentsError}
+          maxHeight="400px"
+        />
 
         {/* Participants Section */}
         <div className="bg-white rounded-xl shadow-lg p-4 mb-4">

@@ -54,7 +54,7 @@ class NotificationService {
       }
 
       // Connect with authentication token
-      this.ws = new WebSocket(`ws://${window.location.hostname}:5001/ws/notifications?token=${token}`)
+      this.ws = new WebSocket(`ws://${window.location.hostname}:3001/ws/notifications?token=${token}`)
       
       this.ws.onopen = () => {
         console.log('🔔 WebSocket connected for notifications')

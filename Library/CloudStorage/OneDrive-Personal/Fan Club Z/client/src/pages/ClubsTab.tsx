@@ -865,8 +865,12 @@ const ClubCard: React.FC<ClubCardProps> = ({ club, onJoin, onLeave, userRole, is
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => navigate(`/clubs/${club.id}?tab=bets&action=create`)}
-              className="flex-1 text-xs h-8 px-1 touch-manipulation"
+              onClick={(e) => {
+                e.stopPropagation()
+                navigate(`/clubs/${club.id}?tab=bets&action=create`)
+              }}
+              className="flex-1 text-xs h-8 px-1 touch-manipulation hover:bg-blue-50 hover:text-blue-600 transition-colors"
+              data-testid="create-bet-action"
             >
               <Plus className="w-3 h-3 mr-1" />
               <span className="hidden sm:inline">Create </span>Bet
@@ -874,8 +878,12 @@ const ClubCard: React.FC<ClubCardProps> = ({ club, onJoin, onLeave, userRole, is
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => navigate(`/clubs/${club.id}?tab=chat`)}
-              className="flex-1 text-xs h-8 px-1 touch-manipulation"
+              onClick={(e) => {
+                e.stopPropagation()
+                navigate(`/clubs/${club.id}?tab=chat`)
+              }}
+              className="flex-1 text-xs h-8 px-1 touch-manipulation hover:bg-green-50 hover:text-green-600 transition-colors"
+              data-testid="chat-action"
             >
               <MessageCircle className="w-3 h-3 mr-1" />
               <span className="hidden sm:inline">Chat</span><span className="sm:hidden">Chat</span>
@@ -883,8 +891,12 @@ const ClubCard: React.FC<ClubCardProps> = ({ club, onJoin, onLeave, userRole, is
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => navigate(`/clubs/${club.id}/members`)}
-              className="flex-1 text-xs h-8 px-1 touch-manipulation"
+              onClick={(e) => {
+                e.stopPropagation()
+                navigate(`/clubs/${club.id}?tab=members`)
+              }}
+              className="flex-1 text-xs h-8 px-1 touch-manipulation hover:bg-purple-50 hover:text-purple-600 transition-colors"
+              data-testid="members-action"
             >
               <Users className="w-3 h-3 mr-1" />
               <span className="hidden sm:inline">Members</span><span className="sm:hidden">Users</span>

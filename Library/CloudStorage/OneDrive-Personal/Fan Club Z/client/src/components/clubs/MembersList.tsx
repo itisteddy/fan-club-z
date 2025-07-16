@@ -1,40 +1,28 @@
-import React, { useState } from 'react'
-import { 
-  Search, 
-  Crown, 
-  Settings, 
-  MessageCircle, 
-  UserPlus,
-  MoreVertical,
-  Ban,
-  Shield
-} from 'lucide-react'
+import React from 'react'
 import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar'
 import { Badge } from '../ui/badge'
 import { Button } from '../ui/button'
-import { Input } from '../ui/input'
-import { ScrollArea } from '../ui/scroll-area'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-  DropdownMenuSeparator
-} from '../ui/dropdown-menu'
-import { cn } from '../../lib/utils'
+import { 
+  Crown, 
+  Shield, 
+  User, 
+  MessageCircle, 
+  Phone, 
+  Video,
+  MoreHorizontal 
+} from 'lucide-react'
 
 interface Member {
-  id: string
   userId: string
-  clubId: string
-  role: 'owner' | 'admin' | 'member'
+  role: 'owner' | 'admin' | 'moderator' | 'member'
   joinedAt: string
   user: {
     id: string
-    username: string
     firstName: string
     lastName: string
-    profileImage?: string
+    username?: string
+    profileImage?: string | null
+    bio?: string
   }
 }
 
@@ -43,10 +31,9 @@ interface MembersListProps {
   onlineMembers: string[]
   currentUserId?: string
   onMemberClick?: (member: Member) => void
-  onPromoteMember?: (memberId: string, newRole: 'admin' | 'member') => void
-  onRemoveMember?: (memberId: string) => void
-  onBanMember?: (memberId: string) => void
-  showActions?: boolean
+  onDirectMessage?: (member: Member) => void
+  onCall?: (member: Member) => void
+  onVideoCall?: (member: Member) => void
 }
 
 const MembersList: React.FC<MembersListProps> = ({
@@ -54,261 +41,202 @@ const MembersList: React.FC<MembersListProps> = ({
   onlineMembers,
   currentUserId,
   onMemberClick,
-  onPromoteMember,
-  onRemoveMember,
-  onBanMember,
-  showActions = true
+  onDirectMessage,
+  onCall,
+  onVideoCall
 }) => {
-  const [searchQuery, setSearchQuery] = useState('')
-
-  // Filter members based on search
-  const filteredMembers = members.filter(member =>
-    member.user.firstName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    member.user.lastName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    member.user.username.toLowerCase().includes(searchQuery.toLowerCase())
-  )
-
-  // Sort members: online first, then by role, then alphabetically
-  const sortedMembers = filteredMembers.sort((a, b) => {
-    // Online status
-    const aOnline = onlineMembers.includes(a.userId)
-    const bOnline = onlineMembers.includes(b.userId)
-    if (aOnline !== bOnline) {
-      return bOnline ? 1 : -1
-    }
-
-    // Role hierarchy
-    const roleOrder = { owner: 0, admin: 1, member: 2 }
-    const roleComparison = roleOrder[a.role] - roleOrder[b.role]
-    if (roleComparison !== 0) {
-      return roleComparison
-    }
-
-    // Alphabetical by first name
-    return a.user.firstName.localeCompare(b.user.firstName)
-  })
-
-  const currentMember = members.find(m => m.userId === currentUserId)
-  const canModerate = currentMember?.role === 'owner' || currentMember?.role === 'admin'
-
   const getRoleIcon = (role: string) => {
     switch (role) {
       case 'owner':
         return <Crown className="w-3 h-3 text-yellow-500" />
       case 'admin':
-        return <Settings className="w-3 h-3 text-blue-500" />
+        return <Shield className="w-3 h-3 text-blue-500" />
+      case 'moderator':
+        return <Shield className="w-3 h-3 text-purple-500" />
       default:
-        return null
+        return <User className="w-3 h-3 text-gray-400" />
     }
   }
 
-  const getRoleColor = (role: string) => {
+  const getRoleBadgeColor = (role: string) => {
     switch (role) {
       case 'owner':
-        return 'text-yellow-600 bg-yellow-50 border-yellow-200'
+        return 'bg-yellow-100 text-yellow-700 border-yellow-200'
       case 'admin':
-        return 'text-blue-600 bg-blue-50 border-blue-200'
+        return 'bg-blue-100 text-blue-700 border-blue-200'
+      case 'moderator':
+        return 'bg-purple-100 text-purple-700 border-purple-200'
       default:
-        return 'text-gray-600 bg-gray-50 border-gray-200'
+        return 'bg-gray-100 text-gray-600 border-gray-200'
     }
   }
 
-  const handleMemberAction = (action: string, memberId: string, currentRole: string) => {
-    switch (action) {
-      case 'promote':
-        onPromoteMember?.(memberId, 'admin')
-        break
-      case 'demote':
-        onPromoteMember?.(memberId, 'member')
-        break
-      case 'remove':
-        onRemoveMember?.(memberId)
-        break
-      case 'ban':
-        onBanMember?.(memberId)
-        break
-    }
-  }
+  const isOnline = (userId: string) => onlineMembers.includes(userId)
+  const isCurrentUser = (userId: string) => userId === currentUserId
 
-  const canPerformAction = (targetMember: Member, action: string) => {
-    if (!canModerate || targetMember.userId === currentUserId) return false
+  // Sort members: online first, then by role, then alphabetically
+  const sortedMembers = [...members].sort((a, b) => {
+    // Current user first
+    if (isCurrentUser(a.userId)) return -1
+    if (isCurrentUser(b.userId)) return 1
     
-    const currentRole = currentMember?.role
-    const targetRole = targetMember.role
-
-    // Owners can do anything to non-owners
-    if (currentRole === 'owner' && targetRole !== 'owner') return true
+    // Online status
+    const aOnline = isOnline(a.userId)
+    const bOnline = isOnline(b.userId)
+    if (aOnline && !bOnline) return -1
+    if (!aOnline && bOnline) return 1
     
-    // Admins can only moderate regular members
-    if (currentRole === 'admin' && targetRole === 'member') {
-      return action === 'remove' || action === 'ban'
-    }
+    // Role hierarchy
+    const roleOrder = { owner: 0, admin: 1, moderator: 2, member: 3 }
+    const aRoleOrder = roleOrder[a.role] || 3
+    const bRoleOrder = roleOrder[b.role] || 3
+    if (aRoleOrder !== bRoleOrder) return aRoleOrder - bRoleOrder
+    
+    // Alphabetical by first name
+    return a.user.firstName.localeCompare(b.user.firstName)
+  })
 
-    return false
-  }
+  const onlineCount = members.filter(m => isOnline(m.userId)).length
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="h-full flex flex-col">
       {/* Header */}
-      <div className="p-4 border-b border-gray-200">
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="font-semibold text-gray-900">
-            Members ({members.length})
-          </h3>
-          {onlineMembers.length > 0 && (
-            <Badge variant="secondary" className="text-xs">
-              {onlineMembers.length} online
-            </Badge>
-          )}
-        </div>
-        
-        {/* Search */}
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-          <Input
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search members..."
-            className="pl-9 h-8 text-sm"
-          />
-        </div>
+      <div className="p-4 border-b border-gray-100">
+        <h3 className="font-semibold text-gray-900 mb-1">Members</h3>
+        <p className="text-sm text-gray-500">
+          {onlineCount} online • {members.length} total
+        </p>
       </div>
 
       {/* Members List */}
-      <ScrollArea className="flex-1">
-        <div className="p-2">
-          {sortedMembers.length === 0 ? (
-            <div className="text-center py-8 text-gray-500">
-              <p className="text-sm">No members found</p>
-            </div>
-          ) : (
-            <div className="space-y-1">
-              {sortedMembers.map((member) => {
-                const isOnline = onlineMembers.includes(member.userId)
-                const isCurrentUser = member.userId === currentUserId
+      <div className="flex-1 overflow-y-auto">
+        <div className="p-2 space-y-1">
+          {sortedMembers.map((member) => (
+            <div
+              key={member.userId}
+              className="group flex items-center space-x-3 p-3 rounded-xl hover:bg-white/60 transition-colors cursor-pointer"
+              onClick={() => onMemberClick?.(member)}
+            >
+              {/* Avatar with online indicator */}
+              <div className="relative flex-shrink-0">
+                <Avatar className="w-10 h-10 border-2 border-white shadow-sm">
+                  <AvatarImage src={member.user.profileImage || undefined} />
+                  <AvatarFallback className="text-sm bg-gradient-to-r from-blue-500 to-purple-600 text-white">
+                    {member.user.firstName.charAt(0)}{member.user.lastName.charAt(0)}
+                  </AvatarFallback>
+                </Avatar>
+                
+                {/* Online indicator */}
+                <div className={`
+                  absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 border-2 border-white rounded-full
+                  ${isOnline(member.userId) ? 'bg-green-500' : 'bg-gray-300'}
+                `} />
+              </div>
 
-                return (
-                  <div
-                    key={member.id}
-                    className={cn(
-                      "group flex items-center justify-between p-2 rounded-lg transition-colors cursor-pointer",
-                      "hover:bg-gray-50",
-                      isCurrentUser && "bg-blue-50 border border-blue-200"
-                    )}
-                    onClick={() => onMemberClick?.(member)}
+              {/* Member info */}
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center space-x-2">
+                  <span className={`
+                    text-sm font-medium truncate
+                    ${isCurrentUser(member.userId) ? 'text-blue-600' : 'text-gray-900'}
+                  `}>
+                    {member.user.firstName} {member.user.lastName}
+                    {isCurrentUser(member.userId) && ' (You)'}
+                  </span>
+                  {getRoleIcon(member.role)}
+                </div>
+                
+                {member.user.username && (
+                  <p className="text-xs text-gray-500 truncate">
+                    @{member.user.username}
+                  </p>
+                )}
+                
+                {/* Role badge */}
+                {member.role !== 'member' && (
+                  <Badge 
+                    variant="outline" 
+                    className={`text-xs mt-1 ${getRoleBadgeColor(member.role)}`}
                   >
-                    <div className="flex items-center space-x-3 flex-1 min-w-0">
-                      {/* Avatar with online indicator */}
-                      <div className="relative flex-shrink-0">
-                        <Avatar className="w-8 h-8">
-                          <AvatarImage src={member.user.profileImage} />
-                          <AvatarFallback className="text-xs">
-                            {member.user.firstName.charAt(0)}{member.user.lastName.charAt(0)}
-                          </AvatarFallback>
-                        </Avatar>
-                        {isOnline && (
-                          <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-500 border-2 border-white rounded-full" />
-                        )}
-                      </div>
+                    {member.role.charAt(0).toUpperCase() + member.role.slice(1)}
+                  </Badge>
+                )}
+              </div>
 
-                      {/* Member info */}
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center space-x-2">
-                          <p className="text-sm font-medium text-gray-900 truncate">
-                            {member.user.firstName} {member.user.lastName}
-                            {isCurrentUser && (
-                              <span className="text-xs text-gray-500 ml-1">(You)</span>
-                            )}
-                          </p>
-                          {getRoleIcon(member.role)}
-                        </div>
-                        <div className="flex items-center space-x-2">
-                          <p className="text-xs text-gray-500 truncate">
-                            @{member.user.username}
-                          </p>
-                          {member.role !== 'member' && (
-                            <Badge 
-                              variant="outline" 
-                              className={cn("text-xs px-1 py-0", getRoleColor(member.role))}
-                            >
-                              {member.role}
-                            </Badge>
-                          )}
-                        </div>
-                      </div>
-                    </div>
+              {/* Action buttons - only show for other users */}
+              {!isCurrentUser(member.userId) && (
+                <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  {/* Direct message */}
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      onDirectMessage?.(member)
+                    }}
+                    className="p-1.5 h-auto hover:bg-blue-100"
+                  >
+                    <MessageCircle className="w-4 h-4 text-blue-600" />
+                  </Button>
 
-                    {/* Actions */}
-                    {showActions && !isCurrentUser && canModerate && (
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="p-1 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
-                          >
-                            <MoreVertical className="w-3 h-3" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem>
-                            <MessageCircle className="w-4 h-4 mr-2" />
-                            Direct Message
-                          </DropdownMenuItem>
-                          
-                          <DropdownMenuSeparator />
-                          
-                          {/* Role management */}
-                          {canPerformAction(member, 'promote') && member.role === 'member' && (
-                            <DropdownMenuItem
-                              onClick={() => handleMemberAction('promote', member.id, member.role)}
-                            >
-                              <Shield className="w-4 h-4 mr-2" />
-                              Promote to Admin
-                            </DropdownMenuItem>
-                          )}
-                          
-                          {canPerformAction(member, 'demote') && member.role === 'admin' && (
-                            <DropdownMenuItem
-                              onClick={() => handleMemberAction('demote', member.id, member.role)}
-                            >
-                              <Shield className="w-4 h-4 mr-2" />
-                              Remove Admin
-                            </DropdownMenuItem>
-                          )}
-                          
-                          <DropdownMenuSeparator />
-                          
-                          {/* Moderation actions */}
-                          {canPerformAction(member, 'remove') && (
-                            <DropdownMenuItem
-                              onClick={() => handleMemberAction('remove', member.id, member.role)}
-                              className="text-orange-600"
-                            >
-                              <UserPlus className="w-4 h-4 mr-2" />
-                              Remove from Club
-                            </DropdownMenuItem>
-                          )}
-                          
-                          {canPerformAction(member, 'ban') && (
-                            <DropdownMenuItem
-                              onClick={() => handleMemberAction('ban', member.id, member.role)}
-                              className="text-red-600"
-                            >
-                              <Ban className="w-4 h-4 mr-2" />
-                              Ban Member
-                            </DropdownMenuItem>
-                          )}
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    )}
-                  </div>
-                )
-              })}
+                  {/* Voice call */}
+                  {isOnline(member.userId) && (
+                    <>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          onCall?.(member)
+                        }}
+                        className="p-1.5 h-auto hover:bg-green-100"
+                      >
+                        <Phone className="w-4 h-4 text-green-600" />
+                      </Button>
+
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          onVideoCall?.(member)
+                        }}
+                        className="p-1.5 h-auto hover:bg-purple-100"
+                      >
+                        <Video className="w-4 h-4 text-purple-600" />
+                      </Button>
+                    </>
+                  )}
+
+                  {/* More options */}
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      // Show more options menu
+                      console.log('More options for:', member.user.firstName)
+                    }}
+                    className="p-1.5 h-auto hover:bg-gray-100"
+                  >
+                    <MoreHorizontal className="w-4 h-4 text-gray-600" />
+                  </Button>
+                </div>
+              )}
             </div>
-          )}
+          ))}
         </div>
-      </ScrollArea>
+      </div>
+
+      {/* Footer - Invite members button */}
+      <div className="p-4 border-t border-gray-100">
+        <Button 
+          variant="outline" 
+          className="w-full bg-gradient-to-r from-blue-50 to-purple-50 border-blue-200 text-blue-700 hover:from-blue-100 hover:to-purple-100"
+        >
+          Invite Members
+        </Button>
+      </div>
     </div>
   )
 }
