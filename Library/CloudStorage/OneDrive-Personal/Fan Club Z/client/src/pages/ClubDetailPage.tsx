@@ -244,7 +244,10 @@ const ClubDetailPage: React.FC<{ clubId?: string }> = ({ clubId: propClubId }) =
           <TabButton isActive={activeTab === 'chat'} onClick={() => setActiveTab('chat')}>
             Chat
           </TabButton>
-          <TabButton isActive={activeTab === 'members'} onClick={() => setActiveTab('members')}>
+          <TabButton isActive={activeTab === 'members'} onClick={() => {
+            console.log('👥 ClubDetailPage: Members tab clicked')
+            setActiveTab('members')
+          }}>
             Members
           </TabButton>
         </div>

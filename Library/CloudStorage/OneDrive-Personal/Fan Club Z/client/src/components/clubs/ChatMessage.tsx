@@ -304,7 +304,7 @@ const ChatMessage: React.FC<ChatMessageProps> = ({
           )}
 
           {/* Quick Actions */}
-          <div className="absolute -top-2 -right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+          <div className="absolute -top-2 -right-2 opacity-0 group-hover:opacity-100 transition-opacity z-10">
             <div className="flex items-center space-x-1 bg-white border border-gray-200 rounded-full shadow-sm p-1">
               {/* Quick Reaction */}
               <div className="relative" ref={reactionsRef}>
@@ -320,20 +320,38 @@ const ChatMessage: React.FC<ChatMessageProps> = ({
 
                 {/* Quick Reactions Menu */}
                 {showReactions && (
-                  <div className="absolute top-full right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg p-2 z-50 flex space-x-1">
-                    {reactionEmojis.map((emoji) => (
-                      <button
-                        key={emoji}
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          handleReaction(emoji)
-                        }}
-                        className="p-2 hover:bg-gray-100 rounded-lg text-lg transition-colors active:scale-95"
-                      >
-                        {emoji}
-                      </button>
-                    ))}
-                  </div>
+                  <>
+                    {/* Backdrop for reactions menu */}
+                    <div 
+                      className="fixed inset-0 z-[99]"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setShowReactions(false)
+                      }}
+                    />
+                    
+                    {/* Fixed positioned reactions menu */}
+                    <div 
+                      className="fixed bg-white border border-gray-200 rounded-xl shadow-lg p-2 z-[100] flex space-x-1"
+                      style={{
+                        top: actionButtonRef.current ? actionButtonRef.current.getBoundingClientRect().bottom + 4 : 0,
+                        left: actionButtonRef.current ? Math.min(window.innerWidth - 300, actionButtonRef.current.getBoundingClientRect().right - 200) : 0
+                      }}
+                    >
+                      {reactionEmojis.map((emoji) => (
+                        <button
+                          key={emoji}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleReaction(emoji)
+                          }}
+                          className="p-2 hover:bg-gray-100 rounded-lg text-lg transition-colors active:scale-95"
+                        >
+                          {emoji}
+                        </button>
+                      ))}
+                    </div>
+                  </>
                 )}
               </div>
 
@@ -343,25 +361,57 @@ const ChatMessage: React.FC<ChatMessageProps> = ({
                   ref={actionButtonRef}
                   onClick={(e) => {
                     e.stopPropagation()
-                    console.log('⚙️ ChatMessage: Actions button clicked')
+                    console.log('⚙️ ChatMessage: Actions button clicked for message:', message.id)
+                    console.log('⚙️ ChatMessage: Current showActions state:', showActions)
+                    console.log('⚙️ ChatMessage: isOwnMessage:', isOwnMessage)
+                    console.log('⚙️ ChatMessage: Message userId:', message.userId)
                     
                     // Calculate menu position based on available space
                     if (actionButtonRef.current) {
                       const buttonRect = actionButtonRef.current.getBoundingClientRect()
+                      const chatContainer = actionButtonRef.current.closest('.relative')
+                      const containerRect = chatContainer?.getBoundingClientRect()
                       const viewportWidth = window.innerWidth
                       const menuWidth = 140 // min-w-[140px]
-                      const spaceOnRight = viewportWidth - buttonRect.right
-                      const spaceOnLeft = buttonRect.left
                       
-                      // Choose the side with more space, with a preference for right
-                      if (spaceOnRight < menuWidth + 8 && spaceOnLeft > menuWidth + 8) {
+                      console.log('📏 ChatMessage: Menu positioning calculation:', {
+                        buttonRight: buttonRect.right,
+                        buttonLeft: buttonRect.left,
+                        viewportWidth,
+                        menuWidth,
+                        containerRight: containerRect?.right,
+                        containerLeft: containerRect?.left
+                      })
+                      
+                      // Check if menu would overflow the right edge
+                      const wouldOverflowRight = buttonRect.right > viewportWidth - menuWidth - 32
+                      // Check if we have enough space on the left  
+                      const hasSpaceOnLeft = buttonRect.left > menuWidth + 32
+                      
+                      console.log('📏 ChatMessage: Overflow check:', {
+                        wouldOverflowRight,
+                        hasSpaceOnLeft,
+                        buttonRightVsThreshold: `${buttonRect.right} > ${viewportWidth - menuWidth - 32}`,
+                        buttonLeftVsThreshold: `${buttonRect.left} > ${menuWidth + 32}`
+                      })
+                      
+                      if (wouldOverflowRight && hasSpaceOnLeft) {
+                        console.log('🔄 ChatMessage: Setting menu position to left (would overflow right)')
                         setMenuPosition('left')
                       } else {
+                        console.log('🔄 ChatMessage: Setting menu position to right (default)')
                         setMenuPosition('right')
                       }
                     }
                     
-                    setShowActions(!showActions)
+                    const newShowActions = !showActions
+                    console.log('⚙️ ChatMessage: Setting showActions to:', newShowActions)
+                    setShowActions(newShowActions)
+                    
+                    // Force a small delay to ensure state is updated
+                    setTimeout(() => {
+                      console.log('⚙️ ChatMessage: After state update, showActions is:', showActions)
+                    }, 100)
                   }}
                   className="p-1.5 hover:bg-gray-100 rounded-full transition-colors"
                 >
@@ -369,8 +419,75 @@ const ChatMessage: React.FC<ChatMessageProps> = ({
                 </button>
 
                 {/* Actions menu */}
-                {showActions && (
-                  <div className="absolute top-full right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg py-1 z-50 min-w-[140px]">
+                {(() => {
+                  console.log('📏 ChatMessage Menu Debug:', {
+                    showActions,
+                    hasActionButtonRef: !!actionButtonRef.current,
+                    messageId: message.id,
+                    isOwnMessage,
+                    menuPosition
+                  })
+                  
+                  if (!showActions) {
+                    console.log('📏 ChatMessage: Not showing menu - showActions is false')
+                    return null
+                  }
+                  
+                  if (!actionButtonRef.current) {
+                    console.log('📏 ChatMessage: Not showing menu - no actionButtonRef')
+                    return null
+                  }
+                  
+                  console.log('📏 ChatMessage: Rendering menu!')
+                  
+                  // Calculate position relative to viewport to avoid clipping
+                  const buttonRect = actionButtonRef.current.getBoundingClientRect()
+                  const viewportHeight = window.innerHeight
+                  const menuHeight = 200 // Estimated max menu height
+                  const spaceBelow = viewportHeight - buttonRect.bottom
+                  const spaceAbove = buttonRect.top
+                  
+                  // Determine if menu should appear above or below the button
+                  const showAbove = spaceBelow < menuHeight && spaceAbove > menuHeight
+                  
+                  console.log('📏 ChatMessage: Menu positioning:', {
+                    buttonTop: buttonRect.top,
+                    buttonBottom: buttonRect.bottom,
+                    viewportHeight,
+                    spaceBelow,
+                    spaceAbove,
+                    showAbove
+                  })
+                  
+                  return (
+                    <>
+                      {/* Backdrop for fixed positioned menu */}
+                      <div 
+                        className="fixed inset-0 z-[99]"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          console.log('🔍 ChatMessage: Backdrop clicked, closing menu')
+                          setShowActions(false)
+                        }}
+                      />
+                      
+                      {/* Fixed positioned menu */}
+                      <div 
+                        className="fixed bg-white border border-gray-200 rounded-xl shadow-lg py-1 z-[100] min-w-[140px] max-w-[200px]"
+                        style={{
+                          top: showAbove ? buttonRect.top - menuHeight : buttonRect.bottom + 4,
+                          left: menuPosition === 'left' 
+                            ? Math.max(8, buttonRect.left - 140) 
+                            : Math.min(window.innerWidth - 148, buttonRect.right - 140),
+                          maxWidth: '90vw',
+                          boxShadow: '0 10px 25px rgba(0, 0, 0, 0.15)',
+                          backgroundColor: 'white'
+                        }}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          console.log('🔍 ChatMessage: Menu clicked, preventing close')
+                        }}
+                      >
                     {/* Copy button */}
                     <button
                       onClick={(e) => {
@@ -406,8 +523,10 @@ const ChatMessage: React.FC<ChatMessageProps> = ({
                       </button>
                     )}
 
-                    {/* Separator */}
-                    <div className="border-t border-gray-100 my-1" />
+                    {/* Separator - always show if there are items above and below */}
+                    {(!isOwnMessage || isOwnMessage) && (
+                      <div className="border-t border-gray-200 my-1 mx-2" />
+                    )}
 
                     {/* Delete button - only for own messages */}
                     {isOwnMessage && (
@@ -437,7 +556,9 @@ const ChatMessage: React.FC<ChatMessageProps> = ({
                       </button>
                     )}
                   </div>
-                )}
+                  </>
+                  )
+                })()}
               </div>
             </div>
           </div>

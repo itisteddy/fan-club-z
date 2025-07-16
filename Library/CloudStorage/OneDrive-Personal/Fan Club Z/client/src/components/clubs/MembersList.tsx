@@ -233,6 +233,10 @@ const MembersList: React.FC<MembersListProps> = ({
         <Button 
           variant="outline" 
           className="w-full bg-gradient-to-r from-blue-50 to-purple-50 border-blue-200 text-blue-700 hover:from-blue-100 hover:to-purple-100"
+          onClick={() => {
+            console.log('👥 MembersList: Invite members clicked')
+            alert('Invite members feature coming soon!')
+          }}
         >
           Invite Members
         </Button>

@@ -397,13 +397,25 @@ export const ClubChat: React.FC<ClubChatProps> = ({
   }
 
   return (
-    <div className={cn(
-      "flex flex-col bg-white border border-gray-100 rounded-2xl overflow-hidden shadow-sm w-full max-w-full relative",
-      isFullScreen ? "h-screen" : "h-[calc(100vh-120px)] min-h-[500px]"
-    )}
-    style={{ maxWidth: '100vw', position: 'relative', zIndex: 1 }}>
+    <div 
+      className={cn(
+        "flex flex-col bg-white border border-gray-100 rounded-2xl overflow-hidden shadow-sm w-full max-w-full relative isolate",
+        isFullScreen ? "h-screen" : "h-[calc(100vh-120px)] min-h-[500px]"
+      )}
+      style={{ maxWidth: '100vw', position: 'relative', zIndex: 1 }}
+      onClickCapture={(e) => {
+        // Capture clicks to prevent any unwanted navigation
+        console.log('🔍 ClubChat: Click captured in chat container')
+      }}
+    >
       {/* Chat Header */}
-      <div className="flex items-center justify-between p-2 border-b border-gray-100 bg-gradient-to-r from-blue-50 to-purple-50 flex-shrink-0">
+      <div 
+        className="flex items-center justify-between p-2 border-b border-gray-100 bg-gradient-to-r from-blue-50 to-purple-50 flex-shrink-0"
+        onClick={(e) => {
+          // Prevent any header clicks from bubbling up to potential parent navigation handlers
+          e.stopPropagation()
+        }}
+      >
         <div className="flex items-center space-x-2 min-w-0 flex-1">
           <div className="relative flex-shrink-0">
             <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg flex items-center justify-center shadow-sm">
@@ -446,10 +458,25 @@ export const ClubChat: React.FC<ClubChatProps> = ({
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => setShowMembers(!showMembers)}
-            className="p-2 hover:bg-white/60 rounded-xl h-8 w-8"
+            onClick={(e) => {
+              e.preventDefault()
+              e.stopPropagation() 
+              e.nativeEvent.stopImmediatePropagation()
+              console.log('🔍 ClubChat: Members button clicked, current state:', showMembers)
+              console.log('🔍 ClubChat: Event details:', {
+                type: e.type,
+                target: e.target,
+                currentTarget: e.currentTarget,
+                bubbles: e.bubbles
+              })
+              setShowMembers(!showMembers)
+              console.log('🔍 ClubChat: Members state after click:', !showMembers)
+            }}
+            className={`p-2 hover:bg-white/60 rounded-xl h-8 w-8 transition-colors ${
+              showMembers ? 'bg-blue-100 text-blue-600' : 'text-gray-600'
+            }`}
           >
-            <Users className="w-4 h-4 text-gray-600" />
+            <Users className="w-4 h-4" />
           </Button>
           
           {/* Close Button */}
@@ -482,7 +509,17 @@ export const ClubChat: React.FC<ClubChatProps> = ({
                       message={message}
                       showAvatar={showAvatar}
                       isConsecutive={isConsecutive}
-                      isOwnMessage={message.userId === user?.id}
+                      isOwnMessage={(() => {
+                        const isOwn = message.userId === user?.id
+                        console.log('🔍 ChatMessage Debug:', {
+                          messageId: message.id,
+                          messageUserId: message.userId,
+                          currentUserId: user?.id,
+                          isOwnMessage: isOwn,
+                          messageContent: message.content.substring(0, 30)
+                        })
+                        return isOwn
+                      })()}
                       onReply={(msg) => {
                         console.log('💬 ClubChat: Reply requested for message:', msg.id)
                         alert(`Reply to: "${msg.content.substring(0, 50)}..."`)
@@ -550,19 +587,49 @@ export const ClubChat: React.FC<ClubChatProps> = ({
         {/* Members Sidebar */}
         {showMembers && (
           <>
-            {/* Backdrop */}
+            {/* Backdrop - only covers chat area */}
             <div 
-              className="fixed inset-0 bg-black/20 z-40" 
-              onClick={() => setShowMembers(false)}
+              className="absolute inset-0 bg-black/20 z-40" 
+              onClick={(e) => {
+                e.preventDefault()
+                e.stopPropagation()
+                console.log('🔙 ClubChat: Backdrop clicked, closing members sidebar')
+                setShowMembers(false)
+              }}
             />
             
-            {/* Sidebar */}
-            <div className="fixed top-0 right-0 h-full w-80 max-w-[85vw] bg-gradient-to-b from-gray-50 to-white shadow-xl z-50 transform transition-transform duration-300">
-              <MembersList
-                members={members}
-                onlineMembers={onlineMembers}
-                currentUserId={user?.id}
-              />
+            {/* Sidebar - positioned within chat container */}
+            <div 
+              className="absolute top-0 right-0 h-full w-64 bg-gradient-to-b from-gray-50 to-white shadow-xl z-50 border-l border-gray-200"
+              onClick={(e) => {
+                e.preventDefault()
+                e.stopPropagation()
+                console.log('🔍 ClubChat: Members sidebar clicked, preventing close')
+              }}
+            >
+              <div className="h-full">
+                <MembersList
+                  members={members}
+                  onlineMembers={onlineMembers}
+                  currentUserId={user?.id}
+                  onMemberClick={(member) => {
+                    console.log('👥 ClubChat: Member clicked:', member.user.firstName)
+                    // Handle member click (e.g., show profile)
+                  }}
+                  onDirectMessage={(member) => {
+                    console.log('💬 ClubChat: Direct message to:', member.user.firstName)
+                    alert(`Starting direct message with ${member.user.firstName}...`)
+                  }}
+                  onCall={(member) => {
+                    console.log('📞 ClubChat: Voice call to:', member.user.firstName)
+                    alert(`Starting voice call with ${member.user.firstName}...`)
+                  }}
+                  onVideoCall={(member) => {
+                    console.log('📹 ClubChat: Video call to:', member.user.firstName)
+                    alert(`Starting video call with ${member.user.firstName}...`)
+                  }}
+                />
+              </div>
             </div>
           </>
         )}
