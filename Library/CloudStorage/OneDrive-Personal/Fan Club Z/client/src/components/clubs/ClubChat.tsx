@@ -24,7 +24,7 @@ import ChatInput from './ChatInput'
 import MembersList from './MembersList'
 import type { User } from '@shared/schema'
 
-interface ChatMessage {
+interface ClubChatMessage {
   id: string
   clubId: string
   userId: string
@@ -55,7 +55,7 @@ export const ClubChat: React.FC<ClubChatProps> = ({
   const { success, error } = useToast()
   
   // State
-  const [messages, setMessages] = useState<ChatMessage[]>([])
+  const [messages, setMessages] = useState<ClubChatMessage[]>([])
   const [newMessage, setNewMessage] = useState('')
   const [isTyping, setIsTyping] = useState(false)
   const [typingUsers, setTypingUsers] = useState<string[]>([])
@@ -161,7 +161,7 @@ export const ClubChat: React.FC<ClubChatProps> = ({
       setLoading(true)
       
       // For demo purposes, load mock chat data
-      const mockMessages: ChatMessage[] = [
+      const mockMessages: ClubChatMessage[] = [
         {
           id: 'msg-1',
           clubId: clubId,

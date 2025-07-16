@@ -22,7 +22,7 @@ import {
 import { formatRelativeTime, cn } from '../../lib/utils'
 import type { User } from '@shared/schema'
 
-interface ChatMessage {
+interface ClubChatMessage {
   id: string
   clubId: string
   userId: string
@@ -35,11 +35,11 @@ interface ChatMessage {
 }
 
 interface ChatMessageProps {
-  message: ChatMessage
+  message: ClubChatMessage
   showAvatar: boolean
   isConsecutive: boolean
   isOwnMessage: boolean
-  onReply?: (message: ChatMessage) => void
+  onReply?: (message: ClubChatMessage) => void
   onReact?: (messageId: string, emoji: string) => void
   onDelete?: (messageId: string) => void
 }

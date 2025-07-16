@@ -4,18 +4,12 @@ import {
   Smile, 
   Paperclip, 
   Image as ImageIcon,
-  Mic,
   Plus,
   X
 } from 'lucide-react'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
 import { Textarea } from '../ui/textarea'
-import { 
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '../ui/popover'
 import { cn } from '../../lib/utils'
 
 interface ChatInputProps {
@@ -41,10 +35,13 @@ const ChatInput: React.FC<ChatInputProps> = ({
 }) => {
   const [isMultiline, setIsMultiline] = useState(false)
   const [showEmojiPicker, setShowEmojiPicker] = useState(false)
+  const [showAttachmentMenu, setShowAttachmentMenu] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const imageInputRef = useRef<HTMLInputElement>(null)
+  const emojiPickerRef = useRef<HTMLDivElement>(null)
+  const attachmentMenuRef = useRef<HTMLDivElement>(null)
 
   // Common emojis for quick access
   const commonEmojis = [
@@ -53,11 +50,30 @@ const ChatInput: React.FC<ChatInputProps> = ({
     '🎯', '📈', '📉', '⭐', '✨', '🌟', '💡', '🎮'
   ]
 
+  // Close menus when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (emojiPickerRef.current && !emojiPickerRef.current.contains(event.target as Node)) {
+        setShowEmojiPicker(false)
+      }
+      if (attachmentMenuRef.current && !attachmentMenuRef.current.contains(event.target as Node)) {
+        setShowAttachmentMenu(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [])
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (value.trim() && !disabled) {
       onSend(value.trim())
       setIsMultiline(false)
+      setShowEmojiPicker(false)
+      setShowAttachmentMenu(false)
     }
   }
 
@@ -67,7 +83,6 @@ const ChatInput: React.FC<ChatInputProps> = ({
         // Shift+Enter for new line
         if (!isMultiline) {
           setIsMultiline(true)
-          // Transfer value to textarea
           setTimeout(() => {
             textareaRef.current?.focus()
           }, 0)
@@ -84,6 +99,8 @@ const ChatInput: React.FC<ChatInputProps> = ({
           inputRef.current?.focus()
         }, 0)
       }
+      setShowEmojiPicker(false)
+      setShowAttachmentMenu(false)
     }
   }
 
@@ -119,6 +136,7 @@ const ChatInput: React.FC<ChatInputProps> = ({
       // In a real app, you'd upload the file and get a URL
       onSend(`📎 ${file.name}`, 'file')
       e.target.value = '' // Reset input
+      setShowAttachmentMenu(false)
     }
   }
 
@@ -129,10 +147,11 @@ const ChatInput: React.FC<ChatInputProps> = ({
       const reader = new FileReader()
       reader.onload = (e) => {
         const imageUrl = e.target?.result as string
-        onSend(imageUrl, 'image')
+        onSend(`🖼️ Image: ${file.name}`, 'image')
       }
       reader.readAsDataURL(file)
       e.target.value = '' // Reset input
+      setShowAttachmentMenu(false)
     }
   }
 
@@ -145,44 +164,79 @@ const ChatInput: React.FC<ChatInputProps> = ({
   }, [value, isMultiline])
 
   return (
-    <div className="border-t border-gray-200 bg-white p-4">
+    <div className="border-t border-gray-200 bg-white p-3 relative">
+      {/* Emoji Picker */}
+      {showEmojiPicker && (
+        <div 
+          ref={emojiPickerRef}
+          className="absolute bottom-full left-4 right-4 mb-2 bg-white border border-gray-200 rounded-lg shadow-lg p-3 z-50"
+        >
+          <div className="flex justify-between items-center mb-2">
+            <span className="text-sm font-medium text-gray-700">Pick an emoji</span>
+            <button
+              onClick={() => setShowEmojiPicker(false)}
+              className="p-1 hover:bg-gray-100 rounded"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+          <div className="grid grid-cols-8 gap-1 max-h-32 overflow-y-auto">
+            {commonEmojis.map((emoji) => (
+              <button
+                key={emoji}
+                type="button"
+                onClick={() => handleEmojiSelect(emoji)}
+                className="p-2 rounded hover:bg-gray-100 text-lg transition-colors"
+              >
+                {emoji}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Attachment Menu */}
+      {showAttachmentMenu && (
+        <div 
+          ref={attachmentMenuRef}
+          className="absolute bottom-full left-4 mb-2 bg-white border border-gray-200 rounded-lg shadow-lg p-2 z-50 w-48"
+        >
+          <div className="space-y-1">
+            <button
+              type="button"
+              onClick={() => imageInputRef.current?.click()}
+              className="w-full flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded"
+            >
+              <ImageIcon className="w-4 h-4 mr-2" />
+              Photo
+            </button>
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="w-full flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded"
+            >
+              <Paperclip className="w-4 h-4 mr-2" />
+              File
+            </button>
+          </div>
+        </div>
+      )}
+
       <form onSubmit={handleSubmit} className="flex items-end space-x-2">
         {/* Attachment button */}
-        <Popover>
-          <PopoverTrigger asChild>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="flex-shrink-0 p-2"
-              disabled={disabled}
-            >
-              <Plus className="w-4 h-4" />
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent side="top" className="w-48 p-2">
-            <div className="space-y-2">
-              <Button
-                variant="ghost"
-                size="sm"
-                className="w-full justify-start"
-                onClick={() => imageInputRef.current?.click()}
-              >
-                <ImageIcon className="w-4 h-4 mr-2" />
-                Photo
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="w-full justify-start"
-                onClick={() => fileInputRef.current?.click()}
-              >
-                <Paperclip className="w-4 h-4 mr-2" />
-                File
-              </Button>
-            </div>
-          </PopoverContent>
-        </Popover>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="flex-shrink-0 p-2 h-9 w-9"
+          disabled={disabled}
+          onClick={() => {
+            setShowAttachmentMenu(!showAttachmentMenu)
+            setShowEmojiPicker(false)
+          }}
+        >
+          <Plus className="w-4 h-4" />
+        </Button>
 
         {/* Message input */}
         <div className="flex-1 relative">
@@ -231,41 +285,27 @@ const ChatInput: React.FC<ChatInputProps> = ({
           )}
         </div>
 
-        {/* Emoji picker */}
-        <Popover open={showEmojiPicker} onOpenChange={setShowEmojiPicker}>
-          <PopoverTrigger asChild>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="flex-shrink-0 p-2"
-              disabled={disabled}
-            >
-              <Smile className="w-4 h-4" />
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent side="top" className="w-64 p-3">
-            <div className="grid grid-cols-8 gap-1">
-              {commonEmojis.map((emoji) => (
-                <button
-                  key={emoji}
-                  type="button"
-                  onClick={() => handleEmojiSelect(emoji)}
-                  className="p-1 rounded hover:bg-gray-100 text-lg transition-colors"
-                >
-                  {emoji}
-                </button>
-              ))}
-            </div>
-          </PopoverContent>
-        </Popover>
+        {/* Emoji button */}
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="flex-shrink-0 p-2 h-9 w-9"
+          disabled={disabled}
+          onClick={() => {
+            setShowEmojiPicker(!showEmojiPicker)
+            setShowAttachmentMenu(false)
+          }}
+        >
+          <Smile className="w-4 h-4" />
+        </Button>
 
         {/* Send button */}
         <Button
           type="submit"
           size="sm"
           disabled={!value.trim() || disabled}
-          className="flex-shrink-0 p-2"
+          className="flex-shrink-0 p-2 h-9 w-9"
         >
           <Send className="w-4 h-4" />
         </Button>
