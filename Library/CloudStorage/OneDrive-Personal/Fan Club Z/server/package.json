@@ -13,11 +13,6 @@
     "db:reset": "npm run db:migrate && npm run db:seed"
   },
   "dependencies": {
-    "@types/bcrypt": "^6.0.0",
-    "@types/dotenv": "^6.1.1",
-    "@types/knex": "^0.15.2",
-    "@types/stripe": "^8.0.416",
-    "@types/ws": "^8.18.1",
     "bcrypt": "^6.0.0",
     "bcryptjs": "^2.4.3",
     "compression": "^1.7.4",
@@ -37,20 +32,26 @@
     "uuid": "^9.0.1",
     "winston": "^3.11.0",
     "ws": "^8.18.3",
-    "zod": "^3.22.4"
-  },
-  "devDependencies": {
+    "zod": "^3.22.4",
+    "typescript": "^5.8.3",
+    "@types/bcrypt": "^6.0.0",
     "@types/bcryptjs": "^2.4.6",
     "@types/compression": "^1.7.5",
     "@types/cors": "^2.8.17",
+    "@types/dotenv": "^6.1.1",
     "@types/express": "^4.17.21",
     "@types/jsonwebtoken": "^9.0.10",
+    "@types/knex": "^0.15.2",
     "@types/morgan": "^1.9.9",
+    "@types/node": "^20.0.0",
     "@types/pg": "^8.10.9",
+    "@types/stripe": "^8.0.416",
     "@types/uuid": "^9.0.7",
+    "@types/ws": "^8.18.1"
+  },
+  "devDependencies": {
     "nodemon": "^3.0.2",
     "ts-node": "^10.9.2",
-    "tsx": "^4.6.2",
-    "typescript": "^5.8.3"
+    "tsx": "^4.6.2"
   }
 }
