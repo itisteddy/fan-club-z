@@ -2,12 +2,12 @@
   "name": "fan-club-z-server",
   "version": "1.0.0",
   "description": "Fan Club Z Backend API Server",
-  "main": "dist/server/src/index.js",
+  "main": "dist/index.js",
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
-    "start": "node dist/server/src/index.js",
+    "start": "node dist/index.js",
     "db:migrate": "node dist/server/src/database/migrate.js",
     "db:seed": "node dist/server/src/database/seed.js",
     "db:reset": "npm run db:migrate && npm run db:seed"
