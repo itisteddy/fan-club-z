@@ -30,7 +30,6 @@ interface Config {
   corsOrigins: string[]
   
   // Feature Flags
-  enableDemoMode: boolean
   enableNotifications: boolean
   
   // App Settings
@@ -45,12 +44,12 @@ const getEnv = (key: string, fallback?: string): string | null => {
 }
 
 // Helper to get required environment variable
-const getRequiredEnv = (key: string): string => {
+const getRequiredEnv = (key: string, fallback?: string): string => {
   const value = getEnv(key)
-  if (!value) {
+  if (!value && !fallback) {
     throw new Error(`Required environment variable ${key} is not set`)
   }
-  return value
+  return value || fallback!
 }
 
 // Helper to get boolean environment variable
@@ -87,18 +86,18 @@ const getCorsOrigins = (): string[] => {
 
 export const config: Config = {
   // Server Configuration
-  port: getNumberEnv('PORT', 3001),
+  port: getNumberEnv('PORT', 3001), // Use 3001 as the actual running port
   host: getEnv('HOST', '0.0.0.0') || '0.0.0.0',
   nodeEnv: getEnv('NODE_ENV', 'development') || 'development',
   
   // Database Configuration
-  databaseUrl: getRequiredEnv('DATABASE_URL'),
+  databaseUrl: getRequiredEnv('DATABASE_URL', 'sqlite3:./dev.db'),
   
   // Authentication
-  jwtSecret: getRequiredEnv('JWT_SECRET'),
+  jwtSecret: getRequiredEnv('JWT_SECRET', 'dev-jwt-secret-change-in-production'),
   jwtExpiresIn: getEnv('JWT_EXPIRES_IN', '24h') || '24h',
   jwtRefreshExpiresIn: getEnv('JWT_REFRESH_EXPIRES_IN', '7d') || '7d',
-  jwtRefreshSecret: getRequiredEnv('JWT_REFRESH_SECRET'),
+  jwtRefreshSecret: getRequiredEnv('JWT_REFRESH_SECRET', 'dev-jwt-refresh-secret-change-in-production'),
   enableTokenRotation: getBoolEnv('ENABLE_TOKEN_ROTATION', true),
   
   // External Services
@@ -110,7 +109,6 @@ export const config: Config = {
   corsOrigins: getCorsOrigins(),
   
   // Feature Flags
-  enableDemoMode: getBoolEnv('ENABLE_DEMO_MODE', true), // Default to demo mode for MVP
   enableNotifications: getBoolEnv('ENABLE_NOTIFICATIONS', true),
   
   // App Settings
@@ -151,7 +149,6 @@ export const {
   stripeWebhookSecret,
   stripePublishableKey,
   corsOrigins,
-  enableDemoMode,
   enableNotifications,
   appName,
   appVersion,

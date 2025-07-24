@@ -82,9 +82,7 @@ export const CreateBetTab: React.FC = () => {
 
   // Check authentication on mount
   useEffect(() => {
-    console.log('🔐 CreateBetTab: Authentication check', { isAuthenticated, user: user?.email })
     if (!isAuthenticated) {
-      console.log('❌ CreateBetTab: User not authenticated, redirecting to login')
       toast({
         title: "Authentication Required",
         description: "Please log in to create a bet"
@@ -94,42 +92,68 @@ export const CreateBetTab: React.FC = () => {
   }, [isAuthenticated, user, navigate, toast])
 
   const createBet = async (betData: any) => {
-    const token = localStorage.getItem('accessToken')
+    const token = localStorage.getItem('accessToken') || localStorage.getItem('auth_token')
     if (!token) {
       throw new Error('No authentication token found')
     }
 
-    console.log('🚀 CreateBetTab: Creating bet with data:', betData)
+    try {
+      // Use the frontend proxy instead of direct backend calls
+      // Frontend proxy will handle: /api -> http://localhost:3001/api
+      const response = await fetch('/api/bets', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(betData)
+      })
 
-    const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3001'}/api/bets`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
-      body: JSON.stringify(betData)
-    })
+      // Handle network errors or no response
+      if (!response) {
+        throw new Error('Network error - no response received')
+      }
 
-    console.log('🌐 CreateBetTab: API response status:', response.status)
+      // Handle HTTP errors
+      if (!response.ok) {
+        let errorMessage = `Failed to create bet (${response.status})`
+        try {
+          const errorData = await response.json()
+          errorMessage = errorData.error || errorData.message || errorMessage
+        } catch (parseError) {
+          // Silently handle parse errors
+        }
+        throw new Error(errorMessage)
+      }
 
-    if (!response.ok) {
-      const errorData = await response.json()
-      console.error('❌ CreateBetTab: API error:', errorData)
-      throw new Error(errorData.error || `Failed to create bet (${response.status})`)
+      const result = await response.json()
+      return result
+      
+    } catch (fetchError: any) {
+      // Handle specific network errors
+      if (fetchError.name === 'TypeError' && fetchError.message.includes('fetch')) {
+        throw new Error('Network connection failed. Please check your connection and try again.')
+      }
+      
+      // Handle blocked requests (ad blockers, etc.)
+      if (fetchError.message.includes('blocked') || fetchError.message.includes('ERR_BLOCKED')) {
+        throw new Error('Request was blocked. Please disable ad blockers and try again.')
+      }
+      
+      // Re-throw the original error if it has a message
+      if (fetchError.message) {
+        throw fetchError
+      }
+      
+      // Fallback error
+      throw new Error('Failed to create bet. Please try again.')
     }
-
-    const result = await response.json()
-    console.log('✅ CreateBetTab: Bet created successfully:', result)
-    return result
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
-    console.log('📝 CreateBetTab: Form submission started')
-    
     if (!user || !isAuthenticated) {
-      console.log('❌ CreateBetTab: User not authenticated during submit')
       toast({
         title: "Authentication Required",
         description: "Please log in to create a bet"
@@ -139,7 +163,6 @@ export const CreateBetTab: React.FC = () => {
     }
 
     if (!validateForm()) {
-      console.log('❌ CreateBetTab: Form validation failed', errors)
       toast({
         title: "Form Validation Error",
         description: "Please fix the errors and try again"
@@ -190,20 +213,45 @@ export const CreateBetTab: React.FC = () => {
         description: "Your bet is now live and people can start betting."
       })
 
+      // Refresh the bet store to include the newly created bet
+      try {
+        const { useBetStore } = await import('@/store/betStore')
+        const betStore = useBetStore.getState()
+        await betStore.fetchTrendingBets()
+      } catch (refreshError) {
+        console.warn('Failed to refresh trending bets:', refreshError)
+      }
+
       // Navigate to the new bet detail page
       if (result.success && result.data?.bet?.id) {
-        console.log('🔄 CreateBetTab: Navigating to bet detail:', result.data.bet.id)
         navigate(`/bets/${result.data.bet.id}`)
       } else {
-        console.log('🔄 CreateBetTab: Navigating to discover page')
         navigate('/discover')
       }
 
     } catch (error: any) {
-      console.error('❌ CreateBetTab: Error creating bet:', error)
+      // Provide user-friendly error messages
+      let errorMessage = 'Failed to create bet. Please try again.'
+      
+      if (error.message) {
+        if (error.message.includes('Network connection failed')) {
+          errorMessage = 'Cannot connect to server. Please check your internet connection.'
+        } else if (error.message.includes('blocked')) {
+          errorMessage = 'Request was blocked. Please disable ad blockers and try again.'
+        } else if (error.message.includes('401') || error.message.includes('Unauthorized')) {
+          errorMessage = 'Authentication failed. Please log out and log back in.'
+        } else if (error.message.includes('403') || error.message.includes('Forbidden')) {
+          errorMessage = 'You do not have permission to create bets.'
+        } else if (error.message.includes('400') || error.message.includes('Bad Request')) {
+          errorMessage = 'Invalid bet data. Please check your inputs and try again.'
+        } else {
+          errorMessage = error.message
+        }
+      }
+      
       toast({
         title: "Error Creating Bet",
-        description: error.message || "Failed to create bet. Please try again."
+        description: errorMessage
       })
     } finally {
       setIsSubmitting(false)

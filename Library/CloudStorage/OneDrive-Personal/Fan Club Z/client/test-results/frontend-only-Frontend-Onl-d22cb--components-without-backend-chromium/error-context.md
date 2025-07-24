@@ -1,0 +1,65 @@
+# Page snapshot
+
+```yaml
+- banner:
+  - link "Z Fan Club Z":
+    - /url: /discover
+    - text: Z
+    - heading "Fan Club Z" [level=1]
+- main:
+  - heading "Discover" [level=1]
+  - img
+  - searchbox "Search bets..."
+  - button "⭐ All"
+  - button "⚽ Sports"
+  - button "🎭 Pop Culture"
+  - button "₿ Crypto"
+  - button "🏛️ Politics"
+  - button "🎯 Custom"
+  - heading "Featured" [level=2]
+  - heading "Today's Top Bet" [level=3]
+  - paragraph: Bitcoin to hit $100K by year end?
+  - button "View Details"
+  - heading "Trending Now" [level=2]
+  - text: 🎭 POP Open
+  - heading "Taylor Swift announces surprise album?" [level=3]
+  - img
+  - text: $11K pool
+  - img
+  - text: 11d 20h left
+  - img
+  - text: "1,234 participants • Min: $1"
+  - button "View Details"
+  - text: ⚽ SPORTS Open
+  - 'heading "Premier League: Man City vs Arsenal - Who wins?" [level=3]'
+  - img
+  - text: $25K pool
+  - img
+  - text: Ended
+  - img
+  - text: "1,234 participants • Min: $5"
+  - button "View Details"
+  - text: ₿ CRYPTO Open
+  - heading "Will Bitcoin reach $100K by end of 2025?" [level=3]
+  - img
+  - text: $24K pool
+  - img
+  - text: 164d 20h left
+  - img
+  - text: "1,234 participants • Min: $10"
+  - button "View Details"
+  - button "Create New Bet":
+    - img
+- button "Navigate to Discover":
+  - img
+  - text: Discover
+- button "Navigate to My Bets":
+  - img
+  - text: My Bets
+- button "Navigate to Clubs":
+  - img
+  - text: Clubs
+- button "Sign In":
+  - img
+  - text: Sign In
+```

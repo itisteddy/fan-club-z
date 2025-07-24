@@ -40,7 +40,7 @@ export const FloatingActionButton: React.FC<FloatingActionButtonProps> = ({ clas
         "text-white",
         className
       )}
-      data-testid="floating-create-bet"
+      data-testid="floating-action-button"
       aria-label="Create New Bet"
     >
       <Plus className="w-6 h-6" />

@@ -22,9 +22,9 @@ export const queryClient = new QueryClient({
 
 // Base API configuration with fallback URLs
 const FALLBACK_API_URLS = [
-  'http://localhost:3001/api',  // Primary backend port
-  'http://localhost:3001/api',  // Legacy fallback
-  'http://172.20.2.210:3001/api' // Network fallback to correct port
+  'http://localhost:5001/api',      // Local backend (correct port)
+  'http://172.20.1.100:5001/api',  // Network backend (correct port)
+  '/api'                           // Vite proxy fallback
 ]
 
 let API_BASE_URL = getApiUrl()
@@ -42,11 +42,10 @@ async function findWorkingApiUrl(): Promise<string> {
     })
     if (response.ok) {
       workingApiUrl = API_BASE_URL
-      console.log('✅ API connected:', API_BASE_URL)
       return API_BASE_URL
     }
   } catch (error) {
-    console.log('⚠️ Configured API URL not accessible:', API_BASE_URL)
+    // Silently handle connection errors
   }
   
   // Try fallback URLs
@@ -60,16 +59,14 @@ async function findWorkingApiUrl(): Promise<string> {
       })
       if (response.ok) {
         workingApiUrl = url
-        console.log('✅ API connected (fallback):', url)
         return url
       }
     } catch (error) {
-      console.log('⚠️ Fallback API URL not accessible:', url)
+      // Silently handle connection errors
     }
   }
   
   // If no URL works, return the original
-  console.log('❌ No working API URL found, using configured URL')
   workingApiUrl = API_BASE_URL
   return API_BASE_URL
 }
@@ -81,8 +78,15 @@ export async function apiRequest<T>(
 ): Promise<T> {
   const { params, ...requestOptions } = options
 
-  // Get working API URL
-  const baseUrl = await findWorkingApiUrl()
+  // In development, use Vite proxy (relative URL)
+  // In production, use the working API URL
+  let baseUrl: string
+  // @ts-ignore - Vite provides import.meta.env
+  if (import.meta.env.DEV) {
+    baseUrl = '/api' // Use Vite proxy
+  } else {
+    baseUrl = await findWorkingApiUrl()
+  }
 
   // Build URL with query parameters
   let url = `${baseUrl}${endpoint}`
@@ -91,8 +95,8 @@ export async function apiRequest<T>(
     url += `?${searchParams.toString()}`
   }
 
-  // Get auth token from localStorage
-  const token = localStorage.getItem('auth_token')
+  // Get auth token from localStorage (try both possible keys)
+  const token = localStorage.getItem('accessToken') || localStorage.getItem('auth_token')
   
   // Default headers
   const headers: Record<string, string> = {
@@ -118,7 +122,14 @@ export async function apiRequest<T>(
     clearTimeout(timeout)
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}))
+      let errorData: any = {}
+      try {
+        errorData = await response.json()
+      } catch {
+        // If JSON parsing fails, create basic error object
+        errorData = { error: `HTTP ${response.status}: ${response.statusText}` }
+      }
+      
       // Create error object with all backend error fields
       const err: any = new Error(errorData.error || errorData.message || `HTTP error! status: ${response.status}`)
       err.status = response.status
@@ -131,9 +142,21 @@ export async function apiRequest<T>(
     return data
   } catch (error: any) {
     clearTimeout(timeout)
+    
     if (error.name === 'AbortError') {
       throw new Error('Request timed out. Please check your network connection and try again.')
     }
+    
+    // If it's already a structured error from response handling, re-throw it
+    if (error.status || error.response) {
+      throw error
+    }
+    
+    // Handle network errors
+    if (error.message?.includes('Failed to fetch') || error.message?.includes('Network request failed')) {
+      throw new Error('Network error. Please check your connection and try again.')
+    }
+    
     throw new Error(error.message || 'Network error. Please check your connection and try again.')
   }
 }

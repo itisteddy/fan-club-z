@@ -133,7 +133,7 @@ export interface Reaction {
 export interface Transaction {
   id: string;
   userId: string;
-  type: 'deposit' | 'withdraw' | 'withdrawal' | 'bet_lock' | 'bet_release' | 'transfer';
+  type: 'deposit' | 'withdraw' | 'withdrawal' | 'bet_lock' | 'bet_release' | 'bet_placed' | 'transfer';
   currency: 'USD' | 'NGN' | 'USDT' | 'ETH' | 'EUR' | 'GBP' | 'CAD' | 'AUD' | 'JPY' | 'CHF' | 'SEK' | 'NOK' | 'DKK';
   amount: number;
   status: 'pending' | 'completed' | 'failed';
@@ -221,6 +221,7 @@ export interface CreateBetRequest {
 export interface PlaceBetRequest {
   optionId: string;
   amount: number;
+  userId?: string; // Optional for demo user handling
 }
 
 export interface CreateClubRequest {

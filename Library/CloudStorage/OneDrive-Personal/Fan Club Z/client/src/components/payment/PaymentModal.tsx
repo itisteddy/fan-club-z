@@ -100,15 +100,20 @@ const DemoDepositForm: React.FC<{
             max={10000}
             value={amount}
             onChange={e => setAmount(Number(e.target.value))}
-            className="w-full h-11 px-4 bg-gray-100 rounded-[10px] text-body text-center font-semibold border border-gray-200 focus:border-blue-500 focus:outline-none"
+            className="w-full h-11 px-4 bg-gray-100 rounded-lg text-center font-semibold 
+                       border border-gray-200 focus:border-blue-500 focus:outline-none
+                       transition-colors"
             disabled={loading}
+            placeholder="Enter custom amount"
           />
         </div>
       </div>
       <button
         type="submit"
         disabled={loading}
-        className="w-full h-[50px] bg-blue-500 text-white font-semibold text-body rounded-[10px] disabled:opacity-50 disabled:cursor-not-allowed active:scale-95 transition-transform"
+        className="w-full h-12 bg-blue-500 text-white font-semibold rounded-lg 
+                   disabled:opacity-50 disabled:cursor-not-allowed active:scale-95 
+                   transition-all duration-200"
       >
         {loading ? (
           <div className="flex items-center justify-center">
@@ -171,7 +176,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
           </button>
         </div>
         {/* Content */}
-        <div className="p-6">
+        <div className="p-6 pb-8">
           <DemoDepositForm onSuccess={onSuccess} onClose={onClose} initialAmount={amount} />
         </div>
       </div>

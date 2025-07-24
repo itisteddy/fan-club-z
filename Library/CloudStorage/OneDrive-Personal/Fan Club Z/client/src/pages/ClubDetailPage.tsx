@@ -7,6 +7,7 @@ import {
   MessageCircle, 
   Settings, 
   Plus,
+  Minus,
   Crown,
   Lock,
   Globe,
@@ -79,6 +80,7 @@ const ClubDetailPage: React.FC<{ clubId?: string }> = ({ clubId: propClubId }) =
   const [club, setClub] = useState<Club | null>(null)
   const [members, setMembers] = useState<ClubMember[]>([])
   const [isMember, setIsMember] = useState(false)
+  const [isJoinLeaveLoading, setIsJoinLeaveLoading] = useState(false)
   
   // Parse URL parameters for initial tab
   useEffect(() => {
@@ -163,6 +165,99 @@ const ClubDetailPage: React.FC<{ clubId?: string }> = ({ clubId: propClubId }) =
     }, 500)
   }, [clubId, user])
   
+  // Club membership management functions
+  const handleJoinLeaveClub = async () => {
+    if (!user) {
+      // Better UX for unauthenticated users
+      success('Please sign in to join clubs');
+      
+      // Redirect to login page with return URL
+      setTimeout(() => {
+        setLocation('/auth/login?redirect=' + encodeURIComponent(window.location.pathname));
+      }, 2000);
+      return;
+    }
+
+    // Show confirmation for leaving
+    if (isMember) {
+      const clubName = club?.name || 'this club'
+      if (!window.confirm(`Are you sure you want to leave ${clubName}? You will no longer have access to club-exclusive content.`)) {
+        return;
+      }
+    }
+
+    setIsJoinLeaveLoading(true);
+    
+    try {
+      if (isMember) {
+        // Leave club - call real API
+        const response = await fetch(`/api/clubs/${club!.id}/leave`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          },
+          body: JSON.stringify({ userId: user.id }),
+        });
+        
+        const responseData = await response.json();
+        
+        if (response.ok && responseData.success) {
+          setIsMember(false);
+          // Update member count
+          setClub(prev => prev ? { ...prev, memberCount: prev.memberCount - 1 } : null);
+          // Remove user from members list
+          setMembers(prev => prev.filter(member => member.userId !== user.id));
+          success(`Successfully left ${club?.name}!`);
+          
+          // Navigate back to clubs page after leaving
+          setTimeout(() => {
+            setLocation('/clubs');
+          }, 1500);
+        } else {
+          throw new Error(responseData.error || 'Failed to leave club');
+        }
+      } else {
+        // Join club - call real API
+        const response = await fetch(`/api/clubs/${club!.id}/join`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          },
+          body: JSON.stringify({ userId: user.id }),
+        });
+        
+        const responseData = await response.json();
+        
+        if (response.ok && responseData.success) {
+          setIsMember(true);
+          // Update member count
+          setClub(prev => prev ? { ...prev, memberCount: prev.memberCount + 1 } : null);
+          // Add user to members list
+          const newMember: ClubMember = {
+            id: `member-${Date.now()}`,
+            userId: user.id,
+            role: 'member',
+            user: user,
+            stats: { totalBets: 0, winRate: 0 },
+            joinedAt: new Date().toISOString()
+          };
+          setMembers(prev => [...prev, newMember]);
+          success(`Welcome to ${club?.name}!`);
+        } else {
+          throw new Error(responseData.error || 'Failed to join club');
+        }
+      }
+    } catch (err: any) {
+      success(err.message || `Failed to ${isMember ? 'leave' : 'join'} club`);
+    } finally {
+      setIsJoinLeaveLoading(false);
+    }
+  };
+
+
+  
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -219,15 +314,40 @@ const ClubDetailPage: React.FC<{ clubId?: string }> = ({ clubId: propClubId }) =
                   </>
                 )}
               </Badge>
+              <Badge variant="outline" className="text-xs">
+                <Users className="w-3 h-3 mr-1" />
+                {club.memberCount} members
+              </Badge>
             </div>
           </div>
           <Button 
             variant={isMember ? "outline" : "default"}
             size="sm" 
-            onClick={() => success(isMember ? 'Left club!' : 'Joined club!')}
-            className="transition-all duration-200"
+            onClick={handleJoinLeaveClub}
+            disabled={isJoinLeaveLoading}
+            className={`transition-all duration-200 min-w-[80px] ${
+              isMember 
+                ? "border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300"
+                : "bg-blue-500 hover:bg-blue-600 text-white"
+            }`}
           >
-            {isMember ? 'Leave' : 'Join'}
+            {isJoinLeaveLoading ? (
+              <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+            ) : (
+              <>
+                {isMember ? (
+                  <>
+                    <Minus className="w-4 h-4 mr-1" />
+                    Leave
+                  </>
+                ) : (
+                  <>
+                    <Plus className="w-4 h-4 mr-1" />
+                    Join
+                  </>
+                )}
+              </>
+            )}
           </Button>
         </div>
       </header>
@@ -245,7 +365,6 @@ const ClubDetailPage: React.FC<{ clubId?: string }> = ({ clubId: propClubId }) =
             Chat
           </TabButton>
           <TabButton isActive={activeTab === 'members'} onClick={() => {
-            console.log('👥 ClubDetailPage: Members tab clicked')
             setActiveTab('members')
           }}>
             Members
@@ -254,7 +373,7 @@ const ClubDetailPage: React.FC<{ clubId?: string }> = ({ clubId: propClubId }) =
       </div>
       
       {/* Content */}
-      <div className="p-4 pb-24">
+      <div className={`p-4 ${activeTab === 'chat' ? 'pb-4' : 'pb-24'}`}>
         {activeTab === 'overview' && (
           <div className="space-y-6">
             <Card>
@@ -403,7 +522,7 @@ const ClubDetailPage: React.FC<{ clubId?: string }> = ({ clubId: propClubId }) =
         />
       )}
       
-      <BottomNavigation />
+      {activeTab !== 'chat' && <BottomNavigation />}
     </div>
   )
 }

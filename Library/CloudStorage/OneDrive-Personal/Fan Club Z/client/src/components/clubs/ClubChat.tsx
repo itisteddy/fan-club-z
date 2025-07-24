@@ -58,6 +58,7 @@ export const ClubChat: React.FC<ClubChatProps> = ({
   const [showMembers, setShowMembers] = useState(false)
   const [loading, setLoading] = useState(true)
   const [ws, setWs] = useState<WebSocket | null>(null)
+  const [replyingTo, setReplyingTo] = useState<ClubChatMessage | null>(null)
   
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -249,7 +250,7 @@ export const ClubChat: React.FC<ClubChatProps> = ({
   }
 
   const sendMessage = async (content: string, type: 'text' | 'image' | 'file' = 'text') => {
-    console.log('📤 ClubChat: sendMessage called with:', { content, type, hasUser: !!user })
+    console.log('📤 ClubChat: sendMessage called with:', { content, type, hasUser: !!user, replyingTo: replyingTo?.id })
     
     if (!user || !content.trim()) {
       console.log('❌ ClubChat: Cannot send message - missing user or content')
@@ -258,15 +259,21 @@ export const ClubChat: React.FC<ClubChatProps> = ({
 
     console.log('📤 ClubChat: Processing message send for:', content.trim())
 
+    // Prepare final content with reply if applicable
+    const finalContent = replyingTo 
+      ? `@${replyingTo.user.firstName}: ${content.trim()}`
+      : content.trim()
+
     // Create a temporary message for immediate display
     const tempMessage: ClubChatMessage = {
       id: `temp-${Date.now()}`,
       clubId,
-      content: content.trim(),
+      content: finalContent,
       type,
       userId: user.id,
       createdAt: new Date().toISOString(),
-      user
+      user,
+      replyTo: replyingTo?.id
     }
 
     console.log('📥 ClubChat: Adding message to state:', tempMessage)
@@ -278,6 +285,9 @@ export const ClubChat: React.FC<ClubChatProps> = ({
       return newMessages
     })
 
+    // Clear reply state
+    setReplyingTo(null)
+    
     // Stop typing indicator
     handleStopTyping()
 
@@ -287,9 +297,10 @@ export const ClubChat: React.FC<ClubChatProps> = ({
         const messageData = {
           type: 'message',
           clubId,
-          content: content.trim(),
+          content: finalContent,
           messageType: type,
-          userId: user.id
+          userId: user.id,
+          replyTo: replyingTo?.id
         }
         ws.send(JSON.stringify(messageData))
         console.log('📤 ClubChat: Message sent via WebSocket')
@@ -400,7 +411,7 @@ export const ClubChat: React.FC<ClubChatProps> = ({
     <div 
       className={cn(
         "flex flex-col bg-white border border-gray-100 rounded-2xl overflow-hidden shadow-sm w-full max-w-full relative isolate",
-        isFullScreen ? "h-screen" : "h-[calc(100vh-120px)] min-h-[500px]"
+        isFullScreen ? "h-screen" : "h-[calc(100vh-200px)] min-h-[600px]"
       )}
       style={{ maxWidth: '100vw', position: 'relative', zIndex: 1 }}
       onClickCapture={(e) => {
@@ -497,7 +508,7 @@ export const ClubChat: React.FC<ClubChatProps> = ({
         {/* Messages Area */}
         <div className="flex-1 flex flex-col min-w-0 w-full">
           {/* Messages */}
-          <div className="flex-1 overflow-y-auto bg-gray-50/30 w-full pb-4">
+          <div className="flex-1 overflow-y-auto bg-gray-50/30 w-full pb-20">
             <div className="w-full" onClick={(e) => e.stopPropagation()}>
               {messages.map((message, index) => {
                 const showAvatar = index === 0 || messages[index - 1].userId !== message.userId
@@ -522,7 +533,11 @@ export const ClubChat: React.FC<ClubChatProps> = ({
                       })()}
                       onReply={(msg) => {
                         console.log('💬 ClubChat: Reply requested for message:', msg.id)
-                        alert(`Reply to: "${msg.content.substring(0, 50)}..."`)
+                        setReplyingTo(msg)
+                        // Focus input if available
+                        if (inputRef.current) {
+                          inputRef.current.focus()
+                        }
                       }}
                       onReact={handleReaction}
                       onDelete={(messageId) => {
@@ -565,6 +580,26 @@ export const ClubChat: React.FC<ClubChatProps> = ({
 
           {/* Message Input */}
           <div className="flex-shrink-0 w-full">
+            {/* Reply Preview */}
+            {replyingTo && (
+              <div className="px-4 py-2 bg-blue-50 border-t border-blue-100">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-medium text-blue-700">
+                    Replying to {replyingTo.user.firstName}
+                  </span>
+                  <button
+                    onClick={() => setReplyingTo(null)}
+                    className="p-1 hover:bg-blue-100 rounded-full transition-colors"
+                  >
+                    <X className="w-4 h-4 text-blue-600" />
+                  </button>
+                </div>
+                <p className="text-sm text-blue-600 truncate">
+                  {replyingTo.content}
+                </p>
+              </div>
+            )}
+            
             <ChatInput
               value={newMessage}
               onChange={(value) => {
@@ -577,19 +612,19 @@ export const ClubChat: React.FC<ClubChatProps> = ({
               }}
               onTyping={handleTyping}
               onStopTyping={handleStopTyping}
-              placeholder={`Message ${clubName}...`}
+              placeholder={replyingTo ? `Replying to ${replyingTo.user.firstName}...` : `Message ${clubName}...`}
               disabled={false}
               showAttachments={true}
             />
           </div>
         </div>
 
-        {/* Members Sidebar */}
+        {/* Members Sidebar - Improved positioning and interaction */}
         {showMembers && (
-          <>
-            {/* Backdrop - only covers chat area */}
+          <div className="absolute inset-0 z-50 flex">
+            {/* Backdrop */}
             <div 
-              className="absolute inset-0 bg-black/20 z-40" 
+              className="flex-1 bg-black/30 backdrop-blur-sm transition-opacity duration-200" 
               onClick={(e) => {
                 e.preventDefault()
                 e.stopPropagation()
@@ -598,16 +633,39 @@ export const ClubChat: React.FC<ClubChatProps> = ({
               }}
             />
             
-            {/* Sidebar - positioned within chat container */}
+            {/* Sidebar */}
             <div 
-              className="absolute top-0 right-0 h-full w-64 bg-gradient-to-b from-gray-50 to-white shadow-xl z-50 border-l border-gray-200"
+              className="w-80 h-full bg-white shadow-2xl border-l border-gray-200 flex flex-col"
               onClick={(e) => {
                 e.preventDefault()
                 e.stopPropagation()
                 console.log('🔍 ClubChat: Members sidebar clicked, preventing close')
               }}
             >
-              <div className="h-full">
+              {/* Sidebar Header */}
+              <div className="flex items-center justify-between p-4 border-b border-gray-100 bg-gradient-to-r from-blue-50 to-purple-50">
+                <div>
+                  <h3 className="font-semibold text-gray-900">Members</h3>
+                  <p className="text-sm text-gray-500">
+                    {onlineMembers.length} online • {members.length} total
+                  </p>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={(e) => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    setShowMembers(false)
+                  }}
+                  className="h-8 w-8 p-0 hover:bg-white/60 rounded-full"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+
+              {/* Members List Container */}
+              <div className="flex-1 overflow-hidden">
                 <MembersList
                   members={members}
                   onlineMembers={onlineMembers}
@@ -618,20 +676,23 @@ export const ClubChat: React.FC<ClubChatProps> = ({
                   }}
                   onDirectMessage={(member) => {
                     console.log('💬 ClubChat: Direct message to:', member.user.firstName)
-                    alert(`Starting direct message with ${member.user.firstName}...`)
+                    setShowMembers(false) // Close sidebar after action
+                    success(`Starting chat with ${member.user.firstName}...`)
                   }}
                   onCall={(member) => {
                     console.log('📞 ClubChat: Voice call to:', member.user.firstName)
-                    alert(`Starting voice call with ${member.user.firstName}...`)
+                    setShowMembers(false)
+                    success(`Calling ${member.user.firstName}...`)
                   }}
                   onVideoCall={(member) => {
                     console.log('📹 ClubChat: Video call to:', member.user.firstName)
-                    alert(`Starting video call with ${member.user.firstName}...`)
+                    setShowMembers(false)
+                    success(`Video calling ${member.user.firstName}...`)
                   }}
                 />
               </div>
             </div>
-          </>
+          </div>
         )}
       </div>
     </div>

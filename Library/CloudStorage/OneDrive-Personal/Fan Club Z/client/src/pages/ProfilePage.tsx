@@ -109,31 +109,38 @@ export const ProfilePage: React.FC = () => {
     return null
   }
 
-  // Calculate stats with fallbacks
+  // Calculate stats with fallbacks and proper calculations
+  const totalBets = stats?.totalBets || 0
+  const wonBets = stats?.wonBets || 0
+  const totalWinnings = stats?.totalWinnings || 0
+  const totalStaked = stats?.totalStaked || 0
+  const netProfit = totalWinnings - totalStaked
+  const winRate = totalBets > 0 ? (wonBets / totalBets) * 100 : 0
+  
   const calculatedStats = [
     { 
       label: 'Total Bets', 
-      value: stats?.totalBets?.toString() || '0', 
+      value: totalBets.toString(), 
       icon: TrendingUp, 
       color: 'text-blue-600' 
     },
     { 
       label: 'Win Rate', 
-      value: stats?.winRate ? `${stats.winRate.toFixed(0)}%` : '0%', 
+      value: `${winRate.toFixed(1)}%`, 
       icon: Trophy, 
-      color: 'text-green-600' 
+      color: winRate >= 50 ? 'text-green-600' : 'text-orange-600' 
     },
     { 
       label: 'Total Winnings', 
-      value: stats?.totalWinnings ? formatCurrency(stats.totalWinnings, currency) : formatCurrency(0, currency), 
+      value: formatCurrency(totalWinnings, currency), 
       icon: WalletIcon, 
       color: 'text-green-600' 
     },
     { 
       label: 'Net Profit', 
-      value: stats?.netProfit ? formatCurrency(stats.netProfit, currency) : formatCurrency(0, currency), 
+      value: formatCurrency(netProfit, currency), 
       icon: TrendingUp, 
-      color: 'text-blue-600' 
+      color: netProfit >= 0 ? 'text-green-600' : 'text-red-600' 
     },
   ]
 

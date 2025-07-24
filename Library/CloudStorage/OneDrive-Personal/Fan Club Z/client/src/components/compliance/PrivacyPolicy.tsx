@@ -96,28 +96,28 @@ export const PrivacyPolicy: React.FC<PrivacyPolicyProps> = ({
   ]
 
   return (
-    <div className="max-w-5xl mx-auto px-6 py-8 lg:px-8">
-      <div className="text-center mb-12">
-        <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center mx-auto mb-6 shadow-lg">
-          <Shield className="w-10 h-10 text-white" />
+    <div className="max-w-5xl mx-auto px-4 sm:px-6 py-4 sm:py-8 lg:px-8 w-full"> {/* Enhanced: Mobile-first responsive padding without w-screen */}
+      <div className="text-center mb-6 sm:mb-12"> {/* Enhanced: Responsive margin */}
+        <div className="w-16 h-16 sm:w-20 sm:h-20 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center mx-auto mb-4 sm:mb-6 shadow-lg"> {/* Enhanced: Responsive icon size */}
+          <Shield className="w-8 h-8 sm:w-10 sm:h-10 text-white" /> {/* Enhanced: Responsive icon */}
         </div>
-        <h1 className="text-title-1 font-bold mb-4 text-gray-900">Privacy Policy</h1>
-        <p className="text-body text-gray-500 mb-2">
+        <h1 className="text-xl sm:text-title-1 font-bold mb-3 sm:mb-4 text-gray-900">Privacy Policy</h1> {/* Enhanced: Responsive heading */}
+        <p className="text-sm sm:text-body text-gray-500 mb-2"> {/* Enhanced: Responsive text */}
           Last updated: {new Date().toLocaleDateString()}
         </p>
-        <p className="text-body text-gray-600 max-w-2xl mx-auto leading-relaxed">
+        <p className="text-sm sm:text-body text-gray-600 max-w-2xl mx-auto leading-relaxed px-4 sm:px-0"> {/* Enhanced: Mobile padding and responsive text */}
           Learn how we collect, use, and protect your personal information
         </p>
       </div>
 
-      <div className="bg-gradient-to-r from-blue-50 via-indigo-50 to-blue-50 border border-blue-200 rounded-2xl p-8 mb-12">
-        <div className="flex items-start space-x-4">
-          <div className="w-12 h-12 bg-blue-500 rounded-full flex items-center justify-center flex-shrink-0">
-            <Shield className="w-6 h-6 text-white" />
+      <div className="bg-gradient-to-r from-blue-50 via-indigo-50 to-blue-50 border border-blue-200 rounded-xl sm:rounded-2xl p-4 sm:p-8 mb-6 sm:mb-12"> {/* Enhanced: Mobile-friendly spacing and margins */}
+        <div className="flex items-start space-x-3 sm:space-x-4"> {/* Enhanced: Responsive spacing */}
+          <div className="w-10 h-10 sm:w-12 sm:h-12 bg-blue-500 rounded-full flex items-center justify-center flex-shrink-0"> {/* Enhanced: Responsive icon container */}
+            <Shield className="w-5 h-5 sm:w-6 sm:h-6 text-white" /> {/* Enhanced: Responsive icon */}
           </div>
           <div className="flex-1">
-            <h3 className="text-title-3 font-semibold text-blue-900 mb-3">Important Notice</h3>
-            <p className="text-body text-blue-800 leading-relaxed">
+            <h3 className="text-base sm:text-title-3 font-semibold text-blue-900 mb-2 sm:mb-3">Important Notice</h3> {/* Enhanced: Responsive text */}
+            <p className="text-sm sm:text-body text-blue-800 leading-relaxed"> {/* Enhanced: Responsive text */}
               This privacy policy explains how Fan Club Z collects, uses, and protects your information. 
               By using our service, you agree to this policy. We are committed to protecting your privacy and complying with 
               all applicable data protection laws.
@@ -126,24 +126,24 @@ export const PrivacyPolicy: React.FC<PrivacyPolicyProps> = ({
         </div>
       </div>
 
-      <div className="grid gap-8 lg:gap-10">
+      <div className="grid gap-4 sm:gap-8 lg:gap-10"> {/* Enhanced: Mobile-friendly gap spacing */}
         {sections.map((section, index) => {
           const Icon = section.icon
           return (
-            <Card key={index} className="border-gray-200 shadow-sm hover:shadow-md transition-all duration-200">
-              <CardContent className="p-8">
-                <div className="flex items-start space-x-6">
-                  <div className="w-14 h-14 bg-gradient-to-br from-gray-100 to-gray-200 rounded-2xl flex items-center justify-center flex-shrink-0">
-                    <Icon className="w-7 h-7 text-gray-600" />
+            <Card key={index} className="border-gray-200 shadow-sm hover:shadow-md transition-all duration-200"> {/* Enhanced: Mobile margin */}
+              <CardContent className="p-4 sm:p-8"> {/* Enhanced: Responsive padding */}
+                <div className="flex items-start space-x-3 sm:space-x-6"> {/* Enhanced: Responsive spacing */}
+                  <div className="w-10 h-10 sm:w-14 sm:h-14 bg-gradient-to-br from-gray-100 to-gray-200 rounded-xl sm:rounded-2xl flex items-center justify-center flex-shrink-0"> {/* Enhanced: Responsive icon container */}
+                    <Icon className="w-5 h-5 sm:w-7 sm:h-7 text-gray-600" /> {/* Enhanced: Responsive icon */}
                   </div>
                   <div className="flex-1">
-                    <h3 className="text-title-2 font-bold mb-3 text-gray-900">{section.title}</h3>
-                    <p className="text-body text-gray-600 mb-6 leading-relaxed">{section.description}</p>
-                    <div className="grid gap-3">
+                    <h3 className="text-lg sm:text-title-2 font-bold mb-2 sm:mb-3 text-gray-900">{section.title}</h3> {/* Enhanced: Responsive heading */}
+                    <p className="text-sm sm:text-body text-gray-600 mb-4 sm:mb-6 leading-relaxed">{section.description}</p> {/* Enhanced: Responsive text */}
+                    <div className="grid gap-2 sm:gap-3"> {/* Enhanced: Responsive gap */}
                       {section.content.map((item, itemIndex) => (
-                        <div key={itemIndex} className="flex items-start space-x-3">
+                        <div key={itemIndex} className="flex items-start space-x-2 sm:space-x-3"> {/* Enhanced: Responsive spacing */}
                           <span className="w-2 h-2 bg-blue-500 rounded-full mt-2 flex-shrink-0" />
-                          <span className="text-body text-gray-700 leading-relaxed">{item}</span>
+                          <span className="text-sm sm:text-body text-gray-700 leading-relaxed break-words">{item}</span> {/* Enhanced: Comprehensive text wrapping */}
                         </div>
                       ))}
                     </div>

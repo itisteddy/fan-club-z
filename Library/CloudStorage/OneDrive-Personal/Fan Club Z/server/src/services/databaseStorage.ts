@@ -52,28 +52,6 @@ export class DatabaseStorage {
   }
 
   async updateUser(id: string, updates: Partial<User>): Promise<User | null> {
-    // Handle demo user case
-    if (id === 'demo-user-id') {
-      const demoUser = {
-        id: 'demo-user-id',
-        firstName: 'Demo',
-        lastName: 'User',
-        username: 'demo_user',
-        email: 'demo@fanclubz.app',
-        phone: '+1 (555) 123-4567',
-        dateOfBirth: '1990-01-01',
-        bio: 'Demo account for testing Fan Club Z features',
-        profileImage: undefined,
-        walletAddress: '0xDemoWalletAddress123456789',
-        kycLevel: 'enhanced' as const,
-        walletBalance: updates.walletBalance !== undefined ? updates.walletBalance : 2500,
-        stripeCustomerId: updates.stripeCustomerId,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      }
-      return demoUser
-    }
-
     const dbUpdates: any = {}
     
     if (updates.firstName) dbUpdates.first_name = updates.firstName
@@ -192,9 +170,8 @@ export class DatabaseStorage {
         id: uuidv4(),
         bet_id: entryData.betId,
         user_id: entryData.userId,
-        option_id: entryData.optionId,
-        amount: entryData.amount,
-        odds: entryData.odds,
+        selected_option: entryData.optionId, // Fixed: using correct column name from migration
+        stake_amount: entryData.amount, // Fixed: using correct column name from migration
         potential_winnings: entryData.potentialWinnings,
         status: entryData.status,
         created_at: new Date(),
@@ -214,47 +191,7 @@ export class DatabaseStorage {
   }
 
   async getUserBetEntries(userId: string): Promise<any[]> {
-    // Handle demo user case with mock data
-    if (userId === 'demo-user-id') {
-      return [
-        {
-          id: 'bet-entry-1',
-          betId: '3235f312-e442-4ca1-9fce-dcf9d9b4bce5',
-          bet: {
-            id: '3235f312-e442-4ca1-9fce-dcf9d9b4bce5',
-            title: 'Will Bitcoin reach $100K by end of 2025?',
-            description: 'Bitcoin has been on a bull run. Will it hit the magical 100K mark by December 31st, 2025?',
-            status: 'open',
-            poolTotal: 23500,
-            entryDeadline: '2025-12-31T23:59:59Z'
-          },
-          selectedOption: 'yes',
-          stakeAmount: 100,
-          potentialWinnings: 156.67,
-          status: 'active',
-          createdAt: new Date('2025-07-01T11:00:00Z').toISOString()
-        },
-        {
-          id: 'bet-entry-2',
-          betId: '5c6d0df9-442b-41dc-9af6-9fb88816a727',
-          bet: {
-            id: '5c6d0df9-442b-41dc-9af6-9fb88816a727',
-            title: 'Premier League: Man City vs Arsenal - Who wins?',
-            description: 'The title race is heating up! City and Arsenal face off.',
-            status: 'open',
-            poolTotal: 25000,
-            entryDeadline: '2025-07-15T14:00:00Z'
-          },
-          selectedOption: 'city',
-          stakeAmount: 50,
-          potentialWinnings: 104.17,
-          status: 'active',
-          createdAt: new Date('2025-07-02T10:00:00Z').toISOString()
-        }
-      ]
-    }
-
-    // For real users, get from database
+    // Get bet entries from database
     try {
       const entries = await db('bet_entries')
         .join('bets', 'bet_entries.bet_id', 'bets.id')
@@ -280,8 +217,8 @@ export class DatabaseStorage {
           poolTotal: parseFloat(entry.bet_pool_total || '0'),
           entryDeadline: entry.bet_entry_deadline
         },
-        selectedOption: entry.option_id,
-        stakeAmount: parseFloat(entry.amount),
+        selectedOption: entry.selected_option,
+        stakeAmount: parseFloat(entry.stake_amount),
         potentialWinnings: parseFloat(entry.potential_winnings),
         status: entry.status,
         createdAt: entry.created_at
@@ -301,7 +238,7 @@ export class DatabaseStorage {
         author_id: commentData.authorId,
         target_type: commentData.targetType,
         target_id: commentData.targetId,
-        likes: 0,
+        likes_count: 0, // Fixed: using correct column name
         created_at: new Date(),
         updated_at: new Date()
       })
@@ -321,41 +258,31 @@ export class DatabaseStorage {
 
   // Transaction operations
   async createTransaction(txData: Omit<Transaction, 'id' | 'createdAt' | 'updatedAt'>): Promise<Transaction> {
-    // Handle demo user case
-    if (txData.userId === 'demo-user-id') {
-      const mockTransaction: Transaction = {
-        id: uuidv4(),
-        userId: txData.userId,
-        type: txData.type,
-        currency: txData.currency,
-        amount: txData.amount,
-        status: txData.status,
-        reference: txData.reference,
-        description: txData.description,
-        fromUserId: txData.fromUserId,
-        toUserId: txData.toUserId,
-        betId: txData.betId,
-        paymentIntentId: txData.paymentIntentId,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      }
-      return mockTransaction
+    // Get user's current balance for balance tracking
+    const user = await this.getUserById(txData.userId)
+    const currentBalance = user?.walletBalance || 0
+    
+    // Map transaction type to database enum values
+    let dbTransactionType = txData.type
+    if (txData.type === 'bet_lock') {
+      dbTransactionType = 'bet_placed' // Use the enum value from migration
     }
 
     const [tx] = await db('transactions')
       .insert({
         id: uuidv4(),
         user_id: txData.userId,
-        type: txData.type,
-        currency: txData.currency,
+        type: dbTransactionType,
         amount: txData.amount,
+        balance_before: currentBalance,
+        balance_after: dbTransactionType === 'bet_placed' ? currentBalance - txData.amount : currentBalance + txData.amount,
         status: txData.status,
-        reference: txData.reference,
+        reference_id: txData.reference,
         description: txData.description,
-        from_user_id: txData.fromUserId,
-        to_user_id: txData.toUserId,
-        bet_id: txData.betId,
-        payment_intent_id: txData.paymentIntentId,
+        metadata: JSON.stringify({
+          betId: txData.betId,
+          paymentIntentId: txData.paymentIntentId
+        }),
         created_at: new Date(),
         updated_at: new Date()
       })
@@ -372,37 +299,6 @@ export class DatabaseStorage {
   }
 
   async getUserTransactions(userId: string, page: number = 1, limit: number = 20): Promise<Transaction[]> {
-    // Handle demo user case
-    if (userId === 'demo-user-id') {
-      const mockTransactions: Transaction[] = [
-        {
-          id: 'txn_1',
-          userId: 'demo-user-id',
-          type: 'deposit',
-          currency: 'USD',
-          amount: 100,
-          status: 'completed',
-          reference: 'demo_deposit_001',
-          description: 'Demo wallet deposit',
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString()
-        },
-        {
-          id: 'txn_2',
-          userId: 'demo-user-id',
-          type: 'withdrawal',
-          currency: 'USD',
-          amount: 50,
-          status: 'pending',
-          reference: 'demo_withdrawal_001',
-          description: 'Demo withdrawal to bank account',
-          createdAt: new Date(Date.now() - 86400000).toISOString(),
-          updatedAt: new Date(Date.now() - 86400000).toISOString()
-        }
-      ]
-      return mockTransactions
-    }
-
     const offset = (page - 1) * limit
     const transactions = await db('transactions')
       .where('user_id', userId)
@@ -414,11 +310,6 @@ export class DatabaseStorage {
   }
 
   async getUserTransactionCount(userId: string): Promise<number> {
-    // Handle demo user case
-    if (userId === 'demo-user-id') {
-      return 2 // Mock transaction count
-    }
-
     const result = await db('transactions')
       .where('user_id', userId)
       .count('* as count')
@@ -429,14 +320,17 @@ export class DatabaseStorage {
 
   // Club operations
   async createClub(clubData: Omit<Club, 'id' | 'createdAt' | 'updatedAt'>): Promise<Club> {
+    const clubId = uuidv4()
+    
+    // Create the club
     const [club] = await db('clubs')
       .insert({
-        id: uuidv4(),
+        id: clubId,
         name: clubData.name,
         description: clubData.description,
         category: clubData.category,
         creator_id: clubData.creatorId,
-        member_count: clubData.memberCount,
+        member_count: clubData.memberCount || 1,
         is_private: clubData.isPrivate,
         image_url: clubData.imageUrl,
         rules: clubData.rules,
@@ -444,6 +338,24 @@ export class DatabaseStorage {
         updated_at: new Date()
       })
       .returning('*')
+
+    // Create creator membership
+    try {
+      await db('club_memberships')
+        .insert({
+          id: uuidv4(),
+          club_id: clubId,
+          user_id: clubData.creatorId,
+          role: 'owner',
+          status: 'active',
+          joined_at: new Date(),
+          created_at: new Date(),
+          updated_at: new Date()
+        })
+    } catch (membershipError) {
+      console.warn('Failed to create creator membership:', membershipError)
+      // Don't fail the entire club creation if membership fails
+    }
 
     return this.mapClubFromDB(club)
   }
@@ -458,125 +370,129 @@ export class DatabaseStorage {
       const clubs = await db('clubs')
         .orderBy('created_at', 'desc')
       
-      const mappedClubs = clubs.map(club => this.mapClubFromDB(club))
-      
-      // If no clubs in DB, return mock data for demo
-      if (mappedClubs.length === 0) {
-        return [
-          {
-            id: 'club-demo-1',
-            name: 'Premier League Predictors',
-            description: 'The ultimate destination for Premier League betting and predictions',
-            category: 'sports',
-            creatorId: 'demo-user-id',
-            memberCount: 1247,
-            activeBets: 8,
-            discussions: 45,
-            isPrivate: false,
-            imageUrl: '⚽',
-            rules: 'Be respectful, no spam, only Premier League related bets.',
-            createdAt: new Date('2025-06-15T10:00:00Z').toISOString(),
-            updatedAt: new Date('2025-07-04T15:45:00Z').toISOString()
-          },
-          {
-            id: 'club-demo-2',
-            name: 'Crypto Bulls',
-            description: 'Betting on cryptocurrency prices and market movements',
-            category: 'crypto',
-            creatorId: 'user-1',
-            memberCount: 892,
-            activeBets: 15,
-            discussions: 23,
-            isPrivate: false,
-            imageUrl: '₿',
-            rules: 'Only crypto-related bets. No financial advice.',
-            createdAt: new Date('2025-06-20T14:30:00Z').toISOString(),
-            updatedAt: new Date('2025-07-04T12:00:00Z').toISOString()
-          },
-          {
-            id: 'club-demo-3',
-            name: 'Pop Culture Central',
-            description: 'Celebrity drama, award shows, and entertainment bets',
-            category: 'entertainment',
-            creatorId: 'user-2',
-            memberCount: 567,
-            activeBets: 12,
-            discussions: 34,
-            isPrivate: false,
-            imageUrl: '🎭',
-            rules: 'Keep it fun and respectful. No personal attacks.',
-            createdAt: new Date('2025-06-25T09:15:00Z').toISOString(),
-            updatedAt: new Date('2025-07-04T10:30:00Z').toISOString()
-          },
-          {
-            id: 'club-demo-4',
-            name: 'Political Punters',
-            description: 'Election predictions and political betting',
-            category: 'politics',
-            creatorId: 'user-3',
-            memberCount: 423,
-            activeBets: 6,
-            discussions: 18,
-            isPrivate: false,
-            imageUrl: '🗳️',
-            rules: 'Keep discussions civil and fact-based.',
-            createdAt: new Date('2025-06-30T16:45:00Z').toISOString(),
-            updatedAt: new Date('2025-07-04T14:20:00Z').toISOString()
-          },
-          {
-            id: 'club-demo-5',
-            name: 'Tech Titans',
-            description: 'Technology trends and startup predictions',
-            category: 'technology',
-            creatorId: 'user-4',
-            memberCount: 334,
-            activeBets: 9,
-            discussions: 27,
-            isPrivate: false,
-            imageUrl: '💻',
-            rules: 'Tech-focused bets only. Share insights responsibly.',
-            createdAt: new Date('2025-07-01T11:30:00Z').toISOString(),
-            updatedAt: new Date('2025-07-04T13:15:00Z').toISOString()
-          }
-        ]
-      }
-      
-      return mappedClubs
+      return clubs.map(club => this.mapClubFromDB(club))
     } catch (error) {
       console.error('Error fetching clubs:', error)
-      // Return mock data as fallback
-      return [
-        {
-          id: 'club-demo-1',
-          name: 'Premier League Predictors',
-          description: 'The ultimate destination for Premier League betting and predictions',
-          category: 'sports',
-          creatorId: 'demo-user-id',
-          memberCount: 1247,
-          activeBets: 8,
-          discussions: 45,
-          isPrivate: false,
-          imageUrl: '⚽',
-          rules: 'Be respectful, no spam, only Premier League related bets.',
-          createdAt: new Date('2025-06-15T10:00:00Z').toISOString(),
-          updatedAt: new Date('2025-07-04T15:45:00Z').toISOString()
-        },
-        {
-          id: 'club-demo-2',
-          name: 'Crypto Bulls',
-          description: 'Betting on cryptocurrency prices and market movements',
-          category: 'crypto',
-          creatorId: 'user-1',
-          memberCount: 892,
-          activeBets: 15,
-          discussions: 23,
-          isPrivate: false,
-          imageUrl: '₿',
-          rules: 'Only crypto-related bets. No financial advice.',
-          createdAt: new Date('2025-06-20T14:30:00Z').toISOString(),
-          updatedAt: new Date('2025-07-04T12:00:00Z').toISOString()
+      return []
+    }
+  }
+
+  async getClubsByUserId(userId: string): Promise<Club[]> {
+    try {
+      // Get clubs where the user is a member (including creator)
+      const clubs = await db('clubs')
+        .join('club_memberships', 'clubs.id', 'club_memberships.club_id')
+        .where('club_memberships.user_id', userId)
+        .where('club_memberships.status', 'active')
+        .select('clubs.*', 'club_memberships.role as membership_role')
+        .orderBy('clubs.created_at', 'desc')
+      
+      return clubs.map(club => this.mapClubFromDB(club))
+    } catch (error) {
+      console.error('Error fetching user clubs:', error)
+      // Fallback to creator-only clubs
+      try {
+        const creatorClubs = await db('clubs')
+          .where('creator_id', userId)
+          .orderBy('created_at', 'desc')
+        return creatorClubs.map(club => this.mapClubFromDB(club))
+      } catch (fallbackError) {
+        console.error('Fallback fetch also failed:', fallbackError)
+        return []
+      }
+    }
+  }
+
+  async joinClub(userId: string, clubId: string): Promise<boolean> {
+    try {
+      // Check if user is already a member
+      const existingMembership = await db('club_memberships')
+        .where('club_id', clubId)
+        .where('user_id', userId)
+        .first()
+      
+      if (existingMembership) {
+        // If they left before, reactivate membership
+        if (existingMembership.status === 'left') {
+          await db('club_memberships')
+            .where('id', existingMembership.id)
+            .update({
+              status: 'active',
+              joined_at: new Date(),
+              left_at: null,
+              updated_at: new Date()
+            })
+        } else {
+          // Already an active member
+          return true
         }
-      ]
+      } else {
+        // Create new membership
+        await db('club_memberships')
+          .insert({
+            id: uuidv4(),
+            club_id: clubId,
+            user_id: userId,
+            role: 'member',
+            status: 'active',
+            joined_at: new Date(),
+            created_at: new Date(),
+            updated_at: new Date()
+          })
+      }
+      
+      // Update club member count
+      await db('clubs')
+        .where('id', clubId)
+        .increment('member_count', 1)
+      
+      return true
+    } catch (error) {
+      console.error('Error joining club:', error)
+      return false
+    }
+  }
+
+  async leaveClub(userId: string, clubId: string): Promise<boolean> {
+    try {
+      // Check if user is a member
+      const membership = await db('club_memberships')
+        .where('club_id', clubId)
+        .where('user_id', userId)
+        .where('status', 'active')
+        .first()
+      
+      if (!membership) {
+        // User is not an active member
+        return false
+      }
+      
+      // Check if user is the creator/owner
+      const club = await db('clubs').where('id', clubId).first()
+      if (club && club.creator_id === userId) {
+        // Creator cannot leave their own club (would need to transfer ownership)
+        return false
+      }
+      
+      // Update membership status to 'left'
+      await db('club_memberships')
+        .where('id', membership.id)
+        .update({
+          status: 'left',
+          left_at: new Date(),
+          updated_at: new Date()
+        })
+      
+      // Decrement club member count
+      await db('clubs')
+        .where('id', clubId)
+        .where('member_count', '>', 0) // Prevent negative counts
+        .decrement('member_count', 1)
+      
+      return true
+    } catch (error) {
+      console.error('Error leaving club:', error)
+      return false
     }
   }
 
@@ -636,19 +552,33 @@ export class DatabaseStorage {
   }
 
   private mapTransactionFromDB(dbTransaction: any): Transaction {
+    // Parse metadata if it exists
+    let metadata = {}
+    try {
+      metadata = dbTransaction.metadata ? JSON.parse(dbTransaction.metadata) : {}
+    } catch (e) {
+      console.warn('Failed to parse transaction metadata:', e)
+    }
+    
+    // Map database transaction type back to schema type
+    let transactionType = dbTransaction.type
+    if (dbTransaction.type === 'bet_placed') {
+      transactionType = 'bet_lock' // Map back to schema enum value
+    }
+    
     return {
       id: dbTransaction.id,
       userId: dbTransaction.user_id,
-      type: dbTransaction.type,
-      currency: dbTransaction.currency || 'USD',
+      type: transactionType, // Fixed: mapped type
+      currency: 'USD', // Default currency
       amount: parseFloat(dbTransaction.amount),
       status: dbTransaction.status,
-      reference: dbTransaction.reference || '',
+      reference: dbTransaction.reference_id || '', // Fixed: using correct column name
       description: dbTransaction.description,
-      fromUserId: dbTransaction.from_user_id,
-      toUserId: dbTransaction.to_user_id,
-      betId: dbTransaction.bet_id,
-      paymentIntentId: dbTransaction.payment_intent_id,
+      fromUserId: undefined, // Not stored in current schema
+      toUserId: undefined, // Not stored in current schema  
+      betId: (metadata as any)?.betId, // From metadata
+      paymentIntentId: (metadata as any)?.paymentIntentId, // From metadata
       createdAt: dbTransaction.created_at,
       updatedAt: dbTransaction.updated_at
     }
@@ -674,30 +604,74 @@ export class DatabaseStorage {
 
   // Helper for BetEntry
   private mapBetEntryFromDB(dbEntry: any): BetEntry {
+    // Debug logging to see what we're getting from the database
+    console.log('🔍 mapBetEntryFromDB - dbEntry.created_at type:', typeof dbEntry.created_at, 'value:', dbEntry.created_at)
+    console.log('🔍 mapBetEntryFromDB - dbEntry.updated_at type:', typeof dbEntry.updated_at, 'value:', dbEntry.updated_at)
+    
+    // Safe date handling
+    const formatDate = (dateValue: any): string => {
+      if (typeof dateValue === 'string') {
+        return dateValue
+      }
+      if (dateValue instanceof Date) {
+        return dateValue.toISOString()
+      }
+      if (dateValue && typeof dateValue === 'object' && dateValue.toISOString) {
+        return dateValue.toISOString()
+      }
+      if (typeof dateValue === 'number') {
+        // Handle numeric timestamps (milliseconds since epoch)
+        return new Date(dateValue).toISOString()
+      }
+      // Fallback to current date if we can't parse it
+      console.warn('⚠️ Could not parse date value:', dateValue, 'using current date')
+      return new Date().toISOString()
+    }
+    
     return {
       id: dbEntry.id,
       betId: dbEntry.bet_id,
       userId: dbEntry.user_id,
-      optionId: dbEntry.option_id,
-      amount: parseFloat(dbEntry.amount),
-      odds: parseFloat(dbEntry.odds),
+      optionId: dbEntry.selected_option, // Fixed: using correct column name from migration
+      amount: parseFloat(dbEntry.stake_amount), // Fixed: using correct column name from migration
+      odds: parseFloat(dbEntry.odds || 1.5), // Default odds if not set
       potentialWinnings: parseFloat(dbEntry.potential_winnings),
       status: dbEntry.status,
-      createdAt: dbEntry.created_at.toISOString(),
-      updatedAt: dbEntry.updated_at.toISOString()
+      createdAt: formatDate(dbEntry.created_at),
+      updatedAt: formatDate(dbEntry.updated_at)
     }
   }
 
   private mapCommentFromDB(dbComment: any): Comment {
+    // Safe date handling
+    const formatDate = (dateValue: any): string => {
+      if (typeof dateValue === 'string') {
+        return dateValue
+      }
+      if (dateValue instanceof Date) {
+        return dateValue.toISOString()
+      }
+      if (dateValue && typeof dateValue === 'object' && dateValue.toISOString) {
+        return dateValue.toISOString()
+      }
+      if (typeof dateValue === 'number') {
+        // Handle numeric timestamps (milliseconds since epoch)
+        return new Date(dateValue).toISOString()
+      }
+      // Fallback to current date if we can't parse it
+      console.warn('⚠️ Could not parse date value:', dateValue, 'using current date')
+      return new Date().toISOString()
+    }
+    
     return {
       id: dbComment.id,
       content: dbComment.content,
       authorId: dbComment.author_id,
       targetType: dbComment.target_type,
       targetId: dbComment.target_id,
-      likes: dbComment.likes,
-      createdAt: dbComment.created_at.toISOString(),
-      updatedAt: dbComment.updated_at.toISOString()
+      likes: dbComment.likes_count || 0, // Fixed: reading from correct column
+      createdAt: formatDate(dbComment.created_at),
+      updatedAt: formatDate(dbComment.updated_at)
     }
   }
 
@@ -814,6 +788,34 @@ export class DatabaseStorage {
       .update(updates)
 
     return result > 0
+  }
+
+  // Method aliases for route compatibility
+  async getBetEntriesByUserId(userId: string): Promise<BetEntry[]> {
+    return this.getBetEntriesByUser(userId);
+  }
+
+  async getCommentsByBetId(betId: string): Promise<Comment[]> {
+    return this.getCommentsByBet(betId);
+  }
+
+  async getTransactionsByUserId(userId: string): Promise<Transaction[]> {
+    return this.getTransactionsByUser(userId);
+  }
+
+  // Bet reaction handling
+  async handleBetReaction(userId: string, betId: string, type: 'like' | 'unlike'): Promise<{ isLiked: boolean; totalLikes: number }> {
+    // For now, implement a simple in-memory reaction system
+    // In production, this would use a proper database table
+    
+    // Mock implementation for MVP
+    const isLiked = type === 'like';
+    const totalLikes = Math.floor(Math.random() * 50) + (isLiked ? 1 : 0); // Mock count
+    
+    return {
+      isLiked,
+      totalLikes
+    };
   }
 
   // Helper methods for KYC

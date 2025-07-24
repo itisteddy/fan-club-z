@@ -101,28 +101,28 @@ export const ResponsibleGambling: React.FC<ResponsibleGamblingProps> = ({
   }
 
   return (
-    <div className="max-w-5xl mx-auto px-6 py-8 lg:px-8">
-      <div className="text-center mb-12">
-        <div className="w-20 h-20 bg-gradient-to-br from-red-500 to-red-600 rounded-full flex items-center justify-center mx-auto mb-6 shadow-lg">
-          <Heart className="w-10 h-10 text-white" />
+    <div className="max-w-5xl mx-auto px-4 sm:px-6 py-4 sm:py-8 lg:px-8 w-full"> {/* Enhanced: Mobile-first responsive padding without w-screen */}
+      <div className="text-center mb-6 sm:mb-12"> {/* Enhanced: Responsive margin */}
+        <div className="w-16 h-16 sm:w-20 sm:h-20 bg-gradient-to-br from-red-500 to-red-600 rounded-full flex items-center justify-center mx-auto mb-4 sm:mb-6 shadow-lg"> {/* Enhanced: Responsive icon size */}
+          <Heart className="w-8 h-8 sm:w-10 sm:h-10 text-white" /> {/* Enhanced: Responsive icon */}
         </div>
-        <h1 className="text-title-1 font-bold mb-4 text-gray-900">Responsible Gambling</h1>
-        <p className="text-body text-gray-600 max-w-2xl mx-auto leading-relaxed">
+        <h1 className="text-xl sm:text-title-1 font-bold mb-3 sm:mb-4 text-gray-900">Responsible Gambling</h1> {/* Enhanced: Responsive heading */}
+        <p className="text-sm sm:text-body text-gray-600 max-w-2xl mx-auto leading-relaxed px-4 sm:px-0"> {/* Enhanced: Mobile padding and responsive text */}
           We're committed to helping you gamble responsibly and safely. Learn about our tools and resources.
         </p>
       </div>
 
       {/* Warning Banner */}
-      <div className="bg-gradient-to-r from-red-50 via-pink-50 to-red-50 border border-red-200 rounded-2xl p-8 mb-12">
-        <div className="flex items-start space-x-4">
-          <div className="w-12 h-12 bg-red-500 rounded-full flex items-center justify-center flex-shrink-0">
-            <AlertTriangle className="w-6 h-6 text-white" />
+      <div className="bg-gradient-to-r from-red-50 via-pink-50 to-red-50 border border-red-200 rounded-xl sm:rounded-2xl p-4 sm:p-8 mb-6 sm:mb-12"> {/* Enhanced: Mobile-friendly spacing */}
+        <div className="flex items-start space-x-3 sm:space-x-4"> {/* Enhanced: Responsive spacing */}
+          <div className="w-10 h-10 sm:w-12 sm:h-12 bg-red-500 rounded-full flex items-center justify-center flex-shrink-0"> {/* Enhanced: Responsive icon container */}
+            <AlertTriangle className="w-5 h-5 sm:w-6 sm:h-6 text-white" /> {/* Enhanced: Responsive icon */}
           </div>
           <div className="flex-1">
-            <h3 className="text-title-2 font-bold text-red-900 mb-3">
+            <h3 className="text-lg sm:text-title-2 font-bold text-red-900 mb-2 sm:mb-3"> {/* Enhanced: Responsive text */}
               Gambling Should Be Fun, Not Harmful
             </h3>
-            <p className="text-body text-red-800 leading-relaxed">
+            <p className="text-sm sm:text-body text-red-800 leading-relaxed"> {/* Enhanced: Responsive text */}
               If gambling is causing problems in your life, help is available. 
               You can set limits, take breaks, or seek professional support. Remember, gambling should always be enjoyable entertainment, not a way to solve financial problems.
             </p>

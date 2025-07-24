@@ -95,7 +95,7 @@ export const SecuritySettings: React.FC<SecuritySettingsProps> = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center space-x-2">
             <Shield className="w-5 h-5 text-green-600" />
@@ -103,7 +103,7 @@ export const SecuritySettings: React.FC<SecuritySettingsProps> = ({
           </DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-6">
+        <div className="space-y-6 pb-4">
           {/* Password Change */}
           <Card>
             <CardContent className="p-4">

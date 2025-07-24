@@ -114,9 +114,14 @@ export const ClubsTab: React.FC = () => {
     { id: 'gaming', label: 'Gaming', emoji: '🎮' }
   ]
 
+  // Helper function to get category emoji
+  const getCategoryEmoji = (category: string) => {
+    const cat = categories.find(c => c.id === category)
+    return cat?.emoji || '🏠'
+  }
+
   // Pull-to-refresh functionality
   const handleRefresh = useCallback(async () => {
-    console.log('🔄 Refreshing clubs...')
     await Promise.all([
       fetchClubs(),
       user ? fetchUserClubs() : Promise.resolve()
@@ -128,41 +133,27 @@ export const ClubsTab: React.FC = () => {
   const { containerRef, isRefreshing, pullDistance, isPulling } = usePullToRefresh(handleRefresh)
 
   useEffect(() => {
-    console.log('🚀 ClubsTab: Component mounted, fetching clubs...')
     fetchClubs()
     if (user) {
-      console.log('👤 ClubsTab: User authenticated, fetching user clubs...')
       fetchUserClubs()
-    } else {
-      console.log('⚠️ ClubsTab: No user authenticated')
     }
   }, [user])
 
-  // Debug effect to log state changes
-  useEffect(() => {
-    console.log('📊 ClubsTab: State update - clubs:', clubs.length, 'loading:', loading, 'selectedCategory:', selectedCategory)
-  }, [clubs, loading, selectedCategory])
-
   const fetchClubs = async () => {
     try {
-      console.log('🔍 ClubsTab: Starting to fetch clubs...')
       setLoading(true)
       
       // Use the API client with automatic fallback URL detection
       const data = await api.get('/clubs') as any
-      console.log('📊 ClubsTab: Clubs API response data:', data)
       
       if (data.success && data.data && data.data.clubs) {
-        console.log(`✅ ClubsTab: Found ${data.data.clubs.length} clubs`)
         setClubs(data.data.clubs)
         setTrendingClubs(data.data.clubs.slice(0, 5))
       } else if (data.clubs) {
         // Fallback for different response structure
-        console.log(`✅ ClubsTab: Found ${data.clubs.length} clubs (fallback structure)`)
         setClubs(data.clubs)
         setTrendingClubs(data.clubs.slice(0, 5))
       } else {
-        console.warn('⚠️ ClubsTab: Unexpected response structure, using mock data:', data)
         // Use mock data if API fails
         const mockClubs = [
           {
@@ -208,12 +199,11 @@ export const ClubsTab: React.FC = () => {
             updatedAt: new Date('2025-07-03T11:30:00Z').toISOString()
           }
         ]
-        console.log('🔄 ClubsTab: Using mock clubs data')
+        // Using mock clubs data
         setClubs(mockClubs)
         setTrendingClubs(mockClubs.slice(0, 5))
       }
     } catch (err: any) {
-      console.error('❌ ClubsTab: Error fetching clubs, falling back to mock data:', err)
       // Use mock data if API fails completely
       const mockClubs = [
         {
@@ -259,7 +249,7 @@ export const ClubsTab: React.FC = () => {
           updatedAt: new Date('2025-07-04T11:30:00Z').toISOString()
         }
       ]
-      console.log('🔄 ClubsTab: Using fallback mock data due to API error')
+      // Using fallback mock data due to API error
       setClubs(mockClubs)
       setTrendingClubs(mockClubs.slice(0, 5))
       // Show a success message instead of error for better UX
@@ -273,16 +263,13 @@ export const ClubsTab: React.FC = () => {
     if (!user) return
     
     try {
-      console.log('🔍 ClubsTab: Fetching user clubs for:', user.id)
       const data = await api.get(`/clubs/user/${user.id}`)
-      console.log('📊 ClubsTab: User clubs response:', data)
       
       if (data.success && data.data && data.data.clubs) {
         setUserClubs(data.data.clubs)
       } else if (data.clubs) {
         setUserClubs(data.clubs)
       } else {
-        console.log('📊 ClubsTab: No user clubs data, using mock data for demo user')
         // Provide mock user clubs for demo users
         const mockUserClubs = user.id === 'demo-user-id' ? [
           {
@@ -303,7 +290,6 @@ export const ClubsTab: React.FC = () => {
         setUserClubs(mockUserClubs)
       }
     } catch (err: any) {
-      console.error('❌ ClubsTab: Error fetching user clubs, using fallback:', err)
       // Provide fallback data for demo users
       const mockUserClubs = user.id === 'demo-user-id' ? [
         {
@@ -338,31 +324,62 @@ export const ClubsTab: React.FC = () => {
 
     try {
       setLoading(true)
+      
+      // Creating club
+      
+      // Create the club data to send to API
+      const clubData = {
+        name: newClub.name,
+        description: newClub.description,
+        category: newClub.category,
+        isPrivate: newClub.isPrivate,
+        maxMembers: newClub.maxMembers,
+        rules: newClub.rules
+      }
+
+      // Call the API to create the club
       const response = await fetch('/api/clubs', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${localStorage.getItem('token')}`,
         },
-        body: JSON.stringify({
-          ...newClub,
-          creatorId: user.id,
-        }),
+        body: JSON.stringify(clubData),
       })
 
-      if (response.ok) {
-        const data = await response.json()
-        success('Club created successfully!')
-        setShowCreateClub(false)
-        setNewClub({ name: '', description: '', category: '', isPrivate: false, maxMembers: 100, rules: '' })
-        fetchClubs()
-        fetchUserClubs()
-      } else {
-        const errorData = await response.json()
-        error(errorData.error || 'Failed to create club')
+      const responseData = await response.json()
+      
+      if (!response.ok) {
+        throw new Error(responseData.error || `Server error: ${response.status}`)
       }
-    } catch (err) {
-      error('Failed to create club')
+      
+      if (!responseData.success || !responseData.data?.club) {
+        throw new Error('Invalid response from server')
+      }
+      
+      const createdClub = responseData.data.club
+      
+      // Update local state with the created club
+      setClubs(prev => [createdClub, ...prev])
+      setUserClubs(prev => [createdClub, ...prev])
+      
+      success('Club created successfully!')
+      setShowCreateClub(false)
+      setNewClub({ name: '', description: '', category: '', isPrivate: false, maxMembers: 100, rules: '' })
+      
+      // Navigate to the new club only after successful creation
+      setTimeout(() => {
+        navigate(`/clubs/${createdClub.id}`)
+      }, 500)
+      
+    } catch (err: any) {
+      
+      // Show specific error message to user
+      const errorMessage = err.message || 'Failed to create club. Please try again.'
+      error(errorMessage)
+      
+      // Don't navigate or update local state on error
+      
     } finally {
       setLoading(false)
     }
@@ -370,8 +387,14 @@ export const ClubsTab: React.FC = () => {
 
   const handleJoinClub = async (clubId: string) => {
     if (!user) {
-      error('Please sign in to join a club')
-      return
+      // Better UX for unauthenticated users
+      error('Please sign in to join clubs');
+      
+      // Redirect to login page with return URL
+      setTimeout(() => {
+        navigate('/auth/login?redirect=' + encodeURIComponent('/clubs'));
+      }, 2000);
+      return;
     }
 
     try {
@@ -381,22 +404,33 @@ export const ClubsTab: React.FC = () => {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${localStorage.getItem('token')}`,
         },
+        body: JSON.stringify({ userId: user.id }),
       })
 
-      if (response.ok) {
+      const responseData = await response.json()
+      
+      if (response.ok && responseData.success) {
         success('Joined club successfully!')
-        fetchUserClubs()
+        // Refresh user clubs to show the new membership
+        await fetchUserClubs()
+        await fetchClubs() // Refresh main clubs list to update member counts
       } else {
-        const errorData = await response.json()
-        error(errorData.error || 'Failed to join club')
+        const errorMessage = responseData.error || 'Failed to join club'
+        error(errorMessage)
       }
-    } catch (err) {
-      error('Failed to join club')
+    } catch (err: any) {
+      error('Failed to join club. Please try again.')
     }
   }
 
   const handleLeaveClub = async (clubId: string) => {
     if (!user) return
+
+    // Show confirmation dialog
+    const clubName = clubs.find(club => club.id === clubId)?.name || 'this club'
+    if (!window.confirm(`Are you sure you want to leave ${clubName}? You will no longer have access to club-exclusive content.`)) {
+      return
+    }
 
     try {
       const response = await fetch(`/api/clubs/${clubId}/leave`, {
@@ -405,17 +439,23 @@ export const ClubsTab: React.FC = () => {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${localStorage.getItem('token')}`,
         },
+        body: JSON.stringify({ userId: user.id }),
       })
 
-      if (response.ok) {
-        success('Left club successfully')
-        fetchUserClubs()
+      const responseData = await response.json()
+      
+      if (response.ok && responseData.success) {
+        success(`Left ${clubName} successfully!`)
+        // Refresh user clubs to remove the membership
+        await fetchUserClubs()
+        // Also refresh the main clubs list to update member counts
+        await fetchClubs()
       } else {
-        const errorData = await response.json()
-        error(errorData.error || 'Failed to leave club')
+        const errorMessage = responseData.error || 'Failed to leave club'
+        error(errorMessage)
       }
-    } catch (err) {
-      error('Failed to leave club')
+    } catch (err: any) {
+      error('Failed to leave club. Please try again.')
     }
   }
 
@@ -425,11 +465,6 @@ export const ClubsTab: React.FC = () => {
     const matchesCategory = selectedCategory === 'all' || club.category === selectedCategory
     return matchesSearch && matchesCategory
   })
-
-  const getCategoryEmoji = (category: string) => {
-    const cat = categories.find(c => c.id === category)
-    return cat?.emoji || '🏠'
-  }
 
   const getMemberRole = (club: Club) => {
     if (!user) return null
@@ -492,13 +527,11 @@ export const ClubsTab: React.FC = () => {
                   {/* Mobile-optimized horizontal scroll */}
                   <div className="flex gap-2 overflow-x-auto py-2 -mx-2 px-2 scrollbar-hide scroll-smooth-x">
                     {categories.map(category => {
-                      console.log('🏷️ Rendering category:', category.label, 'selected:', selectedCategory === category.id)
                       return (
                         <button
                           key={category.id}
                           data-testid={`category-${category.id}`}
                           onClick={() => {
-                            console.log('💆 Category clicked:', category.id)
                             setSelectedCategory(category.id)
                           }}
                           className={cn(
@@ -524,7 +557,7 @@ export const ClubsTab: React.FC = () => {
             </div>
 
             {/* Create Club CTA */}
-            {user && (
+            {user ? (
               <div className="px-4 pt-6">
                 <Card className="mb-6 bg-gradient-to-r from-blue-500 to-purple-600 text-white">
                   <CardContent className="p-4">
@@ -543,6 +576,30 @@ export const ClubsTab: React.FC = () => {
                       >
                         <Plus className="w-4 h-4 mr-1" />
                         Create Club
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            ) : (
+              <div className="px-4 pt-6">
+                <Card className="mb-6 bg-gradient-to-r from-green-500 to-blue-600 text-white">
+                  <CardContent className="p-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h3 className="font-bold mb-1">Join the Community</h3>
+                        <p className="text-sm text-green-100">
+                          Sign in to join clubs and start betting with friends
+                        </p>
+                      </div>
+                      <Button 
+                        variant="secondary" 
+                        size="sm" 
+                        className="bg-white text-green-600 hover:bg-gray-100"
+                        onClick={() => navigate('/auth/login?redirect=' + encodeURIComponent('/clubs'))}
+                      >
+                        <UserPlus className="w-4 h-4 mr-1" />
+                        Sign In
                       </Button>
                     </div>
                   </CardContent>
@@ -649,24 +706,7 @@ export const ClubsTab: React.FC = () => {
         )}
       </div>
 
-      {/* Debug Panel - Remove in production */}
-      {process.env.NODE_ENV === 'development' && (
-        <div className="px-4 mb-4">
-          <Card className="bg-yellow-50 border-yellow-200">
-            <CardContent className="p-3">
-              <div className="text-xs text-yellow-800">
-                <div><strong>Debug Info:</strong></div>
-                <div>Loading: {loading ? 'Yes' : 'No'}</div>
-                <div>Clubs Count: {clubs.length}</div>
-                <div>Filtered Clubs: {filteredClubs.length}</div>
-                <div>Selected Category: {selectedCategory}</div>
-                <div>Active Tab: {activeTab}</div>
-                <div>User: {user ? `${user.firstName} (${user.id})` : 'Not authenticated'}</div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      )}
+      
 
       {/* Create Club Modal */}
       <Dialog open={showCreateClub} onOpenChange={setShowCreateClub}>
@@ -835,13 +875,13 @@ const ClubCard: React.FC<ClubCardProps> = ({ club, onJoin, onLeave, userRole, is
                 </Button>
                 {!isOwner && (
                   <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={onLeave}
-                    data-testid="leave-club-button"
-                    className="text-xs whitespace-nowrap h-8 px-2 touch-manipulation"
+                  variant="outline"
+                  size="sm"
+                  onClick={onLeave}
+                  data-testid="leave-club-button"
+                  className="text-xs whitespace-nowrap h-8 px-2 touch-manipulation text-red-600 border-red-200 hover:bg-red-50 hover:border-red-300 transition-all duration-200"
                   >
-                    Leave
+                  Leave
                   </Button>
                 )}
               </>
@@ -851,7 +891,12 @@ const ClubCard: React.FC<ClubCardProps> = ({ club, onJoin, onLeave, userRole, is
                 onClick={onJoin}
                 disabled={club.isPrivate}
                 data-testid="join-club-button"
-                className="text-xs whitespace-nowrap h-8 px-2 touch-manipulation"
+                className={`text-xs whitespace-nowrap h-8 px-2 touch-manipulation transition-all duration-200 ${
+                  club.isPrivate 
+                    ? 'bg-gray-400 text-gray-600 cursor-not-allowed' 
+                    : 'bg-green-500 hover:bg-green-600 text-white'
+                }`}
+                title={club.isPrivate ? 'Private club - invite only' : 'Join this club'}
               >
                 {club.isPrivate ? 'Private' : 'Join'}
               </Button>

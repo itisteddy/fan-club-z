@@ -1,0 +1,1 @@
+chmod +x run-final-fix.sh && ./run-final-fix.sh

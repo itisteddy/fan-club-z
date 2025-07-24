@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fan Club Z - Mobile Test</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: #f5f5f5;
+            color: #333;
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .logo {
+            width: 60px;
+            height: 60px;
+            background: #007AFF;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 15px;
+            color: white;
+            font-size: 24px;
+            font-weight: bold;
+        }
+        .status {
+            padding: 12px;
+            border-radius: 8px;
+            margin: 10px 0;
+            font-weight: 500;
+        }
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .status.loading {
+            background: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeaa7;
+        }
+        button {
+            background: #007AFF;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 16px;
+            cursor: pointer;
+            width: 100%;
+            margin: 10px 0;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        .info {
+            background: #e7f3ff;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 15px 0;
+            border-left: 4px solid #007AFF;
+        }
+        .small {
+            font-size: 14px;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="logo">Z</div>
+            <h1>Fan Club Z - Mobile Test</h1>
+            <p class="small">Testing mobile connectivity and API access</p>
+        </div>
+
+        <div id="device-info" class="info">
+            <strong>Device Info:</strong><br>
+            <span id="device-details"></span>
+        </div>
+
+        <div id="network-info" class="info">
+            <strong>Network Info:</strong><br>
+            <span id="network-details"></span>
+        </div>
+
+        <div id="api-status">
+            <h3>API Connectivity Test</h3>
+            <div id="api-results"></div>
+            <button onclick="testAPI()">Test API Connection</button>
+        </div>
+
+        <div id="app-status">
+            <h3>Full App Test</h3>
+            <button onclick="loadApp()">Load Full App</button>
+        </div>
+    </div>
+
+    <script>
+        // Display device info
+        document.addEventListener('DOMContentLoaded', function() {
+            const deviceDetails = document.getElementById('device-details');
+            deviceDetails.innerHTML = `
+                User Agent: ${navigator.userAgent}<br>
+                Screen: ${screen.width}x${screen.height}<br>
+                Viewport: ${window.innerWidth}x${window.innerHeight}<br>
+                Platform: ${navigator.platform}<br>
+                Online: ${navigator.onLine ? 'Yes' : 'No'}
+            `;
+
+            const networkDetails = document.getElementById('network-details');
+            networkDetails.innerHTML = `
+                Current URL: ${window.location.href}<br>
+                Host: ${window.location.host}<br>
+                Protocol: ${window.location.protocol}<br>
+                Origin: ${window.location.origin}
+            `;
+        });
+
+        async function testAPI() {
+            const resultsDiv = document.getElementById('api-results');
+            resultsDiv.innerHTML = '<div class="status loading">Testing API connections...</div>';
+
+            const apiUrls = [
+                '/api/health',
+                'http://localhost:3001/health',
+                `http://${window.location.hostname}:3001/health`
+            ];
+
+            let results = '';
+
+            for (const url of apiUrls) {
+                try {
+                    const response = await fetch(url, {
+                        method: 'GET',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        signal: AbortSignal.timeout(5000)
+                    });
+
+                    if (response.ok) {
+                        const data = await response.json();
+                        results += `<div class="status success">✅ ${url} - Connected (${response.status})</div>`;
+                    } else {
+                        results += `<div class="status error">❌ ${url} - Failed (${response.status})</div>`;
+                    }
+                } catch (error) {
+                    results += `<div class="status error">❌ ${url} - Error: ${error.message}</div>`;
+                }
+            }
+
+            resultsDiv.innerHTML = results;
+        }
+
+        function loadApp() {
+            window.location.href = '/';
+        }
+
+        // Auto-test on load
+        setTimeout(testAPI, 1000);
+    </script>
+</body>
+</html>

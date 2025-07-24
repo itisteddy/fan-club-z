@@ -73,7 +73,7 @@ router.get('/requirements', authenticateToken, async (req, res) => {
     const requirements = await kycService.getKYCRequirements(req.user.id)
     res.json({
       success: true,
-      ...requirements
+      data: requirements
     })
   } catch (error: any) {
     console.error('Failed to get KYC requirements:', error)
@@ -104,7 +104,7 @@ router.post('/submit', authenticateToken, async (req, res) => {
     const result = await kycService.submitKYC(req.user.id, verificationData)
     res.json({
       success: true,
-      ...result
+      data: result
     })
   } catch (error: any) {
     console.error('KYC submission failed:', error)
@@ -144,7 +144,7 @@ router.post('/upload-document', authenticateToken, async (req, res) => {
     const result = await kycService.uploadDocument(req.user.id, documentType, documentUrl)
     res.json({
       success: true,
-      ...result
+      data: result
     })
   } catch (error: any) {
     console.error('Document upload failed:', error)
@@ -259,7 +259,7 @@ router.post('/verify/:kycId', authenticateToken, async (req, res) => {
     const result = await kycService.verifyKYC(kycId, status, rejectionReason)
     res.json({
       success: true,
-      ...result
+      data: result
     })
   } catch (error: any) {
     console.error('KYC verification failed:', error)

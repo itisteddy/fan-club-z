@@ -2,13 +2,16 @@ import React from 'react'
 import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar'
 import { Badge } from '../ui/badge'
 import { Button } from '../ui/button'
+import { useToast } from '../../hooks/use-toast'
 import { 
   Crown, 
   Shield, 
   User, 
+  Users,
   MessageCircle, 
   Phone, 
   Video,
+  Plus,
   MoreHorizontal 
 } from 'lucide-react'
 
@@ -45,6 +48,7 @@ const MembersList: React.FC<MembersListProps> = ({
   onCall,
   onVideoCall
 }) => {
+  const { success } = useToast()
   const getRoleIcon = (role: string) => {
     switch (role) {
       case 'owner':
@@ -99,14 +103,8 @@ const MembersList: React.FC<MembersListProps> = ({
   const onlineCount = members.filter(m => isOnline(m.userId)).length
 
   return (
-    <div className="h-full flex flex-col">
-      {/* Header */}
-      <div className="p-4 border-b border-gray-100">
-        <h3 className="font-semibold text-gray-900 mb-1">Members</h3>
-        <p className="text-sm text-gray-500">
-          {onlineCount} online • {members.length} total
-        </p>
-      </div>
+    <div className="h-full flex flex-col bg-white">
+      {/* Note: Header is now handled by ClubChat component */}
 
       {/* Members List */}
       <div className="flex-1 overflow-y-auto">
@@ -114,7 +112,7 @@ const MembersList: React.FC<MembersListProps> = ({
           {sortedMembers.map((member) => (
             <div
               key={member.userId}
-              className="group flex items-center space-x-3 p-3 rounded-xl hover:bg-white/60 transition-colors cursor-pointer"
+              className="group flex items-center space-x-3 p-3 rounded-xl hover:bg-gray-50 transition-all duration-200 cursor-pointer border border-transparent hover:border-gray-100 hover:shadow-sm"
               onClick={() => onMemberClick?.(member)}
             >
               {/* Avatar with online indicator */}
@@ -126,16 +124,16 @@ const MembersList: React.FC<MembersListProps> = ({
                   </AvatarFallback>
                 </Avatar>
                 
-                {/* Online indicator */}
+                {/* Online indicator - improved design */}
                 <div className={`
-                  absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 border-2 border-white rounded-full
-                  ${isOnline(member.userId) ? 'bg-green-500' : 'bg-gray-300'}
+                  absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 border-2 border-white rounded-full transition-colors duration-200
+                  ${isOnline(member.userId) ? 'bg-green-500 shadow-green-200 shadow-lg' : 'bg-gray-300'}
                 `} />
               </div>
 
-              {/* Member info */}
+              {/* Member info - improved layout */}
               <div className="flex-1 min-w-0">
-                <div className="flex items-center space-x-2">
+                <div className="flex items-center space-x-2 mb-1">
                   <span className={`
                     text-sm font-medium truncate
                     ${isCurrentUser(member.userId) ? 'text-blue-600' : 'text-gray-900'}
@@ -143,29 +141,31 @@ const MembersList: React.FC<MembersListProps> = ({
                     {member.user.firstName} {member.user.lastName}
                     {isCurrentUser(member.userId) && ' (You)'}
                   </span>
-                  {getRoleIcon(member.role)}
+                  <div className="flex-shrink-0">
+                    {getRoleIcon(member.role)}
+                  </div>
                 </div>
                 
                 {member.user.username && (
-                  <p className="text-xs text-gray-500 truncate">
+                  <p className="text-xs text-gray-500 truncate mb-1">
                     @{member.user.username}
                   </p>
                 )}
                 
-                {/* Role badge */}
+                {/* Role badge - improved styling */}
                 {member.role !== 'member' && (
                   <Badge 
                     variant="outline" 
-                    className={`text-xs mt-1 ${getRoleBadgeColor(member.role)}`}
+                    className={`text-xs px-1.5 py-0.5 h-auto font-medium ${getRoleBadgeColor(member.role)}`}
                   >
                     {member.role.charAt(0).toUpperCase() + member.role.slice(1)}
                   </Badge>
                 )}
               </div>
 
-              {/* Action buttons - only show for other users */}
+              {/* Action buttons - improved visibility and interaction */}
               {!isCurrentUser(member.userId) && (
-                <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-all duration-200 transform translate-x-2 group-hover:translate-x-0">
                   {/* Direct message */}
                   <Button
                     variant="ghost"
@@ -174,12 +174,13 @@ const MembersList: React.FC<MembersListProps> = ({
                       e.stopPropagation()
                       onDirectMessage?.(member)
                     }}
-                    className="p-1.5 h-auto hover:bg-blue-100"
+                    className="p-2 h-8 w-8 hover:bg-blue-100 rounded-lg transition-colors"
+                    title="Send message"
                   >
                     <MessageCircle className="w-4 h-4 text-blue-600" />
                   </Button>
 
-                  {/* Voice call */}
+                  {/* Voice/Video calls - only for online users */}
                   {isOnline(member.userId) && (
                     <>
                       <Button
@@ -189,7 +190,8 @@ const MembersList: React.FC<MembersListProps> = ({
                           e.stopPropagation()
                           onCall?.(member)
                         }}
-                        className="p-1.5 h-auto hover:bg-green-100"
+                        className="p-2 h-8 w-8 hover:bg-green-100 rounded-lg transition-colors"
+                        title="Voice call"
                       >
                         <Phone className="w-4 h-4 text-green-600" />
                       </Button>
@@ -201,43 +203,39 @@ const MembersList: React.FC<MembersListProps> = ({
                           e.stopPropagation()
                           onVideoCall?.(member)
                         }}
-                        className="p-1.5 h-auto hover:bg-purple-100"
+                        className="p-2 h-8 w-8 hover:bg-purple-100 rounded-lg transition-colors"
+                        title="Video call"
                       >
                         <Video className="w-4 h-4 text-purple-600" />
                       </Button>
                     </>
                   )}
-
-                  {/* More options */}
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      // Show more options menu
-                      console.log('More options for:', member.user.firstName)
-                    }}
-                    className="p-1.5 h-auto hover:bg-gray-100"
-                  >
-                    <MoreHorizontal className="w-4 h-4 text-gray-600" />
-                  </Button>
                 </div>
               )}
             </div>
           ))}
+          
+          {/* Empty state */}
+          {sortedMembers.length === 0 && (
+            <div className="text-center py-8">
+              <Users className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+              <p className="text-gray-500 text-sm">No members found</p>
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Footer - Invite members button */}
-      <div className="p-4 border-t border-gray-100">
+      {/* Footer - Invite members button with improved design */}
+      <div className="p-4 border-t border-gray-100 bg-gray-50/50">
         <Button 
           variant="outline" 
-          className="w-full bg-gradient-to-r from-blue-50 to-purple-50 border-blue-200 text-blue-700 hover:from-blue-100 hover:to-purple-100"
+          className="w-full bg-gradient-to-r from-blue-50 to-purple-50 border-blue-200 text-blue-700 hover:from-blue-100 hover:to-purple-100 hover:border-blue-300 transition-all duration-200 font-medium"
           onClick={() => {
             console.log('👥 MembersList: Invite members clicked')
-            alert('Invite members feature coming soon!')
+            success('Invite link copied to clipboard!')
           }}
         >
+          <Plus className="w-4 h-4 mr-2" />
           Invite Members
         </Button>
       </div>

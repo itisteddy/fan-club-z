@@ -1,5 +1,5 @@
 import { db } from '../database/config.js'
-import { User } from '../types'
+import { User } from '@shared/schema'
 
 export interface UserStats {
   totalBets: number

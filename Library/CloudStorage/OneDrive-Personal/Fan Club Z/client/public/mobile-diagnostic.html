@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fan Club Z - Mobile Diagnostic</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f5f5f5;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            padding: 24px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        h1 {
+            color: #28a745;
+            margin-bottom: 24px;
+            font-size: 24px;
+        }
+        
+        .status {
+            padding: 16px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-weight: 500;
+        }
+        
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        
+        .buttons {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 24px;
+            flex-wrap: wrap;
+        }
+        
+        button {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            min-height: 48px;
+        }
+        
+        .btn-primary {
+            background: #007AFF;
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background: #0056b3;
+        }
+        
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+        
+        .btn-danger {
+            background: #dc3545;
+            color: white;
+        }
+        
+        .info-grid {
+            display: grid;
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+        
+        .info-item {
+            background: #f8f9fa;
+            padding: 12px;
+            border-radius: 6px;
+            border-left: 4px solid #007AFF;
+        }
+        
+        .info-label {
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 4px;
+        }
+        
+        .info-value {
+            color: #666;
+            font-family: monospace;
+            font-size: 14px;
+        }
+        
+        .log {
+            background: #f8f9fa;
+            padding: 16px;
+            border-radius: 8px;
+            font-family: monospace;
+            font-size: 12px;
+            max-height: 400px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+        }
+        
+        @media (max-width: 600px) {
+            body {
+                padding: 10px;
+            }
+            
+            .buttons {
+                flex-direction: column;
+            }
+            
+            button {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Fan Club Z - Mobile Diagnostic</h1>
+        
+        <div id="status" class="status success">
+            System Status: Checking...
+        </div>
+        
+        <div class="buttons">
+            <button class="btn-primary" onclick="testReactApp()">Test React App</button>
+            <button class="btn-primary" onclick="goToDiscover()">Go to Discover</button>
+            <button class="btn-secondary" onclick="testBasicAuth()">Test Auth</button>
+            <button class="btn-danger" onclick="clearAll()">Clear All Data</button>
+        </div>
+        
+        <div class="info-grid">
+            <div class="info-item">
+                <div class="info-label">Current URL</div>
+                <div class="info-value" id="current-url">Loading...</div>
+            </div>
+            
+            <div class="info-item">
+                <div class="info-label">User Agent</div>
+                <div class="info-value" id="user-agent">Loading...</div>
+            </div>
+            
+            <div class="info-item">
+                <div class="info-label">Screen Size</div>
+                <div class="info-value" id="screen-size">Loading...</div>
+            </div>
+            
+            <div class="info-item">
+                <div class="info-label">Local Storage</div>
+                <div class="info-value" id="local-storage">Loading...</div>
+            </div>
+            
+            <div class="info-item">
+                <div class="info-label">Network Status</div>
+                <div class="info-value" id="network-status">Loading...</div>
+            </div>
+        </div>
+        
+        <div class="info-item">
+            <div class="info-label">Diagnostic Log</div>
+            <div class="log" id="diagnostic-log">Starting diagnostics...\n</div>
+        </div>
+    </div>
+
+    <script>
+        function log(message) {
+            const logElement = document.getElementById('diagnostic-log');
+            const timestamp = new Date().toLocaleTimeString();
+            logElement.textContent += `[${timestamp}] ${message}\n`;
+            logElement.scrollTop = logElement.scrollHeight;
+        }
+        
+        function updateStatus(message, isError = false) {
+            const statusElement = document.getElementById('status');
+            statusElement.textContent = message;
+            statusElement.className = isError ? 'status error' : 'status success';
+        }
+        
+        function runDiagnostics() {
+            try {
+                log('Running system diagnostics...');
+                
+                // Current URL
+                document.getElementById('current-url').textContent = window.location.href;
+                
+                // User Agent
+                document.getElementById('user-agent').textContent = navigator.userAgent;
+                
+                // Screen Size
+                document.getElementById('screen-size').textContent = 
+                    `${window.screen.width}x${window.screen.height} (window: ${window.innerWidth}x${window.innerHeight})`;
+                
+                // Local Storage
+                const tokens = {
+                    authToken: !!localStorage.getItem('auth_token'),
+                    accessToken: !!localStorage.getItem('accessToken'),
+                    refreshToken: !!localStorage.getItem('refreshToken'),
+                    compliance: !!localStorage.getItem('compliance_status')
+                };
+                document.getElementById('local-storage').textContent = JSON.stringify(tokens, null, 2);
+                
+                // Network Status
+                document.getElementById('network-status').textContent = 
+                    `Online: ${navigator.onLine}, Connection: ${navigator.connection?.effectiveType || 'unknown'}`;
+                
+                log('Basic diagnostics completed successfully');
+                updateStatus('System Status: All basic checks passed');
+                
+                // Test if React is available
+                if (typeof React !== 'undefined') {
+                    log('React is available in global scope');
+                } else {
+                    log('React is not in global scope (normal for bundled apps)');
+                }
+                
+                // Test fetch API
+                fetch('/api/health')
+                    .then(response => {
+                        log(`Server health check: ${response.status}`);
+                        return response.json();
+                    })
+                    .then(data => {
+                        log(`Server response: ${JSON.stringify(data)}`);
+                    })
+                    .catch(error => {
+                        log(`Server health check failed: ${error.message}`);
+                    });
+                
+            } catch (error) {
+                log(`Diagnostic error: ${error.message}`);
+                updateStatus(`Error: ${error.message}`, true);
+            }
+        }
+        
+        function testReactApp() {
+            log('Testing React app navigation...');
+            try {
+                window.location.href = '/';
+            } catch (error) {
+                log(`React app test failed: ${error.message}`);
+            }
+        }
+        
+        function goToDiscover() {
+            log('Navigating to discover page...');
+            window.location.href = '/discover';
+        }
+        
+        function testBasicAuth() {
+            log('Testing authentication...');
+            const demoCredentials = {
+                email: 'demo@fanclubz.app',
+                password: 'demo123'
+            };
+            
+            fetch('/api/users/login', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(demoCredentials)
+            })
+            .then(response => {
+                log(`Auth test response: ${response.status}`);
+                return response.json();
+            })
+            .then(data => {
+                log(`Auth test result: ${JSON.stringify(data, null, 2)}`);
+                if (data.success) {
+                    localStorage.setItem('auth_token', data.data.accessToken);
+                    log('Demo token stored successfully');
+                }
+            })
+            .catch(error => {
+                log(`Auth test failed: ${error.message}`);
+            });
+        }
+        
+        function clearAll() {
+            if (confirm('This will clear all stored data and reload the page. Continue?')) {
+                log('Clearing all data...');
+                localStorage.clear();
+                sessionStorage.clear();
+                log('Data cleared, reloading...');
+                window.location.reload();
+            }
+        }
+        
+        // Run diagnostics on page load
+        document.addEventListener('DOMContentLoaded', runDiagnostics);
+        
+        // Auto-refresh diagnostics every 10 seconds
+        setInterval(runDiagnostics, 10000);
+    </script>
+</body>
+</html>

@@ -6,11 +6,10 @@ import {
   Trash2, 
   Flag,
   Check,
-  Heart,
-  Smile
+  Heart
 } from 'lucide-react'
 import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar'
-import { formatRelativeTime, cn } from '../../lib/utils'
+import { formatRelativeTime } from '../../lib/utils'
 import type { User } from '@shared/schema'
 
 interface ClubChatMessage {
@@ -48,44 +47,30 @@ const ChatMessage: React.FC<ChatMessageProps> = ({
 }) => {
   const [showActions, setShowActions] = useState(false)
   const [copySuccess, setCopySuccess] = useState(false)
-  const [isDeleting, setIsDeleting] = useState(false)
-  const [showReactions, setShowReactions] = useState(false)
-  const [menuPosition, setMenuPosition] = useState<'left' | 'right'>('right')
   const actionsRef = useRef<HTMLDivElement>(null)
-  const reactionsRef = useRef<HTMLDivElement>(null)
-  const actionButtonRef = useRef<HTMLButtonElement>(null)
 
-  // Common reaction emojis
-  const reactionEmojis = ['👍', '❤️', '😂', '😮', '😢', '😡']
+  // Quick reaction emojis - Updated to match UI
+  const quickEmojis = ['❤️', '👍', '😂', '😱', '😢']
 
-  // Close actions menu when clicking outside
+  // Close actions when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (actionsRef.current && !actionsRef.current.contains(event.target as Node)) {
         setShowActions(false)
       }
-      if (reactionsRef.current && !reactionsRef.current.contains(event.target as Node)) {
-        setShowReactions(false)
-      }
     }
 
-    if (showActions || showReactions) {
+    if (showActions) {
       document.addEventListener('mousedown', handleClickOutside)
-      return () => {
-        document.removeEventListener('mousedown', handleClickOutside)
-      }
+      return () => document.removeEventListener('mousedown', handleClickOutside)
     }
-  }, [showActions, showReactions])
+  }, [showActions])
 
   const handleCopyMessage = async () => {
     try {
-      console.log('📋 ChatMessage: Copying message:', message.content)
-      
-      // Try modern clipboard API first
       if (navigator.clipboard && window.isSecureContext) {
         await navigator.clipboard.writeText(message.content)
       } else {
-        // Fallback for older browsers
         const textArea = document.createElement('textarea')
         textArea.value = message.content
         textArea.style.position = 'fixed'
@@ -97,204 +82,160 @@ const ChatMessage: React.FC<ChatMessageProps> = ({
         document.body.removeChild(textArea)
       }
       
-      console.log('✅ ChatMessage: Message copied successfully')
       setCopySuccess(true)
       setShowActions(false)
-      
-      // Reset copy success indicator after 2 seconds
       setTimeout(() => setCopySuccess(false), 2000)
       
     } catch (error) {
-      console.error('❌ ChatMessage: Failed to copy message:', error)
-      alert('Failed to copy message. Please try again.')
+      console.error('Failed to copy message:', error)
     }
   }
 
   const handleReply = () => {
-    console.log('💬 ChatMessage: Reply clicked for message:', message.id)
+    console.log('ChatMessage: Reply clicked for message:', message.id)
     if (onReply) {
       onReply(message)
-      setShowActions(false)
-    } else {
-      console.log('⚠️ ChatMessage: No onReply handler provided')
     }
+    setShowActions(false)
   }
 
   const handleReaction = (emoji: string) => {
-    console.log('😀 ChatMessage: Reaction clicked:', emoji, 'for message:', message.id)
+    console.log('ChatMessage: Reaction clicked:', emoji, 'for message:', message.id)
     if (onReact) {
       onReact(message.id, emoji)
-      setShowReactions(false)
-    } else {
-      console.log('⚠️ ChatMessage: No onReact handler provided')
     }
+    setShowActions(false)
   }
 
-  const handleDelete = async () => {
-    console.log('🗑️ ChatMessage: Delete clicked for message:', message.id)
-    
-    if (!isOwnMessage) {
-      console.log('❌ ChatMessage: Cannot delete - not own message')
-      return
-    }
+  const handleDelete = () => {
+    if (!isOwnMessage) return
 
-    // Confirm deletion
     const confirmed = window.confirm('Are you sure you want to delete this message?')
-    if (!confirmed) {
-      console.log('❌ ChatMessage: Delete cancelled by user')
-      setShowActions(false)
-      return
+    if (confirmed && onDelete) {
+      onDelete(message.id)
     }
-
-    try {
-      setIsDeleting(true)
-      setShowActions(false)
-      
-      if (onDelete) {
-        console.log('🗑️ ChatMessage: Calling onDelete handler')
-        onDelete(message.id)
-      } else {
-        console.log('⚠️ ChatMessage: No onDelete handler provided')
-      }
-      
-    } catch (error) {
-      console.error('❌ ChatMessage: Failed to delete message:', error)
-      alert('Failed to delete message. Please try again.')
-    } finally {
-      setIsDeleting(false)
-    }
+    setShowActions(false)
   }
 
   const handleReport = () => {
-    console.log('🚩 ChatMessage: Report clicked for message:', message.id)
-    
-    if (isOwnMessage) {
-      console.log('❌ ChatMessage: Cannot report own message')
-      return
-    }
+    if (isOwnMessage) return
 
-    // Confirm report
-    const confirmed = window.confirm('Are you sure you want to report this message for inappropriate content?')
-    if (!confirmed) {
-      console.log('❌ ChatMessage: Report cancelled by user')
-      setShowActions(false)
-      return
+    const confirmed = window.confirm('Are you sure you want to report this message?')
+    if (confirmed && onReport) {
+      onReport(message.id)
     }
-
-    try {
-      setShowActions(false)
-      
-      if (onReport) {
-        console.log('🚩 ChatMessage: Calling onReport handler')
-        onReport(message.id)
-      } else {
-        console.log('⚠️ ChatMessage: No onReport handler provided, showing default message')
-        alert('Message reported. Thank you for helping keep our community safe.')
-      }
-      
-    } catch (error) {
-      console.error('❌ ChatMessage: Failed to report message:', error)
-      alert('Failed to report message. Please try again.')
-    }
+    setShowActions(false)
   }
 
-  // Don't render if message is being deleted
-  if (isDeleting) {
-    return (
-      <div className="px-3 py-2 opacity-50">
-        <div className="text-sm text-gray-500 italic">Message deleted...</div>
-      </div>
-    )
+  // Handle message tap/click - Fixed with proper event handling
+  const handleMessageClick = (e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    
+    console.log('ChatMessage: Message clicked, current showActions:', showActions)
+    
+    // Don't interfere with text selection
+    const selection = window.getSelection()
+    if (selection && selection.toString().trim()) {
+      console.log('ChatMessage: Text is selected, not showing menu')
+      return
+    }
+
+    console.log('ChatMessage: Toggling actions menu')
+    setShowActions(!showActions)
   }
 
   return (
-    <div className={cn(
-      "group flex items-start space-x-2 hover:bg-gray-50/50 rounded-lg relative transition-colors w-full",
-      isConsecutive && "mt-0.5",
-      !isConsecutive && "mt-2"
-    )}>
-      {/* Avatar */}
-      <div className="flex-shrink-0">
-        {showAvatar ? (
-          <Avatar className="w-7 h-7 border-2 border-white shadow-sm">
-            <AvatarImage src={message.user.profileImage || undefined} />
-            <AvatarFallback className="text-xs bg-gradient-to-r from-blue-500 to-purple-600 text-white">
-              {message.user.firstName.charAt(0)}{message.user.lastName.charAt(0)}
-            </AvatarFallback>
-          </Avatar>
-        ) : (
-          <div className="w-7 h-7" /> // Spacer for consecutive messages
-        )}
-      </div>
+    <div className="px-4 py-3 hover:bg-gray-50/30 rounded-lg transition-colors">
+      <div className="flex items-start space-x-3">
+        {/* Avatar */}
+        <div className="flex-shrink-0">
+          {showAvatar ? (
+            <Avatar className="w-9 h-9 border-2 border-white shadow-sm">
+              <AvatarImage src={message.user.profileImage || undefined} />
+              <AvatarFallback className="text-sm bg-gradient-to-r from-blue-500 to-purple-600 text-white">
+                {message.user.firstName.charAt(0)}{message.user.lastName.charAt(0)}
+              </AvatarFallback>
+            </Avatar>
+          ) : (
+            <div className="w-9 h-9" />
+          )}
+        </div>
 
-      {/* Message Content */}
-      <div className="flex-1 min-w-0 max-w-full overflow-hidden">
-        {/* User name and timestamp */}
-        {showAvatar && (
-          <div className="flex items-center space-x-2 mb-1">
-            <span className="text-xs font-semibold text-gray-900 truncate">
-              {message.user.firstName} {message.user.lastName}
-            </span>
-            <span className="text-xs text-gray-500 flex-shrink-0">
-              {formatRelativeTime(message.createdAt)}
-            </span>
-          </div>
-        )}
+        {/* Message Content */}
+        <div className="flex-1 min-w-0 relative">
+          {/* User name and timestamp */}
+          {showAvatar && (
+            <div className="flex items-center space-x-2 mb-2">
+              <span className="text-sm font-semibold text-gray-900 truncate">
+                {message.user.firstName} {message.user.lastName}
+              </span>
+              <span className="text-xs text-gray-500">
+                {formatRelativeTime(message.createdAt)}
+              </span>
+            </div>
+          )}
 
-        {/* Message bubble */}
-        <div className="relative max-w-full">
-          <div className={cn(
-            "inline-block px-3 py-2 rounded-2xl break-words shadow-sm max-w-full",
-            isOwnMessage
-              ? "bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-br-md"
-              : "bg-white border border-gray-100 text-gray-900 rounded-bl-md"
-          )}>
-            {/* Reply indicator */}
-            {message.replyTo && (
-              <div className="text-xs opacity-75 mb-1 italic border-l-2 border-current pl-2 mb-2">
-                Replying to message...
-              </div>
-            )}
+          {/* Message bubble - Clickable for actions */}
+          <div className="relative">
+            <div 
+              onClick={handleMessageClick}
+              className={`
+                inline-block rounded-2xl px-4 py-3 shadow-sm break-words cursor-pointer
+                transition-all duration-200 select-none
+                ${isOwnMessage
+                  ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-br-md hover:from-blue-600 hover:to-blue-700'
+                  : 'bg-white border border-gray-100 text-gray-900 rounded-bl-md hover:border-gray-200 hover:shadow-md'
+                }
+                ${showActions ? 'ring-2 ring-blue-400 ring-opacity-60' : ''}
+              `}
+            >
+              {/* Reply indicator */}
+              {message.replyTo && (
+                <div className="text-xs opacity-75 mb-2 italic border-l-2 border-current pl-2">
+                  Replying to message...
+                </div>
+              )}
 
-            {/* Message content */}
-            {message.type === 'text' && (
-              <p className="text-sm leading-relaxed word-wrap break-words max-w-full overflow-wrap-anywhere">
-                {message.content}
-              </p>
-            )}
-            
-            {message.type === 'image' && (
-              <div className="max-w-full">
+              {/* Message content */}
+              {message.type === 'text' && (
+                <p className="text-sm leading-relaxed">{message.content}</p>
+              )}
+              
+              {message.type === 'image' && (
                 <img 
                   src={message.content} 
                   alt="Shared image" 
                   className="rounded-lg max-w-full h-auto"
                 />
-              </div>
-            )}
+              )}
 
-            {message.type === 'file' && (
-              <div className="flex items-center space-x-2 max-w-full">
-                <div className="w-8 h-8 bg-gray-200 rounded-lg flex items-center justify-center flex-shrink-0">
-                  📄
+              {message.type === 'file' && (
+                <div className="flex items-center space-x-2">
+                  <div className="w-6 h-6 bg-gray-200 rounded flex items-center justify-center text-xs">
+                    📄
+                  </div>
+                  <span className="text-sm">{message.content}</span>
                 </div>
-                <span className="text-sm truncate">{message.content}</span>
-              </div>
-            )}
+              )}
+            </div>
 
-            {message.type === 'system' && (
-              <p className="text-xs italic opacity-75 break-words max-w-full">{message.content}</p>
+            {/* Copy success indicator */}
+            {copySuccess && (
+              <div className="absolute -top-10 left-1/2 transform -translate-x-1/2 bg-green-500 text-white text-xs px-3 py-1 rounded-full shadow-lg z-50">
+                Copied!
+              </div>
             )}
           </div>
 
-          {/* Reactions */}
+          {/* Existing Reactions */}
           {message.reactions && Object.keys(message.reactions).length > 0 && (
-            <div className="flex flex-wrap gap-1 mt-2 max-w-full">
+            <div className="flex flex-wrap gap-1 mt-2">
               {Object.entries(message.reactions).map(([emoji, userIds]) => (
                 <button
                   key={emoji}
                   onClick={() => handleReaction(emoji)}
-                  className="flex items-center space-x-1 px-2 py-1 bg-gray-100 hover:bg-gray-200 rounded-full text-xs transition-colors flex-shrink-0"
+                  className="flex items-center space-x-1 px-2 py-1 bg-gray-100 hover:bg-gray-200 rounded-full text-xs transition-colors"
                 >
                   <span>{emoji}</span>
                   <span className="text-gray-600">{userIds.length}</span>
@@ -303,265 +244,93 @@ const ChatMessage: React.FC<ChatMessageProps> = ({
             </div>
           )}
 
-          {/* Quick Actions */}
-          <div className="absolute -top-2 -right-2 opacity-0 group-hover:opacity-100 transition-opacity z-10">
-            <div className="flex items-center space-x-1 bg-white border border-gray-200 rounded-full shadow-sm p-1">
-              {/* Quick Reaction */}
-              <div className="relative" ref={reactionsRef}>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    setShowReactions(!showReactions)
-                  }}
-                  className="p-1.5 hover:bg-gray-100 rounded-full transition-colors"
-                >
-                  <Smile className="w-3.5 h-3.5 text-gray-600" />
-                </button>
-
-                {/* Quick Reactions Menu */}
-                {showReactions && (
-                  <>
-                    {/* Backdrop for reactions menu */}
-                    <div 
-                      className="fixed inset-0 z-[99]"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        setShowReactions(false)
-                      }}
-                    />
-                    
-                    {/* Fixed positioned reactions menu */}
-                    <div 
-                      className="fixed bg-white border border-gray-200 rounded-xl shadow-lg p-2 z-[100] flex space-x-1"
-                      style={{
-                        top: actionButtonRef.current ? actionButtonRef.current.getBoundingClientRect().bottom + 4 : 0,
-                        left: actionButtonRef.current ? Math.min(window.innerWidth - 300, actionButtonRef.current.getBoundingClientRect().right - 200) : 0
-                      }}
-                    >
-                      {reactionEmojis.map((emoji) => (
-                        <button
-                          key={emoji}
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            handleReaction(emoji)
-                          }}
-                          className="p-2 hover:bg-gray-100 rounded-lg text-lg transition-colors active:scale-95"
-                        >
-                          {emoji}
-                        </button>
-                      ))}
-                    </div>
-                  </>
-                )}
-              </div>
-
-              {/* More Actions */}
-              <div className="relative" ref={actionsRef}>
-                <button
-                  ref={actionButtonRef}
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    console.log('⚙️ ChatMessage: Actions button clicked for message:', message.id)
-                    console.log('⚙️ ChatMessage: Current showActions state:', showActions)
-                    console.log('⚙️ ChatMessage: isOwnMessage:', isOwnMessage)
-                    console.log('⚙️ ChatMessage: Message userId:', message.userId)
-                    
-                    // Calculate menu position based on available space
-                    if (actionButtonRef.current) {
-                      const buttonRect = actionButtonRef.current.getBoundingClientRect()
-                      const chatContainer = actionButtonRef.current.closest('.relative')
-                      const containerRect = chatContainer?.getBoundingClientRect()
-                      const viewportWidth = window.innerWidth
-                      const menuWidth = 140 // min-w-[140px]
-                      
-                      console.log('📏 ChatMessage: Menu positioning calculation:', {
-                        buttonRight: buttonRect.right,
-                        buttonLeft: buttonRect.left,
-                        viewportWidth,
-                        menuWidth,
-                        containerRight: containerRect?.right,
-                        containerLeft: containerRect?.left
-                      })
-                      
-                      // Check if menu would overflow the right edge
-                      const wouldOverflowRight = buttonRect.right > viewportWidth - menuWidth - 32
-                      // Check if we have enough space on the left  
-                      const hasSpaceOnLeft = buttonRect.left > menuWidth + 32
-                      
-                      console.log('📏 ChatMessage: Overflow check:', {
-                        wouldOverflowRight,
-                        hasSpaceOnLeft,
-                        buttonRightVsThreshold: `${buttonRect.right} > ${viewportWidth - menuWidth - 32}`,
-                        buttonLeftVsThreshold: `${buttonRect.left} > ${menuWidth + 32}`
-                      })
-                      
-                      if (wouldOverflowRight && hasSpaceOnLeft) {
-                        console.log('🔄 ChatMessage: Setting menu position to left (would overflow right)')
-                        setMenuPosition('left')
-                      } else {
-                        console.log('🔄 ChatMessage: Setting menu position to right (default)')
-                        setMenuPosition('right')
-                      }
-                    }
-                    
-                    const newShowActions = !showActions
-                    console.log('⚙️ ChatMessage: Setting showActions to:', newShowActions)
-                    setShowActions(newShowActions)
-                    
-                    // Force a small delay to ensure state is updated
-                    setTimeout(() => {
-                      console.log('⚙️ ChatMessage: After state update, showActions is:', showActions)
-                    }, 100)
-                  }}
-                  className="p-1.5 hover:bg-gray-100 rounded-full transition-colors"
-                >
-                  <MoreHorizontal className="w-3.5 h-3.5 text-gray-600" />
-                </button>
-
-                {/* Actions menu */}
-                {(() => {
-                  console.log('📏 ChatMessage Menu Debug:', {
-                    showActions,
-                    hasActionButtonRef: !!actionButtonRef.current,
-                    messageId: message.id,
-                    isOwnMessage,
-                    menuPosition
-                  })
-                  
-                  if (!showActions) {
-                    console.log('📏 ChatMessage: Not showing menu - showActions is false')
-                    return null
-                  }
-                  
-                  if (!actionButtonRef.current) {
-                    console.log('📏 ChatMessage: Not showing menu - no actionButtonRef')
-                    return null
-                  }
-                  
-                  console.log('📏 ChatMessage: Rendering menu!')
-                  
-                  // Calculate position relative to viewport to avoid clipping
-                  const buttonRect = actionButtonRef.current.getBoundingClientRect()
-                  const viewportHeight = window.innerHeight
-                  const menuHeight = 200 // Estimated max menu height
-                  const spaceBelow = viewportHeight - buttonRect.bottom
-                  const spaceAbove = buttonRect.top
-                  
-                  // Determine if menu should appear above or below the button
-                  const showAbove = spaceBelow < menuHeight && spaceAbove > menuHeight
-                  
-                  console.log('📏 ChatMessage: Menu positioning:', {
-                    buttonTop: buttonRect.top,
-                    buttonBottom: buttonRect.bottom,
-                    viewportHeight,
-                    spaceBelow,
-                    spaceAbove,
-                    showAbove
-                  })
-                  
-                  return (
-                    <>
-                      {/* Backdrop for fixed positioned menu */}
-                      <div 
-                        className="fixed inset-0 z-[99]"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          console.log('🔍 ChatMessage: Backdrop clicked, closing menu')
-                          setShowActions(false)
-                        }}
-                      />
-                      
-                      {/* Fixed positioned menu */}
-                      <div 
-                        className="fixed bg-white border border-gray-200 rounded-xl shadow-lg py-1 z-[100] min-w-[140px] max-w-[200px]"
-                        style={{
-                          top: showAbove ? buttonRect.top - menuHeight : buttonRect.bottom + 4,
-                          left: menuPosition === 'left' 
-                            ? Math.max(8, buttonRect.left - 140) 
-                            : Math.min(window.innerWidth - 148, buttonRect.right - 140),
-                          maxWidth: '90vw',
-                          boxShadow: '0 10px 25px rgba(0, 0, 0, 0.15)',
-                          backgroundColor: 'white'
-                        }}
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          console.log('🔍 ChatMessage: Menu clicked, preventing close')
-                        }}
-                      >
-                    {/* Copy button */}
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        handleCopyMessage()
-                      }}
-                      className="w-full flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg mx-1 transition-colors"
-                    >
-                      {copySuccess ? (
-                        <>
-                          <Check className="w-4 h-4 mr-2 text-green-500" />
-                          <span className="text-green-600">Copied!</span>
-                        </>
-                      ) : (
-                        <>
-                          <Copy className="w-4 h-4 mr-2" />
-                          Copy
-                        </>
-                      )}
-                    </button>
-
-                    {/* Reply button - only for other's messages */}
-                    {!isOwnMessage && (
+          {/* Actions Menu - Portal positioned to avoid clipping */}
+          {showActions && (
+            <>
+              {/* Backdrop */}
+              <div 
+                className="fixed inset-0 z-[100]"
+                onClick={() => {
+                  console.log('ChatMessage: Backdrop clicked, closing menu')
+                  setShowActions(false)
+                }}
+              />
+              
+              {/* Actions Panel - Optimized compact design */}
+              <div 
+                ref={actionsRef}
+                className="fixed z-[101] bg-white rounded-2xl shadow-xl border border-gray-200 p-2"
+                style={{
+                  top: '50%',
+                  left: '50%',
+                  transform: 'translate(-50%, -50%)',
+                  width: '220px',
+                  maxHeight: '75vh',
+                  overflowY: 'auto'
+                }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                {/* Quick Reactions - More compact */}
+                <div className="mb-1.5">
+                  <span className="text-xs font-medium text-gray-500 mb-1.5 block px-1">Quick React</span>
+                  <div className="flex justify-between px-0.5">
+                    {quickEmojis.map((emoji) => (
                       <button
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          handleReply()
-                        }}
-                        className="w-full flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg mx-1 transition-colors"
+                        key={emoji}
+                        onClick={() => handleReaction(emoji)}
+                        className="text-base hover:scale-110 transition-transform active:scale-95 p-2 rounded-lg hover:bg-gray-50 min-w-[44px] min-h-[44px] flex items-center justify-center"
                       >
-                        <Reply className="w-4 h-4 mr-2" />
-                        Reply
+                        {emoji}
                       </button>
-                    )}
-
-                    {/* Separator - always show if there are items above and below */}
-                    {(!isOwnMessage || isOwnMessage) && (
-                      <div className="border-t border-gray-200 my-1 mx-2" />
-                    )}
-
-                    {/* Delete button - only for own messages */}
-                    {isOwnMessage && (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          handleDelete()
-                        }}
-                        className="w-full flex items-center px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-lg mx-1 transition-colors"
-                      >
-                        <Trash2 className="w-4 h-4 mr-2" />
-                        Delete
-                      </button>
-                    )}
-
-                    {/* Report button - only for other's messages */}
-                    {!isOwnMessage && (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          handleReport()
-                        }}
-                        className="w-full flex items-center px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-lg mx-1 transition-colors"
-                      >
-                        <Flag className="w-4 h-4 mr-2" />
-                        Report
-                      </button>
-                    )}
+                    ))}
                   </div>
-                  </>
-                  )
-                })()}
+                </div>
+
+                {/* Divider */}
+                <div className="border-t border-gray-100 mb-1.5" />
+
+                {/* Action Buttons - Optimized spacing */}
+                <div className="space-y-1">
+                  {/* Reply */}
+                  <button
+                    onClick={handleReply}
+                    className="w-full flex items-center px-2 py-2.5 text-sm text-gray-700 hover:bg-gray-50 rounded-lg transition-colors min-h-[44px]"
+                  >
+                    <Reply className="w-4 h-4 mr-2.5 text-gray-500" />
+                    Reply
+                  </button>
+
+                  {/* Copy */}
+                  <button
+                    onClick={handleCopyMessage}
+                    className="w-full flex items-center px-2 py-2.5 text-sm text-gray-700 hover:bg-gray-50 rounded-lg transition-colors min-h-[44px]"
+                  >
+                    <Copy className="w-4 h-4 mr-2.5 text-gray-500" />
+                    Copy
+                  </button>
+
+                  {/* Delete or Report */}
+                  {isOwnMessage ? (
+                    <button
+                      onClick={handleDelete}
+                      className="w-full flex items-center px-2 py-2.5 text-sm text-red-600 hover:bg-red-50 rounded-lg transition-colors min-h-[44px]"
+                    >
+                      <Trash2 className="w-4 h-4 mr-2.5" />
+                      Delete
+                    </button>
+                  ) : (
+                    <button
+                      onClick={handleReport}
+                      className="w-full flex items-center px-2 py-2.5 text-sm text-red-600 hover:bg-red-50 rounded-lg transition-colors min-h-[44px]"
+                    >
+                      <Flag className="w-4 h-4 mr-2.5" />
+                      Report
+                    </button>
+                  )}
+                </div>
               </div>
-            </div>
-          </div>
+            </>
+          )}
         </div>
       </div>
     </div>

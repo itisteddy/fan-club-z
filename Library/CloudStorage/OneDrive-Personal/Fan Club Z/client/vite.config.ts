@@ -2,7 +2,7 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import path from 'path'
 
-// https://vitejs.dev/config/
+// FORCE NEW CONFIG - Target port 5001 for backend
 export default defineConfig({
   plugins: [react()],
   resolve: {
@@ -12,31 +12,23 @@ export default defineConfig({
     },
   },
   server: {
-    host: '0.0.0.0', // Allow external connections
+    host: '0.0.0.0',
     port: 3000,
     proxy: {
       '/api': {
-        target: 'http://127.0.0.1:3001',
+        target: 'http://localhost:5001',  // BACKEND IS ON PORT 5001
         changeOrigin: true,
         secure: false,
-        ws: true,
-        rewrite: (path) => path.replace(/^\/api/, '/api'),
-        configure: (proxy, _options) => {
-          proxy.on('error', (err, _req, _res) => {
-            console.log('Proxy error:', err)
-          })
-          proxy.on('proxyReq', (proxyReq, req, _res) => {
-            console.log('Proxying request:', req.method, req.url, '-> target:', proxyReq.path)
-          })
-          proxy.on('proxyRes', (proxyRes, req, _res) => {
-            console.log('Proxy response:', req.url, '->', proxyRes.statusCode)
-          })
-        },
       },
+      '/ws': {
+        target: 'ws://localhost:5001',   // BACKEND IS ON PORT 5001
+        changeOrigin: true,
+        ws: true,
+      }
     },
   },
   build: {
     outDir: 'dist',
     sourcemap: true,
   },
-})
+}) 

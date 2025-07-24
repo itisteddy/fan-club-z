@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fan Club Z - Mobile Test</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: #f0f0f0;
+        }
+        .container {
+            max-width: 400px;
+            margin: 0 auto;
+            background: white;
+            padding: 24px;
+            border-radius: 12px;
+            text-align: center;
+        }
+        h1 {
+            color: #28a745;
+            margin-bottom: 20px;
+        }
+        button {
+            display: block;
+            width: 100%;
+            padding: 16px;
+            margin: 10px 0;
+            border: none;
+            border-radius: 8px;
+            font-size: 18px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .primary { background: #007AFF; color: white; }
+        .secondary { background: #6c757d; color: white; }
+        .danger { background: #dc3545; color: white; }
+        .info {
+            background: #f8f9fa;
+            padding: 12px;
+            border-radius: 6px;
+            margin: 10px 0;
+            text-align: left;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Fan Club Z</h1>
+        <p>Mobile compatibility test page</p>
+        
+        <div class="info">
+            <strong>Status:</strong> <span id="status">Loading...</span><br>
+            <strong>URL:</strong> <span id="url"></span><br>
+            <strong>Screen:</strong> <span id="screen"></span>
+        </div>
+        
+        <button class="primary" onclick="window.location.href='/discover'">
+            Go to App
+        </button>
+        
+        <button class="secondary" onclick="window.location.href='/mobile-diagnostic.html'">
+            Full Diagnostic
+        </button>
+        
+        <button class="danger" onclick="clearData()">
+            Clear Data & Reload
+        </button>
+    </div>
+
+    <script>
+        document.getElementById('url').textContent = window.location.href;
+        document.getElementById('screen').textContent = window.innerWidth + 'x' + window.innerHeight;
+        document.getElementById('status').textContent = 'Ready';
+        
+        function clearData() {
+            localStorage.clear();
+            sessionStorage.clear();
+            window.location.reload();
+        }
+    </script>
+</body>
+</html>

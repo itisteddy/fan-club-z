@@ -9,7 +9,7 @@ import FloatingActionButton from '@/components/FloatingActionButton'
 import { useBetStore } from '@/store/betStore'
 import { useAuthStore } from '@/store/authStore'
 import { usePullToRefresh } from '@/hooks/usePullToRefresh'
-import { cn, debounce } from '@/lib/utils'
+import { cn, debounce, formatCurrency } from '@/lib/utils'
 import type { Bet } from '@shared/schema'
 import { useLocation } from 'wouter'
 
@@ -167,7 +167,12 @@ export const DiscoverTab: React.FC = () => {
   }, [fetchTrendingBets])
 
   // Find the Bitcoin bet for the featured card
-  const featuredBet = bets.find(bet => bet.title.toLowerCase().includes('bitcoin') && bet.title.toLowerCase().includes('100k'))
+  const featuredBet = bets.find(bet => 
+    bet.title.toLowerCase().includes('bitcoin') && 
+    (bet.title.toLowerCase().includes('100k') || bet.title.toLowerCase().includes('$100k'))
+  ) || bets[0] // Fallback to first bet if Bitcoin bet not found
+
+  console.log('🏆 DiscoverTab: Featured bet:', featuredBet?.title, 'ID:', featuredBet?.id)
 
   return (
     <div ref={containerRef} className="min-h-screen bg-gray-50 relative">
@@ -179,95 +184,136 @@ export const DiscoverTab: React.FC = () => {
       />
 
       {/* Large Title Navigation */}
-      <header className="sticky top-0 z-40">
-        <div className="bg-white/80 backdrop-blur-md border-b border-gray-100">
-          <div className="px-4 pt-12 pb-2">
-            <h1 className="text-display font-bold">
-              Discover
-            </h1>
-            {user && (
-              <p className="text-body text-gray-600 mt-1">
-                Welcome back, {user.firstName}! 👋
-              </p>
-            )}
-          </div>
-          
-          {/* Search Bar */}
-          <div className="px-4 pb-2">
-            <div className="relative">
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 z-10" />
-              <Input
-                type="search"
-                placeholder="Search bets..."
-                className="w-full h-11 pl-11 pr-4 bg-gray-100 rounded-[10px] text-body placeholder-gray-500 focus:bg-gray-200 transition-colors block"
-                value={searchQuery}
-                onChange={(e) => handleSearchChange(e.target.value)}
-                data-testid="search-input"
-              />
+      <header className="bg-white border-b border-gray-100">
+        <div className="px-4 pt-4 pb-2">
+          <h1 className="text-display font-bold">
+            Discover
+          </h1>
+          {user && (
+            <p className="text-body text-gray-600 mt-1">
+              Welcome back, {user.firstName}! 👋
+            </p>
+          )}
+        </div>
+        
+        {/* Search Bar */}
+        <div className="px-4 pb-2">
+          <div className="relative">
+            <Search className={cn(
+              "absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 z-10 transition-colors",
+              debouncedSearchQuery ? "text-blue-500" : "text-gray-400"
+            )} />
+            <Input
+              type="search"
+              placeholder="Search bets..."
+              className={cn(
+                "w-full h-11 pl-11 pr-4 rounded-[10px] text-body placeholder-gray-500 transition-colors block",
+                debouncedSearchQuery 
+                  ? "bg-blue-50 border-blue-200 focus:bg-blue-100 focus:border-blue-300" 
+                  : "bg-gray-100 focus:bg-gray-200"
+              )}
+              value={searchQuery}
+              onChange={(e) => handleSearchChange(e.target.value)}
+              data-testid="search-input"
+            />
+            <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center gap-2">
+              {debouncedSearchQuery && (
+                <button
+                  onClick={() => {
+                    setSearchQuery('')
+                    setDebouncedSearchQuery('')
+                    setIsSearching(false)
+                  }}
+                  className="text-gray-400 hover:text-gray-600 transition-colors"
+                  aria-label="Clear search"
+                >
+                  <span className="text-lg leading-none">×</span>
+                </button>
+              )}
               {isSearching && (
-                <div className="absolute right-4 top-1/2 -translate-y-1/2">
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500"></div>
-                </div>
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500"></div>
               )}
             </div>
           </div>
         </div>
       </header>
       
-      {/* Categories */}
-      <div className="bg-white border-b border-gray-100">
-        <div className="px-4 py-3">
-          <div className="relative">
-            {/* Mobile-optimized horizontal scroll */}
-            <div className="flex gap-2 overflow-x-auto py-2 -mx-2 px-2 scrollbar-hide scroll-smooth-x">
-              {categories.map((category) => (
-                <button
-                  key={category.id}
-                  data-testid="category-button"
-                  onClick={() => setSelectedCategory(category.id)}
-                  className={cn(
-                    "flex items-center gap-2 px-3 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-all duration-200 min-w-fit touch-manipulation",
-                    "min-h-[36px] active:scale-95", // Better touch targets and feedback
-                    selectedCategory === category.id
-                      ? "bg-blue-500 text-white shadow-sm"
-                      : "bg-gray-100 text-gray-700 hover:bg-gray-200 active:bg-gray-300"
-                  )}
-                >
-                  <span className="text-sm leading-none">{category.emoji}</span>
-                  <span className="text-sm leading-none">{category.label}</span>
-                </button>
-              ))}
+      {/* Categories - Hide during search */}
+      {!debouncedSearchQuery && (
+        <div className="bg-white border-b border-gray-100">
+          <div className="px-4 py-3">
+            <div className="relative">
+              {/* Mobile-optimized horizontal scroll */}
+              <div className="flex gap-2 overflow-x-auto py-2 -mx-2 px-2 scrollbar-hide scroll-smooth-x">
+                {categories.map((category) => (
+                  <button
+                    key={category.id}
+                    data-testid="category-button"
+                    onClick={() => setSelectedCategory(category.id)}
+                    className={cn(
+                      "flex items-center gap-2 px-3 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-all duration-200 min-w-fit touch-manipulation",
+                      "min-h-[36px] active:scale-95", // Better touch targets and feedback
+                      selectedCategory === category.id
+                        ? "bg-blue-500 text-white shadow-sm"
+                        : "bg-gray-100 text-gray-700 hover:bg-gray-200 active:bg-gray-300"
+                    )}
+                  >
+                    <span className="text-sm leading-none">{category.emoji}</span>
+                    <span className="text-sm leading-none">{category.label}</span>
+                  </button>
+                ))}
+              </div>
+              
+              {/* Subtle gradient indicators for scroll */}
+              <div className="pointer-events-none absolute left-0 top-0 h-full w-4 bg-gradient-to-r from-white to-transparent opacity-60" />
+              <div className="pointer-events-none absolute right-0 top-0 h-full w-4 bg-gradient-to-l from-white to-transparent opacity-60" />
             </div>
-            
-            {/* Subtle gradient indicators for scroll */}
-            <div className="pointer-events-none absolute left-0 top-0 h-full w-4 bg-gradient-to-r from-white to-transparent opacity-60" />
-            <div className="pointer-events-none absolute right-0 top-0 h-full w-4 bg-gradient-to-l from-white to-transparent opacity-60" />
           </div>
         </div>
-      </div>
+      )}
       
-      {/* Featured Section */}
-      <section className="px-4 mb-8">
-        <h2 className="text-title-2 font-bold mb-4">Featured</h2>
-        <div className="bg-gradient-to-br from-blue-500 to-purple-500 rounded-2xl p-6 text-white">
-          <h3 className="text-title-1 font-bold mb-2">
-            Today's Top Bet
-          </h3>
-          <p className="text-body opacity-90 mb-4">
-            Bitcoin to hit $100K by year end?
-          </p>
-          <Button
-            className="bg-white/20 backdrop-blur-md px-6 h-11 rounded-[10px] font-medium"
-            onClick={() => featuredBet && navigate(`/bets/${featuredBet.id}`)}
-            disabled={!featuredBet}
-          >
-            View Details
-          </Button>
-        </div>
-      </section>
+      {/* Featured Section - Hide during search */}
+      {!debouncedSearchQuery && (
+        <section className="px-4 pt-6 mb-8">
+          <h2 className="text-title-2 font-bold mb-4">Featured</h2>
+          <div className="bg-gradient-to-br from-blue-500 to-purple-500 rounded-2xl p-6 text-white">
+            <h3 className="text-title-1 font-bold mb-2">
+              Today's Top Bet
+            </h3>
+            <p className="text-body opacity-90 mb-4">
+              {featuredBet ? featuredBet.title : 'Bitcoin to hit $100K by year end?'}
+            </p>
+            {featuredBet && (
+              <div className="flex items-center space-x-4 mb-4 text-sm opacity-90">
+                <span>💰 Pool: {formatCurrency(featuredBet.poolTotal)}</span>
+                <span>👥 {featuredBet.likes || 0} likes</span>
+              </div>
+            )}
+            <Button
+              className="bg-white/20 backdrop-blur-md px-6 h-11 rounded-[10px] font-medium hover:bg-white/30 transition-colors"
+              onClick={() => {
+                console.log('🔗 Featured bet click:', featuredBet?.id)
+                if (featuredBet) {
+                  const targetUrl = `/bets/${featuredBet.id}?referrer=${location}`
+                  console.log('🔗 Navigating to:', targetUrl)
+                  navigate(targetUrl)
+                } else {
+                  console.warn('⚠️ No featured bet available')
+                }
+              }}
+              disabled={!featuredBet}
+            >
+              {featuredBet ? 'View Details' : 'No Bets Available'}
+            </Button>
+          </div>
+        </section>
+      )}
       
       {/* Bet List */}
-      <section className="px-4 pb-24">
+      <section className={cn(
+        "px-4 pb-24",
+        debouncedSearchQuery ? "mt-4" : "" // Reduce top margin during search
+      )}>
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-title-2 font-bold" data-testid="search-results-header">
             {debouncedSearchQuery ? `Search Results` : 'Trending Now'}
@@ -280,10 +326,12 @@ export const DiscoverTab: React.FC = () => {
         </div>
         
         {debouncedSearchQuery && (
-          <div className="mb-4 p-3 bg-blue-50 rounded-lg" data-testid="search-query-display">
-            <p className="text-body-sm text-blue-700">
-              Showing results for: <span className="font-medium">"{debouncedSearchQuery}"</span>
-            </p>
+          <div className="mb-6 p-3 bg-blue-50 rounded-lg border border-blue-200" data-testid="search-query-display">
+            <div className="flex items-center justify-between">
+              <p className="text-body-sm text-blue-700">
+                Showing results for: <span className="font-medium">"{debouncedSearchQuery}"</span>
+              </p>
+            </div>
           </div>
         )}
         
@@ -308,15 +356,16 @@ export const DiscoverTab: React.FC = () => {
             </p>
             {debouncedSearchQuery && (
               <Button
-                onClick={() => {
-                  setSearchQuery('')
-                  setDebouncedSearchQuery('')
-                }}
-                className="bg-blue-500 text-white px-6 py-2 rounded-lg"
+              onClick={() => {
+              setSearchQuery('')
+              setDebouncedSearchQuery('')
+                setIsSearching(false)
+              }}
+              className="bg-blue-500 text-white px-6 py-2 rounded-lg"
                 data-testid="clear-search-button"
               >
                 Clear Search
-              </Button>
+                </Button>
             )}
           </div>
         ) : (

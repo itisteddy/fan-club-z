@@ -2,16 +2,16 @@ import { Knex } from 'knex'
 
 export async function up(knex: Knex): Promise<void> {
   return knex.schema.createTable('transactions', (table: Knex.TableBuilder) => {
-    table.uuid('id').primary().defaultTo(knex.raw('gen_random_uuid()'))
+    table.uuid('id').primary().defaultTo(knex.raw('(lower(hex(randomblob(4))) || \'-\' || lower(hex(randomblob(2))) || \'-4\' || substr(lower(hex(randomblob(2))),2) || \'-\' || substr(\'89ab\',abs(random()) % 4 + 1, 1) || substr(lower(hex(randomblob(2))),2) || \'-\' || lower(hex(randomblob(6))))'))
     table.uuid('user_id').references('id').inTable('users').onDelete('CASCADE')
-    table.enum('type', ['deposit', 'withdrawal', 'bet_placed', 'bet_won', 'bet_lost', 'refund', 'bonus', 'fee']).notNullable()
+    table.text('type').notNullable().checkIn(['deposit', 'withdrawal', 'bet_placed', 'bet_won', 'bet_lost', 'refund', 'bonus', 'fee'])
     table.decimal('amount', 15, 2).notNullable()
     table.decimal('balance_before', 15, 2).notNullable()
     table.decimal('balance_after', 15, 2).notNullable()
-    table.enum('status', ['pending', 'completed', 'failed', 'cancelled']).defaultTo('pending')
+    table.text('status').defaultTo('pending').checkIn(['pending', 'completed', 'failed', 'cancelled'])
     table.string('reference_id') // External reference (payment processor, bet ID, etc.)
     table.string('description').notNullable()
-    table.jsonb('metadata').defaultTo('{}') // Additional transaction data
+    table.json('metadata').defaultTo('{}') // Additional transaction data
     table.string('ip_address')
     table.string('user_agent')
     table.timestamp('processed_at')

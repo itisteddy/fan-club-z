@@ -60,14 +60,40 @@ app.use(helmet({
 
 // CORS configuration
 app.use(cors({
-  origin: [
-    'http://localhost:3000',
-    'http://127.0.0.1:3000',
-    'http://172.20.2.210:3000',
-    'http://172.20.2.210:3001',
-    'http://0.0.0.0:3000',
-    ...(config.nodeEnv === 'development' ? ['*'] : [])
-  ],
+  origin: (origin, callback) => {
+    // Allow requests with no origin (like mobile apps)
+    if (!origin) return callback(null, true)
+    
+    const allowedOrigins = [
+      'http://localhost:3000',
+      'http://127.0.0.1:3000',
+      'http://172.20.2.210:3000',
+      'http://172.20.2.210:3001',
+      'http://0.0.0.0:3000',
+      `http://${LOCAL_IP}:3000`,
+      `http://${LOCAL_IP}:3001`,
+      ...config.corsOrigins
+    ]
+    
+    // In development, allow any origin from local network
+    if (config.nodeEnv === 'development') {
+      // Allow any 192.168.x.x, 10.x.x.x, or 172.x.x.x addresses
+      if (origin.match(/^https?:\/\/(192\.168\.|10\.|172\.)\d+\.\d+\.\d+:\d+$/)) {
+        return callback(null, true)
+      }
+      // Allow localhost variants
+      if (origin.includes('localhost') || origin.includes('127.0.0.1')) {
+        return callback(null, true)
+      }
+    }
+    
+    if (allowedOrigins.includes(origin) || config.nodeEnv === 'development') {
+      callback(null, true)
+    } else {
+      console.log(`CORS blocked origin: ${origin}`)
+      callback(new Error('Not allowed by CORS'))
+    }
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
@@ -89,7 +115,20 @@ if (config.nodeEnv !== 'production') {
 }
 
 // Apply general rate limiting to all API routes (demo-aware)
-app.use('/api', (req: Request, res: Response, next: any) => {
+// Add CORS preflight handler
+app.options('*', cors())
+
+// Add a simple health endpoint that bypasses all middleware
+app.get('/api/health', (req, res) => {
+  res.json({
+    success: true,
+    message: 'Fan Club Z API is running',
+    timestamp: new Date().toISOString(),
+    status: 'healthy'
+  })
+})
+
+app.use('/api', (req: express.Request, res: express.Response, next: express.NextFunction) => {
   // More comprehensive demo user detection and rate limit bypass
   const authHeader = req.headers['authorization']
   const token = authHeader && authHeader.split(' ')[1]
@@ -251,12 +290,13 @@ async function startServer() {
     console.log(`🚀 Server running on port ${config.port}`)
     console.log(`📱 Local: http://localhost:${config.port}`)
     console.log(`📱 Network: http://${LOCAL_IP}:${config.port}`)
-    console.log(`📱 Client URL: http://172.20.2.210:3000`)
+    console.log(`📱 Mobile Access: http://${LOCAL_IP}:${config.port}`)
     console.log(`🔌 WebSocket endpoints:`)
-    console.log(`   - Notifications: ws://localhost:${config.port}/ws/notifications`)
-    console.log(`   - Realtime: ws://localhost:${config.port}/ws/realtime`)
-    console.log(`📊 Health check: http://localhost:${config.port}/health`)
-    console.log(`🌐 CORS Origins: http://172.20.2.210:3000, http://localhost:3000`)
+    console.log(`   - Notifications: ws://${LOCAL_IP}:${config.port}/ws/notifications`)
+    console.log(`   - Realtime: ws://${LOCAL_IP}:${config.port}/ws/realtime`)
+    console.log(`📊 Health check: http://${LOCAL_IP}:${config.port}/health`)
+    console.log(`🌐 CORS: Allowing all local network origins in development mode`)
+    console.log(`📱 Frontend should be accessible at: http://${LOCAL_IP}:3000`)
   })
 }
 

@@ -39,10 +39,21 @@ const getBoolEnv = (key: string, fallback: boolean = false): boolean => {
 
 // Determine API URL based on environment
 const getApiUrl = (): string => {
-  // Require explicit environment variable for API URL
+  // First check environment variable (for mobile development)
   const envApiUrl = getEnv('VITE_API_URL')
-  if (envApiUrl) return envApiUrl
-  throw new Error('VITE_API_URL is required in .env.local for API access. Please set it to your backend URL, e.g., http://172.20.2.210:3001/api')
+  if (envApiUrl) {
+    console.log('Using API URL from environment:', envApiUrl)
+    return envApiUrl
+  }
+  
+  // In development, use relative URL for Vite proxy
+  // @ts-ignore - Vite provides import.meta.env
+  if (import.meta.env.DEV) {
+    return '/api'
+  }
+  
+  // Fallback for production (correct port)
+  return 'http://localhost:5001/api'
 }
 
 // Determine base URL

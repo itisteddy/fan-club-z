@@ -1,13 +1,13 @@
 #!/bin/bash
 
-echo "🔧 Making mobile setup script executable..."
-chmod +x mobile-setup.sh
-chmod +x setup.sh
+echo "🚀 Making scripts executable..."
+chmod +x restart-clean.sh
+chmod +x test-production-fixes.mjs
 
 echo "✅ Scripts are now executable!"
 echo ""
-echo "📱 To get mobile URLs, run:"
-echo "   ./mobile-setup.sh"
+echo "🔄 To restart the app cleanly:"
+echo "   ./restart-clean.sh"
 echo ""
-echo "🚀 To setup the project, run:"
-echo "   ./setup.sh"
+echo "🧪 To test fixes manually:"
+echo "   node test-production-fixes.mjs"

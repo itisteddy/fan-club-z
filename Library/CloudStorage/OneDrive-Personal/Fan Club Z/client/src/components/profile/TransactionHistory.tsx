@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { useToast } from '@/hooks/use-toast'
+import { useWalletStore } from '@/store/walletStore'
 
 interface TransactionHistoryProps {
   open: boolean
@@ -29,6 +30,9 @@ export const TransactionHistory: React.FC<TransactionHistoryProps> = ({
   const [filterType, setFilterType] = useState<string>('all')
   const { toast } = useToast()
 
+  // Get transactions from wallet store to ensure consistency
+  const { transactions: walletTransactions } = useWalletStore()
+  
   const [transactions, setTransactions] = useState<Transaction[]>([
     {
       id: '1',
@@ -76,6 +80,22 @@ export const TransactionHistory: React.FC<TransactionHistoryProps> = ({
       reference: 'REF-001'
     }
   ])
+  
+  // Sync with wallet transactions when available
+  React.useEffect(() => {
+    if (walletTransactions && walletTransactions.length > 0) {
+      const formattedTransactions = walletTransactions.map(tx => ({
+        id: tx.id,
+        type: tx.type === 'bet_lock' ? 'bet' : tx.type === 'bet_release' ? 'win' : tx.type,
+        amount: tx.type === 'bet_lock' ? -Math.abs(tx.amount) : Math.abs(tx.amount),
+        description: tx.description,
+        date: tx.createdAt,
+        status: tx.status,
+        reference: tx.reference || tx.id
+      }))
+      setTransactions(prev => [...formattedTransactions, ...prev.filter(t => !formattedTransactions.find(ft => ft.id === t.id))])
+    }
+  }, [walletTransactions])
 
   const filteredTransactions = transactions.filter(transaction => {
     const matchesSearch = transaction.description.toLowerCase().includes(searchTerm.toLowerCase()) ||

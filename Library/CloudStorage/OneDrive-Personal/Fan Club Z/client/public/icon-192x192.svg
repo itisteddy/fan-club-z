@@ -1,0 +1,6 @@
+<svg width="192" height="192" viewBox="0 0 192 192" fill="none" xmlns="http://www.w3.org/2000/svg">
+<rect width="192" height="192" rx="24" fill="#22c55e"/>
+<path d="M96 48C70.8 48 50.4 68.4 50.4 93.6V144H69.6V93.6C69.6 79.2 81.6 67.2 96 67.2C110.4 67.2 122.4 79.2 122.4 93.6V144H141.6V93.6C141.6 68.4 121.2 48 96 48Z" fill="white"/>
+<circle cx="96" cy="120" r="12" fill="white"/>
+<text x="96" y="176" font-family="Arial, sans-serif" font-size="16" font-weight="bold" text-anchor="middle" fill="white">FAN CLUB Z</text>
+</svg>
