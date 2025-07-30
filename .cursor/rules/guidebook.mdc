@@ -1,0 +1,84 @@
+---
+description: Rules for development of Fan Club Z
+alwaysApply: false
+---
+# Fan Club Z Development Guidebook
+
+## 1. Architecture & Technology
+
+- **Frontend**: React + TypeScript (web/mobile), Zustand for state, TanStack Query for data fetching.
+- **Mobile**: Expo/React Native, mobile-first, Apple-style UI, SafeAreaProvider.
+- **Backend**: Node.js microservices, RESTful APIs, OpenAPI 3.0.3, API Gateway routing.
+- **Database**: Supabase (PostgreSQL), Redis for caching, S3 for file storage.
+- **Blockchain**: Smart contracts (Solidity/Rust), escrow, on-chain settlement.
+- **CI/CD**: GitHub Actions, automated versioning, Snyk/code scanning.
+
+## 2. Code Style & Structure
+
+- Use TypeScript everywhere; prefer interfaces over types.
+- Functional, declarative programming; avoid classes.
+- Modularize code, avoid duplication.
+- Use RORO (Receive an Object, Return an Object) pattern.
+- Place static content and types at file end.
+- Use Prettier for formatting.
+
+## 3. UI/UX Standards
+
+- **Mobile-first**: All screens and components must be optimized for mobile.
+- **Apple-style**: Use Apple-inspired, medium-size UI elements, consistent button styling.
+- **Safe Areas**: Use SafeAreaProvider and SafeAreaView for all layouts.
+- **Accessibility**: ARIA roles, native accessibility props, text scaling.
+- **Styling**: Tailwind CSS (web), styled-components or Tailwind for React Native, Shadcn UI, Radix UI.
+- **Component Patterns**: Use declarative JSX, functional components, minimal useEffect/useState.
+
+## 4. API & Data
+
+- **API**: Only use endpoints defined in OpenAPI spec. Validate all responses.
+- **Data Validation**: Use Zod for runtime validation.
+- **Error Handling**: Early returns for errors, log with Sentry/expo-error-reporter.
+- **Security**: JWT auth, RBAC, rate limiting, input validation, secret management.
+
+## 5. Testing & QA
+
+- **Unit Tests**: 80%+ coverage, Jest/React Native Testing Library.
+- **Integration Tests**: All API endpoints, run in CI.
+- **E2E Tests**: Critical user journeys (login, bet creation, wallet), run after every change.
+- **Test Data**: No demo users; use production-like data only.
+- **Test Execution**: Run one test suite at a time; ensure all services (Supabase, Redis) are operational on default ports before tests.
+- **QA**: Smoke, regression, and stress testing required for every feature/bugfix.
+
+## 6. Security & Compliance
+
+- Follow OWASP Top 10, regular penetration and smart contract audits.
+- Use secure storage for secrets and user data.
+- Enforce HTTPS, proper session and access control.
+- Regularly review and update security checklist (see ADR Appendix D).
+
+## 7. Git & Versioning
+
+- Use automated scripts for branch, commit, push, merge, and release (see git_versioning_automation.md).
+- Feature branches from develop; PRs required for main.
+- Use semantic versioning; update changelog on every release.
+
+## 8. Deployment
+
+- Use CI/CD for build, test, security scan, and deploy.
+- Run `npm run db:migrate` and `npm run db:seed` before starting dev server.
+- Start frontend with `cd client && npm run dev`.
+
+## 9. Documentation
+
+- Document all code, APIs, and architecture.
+- Maintain up-to-date README and ADRs.
+- Follow Expo/Next.js documentation best practices.
+
+## 10. Key Conventions
+
+- Never invent endpoints or use demo users.
+- Always validate environment variables.
+- Prioritize security, performance, and user experience.
+- Default to recommended options and best practices.
+- All main pages/components must use mobile-optimized, Apple-style classes.
+
+---
+*For detailed standards, see: comprehensive_cursor_rule.md, cursor_engineering_standards.md, fanclubz_ui_ux_guide.md, fanclubz_adr.md, Fan Club Zv2.0.md, git_versioning_automation.md*
