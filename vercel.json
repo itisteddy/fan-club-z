@@ -1,13 +1,24 @@
 {
   "version": 2,
-  "buildCommand": "cd client && npm install && npm run build",
-  "outputDirectory": "client/dist",
-  "installCommand": "npm install",
-  "framework": "vite",
+  "builds": [
+    {
+      "src": "client/package.json",
+      "use": "@vercel/static-build",
+      "config": {
+        "distDir": "client/dist"
+      }
+    }
+  ],
+  "routes": [
+    {
+      "src": "/(.*)",
+      "dest": "/client/dist/index.html"
+    }
+  ],
   "env": {
     "VITE_API_URL": "https://fan-club-z.onrender.com",
     "VITE_WS_URL": "wss://fan-club-z.onrender.com",
     "VITE_ENVIRONMENT": "production",
     "VITE_DEBUG": "false"
   }
-} 
+}
