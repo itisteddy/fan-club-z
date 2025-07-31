@@ -6,8 +6,8 @@
   "scripts": {
     "dev": "tsx watch src/index-minimal.ts",
     "dev:full": "tsx watch src/index.ts",
-    "build": "echo 'Skipping TypeScript build for deployment'",
-    "start": "node dist/index.js",
+    "build": "tsc",
+    "start": "tsx src/index-minimal.ts",
     "db:migrate": "tsx src/scripts/seed-database.ts",
     "db:seed": "tsx src/scripts/seed-database.ts",
     "db:reset": "tsx src/scripts/reset.ts",

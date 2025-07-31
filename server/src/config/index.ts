@@ -14,7 +14,7 @@ export const config = {
   
   // Frontend Configuration
   frontend: {
-    url: process.env.VITE_APP_URL || 'http://localhost:5173',
+    url: process.env.CLIENT_URL || process.env.VITE_APP_URL || 'http://localhost:5173',
   },
   
   // API Configuration
