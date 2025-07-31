@@ -1,0 +1,53 @@
+/* Additional CSS fixes for compact comments */
+
+/* Comments Modal Specific Improvements - More Compact */
+.comments-modal .modal-body {
+  padding: 4px 16px !important;
+}
+
+.comments-modal .space-y-0 > * + * {
+  margin-top: 0px !important;
+}
+
+/* Comment item spacing - Much more compact */
+.comments-modal .flex.gap-3.mb-2 {
+  margin-bottom: 6px !important;
+  padding: 4px 0 !important;
+}
+
+.comments-modal .flex.gap-3.mb-2:last-child {
+  margin-bottom: 0 !important;
+}
+
+/* Reduce gap between avatar and content */
+.comments-modal .flex.gap-3 {
+  gap: 8px !important;
+}
+
+/* Make comment bubbles more compact */
+.comments-modal .bg-gray-50.rounded-2xl {
+  padding: 8px 12px !important;
+  margin-bottom: 2px !important;
+}
+
+/* Reduce spacing in comment actions */
+.comments-modal .mt-1.ml-3 {
+  margin-top: 2px !important;
+  margin-left: 8px !important;
+}
+
+/* Make avatars slightly smaller */
+.comments-modal .w-8.h-8 {
+  width: 28px !important;
+  height: 28px !important;
+}
+
+/* Reduce text spacing within comments */
+.comments-modal .mb-1 {
+  margin-bottom: 2px !important;
+}
+
+/* Make the overall comment container more compact */
+.comments-modal .space-y-0 {
+  gap: 2px !important;
+}

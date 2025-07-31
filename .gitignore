@@ -1,0 +1,144 @@
+# Dependencies
+node_modules/
+*/node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Production builds
+dist/
+build/
+*/dist/
+*/build/
+
+# Environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Logs
+*.log
+logs/
+server-debug.log
+
+# Runtime data
+pids/
+*.pid
+*.seed
+*.pid.lock
+
+# Coverage directory used by tools like istanbul
+coverage/
+*.lcov
+
+# Dependency directories
+jspm_packages/
+
+# Optional npm cache directory
+.npm
+
+# Optional REPL history
+.node_REPL_history
+
+# Output of 'npm pack'
+*.tgz
+
+# Yarn Integrity file
+.yarn-integrity
+
+# parcel-bundler cache (https://parceljs.org/)
+.cache
+.parcel-cache
+
+# next.js build output
+.next
+
+# nuxt.js build output
+.nuxt
+
+# vuepress build output
+.vuepress/dist
+
+# Serverless directories
+.serverless
+
+# FusionAuth
+.fusionauth
+
+# DynamoDB Local files
+.dynamodb
+
+# TernJS port file
+.tern-port
+
+# Stores VSCode versions used for testing VSCode extensions
+.vscode-test
+
+# Personal files (OneDrive, etc)
+Library/
+OneDrive*/
+*CloudStorage*
+
+# Backup files
+*.backup
+*.bak
+*.tmp
+
+# Development files
+*.orig
+*.rej
+
+# Test files
+test-production-deployment.js
+
+# Cursor IDE
+.cursor/
+
+# Documentation files (keep only essential ones)
+CONVERSATION_LOG.md
+UI_FIXES_DETAILED_SUMMARY.md
+CONSOLE_FIXES_APPLIED.md
+CONSOLE_FIXES_SUMMARY.md
+UI_FIXES_SUMMARY.md
+BACKUP_INSTRUCTIONS.md
+TEST_APP.md
+fanclubz_modern_uiux_guide_v3.md
+fanclubz_fixes_summary.md
+DATABASE_MIGRATION.md
+Fan Club Zv2.0.md
+fanclubz_ui_ux_guide.md
+git_versioning_automation.md
+fanclubz_adr.md
+Fan Club Z v2.0 - Updated Terminology.md
+cursor_engineering_standards.md
+comprehensive_cursor_rule.md
+
+# Scripts (keep only essential ones)
+check-server.js
+check-build.js
+restart-dev.sh
+setup-cursor.bat
+setup-cursor.sh
+start-test.bat
+start-test.sh
+quick-check.bat
+quick-check.sh
+verify-supabase.js

@@ -1,0 +1,92 @@
+/* Additional compact styles for prediction cards */
+.prediction-card-compact .p-2 {
+  padding: 6px !important;
+}
+
+.prediction-card-compact .p-1 {
+  padding: 3px !important;
+}
+
+.prediction-card-compact .w-5 {
+  width: 18px !important;
+}
+
+.prediction-card-compact .h-5 {
+  height: 18px !important;
+}
+
+.prediction-card-compact .px-3 {
+  padding-left: 8px !important;
+  padding-right: 8px !important;
+}
+
+.prediction-card-compact .px-1 {
+  padding-left: 3px !important;
+  padding-right: 3px !important;
+}
+
+/* Make buttons and icons even smaller */
+.prediction-card-compact .h-6 {
+  height: 20px !important;
+}
+
+.prediction-card-compact svg {
+  max-width: 10px !important;
+  max-height: 10px !important;
+}
+
+/* Force smaller option cards */
+.prediction-card-compact .bg-muted\/50,
+.prediction-card-compact .rounded-md {
+  padding: 4px !important;
+  border-radius: 4px !important;
+}
+
+/* Reduce all margins and padding further */
+.prediction-card-compact .mb-1 {
+  margin-bottom: 2px !important;
+}
+
+.prediction-card-compact .pt-1 {
+  padding-top: 2px !important;
+}
+
+.prediction-card-compact .mb-0\.5 {
+  margin-bottom: 1px !important;
+}
+
+/* Force smaller font sizes */
+.prediction-card-compact .text-xs {
+  font-size: 10px !important;
+  line-height: 1.2 !important;
+}
+
+.prediction-card-compact h3 {
+  font-size: 12px !important;
+  line-height: 1.2 !important;
+  margin-bottom: 2px !important;
+}
+
+/* Compact stats and actions */
+.prediction-card-compact .border-t {
+  border-top-width: 1px !important;
+}
+
+.prediction-card-compact .py-1 {
+  padding-top: 2px !important;
+  padding-bottom: 2px !important;
+}
+
+/* Make the overall card more compact */
+.prediction-card-compact {
+  margin-bottom: 6px !important;
+}
+
+/* Reduce gap between elements */
+.prediction-card-compact .gap-2 {
+  gap: 3px !important;
+}
+
+.prediction-card-compact .gap-1 {
+  gap: 2px !important;
+}
