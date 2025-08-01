@@ -2,6 +2,7 @@ import React, { useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronLeft, Plus, X, Calendar, DollarSign, Users, Settings, Sparkles, Check } from 'lucide-react';
 import { usePredictionStore } from '../stores/predictionStore';
+import toast from 'react-hot-toast';
 
 interface PredictionOption {
   id: string;
@@ -110,7 +111,7 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
 
   const handleSubmit = useCallback(async () => {
     if (!validateStep(3)) {
-      alert('Please fill in all required fields');
+      toast.error('Please fill in all required fields');
       return;
     }
     
@@ -165,6 +166,7 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
       await createPrediction(predictionData);
       
       console.log('Prediction created successfully!');
+      toast.success('🎉 Prediction created successfully!');
       setSubmitSuccess(true);
       
       // Navigate back after success
@@ -194,7 +196,8 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
       }, 2000);
     } catch (error) {
       console.error('Failed to create prediction:', error);
-      alert(error instanceof Error ? error.message : 'Failed to create prediction. Please try again.');
+      const errorMessage = error instanceof Error ? error.message : 'Failed to create prediction. Please try again.';
+      toast.error(errorMessage);
       setIsSubmitting(false);
     }
   }, [validateStep, title, category, entryDeadline, description, type, options, stakeMin, stakeMax, settlementMethod, isPrivate, createPrediction, onNavigateBack]);
