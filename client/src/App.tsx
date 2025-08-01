@@ -7,7 +7,7 @@ import { Toaster } from 'react-hot-toast';
 // Import all page components
 import DiscoverPage from './pages/DiscoverPage';
 import CreatePredictionPage from './pages/CreatePredictionPage';
-import PredictionsTab from './pages/PredictionsTab';
+import BetsTab from './pages/BetsTab';
 import ClubsPage from './pages/ClubsPage';
 import ProfilePage from './pages/ProfilePage';
 import WalletPage from './pages/WalletPage';
@@ -17,7 +17,7 @@ import BottomNavigation from './components/BottomNavigation';
 
 // Create the missing page components
 const MyPredictionsPage: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNavigateToDiscover }) => {
-  return <PredictionsTab onNavigateToDiscover={onNavigateToDiscover} />;
+  return <BetsTab onNavigateToDiscover={onNavigateToDiscover} />;
 };
 
 // Navigation History Manager
