@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useWalletStore } from './stores/walletStore';
 import { useAuthStore } from './store/authStore';
 import { Toaster } from 'react-hot-toast';
+import { scrollToTop } from './utils/scroll';
 
 // Import all page components
 import DiscoverPage from './pages/DiscoverPage';
@@ -86,38 +87,38 @@ function App() {
     navigationHistory.push(tab);
     setActiveTab(tab);
     // Scroll to top when changing tabs (UI/UX best practice)
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    scrollToTop({ delay: 100 });
   };
 
   const handleNavigateToProfile = () => {
     navigationHistory.push('profile');
     setActiveTab('profile');
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    scrollToTop({ delay: 100 });
   };
 
   const handleNavigateBackFromProfile = () => {
     const previousTab = navigationHistory.getPrevious();
     setActiveTab(previousTab);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    scrollToTop({ delay: 100 });
   };
 
   const handleNavigateToDiscover = () => {
     navigationHistory.push('discover');
     setActiveTab('discover');
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    scrollToTop({ delay: 100 });
   };
 
   const handleNavigateBackFromCreate = () => {
     const previousTab = navigationHistory.getPrevious();
     setActiveTab(previousTab);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    scrollToTop({ delay: 100 });
   };
 
   // NEW: Handle navigation to create prediction from clubs
   const handleNavigateToCreateFromClubs = () => {
     navigationHistory.push('create');
     setActiveTab('create');
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    scrollToTop({ delay: 100 });
   };
 
   const renderPage = () => {

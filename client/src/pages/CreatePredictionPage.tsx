@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronLeft, Plus, X, Calendar, DollarSign, Users, Settings, Sparkles, Check } from 'lucide-react';
 import { usePredictionStore } from '../stores/predictionStore';
 import toast from 'react-hot-toast';
+import { scrollToTop } from '../utils/scroll';
 
 interface PredictionOption {
   id: string;
@@ -21,7 +22,7 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
   
   // Scroll to top when component mounts (UI/UX best practice)
   useEffect(() => {
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    scrollToTop({ delay: 200 });
   }, []);
   
   // Use individual state variables instead of one large object to prevent re-renders
@@ -101,7 +102,7 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
     if (validateStep(step) && step < 3) {
       setStep(step + 1);
       // Scroll to top when advancing to next step
-      setTimeout(() => window.scrollTo({ top: 0, behavior: 'smooth' }), 100);
+      scrollToTop({ delay: 150 });
     }
   }, [step, validateStep]);
 
@@ -109,7 +110,7 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
     if (step > 1) {
       setStep(step - 1);
       // Scroll to top when going back to previous step
-      setTimeout(() => window.scrollTo({ top: 0, behavior: 'smooth' }), 100);
+      scrollToTop({ delay: 150 });
     } else {
       // Navigate back to previous page
       if (onNavigateBack) {

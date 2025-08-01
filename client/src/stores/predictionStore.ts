@@ -241,7 +241,7 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
         is_private: data.isPrivate || false,
         status: 'open',
         pool_total: 0,
-        // participant_count: 0, // Remove this field - it doesn't exist in production DB
+        participant_count: 0, // Initialize participant count (will be added to DB)
         creator_fee_percentage: 3.5,
         platform_fee_percentage: 1.5
         // created_at and updated_at handled by DB triggers
