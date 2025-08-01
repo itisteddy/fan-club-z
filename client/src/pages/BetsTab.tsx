@@ -162,6 +162,12 @@ const BetsTab: React.FC<BetsTabProps> = ({ onNavigateToDiscover }) => {
 
   const mockPredictions = getUserPredictions();
   const currentPredictions = mockPredictions[activeTab] || [];
+  
+  // Debug logging for tabs and current predictions
+  console.log('🔍 BetsTab Debug - Tabs:', tabs);
+  console.log('🔍 BetsTab Debug - Active Tab:', activeTab);
+  console.log('🔍 BetsTab Debug - Mock Predictions:', mockPredictions);
+  console.log('🔍 BetsTab Debug - Current Predictions:', currentPredictions);
 
   const getStatusColor = (status: string) => {
     switch (status) {
