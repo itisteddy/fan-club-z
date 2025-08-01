@@ -213,6 +213,8 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
         throw new Error('Entry deadline must be in the future');
       }
 
+      console.log('Creating prediction with validated data:', data);
+
       // Create prediction in Supabase
       const { data: prediction, error } = await supabase
         .from('predictions')
