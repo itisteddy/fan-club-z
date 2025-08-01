@@ -32,7 +32,8 @@
     "sync": "git pull origin main",
     "github-setup": "npm run git:setup && echo '\n🎯 Ready for GitHub! Create repo and add remote.'",
     "check-build": "node check-build.js",
-    "restart-dev": "bash restart-dev.sh"
+    "restart-dev": "bash restart-dev.sh",
+    "vercel-build": "cd client && npm install && npm run build"
   },
   "devDependencies": {
     "concurrently": "^8.2.2",

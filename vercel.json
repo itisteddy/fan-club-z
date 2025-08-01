@@ -2,8 +2,22 @@
   "version": 2,
   "buildCommand": "cd client && npm install && npm run build",
   "outputDirectory": "client/dist",
-  "installCommand": "npm install",
-  "framework": "vite",
+  "installCommand": "npm install --prefix client",
+  "routes": [
+    {
+      "src": "/api/(.*)",
+      "dest": "https://fan-club-z.onrender.com/api/$1",
+      "headers": {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type, Authorization"
+      }
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/index.html"
+    }
+  ],
   "env": {
     "VITE_API_URL": "https://fan-club-z.onrender.com",
     "VITE_WS_URL": "wss://fan-club-z.onrender.com",
