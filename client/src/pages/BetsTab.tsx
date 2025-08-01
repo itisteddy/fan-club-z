@@ -62,8 +62,6 @@ const BetsTab: React.FC<BetsTabProps> = ({ onNavigateToDiscover }) => {
     const predictionEntries = getPredictionEntries();
     const completedPredictions = getCompletedPredictions();
     
-
-    
     return {
       active: predictionEntries.filter(entry => entry.status === 'active').length,
       created: userCreatedPredictions.length,
@@ -154,8 +152,6 @@ const BetsTab: React.FC<BetsTabProps> = ({ onNavigateToDiscover }) => {
 
   const mockPredictions = getUserPredictions();
   const currentPredictions = mockPredictions[activeTab] || [];
-  
-
 
   const getStatusColor = (status: string) => {
     switch (status) {

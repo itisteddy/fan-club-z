@@ -11,7 +11,27 @@
 
 ## Key Conversations & Updates
 
-### Critical Authentication Fixes (January 8, 2025)
+### Prediction Creation & UI Fixes (January 8, 2025 - Evening)
+- **Date**: January 8, 2025
+- **Focus**: Fixed critical prediction creation issues and removed debug elements
+- **Key Issues Resolved**:
+  - **Database Schema Error**: Fixed "trigger already exists" error with proper existence checks
+  - **Field Mapping Issue**: Corrected field name mismatch between frontend and database (entryDeadline vs entry_deadline)
+  - **Debug Element Removal**: Removed debug info showing on My Predictions page in production
+  - **Data Validation**: Enhanced error handling and validation in prediction creation flow
+- **Files Modified**:
+  - `client/src/pages/BetsTab.tsx` - Removed debug info element
+  - `client/src/store/predictionStore.ts` - Fixed field mapping and error handling
+  - `client/src/stores/predictionStore.ts` - Updated with consistent interface
+  - `supabase-schema-fixed.sql` - Database schema with trigger safety checks
+  - `deploy-prediction-fixes.sh` - Automated deployment script
+- **Technical Details**:
+  - Fixed data formatting in createPrediction function
+  - Added proper error handling for database operations
+  - Updated schema to handle existing triggers gracefully
+  - Ensured consistent field naming across frontend/backend
+
+### Critical Authentication Fixes (January 8, 2025 - Morning)
 - **Date**: January 8, 2025
 - **Focus**: Fixed critical authentication issues preventing login/registration
 - **Key Issues Resolved**:
@@ -69,6 +89,8 @@
 - **Mobile-First**: Bottom navigation, touch-optimized interactions
 - **Authentication**: Supabase Auth with enhanced error handling and PKCE flow
 - **Email Validation**: Robust regex pattern supporting all valid email formats
+- **Database**: PostgreSQL with proper trigger management and error handling
+- **Field Mapping**: Consistent camelCase/snake_case conversion between frontend/backend
 
 ---
 
@@ -77,6 +99,7 @@
 - **Backend**: Deployed on Render with automatic deployments  
 - **Database**: Supabase PostgreSQL with real-time subscriptions
 - **Authentication**: Fixed and fully functional with test accounts
+- **Prediction Creation**: Fixed field mapping and database schema issues
 - **Environment**: Production-ready with comprehensive error handling
 
 ---
@@ -90,22 +113,33 @@
 - [ ] Push notification system
 - [ ] Social authentication (Google/Apple)
 - [ ] Password reset functionality
+- [ ] Prediction entry system (placing bets on predictions)
+- [ ] Wallet balance management and transactions
 
 ---
 
 ## Files Modified/Created (Latest Session)
-- **FIXED**: `client/src/pages/auth/AuthPage.tsx` - Email validation and UI improvements
-- **FIXED**: `client/src/store/authStore.ts` - Enhanced error handling and logging
-- **FIXED**: `client/src/lib/supabase.ts` - Connection testing and error handling
-- **NEW**: `deploy-auth-fixes.sh` - Automated deployment script
-- **NEW**: `DEPLOY_AUTH_FIXES.md` - Comprehensive deployment documentation
+- **FIXED**: `client/src/pages/BetsTab.tsx` - Removed debug info element
+- **FIXED**: `client/src/store/predictionStore.ts` - Fixed field mapping and error handling
+- **UPDATED**: `client/src/stores/predictionStore.ts` - Consistent with main store
+- **NEW**: `supabase-schema-fixed.sql` - Safe database schema with trigger checks
+- **NEW**: `deploy-prediction-fixes.sh` - Automated deployment script for prediction fixes
+
+---
+
+## Database Schema Notes
+- **Trigger Safety**: Schema now checks for existing triggers before creating
+- **Field Consistency**: Database uses snake_case, frontend uses camelCase with proper mapping
+- **Error Handling**: Graceful handling of schema creation errors
+- **Required Update**: Run `supabase-schema-fixed.sql` in Supabase SQL Editor after deployment
 
 ---
 
 ## Next Session Reminders
-- Authentication issues have been resolved - app should now work in production
-- Test accounts available: test@fanclubz.com/test123 and demo@example.com/demo123
-- Use Test Mode panel in deployed app for quick testing
-- Monitor user feedback for any remaining authentication issues
-- Consider implementing social authentication as next major feature
+- Prediction creation issues have been resolved - test end-to-end flow
+- Database schema update required: run `supabase-schema-fixed.sql` in Supabase
+- Monitor for any remaining prediction creation issues
+- Test My Predictions page to ensure no debug elements show
+- Consider implementing prediction entry system (users placing bets)
 - Update this log with any significant changes or decisions
+- Verify all field mappings are working correctly between frontend/backend

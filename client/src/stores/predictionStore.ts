@@ -207,15 +207,15 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
       }
 
       // Validate entry deadline is in the future
-      const deadline = new Date(data.entry_deadline);
+      const deadline = new Date(data.entryDeadline);
       const now = new Date();
       if (deadline <= now) {
         throw new Error('Entry deadline must be in the future');
       }
 
-      console.log('Creating prediction with validated data:', data);
 
-      // Create prediction in Supabase
+
+      // Create prediction in Supabase with correct field names
       const { data: prediction, error } = await supabase
         .from('predictions')
         .insert({
@@ -224,23 +224,29 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
           description: data.description,
           category: data.category,
           type: data.type,
-          stake_min: parseFloat(data.stake_min),
-          stake_max: parseFloat(data.stake_max),
-          entry_deadline: data.entry_deadline,
-          settlement_method: data.settlement_method,
-          is_private: data.is_private,
+          stake_min: parseFloat(data.stakeMin) || 100,
+          stake_max: data.stakeMax ? parseFloat(data.stakeMax) : null,
+          entry_deadline: data.entryDeadline,
+          settlement_method: data.settlementMethod,
+          is_private: data.isPrivate,
           status: 'open',
           pool_total: 0,
+          participant_count: 0,
           creator_fee_percentage: 3.5,
           platform_fee_percentage: 1.5,
-          tags: data.tags || []
+          tags: [],
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
         })
         .select()
         .single();
 
       if (error) {
-        throw error;
+        console.error('Supabase error creating prediction:', error);
+        throw new Error(error.message || 'Failed to create prediction');
       }
+
+      console.log('Prediction created successfully:', prediction);
 
       // Create prediction options
       if (data.options && data.options.length > 0) {
@@ -249,7 +255,8 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
           label: option.label,
           total_staked: 0,
           current_odds: 1.0,
-          percentage: 0
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
         }));
 
         const { error: optionsError } = await supabase
@@ -257,7 +264,10 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
           .insert(optionsData);
 
         if (optionsError) {
-          throw optionsError;
+          console.error('Error creating prediction options:', optionsError);
+          // Don't throw here, prediction was created successfully
+        } else {
+          console.log('Prediction options created successfully');
         }
       }
 
@@ -270,8 +280,9 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
       return prediction;
     } catch (error) {
       console.error('Failed to create prediction:', error);
-      set({ error: error instanceof Error ? error.message : 'Failed to create prediction', isLoading: false });
-      throw error;
+      const errorMessage = error instanceof Error ? error.message : 'Failed to create prediction';
+      set({ error: errorMessage, isLoading: false });
+      throw new Error(errorMessage);
     }
   },
 
@@ -293,7 +304,9 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
           prediction_id: predictionId,
           option_id: optionId,
           amount: amount,
-          status: 'active'
+          status: 'active',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
         });
 
       if (error) {

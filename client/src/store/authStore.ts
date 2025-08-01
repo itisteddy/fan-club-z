@@ -56,20 +56,22 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     try {
       console.log('🔐 Initializing authentication...');
       
-      // For both development and production, use mock authentication for now
-      // This allows testing without real Supabase setup
-      console.log('🔧 Using mock authentication for testing');
-      set({ 
-        isAuthenticated: false, 
-        user: null, 
-        token: null, 
-        loading: false,
-        initialized: true
-      });
-      return;
+      // For local development, use mock authentication if explicitly enabled
+      if (import.meta.env.DEV && import.meta.env.VITE_USE_MOCK_AUTH === 'true') {
+        console.log('🔧 Using mock authentication for development');
+        set({ 
+          isAuthenticated: false, 
+          user: null, 
+          token: null, 
+          loading: false,
+          initialized: true
+        });
+        return;
+      }
       
-      // Original Supabase logic (commented out for now)
-      /*
+      // Production: Use real Supabase authentication
+      console.log('🔧 Using Supabase authentication for production');
+      
       // Get current session first
       const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
       
@@ -107,7 +109,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           initialized: true
         });
       }
-      */
     } catch (error: any) {
       console.error('❌ Error initializing auth:', error.message);
       set({ 
@@ -126,7 +127,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       console.log('🔑 Attempting to log in user:', email);
       
       // For local development, use mock authentication
-      if (import.meta.env.DEV) {
+      if (import.meta.env.DEV && import.meta.env.VITE_USE_MOCK_AUTH === 'true') {
         console.log('🔧 Using mock authentication for development');
         
         // Simulate a brief delay
@@ -215,7 +216,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       console.log('📝 Attempting to register user:', email);
       
       // For local development, use mock authentication
-      if (import.meta.env.DEV) {
+      if (import.meta.env.DEV && import.meta.env.VITE_USE_MOCK_AUTH === 'true') {
         console.log('🔧 Using mock authentication for development');
         
         // Simulate a brief delay
