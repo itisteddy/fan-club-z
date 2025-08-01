@@ -241,11 +241,10 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
         is_private: data.isPrivate || false,
         status: 'open',
         pool_total: 0,
-        participant_count: 0, // Initialize participant count
+        // participant_count: 0, // Remove this field - it doesn't exist in production DB
         creator_fee_percentage: 3.5,
-        platform_fee_percentage: 1.5,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
+        platform_fee_percentage: 1.5
+        // created_at and updated_at handled by DB triggers
       };
 
       console.log('Final prediction payload:', predictionPayload);
@@ -271,9 +270,8 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
             prediction_id: prediction.id,
             label: option.label.trim(),
             total_staked: 0,
-            current_odds: 1.0,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
+            current_odds: 1.0
+            // created_at and updated_at handled by DB triggers
           }));
 
         if (optionsData.length < 2) {
@@ -325,9 +323,8 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
           prediction_id: predictionId,
           option_id: optionId,
           amount: amount,
-          status: 'active',
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
+          status: 'active'
+          // created_at and updated_at handled by DB triggers
         });
 
       if (error) {
