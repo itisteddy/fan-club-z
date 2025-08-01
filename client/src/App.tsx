@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useWalletStore } from './stores/walletStore';
 import { useAuthStore } from './store/authStore';
@@ -11,7 +11,7 @@ import PredictionsTab from './pages/PredictionsTab';
 import ClubsPage from './pages/ClubsPage';
 import ProfilePage from './pages/ProfilePage';
 import WalletPage from './pages/WalletPage';
-import DiscussionDetailPage from './pages/DiscussionDetailPage';
+import AuthPage from './pages/auth/AuthPage';
 
 import BottomNavigation from './components/BottomNavigation';
 
@@ -62,20 +62,25 @@ function App() {
   const [activeTab, setActiveTab] = useState('discover');
   const [navigationHistory] = useState(new NavigationHistory());
   const { initializeWallet } = useWalletStore();
-  const { initializeAuth } = useAuthStore();
+  const { initializeAuth, isAuthenticated, loading, initialized } = useAuthStore();
 
-  // Initialize wallet and auth on app start
-  React.useEffect(() => {
+  // Initialize auth and wallet on app start
+  useEffect(() => {
     console.log('🚀 Initializing Fan Club Z...');
     
     // Initialize authentication first
     initializeAuth();
     
-    // Then initialize wallet
-    initializeWallet();
-    
-    console.log('✅ App initialization complete');
-  }, [initializeWallet, initializeAuth]);
+    console.log('✅ App initialization started');
+  }, [initializeAuth]);
+
+  // Initialize wallet only after authentication is complete
+  useEffect(() => {
+    if (initialized && isAuthenticated) {
+      console.log('🏦 Initializing wallet for authenticated user...');
+      initializeWallet();
+    }
+  }, [initialized, isAuthenticated, initializeWallet]);
 
   const handleTabChange = (tab: string) => {
     navigationHistory.push(tab);
@@ -126,6 +131,50 @@ function App() {
         return <DiscoverPage onNavigateToProfile={handleNavigateToProfile} />;
     }
   };
+
+  // Show loading screen while initializing
+  if (!initialized || loading) {
+    return (
+      <div style={{ 
+        minHeight: '100vh', 
+        backgroundColor: '#f9fafb',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        flexDirection: 'column',
+        gap: '20px'
+      }}>
+        <div style={{
+          width: '48px',
+          height: '48px',
+          border: '4px solid #e5e7eb',
+          borderTop: '4px solid #22c55e',
+          borderRadius: '50%',
+          animation: 'spin 1s linear infinite'
+        }} />
+        <p style={{ 
+          fontSize: '16px', 
+          color: '#6b7280',
+          fontWeight: '500'
+        }}>
+          Initializing Fan Club Z...
+        </p>
+        <style>
+          {`
+            @keyframes spin {
+              0% { transform: rotate(0deg); }
+              100% { transform: rotate(360deg); }
+            }
+          `}
+        </style>
+      </div>
+    );
+  }
+
+  // Show auth page if not authenticated
+  if (!isAuthenticated) {
+    return <AuthPage />;
+  }
 
   return (
     <div style={{ minHeight: '100vh', backgroundColor: '#f9fafb' }}>

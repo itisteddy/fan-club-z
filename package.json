@@ -33,7 +33,12 @@
     "github-setup": "npm run git:setup && echo '\n🎯 Ready for GitHub! Create repo and add remote.'",
     "check-build": "node check-build.js",
     "restart-dev": "bash restart-dev.sh",
-    "vercel-build": "cd client && npm install && npm run build"
+    "vercel-build": "cd client && npm install && npm run build",
+    "deploy:staging": "git push origin development",
+    "deploy:prod": "git push origin main",
+    "setup:dev": "git checkout development && npm run install:all",
+    "test:build": "npm run build && npm run check-build",
+    "preview": "cd client && npm run preview"
   },
   "devDependencies": {
     "concurrently": "^8.2.2",

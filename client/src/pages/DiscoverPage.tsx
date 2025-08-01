@@ -1,10 +1,8 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Search, TrendingUp, Heart, MessageCircle, Share2, Clock, User } from 'lucide-react';
-import { usePredictionsStore } from '../stores/predictionsStore';
-import { useAuthStore } from '../stores/authStore';
-import { PlacePredictionModal } from '../components/predictions/PlacePredictionModal';
-import { CommentsModal } from '../components/predictions/CommentsModal';
+import { usePredictionStore } from '../store/predictionStore';
+import { useAuthStore } from '../store/authStore';
 import toast from 'react-hot-toast';
 
 // Modern Mobile Header
@@ -29,7 +27,7 @@ const MobileHeader: React.FC<{
       >
         <div>
           <h1 className="text-2xl font-bold text-gray-900 mb-1">
-            Welcome back, {user?.email?.split('@')[0] || 'User'}!
+            Welcome back, {user?.firstName || user?.email?.split('@')[0] || 'User'}!
           </h1>
           <p className="text-gray-600">
             Ready to make some winning predictions?
@@ -114,11 +112,11 @@ const CategoryFilters: React.FC<{ selectedCategory: string; onSelect: (category:
 }) => {
   const categories = [
     { id: 'all', label: 'All', gradient: 'from-gray-500 to-gray-600' },
-    { id: 'sports', label: 'Sports', gradient: 'from-blue-500 to-blue-600' },
-    { id: 'politics', label: 'Politics', gradient: 'from-purple-500 to-purple-600' },
-    { id: 'entertainment', label: 'Entertainment', gradient: 'from-pink-500 to-pink-600' },
-    { id: 'crypto', label: 'Crypto', gradient: 'from-orange-500 to-orange-600' },
-    { id: 'tech', label: 'Tech', gradient: 'from-indigo-500 to-indigo-600' },
+    { id: 'Sports', label: 'Sports', gradient: 'from-blue-500 to-blue-600' },
+    { id: 'Politics', label: 'Politics', gradient: 'from-purple-500 to-purple-600' },
+    { id: 'Entertainment', label: 'Entertainment', gradient: 'from-pink-500 to-pink-600' },
+    { id: 'Crypto', label: 'Crypto', gradient: 'from-orange-500 to-orange-600' },
+    { id: 'Tech', label: 'Tech', gradient: 'from-indigo-500 to-indigo-600' },
   ];
 
   return (
@@ -170,7 +168,7 @@ const PredictionCard: React.FC<{
   };
 
   const handleComment = () => {
-    onComment(prediction);
+    onComment(prediction.id);
   };
 
   const handleShare = () => {
@@ -188,10 +186,14 @@ const PredictionCard: React.FC<{
       {/* Compact header */}
       <div className="flex items-center gap-2 mb-2">
         <div className="w-8 h-8 bg-gradient-to-br from-green-400 to-green-600 rounded-lg flex items-center justify-center">
-          <span className="text-white font-bold text-xs">FC</span>
+          <span className="text-white font-bold text-xs">
+            {prediction.creatorName?.charAt(0) || 'FC'}
+          </span>
         </div>
         <div className="flex-1 min-w-0">
-          <div className="text-sm font-semibold text-gray-900 truncate">Fan Club Z</div>
+          <div className="text-sm font-semibold text-gray-900 truncate">
+            {prediction.creatorName || 'Fan Club Z'}
+          </div>
           <div className="text-xs text-gray-500">2h ago</div>
         </div>
         <div className="px-2 py-1 bg-green-50 text-green-700 text-xs font-medium rounded-md border border-green-200">
@@ -228,7 +230,9 @@ const PredictionCard: React.FC<{
         
         <div className="flex items-center gap-1 text-orange-500">
           <Clock className="w-3 h-3" />
-          <span className="text-xs font-semibold">5h left</span>
+          <span className="text-xs font-semibold">
+            {getTimeRemaining(prediction.entryDeadline)}
+          </span>
         </div>
       </div>
 
@@ -245,6 +249,7 @@ const PredictionCard: React.FC<{
               key={option.id || optionIndex}
               whileHover={{ scale: 1.01 }}
               whileTap={{ scale: 0.99 }}
+              onClick={() => onPredict(prediction)}
               className="w-full p-3 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors"
             >
               <div className="flex items-center justify-between mb-2">
@@ -325,6 +330,76 @@ const PredictionCard: React.FC<{
   );
 };
 
+// Simple modal for prediction placement (placeholder)
+const PredictionModal: React.FC<{
+  prediction: any;
+  isOpen: boolean;
+  onClose: () => void;
+}> = ({ prediction, isOpen, onClose }) => {
+  if (!isOpen || !prediction) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <motion.div
+        initial={{ opacity: 0, scale: 0.9 }}
+        animate={{ opacity: 1, scale: 1 }}
+        exit={{ opacity: 0, scale: 0.9 }}
+        className="bg-white rounded-xl p-6 max-w-md w-full"
+      >
+        <h3 className="text-lg font-bold text-gray-900 mb-4">
+          Make Your Prediction
+        </h3>
+        
+        <p className="text-gray-600 mb-6">
+          {prediction.title}
+        </p>
+        
+        <div className="space-y-3 mb-6">
+          {prediction.options?.map((option: any, index: number) => (
+            <button
+              key={option.id || index}
+              onClick={() => {
+                toast.success(`Predicted: ${option.label}`);
+                onClose();
+              }}
+              className="w-full p-3 bg-gray-50 hover:bg-green-50 border border-gray-200 hover:border-green-200 rounded-lg text-left transition-colors"
+            >
+              <div className="font-semibold text-gray-900">{option.label}</div>
+              <div className="text-sm text-gray-600">
+                Current odds: {(option.currentOdds || 2.0).toFixed(2)}x
+              </div>
+            </button>
+          ))}
+        </div>
+        
+        <button
+          onClick={onClose}
+          className="w-full py-3 bg-gray-100 text-gray-700 rounded-lg font-medium hover:bg-gray-200 transition-colors"
+        >
+          Cancel
+        </button>
+      </motion.div>
+    </div>
+  );
+};
+
+// Helper function to calculate time remaining
+const getTimeRemaining = (deadline: Date | string | undefined) => {
+  if (!deadline) return '5h left';
+  
+  const now = new Date().getTime();
+  const deadlineTime = new Date(deadline).getTime();
+  const diff = deadlineTime - now;
+  
+  if (diff <= 0) return 'Ended';
+  
+  const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+  const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+  
+  if (days > 0) return `${days}d ${hours}h left`;
+  return `${hours}h left`;
+};
+
 interface DiscoverPageProps {
   onNavigateToProfile?: () => void;
 }
@@ -334,15 +409,19 @@ const DiscoverPage: React.FC<DiscoverPageProps> = ({ onNavigateToProfile }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedPrediction, setSelectedPrediction] = useState<any>(null);
   const [isPredictionModalOpen, setIsPredictionModalOpen] = useState(false);
-  const [isCommentsModalOpen, setIsCommentsModalOpen] = useState(false);
-  const [selectedPredictionForComments, setSelectedPredictionForComments] = useState<any>(null);
   
-  const { predictions } = usePredictionsStore();
-  const { user } = useAuthStore();
+  const { predictions, loading, fetchPredictions } = usePredictionStore();
+  const { user, isAuthenticated } = useAuthStore();
+
+  // Fetch predictions on component mount
+  useEffect(() => {
+    console.log('🔄 DiscoverPage mounted, fetching predictions...');
+    fetchPredictions();
+  }, [fetchPredictions]);
 
   const stats = {
     totalVolume: 2547892,
-    activePredictions: 1247,
+    activePredictions: predictions?.length || 0,
     todayVolume: 89234,
   };
 
@@ -352,7 +431,7 @@ const DiscoverPage: React.FC<DiscoverPageProps> = ({ onNavigateToProfile }) => {
     
     // Category filter
     const matchesCategory = selectedCategory === 'all' || 
-      (prediction.category && prediction.category.toLowerCase() === selectedCategory);
+      (prediction.category && prediction.category === selectedCategory);
     
     // Search filter
     const matchesSearch = !searchQuery || 
@@ -364,37 +443,62 @@ const DiscoverPage: React.FC<DiscoverPageProps> = ({ onNavigateToProfile }) => {
   });
 
   const handlePredict = useCallback((prediction: any) => {
+    if (!isAuthenticated) {
+      toast.error('Please sign in to make predictions');
+      return;
+    }
     setSelectedPrediction(prediction);
     setIsPredictionModalOpen(true);
-  }, []);
+  }, [isAuthenticated]);
 
   const handleLike = useCallback((predictionId: string) => {
-    // This would typically make an API call to like/unlike
+    if (!isAuthenticated) {
+      toast.error('Please sign in to like predictions');
+      return;
+    }
     console.log('Liked prediction:', predictionId);
-  }, []);
+  }, [isAuthenticated]);
 
-  const handleComment = useCallback((prediction: any) => {
-    setSelectedPredictionForComments(prediction);
-    setIsCommentsModalOpen(true);
-  }, []);
+  const handleComment = useCallback((predictionId: string) => {
+    if (!isAuthenticated) {
+      toast.error('Please sign in to comment');
+      return;
+    }
+    console.log('Comment on prediction:', predictionId);
+    toast.success('Comments feature coming soon!');
+  }, [isAuthenticated]);
 
   const handleShare = useCallback((prediction: any) => {
-    // This would typically open a share dialog
+    const shareText = `${prediction.title}\n\nMake your prediction on Fan Club Z!`;
+    
     if (navigator.share) {
       navigator.share({
         title: prediction.title,
-        text: prediction.description,
+        text: shareText,
         url: window.location.href,
-      });
+      }).catch(console.error);
     } else {
       // Fallback: copy to clipboard
-      navigator.clipboard.writeText(`${prediction.title}\n${prediction.description}\n${window.location.href}`);
+      navigator.clipboard.writeText(`${shareText}\n${window.location.href}`)
+        .then(() => toast.success('Link copied to clipboard!'))
+        .catch(() => toast.error('Failed to copy link'));
     }
   }, []);
 
   const handleSearchChange = useCallback((query: string) => {
     setSearchQuery(query);
   }, []);
+
+  if (loading && (!predictions || predictions.length === 0)) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-8 h-8 border-2 border-green-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading predictions...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50" style={{ paddingBottom: 'calc(5rem + env(safe-area-inset-bottom))' }}>
@@ -422,7 +526,7 @@ const DiscoverPage: React.FC<DiscoverPageProps> = ({ onNavigateToProfile }) => {
           className="px-4 mb-6"
         >
           <h2 className="text-2xl font-bold text-gray-900 mb-1">
-            {selectedCategory === 'all' ? 'All Predictions' : `${selectedCategory.charAt(0).toUpperCase() + selectedCategory.slice(1)} Predictions`}
+            {selectedCategory === 'all' ? 'All Predictions' : `${selectedCategory} Predictions`}
             {searchQuery && ` - "${searchQuery}"`}
           </h2>
           <p className="text-gray-600">
@@ -448,7 +552,7 @@ const DiscoverPage: React.FC<DiscoverPageProps> = ({ onNavigateToProfile }) => {
         </div>
 
         {/* Empty state */}
-        {filteredPredictions.length === 0 && (
+        {filteredPredictions.length === 0 && !loading && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -463,7 +567,7 @@ const DiscoverPage: React.FC<DiscoverPageProps> = ({ onNavigateToProfile }) => {
             <p className="text-gray-600">
               {searchQuery 
                 ? 'Try adjusting your search terms or category filter'
-                : 'Try adjusting your category filter'
+                : 'Check back later for new predictions'
               }
             </p>
           </motion.div>
@@ -471,29 +575,14 @@ const DiscoverPage: React.FC<DiscoverPageProps> = ({ onNavigateToProfile }) => {
       </div>
 
       {/* Prediction Modal */}
-      {selectedPrediction && (
-        <PlacePredictionModal
-          prediction={selectedPrediction}
-          isOpen={isPredictionModalOpen}
-          onClose={() => {
-            setIsPredictionModalOpen(false);
-            setSelectedPrediction(null);
-          }}
-        />
-      )}
-
-      {/* Comments Modal */}
-      {selectedPredictionForComments && (
-        <CommentsModal
-          predictionId={selectedPredictionForComments.id}
-          predictionTitle={selectedPredictionForComments.title}
-          isOpen={isCommentsModalOpen}
-          onClose={() => {
-            setIsCommentsModalOpen(false);
-            setSelectedPredictionForComments(null);
-          }}
-        />
-      )}
+      <PredictionModal
+        prediction={selectedPrediction}
+        isOpen={isPredictionModalOpen}
+        onClose={() => {
+          setIsPredictionModalOpen(false);
+          setSelectedPrediction(null);
+        }}
+      />
     </div>
   );
 };

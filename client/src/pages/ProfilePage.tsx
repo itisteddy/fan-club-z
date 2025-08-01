@@ -27,7 +27,7 @@ import {
   FileText,
   Heart
 } from 'lucide-react';
-import { useAuthStore } from '../stores/authStore';
+import { useAuthStore } from '../store/authStore';
 
 interface ProfilePageProps {
   onNavigateBack?: () => void;

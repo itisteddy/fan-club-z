@@ -1,0 +1,25 @@
+# Staging Environment Setup
+
+## 1. Create vercel.staging.json
+{
+  "version": 2,
+  "buildCommand": "cd client && npm install && npm run build",
+  "outputDirectory": "client/dist",
+  "installCommand": "npm install --prefix client",
+  "rewrites": [
+    {
+      "source": "/api/(.*)",
+      "destination": "https://fan-club-z-staging.onrender.com/api/$1"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ],
+  "env": {
+    "VITE_API_URL": "https://fan-club-z-staging.onrender.com",
+    "VITE_WS_URL": "wss://fan-club-z-staging.onrender.com",
+    "VITE_ENVIRONMENT": "staging",
+    "VITE_DEBUG": "true"
+  }
+}

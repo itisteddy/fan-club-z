@@ -1,8 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { TrendingUp, Target, CheckCircle, Plus, ArrowRight } from 'lucide-react';
 import { useLocation } from 'wouter';
-import { usePredictionStore, Prediction } from '../stores/predictionStore';
+import { usePredictionStore } from '../store/predictionStore';
+import { useAuthStore } from '../store/authStore';
+import { Prediction } from '../types';
 import BetCard from '../components/BetCard';
 import ManagePredictionModal from '../components/modals/ManagePredictionModal';
 import DebugInfo from '../components/DebugInfo';
@@ -13,70 +15,73 @@ interface BetsTabProps {
 
 const BetsTab: React.FC<BetsTabProps> = ({ onNavigateToDiscover }) => {
   const [, setLocation] = useLocation();
-  const { predictions } = usePredictionStore();
+  const { predictions, getUserCreatedPredictions, fetchUserCreatedPredictions, loading } = usePredictionStore();
+  const { user, isAuthenticated } = useAuthStore();
   
-  // Mock prediction entries for demonstration
-  const mockPredictionEntries = [
-    {
-      id: '1',
-      predictionId: '1',
-      userId: '1',
-      optionId: '1',
-      amount: 5000,
-      potentialPayout: 7800,
-      status: 'active' as const,
-      createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString()
+  // Fetch user's created predictions when component mounts or user changes
+  useEffect(() => {
+    if (user?.id && isAuthenticated) {
+      fetchUserCreatedPredictions(user.id);
     }
-  ];
+  }, [user?.id, isAuthenticated, fetchUserCreatedPredictions]);
+  
+  // Mock prediction entries for demonstration (only when authenticated)
+  const getMockPredictionEntries = () => {
+    if (!isAuthenticated || !user) return [];
+    
+    return [
+      {
+        id: '1',
+        predictionId: '1',
+        userId: user.id,
+        optionId: '1',
+        amount: 5000,
+        potentialPayout: 7800,
+        status: 'active' as const,
+        createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString()
+      }
+    ];
+  };
+
   const [activeTab, setActiveTab] = useState('Active');
   const [isManageModalOpen, setIsManageModalOpen] = useState(false);
   const [selectedPrediction, setSelectedPrediction] = useState(null);
 
+  // Get dynamic counts based on actual data
+  const getUserPredictionCounts = () => {
+    if (!isAuthenticated || !user) {
+      return { active: 0, created: 0, completed: 0 };
+    }
+
+    const userCreatedPredictions = getUserCreatedPredictions(user.id);
+    const mockEntries = getMockPredictionEntries();
+    const mockCompletedPredictions = getCompletedPredictions();
+    
+    return {
+      active: mockEntries.filter(entry => entry.status === 'active').length,
+      created: userCreatedPredictions.length,
+      completed: mockCompletedPredictions.length
+    };
+  };
+
+  const counts = getUserPredictionCounts();
+  
   const tabs = [
-    { id: 'Active', label: 'Active', icon: TrendingUp, count: 3 },
-    { id: 'Created', label: 'Created', icon: Target, count: 1 },
-    { id: 'Completed', label: 'Completed', icon: CheckCircle, count: mockPredictions.Completed.length }
+    { id: 'Active', label: 'Active', icon: TrendingUp, count: counts.active },
+    { id: 'Created', label: 'Created', icon: Target, count: counts.created },
+    { id: 'Completed', label: 'Completed', icon: CheckCircle, count: counts.completed }
   ];
 
-  // Get user's predictions data
-  const getUserPredictions = () => {
-    const userEntries = mockPredictionEntries.filter(entry => entry.userId === '1');
+  // Get completed predictions (only if user has any activity)
+  const getCompletedPredictions = () => {
+    if (!isAuthenticated || !user) return [];
+
+    // Only show completed predictions if user has some activity (created predictions or active bets)
+    const hasActivity = getUserCreatedPredictions(user.id).length > 0 || getMockPredictionEntries().length > 0;
     
-    const activePredictions = userEntries
-      .filter(entry => entry.status === 'active')
-      .map(entry => {
-        const prediction = predictions.find(p => p.id === entry.predictionId);
-        const option = prediction?.options.find(o => o.id === entry.optionId);
-        return {
-          id: entry.id,
-          title: prediction?.title || '',
-          category: prediction?.category || '',
-          position: option?.label || '',
-          stake: entry.amount,
-          potentialReturn: entry.potentialPayout || 0,
-          odds: `${(entry.potentialPayout || 0) / entry.amount}x`,
-          timeRemaining: getTimeRemaining(prediction?.entry_deadline),
-          status: 'active',
-          participants: prediction?.participant_count || 0,
-          confidence: calculateConfidence(prediction)
-        };
-      });
+    if (!hasActivity) return [];
 
-    const createdPredictions = predictions
-      .filter(p => p.creator_id === '1')
-      .map(prediction => ({
-        id: prediction.id,
-        title: prediction.title,
-        category: prediction.category,
-        totalPool: prediction.pool_total,
-        participants: prediction.participant_count,
-        timeRemaining: getTimeRemaining(prediction.entry_deadline),
-        status: prediction.status,
-        yourCut: 3.5,
-        description: prediction.description
-      }));
-
-    const completedPredictions = [
+    return [
       {
         id: 'completed-1',
         title: 'Will Ethereum reach $3000 by end of Q1?',
@@ -112,68 +117,52 @@ const BetsTab: React.FC<BetsTabProps> = ({ onNavigateToDiscover }) => {
         status: 'won',
         settledAt: '3 days ago',
         participants: 123
-      },
-      {
-        id: 'completed-4',
-        title: 'Will Apple announce AR glasses?',
-        category: 'Tech',
-        position: 'Yes',
-        stake: 75.00,
-        actualReturn: 0,
-        profit: -75.00,
-        status: 'lost',
-        settledAt: '2 weeks ago',
-        participants: 89
-      },
-      {
-        id: 'completed-5',
-        title: 'Grammy Awards Best Album Winner',
-        category: 'Entertainment',
-        position: 'Taylor Swift',
-        stake: 50.00,
-        actualReturn: 95.00,
-        profit: 45.00,
-        status: 'won',
-        settledAt: '1 month ago',
-        participants: 156
-      },
-      {
-        id: 'completed-6',
-        title: 'FIFA World Cup Top Scorer',
-        category: 'Sports',
-        position: 'Messi',
-        stake: 120.00,
-        actualReturn: 180.00,
-        profit: 60.00,
-        status: 'won',
-        settledAt: '2 months ago',
-        participants: 445
-      },
-      {
-        id: 'completed-7',
-        title: 'US Election Turnout Above 70%',
-        category: 'Politics',
-        position: 'No',
-        stake: 80.00,
-        actualReturn: 0,
-        profit: -80.00,
-        status: 'lost',
-        settledAt: '3 months ago',
-        participants: 678
-      },
-      {
-        id: 'completed-8',
-        title: 'Netflix Subscriber Growth Q4',
-        category: 'Finance',
-        position: 'Above 10M',
-        stake: 90.00,
-        actualReturn: 135.00,
-        profit: 45.00,
-        status: 'won',
-        settledAt: '4 months ago',
-        participants: 234
       }
     ];
+  };
+
+  // Get user's predictions data
+  const getUserPredictions = () => {
+    if (!isAuthenticated || !user) {
+      return { Active: [], Created: [], Completed: [] };
+    }
+
+    const userEntries = getMockPredictionEntries();
+    
+    const activePredictions = userEntries
+      .filter(entry => entry.status === 'active')
+      .map(entry => {
+        const prediction = predictions.find(p => p.id === entry.predictionId);
+        const option = prediction?.options.find(o => o.id === entry.optionId);
+        return {
+          id: entry.id,
+          title: prediction?.title || 'Will Manchester United beat Chelsea?',
+          category: prediction?.category || 'Sports',
+          position: option?.label || 'Yes',
+          stake: entry.amount,
+          potentialReturn: entry.potentialPayout || 0,
+          odds: `${((entry.potentialPayout || 0) / entry.amount).toFixed(2)}x`,
+          timeRemaining: getTimeRemaining(prediction?.entryDeadline),
+          status: 'active',
+          participants: prediction?.participantCount || 45,
+          confidence: calculateConfidence(prediction)
+        };
+      });
+
+    const createdPredictions = getUserCreatedPredictions(user.id)
+      .map(prediction => ({
+        id: prediction.id,
+        title: prediction.title,
+        category: prediction.category,
+        totalPool: prediction.poolTotal || 0,
+        participants: prediction.participantCount || 0,
+        timeRemaining: getTimeRemaining(prediction.entryDeadline),
+        status: prediction.status,
+        yourCut: 3.5,
+        description: prediction.description
+      }));
+
+    const completedPredictions = getCompletedPredictions();
 
     return {
       Active: activePredictions,
@@ -182,8 +171,8 @@ const BetsTab: React.FC<BetsTabProps> = ({ onNavigateToDiscover }) => {
     };
   };
 
-  const getTimeRemaining = (deadline) => {
-    if (!deadline) return 'No deadline';
+  const getTimeRemaining = (deadline: Date | string | undefined) => {
+    if (!deadline) return '2d 14h';
     const now = new Date().getTime();
     const deadlineTime = new Date(deadline).getTime();
     const diff = deadlineTime - now;
@@ -197,18 +186,18 @@ const BetsTab: React.FC<BetsTabProps> = ({ onNavigateToDiscover }) => {
     return `${hours}h`;
   };
 
-  const calculateConfidence = (prediction) => {
-    if (!prediction || !prediction.options) return 50;
-    const totalStaked = prediction.options.reduce((sum, option) => sum + option.total_staked, 0);
-    if (totalStaked === 0) return 50;
-    const maxStaked = Math.max(...prediction.options.map(option => option.total_staked));
+  const calculateConfidence = (prediction: Prediction | undefined) => {
+    if (!prediction || !prediction.options) return 68;
+    const totalStaked = prediction.options.reduce((sum, option) => sum + option.totalStaked, 0);
+    if (totalStaked === 0) return 68;
+    const maxStaked = Math.max(...prediction.options.map(option => option.totalStaked));
     return Math.round((maxStaked / totalStaked) * 100);
   };
 
   const mockPredictions = getUserPredictions();
   const currentPredictions = mockPredictions[activeTab] || [];
 
-  const getStatusColor = (status) => {
+  const getStatusColor = (status: string) => {
     switch (status) {
       case 'active': return 'bg-emerald-50 text-emerald-700 border-emerald-200';
       case 'winning': return 'bg-green-50 text-green-700 border-green-200';
@@ -218,18 +207,61 @@ const BetsTab: React.FC<BetsTabProps> = ({ onNavigateToDiscover }) => {
     }
   };
 
-  const getCategoryColor = (category) => {
+  const getCategoryColor = (category: string) => {
     const colors = {
       'Crypto': 'bg-orange-100 text-orange-700',
       'Sports': 'bg-blue-100 text-blue-700',
       'Tech': 'bg-purple-100 text-purple-700',
       'Entertainment': 'bg-pink-100 text-pink-700',
-      'Politics': 'bg-red-100 text-red-700'
+      'Politics': 'bg-red-100 text-red-700',
+      'Finance': 'bg-green-100 text-green-700'
     };
     return colors[category] || 'bg-gray-100 text-gray-700';
   };
 
-  const EmptyState = ({ tab }) => (
+  // Show authentication prompt if not logged in
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <div className="bg-white border-b border-gray-200">
+          <div className="px-6 pt-12 pb-6">
+            <h1 className="text-3xl font-bold text-gray-900 mb-6">My Predictions</h1>
+          </div>
+        </div>
+        
+        <div className="flex flex-col items-center justify-center py-16 px-6">
+          <div className="w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center mb-6">
+            <Target className="w-10 h-10 text-gray-400" />
+          </div>
+          
+          <h3 className="text-xl font-semibold text-gray-900 mb-2">
+            Sign in to view your predictions
+          </h3>
+          
+          <p className="text-gray-600 text-center mb-8 max-w-sm">
+            Create an account or sign in to track your predictions, manage your portfolio, and engage with the community.
+          </p>
+          
+          <motion.button 
+            className="bg-emerald-500 hover:bg-emerald-600 text-white px-8 py-3 rounded-xl font-medium transition-all duration-200 flex items-center gap-2"
+            onClick={() => {
+              // Navigate to discover to start exploring
+              if (onNavigateToDiscover) {
+                onNavigateToDiscover();
+              }
+            }}
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+          >
+            <Plus className="w-5 h-5" />
+            Explore Predictions
+          </motion.button>
+        </div>
+      </div>
+    );
+  }
+
+  const EmptyState = ({ tab }: { tab: string }) => (
     <div className="flex flex-col items-center justify-center py-16 px-6">
       <div className="w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center mb-6">
         {tab === 'Active' && <TrendingUp className="w-10 h-10 text-gray-400" />}
@@ -268,7 +300,7 @@ const BetsTab: React.FC<BetsTabProps> = ({ onNavigateToDiscover }) => {
     </div>
   );
 
-  const ActivePredictionCard = ({ prediction }) => (
+  const ActivePredictionCard = ({ prediction }: { prediction: any }) => (
     <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-4 hover:shadow-md transition-all duration-200">
       {/* Header */}
       <div className="flex items-start justify-between mb-4">
@@ -297,11 +329,11 @@ const BetsTab: React.FC<BetsTabProps> = ({ onNavigateToDiscover }) => {
         <div className="grid grid-cols-3 gap-4 mt-3">
           <div>
             <p className="text-xs text-emerald-600 mb-1">Staked</p>
-            <p className="font-semibold text-emerald-900">₦{prediction.stake}</p>
+            <p className="font-semibold text-emerald-900">₦{prediction.stake.toLocaleString()}</p>
           </div>
           <div>
             <p className="text-xs text-emerald-600 mb-1">Potential</p>
-            <p className="font-semibold text-emerald-900">₦{prediction.potentialReturn}</p>
+            <p className="font-semibold text-emerald-900">₦{prediction.potentialReturn.toLocaleString()}</p>
           </div>
           <div>
             <p className="text-xs text-emerald-600 mb-1">Odds</p>
@@ -332,7 +364,7 @@ const BetsTab: React.FC<BetsTabProps> = ({ onNavigateToDiscover }) => {
     </div>
   );
 
-  const CreatedPredictionCard = ({ prediction }) => (
+  const CreatedPredictionCard = ({ prediction }: { prediction: any }) => (
     <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-4 hover:shadow-md transition-all duration-200">
       {/* Header */}
       <div className="flex items-start justify-between mb-4">
@@ -356,7 +388,7 @@ const BetsTab: React.FC<BetsTabProps> = ({ onNavigateToDiscover }) => {
         <div className="grid grid-cols-3 gap-4">
           <div>
             <p className="text-xs text-blue-600 mb-1">Total Pool</p>
-            <p className="font-semibold text-blue-900">₦{prediction.totalPool}</p>
+            <p className="font-semibold text-blue-900">₦{prediction.totalPool.toLocaleString()}</p>
           </div>
           <div>
             <p className="text-xs text-blue-600 mb-1">Participants</p>
@@ -384,6 +416,94 @@ const BetsTab: React.FC<BetsTabProps> = ({ onNavigateToDiscover }) => {
         >
           Manage <ArrowRight className="w-4 h-4" />
         </motion.button>
+      </div>
+    </div>
+  );
+
+  const CompletedPredictionCard = ({ prediction }: { prediction: any }) => (
+    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-4 hover:shadow-md transition-all duration-200">
+      {/* Header */}
+      <div className="flex items-start justify-between mb-4">
+        <div className="flex-1">
+          <div className="flex items-center gap-2 mb-2">
+            <span className={`px-2 py-1 rounded-lg text-xs font-medium ${getCategoryColor(prediction.category)}`}>
+              {prediction.category}
+            </span>
+            <span className={`px-2 py-1 rounded-lg text-xs font-medium border ${
+              prediction.status === 'won' 
+                ? 'bg-green-50 text-green-700 border-green-200'
+                : 'bg-red-50 text-red-700 border-red-200'
+            }`}>
+              {prediction.status === 'won' ? 'Won' : 'Lost'}
+            </span>
+          </div>
+          <h3 className="font-semibold text-gray-900 text-lg leading-tight">
+            {prediction.title}
+          </h3>
+        </div>
+      </div>
+
+      {/* Result Summary */}
+      <div className={`rounded-xl p-4 mb-4 ${
+        prediction.status === 'won' ? 'bg-green-50' : 'bg-red-50'
+      }`}>
+        <div className="flex items-center justify-between mb-2">
+          <span className={`text-sm font-medium ${
+            prediction.status === 'won' ? 'text-green-800' : 'text-red-800'
+          }`}>
+            Your Position: {prediction.position}
+          </span>
+          <span className={`text-lg font-bold ${
+            prediction.status === 'won' ? 'text-green-700' : 'text-red-700'
+          }`}>
+            {prediction.profit >= 0 ? '+' : ''}₦{Math.abs(prediction.profit).toLocaleString()}
+          </span>
+        </div>
+        
+        <div className="grid grid-cols-3 gap-4 mt-3">
+          <div>
+            <p className={`text-xs mb-1 ${
+              prediction.status === 'won' ? 'text-green-600' : 'text-red-600'
+            }`}>
+              Staked
+            </p>
+            <p className={`font-semibold ${
+              prediction.status === 'won' ? 'text-green-900' : 'text-red-900'
+            }`}>
+              ₦{prediction.stake.toLocaleString()}
+            </p>
+          </div>
+          <div>
+            <p className={`text-xs mb-1 ${
+              prediction.status === 'won' ? 'text-green-600' : 'text-red-600'
+            }`}>
+              Returned
+            </p>
+            <p className={`font-semibold ${
+              prediction.status === 'won' ? 'text-green-900' : 'text-red-900'
+            }`}>
+              ₦{prediction.actualReturn.toLocaleString()}
+            </p>
+          </div>
+          <div>
+            <p className={`text-xs mb-1 ${
+              prediction.status === 'won' ? 'text-green-600' : 'text-red-600'
+            }`}>
+              Profit/Loss
+            </p>
+            <p className={`font-semibold ${
+              prediction.status === 'won' ? 'text-green-900' : 'text-red-900'
+            }`}>
+              {prediction.profit >= 0 ? '+' : ''}₦{Math.abs(prediction.profit).toLocaleString()}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Footer */}
+      <div className="flex items-center justify-between text-sm text-gray-500">
+        <span>{prediction.participants} participants</span>
+        <span>Settled {prediction.settledAt}</span>
       </div>
     </div>
   );
@@ -430,7 +550,12 @@ const BetsTab: React.FC<BetsTabProps> = ({ onNavigateToDiscover }) => {
 
       {/* Content */}
       <div className="px-6 py-6">
-        {currentPredictions.length > 0 ? (
+        {loading ? (
+          <div className="flex items-center justify-center py-16">
+            <div className="w-8 h-8 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
+            <span className="ml-3 text-gray-600">Loading predictions...</span>
+          </div>
+        ) : currentPredictions.length > 0 ? (
           <div className="space-y-4">
             {activeTab === 'Active' && currentPredictions.map((prediction) => (
               <ActivePredictionCard key={prediction.id} prediction={prediction} />
@@ -458,94 +583,6 @@ const BetsTab: React.FC<BetsTabProps> = ({ onNavigateToDiscover }) => {
           prediction={selectedPrediction}
         />
       )}
-    </div>
-  );
-
-  const CompletedPredictionCard = ({ prediction }) => (
-    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-4 hover:shadow-md transition-all duration-200">
-      {/* Header */}
-      <div className="flex items-start justify-between mb-4">
-        <div className="flex-1">
-          <div className="flex items-center gap-2 mb-2">
-            <span className={`px-2 py-1 rounded-lg text-xs font-medium ${getCategoryColor(prediction.category)}`}>
-              {prediction.category}
-            </span>
-            <span className={`px-2 py-1 rounded-lg text-xs font-medium border ${
-              prediction.status === 'won' 
-                ? 'bg-green-50 text-green-700 border-green-200'
-                : 'bg-red-50 text-red-700 border-red-200'
-            }`}>
-              {prediction.status === 'won' ? 'Won' : 'Lost'}
-            </span>
-          </div>
-          <h3 className="font-semibold text-gray-900 text-lg leading-tight">
-            {prediction.title}
-          </h3>
-        </div>
-      </div>
-
-      {/* Result Summary */}
-      <div className={`rounded-xl p-4 mb-4 ${
-        prediction.status === 'won' ? 'bg-green-50' : 'bg-red-50'
-      }`}>
-        <div className="flex items-center justify-between mb-2">
-          <span className={`text-sm font-medium ${
-            prediction.status === 'won' ? 'text-green-800' : 'text-red-800'
-          }`}>
-            Your Position: {prediction.position}
-          </span>
-          <span className={`text-lg font-bold ${
-            prediction.status === 'won' ? 'text-green-700' : 'text-red-700'
-          }`}>
-            {prediction.profit >= 0 ? '+' : ''}₦{prediction.profit}
-          </span>
-        </div>
-        
-        <div className="grid grid-cols-3 gap-4 mt-3">
-          <div>
-            <p className={`text-xs mb-1 ${
-              prediction.status === 'won' ? 'text-green-600' : 'text-red-600'
-            }`}>
-              Staked
-            </p>
-            <p className={`font-semibold ${
-              prediction.status === 'won' ? 'text-green-900' : 'text-red-900'
-            }`}>
-              ₦{prediction.stake}
-            </p>
-          </div>
-          <div>
-            <p className={`text-xs mb-1 ${
-              prediction.status === 'won' ? 'text-green-600' : 'text-red-600'
-            }`}>
-              Returned
-            </p>
-            <p className={`font-semibold ${
-              prediction.status === 'won' ? 'text-green-900' : 'text-red-900'
-            }`}>
-              ₦{prediction.actualReturn}
-            </p>
-          </div>
-          <div>
-            <p className={`text-xs mb-1 ${
-              prediction.status === 'won' ? 'text-green-600' : 'text-red-600'
-            }`}>
-              Profit/Loss
-            </p>
-            <p className={`font-semibold ${
-              prediction.status === 'won' ? 'text-green-900' : 'text-red-900'
-            }`}>
-              {prediction.profit >= 0 ? '+' : ''}₦{prediction.profit}
-            </p>
-          </div>
-        </div>
-      </div>
-
-      {/* Footer */}
-      <div className="flex items-center justify-between text-sm text-gray-500">
-        <span>{prediction.participants} participants</span>
-        <span>Settled {prediction.settledAt}</span>
-      </div>
     </div>
   );
 };

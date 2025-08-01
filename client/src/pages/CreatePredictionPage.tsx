@@ -1,7 +1,7 @@
 import React, { useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronLeft, Plus, X, Calendar, DollarSign, Users, Settings, Sparkles, Check } from 'lucide-react';
-import { usePredictionsStore } from '../stores/predictionsStore';
+import { usePredictionStore } from '../stores/predictionStore';
 
 interface PredictionOption {
   id: string;
@@ -16,7 +16,7 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
   const [step, setStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitSuccess, setSubmitSuccess] = useState(false);
-  const { createPrediction } = usePredictionsStore();
+  const { createPrediction } = usePredictionStore();
   
   // Use individual state variables instead of one large object to prevent re-renders
   const [title, setTitle] = useState('');
@@ -161,7 +161,7 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
 
       console.log('Creating prediction with data:', predictionData);
 
-      // Create the prediction
+      // Create the prediction (this is now async and saves to Supabase)
       await createPrediction(predictionData);
       
       console.log('Prediction created successfully!');
