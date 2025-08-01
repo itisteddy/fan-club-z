@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { apiClient } from '../lib/api';
+import { supabase } from '../lib/api';
 
 export interface Prediction {
   id: string;
@@ -75,30 +75,86 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
   fetchPredictions: async (category?: string) => {
     set({ isLoading: true, error: null });
     try {
-      const params = new URLSearchParams();
-      if (category) params.append('category', category);
-      
-      const predictions = await apiClient.get(`/predictions?${params.toString()}`);
-      set({ predictions, isLoading: false });
+      let query = supabase
+        .from('predictions')
+        .select(`
+          *,
+          creator:users!creator_id(id, username, full_name, avatar_url),
+          options:prediction_options(*),
+          club:clubs(id, name, avatar_url)
+        `)
+        .eq('status', 'open')
+        .order('created_at', { ascending: false });
+
+      if (category && category !== 'all') {
+        query = query.eq('category', category);
+      }
+
+      const { data: predictions, error } = await query;
+
+      if (error) {
+        throw error;
+      }
+
+      set({ predictions: predictions || [], isLoading: false });
     } catch (error) {
+      console.error('Error fetching predictions:', error);
       set({ error: 'Failed to fetch predictions', isLoading: false });
     }
   },
 
   fetchTrendingPredictions: async () => {
     try {
-      const trendingPredictions = await apiClient.get('/predictions/trending');
-      set({ trendingPredictions });
+      const { data: trendingPredictions, error } = await supabase
+        .from('predictions')
+        .select(`
+          *,
+          creator:users!creator_id(id, username, full_name, avatar_url),
+          options:prediction_options(*),
+          club:clubs(id, name, avatar_url)
+        `)
+        .eq('status', 'open')
+        .order('pool_total', { ascending: false })
+        .limit(10);
+
+      if (error) {
+        throw error;
+      }
+
+      set({ trendingPredictions: trendingPredictions || [] });
     } catch (error) {
+      console.error('Error fetching trending predictions:', error);
       set({ error: 'Failed to fetch trending predictions' });
     }
   },
 
   fetchUserPredictions: async () => {
     try {
-      const userPredictions = await apiClient.get('/predictions/user');
-      set({ userPredictions });
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (!user) {
+        set({ userPredictions: [] });
+        return;
+      }
+
+      const { data: userPredictions, error } = await supabase
+        .from('predictions')
+        .select(`
+          *,
+          creator:users!creator_id(id, username, full_name, avatar_url),
+          options:prediction_options(*),
+          club:clubs(id, name, avatar_url)
+        `)
+        .eq('creator_id', user.id)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        throw error;
+      }
+
+      set({ userPredictions: userPredictions || [] });
     } catch (error) {
+      console.error('Error fetching user predictions:', error);
       set({ error: 'Failed to fetch user predictions' });
     }
   },

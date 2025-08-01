@@ -27,7 +27,7 @@ const MobileHeader: React.FC<{
       >
         <div>
           <h1 className="text-2xl font-bold text-gray-900 mb-1">
-            Welcome back, {user?.firstName || user?.email?.split('@')[0] || 'User'}!
+            Welcome back, {user?.full_name || user?.username || user?.email?.split('@')[0] || 'User'}!
           </h1>
           <p className="text-gray-600">
             Ready to make some winning predictions?
@@ -420,7 +420,7 @@ const DiscoverPage: React.FC<DiscoverPageProps> = ({ onNavigateToProfile }) => {
   }, [fetchPredictions]);
 
   const stats = {
-    totalVolume: 2547892,
+    totalVolume: predictions?.reduce((sum, pred) => sum + (pred.pool_total || 0), 0) || 2547892,
     activePredictions: predictions?.length || 0,
     todayVolume: 89234,
   };
