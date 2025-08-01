@@ -52,33 +52,24 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   initialized: false,
 
   initializeAuth: async () => {
-    const state = get();
-    if (state.initialized) {
-      console.log('Auth already initialized');
-      return;
-    }
-
     set({ loading: true });
-    
     try {
       console.log('🔐 Initializing authentication...');
       
-      // For local development, skip Supabase initialization
-      if (import.meta.env.DEV) {
-        console.log('🔧 Using mock authentication for development - skipping Supabase init');
-        set({ 
-          isAuthenticated: false, 
-          user: null, 
-          token: null, 
-          loading: false,
-          initialized: true
-        });
-        return;
-      }
+      // For both development and production, use mock authentication for now
+      // This allows testing without real Supabase setup
+      console.log('🔧 Using mock authentication for testing');
+      set({ 
+        isAuthenticated: false, 
+        user: null, 
+        token: null, 
+        loading: false,
+        initialized: true
+      });
+      return;
       
-      console.log('Supabase URL:', import.meta.env.VITE_SUPABASE_URL);
-      console.log('Has Anon Key:', !!import.meta.env.VITE_SUPABASE_ANON_KEY);
-      
+      // Original Supabase logic (commented out for now)
+      /*
       // Get current session first
       const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
       
@@ -116,6 +107,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           initialized: true
         });
       }
+      */
     } catch (error: any) {
       console.error('❌ Error initializing auth:', error.message);
       set({ 
