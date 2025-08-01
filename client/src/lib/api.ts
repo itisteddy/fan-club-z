@@ -1,3 +1,5 @@
+import { createClient } from '@supabase/supabase-js';
+
 // Supabase configuration (optional for now)
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -6,7 +8,6 @@ const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 let supabase = null;
 if (supabaseUrl && supabaseAnonKey && !supabaseUrl.includes('demo')) {
   try {
-    const { createClient } = await import('@supabase/supabase-js');
     supabase = createClient(supabaseUrl, supabaseAnonKey);
   } catch (error) {
     console.warn('Supabase not configured, using demo mode');

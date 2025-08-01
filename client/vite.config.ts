@@ -62,6 +62,7 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     sourcemap: true,
+    target: 'es2022',
     rollupOptions: {
       output: {
         manualChunks: {
@@ -74,5 +75,8 @@ export default defineConfig({
   },
   optimizeDeps: {
     include: ['react', 'react-dom', 'zustand', '@tanstack/react-query'],
+  },
+  esbuild: {
+    target: 'es2022',
   },
 })
