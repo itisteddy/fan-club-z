@@ -155,6 +155,17 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       }
       
       // Production: Use Supabase authentication
+      console.log('🔧 Using Supabase authentication for production');
+      
+      // Validate email format
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(email)) {
+        toast.error('Please enter a valid email address.');
+        set({ loading: false });
+        return;
+      }
+      
+      console.log('📤 Sending login request to Supabase...');
       const { data, error } = await auth.signIn(email, password);
       
       if (error) {
@@ -168,11 +179,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           userMessage = 'Please check your email and confirm your account before signing in.';
         } else if (error.message.includes('Too many requests')) {
           userMessage = 'Too many attempts. Please wait a moment and try again.';
+        } else if (error.message.includes('User not found')) {
+          userMessage = 'No account found with this email. Please register first.';
         } else {
           userMessage = error.message;
         }
         
         toast.error(userMessage);
+        set({ loading: false });
         throw new Error(error.message);
       }
 
@@ -196,7 +210,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         throw new Error('No session created after login');
       }
     } catch (error: any) {
+      console.error('❌ Login exception:', error.message);
       set({ loading: false });
+      toast.error('Login failed. Please try again.');
       throw error;
     }
   },
@@ -236,12 +252,34 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       }
       
       // Production: Use Supabase authentication
+      console.log('🔧 Using Supabase authentication for production');
+      
+      // Validate email format
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(email)) {
+        toast.error('Please enter a valid email address.');
+        set({ loading: false });
+        return;
+      }
+      
+      // Validate password strength
+      if (password.length < 6) {
+        toast.error('Password must be at least 6 characters long.');
+        set({ loading: false });
+        return;
+      }
+      
+      // Prepare user metadata
       const userData = {
-        firstName,
-        lastName,
-        full_name: `${firstName} ${lastName}`
+        data: {
+          first_name: firstName,
+          last_name: lastName,
+          full_name: `${firstName} ${lastName}`,
+          username: email.split('@')[0], // Use email prefix as username
+        }
       };
 
+      console.log('📤 Sending registration request to Supabase...');
       const { data, error } = await auth.signUp(email, password, userData);
       
       if (error) {
@@ -257,11 +295,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           userMessage = 'Please enter a valid email address.';
         } else if (error.message.includes('Signup is disabled')) {
           userMessage = 'Account registration is currently disabled. Please contact support.';
+        } else if (error.message.includes('Email rate limit')) {
+          userMessage = 'Too many registration attempts. Please wait a moment and try again.';
         } else {
           userMessage = error.message;
         }
         
         toast.error(userMessage);
+        set({ loading: false });
         throw new Error(error.message);
       }
 
@@ -312,7 +353,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         throw new Error('No user created');
       }
     } catch (error: any) {
+      console.error('❌ Registration exception:', error.message);
       set({ loading: false });
+      toast.error('Registration failed. Please try again.');
       throw error;
     }
   },
