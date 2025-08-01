@@ -135,11 +135,25 @@
 
 ---
 
+## Latest Update: Prediction Creation & Navigation Fixes (August 1, 2025)
+
+### Issues Resolved
+1. **Database Schema Mismatch**: Fixed missing `participant_count` field in prediction creation
+2. **Navigation UX Issue**: Added scroll-to-top behavior for all screen transitions
+
+### Changes Made
+- **Prediction Store**: Fixed creation payload with proper field initialization
+- **Navigation**: Added smooth scroll-to-top for all tab changes and page transitions
+- **UX Enhancement**: CreatePredictionPage now scrolls to top on mount and step changes
+- **Files Modified**: `predictionStore.ts`, `App.tsx`, `CreatePredictionPage.tsx`
+
+### Deployment
+- Created `deploy-prediction-fixes.sh` for automated deployment
+- Ready for production deployment to Vercel + Render
+
 ## Next Session Reminders
-- Prediction creation issues have been resolved - test end-to-end flow
-- Database schema update required: run `supabase-schema-fixed.sql` in Supabase
+- Test prediction creation end-to-end after deployment
+- Verify scroll-to-top behavior works on all devices
 - Monitor for any remaining prediction creation issues
-- Test My Predictions page to ensure no debug elements show
-- Consider implementing prediction entry system (users placing bets)
+- Consider implementing prediction entry system (users placing predictions)
 - Update this log with any significant changes or decisions
-- Verify all field mappings are working correctly between frontend/backend

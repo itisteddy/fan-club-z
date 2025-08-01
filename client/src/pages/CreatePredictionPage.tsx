@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronLeft, Plus, X, Calendar, DollarSign, Users, Settings, Sparkles, Check } from 'lucide-react';
 import { usePredictionStore } from '../stores/predictionStore';
@@ -18,6 +18,11 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitSuccess, setSubmitSuccess] = useState(false);
   const { createPrediction } = usePredictionStore();
+  
+  // Scroll to top when component mounts (UI/UX best practice)
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, []);
   
   // Use individual state variables instead of one large object to prevent re-renders
   const [title, setTitle] = useState('');
@@ -95,12 +100,16 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
   const handleNext = useCallback(() => {
     if (validateStep(step) && step < 3) {
       setStep(step + 1);
+      // Scroll to top when advancing to next step
+      setTimeout(() => window.scrollTo({ top: 0, behavior: 'smooth' }), 100);
     }
   }, [step, validateStep]);
 
   const handleBack = useCallback(() => {
     if (step > 1) {
       setStep(step - 1);
+      // Scroll to top when going back to previous step
+      setTimeout(() => window.scrollTo({ top: 0, behavior: 'smooth' }), 100);
     } else {
       // Navigate back to previous page
       if (onNavigateBack) {

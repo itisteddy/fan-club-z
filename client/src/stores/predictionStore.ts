@@ -241,9 +241,11 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
         is_private: data.isPrivate || false,
         status: 'open',
         pool_total: 0,
-        participant_count: 0,
+        participant_count: 0, // Initialize participant count
         creator_fee_percentage: 3.5,
-        platform_fee_percentage: 1.5
+        platform_fee_percentage: 1.5,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
       };
 
       console.log('Final prediction payload:', predictionPayload);

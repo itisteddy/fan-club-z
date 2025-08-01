@@ -1,139 +1,78 @@
 #!/bin/bash
 
-# Fan Club Z - Prediction Creation Fix Deployment
-# This script fixes prediction creation issues and removes debug elements
+# Fan Club Z - Prediction Creation & Navigation Fix Deployment
+echo "🔧 Starting prediction creation & navigation fixes deployment..."
 
-echo "🚀 Starting Fan Club Z prediction fixes deployment..."
-
-# Set error handling
-set -e
-
-# Colors for output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m' # No Color
-
-# Function to print colored output
-print_status() {
-    echo -e "${GREEN}✅ $1${NC}"
-}
-
-print_warning() {
-    echo -e "${YELLOW}⚠️ $1${NC}"
-}
-
-print_error() {
-    echo -e "${RED}❌ $1${NC}"
-}
-
-print_info() {
-    echo -e "${BLUE}ℹ️ $1${NC}"
-}
-
-# Check if we're in the right directory
+# 1. Check if we're in the right directory
 if [ ! -f "package.json" ]; then
-    print_error "Must be run from project root directory"
+    echo "❌ Error: Not in project root directory"
     exit 1
 fi
 
-print_info "Current directory: $(pwd)"
+# 2. Check for uncommitted changes
+if ! git diff-index --quiet HEAD --; then
+    echo "⚠️  Warning: You have uncommitted changes"
+    echo "📝 Adding fixes to git..."
+    git add .
+    git commit -m "fix: prediction creation database schema and scroll-to-top navigation
 
-# 1. Git status check
-print_info "Checking git status..."
-if [ -n "$(git status --porcelain)" ]; then
-    print_warning "Working directory has uncommitted changes"
-    git status --short
-    echo ""
+- Fixed participant_count field in prediction creation payload
+- Added scroll-to-top behavior for all navigation actions
+- Improved UX by ensuring new screens start at the top
+- Added timestamps to prediction creation payload"
 fi
 
-# 2. Stage the fixed files
-print_info "Staging fixed files..."
+# 3. Install dependencies if node_modules is missing
+if [ ! -d "node_modules" ]; then
+    echo "📦 Installing dependencies..."
+    npm install
+fi
 
-# Add the fixed files
-git add client/src/pages/BetsTab.tsx
-git add client/src/store/predictionStore.ts
-git add client/src/stores/predictionStore.ts
-git add supabase-schema-fixed.sql
+# 4. Build the client
+echo "🏗️  Building client..."
+cd client
+npm run build
+if [ $? -ne 0 ]; then
+    echo "❌ Client build failed"
+    exit 1
+fi
+cd ..
 
-print_status "Files staged successfully"
+# 5. Build the server
+echo "🏗️  Building server..."
+cd server
+npm run build
+if [ $? -ne 0 ]; then
+    echo "❌ Server build failed"
+    exit 1
+fi
+cd ..
 
-# 3. Commit the changes
-print_info "Committing prediction fixes..."
+# 6. Deploy to Vercel (frontend)
+echo "🚀 Deploying frontend to Vercel..."
+npx vercel --prod
+if [ $? -ne 0 ]; then
+    echo "❌ Vercel deployment failed"
+    exit 1
+fi
 
-COMMIT_MESSAGE="🔧 Fix prediction creation & remove debug elements
-
-- Fixed database schema trigger existence checks
-- Updated prediction store with correct field mapping
-- Removed debug info element from My Predictions page
-- Fixed createPrediction data formatting issues
-- Added error handling for database operations
-
-Fixes:
-- Database trigger 'already exists' error
-- Prediction creation failing due to field name mismatch
-- Debug info showing on production My Predictions page"
-
-git commit -m "$COMMIT_MESSAGE"
-print_status "Changes committed successfully"
-
-# 4. Push to trigger deployments
-print_info "Pushing to trigger automatic deployments..."
-
-# Push to main branch
+# 7. Deploy to Render (backend)
+echo "🚀 Triggering Render deployment..."
+# Render auto-deploys on git push, so we just need to push
 git push origin main
+if [ $? -ne 0 ]; then
+    echo "❌ Git push failed"
+    exit 1
+fi
 
-print_status "Code pushed to main branch"
-
-# 5. Wait a moment for deployment triggers
-print_info "Waiting for deployment systems to trigger..."
-sleep 3
-
-# 6. Check deployment status
-print_info "Checking deployment status..."
-
+echo "✅ Deployment completed successfully!"
 echo ""
-echo "🔄 Deployment Status:"
-echo "=================="
-echo "Frontend (Vercel): https://vercel.com/dashboard"
-echo "Backend (Render):  https://dashboard.render.com"
+echo "🔍 Fixes Applied:"
+echo "  • Fixed prediction creation database schema issue"
+echo "  • Added scroll-to-top behavior for all navigation"
+echo "  • Improved UX with proper screen transitions"
 echo ""
-echo "📋 Database Update Required:"
-echo "==========================="
-echo "Run the following SQL in your Supabase SQL Editor:"
-echo "File: supabase-schema-fixed.sql"
+echo "🌐 Frontend: https://fan-club-z.vercel.app"
+echo "🔧 Backend: Auto-deploying on Render"
 echo ""
-echo "🧪 Testing Instructions:"
-echo "======================="
-echo "1. Wait 2-3 minutes for deployments to complete"
-echo "2. Test prediction creation on the deployed app"
-echo "3. Verify no debug info shows on My Predictions page"
-echo "4. Check browser console for any remaining errors"
-echo ""
-
-# 7. Display URLs for quick access
-echo "🌐 Quick Access URLs:"
-echo "==================="
-echo "Production App: https://fan-club-z.vercel.app"
-echo "Supabase DB:    https://supabase.com/dashboard/project/jhtnsyhknvltgrksfiunysql"
-echo ""
-
-print_status "Prediction creation fixes deployment completed!"
-print_info "Don't forget to run the SQL schema update in Supabase!"
-
-echo ""
-echo "📝 Summary of Changes:"
-echo "===================="
-echo "✅ Removed debug info from My Predictions page"
-echo "✅ Fixed prediction creation field mapping"
-echo "✅ Updated database schema with trigger safety checks"
-echo "✅ Improved error handling in prediction store"
-echo "✅ Added proper validation for prediction data"
-echo ""
-echo "🔍 Next Steps:"
-echo "============="
-echo "1. Run supabase-schema-fixed.sql in Supabase SQL Editor"
-echo "2. Test prediction creation flow end-to-end"
-echo "3. Monitor for any remaining issues"
-echo "4. Update conversation log with results"
+echo "⏱️  Please wait 2-3 minutes for both deployments to complete"

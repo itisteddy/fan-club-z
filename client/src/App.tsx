@@ -85,32 +85,39 @@ function App() {
   const handleTabChange = (tab: string) => {
     navigationHistory.push(tab);
     setActiveTab(tab);
+    // Scroll to top when changing tabs (UI/UX best practice)
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleNavigateToProfile = () => {
     navigationHistory.push('profile');
     setActiveTab('profile');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleNavigateBackFromProfile = () => {
     const previousTab = navigationHistory.getPrevious();
     setActiveTab(previousTab);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleNavigateToDiscover = () => {
     navigationHistory.push('discover');
     setActiveTab('discover');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleNavigateBackFromCreate = () => {
     const previousTab = navigationHistory.getPrevious();
     setActiveTab(previousTab);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   // NEW: Handle navigation to create prediction from clubs
   const handleNavigateToCreateFromClubs = () => {
     navigationHistory.push('create');
     setActiveTab('create');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const renderPage = () => {
