@@ -3,7 +3,7 @@ import ReactDOM from 'react-dom/client'
 import App from './App.tsx'
 import './index.css'
 
-console.log('🚀 Fan Club Z v2.0 - Starting application...')
+console.log('🚀 Fan Club Z v2.0 - Starting application... (Debug removed, DB fixes applied)')
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>

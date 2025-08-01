@@ -7,7 +7,7 @@ import { useAuthStore } from '../store/authStore';
 import { Prediction } from '../types';
 import BetCard from '../components/BetCard';
 import ManagePredictionModal from '../components/modals/ManagePredictionModal';
-import DebugInfo from '../components/DebugInfo';
+
 
 interface BetsTabProps {
   onNavigateToDiscover?: () => void;
@@ -470,7 +470,6 @@ const BetsTab: React.FC<BetsTabProps> = ({ onNavigateToDiscover }) => {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <DebugInfo />
       {/* Header */}
       <div className="bg-white border-b border-gray-200">
         <div className="px-6 pt-12 pb-6">
