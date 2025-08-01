@@ -165,6 +165,8 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
 
   fetchUserCreatedPredictions: async (userId: string) => {
     try {
+      console.log('🔍 Fetching user created predictions for user ID:', userId);
+      
       const { data: userCreatedPredictions, error } = await supabase
         .from('predictions')
         .select(`
@@ -177,8 +179,11 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
         .order('created_at', { ascending: false });
 
       if (error) {
+        console.error('❌ Error fetching user created predictions:', error);
         throw error;
       }
+
+      console.log('✅ User created predictions fetched:', userCreatedPredictions);
 
       // Store user created predictions in a separate state
       set((state) => ({

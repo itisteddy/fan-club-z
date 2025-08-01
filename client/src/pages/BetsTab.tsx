@@ -48,6 +48,16 @@ const BetsTab: React.FC<BetsTabProps> = ({ onNavigateToDiscover }) => {
     const predictionEntries = getPredictionEntries();
     const completedPredictions = getCompletedPredictions();
     
+    // Debug logging
+    console.log('🔍 BetsTab Debug - User ID:', user.id);
+    console.log('🔍 BetsTab Debug - User Created Predictions:', userCreatedPredictions);
+    console.log('🔍 BetsTab Debug - Prediction Entries:', predictionEntries);
+    console.log('🔍 BetsTab Debug - Counts:', {
+      active: predictionEntries.filter(entry => entry.status === 'active').length,
+      created: userCreatedPredictions.length,
+      completed: completedPredictions.length
+    });
+    
     return {
       active: predictionEntries.filter(entry => entry.status === 'active').length,
       created: userCreatedPredictions.length,
