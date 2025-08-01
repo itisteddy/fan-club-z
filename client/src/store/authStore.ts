@@ -1,182 +1,441 @@
 import { create } from 'zustand';
+import { supabase, auth } from '../lib/supabase';
+import toast from 'react-hot-toast';
 
 interface User {
   id: string;
   firstName: string;
   lastName: string;
   email: string;
+  phone?: string;
   avatar?: string;
+  bio?: string;
 }
 
 interface AuthState {
   isAuthenticated: boolean;
   user: User | null;
   token: string | null;
-  login: (email: string, password: string) => void;
-  register: (email: string, password: string, firstName: string, lastName: string) => void;
-  logout: () => void;
+  loading: boolean;
+  initialized: boolean;
+  login: (email: string, password: string) => Promise<void>;
+  register: (email: string, password: string, firstName: string, lastName: string) => Promise<void>;
+  logout: () => Promise<void>;
   updateProfile: (profileData: any) => Promise<void>;
-  initializeAuth: () => void;
+  initializeAuth: () => Promise<void>;
 }
 
-// Mock token for development
-const MOCK_TOKEN = 'mock-jwt-token-for-development';
-
-// Check if token exists in localStorage on app load
-const getStoredToken = () => {
-  if (typeof window !== 'undefined') {
-    const stored = localStorage.getItem('token');
-    return stored || MOCK_TOKEN;
-  }
-  return MOCK_TOKEN;
-};
-
-// Check if user is authenticated on app load
-const getStoredUser = () => {
-  if (typeof window !== 'undefined') {
-    const userData = localStorage.getItem('user');
-    if (userData) {
-      try {
-        return JSON.parse(userData);
-      } catch {
-        return null;
-      }
-    }
-  }
+// Convert Supabase user to our User interface
+const convertSupabaseUser = (supabaseUser: any): User | null => {
+  if (!supabaseUser) return null;
+  
+  const metadata = supabaseUser.user_metadata || {};
+  const fullName = metadata.full_name || '';
+  const nameParts = fullName.split(' ');
+  
   return {
-    id: '1',
-    firstName: 'Alex',
-    lastName: 'Johnson',
-    email: 'alex@fanclubz.app',
-    avatar: undefined
+    id: supabaseUser.id,
+    email: supabaseUser.email || '',
+    firstName: metadata.firstName || nameParts[0] || 'User',
+    lastName: metadata.lastName || nameParts.slice(1).join(' ') || '',
+    phone: supabaseUser.phone,
+    avatar: metadata.avatar_url,
+    bio: metadata.bio
   };
 };
 
-// Initialize with stored data or defaults
-const initialUser = getStoredUser();
-const initialToken = getStoredToken();
-
 export const useAuthStore = create<AuthState>((set, get) => ({
-  isAuthenticated: !!initialToken,
-  user: initialUser,
-  token: initialToken,
+  isAuthenticated: false,
+  user: null,
+  token: null,
+  loading: false,
+  initialized: false,
 
-  initializeAuth: () => {
-    const token = getStoredToken();
-    const user = getStoredUser();
+  initializeAuth: async () => {
+    const state = get();
+    if (state.initialized) {
+      console.log('Auth already initialized');
+      return;
+    }
+
+    set({ loading: true });
     
-    console.log('Initializing auth with:', { 
-      hasToken: !!token, 
-      tokenPreview: token ? token.substring(0, 20) + '...' : 'None',
-      hasUser: !!user,
-      userName: user?.firstName 
-    });
-
-    // Ensure token is stored in localStorage
-    if (typeof window !== 'undefined' && token) {
-      localStorage.setItem('token', token);
-      if (user) {
-        localStorage.setItem('user', JSON.stringify(user));
+    try {
+      console.log('🔐 Initializing authentication...');
+      
+      // For local development, skip Supabase initialization
+      if (import.meta.env.DEV) {
+        console.log('🔧 Using mock authentication for development - skipping Supabase init');
+        set({ 
+          isAuthenticated: false, 
+          user: null, 
+          token: null, 
+          loading: false,
+          initialized: true
+        });
+        return;
       }
-    }
+      
+      console.log('Supabase URL:', import.meta.env.VITE_SUPABASE_URL);
+      console.log('Has Anon Key:', !!import.meta.env.VITE_SUPABASE_ANON_KEY);
+      
+      // Get current session first
+      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+      
+      if (sessionError) {
+        console.error('❌ Error getting session:', sessionError.message);
+        set({ 
+          isAuthenticated: false, 
+          user: null, 
+          token: null, 
+          loading: false,
+          initialized: true
+        });
+        return;
+      }
 
-    set({ 
-      isAuthenticated: !!token, 
-      user,
-      token
-    });
+      if (sessionData.session && sessionData.session.user) {
+        const convertedUser = convertSupabaseUser(sessionData.session.user);
+        const token = sessionData.session.access_token;
+        
+        console.log('✅ User authenticated from session:', convertedUser?.firstName);
+        set({ 
+          isAuthenticated: true, 
+          user: convertedUser,
+          token,
+          loading: false,
+          initialized: true
+        });
+      } else {
+        console.log('ℹ️ No active session found');
+        set({ 
+          isAuthenticated: false, 
+          user: null, 
+          token: null, 
+          loading: false,
+          initialized: true
+        });
+      }
+    } catch (error: any) {
+      console.error('❌ Error initializing auth:', error.message);
+      set({ 
+        isAuthenticated: false, 
+        user: null, 
+        token: null, 
+        loading: false,
+        initialized: true
+      });
+    }
   },
 
-  login: (email: string, password: string) => {
-    // Mock authentication for development
-    const user = {
-      id: '1',
-      firstName: email.split('@')[0], // Use email prefix as first name
-      lastName: 'User',
-      email: email,
-    };
-    
-    console.log('Logging in user:', user);
-    
-    // Store token and user data in localStorage
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('token', MOCK_TOKEN);
-      localStorage.setItem('user', JSON.stringify(user));
-      console.log('Stored token in localStorage:', MOCK_TOKEN);
+  login: async (email: string, password: string) => {
+    set({ loading: true });
+    try {
+      console.log('🔑 Attempting to log in user:', email);
+      
+      // For local development, use mock authentication
+      if (import.meta.env.DEV) {
+        console.log('🔧 Using mock authentication for development');
+        
+        // Simulate a brief delay
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
+        const mockUser = {
+          id: 'mock-user-' + Date.now(),
+          firstName: 'Demo',
+          lastName: 'User',
+          email,
+          avatar: undefined,
+          bio: undefined
+        };
+        
+        console.log('✅ Mock user logged in successfully:', mockUser.firstName);
+        
+        set({ 
+          isAuthenticated: true, 
+          user: mockUser,
+          token: 'mock-token-' + Date.now(),
+          loading: false
+        });
+        
+        toast.success(`Welcome back, ${mockUser.firstName}!`);
+        return;
+      }
+      
+      // Production: Use Supabase authentication
+      const { data, error } = await auth.signIn(email, password);
+      
+      if (error) {
+        console.error('❌ Login error:', error.message);
+        let userMessage = 'Login failed';
+        
+        // Provide more helpful error messages
+        if (error.message.includes('Invalid login credentials')) {
+          userMessage = 'Invalid email or password. Please check your credentials and try again.';
+        } else if (error.message.includes('Email not confirmed')) {
+          userMessage = 'Please check your email and confirm your account before signing in.';
+        } else if (error.message.includes('Too many requests')) {
+          userMessage = 'Too many attempts. Please wait a moment and try again.';
+        } else {
+          userMessage = error.message;
+        }
+        
+        toast.error(userMessage);
+        throw new Error(error.message);
+      }
+
+      if (data.user && data.session) {
+        const convertedUser = convertSupabaseUser(data.user);
+        const token = data.session.access_token;
+        
+        console.log('✅ User logged in successfully:', convertedUser?.firstName);
+        set({ 
+          isAuthenticated: true, 
+          user: convertedUser,
+          token,
+          loading: false
+        });
+        
+        toast.success(`Welcome back, ${convertedUser?.firstName}!`);
+      } else {
+        // This shouldn't happen for login but handle it gracefully
+        set({ loading: false });
+        toast.error('Login successful but no session created. Please try again.');
+        throw new Error('No session created after login');
+      }
+    } catch (error: any) {
+      set({ loading: false });
+      throw error;
     }
-    
-    set({ 
-      isAuthenticated: true, 
-      user,
-      token: MOCK_TOKEN
-    });
   },
 
-  register: (email: string, password: string, firstName: string, lastName: string) => {
-    // Mock registration for development
-    const user = {
-      id: Math.random().toString(36).substr(2, 9), // Generate random ID
-      firstName: firstName,
-      lastName: lastName,
-      email: email,
-    };
-    
-    console.log('Registering user:', user);
-    
-    // Store token and user data in localStorage
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('token', MOCK_TOKEN);
-      localStorage.setItem('user', JSON.stringify(user));
-      console.log('Stored token in localStorage:', MOCK_TOKEN);
+  register: async (email: string, password: string, firstName: string, lastName: string) => {
+    set({ loading: true });
+    try {
+      console.log('📝 Attempting to register user:', email);
+      
+      // For local development, use mock authentication
+      if (import.meta.env.DEV) {
+        console.log('🔧 Using mock authentication for development');
+        
+        // Simulate a brief delay
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
+        const mockUser = {
+          id: 'mock-user-' + Date.now(),
+          firstName,
+          lastName,
+          email,
+          avatar: undefined,
+          bio: undefined
+        };
+        
+        console.log('✅ Mock user registered successfully:', mockUser.firstName);
+        
+        set({ 
+          isAuthenticated: true, 
+          user: mockUser,
+          token: 'mock-token-' + Date.now(),
+          loading: false
+        });
+        
+        toast.success(`Welcome to Fan Club Z, ${mockUser.firstName}!`);
+        return;
+      }
+      
+      // Production: Use Supabase authentication
+      const userData = {
+        firstName,
+        lastName,
+        full_name: `${firstName} ${lastName}`
+      };
+
+      const { data, error } = await auth.signUp(email, password, userData);
+      
+      if (error) {
+        console.error('❌ Registration error:', error.message);
+        let userMessage = 'Registration failed';
+        
+        // Provide more helpful error messages
+        if (error.message.includes('User already registered')) {
+          userMessage = 'An account with this email already exists. Please try signing in instead.';
+        } else if (error.message.includes('Password should be at least')) {
+          userMessage = 'Password should be at least 6 characters long.';
+        } else if (error.message.includes('Invalid email')) {
+          userMessage = 'Please enter a valid email address.';
+        } else if (error.message.includes('Signup is disabled')) {
+          userMessage = 'Account registration is currently disabled. Please contact support.';
+        } else {
+          userMessage = error.message;
+        }
+        
+        toast.error(userMessage);
+        throw new Error(error.message);
+      }
+
+      if (data.user) {
+        const convertedUser = convertSupabaseUser(data.user);
+        const token = data.session?.access_token || null;
+        
+        console.log('✅ User registered successfully:', convertedUser?.firstName);
+        console.log('Session created:', !!data.session);
+        console.log('User confirmed:', data.user.email_confirmed_at ? 'Yes' : 'No');
+        
+        // Check if user is immediately confirmed (no email confirmation required)
+        if (data.session && data.user.email_confirmed_at) {
+          // User is immediately logged in
+          set({ 
+            isAuthenticated: true,
+            user: convertedUser,
+            token,
+            loading: false
+          });
+          
+          toast.success(`Welcome to Fan Club Z, ${convertedUser?.firstName}!`);
+        } else if (data.session && !data.user.email_confirmed_at) {
+          // User has session but needs email confirmation
+          // For now, we'll treat this as authenticated since they have a session
+          set({ 
+            isAuthenticated: true,
+            user: convertedUser,
+            token,
+            loading: false
+          });
+          
+          toast.success(`Welcome to Fan Club Z, ${convertedUser?.firstName}! Please check your email for verification.`);
+        } else {
+          // No session created, email confirmation required
+          set({ 
+            isAuthenticated: false,
+            user: null,
+            token: null,
+            loading: false
+          });
+          
+          toast.success('Account created successfully! Please check your email to verify your account, then sign in.');
+        }
+      } else {
+        set({ loading: false });
+        toast.error('Registration failed. Please try again.');
+        throw new Error('No user created');
+      }
+    } catch (error: any) {
+      set({ loading: false });
+      throw error;
     }
-    
-    set({ 
-      isAuthenticated: true, 
-      user,
-      token: MOCK_TOKEN
-    });
   },
 
-  logout: () => {
-    console.log('Logging out user');
-    
-    // Clear localStorage
-    if (typeof window !== 'undefined') {
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
+  logout: async () => {
+    set({ loading: true });
+    try {
+      console.log('🚪 Logging out user...');
+      
+      const { error } = await auth.signOut();
+      
+      if (error) {
+        console.error('❌ Logout error:', error.message);
+        toast.error('Error signing out');
+      } else {
+        console.log('✅ User logged out successfully');
+        toast.success('Signed out successfully');
+      }
+      
+      set({ 
+        isAuthenticated: false, 
+        user: null,
+        token: null,
+        loading: false
+      });
+    } catch (error: any) {
+      console.error('❌ Error during logout:', error.message);
+      set({ 
+        isAuthenticated: false, 
+        user: null,
+        token: null,
+        loading: false
+      });
     }
-    
-    set({ 
-      isAuthenticated: false, 
-      user: null,
-      token: null
-    });
   },
 
   updateProfile: async (profileData: any) => {
-    // Mock profile update for development
-    set((state) => {
-      const updatedUser = state.user ? {
-        ...state.user,
-        firstName: profileData.name || state.user.firstName,
-      } : null;
-      
-      // Update localStorage
-      if (typeof window !== 'undefined' && updatedUser) {
-        localStorage.setItem('user', JSON.stringify(updatedUser));
+    set({ loading: true });
+    try {
+      const currentUser = get().user;
+      if (!currentUser) {
+        throw new Error('No user logged in');
       }
-      
-      return {
-        user: updatedUser
-      };
-    });
+
+      console.log('📝 Updating user profile...');
+
+      // Update user metadata in Supabase
+      const { data, error } = await supabase.auth.updateUser({
+        data: {
+          firstName: profileData.firstName || currentUser.firstName,
+          lastName: profileData.lastName || currentUser.lastName,
+          full_name: `${profileData.firstName || currentUser.firstName} ${profileData.lastName || currentUser.lastName}`,
+          bio: profileData.bio !== undefined ? profileData.bio : currentUser.bio
+        }
+      });
+
+      if (error) {
+        console.error('❌ Profile update error:', error.message);
+        toast.error(error.message || 'Failed to update profile');
+        throw new Error(error.message);
+      }
+
+      if (data.user) {
+        const convertedUser = convertSupabaseUser(data.user);
+        console.log('✅ Profile updated successfully');
+        set({ user: convertedUser, loading: false });
+        toast.success('Profile updated successfully!');
+      }
+    } catch (error: any) {
+      set({ loading: false });
+      throw error;
+    }
   },
 }));
 
 // Initialize auth when the store is created
 if (typeof window !== 'undefined') {
-  // Delay initialization slightly to ensure localStorage is available
-  setTimeout(() => {
-    useAuthStore.getState().initializeAuth();
-  }, 100);
+  // Expose auth store to window for debugging
+  (window as any).authStore = useAuthStore;
+
+  // Listen for auth state changes
+  supabase.auth.onAuthStateChange(async (event, session) => {
+    console.log('🔄 Auth state changed:', event, session?.user?.email);
+    
+    const store = useAuthStore.getState();
+    
+    if (event === 'SIGNED_IN' && session?.user) {
+      const convertedUser = convertSupabaseUser(session.user);
+      
+      console.log('✅ Setting authenticated state via auth change:', convertedUser?.firstName);
+      useAuthStore.setState({
+        isAuthenticated: true,
+        user: convertedUser,
+        token: session.access_token,
+        loading: false
+      });
+    } else if (event === 'SIGNED_OUT') {
+      console.log('🚪 Setting signed out state via auth change');
+      useAuthStore.setState({
+        isAuthenticated: false,
+        user: null,
+        token: null,
+        loading: false
+      });
+    } else if (event === 'TOKEN_REFRESHED' && session) {
+      console.log('🔄 Token refreshed');
+      useAuthStore.setState({
+        token: session.access_token
+      });
+    } else if (event === 'USER_UPDATED' && session?.user) {
+      console.log('👤 User updated');
+      const convertedUser = convertSupabaseUser(session.user);
+      useAuthStore.setState({
+        user: convertedUser
+      });
+    }
+  });
 }
