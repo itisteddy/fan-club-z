@@ -5,7 +5,7 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
-# Production builds
+# Production builds  
 dist/
 build/
 */dist/
@@ -111,34 +111,3 @@ test-production-deployment.js
 
 # Cursor IDE
 .cursor/
-
-# Documentation files (keep only essential ones)
-CONVERSATION_LOG.md
-UI_FIXES_DETAILED_SUMMARY.md
-CONSOLE_FIXES_APPLIED.md
-CONSOLE_FIXES_SUMMARY.md
-UI_FIXES_SUMMARY.md
-BACKUP_INSTRUCTIONS.md
-TEST_APP.md
-fanclubz_modern_uiux_guide_v3.md
-fanclubz_fixes_summary.md
-DATABASE_MIGRATION.md
-Fan Club Zv2.0.md
-fanclubz_ui_ux_guide.md
-git_versioning_automation.md
-fanclubz_adr.md
-Fan Club Z v2.0 - Updated Terminology.md
-cursor_engineering_standards.md
-comprehensive_cursor_rule.md
-
-# Scripts (keep only essential ones)
-check-server.js
-check-build.js
-restart-dev.sh
-setup-cursor.bat
-setup-cursor.sh
-start-test.bat
-start-test.sh
-quick-check.bat
-quick-check.sh
-verify-supabase.js
