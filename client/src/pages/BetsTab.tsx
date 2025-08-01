@@ -76,28 +76,6 @@ const BetsTab: React.FC<BetsTabProps> = ({ onNavigateToDiscover }) => {
     // This will be populated when predictions are settled
     return [];
   };
-        position: 'Real Madrid',
-        stake: 200.00,
-        actualReturn: 0,
-        profit: -200.00,
-        status: 'lost',
-        settledAt: '1 week ago',
-        participants: 234
-      },
-      {
-        id: 'completed-3',
-        title: 'Tesla Stock Price Above $250',
-        category: 'Finance',
-        position: 'Yes',
-        stake: 150.00,
-        actualReturn: 225.00,
-        profit: 75.00,
-        status: 'won',
-        settledAt: '3 days ago',
-        participants: 123
-      }
-    ];
-  };
 
   // Get user's predictions data
   const getUserPredictions = () => {
