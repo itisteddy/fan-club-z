@@ -38,6 +38,20 @@ const BetsTab: React.FC<BetsTabProps> = ({ onNavigateToDiscover }) => {
   const [isManageModalOpen, setIsManageModalOpen] = useState(false);
   const [selectedPrediction, setSelectedPrediction] = useState(null);
 
+  // Get completed predictions (only if user has any activity)
+  const getCompletedPredictions = () => {
+    if (!isAuthenticated || !user) return [];
+
+    // Only show completed predictions if user has some activity (created predictions or active bets)
+    const hasActivity = getUserCreatedPredictions(user.id).length > 0 || getPredictionEntries().length > 0;
+    
+    if (!hasActivity) return [];
+
+    // For now, return empty array since we haven't completed any predictions yet
+    // This will be populated when predictions are settled
+    return [];
+  };
+
   // Get dynamic counts based on actual data
   const getUserPredictionCounts = () => {
     if (!isAuthenticated || !user) {
@@ -72,20 +86,6 @@ const BetsTab: React.FC<BetsTabProps> = ({ onNavigateToDiscover }) => {
     { id: 'Created', label: 'Created', icon: Target, count: counts.created },
     { id: 'Completed', label: 'Completed', icon: CheckCircle, count: counts.completed }
   ];
-
-  // Get completed predictions (only if user has any activity)
-  const getCompletedPredictions = () => {
-    if (!isAuthenticated || !user) return [];
-
-    // Only show completed predictions if user has some activity (created predictions or active bets)
-    const hasActivity = getUserCreatedPredictions(user.id).length > 0 || getPredictionEntries().length > 0;
-    
-    if (!hasActivity) return [];
-
-    // For now, return empty array since we haven't completed any predictions yet
-    // This will be populated when predictions are settled
-    return [];
-  };
 
   // Get user's predictions data
   const getUserPredictions = () => {
