@@ -49,6 +49,7 @@ interface PredictionState {
   predictions: Prediction[];
   trendingPredictions: Prediction[];
   userPredictions: Prediction[];
+  userCreatedPredictions: Prediction[];
   isLoading: boolean;
   error: string | null;
   selectedCategory: string | null;
@@ -58,6 +59,8 @@ interface PredictionActions {
   fetchPredictions: (category?: string) => Promise<void>;
   fetchTrendingPredictions: () => Promise<void>;
   fetchUserPredictions: () => Promise<void>;
+  fetchUserCreatedPredictions: (userId: string) => Promise<void>;
+  getUserCreatedPredictions: (userId: string) => Prediction[];
   createPrediction: (data: any) => Promise<Prediction>;
   placePrediction: (predictionId: string, optionId: string, amount: number) => Promise<void>;
   setSelectedCategory: (category: string | null) => void;
@@ -68,6 +71,7 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
   predictions: [],
   trendingPredictions: [],
   userPredictions: [],
+  userCreatedPredictions: [],
   isLoading: false,
   error: null,
   selectedCategory: null,
@@ -157,6 +161,39 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
       console.error('Error fetching user predictions:', error);
       set({ error: 'Failed to fetch user predictions' });
     }
+  },
+
+  fetchUserCreatedPredictions: async (userId: string) => {
+    try {
+      const { data: userCreatedPredictions, error } = await supabase
+        .from('predictions')
+        .select(`
+          *,
+          creator:users!creator_id(id, username, full_name, avatar_url),
+          options:prediction_options(*),
+          club:clubs(id, name, avatar_url)
+        `)
+        .eq('creator_id', userId)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        throw error;
+      }
+
+      // Store user created predictions in a separate state
+      set((state) => ({
+        ...state,
+        userCreatedPredictions: userCreatedPredictions || []
+      }));
+    } catch (error) {
+      console.error('Error fetching user created predictions:', error);
+      set({ error: 'Failed to fetch user created predictions' });
+    }
+  },
+
+  getUserCreatedPredictions: (userId: string) => {
+    const state = get();
+    return state.userCreatedPredictions || [];
   },
 
   createPrediction: async (data: any) => {

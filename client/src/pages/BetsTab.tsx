@@ -25,22 +25,13 @@ const BetsTab: React.FC<BetsTabProps> = ({ onNavigateToDiscover }) => {
     }
   }, [user?.id, isAuthenticated, fetchUserCreatedPredictions]);
   
-  // Mock prediction entries for demonstration (only when authenticated)
-  const getMockPredictionEntries = () => {
+  // Get real prediction entries from the database
+  const getPredictionEntries = () => {
     if (!isAuthenticated || !user) return [];
     
-    return [
-      {
-        id: '1',
-        predictionId: '1',
-        userId: user.id,
-        optionId: '1',
-        amount: 5000,
-        potentialPayout: 7800,
-        status: 'active' as const,
-        createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString()
-      }
-    ];
+    // For now, return empty array since we haven't created prediction entries yet
+    // This will be populated when users actually place bets
+    return [];
   };
 
   const [activeTab, setActiveTab] = useState('Active');
@@ -54,13 +45,13 @@ const BetsTab: React.FC<BetsTabProps> = ({ onNavigateToDiscover }) => {
     }
 
     const userCreatedPredictions = getUserCreatedPredictions(user.id);
-    const mockEntries = getMockPredictionEntries();
-    const mockCompletedPredictions = getCompletedPredictions();
+    const predictionEntries = getPredictionEntries();
+    const completedPredictions = getCompletedPredictions();
     
     return {
-      active: mockEntries.filter(entry => entry.status === 'active').length,
+      active: predictionEntries.filter(entry => entry.status === 'active').length,
       created: userCreatedPredictions.length,
-      completed: mockCompletedPredictions.length
+      completed: completedPredictions.length
     };
   };
 
@@ -77,27 +68,14 @@ const BetsTab: React.FC<BetsTabProps> = ({ onNavigateToDiscover }) => {
     if (!isAuthenticated || !user) return [];
 
     // Only show completed predictions if user has some activity (created predictions or active bets)
-    const hasActivity = getUserCreatedPredictions(user.id).length > 0 || getMockPredictionEntries().length > 0;
+    const hasActivity = getUserCreatedPredictions(user.id).length > 0 || getPredictionEntries().length > 0;
     
     if (!hasActivity) return [];
 
-    return [
-      {
-        id: 'completed-1',
-        title: 'Will Ethereum reach $3000 by end of Q1?',
-        category: 'Crypto',
-        position: 'Yes',
-        stake: 100.00,
-        actualReturn: 145.00,
-        profit: 45.00,
-        status: 'won',
-        settledAt: '2 days ago',
-        participants: 67
-      },
-      {
-        id: 'completed-2',
-        title: 'Champions League Final Winner',
-        category: 'Sports',
+    // For now, return empty array since we haven't completed any predictions yet
+    // This will be populated when predictions are settled
+    return [];
+  };
         position: 'Real Madrid',
         stake: 200.00,
         actualReturn: 0,
@@ -127,7 +105,7 @@ const BetsTab: React.FC<BetsTabProps> = ({ onNavigateToDiscover }) => {
       return { Active: [], Created: [], Completed: [] };
     }
 
-    const userEntries = getMockPredictionEntries();
+    const userEntries = getPredictionEntries();
     
     const activePredictions = userEntries
       .filter(entry => entry.status === 'active')
@@ -136,15 +114,15 @@ const BetsTab: React.FC<BetsTabProps> = ({ onNavigateToDiscover }) => {
         const option = prediction?.options.find(o => o.id === entry.optionId);
         return {
           id: entry.id,
-          title: prediction?.title || 'Will Manchester United beat Chelsea?',
-          category: prediction?.category || 'Sports',
-          position: option?.label || 'Yes',
+          title: prediction?.title || 'Unknown Prediction',
+          category: prediction?.category || 'General',
+          position: option?.label || 'Unknown',
           stake: entry.amount,
           potentialReturn: entry.potentialPayout || 0,
           odds: `${((entry.potentialPayout || 0) / entry.amount).toFixed(2)}x`,
-          timeRemaining: getTimeRemaining(prediction?.entryDeadline),
+          timeRemaining: getTimeRemaining(prediction?.entry_deadline),
           status: 'active',
-          participants: prediction?.participantCount || 45,
+          participants: prediction?.participant_count || 0,
           confidence: calculateConfidence(prediction)
         };
       });
@@ -154,9 +132,9 @@ const BetsTab: React.FC<BetsTabProps> = ({ onNavigateToDiscover }) => {
         id: prediction.id,
         title: prediction.title,
         category: prediction.category,
-        totalPool: prediction.poolTotal || 0,
-        participants: prediction.participantCount || 0,
-        timeRemaining: getTimeRemaining(prediction.entryDeadline),
+        totalPool: prediction.pool_total || 0,
+        participants: prediction.participant_count || 0,
+        timeRemaining: getTimeRemaining(prediction.entry_deadline),
         status: prediction.status,
         yourCut: 3.5,
         description: prediction.description
