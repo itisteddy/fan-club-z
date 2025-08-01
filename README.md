@@ -185,3 +185,4 @@ For support, email support@fanclubz.com or join our Discord community.
 Built with ❤️ by the Fan Club Z team
 # Trigger redeploy
 # Force Vercel rebuild - Fri Aug  1 14:35:31 EDT 2025
+# Force Vercel deployment - Fri Aug  1 14:51:36 EDT 2025
