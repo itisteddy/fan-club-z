@@ -50,7 +50,7 @@ interface PredictionState {
   trendingPredictions: Prediction[];
   userPredictions: Prediction[];
   userCreatedPredictions: Prediction[];
-  isLoading: boolean;
+  loading: boolean;
   error: string | null;
   selectedCategory: string | null;
 }
@@ -72,12 +72,12 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
   trendingPredictions: [],
   userPredictions: [],
   userCreatedPredictions: [],
-  isLoading: false,
+  loading: false,
   error: null,
   selectedCategory: null,
 
   fetchPredictions: async (category?: string) => {
-    set({ isLoading: true, error: null });
+    set({ loading: true, error: null });
     try {
       let query = supabase
         .from('predictions')
@@ -100,10 +100,10 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
         throw error;
       }
 
-      set({ predictions: predictions || [], isLoading: false });
+      set({ predictions: predictions || [], loading: false });
     } catch (error) {
       console.error('Error fetching predictions:', error);
-      set({ error: 'Failed to fetch predictions', isLoading: false });
+      set({ error: 'Failed to fetch predictions', loading: false });
     }
   },
 
@@ -197,7 +197,7 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
   },
 
   createPrediction: async (data: any) => {
-    set({ isLoading: true, error: null });
+    set({ loading: true, error: null });
     try {
       // Get current user
       const { data: { user } } = await supabase.auth.getUser();
@@ -213,31 +213,44 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
         throw new Error('Entry deadline must be in the future');
       }
 
+      console.log('Creating prediction with validated data:', data);
 
+      // Ensure stake values are properly converted
+      const stakeMin = Number(data.stakeMin) || 100;
+      const stakeMax = data.stakeMax ? Number(data.stakeMax) : null;
+
+      if (stakeMin < 1) {
+        throw new Error('Minimum stake must be at least ₦1');
+      }
+
+      if (stakeMax && stakeMax < stakeMin) {
+        throw new Error('Maximum stake must be greater than minimum stake');
+      }
 
       // Create prediction in Supabase with correct field names
+      const predictionPayload = {
+        creator_id: user.id,
+        title: data.title,
+        description: data.description || null,
+        category: data.category,
+        type: data.type === 'multiple' ? 'multi_outcome' : data.type, // Convert multiple to multi_outcome
+        stake_min: stakeMin,
+        stake_max: stakeMax,
+        entry_deadline: deadline.toISOString(),
+        settlement_method: data.settlementMethod,
+        is_private: data.isPrivate || false,
+        status: 'open',
+        pool_total: 0,
+        participant_count: 0,
+        creator_fee_percentage: 3.5,
+        platform_fee_percentage: 1.5
+      };
+
+      console.log('Final prediction payload:', predictionPayload);
+
       const { data: prediction, error } = await supabase
         .from('predictions')
-        .insert({
-          creator_id: user.id,
-          title: data.title,
-          description: data.description,
-          category: data.category,
-          type: data.type,
-          stake_min: parseFloat(data.stakeMin) || 100,
-          stake_max: data.stakeMax ? parseFloat(data.stakeMax) : null,
-          entry_deadline: data.entryDeadline,
-          settlement_method: data.settlementMethod,
-          is_private: data.isPrivate,
-          status: 'open',
-          pool_total: 0,
-          participant_count: 0,
-          creator_fee_percentage: 3.5,
-          platform_fee_percentage: 1.5,
-          tags: [],
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        })
+        .insert(predictionPayload)
         .select()
         .single();
 
@@ -250,14 +263,20 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
 
       // Create prediction options
       if (data.options && data.options.length > 0) {
-        const optionsData = data.options.map((option: any) => ({
-          prediction_id: prediction.id,
-          label: option.label,
-          total_staked: 0,
-          current_odds: 1.0,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        }));
+        const optionsData = data.options
+          .filter((opt: any) => opt.label && opt.label.trim()) // Only include options with labels
+          .map((option: any) => ({
+            prediction_id: prediction.id,
+            label: option.label.trim(),
+            total_staked: 0,
+            current_odds: 1.0,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          }));
+
+        if (optionsData.length < 2) {
+          throw new Error('At least 2 valid prediction options are required');
+        }
 
         const { error: optionsError } = await supabase
           .from('prediction_options')
@@ -276,18 +295,18 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
       await get().fetchUserPredictions();
       await get().fetchUserCreatedPredictions(user.id);
 
-      set({ isLoading: false });
+      set({ loading: false });
       return prediction;
     } catch (error) {
       console.error('Failed to create prediction:', error);
       const errorMessage = error instanceof Error ? error.message : 'Failed to create prediction';
-      set({ error: errorMessage, isLoading: false });
+      set({ error: errorMessage, loading: false });
       throw new Error(errorMessage);
     }
   },
 
   placePrediction: async (predictionId: string, optionId: string, amount: number) => {
-    set({ isLoading: true, error: null });
+    set({ loading: true, error: null });
     try {
       // Get current user
       const { data: { user } } = await supabase.auth.getUser();
@@ -317,10 +336,10 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
       await get().fetchPredictions();
       await get().fetchUserPredictions();
       
-      set({ isLoading: false });
+      set({ loading: false });
     } catch (error) {
       console.error('Failed to place prediction:', error);
-      set({ error: error instanceof Error ? error.message : 'Failed to place prediction', isLoading: false });
+      set({ error: error instanceof Error ? error.message : 'Failed to place prediction', loading: false });
       throw error;
     }
   },
