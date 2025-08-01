@@ -157,14 +157,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       // Production: Use Supabase authentication
       console.log('🔧 Using Supabase authentication for production');
       
-      // Validate email format
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!emailRegex.test(email)) {
-        toast.error('Please enter a valid email address.');
-        set({ loading: false });
-        return;
-      }
-      
       console.log('📤 Sending login request to Supabase...');
       const { data, error } = await auth.signIn(email, password);
       
@@ -253,14 +245,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       
       // Production: Use Supabase authentication
       console.log('🔧 Using Supabase authentication for production');
-      
-      // Validate email format
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!emailRegex.test(email)) {
-        toast.error('Please enter a valid email address.');
-        set({ loading: false });
-        return;
-      }
       
       // Validate password strength
       if (password.length < 6) {
