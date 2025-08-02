@@ -115,7 +115,7 @@ const AuthPage: React.FC = () => {
   const toggleConfirmPassword = () => setShowConfirmPassword(!showConfirmPassword);
 
   return (
-    <div style={{
+    <div     style={{
       minHeight: '100vh',
       background: 'linear-gradient(135deg, #f8fafc 0%, #ffffff 30%, #ecfdf5 70%, #f0fdfa 100%)',
       display: 'flex',
@@ -123,7 +123,7 @@ const AuthPage: React.FC = () => {
       justifyContent: 'center',
       padding: '24px',
       position: 'relative',
-      overflow: 'auto',
+      overflow: 'hidden',
       WebkitOverflowScrolling: 'touch'
     }}>
       {/* Development Test Panel - Only show in development */}
@@ -247,6 +247,22 @@ const AuthPage: React.FC = () => {
             from { transform: rotate(0deg); }
             to { transform: rotate(360deg); }
           }
+          
+          @media (max-width: 480px) {
+            .auth-card {
+              padding: 32px 24px !important;
+              max-height: 85vh !important;
+              margin: 16px !important;
+            }
+            
+            .auth-card h1 {
+              font-size: 28px !important;
+            }
+            
+            .auth-card p {
+              font-size: 14px !important;
+            }
+          }
         `}
       </style>
 
@@ -276,9 +292,11 @@ const AuthPage: React.FC = () => {
 
       {/* Main card */}
       <div 
+        className="auth-card"
         style={{
           width: '100%',
           maxWidth: '420px',
+          maxHeight: '90vh',
           backgroundColor: 'rgba(255, 255, 255, 0.95)',
           backdropFilter: 'blur(20px)',
           borderRadius: '24px',
@@ -287,7 +305,9 @@ const AuthPage: React.FC = () => {
           border: '1px solid rgba(255, 255, 255, 0.3)',
           position: 'relative',
           zIndex: 10,
-          margin: 'auto'
+          margin: 'auto',
+          overflow: 'auto',
+          WebkitOverflowScrolling: 'touch'
         }}
       >
         {/* Logo section */}
@@ -508,7 +528,8 @@ const AuthPage: React.FC = () => {
                 boxSizing: 'border-box',
                 backgroundColor: '#ffffff',
                 fontFamily: 'inherit',
-                minHeight: '56px'
+                minHeight: '56px',
+                textOverflow: 'clip'
               }}
               disabled={loading}
               required
@@ -569,7 +590,8 @@ const AuthPage: React.FC = () => {
                 boxSizing: 'border-box',
                 backgroundColor: '#ffffff',
                 fontFamily: 'inherit',
-                minHeight: '56px'
+                minHeight: '56px',
+                textOverflow: 'clip'
               }}
               disabled={loading}
               required
