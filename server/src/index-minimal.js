@@ -27,6 +27,7 @@ app.use(helmet({
 const allowedOrigins = [
   'http://localhost:5173',
   'http://localhost:3000',
+  'https://fan-club-z.vercel.app',
   'https://fanclubz-version-2-0.vercel.app',
   process.env.CLIENT_URL
 ].filter(Boolean);
@@ -222,6 +223,142 @@ app.get('/api/clubs/:id', mockAuth, (req, res) => {
   });
 });
 
+// API v2 endpoints for clubs
+app.get('/api/v2/clubs', (req, res) => {
+  const { category, search } = req.query;
+  let clubs = [...mockClubs];
+  
+  if (category && category !== 'all') {
+    clubs = clubs.filter(club => club.category === category);
+  }
+  
+  if (search) {
+    const searchLower = search.toString().toLowerCase();
+    clubs = clubs.filter(club => 
+      club.name.toLowerCase().includes(searchLower) ||
+      club.description.toLowerCase().includes(searchLower)
+    );
+  }
+  
+  res.json({
+    success: true,
+    data: clubs
+  });
+});
+
+app.get('/api/v2/clubs/:id', (req, res) => {
+  const { id } = req.params;
+  const club = mockClubs.find(c => c.id === id);
+  
+  if (!club) {
+    return res.status(404).json({
+      success: false,
+      error: 'Club not found'
+    });
+  }
+  
+  res.json({
+    success: true,
+    data: club
+  });
+});
+
+app.post('/api/v2/clubs/:id/join', mockAuth, (req, res) => {
+  const { id } = req.params;
+  const club = mockClubs.find(c => c.id === id);
+  
+  if (!club) {
+    return res.status(404).json({
+      success: false,
+      error: 'Club not found'
+    });
+  }
+  
+  // Update mock data to show user has joined
+  club.is_member = true;
+  club.member_role = 'member';
+  club.member_count = (club.member_count || 0) + 1;
+  
+  console.log(`✅ User joined club: ${club.name}`);
+  
+  res.json({
+    success: true,
+    message: 'Successfully joined club',
+    data: { club_id: id, user_id: req.user.id, role: 'member' }
+  });
+});
+
+app.post('/api/v2/clubs/:id/leave', mockAuth, (req, res) => {
+  const { id } = req.params;
+  const club = mockClubs.find(c => c.id === id);
+  
+  if (!club) {
+    return res.status(404).json({
+      success: false,
+      error: 'Club not found'
+    });
+  }
+  
+  // Update mock data to show user has left
+  club.is_member = false;
+  club.member_role = null;
+  club.member_count = Math.max((club.member_count || 1) - 1, 0);
+  
+  console.log(`👋 User left club: ${club.name}`);
+  
+  res.json({
+    success: true,
+    message: 'Successfully left club'
+  });
+});
+
+app.post('/api/v2/clubs', mockAuth, (req, res) => {
+  const { name, description, category, isPrivate } = req.body;
+  
+  if (!name || !description || !category) {
+    return res.status(400).json({
+      success: false,
+      error: 'Missing required fields: name, description, category'
+    });
+  }
+  
+  const newClub = {
+    id: (mockClubs.length + 1).toString(),
+    name: name.trim(),
+    description: description.trim(),
+    category,
+    visibility: isPrivate ? 'private' : 'public',
+    owner_id: req.user.id,
+    member_count: 1,
+    is_member: true,
+    member_role: 'admin',
+    owner: {
+      username: req.user.username || req.user.first_name,
+      avatar_url: null
+    },
+    activePredictions: 0,
+    stats: {
+      totalPredictions: 0,
+      correctPredictions: 0,
+      totalWinnings: 0,
+      topMembers: 0
+    },
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString()
+  };
+  
+  // Add to mock data
+  mockClubs.unshift(newClub);
+  
+  console.log(`🎉 New club created: ${newClub.name}`);
+  
+  res.json({
+    success: true,
+    message: 'Club created successfully',
+    data: newClub
+  });
+});
+
 // User profile endpoint
 app.get('/api/user/profile', mockAuth, (req, res) => {
   res.json({
@@ -282,6 +419,11 @@ app.get('*', (req, res) => {
       'GET /api/predictions/:id',
       'GET /api/clubs',
       'GET /api/clubs/:id',
+      'GET /api/v2/clubs',
+      'GET /api/v2/clubs/:id',
+      'POST /api/v2/clubs',
+      'POST /api/v2/clubs/:id/join',
+      'POST /api/v2/clubs/:id/leave',
       'GET /api/user/profile',
       'GET /api/wallet/balance',
       'GET /api/wallet/transactions'

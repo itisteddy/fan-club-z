@@ -11,7 +11,7 @@ services:
       - key: PORT
         value: 10000
       - key: CLIENT_URL
-        value: https://fanclubz-version-2-0.vercel.app
+        value: https://fan-club-z.vercel.app
       - key: JWT_SECRET
         generateValue: true
       - key: SUPABASE_URL
