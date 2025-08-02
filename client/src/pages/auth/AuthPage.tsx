@@ -522,7 +522,7 @@ const AuthPage: React.FC = () => {
             <div style={{
               position: 'absolute',
               right: '16px',
-              top: '50%',
+              top: '60%',
               transform: 'translateY(-50%)',
               width: '20px',
               height: '20px',
@@ -588,7 +588,7 @@ const AuthPage: React.FC = () => {
               style={{
                 position: 'absolute',
                 right: '16px',
-                top: '50%',
+                top: '60%',
                 transform: 'translateY(-50%)',
                 width: '24px',
                 height: '24px',
@@ -670,7 +670,7 @@ const AuthPage: React.FC = () => {
                 style={{
                   position: 'absolute',
                   right: '16px',
-                  top: '50%',
+                  top: '60%',
                   transform: 'translateY(-50%)',
                   width: '24px',
                   height: '24px',
