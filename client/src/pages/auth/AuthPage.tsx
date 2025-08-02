@@ -20,12 +20,52 @@ const AuthPage: React.FC = () => {
     window.scrollTo({ top: 0, behavior: 'instant' });
   }, []);
 
+  // Improved email validation - more permissive for common business domains
+  const isValidEmail = (email: string): boolean => {
+    // Basic format check
+    const basicEmailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    
+    if (!basicEmailRegex.test(email)) {
+      return false;
+    }
+    
+    // Allow common domains and business domains
+    const domainPart = email.split('@')[1]?.toLowerCase();
+    if (!domainPart) return false;
+    
+    // Common email providers and business domains
+    const allowedDomains = [
+      'gmail.com', 'yahoo.com', 'outlook.com', 'hotmail.com', 'live.com',
+      'example.com', 'test.com', 'demo.com', 'dev.com',
+      'company.com', 'business.com', 'org.com', 'net.com',
+      'fcz.app', 'fanclubz.com', 'fanclub.com'
+    ];
+    
+    // Check if it's a common domain
+    if (allowedDomains.includes(domainPart)) {
+      return true;
+    }
+    
+    // Check if it looks like a valid business domain (has at least one dot and reasonable length)
+    const domainParts = domainPart.split('.');
+    if (domainParts.length >= 2 && domainParts.every(part => part.length > 0 && part.length <= 63)) {
+      const tld = domainParts[domainParts.length - 1];
+      // Allow common TLDs
+      const commonTlds = ['com', 'org', 'net', 'edu', 'gov', 'mil', 'app', 'io', 'co', 'me'];
+      if (commonTlds.includes(tld) || tld.length >= 2) {
+        return true;
+      }
+    }
+    
+    return false;
+  };
+
   const validateForm = () => {
     const errors: { email?: string; password?: string; firstName?: string; lastName?: string; confirmPassword?: string } = {};
     
     if (!email) {
       errors.email = 'Email is required';
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    } else if (!isValidEmail(email)) {
       errors.email = 'Please enter a valid email address';
     }
     
@@ -36,11 +76,11 @@ const AuthPage: React.FC = () => {
     }
     
     if (!isLoginMode) {
-      if (!firstName) {
+      if (!firstName.trim()) {
         errors.firstName = 'First name is required';
       }
       
-      if (!lastName) {
+      if (!lastName.trim()) {
         errors.lastName = 'Last name is required';
       }
       
@@ -69,13 +109,47 @@ const AuthPage: React.FC = () => {
         // Success handled by auth store - user will be automatically redirected by App.tsx
       } else {
         await register(email, password, firstName, lastName);
-        // Success handled by auth store - user will either be logged in automatically
-        // or receive a message to check their email, then potentially be redirected
+        // Success handled by auth store - user will be automatically logged in and redirected
+        // The auth store now handles auto-login after registration
       }
     } catch (error: any) {
       console.error('Auth error:', error);
-      setAuthError(error.message || 'Authentication failed');
-      // Stay in current mode - don't automatically switch
+      
+      // Create user-friendly error messages
+      let friendlyMessage = 'Authentication failed. Please try again.';
+      
+      if (error.message) {
+        const errorMsg = error.message.toLowerCase();
+        
+        if (errorMsg.includes('invalid') && errorMsg.includes('email')) {
+          friendlyMessage = 'Invalid email format. Please use a valid email address like user@gmail.com';
+        } else if (errorMsg.includes('invalid') && errorMsg.includes('credentials')) {
+          friendlyMessage = 'Invalid email or password. Please check your credentials and try again.';
+        } else if (errorMsg.includes('user already registered') || errorMsg.includes('already exists')) {
+          friendlyMessage = 'An account with this email already exists. Please try signing in instead.';
+          // Auto-switch to login mode
+          setTimeout(() => setIsLoginMode(true), 2000);
+        } else if (errorMsg.includes('email not confirmed')) {
+          friendlyMessage = 'Please check your email and confirm your account before signing in.';
+        } else if (errorMsg.includes('too many requests') || errorMsg.includes('rate limit')) {
+          friendlyMessage = 'Too many attempts. Please wait a moment and try again.';
+        } else if (errorMsg.includes('user not found')) {
+          friendlyMessage = 'No account found with this email. Please register first.';
+          // Auto-switch to register mode
+          if (isLoginMode) {
+            setTimeout(() => setIsLoginMode(false), 2000);
+          }
+        } else if (errorMsg.includes('password') && errorMsg.includes('weak')) {
+          friendlyMessage = 'Password is too weak. Please use at least 6 characters with a mix of letters and numbers.';
+        } else if (errorMsg.includes('signup') && errorMsg.includes('disabled')) {
+          friendlyMessage = 'Account registration is temporarily disabled. Please contact support.';
+        } else {
+          // Use the original message for other specific errors
+          friendlyMessage = error.message;
+        }
+      }
+      
+      setAuthError(friendlyMessage);
     }
   };
 
@@ -128,7 +202,7 @@ const AuthPage: React.FC = () => {
       display: 'flex',
       alignItems: 'flex-start',
       justifyContent: 'center',
-      padding: '24px',
+      padding: '16px',
       position: 'relative',
       overflow: 'auto'
     }}>
@@ -181,6 +255,22 @@ const AuthPage: React.FC = () => {
                   fontSize: '11px',
                   width: '100%'
                 }}
+                onClick={() => handleTestLogin('userten@fcz.app', 'test123', 'User', 'Ten')}
+              >
+                {isLoginMode ? '🔑 Login userten@fcz.app' : '📝 Register userten@fcz.app'}
+              </button>
+              <button
+                style={{
+                  margin: '4px 0',
+                  padding: '6px 12px',
+                  background: '#10b981',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  fontSize: '11px',
+                  width: '100%'
+                }}
                 onClick={() => handleTestLogin('demo@example.com', 'demo123', 'Demo', 'User')}
               >
                 {isLoginMode ? '🔑 Login demo@example.com' : '📝 Register demo@example.com'}
@@ -201,24 +291,8 @@ const AuthPage: React.FC = () => {
               >
                 {isLoginMode ? '🔑 Login user@gmail.com' : '📝 Register user@gmail.com'}
               </button>
-              <button
-                style={{
-                  margin: '4px 0',
-                  padding: '6px 12px',
-                  background: '#10b981',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '4px',
-                  cursor: 'pointer',
-                  fontSize: '11px',
-                  width: '100%'
-                }}
-                onClick={() => handleTestLogin('newuser@outlook.com', 'test123', 'New', 'User')}
-              >
-                {isLoginMode ? '🔑 Login newuser@outlook.com' : '📝 Register newuser@outlook.com'}
-              </button>
               <div style={{ margin: '12px 0 8px 0', fontSize: '10px', color: '#ffaa00' }}>
-                ⚠️ Use common domains like gmail.com, example.com, outlook.com
+                ⚠️ userten@fcz.app and other business domains now supported!
               </div>
               <button
                 style={{
@@ -254,11 +328,18 @@ const AuthPage: React.FC = () => {
             to { transform: rotate(360deg); }
           }
           
+          @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-5px); }
+            75% { transform: translateX(5px); }
+          }
+          
           @media (max-width: 768px) {
             .auth-card {
-              padding: 32px 24px !important;
-              margin: 16px !important;
+              padding: 24px !important;
+              margin: 8px !important;
               max-width: 100% !important;
+              width: 95% !important;
             }
             
             .auth-card h1 {
@@ -268,6 +349,10 @@ const AuthPage: React.FC = () => {
             .auth-card p {
               font-size: 14px !important;
             }
+          }
+          
+          .auth-error {
+            animation: shake 0.5s ease-in-out;
           }
         `}
       </style>
@@ -296,34 +381,35 @@ const AuthPage: React.FC = () => {
         animation: 'float 10s ease-in-out infinite reverse'
       }}></div>
 
-      {/* Main card */}
+      {/* Main card - Improved layout for 95% coverage and top alignment */}
       <div 
         className="auth-card"
         style={{
-          width: '100%',
-          maxWidth: '600px',
+          width: '95%',
+          maxWidth: '680px',
           backgroundColor: 'rgba(255, 255, 255, 0.95)',
           backdropFilter: 'blur(20px)',
           borderRadius: '24px',
-          padding: '48px',
+          padding: '32px',
           boxShadow: '0 25px 50px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(255, 255, 255, 0.2)',
           border: '1px solid rgba(255, 255, 255, 0.3)',
           position: 'relative',
           zIndex: 10,
-          margin: 'auto',
+          margin: '16px auto',
+          marginTop: '8px', // Start closer to top
           display: 'flex',
           flexDirection: 'column',
-          justifyContent: 'center'
+          justifyContent: 'flex-start' // Changed from center to flex-start
         }}
       >
-        {/* Logo section */}
-        <div style={{ textAlign: 'center', marginBottom: '40px' }}>
+        {/* Logo section - Reduced margin */}
+        <div style={{ textAlign: 'center', marginBottom: '24px' }}>
           <div style={{
-            width: '88px',
-            height: '88px',
+            width: '80px',
+            height: '80px',
             background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
             borderRadius: '20px',
-            margin: '0 auto 20px',
+            margin: '0 auto 16px',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -334,14 +420,14 @@ const AuthPage: React.FC = () => {
             overflow: 'hidden'
           }}>
             <span style={{
-              fontSize: '36px',
+              fontSize: '32px',
               fontWeight: 'bold',
               color: 'white',
               textShadow: '0 2px 4px rgba(0, 0, 0, 0.1)'
             }}>Z</span>
           </div>
           <h1 style={{
-            fontSize: '36px',
+            fontSize: '32px',
             fontWeight: 'bold',
             color: '#111827',
             marginBottom: '8px',
@@ -364,9 +450,9 @@ const AuthPage: React.FC = () => {
           </p>
         </div>
 
-        {/* Display authentication error */}
+        {/* Display authentication error with improved styling */}
         {authError && (
-          <div style={{
+          <div className="auth-error" style={{
             marginBottom: '24px',
             padding: '16px',
             background: 'rgba(239, 68, 68, 0.1)',
@@ -376,34 +462,34 @@ const AuthPage: React.FC = () => {
             fontSize: '14px',
             display: 'flex',
             alignItems: 'flex-start',
-            gap: '8px'
+            gap: '12px'
           }}>
-            <svg width="16" height="16" fill="currentColor" viewBox="0 0 24 24">
-              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+            <svg width="20" height="20" fill="currentColor" viewBox="0 0 24 24" style={{ flexShrink: 0, marginTop: '2px' }}>
+              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
             </svg>
-            <div>
+            <div style={{ flex: 1 }}>
               <div style={{ fontWeight: '600', marginBottom: '4px' }}>
-                {isLoginMode ? 'Login Failed' : 'Registration Failed'}
+                {isLoginMode ? 'Sign In Failed' : 'Registration Failed'}
               </div>
-              <div>{authError}</div>
-              {authError.includes('invalid') && (
-                <div style={{ marginTop: '8px', fontSize: '12px', color: '#7c2d12' }}>
-                  💡 Try using gmail.com, example.com, or outlook.com domains, or use the Test Mode panel above.
+              <div style={{ lineHeight: '1.4' }}>{authError}</div>
+              {(authError.includes('Invalid email format') || authError.includes('valid email')) && (
+                <div style={{ marginTop: '8px', fontSize: '12px', color: '#7c2d12', background: 'rgba(251, 191, 36, 0.1)', padding: '8px', borderRadius: '6px' }}>
+                  💡 Try formats like: user@gmail.com, test@fcz.app, or demo@example.com
                 </div>
               )}
             </div>
           </div>
         )}
 
-        {/* Form */}
-        <form onSubmit={handleSubmit} style={{ marginBottom: '32px' }}>
+        {/* Form with improved layout */}
+        <form onSubmit={handleSubmit} style={{ marginBottom: '24px' }}>
           {/* Name fields for registration */}
           {!isLoginMode && (
             <div style={{
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '24px',
-              marginBottom: '24px'
+              display: 'grid',
+              gridTemplateColumns: '1fr 1fr',
+              gap: '16px',
+              marginBottom: '20px'
             }}>
               <div>
                 <label style={{
@@ -422,7 +508,7 @@ const AuthPage: React.FC = () => {
                   placeholder="Enter your first name"
                   style={{
                     width: '100%',
-                    padding: '16px 20px',
+                    padding: '14px 16px',
                     border: `2px solid ${formErrors.firstName ? '#ef4444' : '#e5e7eb'}`,
                     borderRadius: '12px',
                     fontSize: '16px',
@@ -431,20 +517,23 @@ const AuthPage: React.FC = () => {
                     boxSizing: 'border-box',
                     backgroundColor: '#ffffff',
                     fontFamily: 'inherit',
-                    minHeight: '56px'
+                    minHeight: '52px'
                   }}
                   disabled={loading}
                   required={!isLoginMode}
                 />
                 {formErrors.firstName && (
                   <div style={{
-                    marginTop: '8px',
-                    fontSize: '14px',
+                    marginTop: '6px',
+                    fontSize: '12px',
                     color: '#ef4444',
                     display: 'flex',
                     alignItems: 'center',
                     gap: '6px'
                   }}>
+                    <svg width="12" height="12" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
+                    </svg>
                     {formErrors.firstName}
                   </div>
                 )}
@@ -467,7 +556,7 @@ const AuthPage: React.FC = () => {
                   placeholder="Enter your last name"
                   style={{
                     width: '100%',
-                    padding: '16px 20px',
+                    padding: '14px 16px',
                     border: `2px solid ${formErrors.lastName ? '#ef4444' : '#e5e7eb'}`,
                     borderRadius: '12px',
                     fontSize: '16px',
@@ -476,20 +565,23 @@ const AuthPage: React.FC = () => {
                     boxSizing: 'border-box',
                     backgroundColor: '#ffffff',
                     fontFamily: 'inherit',
-                    minHeight: '56px'
+                    minHeight: '52px'
                   }}
                   disabled={loading}
                   required={!isLoginMode}
                 />
                 {formErrors.lastName && (
                   <div style={{
-                    marginTop: '8px',
-                    fontSize: '14px',
+                    marginTop: '6px',
+                    fontSize: '12px',
                     color: '#ef4444',
                     display: 'flex',
                     alignItems: 'center',
                     gap: '6px'
                   }}>
+                    <svg width="12" height="12" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
+                    </svg>
                     {formErrors.lastName}
                   </div>
                 )}
@@ -497,8 +589,8 @@ const AuthPage: React.FC = () => {
             </div>
           )}
 
-          {/* Email field */}
-          <div style={{ marginBottom: '24px', position: 'relative' }}>
+          {/* Email field with improved icon positioning */}
+          <div style={{ marginBottom: '20px', position: 'relative' }}>
             <label style={{
               display: 'block',
               fontSize: '14px',
@@ -515,8 +607,8 @@ const AuthPage: React.FC = () => {
               placeholder="Enter your email address"
               style={{
                 width: '100%',
-                padding: '16px 20px',
-                paddingRight: '50px',
+                padding: '14px 16px',
+                paddingRight: '48px',
                 border: `2px solid ${formErrors.email ? '#ef4444' : '#e5e7eb'}`,
                 borderRadius: '12px',
                 fontSize: '16px',
@@ -525,7 +617,7 @@ const AuthPage: React.FC = () => {
                 boxSizing: 'border-box',
                 backgroundColor: '#ffffff',
                 fontFamily: 'inherit',
-                minHeight: '56px'
+                minHeight: '52px'
               }}
               disabled={loading}
               required
@@ -533,7 +625,7 @@ const AuthPage: React.FC = () => {
             <div style={{
               position: 'absolute',
               right: '16px',
-              top: '60%',
+              top: '50%',
               transform: 'translateY(-50%)',
               width: '20px',
               height: '20px',
@@ -541,7 +633,8 @@ const AuthPage: React.FC = () => {
               pointerEvents: 'none',
               display: 'flex',
               alignItems: 'center',
-              justifyContent: 'center'
+              justifyContent: 'center',
+              marginTop: '12px' // Adjust for label
             }}>
               <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 4.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
@@ -549,20 +642,23 @@ const AuthPage: React.FC = () => {
             </div>
             {formErrors.email && (
               <div style={{
-                marginTop: '8px',
-                fontSize: '14px',
+                marginTop: '6px',
+                fontSize: '12px',
                 color: '#ef4444',
                 display: 'flex',
                 alignItems: 'center',
                 gap: '6px'
               }}>
+                <svg width="12" height="12" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
+                </svg>
                 {formErrors.email}
               </div>
             )}
           </div>
 
-          {/* Password field */}
-          <div style={{ marginBottom: '24px', position: 'relative' }}>
+          {/* Password field with improved icon positioning */}
+          <div style={{ marginBottom: '20px', position: 'relative' }}>
             <label style={{
               display: 'block',
               fontSize: '14px',
@@ -579,8 +675,8 @@ const AuthPage: React.FC = () => {
               placeholder="Enter your password"
               style={{
                 width: '100%',
-                padding: '16px 20px',
-                paddingRight: '60px',
+                padding: '14px 16px',
+                paddingRight: '52px',
                 border: `2px solid ${formErrors.password ? '#ef4444' : '#e5e7eb'}`,
                 borderRadius: '12px',
                 fontSize: '16px',
@@ -589,7 +685,7 @@ const AuthPage: React.FC = () => {
                 boxSizing: 'border-box',
                 backgroundColor: '#ffffff',
                 fontFamily: 'inherit',
-                minHeight: '56px'
+                minHeight: '52px'
               }}
               disabled={loading}
               required
@@ -599,7 +695,7 @@ const AuthPage: React.FC = () => {
               style={{
                 position: 'absolute',
                 right: '16px',
-                top: '60%',
+                top: '50%',
                 transform: 'translateY(-50%)',
                 width: '24px',
                 height: '24px',
@@ -613,7 +709,8 @@ const AuthPage: React.FC = () => {
                 justifyContent: 'center',
                 background: 'none',
                 border: 'none',
-                outline: 'none'
+                outline: 'none',
+                marginTop: '12px' // Adjust for label
               }}
               onClick={togglePassword}
             >
@@ -630,13 +727,16 @@ const AuthPage: React.FC = () => {
             </button>
             {formErrors.password && (
               <div style={{
-                marginTop: '8px',
-                fontSize: '14px',
+                marginTop: '6px',
+                fontSize: '12px',
                 color: '#ef4444',
                 display: 'flex',
                 alignItems: 'center',
                 gap: '6px'
               }}>
+                <svg width="12" height="12" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
+                </svg>
                 {formErrors.password}
               </div>
             )}
@@ -644,7 +744,7 @@ const AuthPage: React.FC = () => {
 
           {/* Confirm Password field for registration */}
           {!isLoginMode && (
-            <div style={{ marginBottom: '24px', position: 'relative' }}>
+            <div style={{ marginBottom: '20px', position: 'relative' }}>
               <label style={{
                 display: 'block',
                 fontSize: '14px',
@@ -661,8 +761,8 @@ const AuthPage: React.FC = () => {
                 placeholder="Confirm your password"
                 style={{
                   width: '100%',
-                  padding: '16px 20px',
-                  paddingRight: '60px',
+                  padding: '14px 16px',
+                  paddingRight: '52px',
                   border: `2px solid ${formErrors.confirmPassword ? '#ef4444' : '#e5e7eb'}`,
                   borderRadius: '12px',
                   fontSize: '16px',
@@ -671,7 +771,7 @@ const AuthPage: React.FC = () => {
                   boxSizing: 'border-box',
                   backgroundColor: '#ffffff',
                   fontFamily: 'inherit',
-                  minHeight: '56px'
+                  minHeight: '52px'
                 }}
                 disabled={loading}
                 required={!isLoginMode}
@@ -681,7 +781,7 @@ const AuthPage: React.FC = () => {
                 style={{
                   position: 'absolute',
                   right: '16px',
-                  top: '60%',
+                  top: '50%',
                   transform: 'translateY(-50%)',
                   width: '24px',
                   height: '24px',
@@ -695,7 +795,8 @@ const AuthPage: React.FC = () => {
                   justifyContent: 'center',
                   background: 'none',
                   border: 'none',
-                  outline: 'none'
+                  outline: 'none',
+                  marginTop: '12px' // Adjust for label
                 }}
                 onClick={toggleConfirmPassword}
               >
@@ -712,13 +813,16 @@ const AuthPage: React.FC = () => {
               </button>
               {formErrors.confirmPassword && (
                 <div style={{
-                  marginTop: '8px',
-                  fontSize: '14px',
+                  marginTop: '6px',
+                  fontSize: '12px',
                   color: '#ef4444',
                   display: 'flex',
                   alignItems: 'center',
                   gap: '6px'
                 }}>
+                  <svg width="12" height="12" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
+                  </svg>
                   {formErrors.confirmPassword}
                 </div>
               )}
@@ -727,7 +831,7 @@ const AuthPage: React.FC = () => {
 
           {/* Forgot password - only show for login */}
           {isLoginMode && (
-            <div style={{ textAlign: 'right', marginBottom: '32px' }}>
+            <div style={{ textAlign: 'right', marginBottom: '24px' }}>
               <a 
                 href="#" 
                 onClick={(e) => {
@@ -797,7 +901,7 @@ const AuthPage: React.FC = () => {
         <div style={{
           position: 'relative',
           textAlign: 'center',
-          margin: '40px 0',
+          margin: '32px 0',
           fontSize: '14px',
           color: '#6b7280'
         }}>
@@ -822,7 +926,7 @@ const AuthPage: React.FC = () => {
           display: 'flex',
           flexDirection: 'column',
           gap: '12px',
-          marginBottom: '40px'
+          marginBottom: '32px'
         }}>
           <button
             type="button"
@@ -889,7 +993,7 @@ const AuthPage: React.FC = () => {
         {/* Toggle between login/signup */}
         <div style={{
           textAlign: 'center',
-          paddingTop: '24px',
+          paddingTop: '20px',
           paddingBottom: '16px',
           borderTop: '1px solid #f3f4f6'
         }}>

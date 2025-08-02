@@ -37,8 +37,8 @@ const convertSupabaseUser = (supabaseUser: any): User | null => {
   return {
     id: supabaseUser.id,
     email: supabaseUser.email || '',
-    firstName: metadata.firstName || nameParts[0] || 'User',
-    lastName: metadata.lastName || nameParts.slice(1).join(' ') || '',
+    firstName: metadata.firstName || metadata.first_name || nameParts[0] || 'User',
+    lastName: metadata.lastName || metadata.last_name || nameParts.slice(1).join(' ') || '',
     phone: supabaseUser.phone,
     avatar: metadata.avatar_url,
     bio: metadata.bio
@@ -255,9 +255,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         return;
       }
       
-      // Prepare user metadata
+      // Prepare user metadata with improved field mapping
       const userData = {
         data: {
+          firstName: firstName,
+          lastName: lastName,
           first_name: firstName,
           last_name: lastName,
           full_name: `${firstName} ${lastName}`,
@@ -277,8 +279,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           userMessage = 'An account with this email already exists. Please try signing in instead.';
         } else if (error.message.includes('Password should be at least')) {
           userMessage = 'Password should be at least 6 characters long.';
-        } else if (error.message.includes('Invalid email') || error.message.includes('invalid') || error.message.includes('Email address')) {
-          userMessage = 'Please use a valid email address from a common provider like Gmail, Yahoo, Outlook, or Hotmail. Custom domains and special formats are not supported.';
+        } else if (error.message.includes('Invalid email') || 
+                   error.message.includes('invalid') || 
+                   error.message.includes('Email address')) {
+          // FIXED: More permissive error message for business domains
+          userMessage = 'Please enter a valid email address. Business domains like @fcz.app are supported, as well as common providers like Gmail, Yahoo, and Outlook.';
         } else if (error.message.includes('Signup is disabled')) {
           userMessage = 'Account registration is currently disabled. Please contact support.';
         } else if (error.message.includes('Email rate limit')) {
@@ -286,7 +291,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         } else if (error.message.includes('Email not allowed')) {
           userMessage = 'This email domain is not allowed. Please use a common email provider.';
         } else {
-          userMessage = 'Registration failed. Please check your email format and try again.';
+          // FIXED: More general error message
+          userMessage = 'Registration failed. Please try again with a different email or contact support if the issue persists.';
         }
         
         showError(userMessage);
@@ -302,9 +308,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         console.log('Session created:', !!data.session);
         console.log('User confirmed:', data.user.email_confirmed_at ? 'Yes' : 'No');
         
-        // Check if user is immediately confirmed (no email confirmation required)
-        if (data.session && data.user.email_confirmed_at) {
-          // User is immediately logged in
+        // FIXED: Better handling for immediate authentication after registration
+        if (data.session) {
+          // User has a session - log them in immediately
           set({ 
             isAuthenticated: true,
             user: convertedUser,
@@ -312,28 +318,25 @@ export const useAuthStore = create<AuthState>((set, get) => ({
             loading: false
           });
           
-          showSuccess(`Welcome to Fan Club Z, ${convertedUser?.firstName}!`);
-        } else if (data.session && !data.user.email_confirmed_at) {
-          // User has session but needs email confirmation
-          // For now, we'll treat this as authenticated since they have a session
-          set({ 
-            isAuthenticated: true,
-            user: convertedUser,
-            token,
-            loading: false
-          });
-          
-          showSuccess(`Welcome to Fan Club Z, ${convertedUser?.firstName}! Please check your email for verification.`);
+          if (data.user.email_confirmed_at) {
+            // User is fully confirmed
+            showSuccess(`Welcome to Fan Club Z, ${convertedUser?.firstName}! You're all set to start making predictions.`);
+          } else {
+            // User has session but needs email confirmation
+            showSuccess(`Welcome to Fan Club Z, ${convertedUser?.firstName}! Please check your email for verification, but you can start using the app now.`);
+          }
         } else {
-          // No session created, but user was registered successfully
-          // Try to automatically log them in
+          // No session created - try automatic login
           console.log('🔄 No session created, attempting automatic login...');
           
           try {
+            // Wait a brief moment for the user to be fully created
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            
             const { data: loginData, error: loginError } = await auth.signIn(email, password);
             
             if (loginError) {
-              console.log('⚠️ Automatic login failed, user needs to sign in manually');
+              console.log('⚠️ Automatic login failed:', loginError.message);
               set({ 
                 isAuthenticated: false,
                 user: null,
@@ -341,7 +344,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
                 loading: false
               });
               
-              showSuccess('Account created successfully! Please sign in with your new account.');
+              showSuccess(`Account created successfully, ${convertedUser?.firstName}! Please sign in with your new account.`);
             } else if (loginData.user && loginData.session) {
               console.log('✅ Automatic login successful after registration');
               const loggedInUser = convertSupabaseUser(loginData.user);
@@ -354,7 +357,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
                 loading: false
               });
               
-              showSuccess(`Welcome to Fan Club Z, ${loggedInUser?.firstName}!`);
+              showSuccess(`Welcome to Fan Club Z, ${loggedInUser?.firstName}! You're ready to start making predictions.`);
             } else {
               set({ 
                 isAuthenticated: false,
@@ -363,7 +366,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
                 loading: false
               });
               
-              showSuccess('Account created successfully! Please sign in with your new account.');
+              showSuccess(`Account created successfully, ${convertedUser?.firstName}! Please sign in with your new account.`);
             }
           } catch (autoLoginError: any) {
             console.log('⚠️ Automatic login failed:', autoLoginError.message);
@@ -374,7 +377,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
               loading: false
             });
             
-            showSuccess('Account created successfully! Please sign in with your new account.');
+            showSuccess(`Account created successfully, ${convertedUser?.firstName}! Please sign in with your new account.`);
           }
         }
       } else {
@@ -385,7 +388,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     } catch (error: any) {
       console.error('❌ Registration exception:', error.message);
       set({ loading: false });
-      showError('Registration failed. Please check your email format and try again.');
+      // FIXED: More helpful error message
+      showError('Registration failed. Please try again or contact support if the issue persists.');
       throw error;
     }
   },
@@ -437,6 +441,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         data: {
           firstName: profileData.firstName || currentUser.firstName,
           lastName: profileData.lastName || currentUser.lastName,
+          first_name: profileData.firstName || currentUser.firstName,
+          last_name: profileData.lastName || currentUser.lastName,
           full_name: `${profileData.firstName || currentUser.firstName} ${profileData.lastName || currentUser.lastName}`,
           bio: profileData.bio !== undefined ? profileData.bio : currentUser.bio
         }

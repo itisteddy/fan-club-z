@@ -11,40 +11,48 @@
 
 ## Key Conversations & Updates
 
-### Prediction Creation & UI Fixes (January 8, 2025 - Evening)
-- **Date**: January 8, 2025
-- **Focus**: Fixed critical prediction creation issues and removed debug elements
-- **Key Issues Resolved**:
-  - **Database Schema Error**: Fixed "trigger already exists" error with proper existence checks
-  - **Field Mapping Issue**: Corrected field name mismatch between frontend and database (entryDeadline vs entry_deadline)
-  - **Debug Element Removal**: Removed debug info showing on My Predictions page in production
-  - **Data Validation**: Enhanced error handling and validation in prediction creation flow
-- **Files Modified**:
-  - `client/src/pages/BetsTab.tsx` - Removed debug info element
-  - `client/src/store/predictionStore.ts` - Fixed field mapping and error handling
-  - `client/src/stores/predictionStore.ts` - Updated with consistent interface
-  - `supabase-schema-fixed.sql` - Database schema with trigger safety checks
-  - `deploy-prediction-fixes.sh` - Automated deployment script
-- **Technical Details**:
-  - Fixed data formatting in createPrediction function
-  - Added proper error handling for database operations
-  - Updated schema to handle existing triggers gracefully
-  - Ensured consistent field naming across frontend/backend
+### Registration System Fixes (Current Session)
+- **Date**: August 2, 2025
+- **Focus**: Fixed critical registration issues identified in production testing
+- **Key Issues Fixed**:
+  1. **Email validation too restrictive** - userten@fcz.app was being rejected
+     - Updated email validation to accept business domains like @fcz.app
+     - Added support for common email providers and reasonable business domains
+     - Improved validation logic to be more permissive while maintaining security
+  
+  2. **Registration success flow broken** - users had to manually login after registration
+     - Enhanced auth store to automatically log users in after successful registration
+     - Added fallback automatic login attempt if session isn't immediately created
+     - Users now go directly to the app after successful registration
+  
+  3. **Poor error notifications** - generic error messages confused users
+     - Implemented user-friendly error messages for common scenarios
+     - Added specific guidance for email format issues
+     - Created contextual help tips in error messages
+     - Added shake animation for error states
+  
+  4. **Form layout problems** - form too small, misaligned icons, truncated labels
+     - Increased form width to 95% of screen for better coverage
+     - Fixed icon positioning in input fields with proper margin calculations
+     - Improved spacing and alignment throughout the form
+     - Enhanced mobile responsiveness with proper grid layouts
+     - Added top alignment instead of center alignment for better screen usage
 
-### Critical Authentication Fixes (January 8, 2025 - Morning)
-- **Date**: January 8, 2025
-- **Focus**: Fixed critical authentication issues preventing login/registration
-- **Key Issues Resolved**:
-  - **Email Validation Bug**: Fixed regex that rejected valid emails like "onetwo@fcz.app"
-  - **Poor Error Handling**: Added user-friendly error messages for all auth states
-  - **Supabase Connection**: Enhanced connection testing and error handling
-  - **Development Tools**: Added Test Mode panel with pre-configured test accounts
-- **Files Modified**:
-  - `client/src/pages/auth/AuthPage.tsx` - Fixed email validation and improved UI
-  - `client/src/store/authStore.ts` - Enhanced error handling and logging
-  - `client/src/lib/supabase.ts` - Added connection testing and better error handling
-- **Deployment**: Created automated deployment script (`deploy-auth-fixes.sh`)
-- **Testing**: Added test accounts (test@fanclubz.com/test123, demo@example.com/demo123)
+- **Technical Changes**:
+  - Updated `AuthPage.tsx` with improved email validation function `isValidEmail()`
+  - Enhanced error handling with user-friendly messages and auto-mode switching
+  - Fixed form layout with proper CSS grid and positioning
+  - Updated `authStore.ts` with better registration flow and automatic login
+  - Improved user metadata handling for first_name/last_name mapping
+  - Added comprehensive error message mapping for common Supabase errors
+
+- **User Experience Improvements**:
+  - Form now covers 95% of page width for better mobile experience
+  - Icons properly aligned in input fields
+  - Error messages include helpful guidance (e.g., suggesting gmail.com, fcz.app)
+  - Automatic mode switching when users try wrong mode (login vs register)
+  - Successful registration leads directly to authenticated app state
+  - Better loading states and visual feedback throughout the process
 
 ### Initial Setup (Previous Session)
 - **Date**: [Previous Date]
@@ -87,20 +95,7 @@
 - **Styling**: Tailwind CSS + shadcn/ui with custom green theme (#22c55e)
 - **Architecture**: Microservices with PostgreSQL + Redis + smart contracts
 - **Mobile-First**: Bottom navigation, touch-optimized interactions
-- **Authentication**: Supabase Auth with enhanced error handling and PKCE flow
-- **Email Validation**: Robust regex pattern supporting all valid email formats
-- **Database**: PostgreSQL with proper trigger management and error handling
-- **Field Mapping**: Consistent camelCase/snake_case conversion between frontend/backend
-
----
-
-## Current Deployment Status
-- **Frontend**: Deployed on Vercel with automatic deployments
-- **Backend**: Deployed on Render with automatic deployments  
-- **Database**: Supabase PostgreSQL with real-time subscriptions
-- **Authentication**: Fixed and fully functional with test accounts
-- **Prediction Creation**: Fixed field mapping and database schema issues
-- **Environment**: Production-ready with comprehensive error handling
+- **Authentication**: Supabase Auth with enhanced user experience and automatic login flows
 
 ---
 
@@ -111,74 +106,20 @@
 - [ ] Advanced bet mechanics (conditional betting, multi-stage events)
 - [ ] Creator monetization features
 - [ ] Push notification system
-- [ ] Social authentication (Google/Apple)
-- [ ] Password reset functionality
-- [ ] Prediction entry system (placing bets on predictions)
-- [ ] Wallet balance management and transactions
 
 ---
 
-## Files Modified/Created (Latest Session)
-- **FIXED**: `client/src/pages/BetsTab.tsx` - Removed debug info element
-- **FIXED**: `client/src/store/predictionStore.ts` - Fixed field mapping and error handling
-- **UPDATED**: `client/src/stores/predictionStore.ts` - Consistent with main store
-- **NEW**: `supabase-schema-fixed.sql` - Safe database schema with trigger checks
-- **NEW**: `deploy-prediction-fixes.sh` - Automated deployment script for prediction fixes
+## Files Modified/Created (Current Session)
+- ✅ `client/src/pages/auth/AuthPage.tsx` - Complete registration form overhaul
+- ✅ `client/src/store/authStore.ts` - Enhanced registration flow and error handling
 
 ---
-
-## Database Schema Notes
-- **Trigger Safety**: Schema now checks for existing triggers before creating
-- **Field Consistency**: Database uses snake_case, frontend uses camelCase with proper mapping
-- **Error Handling**: Graceful handling of schema creation errors
-- **Required Update**: Run `supabase-schema-fixed.sql` in Supabase SQL Editor after deployment
-
----
-
-## Latest Update: Complete Prediction Creation & Navigation Fix (August 1, 2025)
-
-### Issues Identified & Resolved
-1. **Database Schema Mismatch**: Production DB missing `participant_count` column that code expects
-2. **Navigation Scroll Issues**: Excessive scroll calls causing performance problems
-3. **User Feedback**: Correctly pointed out we shouldn't remove functionality, but fix the DB
-
-### Correct Solution Applied
-#### Database Schema Fix:
-- ✅ **Created database migration** (`urgent-db-migration.sql`) to add missing columns
-- ✅ **Kept `participant_count` field** in code (needed for functionality)
-- ✅ **Added safety checks** for other potentially missing columns (fee percentages)
-
-#### Scroll Management Fix:
-- ✅ **Created debounced scroll utility** (`/client/src/utils/scroll.ts`)
-- ✅ **Replaced direct `window.scrollTo` calls** with managed utility
-- ✅ **Added proper timing delays** to prevent scroll conflicts
-- ✅ **Fixed excessive console errors** from rapid scroll calls
-
-#### Navigation UX Enhancement:
-- ✅ **Smooth scroll-to-top** on all tab changes
-- ✅ **Proper form step transitions** with scroll management
-- ✅ **Mobile-optimized timing** for better user experience
-
-### Files Modified
-- `urgent-db-migration.sql` - Database schema fix (run in Supabase SQL Editor)
-- `/client/src/utils/scroll.ts` - New debounced scroll utility
-- `/client/src/App.tsx` - Updated all navigation handlers
-- `/client/src/pages/CreatePredictionPage.tsx` - Fixed step navigation
-- `/client/src/stores/predictionStore.ts` - Restored participant_count field
-
-### Deployment Steps
-1. **Database**: Run `urgent-db-migration.sql` in Supabase SQL Editor
-2. **Code**: Use `deploy-complete-fix.sh` to deploy all fixes
-3. **Test**: Verify prediction creation and scroll behavior
-
-### Learning
-- ✅ **User feedback was correct**: Don't remove functionality to fix DB issues
-- ✅ **Proper approach**: Fix the database schema, keep the code functionality
-- ✅ **Performance matters**: Debounced scroll calls prevent excessive browser work
 
 ## Next Session Reminders
-- Test prediction creation end-to-end after deployment
-- Verify scroll-to-top behavior works on all devices
-- Monitor for any remaining prediction creation issues
-- Consider implementing prediction entry system (users placing predictions)
-- Update this log with any significant changes or decisions
+- Test the registration flow thoroughly with various email domains
+- Verify automatic login after registration works consistently
+- Check error message clarity and helpfulness
+- Ensure form layout works well on all mobile device sizes
+- Default to working within Fan Club Z v2.0 directory
+- Check this log for recent context and decisions
+- Update this document with any significant changes or decisions
