@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { PlacePredictionModal } from '../components/predictions/PlacePredictionModal';
 import DiscussionDetailPage from './DiscussionDetailPage';
 import CreatePredictionPage from './CreatePredictionPage';
+import CreateClubPage from './CreateClubPage';
 import { ClubDetailPage } from './ClubDetailPage';
 import { useClubStore } from '../store/clubStore';
 import { useAuthStore } from '../store/authStore';
@@ -581,12 +582,21 @@ const ClubsPage: React.FC<ClubsPageProps> = ({ onNavigateToCreate }) => {
     );
   }
 
-  // Simple placeholder for other views
+  // Handle create club view
+  if (currentView === 'createClub') {
+    return (
+      <CreateClubPage 
+        onNavigateBack={() => setCurrentView('discover')}
+      />
+    );
+  }
+
+  // Fallback for other views
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center">
       <div className="text-center">
         <h2 className="text-2xl font-bold text-gray-900 mb-4">
-          {currentView === 'createClub' && 'Create Club'}
+          Page Not Found
         </h2>
         <motion.button
           whileHover={{ scale: 1.05 }}

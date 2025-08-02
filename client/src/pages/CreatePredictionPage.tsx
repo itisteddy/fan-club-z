@@ -179,7 +179,7 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
       toast.success('🎉 Prediction created successfully!');
       setSubmitSuccess(true);
       
-      // Navigate back after success
+      // Navigate to My Bets after success
       setTimeout(() => {
         // Reset form
         setStep(1);
@@ -199,9 +199,15 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
         setSubmitSuccess(false);
         setIsSubmitting(false);
         
-        // Navigate back
+        // Navigate to My Bets to show created prediction
         if (onNavigateBack) {
+          // First navigate back to main app
           onNavigateBack();
+          // Then trigger navigation to My Bets
+          setTimeout(() => {
+            // Use window.location to navigate to My Bets
+            window.location.href = '/predictions';
+          }, 100);
         }
       }, 2000);
     } catch (error) {
@@ -233,7 +239,7 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
           
           <h2 className="text-2xl font-bold text-gray-900 mb-2">Prediction Created!</h2>
           <p className="text-gray-600 mb-4">Your prediction has been successfully created and is now live.</p>
-          <div className="text-sm text-green-600 font-medium">Redirecting to main feed...</div>
+          <div className="text-sm text-green-600 font-medium">Redirecting to My Bets...</div>
         </motion.div>
       </div>
     );

@@ -3,6 +3,7 @@ import { ArrowLeft, Users, MessageCircle, Calendar, Trophy, Crown, Plus, Setting
 import { useClubStore } from '../store/clubStore';
 import { useAuthStore } from '../store/authStore';
 import DiscussionDetailPage from './DiscussionDetailPage';
+import { scrollToTop } from '../utils/scroll';
 
 interface ClubDetailPageProps {
   onBack?: () => void; // Add onBack prop for navigation
@@ -30,6 +31,16 @@ export const ClubDetailPage: React.FC<ClubDetailPageProps> = ({ onBack, hideHead
     updateMemberRole,
     clearError
   } = useClubStore();
+
+  // Scroll to top when component mounts
+  useEffect(() => {
+    scrollToTop({ behavior: 'instant' });
+  }, []);
+
+  // Scroll to top when tab changes
+  useEffect(() => {
+    scrollToTop({ behavior: 'smooth' });
+  }, [activeTab]);
 
   useEffect(() => {
     if (currentView === 'members' && currentClub) {
