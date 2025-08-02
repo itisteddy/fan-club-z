@@ -325,15 +325,57 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           
           showSuccess(`Welcome to Fan Club Z, ${convertedUser?.firstName}! Please check your email for verification.`);
         } else {
-          // No session created, email confirmation required
-          set({ 
-            isAuthenticated: false,
-            user: null,
-            token: null,
-            loading: false
-          });
+          // No session created, but user was registered successfully
+          // Try to automatically log them in
+          console.log('🔄 No session created, attempting automatic login...');
           
-          showSuccess('Account created successfully! Please check your email to verify your account, then sign in.');
+          try {
+            const { data: loginData, error: loginError } = await auth.signIn(email, password);
+            
+            if (loginError) {
+              console.log('⚠️ Automatic login failed, user needs to sign in manually');
+              set({ 
+                isAuthenticated: false,
+                user: null,
+                token: null,
+                loading: false
+              });
+              
+              showSuccess('Account created successfully! Please sign in with your new account.');
+            } else if (loginData.user && loginData.session) {
+              console.log('✅ Automatic login successful after registration');
+              const loggedInUser = convertSupabaseUser(loginData.user);
+              const loginToken = loginData.session.access_token;
+              
+              set({ 
+                isAuthenticated: true,
+                user: loggedInUser,
+                token: loginToken,
+                loading: false
+              });
+              
+              showSuccess(`Welcome to Fan Club Z, ${loggedInUser?.firstName}!`);
+            } else {
+              set({ 
+                isAuthenticated: false,
+                user: null,
+                token: null,
+                loading: false
+              });
+              
+              showSuccess('Account created successfully! Please sign in with your new account.');
+            }
+          } catch (autoLoginError: any) {
+            console.log('⚠️ Automatic login failed:', autoLoginError.message);
+            set({ 
+              isAuthenticated: false,
+              user: null,
+              token: null,
+              loading: false
+            });
+            
+            showSuccess('Account created successfully! Please sign in with your new account.');
+          }
         }
       } else {
         set({ loading: false });

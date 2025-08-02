@@ -302,7 +302,6 @@ const AuthPage: React.FC = () => {
         style={{
           width: '100%',
           maxWidth: '600px',
-          minHeight: '95vh',
           backgroundColor: 'rgba(255, 255, 255, 0.95)',
           backdropFilter: 'blur(20px)',
           borderRadius: '24px',
