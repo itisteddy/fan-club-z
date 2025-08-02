@@ -234,7 +234,7 @@ const AuthPage: React.FC = () => {
           </>
         )}
 
-      {/* CSS Animations */}
+      {/* CSS Animations and Responsive Styles */}
       <style>
         {`
           @keyframes float {
@@ -245,6 +245,14 @@ const AuthPage: React.FC = () => {
           @keyframes spin {
             from { transform: rotate(0deg); }
             to { transform: rotate(360deg); }
+          }
+          
+          @media (max-width: 480px) {
+            .auth-card {
+              padding: 32px 24px !important;
+              margin: 16px !important;
+              border-radius: 20px !important;
+            }
           }
         `}
       </style>
@@ -274,24 +282,22 @@ const AuthPage: React.FC = () => {
       }}></div>
 
       {/* Main card */}
-      <div style={{
-        width: '100%',
-        maxWidth: '420px',
-        backgroundColor: 'rgba(255, 255, 255, 0.95)',
-        backdropFilter: 'blur(20px)',
-        borderRadius: '24px',
-        padding: '48px',
-        boxShadow: '0 25px 50px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(255, 255, 255, 0.2)',
-        border: '1px solid rgba(255, 255, 255, 0.3)',
-        position: 'relative',
-        zIndex: 10,
-        margin: 'auto',
-        '@media (max-width: 480px)': {
-          padding: '32px 24px',
-          margin: '16px',
-          borderRadius: '20px'
-        }
-      }}>
+      <div 
+        className="auth-card"
+        style={{
+          width: '100%',
+          maxWidth: '420px',
+          backgroundColor: 'rgba(255, 255, 255, 0.95)',
+          backdropFilter: 'blur(20px)',
+          borderRadius: '24px',
+          padding: '48px',
+          boxShadow: '0 25px 50px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(255, 255, 255, 0.2)',
+          border: '1px solid rgba(255, 255, 255, 0.3)',
+          position: 'relative',
+          zIndex: 10,
+          margin: 'auto'
+        }}
+      >
         {/* Logo section */}
         <div style={{ textAlign: 'center', marginBottom: '40px' }}>
           <div style={{
