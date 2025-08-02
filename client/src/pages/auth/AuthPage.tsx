@@ -122,7 +122,8 @@ const AuthPage: React.FC = () => {
       alignItems: 'center',
       justifyContent: 'center',
       padding: '24px',
-      position: 'relative'
+      position: 'relative',
+      overflow: 'auto'
     }}>
       {/* Development Test Panel - Only show in development */}
       {import.meta.env.VITE_DEBUG === 'true' && (
@@ -246,11 +247,11 @@ const AuthPage: React.FC = () => {
             to { transform: rotate(360deg); }
           }
           
-          @media (max-width: 480px) {
+          @media (max-width: 768px) {
             .auth-card {
               padding: 32px 24px !important;
-              max-height: 85vh !important;
               margin: 16px !important;
+              max-width: 100% !important;
             }
             
             .auth-card h1 {
@@ -293,7 +294,7 @@ const AuthPage: React.FC = () => {
         className="auth-card"
         style={{
           width: '100%',
-          maxWidth: '420px',
+          maxWidth: '520px',
           backgroundColor: 'rgba(255, 255, 255, 0.95)',
           backdropFilter: 'blur(20px)',
           borderRadius: '24px',
@@ -400,10 +401,7 @@ const AuthPage: React.FC = () => {
                   fontSize: '14px',
                   fontWeight: '600',
                   color: '#374151',
-                  marginBottom: '8px',
-                  whiteSpace: 'nowrap',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis'
+                  marginBottom: '8px'
                 }}>
                   First Name
                 </label>
@@ -448,10 +446,7 @@ const AuthPage: React.FC = () => {
                   fontSize: '14px',
                   fontWeight: '600',
                   color: '#374151',
-                  marginBottom: '8px',
-                  whiteSpace: 'nowrap',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis'
+                  marginBottom: '8px'
                 }}>
                   Last Name
                 </label>
@@ -499,10 +494,7 @@ const AuthPage: React.FC = () => {
               fontSize: '14px',
               fontWeight: '600',
               color: '#374151',
-              marginBottom: '8px',
-              whiteSpace: 'nowrap',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis'
+              marginBottom: '8px'
             }}>
               Email Address
             </label>
@@ -566,10 +558,7 @@ const AuthPage: React.FC = () => {
               fontSize: '14px',
               fontWeight: '600',
               color: '#374151',
-              marginBottom: '8px',
-              whiteSpace: 'nowrap',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis'
+              marginBottom: '8px'
             }}>
               Password
             </label>
@@ -651,10 +640,7 @@ const AuthPage: React.FC = () => {
                 fontSize: '14px',
                 fontWeight: '600',
                 color: '#374151',
-                marginBottom: '8px',
-                whiteSpace: 'nowrap',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis'
+                marginBottom: '8px'
               }}>
                 Confirm Password
               </label>
