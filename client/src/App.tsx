@@ -4,6 +4,7 @@ import { useWalletStore } from './stores/walletStore';
 import { useAuthStore } from './store/authStore';
 import { Toaster } from 'react-hot-toast';
 import { scrollToTop } from './utils/scroll';
+import NotificationContainer from './components/ui/NotificationContainer';
 
 // Import all page components
 import DiscoverPage from './pages/DiscoverPage';
@@ -208,6 +209,9 @@ function App() {
       </main>
 
       <BottomNavigation activeTab={activeTab} onTabChange={handleTabChange} />
+
+      {/* Custom notification system */}
+      <NotificationContainer />
 
       {/* Toast notifications */}
       <Toaster 

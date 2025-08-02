@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { supabase, auth } from '../lib/supabase';
 import toast from 'react-hot-toast';
+import { showSuccess, showError, showWarning, showInfo } from './notificationStore';
 
 interface User {
   id: string;
