@@ -7,7 +7,8 @@
     "client",
     "server",
     "shared"
-  ],  "scripts": {
+  ],
+  "scripts": {
     "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
     "dev:client": "cd client && npm run dev",
     "dev:server": "cd server && npm run dev",
@@ -34,9 +35,13 @@
     "check-build": "node check-build.js",
     "restart-dev": "bash restart-dev.sh",
     "vercel-build": "cd client && npm install && npm run build",
-    "deploy:staging": "git push origin development",
-    "deploy:prod": "git push origin main",
+    "deploy:dev": "bash deploy-dev.sh",
+    "deploy:staging": "bash deploy-staging.sh",
+    "deploy:production": "bash deploy-production.sh",
+    "deploy:legacy": "git push origin development",
+    "deploy:prod:legacy": "git push origin main",
     "setup:dev": "git checkout development && npm run install:all",
+    "setup:branches": "git checkout -b main && git push -u origin main && git checkout -b staging && git push -u origin staging && git checkout development",
     "test:build": "npm run build && npm run check-build",
     "preview": "cd client && npm run preview"
   },

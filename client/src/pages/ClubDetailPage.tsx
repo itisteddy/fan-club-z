@@ -396,21 +396,7 @@ export const ClubDetailPage: React.FC<ClubDetailPageProps> = ({ onBack, hideHead
                 <>
                   <div className="flex items-center justify-between">
                     <h2 className="text-body-lg font-semibold text-foreground">Recent Predictions</h2>
-                    <button 
-                      onClick={() => {
-                        // Navigate to create prediction page
-                        if (onBack) {
-                          onBack();
-                          // Small delay to ensure navigation completes
-                          setTimeout(() => {
-                            window.location.href = '/create-prediction';
-                          }, 100);
-                        }
-                      }}
-                      className="text-primary text-body-sm font-medium hover:text-primary/80 transition-colors"
-                    >
-                      + Create Prediction
-                    </button>
+                    <button className="text-primary text-body-sm font-medium">View All</button>
                   </div>
                   
                   <div className="space-y-3">
@@ -472,27 +458,38 @@ export const ClubDetailPage: React.FC<ClubDetailPageProps> = ({ onBack, hideHead
               {currentClub.isMember ? (
                 <>
                   <div className="flex items-center justify-between">
-                    <h2 className="text-body-lg font-semibold text-foreground">Club Discussions</h2>
+                    <h2 className="text-body-lg font-semibold text-foreground">Club Chat</h2>
                     <button 
-                      onClick={() => setCurrentView('create-discussion')}
-                      className="text-primary text-body-sm font-medium"
+                      onClick={() => setSelectedDiscussionId('1')}
+                      className="text-primary text-body-sm font-medium hover:text-primary/80 transition-colors"
                     >
-                      New Discussion
+                      View All
                     </button>
                   </div>
                   
-                  <div className="text-center py-8">
-                    <MessageCircle className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-                    <h3 className="text-body-md font-medium text-foreground mb-2">No discussions yet</h3>
-                    <p className="text-body-sm text-muted-foreground mb-4">
-                      Be the first to start a conversation in this club
-                    </p>
-                    <button 
-                      onClick={() => setCurrentView('create-discussion')}
-                      className="px-4 py-2 bg-primary text-primary-foreground rounded-lg"
-                    >
-                      Start Discussion
-                    </button>
+                  <div className="bg-card rounded-xl border border-border p-4">
+                    <div className="flex items-center gap-3 mb-4">
+                      <MessageCircle className="w-5 h-5 text-primary" />
+                      <div>
+                        <h3 className="text-body-sm font-medium text-foreground">General Discussion</h3>
+                        <p className="text-caption text-muted-foreground">Main club conversation thread</p>
+                      </div>
+                    </div>
+                    
+                    <div className="space-y-3">
+                      <div className="text-center py-6">
+                        <MessageCircle className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
+                        <p className="text-body-sm text-muted-foreground mb-3">
+                          Start chatting with your club members
+                        </p>
+                        <button 
+                          onClick={() => setSelectedDiscussionId('1')}
+                          className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors"
+                        >
+                          Join Chat
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 </>
               ) : (
@@ -627,17 +624,15 @@ export const ClubDetailPage: React.FC<ClubDetailPageProps> = ({ onBack, hideHead
           <div className="px-4 pt-6 space-y-3">
             <button 
               onClick={() => {
-                setSelectedDiscussionId('1');
-                setCurrentView('discussion');
+                // Navigate to create prediction page
+                if (onBack) {
+                  onBack();
+                  // Small delay to ensure navigation completes
+                  setTimeout(() => {
+                    window.location.href = '/create-prediction';
+                  }, 100);
+                }
               }}
-              className="w-full flex items-center justify-center gap-2 p-4 bg-card border border-border rounded-xl hover:border-primary/50 transition-colors"
-            >
-              <MessageCircle className="w-5 h-5 text-primary" />
-              <span className="text-body-sm font-medium text-foreground">Club Discussions</span>
-            </button>
-            
-            <button 
-              onClick={() => {/* TODO: Navigate to create page */}}
               className="w-full flex items-center justify-center gap-2 p-4 bg-gradient-to-r from-primary to-primary/90 text-primary-foreground rounded-xl hover:shadow-lg hover:shadow-primary/25 transition-all duration-200"
             >
               <Plus className="w-5 h-5" />

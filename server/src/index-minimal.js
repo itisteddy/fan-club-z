@@ -448,6 +448,72 @@ app.get('/api/wallet/transactions', mockAuth, (req, res) => {
   });
 });
 
+// Discussion endpoints
+app.post('/api/v2/clubs/:id/discussions', mockAuth, (req, res) => {
+  const { id } = req.params;
+  const { title, content } = req.body;
+  
+  // Find the club
+  const club = mockClubs.find(c => c.id === id);
+  if (!club) {
+    return res.status(404).json({
+      success: false,
+      message: 'Club not found'
+    });
+  }
+  
+  // Create new discussion
+  const newDiscussion = {
+    id: `disc_${Date.now()}`,
+    club_id: id,
+    title: title.trim(),
+    content: content.trim(),
+    author_id: req.user.id,
+    author_name: req.user.username,
+    replies: 0,
+    likes: 0,
+    is_pinned: false,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString()
+  };
+  
+  // Add to mock discussions (initialize if doesn't exist)
+  if (!global.mockDiscussions) {
+    global.mockDiscussions = [];
+  }
+  global.mockDiscussions.push(newDiscussion);
+  
+  console.log(`💬 New discussion created: ${newDiscussion.title}`);
+  
+  res.json({
+    success: true,
+    message: 'Discussion created successfully',
+    data: newDiscussion
+  });
+});
+
+app.get('/api/v2/clubs/:id/discussions', mockAuth, (req, res) => {
+  const { id } = req.params;
+  
+  // Find the club
+  const club = mockClubs.find(c => c.id === id);
+  if (!club) {
+    return res.status(404).json({
+      success: false,
+      message: 'Club not found'
+    });
+  }
+  
+  // Get discussions for this club
+  const discussions = global.mockDiscussions?.filter(d => d.club_id === id) || [];
+  
+  res.json({
+    success: true,
+    data: discussions,
+    message: 'Discussions retrieved successfully'
+  });
+});
+
 // Catch-all route for SPA
 app.get('*', (req, res) => {
   res.json({
@@ -464,6 +530,8 @@ app.get('*', (req, res) => {
       'POST /api/v2/clubs',
       'POST /api/v2/clubs/:id/join',
       'POST /api/v2/clubs/:id/leave',
+      'POST /api/v2/clubs/:id/discussions',
+      'GET /api/v2/clubs/:id/discussions',
       'GET /api/user/profile',
       'GET /api/wallet/balance',
       'GET /api/wallet/transactions'
