@@ -11,4 +11,4 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
   </React.StrictMode>,
 )
 
-console.log('✅ Fan Club Z v2.0 - Application started successfully')
+console.log('✅ Fan Club Z v2.0 - Application started successfully')console.log('🚀 Build timestamp:', 'Sat Aug  2 19:23:41 EDT 2025');

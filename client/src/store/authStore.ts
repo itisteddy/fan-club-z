@@ -171,7 +171,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           userMessage = 'Invalid email or password. Please check your credentials and try again.';
         } else if (error.message.includes('Email not confirmed')) {
           // FIXED: Allow unconfirmed users to access the app
-          console.log('⚠️ Email not confirmed, but allowing app access');
+          console.log('⚠️ Email not confirmed, but allowing app access (v2.0.1)');
           
           // Create a user object from the email (limited functionality)
           const unconfirmedUser = {
