@@ -171,7 +171,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           userMessage = 'Invalid email or password. Please check your credentials and try again.';
         } else if (error.message.includes('Email not confirmed')) {
           // FIXED: Allow unconfirmed users to access the app
-          console.log('⚠️ Email not confirmed, but allowing app access (v2.0.1)');
+          console.log('⚠️ Email not confirmed, but allowing app access (v2.0.2)');
           
           // Create a user object from the email (limited functionality)
           const unconfirmedUser = {
@@ -362,15 +362,27 @@ export const useAuthStore = create<AuthState>((set, get) => ({
             
             if (loginError) {
               console.log('⚠️ Automatic login failed:', loginError.message);
-              // FIXED: Still authenticate them and redirect to app
-              set({ 
-                isAuthenticated: true,
-                user: convertedUser,
-                token: null,
-                loading: false
-              });
               
-              showSuccess(`Welcome to Fan Club Z, ${convertedUser?.firstName}! You're now signed in.`);
+              // FIXED: Handle email confirmation issue gracefully
+              if (loginError.message.includes('Email not confirmed')) {
+                console.log('⚠️ Email not confirmed during auto-login, but allowing app access (v2.0.2)');
+                set({ 
+                  isAuthenticated: true,
+                  user: convertedUser,
+                  token: null,
+                  loading: false
+                });
+                showSuccess(`Welcome to Fan Club Z, ${convertedUser?.firstName}! Please check your email to verify your account, but you can start using the app now.`);
+              } else {
+                // For other errors, still allow access
+                set({ 
+                  isAuthenticated: true,
+                  user: convertedUser,
+                  token: null,
+                  loading: false
+                });
+                showSuccess(`Welcome to Fan Club Z, ${convertedUser?.firstName}! You're now signed in.`);
+              }
             } else if (loginData.user && loginData.session) {
               console.log('✅ Automatic login successful after registration');
               const loggedInUser = convertSupabaseUser(loginData.user);
@@ -396,16 +408,28 @@ export const useAuthStore = create<AuthState>((set, get) => ({
               showSuccess(`Welcome to Fan Club Z, ${convertedUser?.firstName}! You're now signed in.`);
             }
           } catch (autoLoginError: any) {
-            console.log('⚠️ Automatic login failed:', autoLoginError.message);
-            // FIXED: Still authenticate and redirect to app
-            set({ 
-              isAuthenticated: true,
-              user: convertedUser,
-              token: null,
-              loading: false
-            });
+            console.log('⚠️ Automatic login exception:', autoLoginError.message);
             
-            showSuccess(`Welcome to Fan Club Z, ${convertedUser?.firstName}! You're now signed in.`);
+            // FIXED: Handle email confirmation issue in catch block too
+            if (autoLoginError.message.includes('Email not confirmed')) {
+              console.log('⚠️ Email not confirmed exception during auto-login, but allowing app access (v2.0.2)');
+              set({ 
+                isAuthenticated: true,
+                user: convertedUser,
+                token: null,
+                loading: false
+              });
+              showSuccess(`Welcome to Fan Club Z, ${convertedUser?.firstName}! Please check your email to verify your account, but you can start using the app now.`);
+            } else {
+              // For other errors, still allow access
+              set({ 
+                isAuthenticated: true,
+                user: convertedUser,
+                token: null,
+                loading: false
+              });
+              showSuccess(`Welcome to Fan Club Z, ${convertedUser?.firstName}! You're now signed in.`);
+            }
           }
         }
       } else {
