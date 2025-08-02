@@ -234,7 +234,7 @@ export const ClubDetailPage: React.FC<ClubDetailPageProps> = ({ onBack, hideHead
     <div className="min-h-screen bg-background">
       {/* Header with Back Button - Only render if not hidden */}
       {!hideHeader && (
-        <header className="sticky top-0 z-40 bg-card/95 backdrop-blur-sm border-b border-border">
+        <header className="sticky top-0 z-40 bg-white shadow-sm border-b border-border">
           <div className="flex items-center justify-between px-4 py-3">
             <button
               onClick={handleBackClick}
@@ -396,7 +396,21 @@ export const ClubDetailPage: React.FC<ClubDetailPageProps> = ({ onBack, hideHead
                 <>
                   <div className="flex items-center justify-between">
                     <h2 className="text-body-lg font-semibold text-foreground">Recent Predictions</h2>
-                    <button className="text-primary text-body-sm font-medium">View All</button>
+                    <button 
+                      onClick={() => {
+                        // Navigate to create prediction page
+                        if (onBack) {
+                          onBack();
+                          // Small delay to ensure navigation completes
+                          setTimeout(() => {
+                            window.location.href = '/create-prediction';
+                          }, 100);
+                        }
+                      }}
+                      className="text-primary text-body-sm font-medium hover:text-primary/80 transition-colors"
+                    >
+                      + Create Prediction
+                    </button>
                   </div>
                   
                   <div className="space-y-3">
