@@ -160,14 +160,15 @@
         .nav-button {
             background: var(--gradient-primary);
             color: white;
-            padding: 12px 24px;
+            padding: 10px 20px;
             border: none;
-            border-radius: var(--border-radius-md);
+            border-radius: 10px;
             font-weight: 600;
+            font-size: 14px;
             text-decoration: none;
             display: inline-flex;
             align-items: center;
-            gap: 8px;
+            gap: 6px;
             transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
             box-shadow: var(--shadow-sm);
         }
@@ -638,40 +639,7 @@
         .stagger-5 { animation-delay: 0.5s; }
         .stagger-6 { animation-delay: 0.6s; }
         
-        /* Mobile Navigation */
-        .mobile-menu-button {
-            display: none;
-            background: none;
-            border: none;
-            cursor: pointer;
-            padding: 8px;
-            border-radius: 8px;
-            transition: background 0.2s ease;
-        }
-        
-        .mobile-menu-button:hover {
-            background: var(--surface-tertiary);
-        }
-        
-        .hamburger {
-            width: 24px;
-            height: 24px;
-            position: relative;
-        }
-        
-        .hamburger span {
-            display: block;
-            position: absolute;
-            height: 2px;
-            width: 100%;
-            background: var(--text-primary);
-            border-radius: 1px;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-        
-        .hamburger span:nth-child(1) { top: 6px; }
-        .hamburger span:nth-child(2) { top: 11px; }
-        .hamburger span:nth-child(3) { top: 16px; }
+
         
         /* Responsive Design */
         @media (max-width: 768px) {
@@ -679,12 +647,31 @@
                 padding: 0 20px;
             }
             
+            .nav {
+                height: 60px;
+            }
+            
             .nav-links {
                 display: none;
             }
             
-            .mobile-menu-button {
-                display: block;
+            .logo {
+                font-size: 20px;
+            }
+            
+            .logo-icon {
+                width: 28px;
+                height: 28px;
+            }
+            
+            .nav-button {
+                padding: 8px 16px;
+                font-size: 14px;
+            }
+            
+            .nav-button i {
+                width: 14px;
+                height: 14px;
             }
             
             .hero {
@@ -724,6 +711,29 @@
         }
         
         @media (max-width: 480px) {
+            .nav {
+                height: 56px;
+            }
+            
+            .logo {
+                font-size: 18px;
+            }
+            
+            .logo-icon {
+                width: 24px;
+                height: 24px;
+            }
+            
+            .nav-button {
+                padding: 6px 12px;
+                font-size: 13px;
+            }
+            
+            .nav-button i {
+                width: 12px;
+                height: 12px;
+            }
+            
             .hero h1 {
                 font-size: 40px;
             }
@@ -761,13 +771,7 @@
                     <li><a href="#support">Support</a></li>
                 </ul>
                 
-                <button class="mobile-menu-button">
-                    <div class="hamburger">
-                        <span></span>
-                        <span></span>
-                        <span></span>
-                    </div>
-                </button>
+
                 
                 <a href="#download" class="nav-button">
                     Get Started
@@ -1078,11 +1082,7 @@
             statsObserver.observe(stat);
         });
         
-        // Mobile menu functionality (placeholder for future implementation)
-        document.querySelector('.mobile-menu-button').addEventListener('click', function() {
-            // Toggle mobile menu (implement as needed)
-            console.log('Mobile menu clicked');
-        });
+
         
         // Add loading animation for CTA button
         document.addEventListener('DOMContentLoaded', function() {
