@@ -115,16 +115,14 @@ const AuthPage: React.FC = () => {
   const toggleConfirmPassword = () => setShowConfirmPassword(!showConfirmPassword);
 
   return (
-    <div     style={{
+    <div style={{
       minHeight: '100vh',
       background: 'linear-gradient(135deg, #f8fafc 0%, #ffffff 30%, #ecfdf5 70%, #f0fdfa 100%)',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
       padding: '24px',
-      position: 'relative',
-      overflow: 'hidden',
-      WebkitOverflowScrolling: 'touch'
+      position: 'relative'
     }}>
       {/* Development Test Panel - Only show in development */}
       {import.meta.env.VITE_DEBUG === 'true' && (
@@ -296,7 +294,6 @@ const AuthPage: React.FC = () => {
         style={{
           width: '100%',
           maxWidth: '420px',
-          maxHeight: '90vh',
           backgroundColor: 'rgba(255, 255, 255, 0.95)',
           backdropFilter: 'blur(20px)',
           borderRadius: '24px',
@@ -305,9 +302,7 @@ const AuthPage: React.FC = () => {
           border: '1px solid rgba(255, 255, 255, 0.3)',
           position: 'relative',
           zIndex: 10,
-          margin: 'auto',
-          overflow: 'auto',
-          WebkitOverflowScrolling: 'touch'
+          margin: 'auto'
         }}
       >
         {/* Logo section */}
@@ -528,23 +523,28 @@ const AuthPage: React.FC = () => {
                 boxSizing: 'border-box',
                 backgroundColor: '#ffffff',
                 fontFamily: 'inherit',
-                minHeight: '56px',
-                textOverflow: 'clip'
+                minHeight: '56px'
               }}
               disabled={loading}
               required
             />
-            <svg style={{
+            <div style={{
               position: 'absolute',
               right: '16px',
-              top: '18px',
+              top: '50%',
+              transform: 'translateY(-50%)',
               width: '20px',
               height: '20px',
               color: '#9ca3af',
-              pointerEvents: 'none'
-            }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 12a4 4 0 10-8 0 4 4 0 008 0zm0 0v1.5a2.5 2.5 0 005 0V12a9 9 0 10-9 9m4.5-1.206a8.959 8.959 0 01-4.5 1.207" />
-            </svg>
+              pointerEvents: 'none',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}>
+              <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 12a4 4 0 10-8 0 4 4 0 008 0zm0 0v1.5a2.5 2.5 0 005 0V12a9 9 0 10-9 9m4.5-1.206a8.959 8.959 0 01-4.5 1.207" />
+              </svg>
+            </div>
             {formErrors.email && (
               <div style={{
                 marginTop: '8px',
@@ -590,17 +590,18 @@ const AuthPage: React.FC = () => {
                 boxSizing: 'border-box',
                 backgroundColor: '#ffffff',
                 fontFamily: 'inherit',
-                minHeight: '56px',
-                textOverflow: 'clip'
+                minHeight: '56px'
               }}
               disabled={loading}
               required
             />
-            <div 
+            <button 
+              type="button"
               style={{
                 position: 'absolute',
                 right: '16px',
-                top: '16px',
+                top: '50%',
+                transform: 'translateY(-50%)',
                 width: '24px',
                 height: '24px',
                 color: '#9ca3af',
@@ -610,21 +611,24 @@ const AuthPage: React.FC = () => {
                 transition: 'all 0.2s',
                 display: 'flex',
                 alignItems: 'center',
-                justifyContent: 'center'
+                justifyContent: 'center',
+                background: 'none',
+                border: 'none',
+                outline: 'none'
               }}
               onClick={togglePassword}
             >
               {showPassword ? (
-                <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.878 9.878L3 3m6.878 6.878L21 21" />
                 </svg>
               ) : (
-                <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                 </svg>
               )}
-            </div>
+            </button>
             {formErrors.password && (
               <div style={{
                 marginTop: '8px',
@@ -676,11 +680,13 @@ const AuthPage: React.FC = () => {
                 disabled={loading}
                 required={!isLoginMode}
               />
-              <div 
+              <button 
+                type="button"
                 style={{
                   position: 'absolute',
                   right: '16px',
-                  top: '16px',
+                  top: '50%',
+                  transform: 'translateY(-50%)',
                   width: '24px',
                   height: '24px',
                   color: '#9ca3af',
@@ -690,21 +696,24 @@ const AuthPage: React.FC = () => {
                   transition: 'all 0.2s',
                   display: 'flex',
                   alignItems: 'center',
-                  justifyContent: 'center'
+                  justifyContent: 'center',
+                  background: 'none',
+                  border: 'none',
+                  outline: 'none'
                 }}
                 onClick={toggleConfirmPassword}
               >
                 {showConfirmPassword ? (
-                  <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.878 9.878L3 3m6.878 6.878L21 21" />
                   </svg>
                 ) : (
-                  <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                   </svg>
                 )}
-              </div>
+              </button>
               {formErrors.confirmPassword && (
                 <div style={{
                   marginTop: '8px',
