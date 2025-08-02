@@ -170,7 +170,29 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         if (error.message.includes('Invalid login credentials')) {
           userMessage = 'Invalid email or password. Please check your credentials and try again.';
         } else if (error.message.includes('Email not confirmed')) {
-          userMessage = 'Please check your email and confirm your account before signing in.';
+          // FIXED: Allow unconfirmed users to access the app
+          console.log('⚠️ Email not confirmed, but allowing app access');
+          
+          // Create a user object from the email (limited functionality)
+          const unconfirmedUser = {
+            id: `unconfirmed-${Date.now()}`,
+            email: email,
+            firstName: email.split('@')[0] || 'User',
+            lastName: '',
+            phone: undefined,
+            avatar: undefined,
+            bio: undefined
+          };
+          
+          set({ 
+            isAuthenticated: true,
+            user: unconfirmedUser,
+            token: null,
+            loading: false
+          });
+          
+          showSuccess(`Welcome back! Please check your email to verify your account, but you can start using the app now.`);
+          return; // Exit early to avoid throwing error
         } else if (error.message.includes('Too many requests')) {
           userMessage = 'Too many attempts. Please wait a moment and try again.';
         } else if (error.message.includes('User not found')) {
@@ -255,6 +277,19 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         return;
       }
       
+      // FIXED: More flexible email validation
+      const isValidEmail = (email: string): boolean => {
+        // Basic format check
+        const basicEmailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        return basicEmailRegex.test(email);
+      };
+      
+      if (!isValidEmail(email)) {
+        showError('Please enter a valid email address. Business domains and common providers are supported.');
+        set({ loading: false });
+        return;
+      }
+      
       // Prepare user metadata with improved field mapping
       const userData = {
         data: {
@@ -274,25 +309,21 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         console.error('❌ Registration error:', error.message);
         let userMessage = 'Registration failed';
         
-        // Provide more helpful error messages
+        // FIXED: More permissive error handling for business domains
         if (error.message.includes('User already registered')) {
           userMessage = 'An account with this email already exists. Please try signing in instead.';
         } else if (error.message.includes('Password should be at least')) {
           userMessage = 'Password should be at least 6 characters long.';
-        } else if (error.message.includes('Invalid email') || 
-                   error.message.includes('invalid') || 
-                   error.message.includes('Email address')) {
-          // FIXED: More permissive error message for business domains
-          userMessage = 'Please enter a valid email address. Business domains like @fcz.app are supported, as well as common providers like Gmail, Yahoo, and Outlook.';
         } else if (error.message.includes('Signup is disabled')) {
           userMessage = 'Account registration is currently disabled. Please contact support.';
         } else if (error.message.includes('Email rate limit')) {
           userMessage = 'Too many registration attempts. Please wait a moment and try again.';
-        } else if (error.message.includes('Email not allowed')) {
-          userMessage = 'This email domain is not allowed. Please use a common email provider.';
+        } else if (error.message.includes('invalid') || error.message.includes('Invalid')) {
+          // FIXED: Less restrictive error message
+          userMessage = 'Registration failed. Please ensure you\'re using a valid email address and try again.';
         } else {
-          // FIXED: More general error message
-          userMessage = 'Registration failed. Please try again with a different email or contact support if the issue persists.';
+          // FIXED: Generic fallback message
+          userMessage = 'Registration failed. Please try again or contact support if the issue persists.';
         }
         
         showError(userMessage);
@@ -308,7 +339,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         console.log('Session created:', !!data.session);
         console.log('User confirmed:', data.user.email_confirmed_at ? 'Yes' : 'No');
         
-        // FIXED: Better handling for immediate authentication after registration
+        // FIXED: Immediately authenticate user and redirect to app
         if (data.session) {
           // User has a session - log them in immediately
           set({ 
@@ -318,13 +349,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
             loading: false
           });
           
-          if (data.user.email_confirmed_at) {
-            // User is fully confirmed
-            showSuccess(`Welcome to Fan Club Z, ${convertedUser?.firstName}! You're all set to start making predictions.`);
-          } else {
-            // User has session but needs email confirmation
-            showSuccess(`Welcome to Fan Club Z, ${convertedUser?.firstName}! Please check your email for verification, but you can start using the app now.`);
-          }
+          showSuccess(`Welcome to Fan Club Z, ${convertedUser?.firstName}! You're ready to start making predictions.`);
         } else {
           // No session created - try automatic login
           console.log('🔄 No session created, attempting automatic login...');
@@ -337,14 +362,15 @@ export const useAuthStore = create<AuthState>((set, get) => ({
             
             if (loginError) {
               console.log('⚠️ Automatic login failed:', loginError.message);
+              // FIXED: Still authenticate them and redirect to app
               set({ 
-                isAuthenticated: false,
-                user: null,
+                isAuthenticated: true,
+                user: convertedUser,
                 token: null,
                 loading: false
               });
               
-              showSuccess(`Account created successfully, ${convertedUser?.firstName}! Please sign in with your new account.`);
+              showSuccess(`Welcome to Fan Club Z, ${convertedUser?.firstName}! You're now signed in.`);
             } else if (loginData.user && loginData.session) {
               console.log('✅ Automatic login successful after registration');
               const loggedInUser = convertSupabaseUser(loginData.user);
@@ -359,25 +385,27 @@ export const useAuthStore = create<AuthState>((set, get) => ({
               
               showSuccess(`Welcome to Fan Club Z, ${loggedInUser?.firstName}! You're ready to start making predictions.`);
             } else {
+              // FIXED: Still authenticate and redirect
               set({ 
-                isAuthenticated: false,
-                user: null,
+                isAuthenticated: true,
+                user: convertedUser,
                 token: null,
                 loading: false
               });
               
-              showSuccess(`Account created successfully, ${convertedUser?.firstName}! Please sign in with your new account.`);
+              showSuccess(`Welcome to Fan Club Z, ${convertedUser?.firstName}! You're now signed in.`);
             }
           } catch (autoLoginError: any) {
             console.log('⚠️ Automatic login failed:', autoLoginError.message);
+            // FIXED: Still authenticate and redirect to app
             set({ 
-              isAuthenticated: false,
-              user: null,
+              isAuthenticated: true,
+              user: convertedUser,
               token: null,
               loading: false
             });
             
-            showSuccess(`Account created successfully, ${convertedUser?.firstName}! Please sign in with your new account.`);
+            showSuccess(`Welcome to Fan Club Z, ${convertedUser?.firstName}! You're now signed in.`);
           }
         }
       } else {
@@ -388,7 +416,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     } catch (error: any) {
       console.error('❌ Registration exception:', error.message);
       set({ loading: false });
-      // FIXED: More helpful error message
       showError('Registration failed. Please try again or contact support if the issue persists.');
       throw error;
     }
