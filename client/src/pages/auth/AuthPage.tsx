@@ -385,7 +385,10 @@ const AuthPage: React.FC = () => {
                   fontSize: '14px',
                   fontWeight: '600',
                   color: '#374151',
-                  marginBottom: '8px'
+                  marginBottom: '8px',
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis'
                 }}>
                   First Name
                 </label>
@@ -430,7 +433,10 @@ const AuthPage: React.FC = () => {
                   fontSize: '14px',
                   fontWeight: '600',
                   color: '#374151',
-                  marginBottom: '8px'
+                  marginBottom: '8px',
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis'
                 }}>
                   Last Name
                 </label>
@@ -478,7 +484,10 @@ const AuthPage: React.FC = () => {
               fontSize: '14px',
               fontWeight: '600',
               color: '#374151',
-              marginBottom: '8px'
+              marginBottom: '8px',
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis'
             }}>
               Email Address
             </label>
@@ -536,7 +545,10 @@ const AuthPage: React.FC = () => {
               fontSize: '14px',
               fontWeight: '600',
               color: '#374151',
-              marginBottom: '8px'
+              marginBottom: '8px',
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis'
             }}>
               Password
             </label>
@@ -608,6 +620,18 @@ const AuthPage: React.FC = () => {
           {/* Confirm Password field for registration */}
           {!isLoginMode && (
             <div style={{ marginBottom: '24px', position: 'relative' }}>
+              <label style={{
+                display: 'block',
+                fontSize: '14px',
+                fontWeight: '600',
+                color: '#374151',
+                marginBottom: '8px',
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis'
+              }}>
+                Confirm Password
+              </label>
               <input
                 type={showConfirmPassword ? 'text' : 'password'}
                 value={confirmPassword}
@@ -615,16 +639,17 @@ const AuthPage: React.FC = () => {
                 placeholder="Confirm your password"
                 style={{
                   width: '100%',
-                  padding: '18px 20px',
+                  padding: '16px 20px',
                   paddingRight: '60px',
                   border: `2px solid ${formErrors.confirmPassword ? '#ef4444' : '#e5e7eb'}`,
-                  borderRadius: '16px',
+                  borderRadius: '12px',
                   fontSize: '16px',
                   outline: 'none',
                   transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
                   boxSizing: 'border-box',
                   backgroundColor: '#ffffff',
-                  fontFamily: 'inherit'
+                  fontFamily: 'inherit',
+                  minHeight: '56px'
                 }}
                 disabled={loading}
                 required={!isLoginMode}

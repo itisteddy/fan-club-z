@@ -276,8 +276,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           userMessage = 'An account with this email already exists. Please try signing in instead.';
         } else if (error.message.includes('Password should be at least')) {
           userMessage = 'Password should be at least 6 characters long.';
-        } else if (error.message.includes('Invalid email')) {
-          userMessage = 'This email domain is not allowed. Please try with a different email (e.g., @gmail.com, @yahoo.com, @example.com).';
+        } else if (error.message.includes('Invalid email') || error.message.includes('invalid')) {
+          userMessage = 'This email domain is not allowed. Please try with a common email provider like @gmail.com, @yahoo.com, @outlook.com, or @example.com.';
         } else if (error.message.includes('Signup is disabled')) {
           userMessage = 'Account registration is currently disabled. Please contact support.';
         } else if (error.message.includes('Email rate limit')) {
