@@ -282,13 +282,13 @@ const AuthPage: React.FC = () => {
           maxWidth: '420px',
           backgroundColor: 'rgba(255, 255, 255, 0.95)',
           backdropFilter: 'blur(20px)',
-          borderRadius: window.innerWidth <= 480 ? '20px' : '24px',
-          padding: window.innerWidth <= 480 ? '32px 24px' : '48px',
+          borderRadius: '24px',
+          padding: '48px',
           boxShadow: '0 25px 50px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(255, 255, 255, 0.2)',
           border: '1px solid rgba(255, 255, 255, 0.3)',
           position: 'relative',
           zIndex: 10,
-          margin: window.innerWidth <= 480 ? '16px' : 'auto'
+          margin: 'auto'
         }}
       >
         {/* Logo section */}
