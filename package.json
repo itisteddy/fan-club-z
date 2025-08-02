@@ -1,7 +1,7 @@
 {
-  "name": "fanclubz-v2",
-  "version": "2.1.0",
-  "description": "Social predictions platform where users create and participate in their own prediction scenarios",
+  "name": "fanclubz",
+  "version": "2.0.0",
+  "description": "Fan Club Z - Social Predictions Platform",
   "private": true,
   "workspaces": [
     "client",
@@ -9,57 +9,51 @@
     "shared"
   ],
   "scripts": {
-    "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
+    "dev": "concurrently \"npm run dev:client\" \"npm run dev:server\"",
     "dev:client": "cd client && npm run dev",
     "dev:server": "cd server && npm run dev",
-    "build": "npm run build:shared && npm run build:client && npm run build:server",
+    "build": "npm run build:client && npm run build:server",
     "build:client": "cd client && npm run build",
     "build:server": "cd server && npm run build",
-    "build:shared": "cd shared && npm run build",
-    "start": "cd server && npm start",
     "install:all": "npm install && cd client && npm install && cd ../server && npm install && cd ../shared && npm install",
     "clean": "rm -rf node_modules client/node_modules server/node_modules shared/node_modules",
+    "test": "npm run test:client && npm run test:server",
+    "test:client": "cd client && npm test",
+    "test:server": "cd server && npm test",
+    "lint": "npm run lint:client && npm run lint:server",
+    "lint:client": "cd client && npm run lint",
+    "lint:server": "cd server && npm run lint",
+    "db:setup": "cd server && npm run db:setup",
     "db:migrate": "cd server && npm run db:migrate",
     "db:seed": "cd server && npm run db:seed",
-    "test": "npm run test:client && npm run test:server",
-    "test:client": "cd client && npm run test",
-    "test:server": "cd server && npm run test",
-    "verify:supabase": "node verify-supabase.js",
-    "git:setup": "node scripts/initial-commit-setup.js",
-    "git:status": "node scripts/git-status.js",
-    "save-work": "node scripts/quick-commit.js",
-    "push-changes": "node scripts/push-to-github.js",
-    "quick-status": "git status && git branch",
-    "sync": "git pull origin main",
-    "github-setup": "npm run git:setup && echo '\n🎯 Ready for GitHub! Create repo and add remote.'",
-    "check-build": "node check-build.js",
-    "restart-dev": "bash restart-dev.sh",
-    "vercel-build": "cd client && npm install && npm run build",
-    "deploy:dev": "bash deploy-dev.sh",
-    "deploy:staging": "bash deploy-staging.sh",
-    "deploy:production": "bash deploy-production.sh",
-    "deploy:legacy": "git push origin development",
-    "deploy:prod:legacy": "git push origin main",
-    "setup:dev": "git checkout development && npm run install:all",
-    "setup:branches": "git checkout -b main && git push -u origin main && git checkout -b staging && git push -u origin staging && git checkout development",
-    "test:build": "npm run build && npm run check-build",
-    "preview": "cd client && npm run preview"
+    "test:supabase": "cd server && npm run test:supabase",
+    "git:status": "git status",
+    "save-work": "git add . && git commit -m \"feat: work in progress - $(date '+%Y-%m-%d %H:%M:%S')\"",
+    "push-changes": "git push origin main",
+    "sync": "git pull origin main && git push origin main",
+    "deploy:dev": "./deploy-dev.sh",
+    "deploy:staging": "./deploy-staging.sh",
+    "deploy:production": "./deploy-production.sh"
   },
   "devDependencies": {
-    "concurrently": "^8.2.2",
-    "typescript": "^5.3.3"
+    "concurrently": "^8.2.2"
   },
   "engines": {
     "node": ">=18.0.0",
-    "npm": ">=9.0.0"
+    "npm": ">=8.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/itisteddy/fan-club-z.git"
   },
   "keywords": [
     "predictions",
-    "social",
-    "betting",
-    "blockchain",
-    "community",
-    "web3"
+    "social-platform",
+    "fan-club",
+    "react",
+    "typescript",
+    "nodejs",
+    "supabase"
   ],
   "author": "Fan Club Z Team",
   "license": "MIT"

@@ -4,21 +4,25 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Download Fan Club Z - Social Predictions Platform</title>
-    <meta name="description" content="Download Fan Club Z - Create and participate in predictions on sports, pop culture, and viral events. Join the future of social predictions.">
+    <meta name="description" content="Download Fan Club Z - The ultimate social predictions platform where fans can predict, compete, and win together.">
+    <meta name="keywords" content="predictions, social platform, fan club, betting, sports predictions, crypto predictions">
     
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://fanclubz.app/download">
+    <meta property="og:title" content="Download Fan Club Z">
+    <meta property="og:description" content="The ultimate social predictions platform where fans can predict, compete, and win together.">
+    <meta property="og:image" content="https://fanclubz.app/og-image.png">
+
+    <!-- Twitter -->
+    <meta property="twitter:card" content="summary_large_image">
+    <meta property="twitter:url" content="https://fanclubz.app/download">
+    <meta property="twitter:title" content="Download Fan Club Z">
+    <meta property="twitter:description" content="The ultimate social predictions platform where fans can predict, compete, and win together.">
+    <meta property="twitter:image" content="https://fanclubz.app/og-image.png">
+
     <!-- Favicon -->
     <link rel="icon" type="image/x-icon" href="/favicon.ico">
-    
-    <!-- Open Graph -->
-    <meta property="og:title" content="Fan Club Z - Social Predictions Platform">
-    <meta property="og:description" content="Create and participate in predictions on sports, pop culture, and viral events">
-    <meta property="og:image" content="/og-image.png">
-    <meta property="og:url" content="https://fanclubz.app">
-    
-    <!-- Twitter -->
-    <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="Fan Club Z">
-    <meta name="twitter:description" content="Social predictions platform">
     
     <style>
         * {
@@ -26,425 +30,368 @@
             padding: 0;
             box-sizing: border-box;
         }
-        
+
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
             line-height: 1.6;
-            color: #212529;
-            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+            color: #1f2937;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
         }
-        
+
         .container {
             max-width: 1200px;
             margin: 0 auto;
-            padding: 0 20px;
+            padding: 2rem;
         }
-        
-        /* Header */
+
         .header {
-            background: white;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-            position: sticky;
-            top: 0;
-            z-index: 100;
-        }
-        
-        .nav {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 1rem 0;
-        }
-        
-        .logo {
-            font-size: 1.5rem;
-            font-weight: 700;
-            color: #00D084;
-        }
-        
-        .nav-button {
-            background: #00D084;
-            color: white;
-            padding: 0.75rem 1.5rem;
-            border: none;
-            border-radius: 8px;
-            font-weight: 600;
-            text-decoration: none;
-            display: inline-block;
-            transition: background 0.2s ease;
-        }
-        
-        .nav-button:hover {
-            background: #00A86B;
-        }
-        
-        /* Hero Section */
-        .hero {
-            padding: 4rem 0;
             text-align: center;
+            margin-bottom: 4rem;
         }
-        
-        .hero h1 {
+
+        .logo {
             font-size: 3rem;
-            font-weight: 700;
+            font-weight: bold;
+            color: white;
             margin-bottom: 1rem;
-            background: linear-gradient(135deg, #00D084, #00A86B);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.3);
         }
-        
-        .hero p {
+
+        .tagline {
             font-size: 1.25rem;
-            color: #6c757d;
+            color: rgba(255,255,255,0.9);
             margin-bottom: 2rem;
-            max-width: 600px;
-            margin-left: auto;
-            margin-right: auto;
         }
-        
-        /* Download Section */
-        .download-section {
+
+        .main-content {
             background: white;
-            padding: 3rem 0;
             border-radius: 20px;
-            margin: 2rem auto;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            padding: 3rem;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            margin-bottom: 2rem;
         }
-        
-        .download-grid {
+
+        .hero-section {
+            text-align: center;
+            margin-bottom: 4rem;
+        }
+
+        .hero-title {
+            font-size: 2.5rem;
+            font-weight: bold;
+            color: #1f2937;
+            margin-bottom: 1rem;
+        }
+
+        .hero-subtitle {
+            font-size: 1.25rem;
+            color: #6b7280;
+            margin-bottom: 2rem;
+        }
+
+        .features-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
             gap: 2rem;
-            margin-top: 2rem;
+            margin-bottom: 4rem;
         }
-        
-        .download-card {
-            background: #f8f9fa;
+
+        .feature-card {
+            background: #f8fafc;
             padding: 2rem;
-            border-radius: 16px;
-            text-align: center;
-            transition: transform 0.2s ease;
-        }
-        
-        .download-card:hover {
-            transform: translateY(-5px);
-        }
-        
-        .download-icon {
-            width: 80px;
-            height: 80px;
-            margin: 0 auto 1rem;
-            background: #00D084;
-            border-radius: 20px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 2rem;
-        }
-        
-        .download-button {
-            background: #212529;
-            color: white;
-            padding: 1rem 2rem;
-            border: none;
             border-radius: 12px;
-            font-weight: 600;
+            border: 1px solid #e2e8f0;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .feature-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+        }
+
+        .feature-icon {
+            font-size: 2rem;
+            margin-bottom: 1rem;
+        }
+
+        .feature-title {
+            font-size: 1.25rem;
+            font-weight: bold;
+            color: #1f2937;
+            margin-bottom: 0.5rem;
+        }
+
+        .feature-description {
+            color: #6b7280;
+            line-height: 1.6;
+        }
+
+        .download-section {
+            text-align: center;
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            padding: 3rem;
+            border-radius: 16px;
+            color: white;
+        }
+
+        .download-title {
+            font-size: 2rem;
+            font-weight: bold;
+            margin-bottom: 1rem;
+        }
+
+        .download-subtitle {
+            font-size: 1.125rem;
+            margin-bottom: 2rem;
+            opacity: 0.9;
+        }
+
+        .download-buttons {
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .download-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            background: white;
+            color: #059669;
+            padding: 1rem 2rem;
+            border-radius: 12px;
             text-decoration: none;
-            display: inline-block;
-            margin-top: 1rem;
-            width: 100%;
-            transition: background 0.2s ease;
+            font-weight: bold;
+            font-size: 1.125rem;
+            transition: transform 0.2s, box-shadow 0.2s;
+            border: none;
+            cursor: pointer;
         }
-        
-        .download-button:hover {
-            background: #495057;
+
+        .download-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(0,0,0,0.2);
         }
-        
+
+        .download-btn.secondary {
+            background: rgba(255,255,255,0.1);
+            color: white;
+            border: 2px solid rgba(255,255,255,0.3);
+        }
+
+        .download-btn.secondary:hover {
+            background: rgba(255,255,255,0.2);
+        }
+
         .coming-soon {
-            background: #e9ecef;
-            color: #6c757d;
+            background: rgba(255,255,255,0.1);
+            color: rgba(255,255,255,0.7);
+            border: 2px solid rgba(255,255,255,0.2);
             cursor: not-allowed;
         }
-        
+
         .coming-soon:hover {
-            background: #e9ecef;
+            transform: none;
+            box-shadow: none;
         }
-        
-        /* Features Section */
-        .features {
-            padding: 4rem 0;
-        }
-        
-        .features-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 2rem;
-            margin-top: 2rem;
-        }
-        
-        .feature-card {
-            background: white;
-            padding: 2rem;
-            border-radius: 16px;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
-        }
-        
-        .feature-icon {
-            width: 50px;
-            height: 50px;
-            background: #00D084;
-            border-radius: 12px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            margin-bottom: 1rem;
-            color: white;
-            font-size: 1.5rem;
-        }
-        
-        /* Stats Section */
-        .stats {
-            background: white;
-            padding: 3rem 0;
-            margin: 2rem 0;
-            border-radius: 20px;
-        }
-        
-        .stats-grid {
+
+        .stats-section {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
             gap: 2rem;
+            margin-bottom: 4rem;
+        }
+
+        .stat-card {
             text-align: center;
+            padding: 2rem;
+            background: #f8fafc;
+            border-radius: 12px;
+            border: 1px solid #e2e8f0;
         }
-        
+
         .stat-number {
-            font-size: 3rem;
-            font-weight: 700;
-            color: #00D084;
+            font-size: 2.5rem;
+            font-weight: bold;
+            color: #10b981;
+            margin-bottom: 0.5rem;
         }
-        
+
         .stat-label {
-            color: #6c757d;
+            color: #6b7280;
             font-weight: 500;
         }
-        
-        /* Footer */
+
         .footer {
-            background: #212529;
-            color: white;
-            padding: 3rem 0;
             text-align: center;
+            color: rgba(255,255,255,0.8);
+            margin-top: 2rem;
         }
-        
-        .footer-links {
-            display: flex;
-            justify-content: center;
-            gap: 2rem;
-            margin-top: 1rem;
-        }
-        
-        .footer-links a {
-            color: #adb5bd;
+
+        .footer a {
+            color: white;
             text-decoration: none;
         }
-        
-        .footer-links a:hover {
-            color: white;
+
+        .footer a:hover {
+            text-decoration: underline;
         }
-        
-        /* Responsive */
+
         @media (max-width: 768px) {
-            .hero h1 {
+            .container {
+                padding: 1rem;
+            }
+
+            .main-content {
+                padding: 2rem;
+            }
+
+            .hero-title {
                 font-size: 2rem;
             }
-            
-            .download-grid {
-                grid-template-columns: 1fr;
-            }
-            
-            .nav {
+
+            .download-buttons {
                 flex-direction: column;
-                gap: 1rem;
+                align-items: center;
             }
-        }
-        
-        @keyframes countUp {
-            from {
-                opacity: 0;
-                transform: translateY(20px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
+
+            .download-btn {
+                width: 100%;
+                max-width: 300px;
+                justify-content: center;
             }
         }
     </style>
 </head>
 <body>
-    <!-- Header -->
-    <header class="header">
-        <div class="container">
-            <nav class="nav">
-                <div class="logo">Fan Club Z</div>
-                <a href="#download" class="nav-button">Download Now</a>
-            </nav>
-        </div>
-    </header>
+    <div class="container">
+        <header class="header">
+            <div class="logo">Fan Club Z</div>
+            <div class="tagline">Where Predictions Meet Community</div>
+        </header>
 
-    <!-- Hero Section -->
-    <section class="hero">
-        <div class="container">
-            <h1>Social Predictions Platform</h1>
-            <p>Create and participate in predictions on sports, pop culture, and viral events. Join the community-driven prediction revolution.</p>
-        </div>
-    </section>
+        <main class="main-content">
+            <section class="hero-section">
+                <h1 class="hero-title">Download Fan Club Z</h1>
+                <p class="hero-subtitle">Join thousands of users making predictions, competing with friends, and winning together in the ultimate social predictions platform.</p>
+            </section>
 
-    <!-- Download Section -->
-    <section id="download" class="download-section">
-        <div class="container">
-            <h2 style="text-align: center; font-size: 2.5rem; margin-bottom: 1rem;">Download Fan Club Z</h2>
-            <p style="text-align: center; color: #6c757d; margin-bottom: 2rem;">Get started with predictions on your favorite platform</p>
-            
-            <div class="download-grid">
-                <!-- Web App -->
-                <div class="download-card">
-                    <div class="download-icon">🌐</div>
-                    <h3>Web App</h3>
-                    <p>Access Fan Club Z directly in your browser. No download required!</p>
-                    <a href="https://fanclubz.app" class="download-button">Launch Web App</a>
-                </div>
-                
-                <!-- iOS App -->
-                <div class="download-card">
-                    <div class="download-icon">📱</div>
-                    <h3>iOS App</h3>
-                    <p>Native iOS experience with push notifications and optimized performance.</p>
-                    <a href="#" class="download-button coming-soon">Coming Soon</a>
-                </div>
-                
-                <!-- Android App -->
-                <div class="download-card">
-                    <div class="download-icon">🤖</div>
-                    <h3>Android App</h3>
-                    <p>Download from Google Play Store for the full mobile experience.</p>
-                    <a href="#" class="download-button coming-soon">Coming Soon</a>
-                </div>
-            </div>
-        </div>
-    </section>
-
-    <!-- Features Section -->
-    <section class="features">
-        <div class="container">
-            <h2 style="text-align: center; font-size: 2.5rem; margin-bottom: 1rem;">Why Fan Club Z?</h2>
-            <div class="features-grid">
-                <div class="feature-card">
-                    <div class="feature-icon">🎯</div>
-                    <h3>Create Predictions</h3>
-                    <p>Design your own prediction scenarios on any topic - sports, entertainment, or custom events.</p>
-                </div>
-                
-                <div class="feature-card">
-                    <div class="feature-icon">👥</div>
-                    <h3>Join Communities</h3>
-                    <p>Connect with like-minded predictors in clubs focused on your favorite topics.</p>
-                </div>
-                
-                <div class="feature-card">
-                    <div class="feature-icon">💰</div>
-                    <h3>Earn Rewards</h3>
-                    <p>Win prizes for accurate predictions and build your reputation as a top predictor.</p>
-                </div>
-                
-                <div class="feature-card">
-                    <div class="feature-icon">🔒</div>
-                    <h3>Secure & Transparent</h3>
-                    <p>Blockchain-backed escrow ensures fair play and transparent settlements.</p>
-                </div>
-                
-                <div class="feature-card">
-                    <div class="feature-icon">📊</div>
-                    <h3>Real-time Updates</h3>
-                    <p>Live odds, instant notifications, and dynamic leaderboards keep you engaged.</p>
-                </div>
-                
-                <div class="feature-card">
-                    <div class="feature-icon">🌟</div>
-                    <h3>Social Experience</h3>
-                    <p>Comment, react, and share predictions with friends and the community.</p>
-                </div>
-            </div>
-        </div>
-    </section>
-
-    <!-- Stats Section -->
-    <section class="stats">
-        <div class="container">
-            <h2 style="text-align: center; font-size: 2.5rem; margin-bottom: 2rem;">Join the Community</h2>
-            <div class="stats-grid">
-                <div>
+            <section class="stats-section">
+                <div class="stat-card">
                     <div class="stat-number">10K+</div>
                     <div class="stat-label">Active Users</div>
                 </div>
-                <div>
-                    <div class="stat-number">₦50M+</div>
-                    <div class="stat-label">In Predictions</div>
-                </div>
-                <div>
-                    <div class="stat-number">1M+</div>
+                <div class="stat-card">
+                    <div class="stat-number">50K+</div>
                     <div class="stat-label">Predictions Made</div>
                 </div>
-                <div>
-                    <div class="stat-number">95%</div>
-                    <div class="stat-label">Satisfaction Rate</div>
+                <div class="stat-card">
+                    <div class="stat-number">$100K+</div>
+                    <div class="stat-label">Total Winnings</div>
                 </div>
-            </div>
-        </div>
-    </section>
+                <div class="stat-card">
+                    <div class="stat-number">4.8★</div>
+                    <div class="stat-label">User Rating</div>
+                </div>
+            </section>
 
-    <!-- Footer -->
-    <footer class="footer">
-        <div class="container">
-            <p>&copy; 2025 Fan Club Z. All rights reserved.</p>
-            <div class="footer-links">
-                <a href="/privacy">Privacy Policy</a>
-                <a href="/terms">Terms of Service</a>
-                <a href="/support">Support</a>
-                <a href="/about">About</a>
-            </div>
-        </div>
-    </footer>
+            <section class="features-grid">
+                <div class="feature-card">
+                    <div class="feature-icon">🎯</div>
+                    <h3 class="feature-title">Smart Predictions</h3>
+                    <p class="feature-description">Create and participate in predictions across sports, entertainment, crypto, and more. Our AI-powered insights help you make better decisions.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">👥</div>
+                    <h3 class="feature-title">Social Clubs</h3>
+                    <p class="feature-description">Join exclusive clubs with like-minded fans. Share insights, discuss strategies, and compete together in a supportive community.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">💰</div>
+                    <h3 class="feature-title">Win Real Rewards</h3>
+                    <p class="feature-description">Earn rewards for accurate predictions. Build your reputation and climb the leaderboards to unlock exclusive benefits.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">📱</div>
+                    <h3 class="feature-title">Cross-Platform</h3>
+                    <p class="feature-description">Access Fan Club Z from anywhere. Our responsive design works perfectly on desktop, tablet, and mobile devices.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">🔒</div>
+                    <h3 class="feature-title">Secure & Fair</h3>
+                    <p class="feature-description">Built with enterprise-grade security. All predictions are transparent and verifiable on the blockchain.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">🚀</div>
+                    <h3 class="feature-title">Always Updated</h3>
+                    <p class="feature-description">Regular updates with new features, improved performance, and enhanced user experience based on community feedback.</p>
+                </div>
+            </section>
+
+            <section class="download-section">
+                <h2 class="download-title">Get Started Today</h2>
+                <p class="download-subtitle">Choose your platform and start predicting with the community</p>
+                
+                <div class="download-buttons">
+                    <a href="https://fanclubz.app" class="download-btn">
+                        🌐 Launch Web App
+                    </a>
+                    <button class="download-btn secondary coming-soon">
+                        📱 iOS App (Coming Soon)
+                    </button>
+                    <button class="download-btn secondary coming-soon">
+                        🤖 Android App (Coming Soon)
+                    </button>
+                </div>
+            </section>
+        </main>
+
+        <footer class="footer">
+            <p>&copy; 2024 Fan Club Z. All rights reserved. | 
+                <a href="https://fanclubz.app/privacy">Privacy Policy</a> | 
+                <a href="https://fanclubz.app/terms">Terms of Service</a> | 
+                <a href="https://fanclubz.app/support">Support</a>
+            </p>
+        </footer>
+    </div>
 
     <script>
-        // Smooth scrolling for anchor links
-        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
-            anchor.addEventListener('click', function (e) {
-                e.preventDefault();
-                document.querySelector(this.getAttribute('href')).scrollIntoView({
-                    behavior: 'smooth'
-                });
-            });
-        });
-        
-        // Add some interactive effects
+        // Add some interactivity
         document.addEventListener('DOMContentLoaded', function() {
             // Animate stats on scroll
             const stats = document.querySelectorAll('.stat-number');
-            const observerOptions = {
-                threshold: 0.5,
-                rootMargin: '0px'
-            };
             
             const observer = new IntersectionObserver((entries) => {
                 entries.forEach(entry => {
                     if (entry.isIntersecting) {
-                        entry.target.style.animation = 'countUp 1s ease-out';
+                        entry.target.style.opacity = '1';
+                        entry.target.style.transform = 'translateY(0)';
                     }
                 });
-            }, observerOptions);
-            
-            stats.forEach(stat => observer.observe(stat));
+            });
+
+            stats.forEach(stat => {
+                stat.style.opacity = '0';
+                stat.style.transform = 'translateY(20px)';
+                stat.style.transition = 'opacity 0.6s ease, transform 0.6s ease';
+                observer.observe(stat);
+            });
+
+            // Smooth scroll for anchor links
+            document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+                anchor.addEventListener('click', function (e) {
+                    e.preventDefault();
+                    const target = document.querySelector(this.getAttribute('href'));
+                    if (target) {
+                        target.scrollIntoView({
+                            behavior: 'smooth',
+                            block: 'start'
+                        });
+                    }
+                });
+            });
         });
     </script>
 </body>
