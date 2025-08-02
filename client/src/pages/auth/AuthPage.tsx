@@ -123,27 +123,30 @@ const AuthPage: React.FC = () => {
       justifyContent: 'center',
       padding: '24px',
       position: 'relative',
-      overflow: 'hidden'
+      overflow: 'auto',
+      WebkitOverflowScrolling: 'touch'
     }}>
-      {/* Development Test Panel */}
-      <div style={{ position: 'fixed', top: '10px', left: '10px', zIndex: 1001 }}>
-        <button
-          onClick={() => setShowTestPanel(!showTestPanel)}
-          style={{
-            padding: '8px 12px',
-            background: '#374151',
-            color: 'white',
-            border: 'none',
-            borderRadius: '6px',
-            fontSize: '12px',
-            cursor: 'pointer'
-          }}
-        >
-          🧪 Test Mode
-        </button>
-      </div>
+      {/* Development Test Panel - Only show in development */}
+      {import.meta.env.VITE_DEBUG === 'true' && (
+        <>
+          <div style={{ position: 'fixed', top: '10px', left: '10px', zIndex: 1001 }}>
+            <button
+              onClick={() => setShowTestPanel(!showTestPanel)}
+              style={{
+                padding: '8px 12px',
+                background: '#374151',
+                color: 'white',
+                border: 'none',
+                borderRadius: '6px',
+                fontSize: '12px',
+                cursor: 'pointer'
+              }}
+            >
+              🧪 Test Mode
+            </button>
+          </div>
 
-      {showTestPanel && (
+          {showTestPanel && (
         <div style={{
           position: 'fixed',
           top: '20px',
@@ -228,7 +231,8 @@ const AuthPage: React.FC = () => {
             ❌ Close
           </button>
         </div>
-      )}
+          </>
+        )}
 
       {/* CSS Animations */}
       <style>
@@ -280,7 +284,13 @@ const AuthPage: React.FC = () => {
         boxShadow: '0 25px 50px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(255, 255, 255, 0.2)',
         border: '1px solid rgba(255, 255, 255, 0.3)',
         position: 'relative',
-        zIndex: 10
+        zIndex: 10,
+        margin: 'auto',
+        '@media (max-width: 480px)': {
+          padding: '32px 24px',
+          margin: '16px',
+          borderRadius: '20px'
+        }
       }}>
         {/* Logo section */}
         <div style={{ textAlign: 'center', marginBottom: '40px' }}>
@@ -372,22 +382,32 @@ const AuthPage: React.FC = () => {
               marginBottom: '24px'
             }}>
               <div>
+                <label style={{
+                  display: 'block',
+                  fontSize: '14px',
+                  fontWeight: '600',
+                  color: '#374151',
+                  marginBottom: '8px'
+                }}>
+                  First Name
+                </label>
                 <input
                   type="text"
                   value={firstName}
                   onChange={(e) => setFirstName(e.target.value)}
-                  placeholder="First name"
+                  placeholder="Enter your first name"
                   style={{
                     width: '100%',
-                    padding: '18px 20px',
+                    padding: '16px 20px',
                     border: `2px solid ${formErrors.firstName ? '#ef4444' : '#e5e7eb'}`,
-                    borderRadius: '16px',
+                    borderRadius: '12px',
                     fontSize: '16px',
                     outline: 'none',
                     transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
                     boxSizing: 'border-box',
                     backgroundColor: '#ffffff',
-                    fontFamily: 'inherit'
+                    fontFamily: 'inherit',
+                    minHeight: '56px'
                   }}
                   disabled={loading}
                   required={!isLoginMode}
@@ -407,22 +427,32 @@ const AuthPage: React.FC = () => {
               </div>
               
               <div>
+                <label style={{
+                  display: 'block',
+                  fontSize: '14px',
+                  fontWeight: '600',
+                  color: '#374151',
+                  marginBottom: '8px'
+                }}>
+                  Last Name
+                </label>
                 <input
                   type="text"
                   value={lastName}
                   onChange={(e) => setLastName(e.target.value)}
-                  placeholder="Last name"
+                  placeholder="Enter your last name"
                   style={{
                     width: '100%',
-                    padding: '18px 20px',
+                    padding: '16px 20px',
                     border: `2px solid ${formErrors.lastName ? '#ef4444' : '#e5e7eb'}`,
-                    borderRadius: '16px',
+                    borderRadius: '12px',
                     fontSize: '16px',
                     outline: 'none',
                     transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
                     boxSizing: 'border-box',
                     backgroundColor: '#ffffff',
-                    fontFamily: 'inherit'
+                    fontFamily: 'inherit',
+                    minHeight: '56px'
                   }}
                   disabled={loading}
                   required={!isLoginMode}
@@ -445,23 +475,33 @@ const AuthPage: React.FC = () => {
 
           {/* Email field */}
           <div style={{ marginBottom: '24px', position: 'relative' }}>
+            <label style={{
+              display: 'block',
+              fontSize: '14px',
+              fontWeight: '600',
+              color: '#374151',
+              marginBottom: '8px'
+            }}>
+              Email Address
+            </label>
             <input
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="Enter your email"
+              placeholder="Enter your email address"
               style={{
                 width: '100%',
-                padding: '18px 20px',
+                padding: '16px 20px',
                 paddingRight: '50px',
                 border: `2px solid ${formErrors.email ? '#ef4444' : '#e5e7eb'}`,
-                borderRadius: '16px',
+                borderRadius: '12px',
                 fontSize: '16px',
                 outline: 'none',
                 transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
                 boxSizing: 'border-box',
                 backgroundColor: '#ffffff',
-                fontFamily: 'inherit'
+                fontFamily: 'inherit',
+                minHeight: '56px'
               }}
               disabled={loading}
               required
@@ -493,6 +533,15 @@ const AuthPage: React.FC = () => {
 
           {/* Password field */}
           <div style={{ marginBottom: '24px', position: 'relative' }}>
+            <label style={{
+              display: 'block',
+              fontSize: '14px',
+              fontWeight: '600',
+              color: '#374151',
+              marginBottom: '8px'
+            }}>
+              Password
+            </label>
             <input
               type={showPassword ? 'text' : 'password'}
               value={password}
@@ -500,16 +549,17 @@ const AuthPage: React.FC = () => {
               placeholder="Enter your password"
               style={{
                 width: '100%',
-                padding: '18px 20px',
+                padding: '16px 20px',
                 paddingRight: '60px',
                 border: `2px solid ${formErrors.password ? '#ef4444' : '#e5e7eb'}`,
-                borderRadius: '16px',
+                borderRadius: '12px',
                 fontSize: '16px',
                 outline: 'none',
                 transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
                 boxSizing: 'border-box',
                 backgroundColor: '#ffffff',
-                fontFamily: 'inherit'
+                fontFamily: 'inherit',
+                minHeight: '56px'
               }}
               disabled={loading}
               required

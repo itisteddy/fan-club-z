@@ -67,6 +67,7 @@ export const auth = {
         password,
         options: {
           data: userData,
+          emailRedirectTo: `${window.location.origin}/auth/callback`,
         },
       });
       
