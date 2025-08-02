@@ -147,90 +147,91 @@ const AuthPage: React.FC = () => {
           </div>
 
           {showTestPanel && (
-        <div style={{
-          position: 'fixed',
-          top: '20px',
-          right: '20px',
-          background: 'rgba(0, 0, 0, 0.9)',
-          color: 'white',
-          padding: '16px',
-          borderRadius: '8px',
-          fontSize: '12px',
-          zIndex: 1000,
-          maxWidth: '280px'
-        }}>
-          <div style={{ marginBottom: '12px', fontWeight: 'bold', color: '#00ff88' }}>🚀 TEST AUTHENTICATION</div>
-          <div style={{ marginBottom: '8px', fontSize: '10px', color: '#ccc' }}>
-            These accounts work with Supabase:
-          </div>
-          <button
-            style={{
-              margin: '4px 0',
-              padding: '6px 12px',
-              background: '#10b981',
+            <div style={{
+              position: 'fixed',
+              top: '20px',
+              right: '20px',
+              background: 'rgba(0, 0, 0, 0.9)',
               color: 'white',
-              border: 'none',
-              borderRadius: '4px',
-              cursor: 'pointer',
-              fontSize: '11px',
-              width: '100%'
-            }}
-            onClick={() => handleTestLogin('demo@example.com', 'demo123', 'Demo', 'User')}
-          >
-            {isLoginMode ? '🔑 Login demo@example.com' : '📝 Register demo@example.com'}
-          </button>
-          <button
-            style={{
-              margin: '4px 0',
-              padding: '6px 12px',
-              background: '#10b981',
-              color: 'white',
-              border: 'none',
-              borderRadius: '4px',
-              cursor: 'pointer',
-              fontSize: '11px',
-              width: '100%'
-            }}
-            onClick={() => handleTestLogin('user@gmail.com', 'test123', 'Test', 'Person')}
-          >
-            {isLoginMode ? '🔑 Login user@gmail.com' : '📝 Register user@gmail.com'}
-          </button>
-          <button
-            style={{
-              margin: '4px 0',
-              padding: '6px 12px',
-              background: '#10b981',
-              color: 'white',
-              border: 'none',
-              borderRadius: '4px',
-              cursor: 'pointer',
-              fontSize: '11px',
-              width: '100%'
-            }}
-            onClick={() => handleTestLogin('newuser@outlook.com', 'test123', 'New', 'User')}
-          >
-            {isLoginMode ? '🔑 Login newuser@outlook.com' : '📝 Register newuser@outlook.com'}
-          </button>
-          <div style={{ margin: '12px 0 8px 0', fontSize: '10px', color: '#ffaa00' }}>
-            ⚠️ Use common domains like gmail.com, example.com, outlook.com
-          </div>
-          <button
-            style={{
-              margin: '4px 0',
-              padding: '6px 12px',
-              background: '#dc2626',
-              color: 'white',
-              border: 'none',
-              borderRadius: '4px',
-              cursor: 'pointer',
-              fontSize: '11px',
-              width: '100%'
-            }}
-            onClick={() => setShowTestPanel(false)}
-          >
-            ❌ Close
-          </button>
-        </div>
+              padding: '16px',
+              borderRadius: '8px',
+              fontSize: '12px',
+              zIndex: 1000,
+              maxWidth: '280px'
+            }}>
+              <div style={{ marginBottom: '12px', fontWeight: 'bold', color: '#00ff88' }}>🚀 TEST AUTHENTICATION</div>
+              <div style={{ marginBottom: '8px', fontSize: '10px', color: '#ccc' }}>
+                These accounts work with Supabase:
+              </div>
+              <button
+                style={{
+                  margin: '4px 0',
+                  padding: '6px 12px',
+                  background: '#10b981',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  fontSize: '11px',
+                  width: '100%'
+                }}
+                onClick={() => handleTestLogin('demo@example.com', 'demo123', 'Demo', 'User')}
+              >
+                {isLoginMode ? '🔑 Login demo@example.com' : '📝 Register demo@example.com'}
+              </button>
+              <button
+                style={{
+                  margin: '4px 0',
+                  padding: '6px 12px',
+                  background: '#10b981',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  fontSize: '11px',
+                  width: '100%'
+                }}
+                onClick={() => handleTestLogin('user@gmail.com', 'test123', 'Test', 'Person')}
+              >
+                {isLoginMode ? '🔑 Login user@gmail.com' : '📝 Register user@gmail.com'}
+              </button>
+              <button
+                style={{
+                  margin: '4px 0',
+                  padding: '6px 12px',
+                  background: '#10b981',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  fontSize: '11px',
+                  width: '100%'
+                }}
+                onClick={() => handleTestLogin('newuser@outlook.com', 'test123', 'New', 'User')}
+              >
+                {isLoginMode ? '🔑 Login newuser@outlook.com' : '📝 Register newuser@outlook.com'}
+              </button>
+              <div style={{ margin: '12px 0 8px 0', fontSize: '10px', color: '#ffaa00' }}>
+                ⚠️ Use common domains like gmail.com, example.com, outlook.com
+              </div>
+              <button
+                style={{
+                  margin: '4px 0',
+                  padding: '6px 12px',
+                  background: '#dc2626',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  fontSize: '11px',
+                  width: '100%'
+                }}
+                onClick={() => setShowTestPanel(false)}
+              >
+                ❌ Close
+              </button>
+            </div>
+          )}
         </div>
       )}
 
@@ -248,8 +249,6 @@ const AuthPage: React.FC = () => {
           }
         `}
       </style>
-      
-
 
       {/* Animated background elements */}
       <div style={{
