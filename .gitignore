@@ -111,3 +111,4 @@ test-production-deployment.js
 
 # Cursor IDE
 .cursor/
+.vercel
