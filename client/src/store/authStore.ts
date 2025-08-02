@@ -152,7 +152,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           loading: false
         });
         
-        toast.success(`Welcome back, ${mockUser.firstName}!`);
+        showSuccess(`Welcome back, ${mockUser.firstName}!`);
         return;
       }
       
@@ -179,7 +179,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           userMessage = error.message;
         }
         
-        toast.error(userMessage);
+        showError(userMessage);
         set({ loading: false });
         throw new Error(error.message);
       }
@@ -196,17 +196,17 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           loading: false
         });
         
-        toast.success(`Welcome back, ${convertedUser?.firstName}!`);
+        showSuccess(`Welcome back, ${convertedUser?.firstName}!`);
       } else {
         // This shouldn't happen for login but handle it gracefully
         set({ loading: false });
-        toast.error('Login successful but no session created. Please try again.');
+        showError('Login successful but no session created. Please try again.');
         throw new Error('No session created after login');
       }
     } catch (error: any) {
       console.error('❌ Login exception:', error.message);
       set({ loading: false });
-      toast.error('Login failed. Please try again.');
+      showError('Login failed. Please try again.');
       throw error;
     }
   },
@@ -241,7 +241,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           loading: false
         });
         
-        toast.success(`Welcome to Fan Club Z, ${mockUser.firstName}!`);
+        showSuccess(`Welcome to Fan Club Z, ${mockUser.firstName}!`);
         return;
       }
       
@@ -250,7 +250,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       
       // Validate password strength
       if (password.length < 6) {
-        toast.error('Password must be at least 6 characters long.');
+        showError('Password must be at least 6 characters long.');
         set({ loading: false });
         return;
       }
@@ -277,17 +277,19 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           userMessage = 'An account with this email already exists. Please try signing in instead.';
         } else if (error.message.includes('Password should be at least')) {
           userMessage = 'Password should be at least 6 characters long.';
-        } else if (error.message.includes('Invalid email') || error.message.includes('invalid')) {
-          userMessage = 'This email domain is not allowed. Please use a common email provider like @gmail.com, @yahoo.com, @outlook.com, or @example.com. Custom domains like @fcz.app are not supported.';
+        } else if (error.message.includes('Invalid email') || error.message.includes('invalid') || error.message.includes('Email address')) {
+          userMessage = 'Please use a valid email address from a common provider like Gmail, Yahoo, Outlook, or Hotmail. Custom domains and special formats are not supported.';
         } else if (error.message.includes('Signup is disabled')) {
           userMessage = 'Account registration is currently disabled. Please contact support.';
         } else if (error.message.includes('Email rate limit')) {
           userMessage = 'Too many registration attempts. Please wait a moment and try again.';
+        } else if (error.message.includes('Email not allowed')) {
+          userMessage = 'This email domain is not allowed. Please use a common email provider.';
         } else {
-          userMessage = error.message;
+          userMessage = 'Registration failed. Please check your email format and try again.';
         }
         
-        toast.error(userMessage);
+        showError(userMessage);
         set({ loading: false });
         throw new Error(error.message);
       }
@@ -310,7 +312,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
             loading: false
           });
           
-          toast.success(`Welcome to Fan Club Z, ${convertedUser?.firstName}!`);
+          showSuccess(`Welcome to Fan Club Z, ${convertedUser?.firstName}!`);
         } else if (data.session && !data.user.email_confirmed_at) {
           // User has session but needs email confirmation
           // For now, we'll treat this as authenticated since they have a session
@@ -321,7 +323,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
             loading: false
           });
           
-          toast.success(`Welcome to Fan Club Z, ${convertedUser?.firstName}! Please check your email for verification.`);
+          showSuccess(`Welcome to Fan Club Z, ${convertedUser?.firstName}! Please check your email for verification.`);
         } else {
           // No session created, email confirmation required
           set({ 
@@ -331,17 +333,17 @@ export const useAuthStore = create<AuthState>((set, get) => ({
             loading: false
           });
           
-          toast.success('Account created successfully! Please check your email to verify your account, then sign in.');
+          showSuccess('Account created successfully! Please check your email to verify your account, then sign in.');
         }
       } else {
         set({ loading: false });
-        toast.error('Registration failed. Please try again.');
+        showError('Registration failed. Please try again.');
         throw new Error('No user created');
       }
     } catch (error: any) {
       console.error('❌ Registration exception:', error.message);
       set({ loading: false });
-      toast.error('Registration failed. Please try again.');
+      showError('Registration failed. Please check your email format and try again.');
       throw error;
     }
   },
@@ -355,10 +357,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       
       if (error) {
         console.error('❌ Logout error:', error.message);
-        toast.error('Error signing out');
+        showError('Error signing out');
       } else {
         console.log('✅ User logged out successfully');
-        toast.success('Signed out successfully');
+        showSuccess('Signed out successfully');
       }
       
       set({ 
@@ -400,15 +402,19 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
       if (error) {
         console.error('❌ Profile update error:', error.message);
-        toast.error(error.message || 'Failed to update profile');
+        showError(error.message || 'Failed to update profile');
+        set({ loading: false });
         throw new Error(error.message);
       }
 
       if (data.user) {
-        const convertedUser = convertSupabaseUser(data.user);
-        console.log('✅ Profile updated successfully');
-        set({ user: convertedUser, loading: false });
-        toast.success('Profile updated successfully!');
+        const updatedUser = convertSupabaseUser(data.user);
+        set({ 
+          user: updatedUser,
+          loading: false
+        });
+        
+        showSuccess('Profile updated successfully!');
       }
     } catch (error: any) {
       set({ loading: false });

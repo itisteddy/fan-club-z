@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuthStore } from '../../store/authStore';
 
 const AuthPage: React.FC = () => {
@@ -14,6 +14,11 @@ const AuthPage: React.FC = () => {
   const [showTestPanel, setShowTestPanel] = useState(false);
   const [formErrors, setFormErrors] = useState<{ email?: string; password?: string; firstName?: string; lastName?: string; confirmPassword?: string }>({});
   const [authError, setAuthError] = useState<string | null>(null);
+
+  // Ensure page starts at the top when component mounts
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'instant' });
+  }, []);
 
   const validateForm = () => {
     const errors: { email?: string; password?: string; firstName?: string; lastName?: string; confirmPassword?: string } = {};
@@ -121,7 +126,7 @@ const AuthPage: React.FC = () => {
       minHeight: '100vh',
       background: 'linear-gradient(135deg, #f8fafc 0%, #ffffff 30%, #ecfdf5 70%, #f0fdfa 100%)',
       display: 'flex',
-      alignItems: 'center',
+      alignItems: 'flex-start',
       justifyContent: 'center',
       padding: '24px',
       position: 'relative',
@@ -297,7 +302,7 @@ const AuthPage: React.FC = () => {
         style={{
           width: '100%',
           maxWidth: '600px',
-          maxHeight: '90vh',
+          minHeight: '95vh',
           backgroundColor: 'rgba(255, 255, 255, 0.95)',
           backdropFilter: 'blur(20px)',
           borderRadius: '24px',
@@ -307,7 +312,9 @@ const AuthPage: React.FC = () => {
           position: 'relative',
           zIndex: 10,
           margin: 'auto',
-          overflow: 'auto'
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'center'
         }}
       >
         {/* Logo section */}
