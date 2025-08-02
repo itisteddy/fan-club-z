@@ -234,7 +234,7 @@ const AuthPage: React.FC = () => {
           </>
         )}
 
-      {/* CSS Animations and Responsive Styles */}
+      {/* CSS Animations */}
       <style>
         {`
           @keyframes float {
@@ -246,7 +246,12 @@ const AuthPage: React.FC = () => {
             from { transform: rotate(0deg); }
             to { transform: rotate(360deg); }
           }
-          
+        `}
+      </style>
+      
+      {/* Responsive Styles */}
+      <style>
+        {String.raw`
           @media (max-width: 480px) {
             .auth-card {
               padding: 32px 24px !important;
