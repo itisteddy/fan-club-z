@@ -122,8 +122,7 @@ const AuthPage: React.FC = () => {
       alignItems: 'center',
       justifyContent: 'center',
       padding: '24px',
-      position: 'relative',
-      overflow: 'auto'
+      position: 'relative'
     }}>
       {/* Development Test Panel - Only show in development */}
       {import.meta.env.VITE_DEBUG === 'true' && (
@@ -294,7 +293,7 @@ const AuthPage: React.FC = () => {
         className="auth-card"
         style={{
           width: '100%',
-          maxWidth: '520px',
+          maxWidth: '600px',
           backgroundColor: 'rgba(255, 255, 255, 0.95)',
           backdropFilter: 'blur(20px)',
           borderRadius: '24px',
@@ -390,9 +389,9 @@ const AuthPage: React.FC = () => {
           {/* Name fields for registration */}
           {!isLoginMode && (
             <div style={{
-              display: 'grid',
-              gridTemplateColumns: '1fr 1fr',
-              gap: '16px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '24px',
               marginBottom: '24px'
             }}>
               <div>
@@ -787,7 +786,7 @@ const AuthPage: React.FC = () => {
         <div style={{
           position: 'relative',
           textAlign: 'center',
-          margin: '32px 0',
+          margin: '40px 0',
           fontSize: '14px',
           color: '#6b7280'
         }}>
@@ -812,7 +811,7 @@ const AuthPage: React.FC = () => {
           display: 'flex',
           flexDirection: 'column',
           gap: '12px',
-          marginBottom: '32px'
+          marginBottom: '40px'
         }}>
           <button
             type="button"
@@ -880,6 +879,7 @@ const AuthPage: React.FC = () => {
         <div style={{
           textAlign: 'center',
           paddingTop: '24px',
+          paddingBottom: '16px',
           borderTop: '1px solid #f3f4f6'
         }}>
           <p style={{
@@ -898,9 +898,11 @@ const AuthPage: React.FC = () => {
                 color: '#10b981',
                 textDecoration: 'none',
                 fontWeight: '600',
-                padding: '2px 4px',
-                borderRadius: '4px',
-                transition: 'all 0.2s'
+                padding: '8px 12px',
+                borderRadius: '6px',
+                transition: 'all 0.2s',
+                display: 'inline-block',
+                marginTop: '8px'
               }}
             >
               {isLoginMode ? 'Create one now' : 'Sign in'}
