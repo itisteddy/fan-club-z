@@ -144,23 +144,58 @@ const mockPredictions = [
 const mockClubs = [
   {
     id: '1',
-    name: 'Premier League Fans',
-    description: 'The ultimate destination for Premier League predictions and discussions',
+    name: 'Premier League Predictors',
+    description: 'The ultimate destination for Premier League predictions and analysis. Join thousands of football fans making winning predictions!',
     category: 'sports',
-    member_count: 1250,
-    is_private: false,
-    created_by: 'user1',
+    memberCount: 2547,
+    isVerified: true,
+    isPopular: true,
+    recentActivity: '5 new predictions today',
+    isJoined: false,
+    onlineMembers: 234,
+    visibility: 'public',
+    owner_id: 'user1',
+    is_member: false,
+    member_role: null,
+    owner: {
+      username: 'PremierLeaguePro',
+      avatar_url: null
+    },
+    activePredictions: 12,
+    stats: {
+      totalPredictions: 234,
+      correctPredictions: 156,
+      totalWinnings: 45600,
+      topMembers: 15
+    },
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString()
   },
   {
     id: '2',
-    name: 'Tech Predictions',
-    description: 'Predicting the future of technology and innovation',
-    category: 'technology',
-    member_count: 890,
-    is_private: false,
-    created_by: 'user2',
+    name: 'Crypto Bulls',
+    description: 'Daily crypto predictions and market analysis from experts and enthusiasts. Bitcoin, Ethereum, and altcoin predictions.',
+    category: 'crypto',
+    memberCount: 1823,
+    isVerified: true,
+    recentActivity: 'Bitcoin prediction just closed',
+    isJoined: true,
+    onlineMembers: 156,
+    visibility: 'public',
+    owner_id: 'user2',
+    is_member: true,
+    member_role: 'member',
+    owner: {
+      username: 'CryptoExpert',
+      avatar_url: null
+    },
+    activePredictions: 8,
+    stats: {
+      totalPredictions: 156,
+      correctPredictions: 89,
+      totalWinnings: 23400,
+      topMembers: 12
+    },
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString()
   }
@@ -327,9 +362,14 @@ app.post('/api/v2/clubs', mockAuth, (req, res) => {
     name: name.trim(),
     description: description.trim(),
     category,
+    memberCount: 1,
+    isVerified: false,
+    isPopular: false,
+    recentActivity: 'Just created',
+    isJoined: true,
+    onlineMembers: 1,
     visibility: isPrivate ? 'private' : 'public',
     owner_id: req.user.id,
-    member_count: 1,
     is_member: true,
     member_role: 'admin',
     owner: {
