@@ -231,8 +231,8 @@ const AuthPage: React.FC = () => {
             ❌ Close
           </button>
         </div>
-          </>
-        )}
+        </>
+      )}
 
       {/* CSS Animations */}
       <style>
