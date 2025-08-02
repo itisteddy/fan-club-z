@@ -121,7 +121,7 @@ export const useClubStore = create<ClubStore>((set, get) => ({
       const token = localStorage.getItem('token');
       console.log('Fetching clubs with token:', token ? 'Present' : 'Missing');
 
-      const response = await fetch(`/api/v2/clubs?${queryParams}`, {
+      const response = await fetch(`/api/v2/social/clubs?${queryParams}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
@@ -160,7 +160,7 @@ export const useClubStore = create<ClubStore>((set, get) => ({
       const token = localStorage.getItem('token');
       console.log('Fetching club by ID:', clubId, 'with token:', token ? 'Present' : 'Missing');
 
-      const response = await fetch(`/api/v2/clubs/${clubId}`, {
+      const response = await fetch(`/api/v2/social/clubs/${clubId}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
@@ -197,7 +197,7 @@ export const useClubStore = create<ClubStore>((set, get) => ({
       const token = localStorage.getItem('token');
       console.log('Joining club:', clubId, 'with token:', token ? 'Present' : 'Missing');
       
-      const requestUrl = `/api/v2/clubs/${clubId}/join`;
+      const requestUrl = `/api/v2/social/clubs/${clubId}/join`;
       console.log('Join club request URL:', requestUrl);
 
       const response = await fetch(requestUrl, {
@@ -303,7 +303,7 @@ export const useClubStore = create<ClubStore>((set, get) => ({
     try {
       const token = localStorage.getItem('token');
 
-      const response = await fetch(`/api/v2/clubs`, {
+      const response = await fetch(`/api/v2/social/clubs`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

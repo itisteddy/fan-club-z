@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { scrollToTop } from '../utils/scroll';
+import { useClubStore } from '../store/clubStore';
 
 interface CreateClubPageProps {
   onNavigateBack?: () => void;
@@ -25,6 +26,7 @@ const CreateClubPage: React.FC<CreateClubPageProps> = ({ onNavigateBack }) => {
   const [privacy, setPrivacy] = useState('public');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitSuccess, setSubmitSuccess] = useState(false);
+  const { createClub } = useClubStore();
 
   // Scroll to top when component mounts
   React.useEffect(() => {
@@ -90,9 +92,6 @@ const CreateClubPage: React.FC<CreateClubPageProps> = ({ onNavigateBack }) => {
 
     setIsSubmitting(true);
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
       console.log('Creating club with data:', {
         name,
         description,
@@ -100,31 +99,53 @@ const CreateClubPage: React.FC<CreateClubPageProps> = ({ onNavigateBack }) => {
         privacy
       });
 
-      toast.success('🎉 Club created successfully!');
-      setSubmitSuccess(true);
+      // Create the club using the store
+      const clubData = {
+        name: name.trim(),
+        description: description.trim(),
+        category,
+        isPrivate: privacy === 'private',
+        // Add other required fields
+        memberCount: 1, // Creator is first member
+        isVerified: false,
+        isPopular: false,
+        recentActivity: 'Just created',
+        isJoined: true, // Creator automatically joins
+        onlineMembers: 1
+      };
+
+      const createdClub = await createClub(clubData);
       
-      // Navigate back after success
-      setTimeout(() => {
-        // Reset form
-        setStep(1);
-        setName('');
-        setDescription('');
-        setCategory('');
-        setPrivacy('public');
-        setSubmitSuccess(false);
-        setIsSubmitting(false);
+      if (createdClub) {
+        console.log('Club created successfully:', createdClub);
+        toast.success('🎉 Club created successfully!');
+        setSubmitSuccess(true);
         
-        // Navigate back
-        if (onNavigateBack) {
-          onNavigateBack();
-        }
-      }, 2000);
+        // Navigate back after success
+        setTimeout(() => {
+          // Reset form
+          setStep(1);
+          setName('');
+          setDescription('');
+          setCategory('');
+          setPrivacy('public');
+          setSubmitSuccess(false);
+          setIsSubmitting(false);
+          
+          // Navigate back
+          if (onNavigateBack) {
+            onNavigateBack();
+          }
+        }, 2000);
+      } else {
+        throw new Error('Failed to create club');
+      }
     } catch (error) {
       console.error('Failed to create club:', error);
       toast.error('Failed to create club. Please try again.');
       setIsSubmitting(false);
     }
-  }, [name, description, category, privacy, step, validateStep, onNavigateBack]);
+  }, [name, description, category, privacy, step, validateStep, onNavigateBack, createClub]);
 
   // Success View
   if (submitSuccess) {
@@ -198,11 +219,11 @@ const CreateClubPage: React.FC<CreateClubPageProps> = ({ onNavigateBack }) => {
       </div>
 
       {/* Content */}
-      <div className="px-6 -mt-6">
+      <div className="px-6 -mt-12">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="bg-white rounded-3xl p-6 shadow-xl border border-gray-100"
+          className="bg-white rounded-3xl p-6 shadow-xl border border-gray-100 relative z-20"
         >
           {/* Step 1: Basic Info */}
           {step === 1 && (

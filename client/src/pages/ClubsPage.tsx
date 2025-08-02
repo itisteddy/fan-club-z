@@ -361,69 +361,13 @@ const ClubsPage: React.FC<ClubsPageProps> = ({ onNavigateToCreate }) => {
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [currentView, setCurrentView] = useState('discover');
   const [selectedClub, setSelectedClub] = useState<Club | null>(null);
-  const [clubs, setClubs] = useState<Club[]>([]);
+  
+  const { clubs, fetchClubs, loading } = useClubStore();
 
-  // Initialize clubs with mock data
+  // Fetch clubs on component mount
   React.useEffect(() => {
-    const initialClubs: Club[] = [
-      {
-        id: '1',
-        name: 'Premier League Predictors',
-        description: 'The ultimate destination for Premier League predictions and analysis. Join thousands of football fans making winning predictions!',
-        memberCount: 2547,
-        category: 'sports',
-        isVerified: true,
-        isPopular: true,
-        recentActivity: '5 new predictions today',
-        isJoined: false,
-        onlineMembers: 234
-      },
-      {
-        id: '2',
-        name: 'Crypto Bulls',
-        description: 'Daily crypto predictions and market analysis from experts and enthusiasts. Bitcoin, Ethereum, and altcoin predictions.',
-        memberCount: 1823,
-        category: 'crypto',
-        isVerified: true,
-        recentActivity: 'Bitcoin prediction just closed',
-        isJoined: true,
-        onlineMembers: 156
-      },
-      {
-        id: '3',
-        name: 'Hollywood Insiders',
-        description: 'Predict award winners, box office hits, and celebrity news. Oscar predictions, movie grosses, and entertainment gossip.',
-        memberCount: 934,
-        category: 'entertainment',
-        recentActivity: '12 active predictions',
-        isJoined: false,
-        onlineMembers: 89
-      },
-      {
-        id: '4',
-        name: 'Tech Innovators',
-        description: 'Predicting the next big thing in technology and startups. AI, blockchain, and emerging tech predictions.',
-        memberCount: 1456,
-        category: 'tech',
-        isPopular: true,
-        recentActivity: 'New AI prediction trending',
-        isJoined: true,
-        onlineMembers: 201
-      },
-      {
-        id: '5',
-        name: 'Political Pulse',
-        description: 'Elections, policy predictions, and political analysis. Stay informed with crowd-sourced political insights.',
-        memberCount: 2103,
-        category: 'politics',
-        isVerified: true,
-        recentActivity: 'Election predictions live',
-        isJoined: false,
-        onlineMembers: 312
-      }
-    ];
-    setClubs(initialClubs);
-  }, []);
+    fetchClubs();
+  }, [fetchClubs]);
 
   // Simple filtered clubs (following DiscoverPage pattern)
   const filteredClubs = useMemo(() => {
@@ -450,25 +394,23 @@ const ClubsPage: React.FC<ClubsPageProps> = ({ onNavigateToCreate }) => {
     setSearchQuery(query);
   }, []);
 
-  const handleJoinClub = useCallback((clubId: string) => {
+  const { joinClub, leaveClub } = useClubStore();
+  
+  const handleJoinClub = useCallback(async (clubId: string) => {
     console.log('Attempting to join club:', clubId);
-    setClubs(prevClubs => 
-      prevClubs.map(club => {
-        if (club.id === clubId) {
-          const wasJoined = club.isJoined;
-          const updatedClub = {
-            ...club,
-            isJoined: !wasJoined,
-            memberCount: club.memberCount + (wasJoined ? -1 : 1),
-            onlineMembers: Math.max(0, (club.onlineMembers || 0) + (wasJoined ? -1 : 1))
-          };
-          console.log('Updated club:', updatedClub);
-          return updatedClub;
-        }
-        return club;
-      })
-    );
-  }, []);
+    try {
+      const success = await joinClub(clubId);
+      if (success) {
+        console.log('Successfully joined club:', clubId);
+        // Refresh clubs list to get updated data
+        fetchClubs();
+      } else {
+        console.log('Failed to join club:', clubId);
+      }
+    } catch (error) {
+      console.error('Error joining club:', error);
+    }
+  }, [joinClub, fetchClubs]);
 
   const handleClubClick = useCallback((club: Club) => {
     console.log('Navigating to club:', club.name);

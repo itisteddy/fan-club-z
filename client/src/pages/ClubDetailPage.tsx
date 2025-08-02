@@ -3,6 +3,7 @@ import { ArrowLeft, Users, MessageCircle, Calendar, Trophy, Crown, Plus, Setting
 import { useClubStore } from '../store/clubStore';
 import { useAuthStore } from '../store/authStore';
 import DiscussionDetailPage from './DiscussionDetailPage';
+import CreateDiscussionPage from './CreateDiscussionPage';
 import { scrollToTop } from '../utils/scroll';
 
 interface ClubDetailPageProps {
@@ -16,6 +17,7 @@ export const ClubDetailPage: React.FC<ClubDetailPageProps> = ({ onBack, hideHead
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
   const [activeTab, setActiveTab] = useState<'predictions' | 'discussions' | 'members'>('predictions');
   const [isJoining, setIsJoining] = useState(false);
+  const [currentView, setCurrentView] = useState<'main' | 'discussion' | 'create-discussion'>('main');
   
   const { user } = useAuthStore();
   const {
@@ -189,6 +191,16 @@ export const ClubDetailPage: React.FC<ClubDetailPageProps> = ({ onBack, hideHead
     );
   }
 
+  if (currentView === 'create-discussion' && currentClub) {
+    return (
+      <CreateDiscussionPage
+        clubId={currentClub.id}
+        clubName={currentClub.name}
+        onNavigateBack={() => setCurrentView('main')}
+      />
+    );
+  }
+
   // Mock data for demonstration - in real app this would come from the store
   const recentPredictions = [
     {
@@ -231,13 +243,13 @@ export const ClubDetailPage: React.FC<ClubDetailPageProps> = ({ onBack, hideHead
             >
               <ArrowLeft className="w-5 h-5 text-muted-foreground" />
             </button>
-            <h1 className="text-body-md font-semibold text-foreground">Club Details</h1>
+            <h1 className="text-body-md font-semibold text-foreground truncate">{currentClub.name}</h1>
             <div className="w-10" />
           </div>
         </header>
       )}
 
-      <div className="pb-6">
+      <div className="pb-6 pt-0">
         {/* Cover Photo & Profile */}
         <div className="relative">
           <div className="h-40 bg-gradient-to-br from-primary/20 to-secondary/20 relative">
@@ -259,7 +271,7 @@ export const ClubDetailPage: React.FC<ClubDetailPageProps> = ({ onBack, hideHead
         </div>
 
         {/* Club Info */}
-        <div className="px-4 pt-12 space-y-4">
+        <div className="px-4 pt-16 space-y-4">
           <div className="space-y-2">
             <div className="flex items-center gap-2">
               <h1 className="text-display-md font-bold text-foreground">{currentClub.name}</h1>
@@ -449,10 +461,7 @@ export const ClubDetailPage: React.FC<ClubDetailPageProps> = ({ onBack, hideHead
                   <div className="flex items-center justify-between">
                     <h2 className="text-body-lg font-semibold text-foreground">Club Discussions</h2>
                     <button 
-                      onClick={() => {
-                        setSelectedDiscussionId('1');
-                        setCurrentView('discussion');
-                      }}
+                      onClick={() => setCurrentView('create-discussion')}
                       className="text-primary text-body-sm font-medium"
                     >
                       New Discussion
@@ -466,10 +475,7 @@ export const ClubDetailPage: React.FC<ClubDetailPageProps> = ({ onBack, hideHead
                       Be the first to start a conversation in this club
                     </p>
                     <button 
-                      onClick={() => {
-                        setSelectedDiscussionId('1');
-                        setCurrentView('discussion');
-                      }}
+                      onClick={() => setCurrentView('create-discussion')}
                       className="px-4 py-2 bg-primary text-primary-foreground rounded-lg"
                     >
                       Start Discussion
