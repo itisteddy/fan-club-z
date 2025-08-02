@@ -12,12 +12,11 @@ interface ClubDetailPageProps {
 }
 
 export const ClubDetailPage: React.FC<ClubDetailPageProps> = ({ onBack, hideHeader = false }) => {
-  const [currentView, setCurrentView] = useState<'main' | 'discussion' | 'members'>('main');
+  const [currentView, setCurrentView] = useState<'main' | 'discussion' | 'create-discussion'>('main');
   const [selectedDiscussionId, setSelectedDiscussionId] = useState<string | null>(null);
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
   const [activeTab, setActiveTab] = useState<'predictions' | 'discussions' | 'members'>('predictions');
   const [isJoining, setIsJoining] = useState(false);
-  const [currentView, setCurrentView] = useState<'main' | 'discussion' | 'create-discussion'>('main');
   
   const { user } = useAuthStore();
   const {
