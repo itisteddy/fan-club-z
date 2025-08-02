@@ -109,6 +109,8 @@ const AuthPage: React.FC = () => {
     setFirstName('');
     setLastName('');
     setConfirmPassword('');
+    // Scroll to top when switching modes
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const togglePassword = () => setShowPassword(!showPassword);
@@ -122,7 +124,8 @@ const AuthPage: React.FC = () => {
       alignItems: 'center',
       justifyContent: 'center',
       padding: '24px',
-      position: 'relative'
+      position: 'relative',
+      overflow: 'auto'
     }}>
       {/* Development Test Panel - Only show in development */}
       {import.meta.env.VITE_DEBUG === 'true' && (
@@ -294,6 +297,7 @@ const AuthPage: React.FC = () => {
         style={{
           width: '100%',
           maxWidth: '600px',
+          maxHeight: '90vh',
           backgroundColor: 'rgba(255, 255, 255, 0.95)',
           backdropFilter: 'blur(20px)',
           borderRadius: '24px',
@@ -302,7 +306,8 @@ const AuthPage: React.FC = () => {
           border: '1px solid rgba(255, 255, 255, 0.3)',
           position: 'relative',
           zIndex: 10,
-          margin: 'auto'
+          margin: 'auto',
+          overflow: 'auto'
         }}
       >
         {/* Logo section */}
