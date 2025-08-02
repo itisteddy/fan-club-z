@@ -128,7 +128,7 @@ const AuthPage: React.FC = () => {
     }}>
       {/* Development Test Panel - Only show in development */}
       {import.meta.env.VITE_DEBUG === 'true' && (
-        <>
+        <div>
           <div style={{ position: 'fixed', top: '10px', left: '10px', zIndex: 1001 }}>
             <button
               onClick={() => setShowTestPanel(!showTestPanel)}
@@ -231,7 +231,7 @@ const AuthPage: React.FC = () => {
             ❌ Close
           </button>
         </div>
-        </>
+        </div>
       )}
 
       {/* CSS Animations */}
