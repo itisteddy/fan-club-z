@@ -33,7 +33,7 @@ if [ ! -f "package.json" ]; then
 fi
 
 # Check current branch
-current_branch=$(git branch --show-current)
+current_branch=$(git branch | grep '*' | cut -d' ' -f2)
 if [ "$current_branch" != "development" ]; then
     print_warning "You're not on the development branch (current: $current_branch)"
     read -p "Switch to development branch? (y/N): " switch_branch

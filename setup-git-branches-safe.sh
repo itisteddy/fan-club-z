@@ -80,7 +80,7 @@ else
 fi
 
 # Show current branch
-current_branch=$(git branch --show-current)
+current_branch=$(git branch | grep '*' | cut -d' ' -f2)
 print_info "Current branch: $current_branch"
 
 # Show existing branches
