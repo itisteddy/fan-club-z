@@ -182,7 +182,7 @@ export const PredictionCard: React.FC<PredictionCardProps> = ({
         className="prediction-card-compact"
       >
         <Card className="cursor-pointer overflow-hidden hover:shadow-md transition-shadow">
-          <CardContent className="p-2">
+          <CardContent className="p-2.5">
             {/* Header - More compact */}
             <div className="flex items-center justify-between mb-1">
               <div className="flex items-center gap-1">
@@ -218,20 +218,17 @@ export const PredictionCard: React.FC<PredictionCardProps> = ({
               )}
             </div>
 
-            {/* Options - More compact */}
+            {/* Options - Ultra compact */}
             <div className="mb-1">
-              <div className="grid grid-cols-2 gap-1">
+              <div className="grid grid-cols-2 gap-0.5">
                 {prediction.options.slice(0, 2).map((option) => (
                   <div
                     key={option.id}
-                    className="bg-muted/50 rounded-md p-1 text-center"
+                    className="bg-muted/50 rounded p-1 text-center"
                   >
-                    <div className="text-xs font-medium mb-0.5 line-clamp-1">{option.label}</div>
-                    <div className="text-xs text-muted-foreground mb-0.5">
-                      {option.percentage.toFixed(1)}%
-                    </div>
-                    <div className="text-xs font-bold text-primary">
-                      {option.current_odds.toFixed(2)}x
+                    <div className="text-xs font-medium mb-0.5 line-clamp-1 leading-tight">{option.label}</div>
+                    <div className="text-xs text-muted-foreground">
+                      {option.percentage.toFixed(0)}% • {option.current_odds.toFixed(1)}x
                     </div>
                   </div>
                 ))}

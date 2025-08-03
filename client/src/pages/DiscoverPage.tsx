@@ -180,45 +180,45 @@ const PredictionCard: React.FC<{
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3, delay: index * 0.1 }}
-      className="bg-white rounded-xl p-4 mx-4 mb-4 shadow-sm border border-gray-100"
+      className="bg-white rounded-lg p-3 mx-4 mb-3 shadow-sm border border-gray-100"
     >
       {/* Compact header */}
-      <div className="flex items-center gap-2 mb-2">
-        <div className="w-8 h-8 bg-gradient-to-br from-green-400 to-green-600 rounded-lg flex items-center justify-center">
+      <div className="flex items-center gap-2 mb-1.5">
+        <div className="w-6 h-6 bg-gradient-to-br from-green-400 to-green-600 rounded-md flex items-center justify-center">
           <span className="text-white font-bold text-xs">
             {prediction.creatorName?.charAt(0) || 'FC'}
           </span>
         </div>
         <div className="flex-1 min-w-0">
-          <div className="text-sm font-semibold text-gray-900 truncate">
+          <div className="text-xs font-medium text-gray-900 truncate">
             {prediction.creatorName || 'Fan Club Z'}
           </div>
           <div className="text-xs text-gray-500">2h ago</div>
         </div>
-        <div className="px-2 py-1 bg-green-50 text-green-700 text-xs font-medium rounded-md border border-green-200">
+        <div className="px-1.5 py-0.5 bg-green-50 text-green-700 text-xs font-medium rounded border border-green-200">
           {prediction.category || 'general'}
         </div>
       </div>
 
       {/* Compact content */}
-      <div className="mb-3">
-        <h3 className="text-base font-bold text-gray-900 mb-1 leading-tight line-clamp-2">
+      <div className="mb-2">
+        <h3 className="text-sm font-bold text-gray-900 mb-0.5 leading-tight line-clamp-2">
           {prediction.title || 'Untitled Prediction'}
         </h3>
         
         {prediction.description && (
-          <p className="text-gray-600 text-xs leading-relaxed line-clamp-2">
+          <p className="text-gray-600 text-xs leading-tight line-clamp-1">
             {prediction.description}
           </p>
         )}
       </div>
 
       {/* Compact stats */}
-      <div className="flex items-center justify-between py-2 border-t border-b border-gray-100 mb-2">
-        <div className="flex items-center gap-3">
+      <div className="flex items-center justify-between py-1.5 border-t border-gray-100 mb-1.5">
+        <div className="flex items-center gap-2">
           <div className="flex items-center gap-1">
-            <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
-            <span className="text-base font-bold text-gray-900">
+            <div className="w-1 h-1 bg-green-500 rounded-full" />
+            <span className="text-sm font-bold text-gray-900">
               ${(prediction.poolTotal || 0).toLocaleString()}
             </span>
           </div>
@@ -235,8 +235,8 @@ const PredictionCard: React.FC<{
         </div>
       </div>
 
-      {/* Compact prediction options */}
-      <div className="space-y-1.5 mb-3">
+      {/* Compact prediction options - Grid layout */}
+      <div className="grid grid-cols-2 gap-1.5 mb-2">
         {prediction.options.slice(0, 2).map((option: any, optionIndex: number) => {
           const totalStaked = option.totalStaked || 0;
           const poolTotal = prediction.poolTotal || 1;
@@ -246,41 +246,39 @@ const PredictionCard: React.FC<{
           return (
             <motion.button
               key={option.id || optionIndex}
-              whileHover={{ scale: 1.01 }}
-              whileTap={{ scale: 0.99 }}
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
               onClick={() => onPredict(prediction)}
-              className="w-full p-3 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors"
+              className="p-2 bg-gray-50 hover:bg-gray-100 rounded-md transition-colors"
             >
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-2">
-                  <div className={`w-2 h-2 rounded-full ${
+              <div className="text-center">
+                <div className="flex items-center justify-center gap-1 mb-1">
+                  <div className={`w-1.5 h-1.5 rounded-full ${
                     optionIndex === 0 ? 'bg-green-500' : 'bg-blue-500'
                   }`} />
-                  <span className="font-semibold text-sm text-gray-900">
+                  <span className="font-medium text-xs text-gray-900 truncate">
                     {option.label || `Option ${optionIndex + 1}`}
                   </span>
                 </div>
                 
-                <div className="text-right">
-                  <div className="text-lg font-bold text-gray-900">
-                    {Math.round(percentage)}%
-                  </div>
-                  <div className="text-xs text-gray-600">
-                    {odds}x odds
-                  </div>
+                <div className="text-sm font-bold text-gray-900">
+                  {Math.round(percentage)}%
                 </div>
-              </div>
-              
-              {/* Compact progress bar */}
-              <div className="w-full h-1.5 bg-gray-200 rounded-full overflow-hidden">
-                <motion.div
-                  initial={{ width: 0 }}
-                  animate={{ width: `${Math.max(percentage, 2)}%` }}
-                  transition={{ duration: 0.8, delay: optionIndex * 0.1 }}
-                  className={`h-full rounded-full ${
-                    optionIndex === 0 ? 'bg-green-500' : 'bg-blue-500'
-                  }`}
-                />
+                <div className="text-xs text-gray-600">
+                  {odds}x
+                </div>
+                
+                {/* Mini progress bar */}
+                <div className="w-full h-1 bg-gray-200 rounded-full overflow-hidden mt-1">
+                  <motion.div
+                    initial={{ width: 0 }}
+                    animate={{ width: `${Math.max(percentage, 2)}%` }}
+                    transition={{ duration: 0.8, delay: optionIndex * 0.1 }}
+                    className={`h-full rounded-full ${
+                      optionIndex === 0 ? 'bg-green-500' : 'bg-blue-500'
+                    }`}
+                  />
+                </div>
               </div>
             </motion.button>
           );
@@ -288,31 +286,31 @@ const PredictionCard: React.FC<{
       </div>
 
       {/* Compact engagement */}
-      <div className="flex items-center justify-between pt-2 border-t border-gray-100">
-        <div className="flex items-center gap-4">
+      <div className="flex items-center justify-between pt-1.5 border-t border-gray-100">
+        <div className="flex items-center gap-3">
           <button 
             onClick={handleLike}
-            className={`flex items-center gap-1 transition-colors ${
+            className={`flex items-center gap-0.5 transition-colors ${
               isLiked ? 'text-red-500' : 'text-gray-600 hover:text-red-500'
             }`}
           >
-            <Heart className={`w-4 h-4 ${isLiked ? 'fill-current' : ''}`} />
-            <span className="text-xs font-semibold">{likeCount}</span>
+            <Heart className={`w-3 h-3 ${isLiked ? 'fill-current' : ''}`} />
+            <span className="text-xs font-medium">{likeCount}</span>
           </button>
           
           <button 
             onClick={handleComment}
-            className="flex items-center gap-1 text-gray-600 hover:text-blue-500 transition-colors"
+            className="flex items-center gap-0.5 text-gray-600 hover:text-blue-500 transition-colors"
           >
-            <MessageCircle className="w-4 h-4" />
-            <span className="text-xs font-semibold">{commentCount}</span>
+            <MessageCircle className="w-3 h-3" />
+            <span className="text-xs font-medium">{commentCount}</span>
           </button>
           
           <button 
             onClick={handleShare}
-            className="flex items-center gap-1 text-gray-600 hover:text-green-500 transition-colors"
+            className="flex items-center gap-0.5 text-gray-600 hover:text-green-500 transition-colors"
           >
-            <Share2 className="w-4 h-4" />
+            <Share2 className="w-3 h-3" />
           </button>
         </div>
         
@@ -320,9 +318,9 @@ const PredictionCard: React.FC<{
           whileHover={{ scale: 1.02 }}
           whileTap={{ scale: 0.98 }}
           onClick={() => onPredict(prediction)}
-          className="px-4 py-2 bg-green-500 hover:bg-green-600 text-white font-semibold rounded-lg transition-colors shadow-sm text-sm"
+          className="px-3 py-1.5 bg-green-500 hover:bg-green-600 text-white font-medium rounded-md transition-colors text-xs"
         >
-          Predict Now
+          Predict
         </motion.button>
       </div>
     </motion.div>
