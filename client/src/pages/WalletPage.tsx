@@ -523,34 +523,39 @@ const WalletPage: React.FC = () => {
                 
                 <div className="space-y-4">
                   {getTransactionHistory({ limit: 5 }).map((transaction) => (
-                    <div key={transaction.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-xl">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center">
-                          {getTransactionIcon(transaction.type)}
-                        </div>
-                        <div>
-                          <p className="font-medium text-gray-900">{transaction.description}</p>
-                          <div className="flex items-center gap-2">
-                            <p className="text-sm text-gray-500">
-                              {new Date(transaction.date).toLocaleDateString()} at {new Date(transaction.date).toLocaleTimeString()}
-                            </p>
-                            {transaction.reference && (
-                              <>
-                                <span className="text-gray-300">•</span>
-                                <button
-                                  onClick={() => copyToClipboard(transaction.reference!)}
-                                  className="text-xs text-gray-400 hover:text-gray-600 flex items-center gap-1"
-                                >
-                                  {transaction.reference}
-                                  <Copy size={10} />
-                                </button>
-                              </>
-                            )}
-                          </div>
+                    <div key={transaction.id} className="flex items-center gap-3 p-4 bg-gray-50 rounded-xl">
+                      {/* Transaction Icon */}
+                      <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center flex-shrink-0">
+                        {getTransactionIcon(transaction.type)}
+                      </div>
+                      
+                      {/* Transaction Details - Flexible with proper constraints */}
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-gray-900 truncate pr-2">{transaction.description}</p>
+                        <div className="flex items-center gap-2 text-sm text-gray-500 mt-1">
+                          <span className="whitespace-nowrap">
+                            {new Date(transaction.date).toLocaleDateString()}
+                          </span>
+                          <span className="hidden sm:inline">
+                            at {new Date(transaction.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                          {transaction.reference && (
+                            <>
+                              <span className="text-gray-300 hidden sm:inline">•</span>
+                              <button
+                                onClick={() => copyToClipboard(transaction.reference!)}
+                                className="text-xs text-gray-400 hover:text-gray-600 flex items-center gap-1 hidden sm:flex"
+                              >
+                                <span className="truncate max-w-20">{transaction.reference}</span>
+                                <Copy size={10} />
+                              </button>
+                            </>
+                          )}
                         </div>
                       </div>
                       
-                      <div className="text-right">
+                      {/* Amount - Fixed width on right */}
+                      <div className="text-right flex-shrink-0">
                         <p className={`font-bold ${getTransactionColor(transaction.type)}`}>
                           {(transaction.type === 'deposit' || transaction.type === 'win' || transaction.type === 'transfer_in') ? '+' : '-'}
                           ${transaction.amount.toLocaleString()}
@@ -596,36 +601,43 @@ const WalletPage: React.FC = () => {
                       initial={{ opacity: 0, y: 20 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ duration: 0.3, delay: index * 0.05 }}
-                      className="flex items-center justify-between p-4 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors"
+                      className="flex items-center gap-3 p-4 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors"
                     >
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center">
-                          {getTransactionIcon(transaction.type)}
-                        </div>
-                        <div>
-                          <p className="font-medium text-gray-900">{transaction.description}</p>
-                          <div className="flex items-center gap-2 text-sm text-gray-500">
-                            <span>{new Date(transaction.date).toLocaleDateString()} at {new Date(transaction.date).toLocaleTimeString()}</span>
-                            {transaction.reference && (
-                              <>
-                                <span>•</span>
-                                <button
-                                  onClick={() => copyToClipboard(transaction.reference!)}
-                                  className="flex items-center gap-1 hover:text-gray-700"
-                                >
-                                  <span>{transaction.reference}</span>
-                                  <Copy size={12} />
-                                </button>
-                              </>
-                            )}
-                          </div>
-                          {transaction.fee && (
-                            <p className="text-xs text-gray-400">Fee: ${transaction.fee.toLocaleString()}</p>
-                          )}
-                        </div>
+                      {/* Transaction Icon */}
+                      <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center flex-shrink-0">
+                        {getTransactionIcon(transaction.type)}
                       </div>
                       
-                      <div className="text-right">
+                      {/* Transaction Details - Flexible with proper constraints */}
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-gray-900 truncate pr-2">{transaction.description}</p>
+                        <div className="flex items-center gap-2 text-sm text-gray-500 mt-1">
+                          <span className="whitespace-nowrap">
+                            {new Date(transaction.date).toLocaleDateString()}
+                          </span>
+                          <span className="hidden sm:inline">
+                            at {new Date(transaction.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                          {transaction.reference && (
+                            <>
+                              <span className="text-gray-300 hidden sm:inline">•</span>
+                              <button
+                                onClick={() => copyToClipboard(transaction.reference!)}
+                                className="text-xs text-gray-400 hover:text-gray-600 flex items-center gap-1 hidden sm:flex"
+                              >
+                                <span className="truncate max-w-20">{transaction.reference}</span>
+                                <Copy size={12} />
+                              </button>
+                            </>
+                          )}
+                        </div>
+                        {transaction.fee && (
+                          <p className="text-xs text-gray-400 mt-1">Fee: ${transaction.fee.toLocaleString()}</p>
+                        )}
+                      </div>
+                      
+                      {/* Amount - Fixed width on right */}
+                      <div className="text-right flex-shrink-0">
                         <p className={`font-bold ${getTransactionColor(transaction.type)}`}>
                           {(transaction.type === 'deposit' || transaction.type === 'win' || transaction.type === 'transfer_in') ? '+' : '-'}
                           ${transaction.amount.toLocaleString()}

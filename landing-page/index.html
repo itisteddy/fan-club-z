@@ -1550,6 +1550,63 @@
                     });
                 }
             });
+        });Counter = (element, target) => {
+            let current = 0;
+            const increment = target / 100;
+            const timer = setInterval(() => {
+                current += increment;
+                if (current >= target) {
+                    element.textContent = target;
+                    clearInterval(timer);
+                } else {
+                    element.textContent = Math.floor(current);
+                }
+            }, 20);
+        };
+        
+        // Animate stats when they come into view
+        const statsObserver = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    const number = entry.target.textContent;
+                    if (number.includes('K+')) {
+                        animateCounter(entry.target, 10);
+                        setTimeout(() => entry.target.textContent = '10K+', 2000);
+                    } else if (number.includes('M+')) {
+                        animateCounter(entry.target, 50);
+                        setTimeout(() => entry.target.textContent = '₦50M+', 2000);
+                    } else if (number.includes('%')) {
+                        animateCounter(entry.target, 95);
+                        setTimeout(() => entry.target.textContent = '95%', 2000);
+                    }
+                    statsObserver.unobserve(entry.target);
+                }
+            });
+        }, { threshold: 0.5 });
+        
+        document.querySelectorAll('.stat-number').forEach(stat => {
+            statsObserver.observe(stat);
+        });
+        
+        // Add loading animation for CTA button
+        document.addEventListener('DOMContentLoaded', function() {
+            // Initialize Lucide icons
+            lucide.createIcons();
+            
+            const ctaButtons = document.querySelectorAll('.btn-primary');
+            ctaButtons.forEach(button => {
+                if (button.href && button.href.includes('app.fanclubz.app')) {
+                    button.addEventListener('click', function(e) {
+                        const originalContent = this.innerHTML;
+                        this.innerHTML = '<i data-lucide="loader-2" width="20" height="20" class="animate-spin"></i> Launching...';
+                        lucide.createIcons();
+                        setTimeout(() => {
+                            this.innerHTML = originalContent;
+                            lucide.createIcons();
+                        }, 2000);
+                    });
+                }
+            });
         });
     </script>
 </body>
