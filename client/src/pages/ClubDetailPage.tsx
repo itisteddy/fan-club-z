@@ -33,15 +33,10 @@ export const ClubDetailPage: React.FC<ClubDetailPageProps> = ({ onBack, hideHead
     clearError
   } = useClubStore();
 
-  // Scroll to top when component mounts
+  // Scroll to top when component mounts (consistent with other pages)
   useEffect(() => {
     scrollToTop({ behavior: 'instant' });
   }, []);
-
-  // Scroll to top when tab changes
-  useEffect(() => {
-    scrollToTop({ behavior: 'smooth' });
-  }, [activeTab]);
 
   useEffect(() => {
     if (currentView === 'members' && currentClub) {

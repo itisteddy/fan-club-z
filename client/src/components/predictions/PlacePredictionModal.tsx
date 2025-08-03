@@ -4,9 +4,9 @@ import { X, Zap } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Card, CardContent } from '../ui/card';
-import { Prediction } from '../../stores/predictionsStore';
-import { useWalletStore } from '../../stores/walletStore';
-import { usePredictionsStore } from '../../stores/predictionsStore';
+import { Prediction } from '../../store/predictionStore';
+import { useWalletStore } from '../../store/walletStore';
+import { usePredictionStore } from '../../store/predictionStore';
 import toast from 'react-hot-toast';
 
 interface PlacePredictionModalProps {
@@ -19,7 +19,7 @@ interface PlacePredictionModalProps {
 const formatCurrency = (amount: number) => {
   return new Intl.NumberFormat('en-NG', {
     style: 'currency',
-    currency: 'USD',
+    currency: 'NGN',
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
   }).format(amount);
@@ -43,9 +43,9 @@ export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
   const [isLoading, setIsLoading] = useState(false);
   
   const { getBalance, makePrediction } = useWalletStore();
-  const { placeBet } = usePredictionsStore();
+  const { placePrediction } = usePredictionStore();
 
-  const usdBalance = getBalance('USD') || 10000; // Default for demo
+  const usdBalance = getBalance('NGN') || 2500; // Default for demo
   const numAmount = parseFloat(amount) || 0;
   const selectedOption = prediction.options.find(o => o.id === selectedOptionId);
   const potentialPayout = selectedOption ? calculatePotentialPayout(numAmount, selectedOption.currentOdds) : 0;
@@ -81,10 +81,10 @@ export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
     setIsLoading(true);
     try {
       // Use wallet store to make prediction
-      await makePrediction(numAmount, `Prediction on: ${prediction.title}`, prediction.id, 'USD');
+      await makePrediction(numAmount, `Prediction on: ${prediction.title}`, prediction.id, 'NGN');
       
       // Also update the predictions store
-      await placeBet(prediction.id, selectedOptionId, numAmount);
+      await placePrediction(prediction.id, selectedOptionId, numAmount);
       
       toast.success(`Prediction placed successfully! You staked ${formatCurrency(numAmount)} on ${selectedOption?.label}.`);
       onClose();
@@ -216,7 +216,7 @@ export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
                       </label>
                       <div className="relative">
                         <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">
-                          $
+                          ₦
                         </span>
                         <Input
                           type="number"
@@ -253,7 +253,7 @@ export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
                             disabled={quickAmount > usdBalance}
                             className="text-sm"
                           >
-                            ${quickAmount}
+                            ₦{quickAmount}
                           </Button>
                         ))}
                       </div>

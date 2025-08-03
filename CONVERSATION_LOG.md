@@ -11,7 +11,25 @@
 
 ## Key Conversations & Updates
 
-### Landing Page Mobile Optimization & PWA Integration (Current Session)
+### Prediction Placement Bug Fixes (Current Session)
+- **Date**: August 3, 2025
+- **Focus**: Critical bug fixes for prediction placement functionality
+- **Issue**: Users were encountering "Please enter a valid amount" errors when trying to place predictions
+- **Root Cause**: Incorrect usage of wallet functions - calling `addFunds()` with negative amounts instead of `makePrediction()`
+- **Key Fixes**:
+  1. **Fixed incorrect wallet function calls** - Replaced `addFunds(-amount)` with `makePrediction(amount)`
+  2. **Corrected import paths** - Fixed store imports from `./stores/` to `./store/` across multiple components
+  3. **Currency standardization** - Unified all prediction operations to use NGN (₦) instead of mixed USD/NGN
+  4. **Interface consistency** - Updated all components to use correct store interfaces and methods
+- **Files Fixed**:
+  - `client/src/pages/DiscoverPage.tsx` - Main prediction placement modal
+  - `client/src/components/predictions/PlacePredictionModal.tsx` - Alternative prediction modal
+  - `client/src/App.tsx` - Wallet store import path
+- **Expected Result**: All prediction placement functionality now works without errors
+- **Technical Implementation**: Proper wallet integration with `makePrediction()` function that moves funds from available to reserved balance
+- **User Experience**: Smooth prediction placement with NGN currency display and proper success notifications
+
+### Landing Page Mobile Optimization & PWA Integration (Previous Session)
 - **Date**: August 3, 2025
 - **Focus**: Complete landing page responsive redesign and PWA integration
 - **Key Improvements**:
@@ -134,16 +152,25 @@
 - [ ] Creator monetization features
 - [ ] Push notification system
 - [x] Landing page mobile optimization and responsive design
-- [x] PWA installation banner and manifest integration
+- [x] PWA installation banner and manifest integration  
 - [x] Text overflow fixes and horizontal scroll elimination
 - [x] Coming soon badge for XP/Points feature
+- [x] Prediction placement functionality fixes
+- [x] Wallet integration corrections
+- [x] Currency standardization (NGN)
 
 ---
 
 ## Files Modified/Created (Current Session)
+- ✅ `client/src/pages/DiscoverPage.tsx` - Fixed prediction placement modal and wallet integration
+- ✅ `client/src/components/predictions/PlacePredictionModal.tsx` - Fixed store imports and currency handling
+- ✅ `client/src/App.tsx` - Corrected wallet store import path
+- ✅ `PREDICTION_PLACEMENT_FIXES.md` - Comprehensive documentation of all fixes made
+- ✅ `CONVERSATION_LOG.md` - Updated with current session progress
+
+## Files Modified/Created (Previous Session - Landing Page)
 - ✅ `landing-page/index.html` - Complete responsive redesign with PWA integration
 - ✅ `landing-page/manifest.json` - PWA manifest with app icons and shortcuts
-- ✅ `CONVERSATION_LOG.md` - Updated with current session progress
 
 ## Files Modified/Created (Previous Session)
 - ✅ `client/src/pages/auth/AuthPage.tsx` - Complete registration form overhaul
@@ -152,10 +179,11 @@
 ---
 
 ## Next Session Reminders
-- Test the registration flow thoroughly with various email domains
-- Verify automatic login after registration works consistently
-- Check error message clarity and helpfulness
-- Ensure form layout works well on all mobile device sizes
+- Verify prediction placement works correctly across all scenarios
+- Test wallet balance updates and reserved funds tracking
+- Ensure all currency displays show NGN (₦) consistently
+- Check that all console errors related to predictions are resolved
+- Test the full prediction flow: place → track → settle → payout
 - Default to working within Fan Club Z v2.0 directory
 - Check this log for recent context and decisions
 - Update this document with any significant changes or decisions

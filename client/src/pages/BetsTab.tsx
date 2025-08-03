@@ -5,6 +5,7 @@ import { useLocation } from 'wouter';
 import { usePredictionStore } from '../store/predictionStore';
 import { useAuthStore } from '../store/authStore';
 import { scrollToTop } from '../utils/scroll';
+import { formatTimeRemaining } from '../lib/utils';
 import { Prediction } from '../types';
 import BetCard from '../components/BetCard';
 import ManagePredictionModal from '../components/modals/ManagePredictionModal';
@@ -367,7 +368,7 @@ const BetsTab: React.FC<BetsTabProps> = ({ onNavigateToDiscover }) => {
 
       {/* Footer */}
       <div className="flex items-center justify-between">
-        <span className="text-sm text-gray-500">Closes in {prediction.timeRemaining}</span>
+        <span className="text-sm text-gray-500">Closes in {formatTimeRemaining(prediction.entry_deadline || prediction.timeRemaining)}</span>
         <motion.button
           onClick={() => {
             // Open manage modal

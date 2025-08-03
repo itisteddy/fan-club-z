@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useWalletStore } from './stores/walletStore';
+import { useWalletStore } from './store/walletStore';
 import { useAuthStore } from './store/authStore';
 import { Toaster } from 'react-hot-toast';
 import { scrollToTop } from './utils/scroll';

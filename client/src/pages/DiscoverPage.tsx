@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Search, TrendingUp, Heart, MessageCircle, Share2, Clock, User, X } from 'lucide-react';
 import { usePredictionStore } from '../store/predictionStore';
 import { useAuthStore } from '../store/authStore';
-import { useWalletStore } from '../stores/walletStore';
+import { useWalletStore } from '../store/walletStore';
 import { scrollToTop } from '../utils/scroll';
 import { usePullToRefresh } from '../utils/pullToRefresh';
 import { formatTimeRemaining } from '../lib/utils';
@@ -59,7 +59,7 @@ const MobileHeader: React.FC<{
         <div className="grid grid-cols-3 gap-4">
           <div className="text-center">
             <div className="text-white text-xl font-bold">
-              ${stats.totalVolume.toLocaleString()}
+              ₦{stats.totalVolume.toLocaleString()}
             </div>
             <div className="text-green-100 text-xs font-medium uppercase tracking-wide">
               Total Volume
@@ -77,7 +77,7 @@ const MobileHeader: React.FC<{
             
           <div className="text-center">
             <div className="text-white text-xl font-bold">
-              ${stats.todayVolume.toLocaleString()}
+              ₦{stats.todayVolume.toLocaleString()}
             </div>
             <div className="text-green-100 text-xs font-medium uppercase tracking-wide">
               Today
@@ -221,7 +221,7 @@ const PredictionCard: React.FC<{
           <div className="flex items-center gap-1">
             <div className="w-1 h-1 bg-green-500 rounded-full" />
             <span className="text-sm font-bold text-gray-900">
-              ${(prediction.poolTotal || 0).toLocaleString()}
+              ₦{(prediction.poolTotal || 0).toLocaleString()}
             </span>
           </div>
           <div className="text-xs text-gray-600">
@@ -339,8 +339,8 @@ const PredictionModal: React.FC<{
   const [amount, setAmount] = useState<string>('');
   const [isLoading, setIsLoading] = useState(false);
   
-  const { getBalance, addFunds } = useWalletStore();
-  const usdBalance = getBalance('USD') || 2400; // Use wallet balance
+  const { getBalance, makePrediction } = useWalletStore();
+  const usdBalance = getBalance('NGN') || 2500; // Use NGN wallet balance
   const numAmount = parseFloat(amount) || 0;
   const selectedOption = prediction?.options?.find((o: any) => o.id === selectedOptionId);
   const potentialPayout = selectedOption ? numAmount * (selectedOption.current_odds || 2.0) : 0;
@@ -369,10 +369,10 @@ const PredictionModal: React.FC<{
       // Simulate API call
       await new Promise(resolve => setTimeout(resolve, 1500));
       
-      // Deduct amount from wallet
-      addFunds('USD', -numAmount, `Prediction: ${prediction.title}`, 'prediction');
+      // Make prediction and deduct from wallet
+      await makePrediction(numAmount, `Prediction: ${selectedOption.label}`, prediction.id, 'NGN');
       
-      toast.success(`Successfully placed $${numAmount} on "${selectedOption.label}"!`);
+      toast.success(`Successfully placed ₦${numAmount.toLocaleString()} on "${selectedOption.label}"!`);
       onClose();
       
       // Reset form
@@ -471,7 +471,7 @@ const PredictionModal: React.FC<{
                   Stake Amount
                 </label>
                 <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">₦</span>
                   <input
                     type="number"
                     placeholder="0"
@@ -483,8 +483,8 @@ const PredictionModal: React.FC<{
                   />
                 </div>
                 <div className="flex items-center justify-between text-xs text-gray-500 mt-1">
-                  <span>Min: $1</span>
-                  <span>Balance: ${usdBalance.toLocaleString()}</span>
+                  <span>Min: ₦1</span>
+                  <span>Balance: ₦{usdBalance.toLocaleString()}</span>
                 </div>
               </div>
               
@@ -503,7 +503,7 @@ const PredictionModal: React.FC<{
                           : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                       }`}
                     >
-                      ${quickAmount}
+                      ₦{quickAmount}
                     </button>
                   ))}
                 </div>
@@ -516,7 +516,7 @@ const PredictionModal: React.FC<{
                     <div>
                       <div className="text-sm text-gray-600">Potential return</div>
                       <div className="text-lg font-bold text-green-600">
-                        ${potentialPayout.toFixed(2)}
+                        ₦{potentialPayout.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </div>
                     </div>
                     <div className="text-right">
@@ -524,7 +524,7 @@ const PredictionModal: React.FC<{
                       <div className={`font-semibold ${
                         potentialPayout > numAmount ? 'text-green-600' : 'text-red-600'
                       }`}>
-                        ${(potentialPayout - numAmount).toFixed(2)}
+                        ₦{(potentialPayout - numAmount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </div>
                     </div>
                   </div>
@@ -555,7 +555,7 @@ const PredictionModal: React.FC<{
                 <span>Placing Bet...</span>
               </div>
             ) : (
-              `Place Bet${numAmount > 0 ? ` ($${numAmount})` : ''}`
+              `Place Bet${numAmount > 0 ? ` (₦${numAmount.toLocaleString()})` : ''}`
             )}
           </button>
           

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { TrendingUp, Target, CheckCircle, Plus, ArrowRight } from 'lucide-react';
 import { usePredictionsStore } from '../stores/predictionsStore';
+import { formatTimeRemaining } from '../lib/utils';
 import ManagePredictionModal from '../components/modals/ManagePredictionModal';
 
 interface PredictionsTabProps {
@@ -244,7 +245,7 @@ const PredictionsTab: React.FC<PredictionsTabProps> = ({ onNavigateToDiscover })
 
       {/* Footer */}
       <div className="flex items-center justify-between">
-        <span className="text-sm text-gray-500">Closes in {prediction.timeRemaining}</span>
+        <span className="text-sm text-gray-500">Closes in {formatTimeRemaining(prediction.entry_deadline || prediction.timeRemaining)}</span>
         <motion.button
           onClick={() => {
             // Open manage modal
