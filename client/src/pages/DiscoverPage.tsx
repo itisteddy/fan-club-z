@@ -6,6 +6,7 @@ import { useAuthStore } from '../store/authStore';
 import { useWalletStore } from '../stores/walletStore';
 import { scrollToTop } from '../utils/scroll';
 import { usePullToRefresh } from '../utils/pullToRefresh';
+import { formatTimeRemaining } from '../lib/utils';
 import toast from 'react-hot-toast';
 
 // Modern Mobile Header
@@ -231,7 +232,7 @@ const PredictionCard: React.FC<{
         <div className="flex items-center gap-1 text-orange-500">
           <Clock className="w-3 h-3" />
           <span className="text-xs font-semibold">
-            {getTimeRemaining(prediction.entry_deadline)}
+            {formatTimeRemaining(prediction.entry_deadline)}
           </span>
             </div>
           </div>
@@ -571,28 +572,7 @@ const PredictionModal: React.FC<{
   );
 };
 
-// Helper function to calculate time remaining
-const getTimeRemaining = (deadline: Date | string | undefined) => {
-  if (!deadline) {
-    // Return consistent fallback when deadline is missing
-    return 'No deadline';
-  }
-  
-  const now = new Date().getTime();
-  const deadlineTime = new Date(deadline).getTime();
-  const diff = deadlineTime - now;
-  
-  if (diff <= 0) return 'Ended';
-  
-  const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-  const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-  const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-  
-  if (days > 0) return `${days}d ${hours}h left`;
-  if (hours > 0) return `${hours}h left`;
-  if (minutes > 0) return `${minutes}m left`;
-  return 'Ending soon';
-};
+// Note: Using formatTimeRemaining from utils.ts for consistent time formatting across the app
 
 interface DiscoverPageProps {
   onNavigateToProfile?: () => void;

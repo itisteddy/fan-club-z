@@ -140,10 +140,10 @@ export const useClubStore = create<ClubStore>((set, get) => ({
         query = query.or(`name.ilike.%${params.search}%,description.ilike.%${params.search}%`);
       }
 
-      // Apply pagination
-      const limit = 20;
-      const offset = params.page ? (params.page - 1) * limit : 0;
-      query = query.range(offset, offset + limit - 1);
+      // For better data architecture: Always fetch fresh data instead of pagination
+      // This prevents the 7->14 clubs issue caused by cumulative pagination
+      const limit = 50; // Increased limit to get more clubs in one request
+      query = query.range(0, limit - 1);
 
       const { data: clubs, error } = await query;
 
@@ -170,9 +170,10 @@ export const useClubStore = create<ClubStore>((set, get) => ({
         isPopular: club.id === 'premier-league-predictions' || club.id === 'crypto-trading-club' || club.id === 'nfl-fantasy-league'
       }));
       
+      // Always set fresh data instead of appending to prevent inconsistency
       set({ 
-        clubs: params.page === 1 ? transformedClubs : [...get().clubs, ...transformedClubs],
-        hasMoreClubs: transformedClubs.length === limit,
+        clubs: transformedClubs,
+        hasMoreClubs: false, // Disabled pagination for better data consistency
         loading: false 
       });
     } catch (error) {
