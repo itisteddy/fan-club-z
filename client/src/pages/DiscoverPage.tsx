@@ -4,6 +4,7 @@ import { Search, TrendingUp, Heart, MessageCircle, Share2, Clock, User } from 'l
 import { usePredictionStore } from '../store/predictionStore';
 import { useAuthStore } from '../store/authStore';
 import { scrollToTop } from '../utils/scroll';
+import { usePullToRefresh } from '../utils/pullToRefresh';
 import toast from 'react-hot-toast';
 
 // Modern Mobile Header
@@ -421,6 +422,17 @@ const DiscoverPage: React.FC<DiscoverPageProps> = ({ onNavigateToProfile }) => {
     console.log('🔄 DiscoverPage mounted, fetching predictions...');
     fetchPredictions();
   }, [fetchPredictions]);
+
+  // Pull to refresh functionality
+  const handleRefresh = useCallback(async () => {
+    console.log('Pull to refresh triggered on Discover page');
+    await fetchPredictions();
+  }, [fetchPredictions]);
+
+  usePullToRefresh(handleRefresh, {
+    threshold: 60,
+    disabled: loading
+  });
 
   const stats = {
     totalVolume: predictions?.reduce((sum, pred) => sum + (pred.pool_total || 0), 0) || 2547892,

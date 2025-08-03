@@ -26,6 +26,7 @@ import {
 } from 'lucide-react';
 import { useWalletStore, type Transaction } from '../stores/walletStore';
 import { scrollToTop } from '../utils/scroll';
+import { usePullToRefresh } from '../utils/pullToRefresh';
 
 const WalletPage: React.FC = () => {
   const {
@@ -67,6 +68,19 @@ const WalletPage: React.FC = () => {
   useEffect(() => {
     scrollToTop({ behavior: 'instant' });
   }, []);
+
+  // Pull to refresh functionality - refresh wallet balance and transactions
+  const handleRefresh = useCallback(async () => {
+    console.log('Pull to refresh triggered on Wallet page');
+    // Wallet data is already persistent and updated in real-time
+    // We could add a small delay for user feedback
+    await new Promise(resolve => setTimeout(resolve, 500));
+  }, []);
+
+  usePullToRefresh(handleRefresh, {
+    threshold: 60,
+    disabled: false
+  });
 
   // Initialize wallet on mount
   useEffect(() => {

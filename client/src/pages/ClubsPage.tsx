@@ -8,6 +8,7 @@ import { ClubDetailPage } from './ClubDetailPage';
 import { useClubStore } from '../store/clubStore';
 import { useAuthStore } from '../store/authStore';
 import { scrollToTop } from '../utils/scroll';
+import { usePullToRefresh } from '../utils/pullToRefresh';
 import type { Prediction } from '../../shared/src/schemas';
 import { 
   Search, 
@@ -374,6 +375,17 @@ const ClubsPage: React.FC<ClubsPageProps> = ({ onNavigateToCreate }) => {
   React.useEffect(() => {
     fetchClubs();
   }, [fetchClubs]);
+
+  // Pull to refresh functionality
+  const handleRefresh = useCallback(async () => {
+    console.log('Pull to refresh triggered');
+    await fetchClubs();
+  }, [fetchClubs]);
+
+  usePullToRefresh(handleRefresh, {
+    threshold: 60,
+    disabled: loading || currentView !== 'discover'
+  });
 
   // Simple filtered clubs (following DiscoverPage pattern)
   const filteredClubs = useMemo(() => {

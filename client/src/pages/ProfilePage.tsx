@@ -29,6 +29,7 @@ import {
 } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { scrollToTop } from '../utils/scroll';
+import { usePullToRefresh } from '../utils/pullToRefresh';
 
 interface ProfilePageProps {
   onNavigateBack?: () => void;
@@ -1134,6 +1135,18 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigateBack }) => {
   React.useEffect(() => {
     scrollToTop({ behavior: 'instant' });
   }, []);
+
+  // Pull to refresh functionality - refresh profile data
+  const handleRefresh = React.useCallback(async () => {
+    console.log('Pull to refresh triggered on Profile page');
+    // Profile data is mostly static, but we could refresh user data
+    await new Promise(resolve => setTimeout(resolve, 500));
+  }, []);
+
+  usePullToRefresh(handleRefresh, {
+    threshold: 60,
+    disabled: false
+  });
 
   // Mock user stats
   const userStats = {
