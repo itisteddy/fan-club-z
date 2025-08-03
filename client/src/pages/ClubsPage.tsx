@@ -7,6 +7,7 @@ import CreateClubPage from './CreateClubPage';
 import { ClubDetailPage } from './ClubDetailPage';
 import { useClubStore } from '../store/clubStore';
 import { useAuthStore } from '../store/authStore';
+import { scrollToTop } from '../utils/scroll';
 import type { Prediction } from '../../shared/src/schemas';
 import { 
   Search, 
@@ -363,6 +364,11 @@ const ClubsPage: React.FC<ClubsPageProps> = ({ onNavigateToCreate }) => {
   const [selectedClub, setSelectedClub] = useState<Club | null>(null);
   
   const { clubs, fetchClubs, loading } = useClubStore();
+
+  // Scroll to top when component mounts
+  React.useEffect(() => {
+    scrollToTop({ behavior: 'instant' });
+  }, []);
 
   // Fetch clubs on component mount
   React.useEffect(() => {

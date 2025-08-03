@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Search, TrendingUp, Heart, MessageCircle, Share2, Clock, User } from 'lucide-react';
 import { usePredictionStore } from '../store/predictionStore';
 import { useAuthStore } from '../store/authStore';
+import { scrollToTop } from '../utils/scroll';
 import toast from 'react-hot-toast';
 
 // Modern Mobile Header
@@ -412,6 +413,11 @@ const DiscoverPage: React.FC<DiscoverPageProps> = ({ onNavigateToProfile }) => {
   
   const { predictions, loading, fetchPredictions } = usePredictionStore();
   const { user, isAuthenticated } = useAuthStore();
+
+  // Scroll to top when component mounts
+  useEffect(() => {
+    scrollToTop({ behavior: 'instant' });
+  }, []);
 
   // Fetch predictions on component mount
   useEffect(() => {

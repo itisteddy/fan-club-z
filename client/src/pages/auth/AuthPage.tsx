@@ -315,11 +315,12 @@ const AuthPage: React.FC = () => {
           
           @media (max-width: 768px) {
             .auth-card {
-              padding: 24px !important;
-              margin: 4px !important;
-              max-width: 100% !important;
-              width: 95% !important;
+              padding: 16px !important;
+              margin: 8px !important;
+              max-width: calc(100vw - 16px) !important;
+              width: calc(100vw - 16px) !important;
               min-height: calc(100vh - 16px) !important;
+              border-radius: 16px !important;
             }
             
             .auth-card h1 {
@@ -365,8 +366,8 @@ const AuthPage: React.FC = () => {
       <div 
         className="auth-card"
         style={{
-          width: '95%',
-          maxWidth: '680px',
+          width: '100%',
+          maxWidth: '100vw',
           minHeight: 'calc(100vh - 16px)', // FIXED: Covers most of the screen
           backgroundColor: 'rgba(255, 255, 255, 0.95)',
           backdropFilter: 'blur(20px)',
@@ -376,8 +377,8 @@ const AuthPage: React.FC = () => {
           border: '1px solid rgba(255, 255, 255, 0.3)',
           position: 'relative',
           zIndex: 10,
-          margin: '4px auto', // FIXED: Minimal margin
-          marginTop: '4px',   // FIXED: Start at very top
+                margin: '8px', // FIXED: Small margin for mobile
+      marginTop: '8px',   // FIXED: Start at very top
           display: 'flex',
           flexDirection: 'column',
           justifyContent: 'flex-start' // FIXED: Start from top

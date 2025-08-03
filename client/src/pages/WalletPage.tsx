@@ -25,6 +25,7 @@ import {
   Shield
 } from 'lucide-react';
 import { useWalletStore, type Transaction } from '../stores/walletStore';
+import { scrollToTop } from '../utils/scroll';
 
 const WalletPage: React.FC = () => {
   const {
@@ -61,6 +62,11 @@ const WalletPage: React.FC = () => {
     currency: 'NGN' as 'NGN' | 'USD' | 'USDT' | 'ETH',
     destination: ''
   });
+
+  // Scroll to top when component mounts
+  useEffect(() => {
+    scrollToTop({ behavior: 'instant' });
+  }, []);
 
   // Initialize wallet on mount
   useEffect(() => {

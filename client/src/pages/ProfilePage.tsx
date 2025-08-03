@@ -28,6 +28,7 @@ import {
   Heart
 } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
+import { scrollToTop } from '../utils/scroll';
 
 interface ProfilePageProps {
   onNavigateBack?: () => void;
@@ -1128,6 +1129,11 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigateBack }) => {
     email: user?.email || '',
     bio: user?.bio || ''
   });
+
+  // Scroll to top when component mounts
+  React.useEffect(() => {
+    scrollToTop({ behavior: 'instant' });
+  }, []);
 
   // Mock user stats
   const userStats = {

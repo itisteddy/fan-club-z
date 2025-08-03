@@ -4,6 +4,7 @@ import { TrendingUp, Target, CheckCircle, Plus, ArrowRight } from 'lucide-react'
 import { useLocation } from 'wouter';
 import { usePredictionStore } from '../store/predictionStore';
 import { useAuthStore } from '../store/authStore';
+import { scrollToTop } from '../utils/scroll';
 import { Prediction } from '../types';
 import BetCard from '../components/BetCard';
 import ManagePredictionModal from '../components/modals/ManagePredictionModal';
@@ -18,6 +19,11 @@ const BetsTab: React.FC<BetsTabProps> = ({ onNavigateToDiscover }) => {
   const { predictions, getUserCreatedPredictions, fetchUserCreatedPredictions, loading } = usePredictionStore();
   const { user, isAuthenticated } = useAuthStore();
   
+  // Scroll to top when component mounts
+  useEffect(() => {
+    scrollToTop({ behavior: 'instant' });
+  }, []);
+
   // Fetch user's created predictions when component mounts or user changes
   useEffect(() => {
     if (user?.id && isAuthenticated) {
