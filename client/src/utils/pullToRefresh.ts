@@ -159,11 +159,38 @@ export class PullToRefresh {
     this.element.removeEventListener('touchend', this.onTouchEnd.bind(this));
   }
 
+  private findScrollableParent(element: HTMLElement): HTMLElement | null {
+    let parent = element.parentElement;
+    
+    while (parent) {
+      const style = window.getComputedStyle(parent);
+      const overflowY = style.overflowY;
+      
+      if (overflowY === 'auto' || overflowY === 'scroll') {
+        return parent;
+      }
+      
+      // Check if element has scrollable content
+      if (parent.scrollHeight > parent.clientHeight) {
+        return parent;
+      }
+      
+      parent = parent.parentElement;
+    }
+    
+    return null;
+  }
+
   private onTouchStart(e: TouchEvent): void {
     if (this.disabled || this.isRefreshing) return;
     
-    // Only start if we're at the top of the page
-    if (window.scrollY > 0) return;
+    // Only start if we're at the very top of the page (strict check)
+    if (window.scrollY > 5) return;
+    
+    // Also check if the target element is scrolled
+    const target = e.target as HTMLElement;
+    const scrollableParent = this.findScrollableParent(target);
+    if (scrollableParent && scrollableParent.scrollTop > 5) return;
     
     this.startY = e.touches[0].clientY;
     this.isPulling = false;
@@ -175,8 +202,15 @@ export class PullToRefresh {
     this.currentY = e.touches[0].clientY;
     this.pullDistance = Math.max(0, this.currentY - this.startY);
     
-    // Only prevent default and show indicator if we're pulling down
-    if (this.pullDistance > 10 && window.scrollY === 0) {
+    // More restrictive conditions - prevent accidental triggers
+    const isAtTop = window.scrollY <= 5;
+    const target = e.target as HTMLElement;
+    const scrollableParent = this.findScrollableParent(target);
+    const isScrollableAtTop = !scrollableParent || scrollableParent.scrollTop <= 5;
+    const isPullingSignificantly = this.pullDistance > 30; // Increased threshold
+    
+    // Only prevent default and show indicator if all conditions are met
+    if (isPullingSignificantly && isAtTop && isScrollableAtTop) {
       e.preventDefault();
       this.isPulling = true;
       this.updateIndicator();

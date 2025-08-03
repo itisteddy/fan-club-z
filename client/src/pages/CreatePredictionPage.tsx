@@ -335,30 +335,26 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
                     />
                   </div>
 
-                  {/* Category */}
+                  {/* Category - Pill-based (consistent with DiscoverPage) */}
                   <div>
                     <label className="block text-sm font-semibold text-gray-700 mb-3">
                       Category *
                     </label>
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="flex flex-wrap gap-3">
                       {categories.map((cat) => (
                         <motion.button
                           key={cat.id}
                           whileHover={{ scale: 1.02 }}
                           whileTap={{ scale: 0.98 }}
                           onClick={() => setCategory(cat.id)}
-                          className={`p-4 rounded-2xl border-2 transition-all duration-200 ${
+                          className={`pill-category px-4 py-2.5 rounded-full text-sm font-semibold transition-all flex items-center gap-2 min-h-[40px] ${
                             category === cat.id
-                              ? 'border-green-500 bg-green-50'
-                              : 'border-gray-200 bg-white hover:border-green-300'
+                              ? `bg-gradient-to-r ${cat.gradient} text-white shadow-lg`
+                              : 'bg-gray-100 text-gray-700 hover:bg-gray-200 border border-gray-200'
                           }`}
                         >
-                          <div className="flex items-center gap-3">
-                            <div className={`w-10 h-10 bg-gradient-to-r ${cat.gradient} rounded-xl flex items-center justify-center text-white text-lg`}>
-                              {cat.icon}
-                            </div>
-                            <span className="font-semibold text-gray-900">{cat.label}</span>
-                          </div>
+                          <span className="text-base">{cat.icon}</span>
+                          <span>{cat.label}</span>
                         </motion.button>
                       ))}
                     </div>
