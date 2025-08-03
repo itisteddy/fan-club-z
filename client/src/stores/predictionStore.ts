@@ -220,7 +220,7 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
       const stakeMax = data.stakeMax ? Number(data.stakeMax) : null;
 
       if (stakeMin < 1) {
-        throw new Error('Minimum stake must be at least ₦1');
+        throw new Error('Minimum stake must be at least $1');
       }
 
       if (stakeMax && stakeMax < stakeMin) {

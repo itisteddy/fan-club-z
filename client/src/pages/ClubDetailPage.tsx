@@ -112,7 +112,7 @@ export const ClubDetailPage: React.FC<ClubDetailPageProps> = ({ onBack, hideHead
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-NG', {
       style: 'currency',
-      currency: 'NGN',
+      currency: 'USD',
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
     }).format(amount);

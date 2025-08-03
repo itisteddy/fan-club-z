@@ -235,7 +235,7 @@ const ModernDiscoverPage: React.FC = () => {
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-1.5 text-sm text-neutral-600">
               <DollarSign className="w-4 h-4" />
-              <span className="font-semibold">₦{(prediction.poolTotal || 0).toLocaleString()}</span>
+              <span className="font-semibold">${(prediction.poolTotal || 0).toLocaleString()}</span>
             </div>
             <div className="flex items-center gap-1.5 text-sm text-neutral-600">
               <Users className="w-4 h-4" />
@@ -357,7 +357,7 @@ const ModernDiscoverPage: React.FC = () => {
               animate={{ scale: [1, 1.05, 1] }}
               transition={{ duration: 2, repeat: Infinity, delay: 1 }}
             >
-              ₦{(totalVolume / 1000).toFixed(0)}K
+              ${(totalVolume / 1000).toFixed(0)}K
             </motion.div>
             <div className="text-xs text-neutral-500 uppercase tracking-wide font-medium">
               Total Volume
@@ -565,7 +565,7 @@ const ModernDiscoverPage: React.FC = () => {
                   >
                     <div className="flex items-center gap-1.5">
                       <DollarSign className="w-4 h-4" />
-                      <span className="font-semibold">₦{(featuredPrediction.poolTotal || 0).toLocaleString()}</span>
+                      <span className="font-semibold">${(featuredPrediction.poolTotal || 0).toLocaleString()}</span>
                     </div>
                     <div className="flex items-center gap-1.5">
                       <Users className="w-4 h-4" />

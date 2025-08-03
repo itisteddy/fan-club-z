@@ -19,7 +19,7 @@ interface PlacePredictionModalProps {
 const formatCurrency = (amount: number) => {
   return new Intl.NumberFormat('en-NG', {
     style: 'currency',
-    currency: 'NGN',
+    currency: 'USD',
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
   }).format(amount);
@@ -45,7 +45,7 @@ export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
   const { getBalance, makePrediction } = useWalletStore();
   const { placeBet } = usePredictionsStore();
 
-  const ngnBalance = getBalance('NGN') || 10000; // Default for demo
+  const usdBalance = getBalance('USD') || 10000; // Default for demo
   const numAmount = parseFloat(amount) || 0;
   const selectedOption = prediction.options.find(o => o.id === selectedOptionId);
   const potentialPayout = selectedOption ? calculatePotentialPayout(numAmount, selectedOption.currentOdds) : 0;
@@ -73,15 +73,15 @@ export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
       return;
     }
 
-    if (numAmount > ngnBalance) {
-      toast.error(`Insufficient balance. You have ${formatCurrency(ngnBalance)} available, but tried to stake ${formatCurrency(numAmount)}.`);
+    if (numAmount > usdBalance) {
+      toast.error(`Insufficient balance. You have ${formatCurrency(usdBalance)} available, but tried to stake ${formatCurrency(numAmount)}.`);
       return;
     }
 
     setIsLoading(true);
     try {
       // Use wallet store to make prediction
-      await makePrediction(numAmount, `Prediction on: ${prediction.title}`, prediction.id, 'NGN');
+      await makePrediction(numAmount, `Prediction on: ${prediction.title}`, prediction.id, 'USD');
       
       // Also update the predictions store
       await placeBet(prediction.id, selectedOptionId, numAmount);
@@ -216,7 +216,7 @@ export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
                       </label>
                       <div className="relative">
                         <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">
-                          ₦
+                          $
                         </span>
                         <Input
                           type="number"
@@ -225,7 +225,7 @@ export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
                           onChange={(e) => setAmount(e.target.value)}
                           className="force-visible force-white-bg pl-8 text-lg text-gray-900"
                           min={prediction.stakeMin}
-                          max={prediction.stakeMax || ngnBalance}
+                          max={prediction.stakeMax || usdBalance}
                           style={{
                             backgroundColor: '#ffffff !important',
                             color: '#111827 !important',
@@ -236,7 +236,7 @@ export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
                       </div>
                       <div className="flex items-center justify-between text-xs text-gray-500 mt-1">
                         <span>Min: {formatCurrency(prediction.stakeMin)}</span>
-                        <span>Balance: {formatCurrency(ngnBalance)}</span>
+                        <span>Balance: {formatCurrency(usdBalance)}</span>
                       </div>
                     </div>
 
@@ -250,10 +250,10 @@ export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
                             variant="outline"
                             size="sm"
                             onClick={() => setAmount(quickAmount.toString())}
-                            disabled={quickAmount > ngnBalance}
+                            disabled={quickAmount > usdBalance}
                             className="text-sm"
                           >
-                            ₦{quickAmount}
+                            ${quickAmount}
                           </Button>
                         ))}
                       </div>
@@ -293,7 +293,7 @@ export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
             <div className="modal-footer">
               <button
                 onClick={handleSubmit}
-                disabled={!selectedOptionId || !numAmount || isLoading || numAmount > ngnBalance}
+                                          disabled={!selectedOptionId || !numAmount || isLoading || numAmount > usdBalance}
                 className="force-visible force-green-button modal-bottom-button w-full h-12 disabled:bg-gray-400 text-white font-semibold rounded-xl transition-all duration-200 shadow-lg flex items-center justify-center"
                 style={{
                   backgroundColor: '#22c55e !important',

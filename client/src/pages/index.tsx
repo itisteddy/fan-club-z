@@ -61,7 +61,7 @@ export const WalletPage: React.FC = () => {
       
       <div className="bg-white rounded-lg shadow-sm border border-border p-6 mb-6">
         <h2 className="text-lg font-semibold text-foreground mb-2">Balance</h2>
-        <div className="text-3xl font-bold text-primary">₦0.00</div>
+        <div className="text-3xl font-bold text-primary">$0.00</div>
         <p className="text-muted-foreground text-sm mt-1">Nigerian Naira</p>
       </div>
       

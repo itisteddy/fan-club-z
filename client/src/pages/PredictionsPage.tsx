@@ -203,7 +203,7 @@ export const PredictionsPage: React.FC = () => {
                 whileHover={{ scale: 1.05 }}
                 transition={{ type: "spring", stiffness: 300 }}
               >
-                <div className="live-counter text-3xl font-bold mb-2 text-white">₦12.5K</div>
+                <div className="live-counter text-3xl font-bold mb-2 text-white">$12.5K</div>
                 <div className="caption text-white/80">Total Invested</div>
               </motion.div>
               <div className="w-px bg-white/20" />
@@ -212,7 +212,7 @@ export const PredictionsPage: React.FC = () => {
                 whileHover={{ scale: 1.05 }}
                 transition={{ type: "spring", stiffness: 300 }}
               >
-                <div className="live-counter text-3xl font-bold mb-2 text-white">₦18.2K</div>
+                <div className="live-counter text-3xl font-bold mb-2 text-white">$18.2K</div>
                 <div className="caption text-white/80">Potential Return</div>
               </motion.div>
               <div className="w-px bg-white/20" />
@@ -295,7 +295,7 @@ const ActivePredictionCard: React.FC<{ prediction: any }> = ({ prediction }) => 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-NG', {
       style: 'currency',
-      currency: 'NGN',
+      currency: 'USD',
       minimumFractionDigits: 0,
     }).format(amount);
   };
@@ -395,7 +395,7 @@ const CreatedPredictionCard: React.FC<{ prediction: any }> = ({ prediction }) =>
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-NG', {
       style: 'currency',
-      currency: 'NGN',
+      currency: 'USD',
       minimumFractionDigits: 0,
     }).format(amount);
   };
@@ -492,7 +492,7 @@ const CompletedPredictionCard: React.FC<{ prediction: any }> = ({ prediction }) 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-NG', {
       style: 'currency',
-      currency: 'NGN',
+      currency: 'USD',
       minimumFractionDigits: 0,
     }).format(amount);
   };

@@ -1571,7 +1571,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigateBack }) => {
                   </div>
                   <div style={{ textAlign: 'center', padding: '6px' }}>
                     <div style={{ fontSize: '18px', fontWeight: '700', color: '#111827' }}>
-                      ₦{(userStats.totalEarnings - userStats.totalInvested).toLocaleString()}
+                      ${(userStats.totalEarnings - userStats.totalInvested).toLocaleString()}
                     </div>
                     <div style={{ fontSize: '11px', color: '#6b7280' }}>Net Profit</div>
                   </div>
@@ -1619,7 +1619,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigateBack }) => {
               </div>
               <div style={{ minWidth: 0 }}>
                 <div style={{ fontSize: '16px', fontWeight: '700', color: '#111827' }}>
-                  ₦{userStats.totalEarnings.toLocaleString()}
+                  ${userStats.totalEarnings.toLocaleString()}
                 </div>
                 <div style={{ fontSize: '12px', color: '#6b7280' }}>Total Earnings</div>
               </div>

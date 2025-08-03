@@ -5,6 +5,7 @@ import { useAuthStore } from './store/authStore';
 import { Toaster } from 'react-hot-toast';
 import { scrollToTop } from './utils/scroll';
 import NotificationContainer from './components/ui/NotificationContainer';
+import PWAInstallManager from './components/PWAInstallManager';
 
 // Import all page components
 import DiscoverPage from './pages/DiscoverPage';
@@ -187,6 +188,9 @@ function App() {
 
   return (
     <div style={{ minHeight: '100vh', backgroundColor: '#f9fafb' }}>
+      {/* PWA Install Manager - Shows install banners and handles app installation */}
+      <PWAInstallManager />
+      
       <main className="page-content">
         <AnimatePresence mode="wait" initial={false}>
           <motion.div

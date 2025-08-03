@@ -170,11 +170,11 @@ const PredictionsTab: React.FC<PredictionsTabProps> = ({ onNavigateToDiscover })
         <div className="grid grid-cols-3 gap-4 mt-3">
           <div>
             <p className="text-xs text-emerald-600 mb-1">Staked</p>
-            <p className="font-semibold text-emerald-900">₦{prediction.stake}</p>
+            <p className="font-semibold text-emerald-900">${prediction.stake}</p>
           </div>
           <div>
             <p className="text-xs text-emerald-600 mb-1">Potential</p>
-            <p className="font-semibold text-emerald-900">₦{prediction.potentialReturn}</p>
+            <p className="font-semibold text-emerald-900">${prediction.potentialReturn}</p>
           </div>
           <div>
             <p className="text-xs text-emerald-600 mb-1">Odds</p>
@@ -229,7 +229,7 @@ const PredictionsTab: React.FC<PredictionsTabProps> = ({ onNavigateToDiscover })
         <div className="grid grid-cols-3 gap-4">
           <div>
             <p className="text-xs text-blue-600 mb-1">Total Pool</p>
-            <p className="font-semibold text-blue-900">₦{prediction.totalPool}</p>
+            <p className="font-semibold text-blue-900">${prediction.totalPool}</p>
           </div>
           <div>
             <p className="text-xs text-blue-600 mb-1">Participants</p>

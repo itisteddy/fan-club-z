@@ -56,7 +56,7 @@ const MobileHeader: React.FC<{
         <div className="grid grid-cols-3 gap-4">
           <div className="text-center">
             <div className="text-white text-xl font-bold">
-              ₦{stats.totalVolume.toLocaleString()}
+              ${stats.totalVolume.toLocaleString()}
             </div>
             <div className="text-green-100 text-xs font-medium uppercase tracking-wide">
               Total Volume
@@ -74,7 +74,7 @@ const MobileHeader: React.FC<{
           
           <div className="text-center">
             <div className="text-white text-xl font-bold">
-              ₦{stats.todayVolume.toLocaleString()}
+              ${stats.todayVolume.toLocaleString()}
             </div>
             <div className="text-green-100 text-xs font-medium uppercase tracking-wide">
               Today
@@ -218,7 +218,7 @@ const PredictionCard: React.FC<{
           <div className="flex items-center gap-1">
             <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
             <span className="text-base font-bold text-gray-900">
-              ₦{(prediction.poolTotal || 0).toLocaleString()}
+              ${(prediction.poolTotal || 0).toLocaleString()}
             </span>
           </div>
           <div className="text-xs text-gray-600">

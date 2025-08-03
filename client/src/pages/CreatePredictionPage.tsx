@@ -516,7 +516,7 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm font-semibold text-gray-700 mb-2">
-                        Minimum Stake (₦)
+                        Minimum Stake ($)
                       </label>
                       <input
                         type="number"
@@ -529,7 +529,7 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
                     </div>
                     <div>
                       <label className="block text-sm font-semibold text-gray-700 mb-2">
-                        Maximum Stake (₦)
+                        Maximum Stake ($)
                       </label>
                       <input
                         type="number"

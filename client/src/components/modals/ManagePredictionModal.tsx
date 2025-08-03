@@ -80,7 +80,7 @@ const ManagePredictionModal: React.FC<ManagePredictionModalProps> = ({
             <DollarSign className="w-5 h-5 text-blue-600" />
             <span className="text-sm font-medium text-blue-800">Total Pool</span>
           </div>
-          <div className="text-2xl font-bold text-blue-900">₦{prediction.totalPool.toLocaleString()}</div>
+          <div className="text-2xl font-bold text-blue-900">${prediction.totalPool.toLocaleString()}</div>
           <div className="text-sm text-blue-600">Your cut: {prediction.yourCut}%</div>
         </div>
         
@@ -107,7 +107,7 @@ const ManagePredictionModal: React.FC<ManagePredictionModalProps> = ({
             <BarChart3 className="w-5 h-5 text-purple-600" />
             <span className="text-sm font-medium text-purple-800">Your Earnings</span>
           </div>
-          <div className="text-xl font-bold text-purple-900">₦{(prediction.totalPool * prediction.yourCut / 100).toLocaleString()}</div>
+          <div className="text-xl font-bold text-purple-900">${(prediction.totalPool * prediction.yourCut / 100).toLocaleString()}</div>
           <div className="text-sm text-purple-600">Current projected</div>
         </div>
       </div>
@@ -126,7 +126,7 @@ const ManagePredictionModal: React.FC<ManagePredictionModalProps> = ({
                 <p className="text-xs text-gray-500">2 minutes ago</p>
               </div>
             </div>
-            <span className="text-sm text-green-600 font-medium">+₦50</span>
+            <span className="text-sm text-green-600 font-medium">+$50</span>
           </div>
           
           <div className="flex items-center justify-between py-2">
@@ -139,7 +139,7 @@ const ManagePredictionModal: React.FC<ManagePredictionModalProps> = ({
                 <p className="text-xs text-gray-500">15 minutes ago</p>
               </div>
             </div>
-            <span className="text-sm text-green-600 font-medium">+₦200</span>
+            <span className="text-sm text-green-600 font-medium">+$200</span>
           </div>
           
           <div className="flex items-center justify-between py-2">
@@ -152,7 +152,7 @@ const ManagePredictionModal: React.FC<ManagePredictionModalProps> = ({
                 <p className="text-xs text-gray-500">1 hour ago</p>
               </div>
             </div>
-            <span className="text-sm text-green-600 font-medium">+₦150</span>
+            <span className="text-sm text-green-600 font-medium">+$150</span>
           </div>
         </div>
       </div>
@@ -282,7 +282,7 @@ const ManagePredictionModal: React.FC<ManagePredictionModalProps> = ({
             <div className="text-sm text-gray-600">Total Participants</div>
           </div>
           <div className="text-center">
-            <div className="text-2xl font-bold text-green-600">₦{prediction.totalPool.toLocaleString()}</div>
+            <div className="text-2xl font-bold text-green-600">${prediction.totalPool.toLocaleString()}</div>
             <div className="text-sm text-gray-600">Total Pool</div>
           </div>
         </div>
@@ -299,7 +299,7 @@ const ManagePredictionModal: React.FC<ManagePredictionModalProps> = ({
               </div>
             </div>
             <div className="text-right">
-              <p className="font-semibold text-gray-900">₦150</p>
+              <p className="font-semibold text-gray-900">$150</p>
               <p className="text-sm text-green-600">Yes</p>
             </div>
           </div>
@@ -315,7 +315,7 @@ const ManagePredictionModal: React.FC<ManagePredictionModalProps> = ({
               </div>
             </div>
             <div className="text-right">
-              <p className="font-semibold text-gray-900">₦200</p>
+              <p className="font-semibold text-gray-900">$200</p>
               <p className="text-sm text-red-600">No</p>
             </div>
           </div>
@@ -331,7 +331,7 @@ const ManagePredictionModal: React.FC<ManagePredictionModalProps> = ({
               </div>
             </div>
             <div className="text-right">
-              <p className="font-semibold text-gray-900">₦75</p>
+              <p className="font-semibold text-gray-900">$75</p>
               <p className="text-sm text-green-600">Yes</p>
             </div>
           </div>

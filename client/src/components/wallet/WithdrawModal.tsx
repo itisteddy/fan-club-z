@@ -21,7 +21,7 @@ export const WithdrawModal: React.FC<WithdrawModalProps> = ({ isOpen, onClose })
   const [isLoading, setIsLoading] = useState(false);
   
   const { balances, withdraw } = useWalletStore();
-  const ngnBalance = balances.find(b => b.currency === 'NGN')?.available_balance || 0;
+  const usdBalance = balances.find(b => b.currency === 'USD')?.available_balance || 0;
   const numAmount = parseFloat(amount) || 0;
 
   const handleWithdraw = async () => {
@@ -30,12 +30,12 @@ export const WithdrawModal: React.FC<WithdrawModalProps> = ({ isOpen, onClose })
       return;
     }
 
-    if (numAmount < 500) {
-      toast.error('Minimum withdrawal is ₦500');
+    if (numAmount < 50) {
+      toast.error('Minimum withdrawal is $50');
       return;
     }
 
-    if (numAmount > ngnBalance) {
+    if (numAmount > usdBalance) {
       toast.error('Insufficient balance');
       return;
     }
@@ -48,7 +48,7 @@ export const WithdrawModal: React.FC<WithdrawModalProps> = ({ isOpen, onClose })
         bank_code: bankCode,
       });
       
-      await withdraw('NGN', numAmount, destination);
+      await withdraw('USD', numAmount, destination);
       toast.success('Withdrawal initiated successfully!');
       onClose();
       setAmount('');
@@ -62,8 +62,8 @@ export const WithdrawModal: React.FC<WithdrawModalProps> = ({ isOpen, onClose })
     }
   };
 
-  const quickAmounts = [500, 1000, 2500, 5000];
-  const availableQuickAmounts = quickAmounts.filter(qa => qa <= ngnBalance);
+  const quickAmounts = [50, 100, 250, 500];
+  const availableQuickAmounts = quickAmounts.filter(qa => qa <= usdBalance);
 
   if (!isOpen) return null;
 
@@ -120,7 +120,7 @@ export const WithdrawModal: React.FC<WithdrawModalProps> = ({ isOpen, onClose })
                     <span className="text-sm text-muted-foreground">Available Balance</span>
                   </div>
                   <div className="font-semibold text-primary">
-                    {formatCurrency(ngnBalance)}
+                    {formatCurrency(usdBalance)}
                   </div>
                 </div>
               </CardContent>
@@ -133,7 +133,7 @@ export const WithdrawModal: React.FC<WithdrawModalProps> = ({ isOpen, onClose })
               </label>
               <div className="relative">
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
-                  ₦
+                  $
                 </span>
                 <Input
                   type="number"
@@ -141,12 +141,12 @@ export const WithdrawModal: React.FC<WithdrawModalProps> = ({ isOpen, onClose })
                   value={amount}
                   onChange={(e) => setAmount(e.target.value)}
                   className="pl-8 text-lg"
-                  min={500}
-                  max={ngnBalance}
+                  min={50}
+                  max={usdBalance}
                 />
               </div>
               <div className="text-xs text-muted-foreground mt-1">
-                Minimum withdrawal: ₦500
+                Minimum withdrawal: $50
               </div>
             </div>
 
@@ -169,10 +169,10 @@ export const WithdrawModal: React.FC<WithdrawModalProps> = ({ isOpen, onClose })
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => setAmount(ngnBalance.toString())}
+                    onClick={() => setAmount(usdBalance.toString())}
                     className="text-sm col-span-2"
                   >
-                    Withdraw All ({formatCurrency(ngnBalance)})
+                    Withdraw All ({formatCurrency(usdBalance)})
                   </Button>
                 </div>
               </div>
@@ -289,10 +289,10 @@ export const WithdrawModal: React.FC<WithdrawModalProps> = ({ isOpen, onClose })
           <div className="sticky bottom-0 bg-background border-t border-border p-6">
             <Button
               onClick={handleWithdraw}
-              disabled={
-                !amount || !accountName || !accountNumber || !bankCode ||
-                numAmount < 500 || numAmount > ngnBalance || isLoading
-              }
+                              disabled={
+                  !amount || !accountName || !accountNumber || !bankCode ||
+                  numAmount < 50 || numAmount > usdBalance || isLoading
+                }
               className="w-full"
               size="lg"
             >

@@ -297,7 +297,7 @@ const SophisticatedDiscoverPage: React.FC = () => {
               },
               { 
                 icon: DollarSign, 
-                value: `₦${(totalVolume / 1000).toFixed(0)}K`, 
+                value: `$${(totalVolume / 1000).toFixed(0)}K`, 
                 label: 'Total Volume',
                 color: 'from-blue-400 to-blue-500',
                 bgColor: 'rgba(59, 130, 246, 0.1)'

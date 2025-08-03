@@ -5,7 +5,7 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-export const formatCurrency = (amount: number, currency: string = 'NGN'): string => {
+export const formatCurrency = (amount: number, currency: string = 'USD'): string => {
   const formatters: Record<string, Intl.NumberFormat> = {
     NGN: new Intl.NumberFormat('en-NG', {
       style: 'currency',
@@ -31,7 +31,7 @@ export const formatCurrency = (amount: number, currency: string = 'NGN'): string
     }),
   };
 
-  const formatter = formatters[currency] || formatters.NGN;
+  const formatter = formatters[currency] || formatters.USD;
   
   if (currency === 'USDT') {
     return `${formatter.format(amount)} USDT`;

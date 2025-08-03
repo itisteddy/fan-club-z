@@ -229,7 +229,7 @@ const ReliableDiscoverPage: React.FC = () => {
                 color: '#22c55e',
                 fontWeight: '600'
               }}>
-                +₦250k
+                +$250k
               </span>
             </div>
             <h3 style={{
@@ -238,7 +238,7 @@ const ReliableDiscoverPage: React.FC = () => {
               color: '#111827',
               margin: '0 0 4px 0'
             }}>
-              ₦2.5M
+              $2.5M
             </h3>
             <p style={{
               fontSize: '14px',
@@ -472,7 +472,7 @@ const ReliableDiscoverPage: React.FC = () => {
             color: '#6b7280'
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
-              <span>💰 ₦70,000 pool</span>
+              <span>💰 $70,000 pool</span>
               <span>👥 23 predictors</span>
               <span>⏰ 5 days left</span>
             </div>

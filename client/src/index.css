@@ -1,6 +1,7 @@
 @import './styles/navigation-fixes.css';
 @import './styles/modal-fixes.css';
 @import './styles/compact-cards.css';
+@import './styles/pwa.css';
 
 @tailwind base;
 @tailwind components;

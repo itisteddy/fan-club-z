@@ -52,14 +52,14 @@ const WalletPage: React.FC = () => {
   // Deposit form state
   const [depositForm, setDepositForm] = useState({
     amount: '',
-    currency: 'NGN' as 'NGN' | 'USD' | 'USDT' | 'ETH',
+    currency: 'USD' as 'USD' | 'NGN' | 'USDT' | 'ETH',
     method: 'bank_transfer'
   });
 
   // Withdrawal form state
   const [withdrawForm, setWithdrawForm] = useState({
     amount: '',
-    currency: 'NGN' as 'NGN' | 'USD' | 'USDT' | 'ETH',
+    currency: 'USD' as 'USD' | 'NGN' | 'USDT' | 'ETH',
     destination: ''
   });
 
@@ -84,10 +84,10 @@ const WalletPage: React.FC = () => {
   }, [showDepositModal, showWithdrawModal, clearError]);
 
   // Calculate wallet data
-  const primaryBalance = getBalance('NGN');
+  const primaryBalance = getBalance('USD');
   const totalUSDValue = balances.reduce((total, balance) => {
     // Mock exchange rates for demo
-    const rates = { NGN: 0.0012, USD: 1, USDT: 1, ETH: 2400 };
+    const rates = { USD: 1, NGN: 850, USDT: 1, ETH: 2400 };
     return total + (balance.total * (rates[balance.currency] || 1));
   }, 0);
 
@@ -112,11 +112,11 @@ const WalletPage: React.FC = () => {
       }
 
       if (amount < 100) {
-        throw new Error('Minimum deposit amount is ₦100');
+        throw new Error('Minimum deposit amount is $100');
       }
 
-      if (amount > 1000000) {
-        throw new Error('Maximum deposit amount is ₦1,000,000');
+      if (amount > 100000) {
+        throw new Error('Maximum deposit amount is $100,000');
       }
 
       const methods = {
@@ -129,7 +129,7 @@ const WalletPage: React.FC = () => {
       await addFunds(amount, depositForm.currency, methods[depositForm.method as keyof typeof methods]);
       
       setShowDepositModal(false);
-      setDepositForm({ amount: '', currency: 'NGN', method: 'bank_transfer' });
+              setDepositForm({ amount: '', currency: 'USD', method: 'bank_transfer' });
     } catch (error) {
       // Error is handled by the store - do nothing as store will show notification
       console.error('Deposit error:', error);
@@ -143,8 +143,8 @@ const WalletPage: React.FC = () => {
         throw new Error('Please enter a valid amount');
       }
 
-      if (amount < 100) {
-        throw new Error('Minimum withdrawal amount is ₦100');
+      if (amount < 50) {
+        throw new Error('Minimum withdrawal amount is $50');
       }
 
       if (!withdrawForm.destination.trim()) {
@@ -158,7 +158,7 @@ const WalletPage: React.FC = () => {
       await withdraw(amount, withdrawForm.currency, withdrawForm.destination.trim());
       
       setShowWithdrawModal(false);
-      setWithdrawForm({ amount: '', currency: 'NGN', destination: '' });
+              setWithdrawForm({ amount: '', currency: 'USD', destination: '' });
     } catch (error) {
       // Error is handled by the store - do nothing as store will show notification
       console.error('Withdrawal error:', error);
@@ -317,10 +317,10 @@ const WalletPage: React.FC = () => {
                   <div className="flex items-center gap-2">
                     {showBalance ? (
                       <h2 className="text-3xl font-bold text-white">
-                        ₦{primaryBalance.toLocaleString()}
+                        ${primaryBalance.toLocaleString()}
                       </h2>
                     ) : (
-                      <h2 className="text-3xl font-bold text-white">₦••••••</h2>
+                      <h2 className="text-3xl font-bold text-white">$••••••</h2>
                     )}
                     <motion.button
                       whileHover={{ scale: 1.1 }}
@@ -354,7 +354,7 @@ const WalletPage: React.FC = () => {
                   <span className={`text-sm font-semibold ${
                     todayChangePercent > 0 ? 'text-green-400' : 'text-red-400'
                   }`}>
-                    {todayChangePercent > 0 ? '+' : ''}₦{todayChange.toLocaleString()} ({todayChangePercent.toFixed(1)}%)
+                    {todayChangePercent > 0 ? '+' : ''}${todayChange.toLocaleString()} ({todayChangePercent.toFixed(1)}%)
                   </span>
                 </div>
                 <span className="text-white/60 text-sm">today</span>
@@ -394,11 +394,11 @@ const WalletPage: React.FC = () => {
             transition={{ duration: 0.6, delay: 0.3 }}
             className="grid grid-cols-2 gap-4"
           >
-            {balances.filter(b => b.total > 0 || b.currency === 'NGN').map((balance) => (
+            {balances.filter(b => b.total > 0 || b.currency === 'USD').map((balance) => (
               <div key={balance.currency} className="bg-white/15 backdrop-blur-xl rounded-2xl border border-white/20 p-4">
                 <p className="text-white/80 text-sm mb-1">{balance.currency}</p>
                 <p className="text-white text-xl font-bold">
-                  {balance.currency === 'NGN' ? '₦' : balance.currency === 'USD' ? '$' : ''}
+                  {balance.currency === 'USD' ? '$' : balance.currency === 'NGN' ? '₦' : ''}
                   {balance.total.toLocaleString()}
                 </p>
                 {balance.reserved > 0 && (
@@ -467,13 +467,13 @@ const WalletPage: React.FC = () => {
                 <div className="grid grid-cols-2 gap-4">
                   <div className="p-4 bg-green-50 rounded-xl">
                     <p className="text-sm text-green-600 mb-1">Available</p>
-                    <p className="text-2xl font-bold text-green-700">₦{getBalance('NGN').toLocaleString()}</p>
+                    <p className="text-2xl font-bold text-green-700">${getBalance('USD').toLocaleString()}</p>
                   </div>
                   
                   <div className="p-4 bg-blue-50 rounded-xl">
                     <p className="text-sm text-blue-600 mb-1">Reserved</p>
                     <p className="text-2xl font-bold text-blue-700">
-                      ₦{(balances.find(b => b.currency === 'NGN')?.reserved || 0).toLocaleString()}
+                      ${(balances.find(b => b.currency === 'USD')?.reserved || 0).toLocaleString()}
                     </p>
                   </div>
                 </div>
@@ -539,7 +539,7 @@ const WalletPage: React.FC = () => {
                       <div className="text-right">
                         <p className={`font-bold ${getTransactionColor(transaction.type)}`}>
                           {(transaction.type === 'deposit' || transaction.type === 'win' || transaction.type === 'transfer_in') ? '+' : '-'}
-                          ₦{transaction.amount.toLocaleString()}
+                          ${transaction.amount.toLocaleString()}
                         </p>
                         {getStatusBadge(transaction.status)}
                       </div>
@@ -606,7 +606,7 @@ const WalletPage: React.FC = () => {
                             )}
                           </div>
                           {transaction.fee && (
-                            <p className="text-xs text-gray-400">Fee: ₦{transaction.fee.toLocaleString()}</p>
+                            <p className="text-xs text-gray-400">Fee: ${transaction.fee.toLocaleString()}</p>
                           )}
                         </div>
                       </div>
@@ -614,7 +614,7 @@ const WalletPage: React.FC = () => {
                       <div className="text-right">
                         <p className={`font-bold ${getTransactionColor(transaction.type)}`}>
                           {(transaction.type === 'deposit' || transaction.type === 'win' || transaction.type === 'transfer_in') ? '+' : '-'}
-                          ₦{transaction.amount.toLocaleString()}
+                          ${transaction.amount.toLocaleString()}
                         </p>
                         {getStatusBadge(transaction.status)}
                       </div>
@@ -673,7 +673,7 @@ const WalletPage: React.FC = () => {
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">Amount</label>
                   <div className="relative">
-                    <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">₦</span>
+                    <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">$</span>
                     <input
                       type="number"
                       value={depositForm.amount}
@@ -689,7 +689,7 @@ const WalletPage: React.FC = () => {
                         onClick={() => setDepositForm({ ...depositForm, amount: amount.toString() })}
                         className="flex-1 py-2 px-3 text-sm font-semibold text-green-600 bg-green-50 rounded-lg hover:bg-green-100 transition-colors"
                       >
-                        ₦{amount.toLocaleString()}
+                        ${amount.toLocaleString()}
                       </button>
                     ))}
                   </div>
@@ -757,7 +757,7 @@ const WalletPage: React.FC = () => {
                   ) : (
                     <>
                       <Plus size={16} />
-                      Deposit ₦{depositForm.amount ? parseFloat(depositForm.amount).toLocaleString() : '0'}
+                      Deposit ${depositForm.amount ? parseFloat(depositForm.amount).toLocaleString() : '0'}
                     </>
                   )}
                 </motion.button>
@@ -807,7 +807,7 @@ const WalletPage: React.FC = () => {
                     Available Balance
                   </label>
                   <div className="p-3 bg-gray-50 rounded-xl">
-                    <p className="text-2xl font-bold text-gray-900">₦{getBalance('NGN').toLocaleString()}</p>
+                    <p className="text-2xl font-bold text-gray-900">${getBalance('USD').toLocaleString()}</p>
                   </div>
                 </div>
                 
@@ -816,19 +816,19 @@ const WalletPage: React.FC = () => {
                     Withdrawal Amount
                   </label>
                   <div className="relative">
-                    <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">₦</span>
+                    <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">$</span>
                     <input
                       type="number"
                       value={withdrawForm.amount}
                       onChange={(e) => setWithdrawForm({ ...withdrawForm, amount: e.target.value })}
                       placeholder="0.00"
-                      max={getBalance('NGN')}
+                      max={getBalance('USD')}
                       className="w-full pl-8 pr-4 py-3 border-2 border-gray-200 rounded-2xl focus:border-green-500 focus:outline-none transition-all duration-200 text-lg font-semibold"
                     />
                   </div>
                   <div className="flex gap-2 mt-2">
                     {[25, 50, 75, 100].map((percentage) => {
-                      const amount = Math.floor((getBalance('NGN') * percentage) / 100);
+                      const amount = Math.floor((getBalance('USD') * percentage) / 100);
                       return (
                         <button
                           key={percentage}
@@ -891,7 +891,7 @@ const WalletPage: React.FC = () => {
                   ) : (
                     <>
                       <Minus size={16} />
-                      Withdraw ₦{withdrawForm.amount ? parseFloat(withdrawForm.amount).toLocaleString() : '0'}
+                      Withdraw ${withdrawForm.amount ? parseFloat(withdrawForm.amount).toLocaleString() : '0'}
                     </>
                   )}
                 </motion.button>

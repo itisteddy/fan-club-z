@@ -293,11 +293,11 @@ const BetsTab: React.FC<BetsTabProps> = ({ onNavigateToDiscover }) => {
         <div className="grid grid-cols-3 gap-4 mt-3">
           <div>
             <p className="text-xs text-emerald-600 mb-1">Staked</p>
-            <p className="font-semibold text-emerald-900">₦{prediction.stake.toLocaleString()}</p>
+            <p className="font-semibold text-emerald-900">${prediction.stake.toLocaleString()}</p>
           </div>
           <div>
             <p className="text-xs text-emerald-600 mb-1">Potential</p>
-            <p className="font-semibold text-emerald-900">₦{prediction.potentialReturn.toLocaleString()}</p>
+            <p className="font-semibold text-emerald-900">${prediction.potentialReturn.toLocaleString()}</p>
           </div>
           <div>
             <p className="text-xs text-emerald-600 mb-1">Odds</p>
@@ -352,7 +352,7 @@ const BetsTab: React.FC<BetsTabProps> = ({ onNavigateToDiscover }) => {
         <div className="grid grid-cols-3 gap-4">
           <div>
             <p className="text-xs text-blue-600 mb-1">Total Pool</p>
-            <p className="font-semibold text-blue-900">₦{prediction.totalPool.toLocaleString()}</p>
+            <p className="font-semibold text-blue-900">${prediction.totalPool.toLocaleString()}</p>
           </div>
           <div>
             <p className="text-xs text-blue-600 mb-1">Participants</p>
@@ -420,7 +420,7 @@ const BetsTab: React.FC<BetsTabProps> = ({ onNavigateToDiscover }) => {
           <span className={`text-lg font-bold ${
             prediction.status === 'won' ? 'text-green-700' : 'text-red-700'
           }`}>
-            {prediction.profit >= 0 ? '+' : ''}₦{Math.abs(prediction.profit).toLocaleString()}
+            {prediction.profit >= 0 ? '+' : ''}${Math.abs(prediction.profit).toLocaleString()}
           </span>
         </div>
         
@@ -434,7 +434,7 @@ const BetsTab: React.FC<BetsTabProps> = ({ onNavigateToDiscover }) => {
             <p className={`font-semibold ${
               prediction.status === 'won' ? 'text-green-900' : 'text-red-900'
             }`}>
-              ₦{prediction.stake.toLocaleString()}
+              ${prediction.stake.toLocaleString()}
             </p>
           </div>
           <div>
@@ -446,7 +446,7 @@ const BetsTab: React.FC<BetsTabProps> = ({ onNavigateToDiscover }) => {
             <p className={`font-semibold ${
               prediction.status === 'won' ? 'text-green-900' : 'text-red-900'
             }`}>
-              ₦{prediction.actualReturn.toLocaleString()}
+              ${prediction.actualReturn.toLocaleString()}
             </p>
           </div>
           <div>
@@ -458,7 +458,7 @@ const BetsTab: React.FC<BetsTabProps> = ({ onNavigateToDiscover }) => {
             <p className={`font-semibold ${
               prediction.status === 'won' ? 'text-green-900' : 'text-red-900'
             }`}>
-              {prediction.profit >= 0 ? '+' : ''}₦{Math.abs(prediction.profit).toLocaleString()}
+              {prediction.profit >= 0 ? '+' : ''}${Math.abs(prediction.profit).toLocaleString()}
             </p>
           </div>
         </div>

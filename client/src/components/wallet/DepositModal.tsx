@@ -33,7 +33,7 @@ const depositMethods = [
     name: 'USSD',
     icon: Smartphone,
     description: 'Dial *737# to deposit',
-    fee: '₦50',
+    fee: '$5',
   },
 ];
 
@@ -54,13 +54,13 @@ export const DepositModal: React.FC<DepositModalProps> = ({ isOpen, onClose }) =
     }
 
     if (numAmount < 100) {
-      toast.error('Minimum deposit is ₦100');
+      toast.error('Minimum deposit is $100');
       return;
     }
 
     setIsLoading(true);
     try {
-      await deposit('NGN', numAmount, selectedMethod);
+      await deposit('USD', numAmount, selectedMethod);
       toast.success('Deposit initiated successfully!');
       onClose();
       setAmount('');
@@ -125,7 +125,7 @@ export const DepositModal: React.FC<DepositModalProps> = ({ isOpen, onClose }) =
               </label>
               <div className="relative">
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
-                  ₦
+                  $
                 </span>
                 <Input
                   type="number"
@@ -137,7 +137,7 @@ export const DepositModal: React.FC<DepositModalProps> = ({ isOpen, onClose }) =
                 />
               </div>
               <div className="text-xs text-muted-foreground mt-1">
-                Minimum deposit: ₦100
+                Minimum deposit: $100
               </div>
             </div>
 
@@ -214,7 +214,7 @@ export const DepositModal: React.FC<DepositModalProps> = ({ isOpen, onClose }) =
                         <span>Fee:</span>
                         <span className="font-medium">
                           {selectedMethod === 'card' ? formatCurrency(numAmount * 0.025) :
-                           selectedMethod === 'ussd' ? '₦50' : 'Free'}
+                           selectedMethod === 'ussd' ? '$5' : 'Free'}
                         </span>
                       </div>
                       <hr className="border-primary/20" />
