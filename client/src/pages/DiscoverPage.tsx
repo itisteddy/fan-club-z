@@ -27,12 +27,9 @@ const MobileHeader: React.FC<{
         className="mb-4 flex items-center justify-between"
       >
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 mb-1">
-            Welcome back, {user?.full_name || user?.username || user?.email?.split('@')[0] || 'User'}!
+          <h1 className="text-2xl font-bold text-gray-900">
+            Discover
           </h1>
-          <p className="text-gray-600">
-            Ready to make some winning predictions?
-          </p>
         </div>
         <button 
           onClick={onNavigateToProfile}
