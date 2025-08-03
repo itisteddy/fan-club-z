@@ -371,19 +371,25 @@ const ClubsPage: React.FC<ClubsPageProps> = ({ onNavigateToCreate }) => {
     scrollToTop({ behavior: 'instant' });
   }, []);
 
-  // Fetch clubs on component mount
+  // Fetch clubs on component mount and when category/search changes
   React.useEffect(() => {
-    fetchClubs();
-  }, [fetchClubs]);
+    fetchClubs({ 
+      category: selectedCategory, 
+      search: searchQuery 
+    });
+  }, [fetchClubs, selectedCategory, searchQuery]);
 
   // Pull to refresh functionality
   const handleRefresh = useCallback(async () => {
     console.log('Pull to refresh triggered');
-    await fetchClubs();
-  }, [fetchClubs]);
+    await fetchClubs({ 
+      category: selectedCategory, 
+      search: searchQuery 
+    });
+  }, [fetchClubs, selectedCategory, searchQuery]);
 
   usePullToRefresh(handleRefresh, {
-    threshold: 60,
+    threshold: 80,
     disabled: loading || currentView !== 'discover'
   });
 

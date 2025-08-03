@@ -26,7 +26,7 @@ export class PullToRefresh {
 
   constructor(options: PullToRefreshOptions) {
     this.options = {
-      threshold: 60,
+      threshold: 80,
       element: document.body,
       disabled: false,
       ...options,
@@ -207,7 +207,7 @@ export class PullToRefresh {
     const target = e.target as HTMLElement;
     const scrollableParent = this.findScrollableParent(target);
     const isScrollableAtTop = !scrollableParent || scrollableParent.scrollTop <= 5;
-    const isPullingSignificantly = this.pullDistance > 30; // Increased threshold
+    const isPullingSignificantly = this.pullDistance > 50; // Further increased threshold for less sensitivity
     
     // Only prevent default and show indicator if all conditions are met
     if (isPullingSignificantly && isAtTop && isScrollableAtTop) {

@@ -604,7 +604,7 @@ const DiscoverPage: React.FC<DiscoverPageProps> = ({ onNavigateToProfile }) => {
   }, [fetchPredictions]);
 
   usePullToRefresh(handleRefresh, {
-    threshold: 60,
+    threshold: 80,
     disabled: loading
   });
 
