@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { persist, createJSONStorage } from 'zustand/middleware';
 import { supabase, auth } from '../lib/supabase';
 import toast from 'react-hot-toast';
 import { showSuccess, showError, showWarning, showInfo } from './notificationStore';
@@ -45,7 +46,9 @@ const convertSupabaseUser = (supabaseUser: any): User | null => {
   };
 };
 
-export const useAuthStore = create<AuthState>((set, get) => ({
+export const useAuthStore = create<AuthState>()(
+  persist(
+    (set, get) => ({
   isAuthenticated: false,
   user: null,
   token: null,
@@ -53,7 +56,16 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   initialized: false,
 
   initializeAuth: async () => {
-    set({ loading: true });
+    const currentState = get();
+    
+    // If we have persisted auth state, show it immediately to prevent logout flash
+    if (currentState.isAuthenticated && currentState.user && !currentState.initialized) {
+      console.log('🔄 Using persisted auth state while verifying with Supabase...');
+      set({ loading: false, initialized: false }); // Keep showing authenticated state
+    } else {
+      set({ loading: true });
+    }
+    
     try {
       console.log('🔐 Initializing authentication...');
       
@@ -78,13 +90,23 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       
       if (sessionError) {
         console.error('❌ Error getting session:', sessionError.message);
-        set({ 
-          isAuthenticated: false, 
-          user: null, 
-          token: null, 
-          loading: false,
-          initialized: true
-        });
+        // If we had persisted auth but can't verify with Supabase, keep user logged in
+        // but mark as needs verification
+        if (currentState.isAuthenticated && currentState.user) {
+          console.log('⚠️ Session error but persisted auth exists, keeping user logged in');
+          set({ 
+            loading: false,
+            initialized: true
+          });
+        } else {
+          set({ 
+            isAuthenticated: false, 
+            user: null, 
+            token: null, 
+            loading: false,
+            initialized: true
+          });
+        }
         return;
       }
 
@@ -92,7 +114,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         const convertedUser = convertSupabaseUser(sessionData.session.user);
         const token = sessionData.session.access_token;
         
-        console.log('✅ User authenticated from session:', convertedUser?.firstName);
+        console.log('✅ User authenticated from fresh session:', convertedUser?.firstName);
         set({ 
           isAuthenticated: true, 
           user: convertedUser,
@@ -101,7 +123,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           initialized: true
         });
       } else {
-        console.log('ℹ️ No active session found');
+        // No valid session found
+        if (currentState.isAuthenticated && currentState.user) {
+          console.log('⚠️ No Supabase session but persisted auth exists, logging out');
+        }
+        console.log('ℹ️ No active session found, logging out');
         set({ 
           isAuthenticated: false, 
           user: null, 
@@ -112,13 +138,23 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       }
     } catch (error: any) {
       console.error('❌ Error initializing auth:', error.message);
-      set({ 
-        isAuthenticated: false, 
-        user: null, 
-        token: null, 
-        loading: false,
-        initialized: true
-      });
+      // If we have persisted auth state and there's a network/temporary error,
+      // keep the user logged in rather than forcing logout
+      if (currentState.isAuthenticated && currentState.user) {
+        console.log('⚠️ Auth initialization failed but persisted auth exists, keeping user logged in');
+        set({ 
+          loading: false,
+          initialized: true
+        });
+      } else {
+        set({ 
+          isAuthenticated: false, 
+          user: null, 
+          token: null, 
+          loading: false,
+          initialized: true
+        });
+      }
     }
   },
 
@@ -520,7 +556,21 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       throw error;
     }
   },
-}));
+}),
+    {
+      name: 'fanclubz-auth-storage',
+      storage: createJSONStorage(() => localStorage),
+      partialize: (state) => ({
+        isAuthenticated: state.isAuthenticated,
+        user: state.user,
+        token: state.token,
+        initialized: state.initialized
+      }),
+      // Version to handle migrations if needed
+      version: 1,
+    }
+  )
+);
 
 // Initialize auth when the store is created
 if (typeof window !== 'undefined') {
