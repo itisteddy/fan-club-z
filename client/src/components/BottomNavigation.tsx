@@ -13,7 +13,7 @@ const BottomNavigation: React.FC<BottomNavigationProps> = ({
 }) => {
   const tabs = [
     { id: 'discover', label: 'Discover', icon: Home },
-    { id: 'predictions', label: 'My Bets', icon: TrendingUp },
+    { id: 'predictions', label: 'Bets', icon: TrendingUp },
     { id: 'create', label: 'Create', icon: Plus, isCreate: true },
     { id: 'clubs', label: 'Clubs', icon: Users },
     { id: 'wallet', label: 'Wallet', icon: Wallet },

@@ -200,6 +200,8 @@ function App() {
             }}
             style={{
               width: '100%',
+              maxWidth: '100%',
+              overflow: 'hidden',
               paddingBottom: 'calc(4rem + env(safe-area-inset-bottom, 1rem))'
             }}
           >

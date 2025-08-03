@@ -1,51 +1,90 @@
-/* Fixed Bottom Navigation Styles - Compact Version */
-.fixed-bottom-nav {
-  position: fixed !important;
-  bottom: 0 !important;
-  left: 0 !important;
-  right: 0 !important;
-  z-index: 1000 !important;
-  background-color: white !important;
-  border-top: 1px solid #e5e7eb !important;
-  padding-bottom: max(env(safe-area-inset-bottom), 0.25rem) !important;
-  padding-top: 0.25rem !important;
-  height: auto !important;
+/* Navigation fixes to prevent overflow and improve UX */
+
+/* Fix navigation container width */
+.bottom-navigation {
+  width: 100% !important;
+  max-width: 100% !important;
+  overflow: hidden !important;
 }
 
-/* Page Content with Compact Bottom Padding */
-.page-content {
-  min-height: 100vh;
-  padding-bottom: calc(4rem + env(safe-area-inset-bottom, 1rem)) !important;
+/* Ensure navigation tabs don't overflow */
+.nav-tabs-container {
+  width: 100% !important;
+  max-width: 100% !important;
+  display: flex !important;
+  justify-content: space-around !important;
+  align-items: center !important;
 }
 
-/* Ensure content has proper spacing */
-.main-page-wrapper {
-  min-height: 100vh;
-  padding-bottom: calc(4rem + env(safe-area-inset-bottom, 1rem)) !important;
+/* Fix tab button sizing */
+.nav-tab-button {
+  flex: 1 !important;
+  min-width: 0 !important;
+  max-width: none !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 8px 4px !important;
+  text-align: center !important;
 }
 
-/* Scrollable Content */
-.scrollable-content {
-  overflow-y: auto;
-  height: 100vh;
-  padding-bottom: calc(3.5rem + env(safe-area-inset-bottom)) !important;
+/* Fix tab label text */
+.nav-tab-label {
+  font-size: 11px !important;
+  line-height: 1.2 !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  max-width: 100% !important;
+  display: block !important;
 }
 
-/* Safe Area Insets for iOS */
-@supports (padding: max(0px)) {
-  .safe-area-bottom {
-    padding-bottom: max(env(safe-area-inset-bottom), 0.5rem) !important;
+/* Fix create button */
+.nav-create-button {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 8px !important;
+}
+
+/* Prevent horizontal scroll in main content */
+.page-content,
+.main-content,
+.app-container {
+  width: 100% !important;
+  max-width: 100% !important;
+  overflow-x: hidden !important;
+  box-sizing: border-box !important;
+}
+
+/* Fix modal containers */
+.modal-container,
+.modal-overlay {
+  width: 100% !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+}
+
+/* Fix any card containers */
+.card-container,
+.prediction-card,
+.bet-card {
+  width: 100% !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+}
+
+/* Responsive text sizing */
+@media (max-width: 360px) {
+  .nav-tab-label {
+    font-size: 10px !important;
   }
 }
 
-/* Ensure content doesn't overlap with navigation */
-.main-content {
-  margin-bottom: calc(3rem + env(safe-area-inset-bottom)) !important;
-}
-
-/* Fix for WebKit/Safari */
-@supports (-webkit-touch-callout: none) {
-  .fixed-bottom-nav {
-    padding-bottom: calc(env(safe-area-inset-bottom) + 0.25rem) !important;
+@media (max-width: 320px) {
+  .nav-tab-label {
+    font-size: 9px !important;
   }
 }

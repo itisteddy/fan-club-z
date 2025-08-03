@@ -61,12 +61,6 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
       label: 'Multiple Choice',
       description: 'Multiple possible outcomes',
       icon: '🎲'
-    },
-    {
-      id: 'range',
-      label: 'Range',
-      description: 'Predict within a numerical range',
-      icon: '📊'
     }
   ];
 

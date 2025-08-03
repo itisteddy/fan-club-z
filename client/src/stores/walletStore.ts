@@ -502,6 +502,12 @@ export const useWalletStore = create<WalletState>()(
     {
       name: 'fanclubz-wallet-storage',
       version: 1,
+      partialize: (state) => ({
+        balances: state.balances,
+        transactions: state.transactions,
+        isDemoMode: state.isDemoMode,
+      }),
+      skipHydration: false,
     }
   )
 );

@@ -317,8 +317,8 @@ const AuthPage: React.FC = () => {
             .auth-card {
               padding: 16px !important;
               margin: 8px !important;
-              max-width: calc(100vw - 16px) !important;
-              width: calc(100vw - 16px) !important;
+              max-width: calc(100% - 16px) !important;
+              width: calc(100% - 16px) !important;
               min-height: calc(100vh - 16px) !important;
               border-radius: 16px !important;
             }
@@ -367,7 +367,7 @@ const AuthPage: React.FC = () => {
         className="auth-card"
         style={{
           width: '100%',
-          maxWidth: '100vw',
+          maxWidth: '100%',
           minHeight: 'calc(100vh - 16px)', // FIXED: Covers most of the screen
           backgroundColor: 'rgba(255, 255, 255, 0.95)',
           backdropFilter: 'blur(20px)',

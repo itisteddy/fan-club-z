@@ -14,14 +14,27 @@ export const scrollToTop = (options: { behavior?: 'smooth' | 'instant'; delay?: 
   // Use timeout to debounce scroll calls
   scrollTimeout = window.setTimeout(() => {
     try {
-      window.scrollTo({
-        top: 0,
-        left: 0,
-        behavior
+      // Use requestAnimationFrame for better performance
+      requestAnimationFrame(() => {
+        window.scrollTo({
+          top: 0,
+          left: 0,
+          behavior
+        });
+        
+        // Also scroll the document element for better compatibility
+        if (document.documentElement.scrollTop > 0) {
+          document.documentElement.scrollTop = 0;
+        }
+        if (document.body.scrollTop > 0) {
+          document.body.scrollTop = 0;
+        }
       });
     } catch (error) {
       // Fallback for older browsers
       window.scrollTo(0, 0);
+      document.documentElement.scrollTop = 0;
+      document.body.scrollTop = 0;
     }
     scrollTimeout = null;
   }, delay);
