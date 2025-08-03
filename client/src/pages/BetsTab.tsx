@@ -246,6 +246,8 @@ const BetsTab: React.FC<BetsTabProps> = ({ onNavigateToDiscover }) => {
         onClick={() => {
           if (tab === 'Created') {
             setLocation('/create');
+            // Scroll to top when navigating to create
+            scrollToTop({ behavior: 'instant' });
           } else {
             // Navigate to discover tab
             if (onNavigateToDiscover) {

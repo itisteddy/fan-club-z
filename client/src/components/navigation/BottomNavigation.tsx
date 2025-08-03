@@ -14,6 +14,7 @@ import {
   Sparkles
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
+import { scrollToTop } from '../../utils/scroll';
 
 const navigationItems = [
   {
@@ -59,6 +60,12 @@ export const BottomNavigation: React.FC = () => {
     return location.startsWith(path);
   };
 
+  const handleNavigation = (path: string) => {
+    setLocation(path);
+    // Always scroll to top when navigating (UI/UX best practice)
+    scrollToTop({ behavior: 'instant' });
+  };
+
   return (
     <motion.div 
       className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-subtle border-t border-cool-gray-100 safe-area-pb z-50 shadow-level-2"
@@ -75,7 +82,7 @@ export const BottomNavigation: React.FC = () => {
             return (
               <motion.button
                 key={item.id}
-                onClick={() => setLocation(item.path)}
+                onClick={() => handleNavigation(item.path)}
                 className="relative flex flex-col items-center justify-center p-2 min-w-[60px] group"
                 whileTap={{ scale: 0.9 }}
                 whileHover={{ scale: 1.05 }}

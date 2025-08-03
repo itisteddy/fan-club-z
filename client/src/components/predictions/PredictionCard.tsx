@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Card, CardContent } from '../ui/card';
+import { scrollToTop } from '../../utils/scroll';
 import { Avatar, AvatarImage, AvatarFallback } from '../ui/avatar';
 import { Prediction } from '../../stores/predictionStore';
 import { formatCurrency, formatTimeRemaining, generateInitials, getAvatarUrl, cn } from '../../lib/utils';
@@ -52,6 +53,8 @@ export const PredictionCard: React.FC<PredictionCardProps> = ({
 
   const handleCardClick = () => {
     setLocation(`/prediction/${prediction.id}`);
+    // Scroll to top when navigating to prediction detail
+    scrollToTop({ behavior: 'instant' });
   };
 
   const handleQuickBet = (e: React.MouseEvent) => {
@@ -280,6 +283,8 @@ export const PredictionCard: React.FC<PredictionCardProps> = ({
                   onClick={(e) => {
                     e.stopPropagation();
                     setLocation(`/prediction/${prediction.id}#comments`);
+                    // Scroll to top when navigating to comments
+                    scrollToTop({ behavior: 'instant' });
                   }}
                   className="text-muted-foreground hover:text-primary h-5 px-1"
                 >

@@ -1,6 +1,7 @@
 import React from 'react';
 import { useLocation } from 'wouter';
 import { Home, BarChart3, Plus, Users, Wallet, Bell, User } from 'lucide-react';
+import { scrollToTop } from '../../utils/scroll';
 
 interface MainLayoutProps {
   children: React.ReactNode;
@@ -8,6 +9,12 @@ interface MainLayoutProps {
 
 export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
   const [location, navigate] = useLocation();
+
+  const handleNavigation = (path: string) => {
+    navigate(path);
+    // Always scroll to top when navigating (UI/UX best practice)
+    scrollToTop({ behavior: 'instant' });
+  };
 
   const navItems = [
     { 
@@ -56,7 +63,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
           </div>
           <div className="flex items-center space-x-2">
             <button 
-              onClick={() => navigate('/wallet')}
+              onClick={() => handleNavigation('/wallet')}
               className="flex items-center space-x-1 px-3 py-1 bg-gray-100 rounded-lg text-sm"
             >
               <Wallet className="w-4 h-4" />
@@ -81,7 +88,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
             <NavItem
               key={item.href}
               {...item}
-              onClick={() => navigate(item.href)}
+              onClick={() => handleNavigation(item.href)}
             />
           ))}
         </div>
