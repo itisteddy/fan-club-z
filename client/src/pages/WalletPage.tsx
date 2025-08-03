@@ -724,34 +724,34 @@ const WalletPage: React.FC = () => {
                 </div>
               </div>
               
-              <div className="flex gap-3">
+              <div className="space-y-3">
                 <motion.button
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                  onClick={() => setShowDepositModal(false)}
-                  disabled={isLoading}
-                  className="flex-1 py-3 border-2 border-gray-200 text-gray-700 font-semibold rounded-xl hover:bg-gray-50 transition-all duration-200 disabled:opacity-60"
-                >
-                  Cancel
-                </motion.button>
-                <motion.button
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
                   onClick={handleDeposit}
                   disabled={isLoading || !depositForm.amount || parseFloat(depositForm.amount) <= 0}
-                  className="flex-1 py-3 bg-gradient-to-r from-green-500 to-green-600 text-white font-semibold rounded-xl shadow-lg shadow-green-500/25 disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  className="w-full py-4 bg-gradient-to-r from-green-500 to-green-600 text-white font-semibold rounded-xl shadow-lg shadow-green-500/25 disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
                   {isLoading ? (
                     <>
                       <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                      Processing...
+                      Adding Demo Funds...
                     </>
                   ) : (
                     <>
                       <Plus size={16} />
-                      Deposit ${depositForm.amount ? parseFloat(depositForm.amount).toLocaleString() : '0'}
+                      Add Demo Funds
                     </>
                   )}
+                </motion.button>
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={() => setShowDepositModal(false)}
+                  disabled={isLoading}
+                  className="w-full py-3 border-2 border-gray-200 text-gray-700 font-semibold rounded-xl hover:bg-gray-50 transition-all duration-200 disabled:opacity-60"
+                >
+                  Cancel
                 </motion.button>
               </div>
             </motion.div>

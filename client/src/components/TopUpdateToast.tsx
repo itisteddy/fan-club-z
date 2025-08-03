@@ -34,14 +34,14 @@ const TopUpdateToast: React.FC<TopUpdateToastProps> = ({
         ${isVisible && !isAnimatingOut ? 'opacity-100' : 'opacity-0'}
       `} />
       
-      {/* Toast notification - Fixed positioning and sizing */}
+      {/* Toast notification - Properly centered with responsive width */}
       <div className={`
         fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-50 
-        max-w-sm w-full mx-4 max-h-[90vh] overflow-y-auto
+        w-[calc(100vw-32px)] max-w-sm max-h-[90vh] overflow-y-auto
         transition-all duration-300 ease-out
         ${isVisible && !isAnimatingOut 
-          ? 'opacity-100 translate-y-0 scale-100' 
-          : 'opacity-0 -translate-y-4 scale-95'
+          ? 'opacity-100 scale-100' 
+          : 'opacity-0 scale-95'
         }
       `}>
         <div className="bg-white rounded-2xl shadow-2xl border border-gray-200 overflow-hidden">

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Zap } from 'lucide-react';
+import { Zap } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Card, CardContent } from '../ui/card';
@@ -139,11 +139,8 @@ export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
             >
             {/* Header */}
             <div className="modal-header">
-              <div className="flex items-center justify-between">
-                <h2 className="text-lg font-semibold">Place Prediction</h2>
-                <Button variant="ghost" size="icon" onClick={onClose}>
-                  <X size={20} />
-                </Button>
+              <div className="flex items-center justify-center">
+                <h2 className="text-lg font-semibold">Make Your Prediction</h2>
               </div>
             </div>
 
