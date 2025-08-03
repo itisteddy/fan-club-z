@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, CreditCard, Smartphone, Banknote } from 'lucide-react';
+import { X, Banknote } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Card, CardContent } from '../ui/card';
@@ -13,43 +13,21 @@ interface DepositModalProps {
   onClose: () => void;
 }
 
-const depositMethods = [
-  {
-    id: 'card',
-    name: 'Debit Card',
-    icon: CreditCard,
-    description: 'Instant deposit via card',
-    fee: '2.5%',
-  },
-  {
-    id: 'transfer',
-    name: 'Bank Transfer',
-    icon: Banknote,
-    description: 'Transfer from your bank',
-    fee: 'Free',
-  },
-  {
-    id: 'ussd',
-    name: 'USSD',
-    icon: Smartphone,
-    description: 'Dial *737# to deposit',
-    fee: '$5',
-  },
-];
+// Removed payment methods since using demo funds
 
 const quickAmounts = [500, 1000, 2500, 5000, 10000, 25000];
 
 export const DepositModal: React.FC<DepositModalProps> = ({ isOpen, onClose }) => {
   const [amount, setAmount] = useState<string>('');
-  const [selectedMethod, setSelectedMethod] = useState<string>('');
+  // Removed selectedMethod since no payment methods needed for demo
   const [isLoading, setIsLoading] = useState(false);
   
   const { deposit } = useWalletStore();
   const numAmount = parseFloat(amount) || 0;
 
   const handleDeposit = async () => {
-    if (!selectedMethod || !numAmount) {
-      toast.error('Please select a method and enter an amount');
+    if (!numAmount) {
+      toast.error('Please enter an amount');
       return;
     }
 
@@ -60,11 +38,10 @@ export const DepositModal: React.FC<DepositModalProps> = ({ isOpen, onClose }) =
 
     setIsLoading(true);
     try {
-      await deposit('USD', numAmount, selectedMethod);
-      toast.success('Deposit initiated successfully!');
+      await deposit('USD', numAmount, 'Demo Funds');
+      toast.success('Demo funds added successfully!');
       onClose();
       setAmount('');
-      setSelectedMethod('');
     } catch (error) {
       toast.error('Deposit failed. Please try again.');
     } finally {
@@ -159,46 +136,19 @@ export const DepositModal: React.FC<DepositModalProps> = ({ isOpen, onClose }) =
               </div>
             </div>
 
-            {/* Deposit Methods */}
-            <div>
-              <label className="block text-sm font-medium mb-3">Choose payment method:</label>
-              <div className="space-y-2">
-                {depositMethods.map((method) => {
-                  const Icon = method.icon;
-                  return (
-                    <Card
-                      key={method.id}
-                      className={`cursor-pointer transition-all ${
-                        selectedMethod === method.id
-                          ? 'border-primary bg-primary/5'
-                          : 'hover:border-muted-foreground/30'
-                      }`}
-                      onClick={() => setSelectedMethod(method.id)}
-                    >
-                      <CardContent className="p-4">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 bg-muted rounded-full flex items-center justify-center">
-                            <Icon size={20} />
-                          </div>
-                          <div className="flex-1">
-                            <div className="font-medium">{method.name}</div>
-                            <div className="text-sm text-muted-foreground">
-                              {method.description}
-                            </div>
-                          </div>
-                          <div className="text-sm font-medium text-primary">
-                            {method.fee}
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  );
-                })}
+            {/* Demo Funds Notice */}
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <div className="flex items-center gap-2 text-blue-800">
+                <Banknote size={20} />
+                <div className="font-medium">Demo Mode</div>
+              </div>
+              <div className="text-sm text-blue-700 mt-1">
+                You're using demo funds for testing. No real money will be charged.
               </div>
             </div>
 
             {/* Summary */}
-            {numAmount > 0 && selectedMethod && (
+            {numAmount > 0 && (
               <motion.div
                 initial={{ opacity: 0, height: 0 }}
                 animate={{ opacity: 1, height: 'auto' }}
@@ -207,26 +157,18 @@ export const DepositModal: React.FC<DepositModalProps> = ({ isOpen, onClose }) =
                   <CardContent className="p-4">
                     <div className="space-y-2 text-sm">
                       <div className="flex justify-between">
-                        <span>Amount:</span>
+                        <span>Demo Amount:</span>
                         <span className="font-medium">{formatCurrency(numAmount)}</span>
                       </div>
                       <div className="flex justify-between">
                         <span>Fee:</span>
-                        <span className="font-medium">
-                          {selectedMethod === 'card' ? formatCurrency(numAmount * 0.025) :
-                           selectedMethod === 'ussd' ? '$5' : 'Free'}
-                        </span>
+                        <span className="font-medium text-green-600">Free</span>
                       </div>
                       <hr className="border-primary/20" />
                       <div className="flex justify-between font-semibold">
-                        <span>Total to pay:</span>
+                        <span>Total Added:</span>
                         <span className="text-primary">
-                          {selectedMethod === 'card' 
-                            ? formatCurrency(numAmount + (numAmount * 0.025))
-                            : selectedMethod === 'ussd'
-                            ? formatCurrency(numAmount + 50)
-                            : formatCurrency(numAmount)
-                          }
+                          {formatCurrency(numAmount)}
                         </span>
                       </div>
                     </div>
@@ -240,11 +182,11 @@ export const DepositModal: React.FC<DepositModalProps> = ({ isOpen, onClose }) =
           <div className="sticky bottom-0 bg-background border-t border-border p-6">
             <Button
               onClick={handleDeposit}
-              disabled={!selectedMethod || !numAmount || numAmount < 100 || isLoading}
+              disabled={!numAmount || numAmount < 100 || isLoading}
               className="w-full"
               size="lg"
             >
-              {isLoading ? 'Processing...' : `Deposit ${formatCurrency(numAmount)}`}
+              {isLoading ? 'Adding Demo Funds...' : `Add ${formatCurrency(numAmount)} Demo Funds`}
             </Button>
           </div>
             </motion.div>
