@@ -9,6 +9,14 @@
     <!-- Favicon -->
     <link rel="icon" type="image/x-icon" href="/favicon.ico">
     
+    <!-- PWA Configuration -->
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#00D084">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="Fan Club Z">
+    <link rel="apple-touch-icon" href="/icon-192.png">
+    
     <!-- Open Graph -->
     <meta property="og:title" content="Fan Club Z - Where Fandom Becomes a Game">
     <meta property="og:description" content="Join the first social prediction platform built for fans, creators, and culture shapers. Predict anything from music to politics to viral memes.">
@@ -60,6 +68,8 @@
         
         html {
             scroll-behavior: smooth;
+            overflow-x: hidden;
+            max-width: 100vw;
         }
         
         body {
@@ -68,12 +78,51 @@
             color: var(--text-primary);
             background: var(--gradient-surface);
             overflow-x: hidden;
+            max-width: 100vw;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+        }
+        
+        /* Ensure all sections fit within viewport */
+        section, .container, .hero, .features, .download-section {
+            max-width: 100vw;
+            overflow-x: hidden;
+        }
+        
+        /* Responsive Typography */
+        h1 {
+            font-size: clamp(1.75rem, 5vw, 3.5rem);
+            line-height: 1.2;
+        }
+        
+        h2 {
+            font-size: clamp(1.5rem, 4vw, 2.5rem);
+            line-height: 1.3;
+        }
+        
+        h3 {
+            font-size: clamp(1.25rem, 3vw, 1.75rem);
+            line-height: 1.4;
+        }
+        
+        p {
+            font-size: clamp(0.875rem, 2vw, 1.125rem);
+            line-height: 1.6;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+        }
+        
+        /* Prevent horizontal scroll */
+        img, video, iframe, object, embed {
+            max-width: 100%;
+            height: auto;
         }
         
         .container {
             max-width: 1200px;
             margin: 0 auto;
-            padding: 0 24px;
+            padding: 0 clamp(16px, 4vw, 24px);
+            width: 100%;
         }
         
         /* Header */
@@ -801,6 +850,137 @@
             font-weight: 600;
         }
         
+        /* Coming Soon Badge for section headers */
+        .coming-soon-badge {
+            display: inline-block;
+            background: linear-gradient(135deg, #FF6B6B, #FF8E53);
+            color: white;
+            font-size: 12px;
+            font-weight: 700;
+            padding: 4px 12px;
+            border-radius: 16px;
+            margin-left: 12px;
+            vertical-align: top;
+            box-shadow: 0 2px 8px rgba(255, 107, 107, 0.3);
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+        
+        /* PWA Install Banner */
+        .pwa-install-banner {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            right: 20px;
+            max-width: 400px;
+            margin: 0 auto;
+            background: linear-gradient(135deg, #00D084, #00A86B);
+            color: white;
+            border-radius: 16px;
+            padding: 16px 20px;
+            box-shadow: 0 8px 32px rgba(0, 208, 132, 0.3);
+            z-index: 1000;
+            transform: translateY(100px);
+            opacity: 0;
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            backdrop-filter: blur(20px);
+        }
+        
+        .pwa-install-banner.show {
+            transform: translateY(0);
+            opacity: 1;
+        }
+        
+        .pwa-banner-content {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        .pwa-banner-icon {
+            width: 40px;
+            height: 40px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+        
+        .pwa-banner-text {
+            flex: 1;
+        }
+        
+        .pwa-banner-title {
+            font-weight: 700;
+            font-size: 14px;
+            margin-bottom: 2px;
+        }
+        
+        .pwa-banner-subtitle {
+            font-size: 12px;
+            opacity: 0.9;
+        }
+        
+        .pwa-banner-actions {
+            display: flex;
+            gap: 8px;
+            flex-shrink: 0;
+        }
+        
+        .pwa-banner-btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .pwa-banner-btn.primary {
+            background: white;
+            color: #00D084;
+        }
+        
+        .pwa-banner-btn.primary:hover {
+            background: rgba(255, 255, 255, 0.9);
+            transform: scale(1.02);
+        }
+        
+        .pwa-banner-btn.secondary {
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+        }
+        
+        .pwa-banner-btn.secondary:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+        
+        /* Mobile responsive */
+        @media (max-width: 768px) {
+            .pwa-install-banner {
+                left: 16px;
+                right: 16px;
+                bottom: 16px;
+            }
+            
+            .pwa-banner-actions {
+                flex-direction: column;
+                gap: 6px;
+            }
+            
+            .pwa-banner-btn {
+                padding: 6px 12px;
+                font-size: 11px;
+            }
+        }
+        
         /* Footer */
         .footer {
             background: #1a1a1a;
@@ -1054,8 +1234,8 @@
                         See How It Works
                     </a>
                 </div>
-            </div>
-        </div>
+                    </div>
+                    </div>
     </section>
 
     <!-- Problem → Solution Section -->
@@ -1074,14 +1254,14 @@
                         <li class="problem-item">Creators spark engagement daily but struggle to monetize spontaneous content.</li>
                         <li class="problem-item">Prediction platforms are stiff, cold, and disconnected from culture.</li>
                     </ul>
-                </div>
+                    </div>
 
                 <div class="fade-in stagger-2">
                     <h3 style="font-size: 24px; font-weight: 700; margin-bottom: 24px; color: var(--text-primary);">Our Solution</h3>
                     <p class="solution-text">
                         Fanclubz turns fandom into a live, rewarding game — blending predictions, competition, and creator-powered communities.
                     </p>
-                </div>
+                    </div>
 
                 <div class="value-prop fade-in stagger-3">
                     <span class="moment-icon">🎲</span>
@@ -1119,11 +1299,11 @@
                     </ul>
                     <div class="step-note">→ Predict anything from music to politics to viral memes.</div>
                 </div>
-
+                
                 <div class="step fade-in stagger-2">
                     <div class="step-header">
                         <div class="step-number">2</div>
-                        <h3 class="step-title">Play with XP or Points</h3>
+                        <h3 class="step-title">Play with XP or Points <span class="coming-soon-badge">Coming Soon</span></h3>
                     </div>
                     <div class="step-description">
                         Choose your stakes and join the conversation.
@@ -1133,7 +1313,7 @@
                         <li>Share predictions directly from chats or comments. (Comment-to-Predict)</li>
                     </ul>
                 </div>
-
+                
                 <div class="step fade-in stagger-3">
                     <div class="step-header">
                         <div class="step-number">3</div>
@@ -1174,7 +1354,7 @@
                     <div class="feature-title">
                         <i data-lucide="brain" width="24" height="24" style="color: var(--primary-green);"></i>
                         XP, Streaks & Badges: Compete and rise up the ranks
-                    </div>
+                </div>
                     <p class="feature-description">
                         Build your reputation through consistent accurate predictions and community engagement.
                     </p>
@@ -1194,7 +1374,7 @@
                     <div class="feature-title">
                         <i data-lucide="flame" width="24" height="24" style="color: var(--primary-green);"></i>
                         Social Feed + Chat: Reactions, comments, tribes
-                    </div>
+                </div>
                     <p class="feature-description">
                         Real-time conversations around predictions with reactions, comments, and community formation.
                     </p>
@@ -1214,7 +1394,7 @@
                     <div class="feature-title">
                         <i data-lucide="moon" width="24" height="24" style="color: var(--primary-green);"></i>
                         $FCZ Token (Soon): Power-ups, access, and ownership
-                    </div>
+                </div>
                     <p class="feature-description">
                         Future token integration for enhanced features, exclusive access, and community ownership.
                     </p>
@@ -1229,7 +1409,7 @@
             <div class="section-header">
                 <h2>For Fans & Creators</h2>
                 <p>Different experiences tailored to your role in the community</p>
-            </div>
+                    </div>
             
             <div class="comparison-table">
                 <div class="column fade-in stagger-1">
@@ -1248,8 +1428,8 @@
                         <li>Create fan clubs & monetize</li>
                         <li>Access dashboards & tools</li>
                     </ul>
+                    </div>
                 </div>
-            </div>
         </div>
     </section>
 
@@ -1259,7 +1439,7 @@
             <div class="section-header">
                 <h2>Real Moments</h2>
                 <p>The culture moments that drive our platform</p>
-            </div>
+                    </div>
             
             <div class="moments-list">
                 <div class="moment-item fade-in stagger-1">
@@ -1334,7 +1514,7 @@
             
             <div class="fade-in stagger-3">
                 <a href="#download" class="btn-primary" style="font-size: 18px; padding: 20px 40px;">
-                    <i data-lucide="play" width="24" height="24"></i>
+                <i data-lucide="play" width="24" height="24"></i>
                     Join Now
                 </a>
             </div>
@@ -1352,8 +1532,8 @@
             <div class="section-header">
                 <h2>Get Started Today</h2>
                 <p>Choose your preferred platform and start making predictions in minutes</p>
-            </div>
-            
+                </div>
+                
             <div class="download-grid">
                 <div class="download-card fade-in stagger-1">
                     <div class="download-icon">
@@ -1382,70 +1562,128 @@
                 <div class="download-card fade-in stagger-3">
                     <div class="download-icon">
                         <i data-lucide="tablet" width="40" height="40"></i>
-                    </div>
+                </div>
                     <h3>Android App</h3>
                     <p>Download from Google Play Store for the full mobile experience with Material Design.</p>
                     <a href="#" class="download-button coming-soon">
                         <i data-lucide="download" width="20" height="20"></i>
                         Google Play
                     </a>
-                </div>
+            </div>
             </div>
         </div>
     </section>
-
+            
     <!-- Footer -->
     <footer class="footer">
         <div class="container">
-            <div class="footer-content">
-                <div class="footer-section">
-                    <h4>Product</h4>
-                    <ul class="footer-links">
-                        <li><a href="#features">Features</a></li>
-                        <li><a href="#download">Download</a></li>
-                        <li><a href="/pricing">Pricing</a></li>
-                        <li><a href="/roadmap">Roadmap</a></li>
-                    </ul>
-                </div>
-                
-                <div class="footer-section">
-                    <h4>Company</h4>
-                    <ul class="footer-links">
-                        <li><a href="/about">About Us</a></li>
-                        <li><a href="/careers">Careers</a></li>
-                        <li><a href="/blog">Blog</a></li>
-                        <li><a href="/press">Press</a></li>
-                    </ul>
-                </div>
-                
-                <div class="footer-section">
-                    <h4>Support</h4>
-                    <ul class="footer-links">
-                        <li><a href="/help">Help Center</a></li>
-                        <li><a href="/contact">Contact</a></li>
-                        <li><a href="/community">Community</a></li>
-                        <li><a href="/status">Status</a></li>
-                    </ul>
-                </div>
-                
-                <div class="footer-section">
-                    <h4>Legal</h4>
-                    <ul class="footer-links">
-                        <li><a href="/privacy">Privacy Policy</a></li>
-                        <li><a href="/terms">Terms of Service</a></li>
-                        <li><a href="/security">Security</a></li>
-                        <li><a href="/compliance">Compliance</a></li>
-                    </ul>
-                </div>
-            </div>
-            
             <div class="footer-bottom">
                 <p>&copy; 2025 Fan Club Z. All rights reserved. Built with <i data-lucide="heart" width="16" height="16" style="color: #00D084; display: inline;"></i> for the prediction community.</p>
             </div>
         </div>
     </footer>
 
+    <!-- PWA Install Banner -->
+    <div id="pwa-install-banner" class="pwa-install-banner">
+        <div class="pwa-banner-content">
+            <div class="pwa-banner-icon">
+                <i data-lucide="smartphone" width="20" height="20"></i>
+            </div>
+            <div class="pwa-banner-text">
+                <div class="pwa-banner-title">Install Fan Club Z</div>
+                <div class="pwa-banner-subtitle">Get the app experience on your device</div>
+            </div>
+            <div class="pwa-banner-actions">
+                <button id="pwa-install-btn" class="pwa-banner-btn primary">Install</button>
+                <button id="pwa-dismiss-btn" class="pwa-banner-btn secondary">Maybe Later</button>
+            </div>
+        </div>
+    </div>
+
     <script>
+        // PWA Installation Logic
+        let deferredPrompt;
+        const installBanner = document.getElementById('pwa-install-banner');
+        const installBtn = document.getElementById('pwa-install-btn');
+        const dismissBtn = document.getElementById('pwa-dismiss-btn');
+        
+        // Listen for the beforeinstallprompt event
+        window.addEventListener('beforeinstallprompt', (e) => {
+            // Prevent Chrome 67 and earlier from automatically showing the prompt
+            e.preventDefault();
+            // Stash the event so it can be triggered later
+            deferredPrompt = e;
+            
+            // Show the install banner after 3 seconds if not dismissed
+            setTimeout(() => {
+                if (!localStorage.getItem('pwa-dismissed') && deferredPrompt) {
+                    showInstallBanner();
+                }
+            }, 3000);
+        });
+        
+        // Show install banner
+        function showInstallBanner() {
+            installBanner.classList.add('show');
+        }
+        
+        // Hide install banner
+        function hideInstallBanner() {
+            installBanner.classList.remove('show');
+        }
+        
+        // Install button click handler
+        installBtn.addEventListener('click', async () => {
+            if (deferredPrompt) {
+                // Show the install prompt
+                deferredPrompt.prompt();
+                // Wait for the user to respond to the prompt
+                const { outcome } = await deferredPrompt.userChoice;
+                console.log('PWA install outcome:', outcome);
+                
+                // Clear the deferredPrompt
+                deferredPrompt = null;
+                hideInstallBanner();
+            }
+        });
+        
+        // Dismiss button click handler
+        dismissBtn.addEventListener('click', () => {
+            hideInstallBanner();
+            localStorage.setItem('pwa-dismissed', 'true');
+        });
+        
+        // Listen for the app installed event
+        window.addEventListener('appinstalled', (evt) => {
+            console.log('PWA was installed');
+            hideInstallBanner();
+            localStorage.setItem('pwa-dismissed', 'true');
+        });
+        
+        // For iOS Safari - show custom install instructions
+        function isIOS() {
+            return /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+        }
+        
+        function isInStandaloneMode() {
+            return window.navigator.standalone === true;
+        }
+        
+        // Show iOS install instructions if appropriate
+        if (isIOS() && !isInStandaloneMode() && !localStorage.getItem('pwa-dismissed')) {
+            setTimeout(() => {
+                const banner = installBanner;
+                const text = banner.querySelector('.pwa-banner-subtitle');
+                text.textContent = 'Tap Share → Add to Home Screen';
+                installBtn.textContent = 'Got it';
+                installBtn.onclick = () => {
+                    hideInstallBanner();
+                    localStorage.setItem('pwa-dismissed', 'true');
+                };
+                showInstallBanner();
+            }, 3000);
+        }
+        
         // Smooth scrolling for anchor links
         document.querySelectorAll('a[href^="#"]').forEach(anchor => {
             anchor.addEventListener('click', function (e) {
@@ -1604,8 +1842,8 @@
                             this.innerHTML = originalContent;
                             lucide.createIcons();
                         }, 2000);
-                    });
-                }
+                });
+            }
             });
         });
     </script>
