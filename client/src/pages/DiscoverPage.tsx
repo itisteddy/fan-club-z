@@ -1,8 +1,9 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, TrendingUp, Heart, MessageCircle, Share2, Clock, User } from 'lucide-react';
+import { Search, TrendingUp, Heart, MessageCircle, Share2, Clock, User, X } from 'lucide-react';
 import { usePredictionStore } from '../store/predictionStore';
 import { useAuthStore } from '../store/authStore';
+import { useWalletStore } from '../stores/walletStore';
 import { scrollToTop } from '../utils/scroll';
 import { usePullToRefresh } from '../utils/pullToRefresh';
 import toast from 'react-hot-toast';
@@ -30,7 +31,7 @@ const MobileHeader: React.FC<{
         <div>
           <h1 className="text-2xl font-bold text-gray-900">
             Discover
-          </h1>
+        </h1>
         </div>
         <button 
           onClick={onNavigateToProfile}
@@ -71,8 +72,8 @@ const MobileHeader: React.FC<{
             <div className="text-green-100 text-xs font-medium uppercase tracking-wide">
               Active
             </div>
-          </div>
-          
+            </div>
+            
           <div className="text-center">
             <div className="text-white text-xl font-bold">
               ${stats.todayVolume.toLocaleString()}
@@ -92,8 +93,8 @@ const MobileHeader: React.FC<{
         className="relative"
       >
         <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-        <input
-          type="text"
+          <input
+            type="text"
           placeholder="Search predictions, categories..."
           value={searchQuery}
           onChange={(e) => onSearchChange(e.target.value)}
@@ -194,25 +195,25 @@ const PredictionCard: React.FC<{
             {prediction.creatorName || 'Fan Club Z'}
           </div>
           <div className="text-xs text-gray-500">2h ago</div>
-        </div>
+              </div>
         <div className="px-1.5 py-0.5 bg-green-50 text-green-700 text-xs font-medium rounded border border-green-200">
           {prediction.category || 'general'}
-        </div>
-      </div>
-
+              </div>
+            </div>
+            
       {/* Compact content */}
       <div className="mb-2">
         <h3 className="text-sm font-bold text-gray-900 mb-0.5 leading-tight line-clamp-2">
-          {prediction.title || 'Untitled Prediction'}
-        </h3>
-        
-        {prediction.description && (
+              {prediction.title || 'Untitled Prediction'}
+            </h3>
+            
+            {prediction.description && (
           <p className="text-gray-600 text-xs leading-tight line-clamp-1">
-            {prediction.description}
-          </p>
-        )}
-      </div>
-
+                {prediction.description}
+              </p>
+            )}
+          </div>
+          
       {/* Compact stats */}
       <div className="flex items-center justify-between py-1.5 border-t border-gray-100 mb-1.5">
         <div className="flex items-center gap-2">
@@ -226,26 +227,26 @@ const PredictionCard: React.FC<{
             {prediction.participantCount || 0} predictors
           </div>
         </div>
-        
+
         <div className="flex items-center gap-1 text-orange-500">
           <Clock className="w-3 h-3" />
           <span className="text-xs font-semibold">
             {getTimeRemaining(prediction.entry_deadline)}
           </span>
-        </div>
-      </div>
-
+            </div>
+          </div>
+          
       {/* Compact prediction options - Grid layout */}
       <div className="grid grid-cols-2 gap-1.5 mb-2">
-        {prediction.options.slice(0, 2).map((option: any, optionIndex: number) => {
-          const totalStaked = option.totalStaked || 0;
-          const poolTotal = prediction.poolTotal || 1;
-          const percentage = poolTotal > 0 ? Math.min((totalStaked / poolTotal * 100), 100) : 50;
-          const odds = totalStaked > 0 ? (poolTotal / totalStaked).toFixed(2) : '2.00';
-          
-          return (
-            <motion.button
-              key={option.id || optionIndex}
+          {prediction.options.slice(0, 2).map((option: any, optionIndex: number) => {
+            const totalStaked = option.totalStaked || 0;
+            const poolTotal = prediction.poolTotal || 1;
+            const percentage = poolTotal > 0 ? Math.min((totalStaked / poolTotal * 100), 100) : 50;
+            const odds = totalStaked > 0 ? (poolTotal / totalStaked).toFixed(2) : '2.00';
+            
+            return (
+              <motion.button
+                key={option.id || optionIndex}
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
               onClick={() => onPredict(prediction)}
@@ -254,16 +255,16 @@ const PredictionCard: React.FC<{
               <div className="text-center">
                 <div className="flex items-center justify-center gap-1 mb-1">
                   <div className={`w-1.5 h-1.5 rounded-full ${
-                    optionIndex === 0 ? 'bg-green-500' : 'bg-blue-500'
-                  }`} />
+                      optionIndex === 0 ? 'bg-green-500' : 'bg-blue-500'
+                    }`} />
                   <span className="font-medium text-xs text-gray-900 truncate">
-                    {option.label || `Option ${optionIndex + 1}`}
-                  </span>
-                </div>
-                
+                      {option.label || `Option ${optionIndex + 1}`}
+                    </span>
+                  </div>
+                  
                 <div className="text-sm font-bold text-gray-900">
                   {Math.round(percentage)}%
-                </div>
+                  </div>
                 <div className="text-xs text-gray-600">
                   {odds}x
                 </div>
@@ -279,11 +280,11 @@ const PredictionCard: React.FC<{
                     }`}
                   />
                 </div>
-              </div>
-            </motion.button>
-          );
-        })}
-      </div>
+                </div>
+              </motion.button>
+            );
+          })}
+        </div>
 
       {/* Compact engagement */}
       <div className="flex items-center justify-between pt-1.5 border-t border-gray-100">
@@ -304,35 +305,85 @@ const PredictionCard: React.FC<{
           >
             <MessageCircle className="w-3 h-3" />
             <span className="text-xs font-medium">{commentCount}</span>
-          </button>
-          
+            </button>
+            
           <button 
             onClick={handleShare}
             className="flex items-center gap-0.5 text-gray-600 hover:text-green-500 transition-colors"
           >
             <Share2 className="w-3 h-3" />
-          </button>
-        </div>
-        
-        <motion.button
+            </button>
+          </div>
+          
+          <motion.button
           whileHover={{ scale: 1.02 }}
           whileTap={{ scale: 0.98 }}
           onClick={() => onPredict(prediction)}
           className="px-3 py-1.5 bg-green-500 hover:bg-green-600 text-white font-medium rounded-md transition-colors text-xs"
-        >
-          Predict
-        </motion.button>
+          >
+            Predict
+          </motion.button>
       </div>
     </motion.div>
   );
 };
 
-// Simple modal for prediction placement (placeholder)
+// Enhanced staking modal for prediction placement
 const PredictionModal: React.FC<{
   prediction: any;
   isOpen: boolean;
   onClose: () => void;
 }> = ({ prediction, isOpen, onClose }) => {
+  const [selectedOptionId, setSelectedOptionId] = useState<string>('');
+  const [amount, setAmount] = useState<string>('');
+  const [isLoading, setIsLoading] = useState(false);
+  
+  const { getBalance, addFunds } = useWalletStore();
+  const usdBalance = getBalance('USD') || 2400; // Use wallet balance
+  const numAmount = parseFloat(amount) || 0;
+  const selectedOption = prediction?.options?.find((o: any) => o.id === selectedOptionId);
+  const potentialPayout = selectedOption ? numAmount * (selectedOption.current_odds || 2.0) : 0;
+  
+  const quickAmounts = [25, 50, 100, 250, 500, 1000];
+  
+  const handleSubmit = async () => {
+    if (!selectedOptionId) {
+      toast.error('Please select a prediction option');
+      return;
+    }
+    
+    if (!numAmount || numAmount < 1) {
+      toast.error('Please enter a valid stake amount');
+      return;
+    }
+    
+    if (numAmount > usdBalance) {
+      toast.error('Insufficient balance');
+      return;
+    }
+    
+    setIsLoading(true);
+    
+    try {
+      // Simulate API call
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      
+      // Deduct amount from wallet
+      addFunds('USD', -numAmount, `Prediction: ${prediction.title}`, 'prediction');
+      
+      toast.success(`Successfully placed $${numAmount} on "${selectedOption.label}"!`);
+      onClose();
+      
+      // Reset form
+      setSelectedOptionId('');
+      setAmount('');
+    } catch (error) {
+      toast.error('Failed to place prediction. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   if (!isOpen || !prediction) return null;
 
   return (
@@ -341,40 +392,165 @@ const PredictionModal: React.FC<{
         initial={{ opacity: 0, scale: 0.9 }}
         animate={{ opacity: 1, scale: 1 }}
         exit={{ opacity: 0, scale: 0.9 }}
-        className="bg-white rounded-xl p-6 max-w-md w-full"
+        className="bg-white rounded-xl max-w-md w-full max-h-[90vh] overflow-hidden"
       >
-        <h3 className="text-lg font-bold text-gray-900 mb-4">
-          Make Your Prediction
-        </h3>
-        
-        <p className="text-gray-600 mb-6">
-          {prediction.title}
-        </p>
-        
-        <div className="space-y-3 mb-6">
-          {prediction.options?.map((option: any, index: number) => (
+        {/* Header */}
+        <div className="p-6 border-b border-gray-100">
+          <div className="flex items-center justify-between">
+            <h3 className="text-lg font-bold text-gray-900">Make Your Prediction</h3>
             <button
-              key={option.id || index}
-              onClick={() => {
-                toast.success(`Predicted: ${option.label}`);
-                onClose();
-              }}
-              className="w-full p-3 bg-gray-50 hover:bg-green-50 border border-gray-200 hover:border-green-200 rounded-lg text-left transition-colors"
+              onClick={onClose}
+              className="text-gray-400 hover:text-gray-600 transition-colors"
             >
-              <div className="font-semibold text-gray-900">{option.label}</div>
-              <div className="text-sm text-gray-600">
-                Current odds: {(option.currentOdds || 2.0).toFixed(2)}x
-              </div>
+              <X size={20} />
             </button>
-          ))}
+          </div>
+          <p className="text-gray-600 mt-2 text-sm">{prediction.title}</p>
         </div>
         
-        <button
-          onClick={onClose}
-          className="w-full py-3 bg-gray-100 text-gray-700 rounded-lg font-medium hover:bg-gray-200 transition-colors"
-        >
-          Cancel
-        </button>
+        {/* Content */}
+        <div className="p-6 space-y-6 overflow-y-auto max-h-[50vh]">
+          {/* Option Selection */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-3">
+              Choose your prediction:
+            </label>
+            <div className="space-y-2">
+              {prediction.options?.map((option: any, index: number) => (
+                <button
+                  key={option.id || index}
+                  onClick={() => setSelectedOptionId(option.id || `option-${index}`)}
+                  className={`w-full p-3 border-2 rounded-lg text-left transition-all ${
+                    selectedOptionId === (option.id || `option-${index}`)
+                      ? 'border-green-500 bg-green-50'
+                      : 'border-gray-200 hover:border-gray-300'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="font-semibold text-gray-900">{option.label}</div>
+                      <div className="text-sm text-gray-600">
+                        Odds: {(option.current_odds || 2.0).toFixed(2)}x
+                      </div>
+                    </div>
+                    <div className={`w-4 h-4 rounded-full border-2 ${
+                      selectedOptionId === (option.id || `option-${index}`)
+                        ? 'border-green-500 bg-green-500'
+                        : 'border-gray-300'
+                    }`}>
+                      {selectedOptionId === (option.id || `option-${index}`) && (
+                        <div className="w-full h-full rounded-full bg-white scale-50"></div>
+                      )}
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+          
+          {/* Stake Amount */}
+          {selectedOptionId && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              className="space-y-4"
+            >
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Stake Amount
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
+                  <input
+                    type="number"
+                    placeholder="0"
+                    value={amount}
+                    onChange={(e) => setAmount(e.target.value)}
+                    className="w-full pl-8 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                    min="1"
+                    max={usdBalance}
+                  />
+                </div>
+                <div className="flex items-center justify-between text-xs text-gray-500 mt-1">
+                  <span>Min: $1</span>
+                  <span>Balance: ${usdBalance.toLocaleString()}</span>
+                </div>
+              </div>
+              
+              {/* Quick amounts */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Quick amounts:</label>
+                <div className="grid grid-cols-3 gap-2">
+                  {quickAmounts.map((quickAmount) => (
+                    <button
+                      key={quickAmount}
+                      onClick={() => setAmount(quickAmount.toString())}
+                      disabled={quickAmount > usdBalance}
+                      className={`py-2 px-3 rounded-lg text-sm font-medium transition-colors ${
+                        quickAmount > usdBalance
+                          ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      }`}
+                    >
+                      ${quickAmount}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              
+              {/* Potential payout */}
+              {numAmount > 0 && (
+                <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="text-sm text-gray-600">Potential return</div>
+                      <div className="text-lg font-bold text-green-600">
+                        ${potentialPayout.toFixed(2)}
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-sm text-gray-600">Profit</div>
+                      <div className={`font-semibold ${
+                        potentialPayout > numAmount ? 'text-green-600' : 'text-red-600'
+                      }`}>
+                        ${(potentialPayout - numAmount).toFixed(2)}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </motion.div>
+          )}
+        </div>
+        
+        {/* Footer */}
+        <div className="p-6 border-t border-gray-100 space-y-3">
+          <button
+            onClick={handleSubmit}
+            disabled={!selectedOptionId || !numAmount || numAmount > usdBalance || isLoading}
+            className={`w-full py-3 rounded-lg font-medium transition-colors ${
+              !selectedOptionId || !numAmount || numAmount > usdBalance || isLoading
+                ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                : 'bg-green-600 text-white hover:bg-green-700'
+            }`}
+          >
+            {isLoading ? (
+              <div className="flex items-center justify-center gap-2">
+                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                <span>Placing Bet...</span>
+              </div>
+            ) : (
+              `Place Bet${numAmount > 0 ? ` ($${numAmount})` : ''}`
+            )}
+          </button>
+          
+          <button
+            onClick={onClose}
+            className="w-full py-3 bg-gray-100 text-gray-700 rounded-lg font-medium hover:bg-gray-200 transition-colors"
+          >
+            Cancel
+          </button>
+        </div>
       </motion.div>
     </div>
   );
@@ -509,7 +685,7 @@ const DiscoverPage: React.FC<DiscoverPageProps> = ({ onNavigateToProfile }) => {
   }, []);
 
   if (loading && (!predictions || predictions.length === 0)) {
-    return (
+  return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
           <div className="w-8 h-8 border-2 border-green-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>

@@ -3,7 +3,7 @@ import ReactDOM from 'react-dom/client'
 import App from './App.tsx'
 import './index.css'
 
-console.log('🚀 Fan Club Z v2.0.14 - FIXED TIME CALCULATIONS')
+console.log('🚀 Fan Club Z v2.0.15 - FULL STAKING MODAL FUNCTIONALITY')
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
@@ -11,5 +11,5 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
   </React.StrictMode>,
 )
 
-console.log('✅ Fan Club Z v2.0.14 - Application started successfully');
+console.log('✅ Fan Club Z v2.0.15 - Application started successfully');
 console.log('🚀 Build timestamp:', new Date().toISOString());
