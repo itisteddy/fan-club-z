@@ -387,15 +387,24 @@ const PredictionModal: React.FC<{
   if (!isOpen || !prediction) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <motion.div
-        initial={{ opacity: 0, scale: 0.9 }}
-        animate={{ opacity: 1, scale: 1 }}
-        exit={{ opacity: 0, scale: 0.9 }}
-        className="bg-white rounded-xl max-w-md w-full max-h-[90vh] overflow-hidden"
+    <div 
+      className="fixed inset-0 bg-black bg-opacity-50 z-50 flex flex-col"
+      onClick={onClose}
+    >
+      {/* Safe area container to avoid bottom navigation */}
+      <div 
+        className="flex-1 flex items-center justify-center p-4 pb-24"
+        onClick={onClose}
       >
-        {/* Header */}
-        <div className="p-6 border-b border-gray-100">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0, scale: 0.9 }}
+          className="bg-white rounded-xl max-w-md w-full shadow-2xl flex flex-col max-h-[calc(100vh-8rem)]"
+          onClick={(e) => e.stopPropagation()}
+        >
+        {/* Fixed Header */}
+        <div className="p-6 border-b border-gray-100 flex-shrink-0">
           <div className="flex items-center justify-between">
             <h3 className="text-lg font-bold text-gray-900">Make Your Prediction</h3>
             <button
@@ -408,8 +417,9 @@ const PredictionModal: React.FC<{
           <p className="text-gray-600 mt-2 text-sm">{prediction.title}</p>
         </div>
         
-        {/* Content */}
-        <div className="p-6 space-y-6 overflow-y-auto max-h-[50vh]">
+        {/* Scrollable Content */}
+        <div className="flex-1 overflow-y-auto overscroll-contain">
+          <div className="p-6 space-y-6">
           {/* Option Selection */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-3">
@@ -521,10 +531,14 @@ const PredictionModal: React.FC<{
               )}
             </motion.div>
           )}
+          
+          {/* Extra bottom padding for scrolling */}
+          <div className="h-4"></div>
+          </div>
         </div>
         
-        {/* Footer */}
-        <div className="p-6 border-t border-gray-100 space-y-3">
+        {/* Fixed Footer with safe area */}
+        <div className="p-6 border-t border-gray-100 space-y-3 flex-shrink-0">
           <button
             onClick={handleSubmit}
             disabled={!selectedOptionId || !numAmount || numAmount > usdBalance || isLoading}
@@ -551,7 +565,8 @@ const PredictionModal: React.FC<{
             Cancel
           </button>
         </div>
-      </motion.div>
+        </motion.div>
+      </div>
     </div>
   );
 };
