@@ -760,3 +760,32 @@ textarea:focus-visible {
   font-size: 14px;
   color: #6b7280;
 }
+
+/* CATEGORY SCROLL FIX - Force horizontal scrolling */
+.category-filters-container {
+  overflow-x: auto !important;
+  overflow-y: hidden !important;
+  -webkit-overflow-scrolling: touch !important;
+  scroll-behavior: smooth !important;
+  /* Hide scrollbar but keep functionality */
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+}
+
+.category-filters-container::-webkit-scrollbar {
+  display: none !important;
+}
+
+.category-pill {
+  flex-shrink: 0 !important;
+  min-width: fit-content !important;
+  white-space: nowrap !important;
+}
+
+/* Ensure categories container doesn't wrap */
+.category-filters-flex {
+  display: flex !important;
+  flex-wrap: nowrap !important;
+  gap: 12px !important;
+  padding-bottom: 4px !important;
+}

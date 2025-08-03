@@ -193,14 +193,14 @@ const CategoryFilters: React.FC<{ selectedCategory: string; onSelect: (category:
 
   return (
     <div className="px-4 py-4 bg-white border-b border-gray-100">
-      <div className="flex gap-3 overflow-x-auto scrollbar-hide pb-1 -webkit-overflow-scrolling-touch" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+      <div className="category-filters-container category-filters-flex">
         {categories.map((category) => (
           <motion.button
             key={category.id}
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
             onClick={() => onSelect(category.id)}
-            className={`px-4 py-2.5 rounded-full whitespace-nowrap text-sm font-semibold transition-all flex items-center justify-center h-10 flex-shrink-0 ${
+            className={`category-pill px-4 py-2.5 rounded-full text-sm font-semibold transition-all flex items-center justify-center h-10 ${
               selectedCategory === category.id
                 ? `bg-gradient-to-r ${category.gradient} text-white shadow-lg`
                 : 'bg-gray-100 text-gray-700 hover:bg-gray-200'

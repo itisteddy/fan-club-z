@@ -53,8 +53,7 @@ const WalletPage: React.FC = () => {
   // Deposit form state
   const [depositForm, setDepositForm] = useState({
     amount: '',
-    currency: 'USD' as 'USD' | 'NGN' | 'USDT' | 'ETH',
-    method: 'bank_transfer'
+    currency: 'USD' as 'USD' | 'NGN' | 'USDT' | 'ETH'
   });
 
   // Withdrawal form state
@@ -133,17 +132,10 @@ const WalletPage: React.FC = () => {
         throw new Error('Maximum deposit amount is $100,000');
       }
 
-      const methods = {
-        bank_transfer: 'Bank Transfer',
-        card: 'Credit/Debit Card',
-        mobile_money: 'Mobile Money',
-        crypto: 'Cryptocurrency'
-      };
-
-      await addFunds(amount, depositForm.currency, methods[depositForm.method as keyof typeof methods]);
+      await addFunds(amount, depositForm.currency, 'Demo Funds');
       
       setShowDepositModal(false);
-              setDepositForm({ amount: '', currency: 'USD', method: 'bank_transfer' });
+      setDepositForm({ amount: '', currency: 'USD' });
     } catch (error) {
       // Error is handled by the store - do nothing as store will show notification
       console.error('Deposit error:', error);
@@ -721,39 +713,13 @@ const WalletPage: React.FC = () => {
                   </div>
                 </div>
 
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Payment Method</label>
-                  <div className="space-y-3">
-                    {[
-                      { id: 'bank_transfer', label: 'Bank Transfer', icon: Banknote, desc: 'Instant via bank transfer' },
-                      { id: 'card', label: 'Credit/Debit Card', icon: CreditCard, desc: 'Visa, Mastercard, Verve' },
-                      { id: 'mobile_money', label: 'Mobile Money', icon: Smartphone, desc: 'MTN, Airtel, 9mobile' }
-                    ].map((method) => {
-                      const Icon = method.icon;
-                      return (
-                        <button
-                          key={method.id}
-                          onClick={() => setDepositForm({ ...depositForm, method: method.id })}
-                          className={`w-full p-4 border-2 rounded-2xl text-left transition-all duration-200 ${
-                            depositForm.method === method.id
-                              ? 'border-green-300 bg-green-50'
-                              : 'border-gray-200 hover:border-green-300'
-                          }`}
-                        >
-                          <div className="flex items-center gap-3">
-                            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${
-                              depositForm.method === method.id ? 'bg-green-100' : 'bg-gray-100'
-                            }`}>
-                              <Icon size={24} className={depositForm.method === method.id ? 'text-green-600' : 'text-gray-600'} />
-                            </div>
-                            <div>
-                              <h4 className="font-semibold text-gray-900">{method.label}</h4>
-                              <p className="text-sm text-gray-600">{method.desc}</p>
-                            </div>
-                          </div>
-                        </button>
-                      );
-                    })}
+                <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4">
+                  <div className="flex items-center gap-3 text-blue-800">
+                    <Banknote size={24} />
+                    <div>
+                      <h4 className="font-semibold">Demo Mode</h4>
+                      <p className="text-sm text-blue-700">You're using demo funds for testing. No real money will be charged.</p>
+                    </div>
                   </div>
                 </div>
               </div>
