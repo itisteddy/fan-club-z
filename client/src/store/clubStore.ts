@@ -115,127 +115,70 @@ export const useClubStore = create<ClubStore>((set, get) => ({
     await new Promise(resolve => setTimeout(resolve, 300));
     
     try {
-      const queryParams = new URLSearchParams();
-      if (params.category) queryParams.append('category', params.category);
-      if (params.search) queryParams.append('search', params.search);
-      if (params.page) queryParams.append('page', params.page.toString());
-      queryParams.append('limit', '20');
-
-      const token = localStorage.getItem('token');
-      console.log('Fetching clubs with token:', token ? 'Present' : 'Missing');
-
-      const response = await fetch(`/api/v2/clubs?${queryParams}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-      });
-
-      console.log('Clubs fetch response:', response.status, response.statusText);
-
-      if (response.ok) {
-        const result = await response.json();
-        console.log('Clubs API response:', result);
-        
-        // Handle different response formats
-        let clubs = [];
-        if (result.data && Array.isArray(result.data)) {
-          clubs = result.data;
-        } else if (result.data && result.data.items && Array.isArray(result.data.items)) {
-          clubs = result.data.items;
-        } else if (Array.isArray(result)) {
-          clubs = result;
-        } else {
-          console.warn('Unexpected clubs response format:', result);
-          clubs = [];
-        }
-        
-        set({ 
-          clubs: params.page === 1 ? clubs : [...get().clubs, ...clubs],
-          hasMoreClubs: clubs.length === 20,
-          loading: false 
-        });
-      } else {
-        const errorData = await response.json().catch(() => ({ message: 'Failed to fetch clubs' }));
-        throw new Error(errorData.message || 'Failed to fetch clubs');
-      }
-    } catch (error) {
-      console.error('Error fetching clubs:', error);
+      console.log('🔄 Fetching clubs from Supabase with params:', params);
       
-      // Fallback to mock data for better user experience
-      console.log('Using fallback mock data for clubs');
-      const mockClubs = [
-        {
-          id: 'premier-league-predictions',
-          name: 'Premier League Predictions',
-          description: 'The ultimate destination for Premier League prediction contests and discussions.',
-          memberCount: 4370,
-          category: 'sports',
-          visibility: 'public' as const,
-          ownerId: 'mock-owner-1',
-          createdAt: new Date(),
-          updatedAt: new Date(),
-          isVerified: true,
-          isPopular: true,
-        },
-        {
-          id: 'crypto-trading-club',
-          name: 'Crypto Trading Club',
-          description: 'Predict cryptocurrency prices and market movements with fellow traders.',
-          memberCount: 2850,
-          category: 'crypto',
-          visibility: 'public' as const,
-          ownerId: 'mock-owner-2',
-          createdAt: new Date(),
-          updatedAt: new Date(),
-          isVerified: false,
-          isPopular: true,
-        },
-        {
-          id: 'entertainment-predictions',
-          name: 'Entertainment Predictions',
-          description: 'Movies, TV shows, celebrity news, and award show predictions.',
-          memberCount: 1940,
-          category: 'entertainment',
-          visibility: 'public' as const,
-          ownerId: 'mock-owner-3',
-          createdAt: new Date(),
-          updatedAt: new Date(),
-          isVerified: false,
-          isPopular: false,
-        },
-        {
-          id: 'nfl-fantasy-league',
-          name: 'NFL Fantasy League',
-          description: 'Fantasy football predictions and weekly matchup discussions.',
-          memberCount: 3210,
-          category: 'sports',
-          visibility: 'public' as const,
-          ownerId: 'mock-owner-4',
-          createdAt: new Date(),
-          updatedAt: new Date(),
-          isVerified: true,
-          isPopular: true,
-        },
-        {
-          id: 'tech-startup-predictions',
-          name: 'Tech Startup Predictions',
-          description: 'Predict which startups will succeed, get funding, or go public.',
-          memberCount: 890,
-          category: 'technology',
-          visibility: 'public' as const,
-          ownerId: 'mock-owner-5',
-          createdAt: new Date(),
-          updatedAt: new Date(),
-          isVerified: false,
-          isPopular: false,
-        }
-      ];
+      // Use Supabase instead of non-existent backend API
+      const { supabase } = await import('../lib/api');
+      
+      let query = supabase
+        .from('clubs')
+        .select(`
+          *,
+          owner:users!owner_id(username, avatar_url),
+          member_count:club_members(count)
+        `)
+        .eq('visibility', 'public')
+        .order('created_at', { ascending: false });
+
+      // Apply category filter
+      if (params.category && params.category !== 'all') {
+        query = query.eq('category', params.category);
+      }
+
+      // Apply search filter
+      if (params.search) {
+        query = query.or(`name.ilike.%${params.search}%,description.ilike.%${params.search}%`);
+      }
+
+      // Apply pagination
+      const limit = 20;
+      const offset = params.page ? (params.page - 1) * limit : 0;
+      query = query.range(offset, offset + limit - 1);
+
+      const { data: clubs, error } = await query;
+
+      if (error) {
+        console.error('❌ Supabase clubs error:', error);
+        throw error;
+      }
+
+      console.log('✅ Clubs fetched from Supabase:', clubs?.length || 0, 'clubs');
+      
+      // Transform Supabase data to expected format
+      const transformedClubs = (clubs || []).map(club => ({
+        id: club.id,
+        name: club.name,
+        description: club.description,
+        memberCount: club.member_count?.[0]?.count || 0,
+        category: club.category,
+        visibility: club.visibility,
+        ownerId: club.owner_id,
+        createdAt: new Date(club.created_at),
+        updatedAt: new Date(club.updated_at),
+        owner: club.owner,
+        isVerified: club.id === 'premier-league-predictions' || club.id === 'crypto-trading-club',
+        isPopular: club.id === 'premier-league-predictions' || club.id === 'crypto-trading-club' || club.id === 'nfl-fantasy-league'
+      }));
       
       set({ 
-        clubs: mockClubs,
-        hasMoreClubs: false,
-        error: null, // Clear error since we have fallback data
+        clubs: params.page === 1 ? transformedClubs : [...get().clubs, ...transformedClubs],
+        hasMoreClubs: transformedClubs.length === limit,
+        loading: false 
+      });
+    } catch (error) {
+      console.error('❌ Error fetching clubs from Supabase:', error);
+      set({ 
+        error: error instanceof Error ? error.message : 'Failed to fetch clubs',
         loading: false 
       });
     }

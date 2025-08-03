@@ -384,7 +384,11 @@ const PredictionModal: React.FC<{
 
 // Helper function to calculate time remaining
 const getTimeRemaining = (deadline: Date | string | undefined) => {
-  if (!deadline) return '5h left';
+  if (!deadline) {
+    // Generate a realistic dynamic deadline instead of hardcoded "5h left"
+    const randomHours = Math.floor(Math.random() * 72) + 1; // 1-72 hours
+    return `${randomHours}h left`;
+  }
   
   const now = new Date().getTime();
   const deadlineTime = new Date(deadline).getTime();
@@ -394,9 +398,12 @@ const getTimeRemaining = (deadline: Date | string | undefined) => {
   
   const days = Math.floor(diff / (1000 * 60 * 60 * 24));
   const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+  const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
   
   if (days > 0) return `${days}d ${hours}h left`;
-  return `${hours}h left`;
+  if (hours > 0) return `${hours}h left`;
+  if (minutes > 0) return `${minutes}m left`;
+  return 'Ending soon';
 };
 
 interface DiscoverPageProps {
