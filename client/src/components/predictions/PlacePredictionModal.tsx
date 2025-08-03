@@ -45,7 +45,7 @@ export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
   const { getBalance, makePrediction } = useWalletStore();
   const { placePrediction } = usePredictionStore();
 
-  const usdBalance = getBalance('NGN') || 2500; // Default for demo
+  const usdBalance = getBalance('USD') || 2500; // Default for demo
   const numAmount = parseFloat(amount) || 0;
   const selectedOption = prediction.options.find(o => o.id === selectedOptionId);
   const potentialPayout = selectedOption ? calculatePotentialPayout(numAmount, selectedOption.currentOdds) : 0;
@@ -81,7 +81,7 @@ export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
     setIsLoading(true);
     try {
       // Use wallet store to make prediction
-      await makePrediction(numAmount, `Prediction on: ${prediction.title}`, prediction.id, 'NGN');
+      await makePrediction(numAmount, `Prediction on: ${prediction.title}`, prediction.id, 'USD');
       
       // Also update the predictions store
       await placePrediction(prediction.id, selectedOptionId, numAmount);
@@ -216,7 +216,7 @@ export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
                       </label>
                       <div className="relative">
                         <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">
-                          ₦
+                          $
                         </span>
                         <Input
                           type="number"
@@ -253,7 +253,7 @@ export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
                             disabled={quickAmount > usdBalance}
                             className="text-sm"
                           >
-                            ₦{quickAmount}
+                            ${quickAmount}
                           </Button>
                         ))}
                       </div>

@@ -59,7 +59,7 @@ const MobileHeader: React.FC<{
         <div className="grid grid-cols-3 gap-4">
           <div className="text-center">
             <div className="text-white text-xl font-bold">
-              ₦{stats.totalVolume.toLocaleString()}
+              ${stats.totalVolume.toLocaleString()}
             </div>
             <div className="text-green-100 text-xs font-medium uppercase tracking-wide">
               Total Volume
@@ -77,7 +77,7 @@ const MobileHeader: React.FC<{
             
           <div className="text-center">
             <div className="text-white text-xl font-bold">
-              ₦{stats.todayVolume.toLocaleString()}
+              ${stats.todayVolume.toLocaleString()}
             </div>
             <div className="text-green-100 text-xs font-medium uppercase tracking-wide">
               Today
@@ -122,14 +122,14 @@ const CategoryFilters: React.FC<{ selectedCategory: string; onSelect: (category:
 
   return (
     <div className="px-4 py-4 bg-white border-b border-gray-100">
-      <div className="flex gap-3 overflow-x-auto scrollbar-hide">
+      <div className="flex gap-3 overflow-x-auto scrollbar-hide pb-1" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
         {categories.map((category) => (
           <motion.button
             key={category.id}
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
             onClick={() => onSelect(category.id)}
-            className={`category-pill px-4 py-2.5 rounded-full whitespace-nowrap text-sm font-semibold transition-all flex items-center justify-center h-10 min-w-max ${
+            className={`category-pill px-4 py-2.5 rounded-full whitespace-nowrap text-sm font-semibold transition-all flex items-center justify-center h-10 flex-shrink-0 ${
               selectedCategory === category.id
                 ? `bg-gradient-to-r ${category.gradient} text-white shadow-lg`
                 : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
@@ -221,7 +221,7 @@ const PredictionCard: React.FC<{
           <div className="flex items-center gap-1">
             <div className="w-1 h-1 bg-green-500 rounded-full" />
             <span className="text-sm font-bold text-gray-900">
-              ₦{(prediction.poolTotal || 0).toLocaleString()}
+              ${(prediction.poolTotal || 0).toLocaleString()}
             </span>
           </div>
           <div className="text-xs text-gray-600">
@@ -340,7 +340,7 @@ const PredictionModal: React.FC<{
   const [isLoading, setIsLoading] = useState(false);
   
   const { getBalance, makePrediction } = useWalletStore();
-  const usdBalance = getBalance('NGN') || 2500; // Use NGN wallet balance
+  const usdBalance = getBalance('USD') || 2500; // Use USD wallet balance
   const numAmount = parseFloat(amount) || 0;
   const selectedOption = prediction?.options?.find((o: any) => o.id === selectedOptionId);
   const potentialPayout = selectedOption ? numAmount * (selectedOption.current_odds || 2.0) : 0;
@@ -370,9 +370,9 @@ const PredictionModal: React.FC<{
       await new Promise(resolve => setTimeout(resolve, 1500));
       
       // Make prediction and deduct from wallet
-      await makePrediction(numAmount, `Prediction: ${selectedOption.label}`, prediction.id, 'NGN');
+      await makePrediction(numAmount, `Prediction: ${selectedOption.label}`, prediction.id, 'USD');
       
-      toast.success(`Successfully placed ₦${numAmount.toLocaleString()} on "${selectedOption.label}"!`);
+      toast.success(`Successfully placed $${numAmount.toLocaleString()} on "${selectedOption.label}"!`);
       onClose();
       
       // Reset form
@@ -471,7 +471,7 @@ const PredictionModal: React.FC<{
                   Stake Amount
                 </label>
                 <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">₦</span>
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
                   <input
                     type="number"
                     placeholder="0"
@@ -483,8 +483,8 @@ const PredictionModal: React.FC<{
                   />
                 </div>
                 <div className="flex items-center justify-between text-xs text-gray-500 mt-1">
-                  <span>Min: ₦1</span>
-                  <span>Balance: ₦{usdBalance.toLocaleString()}</span>
+                                  <span>Min: $1</span>
+                <span>Balance: ${usdBalance.toLocaleString()}</span>
                 </div>
               </div>
               
@@ -503,7 +503,7 @@ const PredictionModal: React.FC<{
                           : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                       }`}
                     >
-                      ₦{quickAmount}
+                      ${quickAmount}
                     </button>
                   ))}
                 </div>
@@ -516,7 +516,7 @@ const PredictionModal: React.FC<{
                     <div>
                       <div className="text-sm text-gray-600">Potential return</div>
                       <div className="text-lg font-bold text-green-600">
-                        ₦{potentialPayout.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        ${potentialPayout.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </div>
                     </div>
                     <div className="text-right">
@@ -524,7 +524,7 @@ const PredictionModal: React.FC<{
                       <div className={`font-semibold ${
                         potentialPayout > numAmount ? 'text-green-600' : 'text-red-600'
                       }`}>
-                        ₦{(potentialPayout - numAmount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        ${(potentialPayout - numAmount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </div>
                     </div>
                   </div>
@@ -555,7 +555,7 @@ const PredictionModal: React.FC<{
                 <span>Placing Bet...</span>
               </div>
             ) : (
-              `Place Bet${numAmount > 0 ? ` (₦${numAmount.toLocaleString()})` : ''}`
+                              `Place Bet${numAmount > 0 ? ` ($${numAmount.toLocaleString()})` : ''}`
             )}
           </button>
           
