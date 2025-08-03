@@ -34,9 +34,10 @@ const TopUpdateToast: React.FC<TopUpdateToastProps> = ({
         ${isVisible && !isAnimatingOut ? 'opacity-100' : 'opacity-0'}
       `} />
       
-      {/* Toast notification */}
+      {/* Toast notification - Fixed positioning and sizing */}
       <div className={`
-        fixed top-16 left-1/2 transform -translate-x-1/2 z-50 max-w-sm w-full mx-4
+        fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-50 
+        max-w-sm w-full mx-4 max-h-[90vh] overflow-y-auto
         transition-all duration-300 ease-out
         ${isVisible && !isAnimatingOut 
           ? 'opacity-100 translate-y-0 scale-100' 
@@ -86,14 +87,14 @@ const TopUpdateToast: React.FC<TopUpdateToastProps> = ({
             <div className="flex space-x-3">
               <button
                 onClick={handleUpdate}
-                className="flex-1 bg-green-600 text-white py-3 px-4 rounded-xl font-semibold text-sm hover:bg-green-700 active:bg-green-800 transition-colors flex items-center justify-center space-x-2 shadow-lg"
+                className="flex-[2] bg-green-600 text-white py-3 px-4 rounded-xl font-semibold text-sm hover:bg-green-700 active:bg-green-800 transition-colors flex items-center justify-center space-x-2 shadow-lg"
               >
                 <RefreshCw className="w-4 h-4" />
                 <span>Update Now</span>
               </button>
               <button
                 onClick={handleDismiss}
-                className="px-4 py-3 text-gray-600 hover:text-gray-800 transition-colors text-sm font-medium hover:bg-gray-50 rounded-xl"
+                className="flex-1 py-3 px-4 text-gray-600 hover:text-gray-800 transition-colors text-sm font-medium hover:bg-gray-50 rounded-xl border border-gray-200"
               >
                 Later
               </button>
