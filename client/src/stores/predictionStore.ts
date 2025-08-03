@@ -118,7 +118,7 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
           stake_min: 10,
           stake_max: 1000,
           pool_total: 0,
-          entry_deadline: new Date(Date.now() + 5 * 60 * 60 * 1000).toISOString(), // 5 hours from now
+          entry_deadline: new Date('2025-08-04T01:00:00Z').toISOString(), // Fixed deadline for consistent display
           settlement_method: 'manual' as const,
           is_private: false,
           creator_fee_percentage: 2.5,
@@ -160,7 +160,7 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
           stake_min: 25,
           stake_max: 5000,
           pool_total: 12500,
-          entry_deadline: new Date(Date.now() + 18 * 60 * 60 * 1000).toISOString(), // 18 hours from now
+          entry_deadline: new Date('2025-08-04T10:00:00Z').toISOString(), // Fixed deadline for consistent display
           settlement_method: 'auto' as const,
           is_private: false,
           creator_fee_percentage: 1.0,
@@ -209,7 +209,7 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
           stake_min: 50,
           stake_max: 10000,
           pool_total: 28900,
-          entry_deadline: new Date(Date.now() + 72 * 60 * 60 * 1000).toISOString(), // 3 days from now
+          entry_deadline: new Date('2025-08-06T18:00:00Z').toISOString(), // Fixed deadline for consistent display
           settlement_method: 'auto' as const,
           is_private: false,
           creator_fee_percentage: 2.0,

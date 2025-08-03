@@ -230,7 +230,7 @@ const PredictionCard: React.FC<{
         <div className="flex items-center gap-1 text-orange-500">
           <Clock className="w-3 h-3" />
           <span className="text-xs font-semibold">
-            {getTimeRemaining(prediction.entryDeadline)}
+            {getTimeRemaining(prediction.entry_deadline)}
           </span>
         </div>
       </div>
@@ -383,9 +383,8 @@ const PredictionModal: React.FC<{
 // Helper function to calculate time remaining
 const getTimeRemaining = (deadline: Date | string | undefined) => {
   if (!deadline) {
-    // Generate a realistic dynamic deadline instead of hardcoded "5h left"
-    const randomHours = Math.floor(Math.random() * 72) + 1; // 1-72 hours
-    return `${randomHours}h left`;
+    // Return consistent fallback when deadline is missing
+    return 'No deadline';
   }
   
   const now = new Date().getTime();
