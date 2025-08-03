@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import PWAInstallBanner from './PWAInstallBanner';
 import IOSInstallModal from './IOSInstallModal';
 import SmartInstallPrompt from './SmartInstallPrompt';
+import TopUpdateToast from './TopUpdateToast';
 import { pwaManager } from '../utils/pwa';
 
 const PWAInstallManager: React.FC = () => {
@@ -120,42 +121,16 @@ const PWAInstallManager: React.FC = () => {
         onClose={() => setShowIOSModal(false)} 
       />
       
-      {/* Update Notification - Shows when new version is available */}
-      {showUpdateNotification && (
-        <div className="fixed bottom-4 left-4 right-4 z-50 max-w-md mx-auto">
-          <div className="bg-white rounded-xl shadow-2xl border border-gray-200 p-4 animate-in slide-in-from-bottom duration-300">
-            <div className="flex items-start space-x-3">
-              <div className="flex-shrink-0 w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
-                <svg className="w-5 h-5 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clipRule="evenodd" />
-                </svg>
-              </div>
-              <div className="flex-1">
-                <h3 className="text-sm font-semibold text-gray-900 mb-1">
-                  Update Available
-                </h3>
-                <p className="text-sm text-gray-600 mb-3">
-                  A new version of Fan Club Z is ready with improvements and bug fixes.
-                </p>
-                <div className="flex space-x-2">
-                  <button
-                    onClick={handleUpdateApp}
-                    className="text-sm bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors font-medium"
-                  >
-                    Update Now
-                  </button>
-                  <button
-                    onClick={dismissUpdate}
-                    className="text-sm text-gray-500 hover:text-gray-700 transition-colors px-3 py-2"
-                  >
-                    Later
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* 
+        Update Notification - Top-centered toast with backdrop
+        Positioned to be highly visible without interfering with bottom navigation
+        Uses green brand color to match app theme
+      */}
+      <TopUpdateToast
+        isVisible={showUpdateNotification}
+        onUpdate={handleUpdateApp}
+        onDismiss={dismissUpdate}
+      />
     </>
   );
 };

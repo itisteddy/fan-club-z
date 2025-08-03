@@ -62,8 +62,20 @@ class NavigationHistory {
 
 // Main App Component
 function App() {
-  const [activeTab, setActiveTab] = useState('discover');
-  const [navigationHistory] = useState(new NavigationHistory());
+  // Persist current tab in localStorage to maintain state on refresh
+  const [activeTab, setActiveTab] = useState(() => {
+    const savedTab = localStorage.getItem('fanclubz-current-tab');
+    return savedTab || 'discover';
+  });
+  const [navigationHistory] = useState(() => {
+    const history = new NavigationHistory();
+    // Initialize with the persisted tab if available
+    const savedTab = localStorage.getItem('fanclubz-current-tab');
+    if (savedTab && savedTab !== 'discover') {
+      history.push(savedTab);
+    }
+    return history;
+  });
   const { initializeWallet } = useWalletStore();
   const { initializeAuth, isAuthenticated, loading, initialized } = useAuthStore();
 
@@ -88,6 +100,8 @@ function App() {
   const handleTabChange = (tab: string) => {
     navigationHistory.push(tab);
     setActiveTab(tab);
+    // Persist current tab for refresh navigation
+    localStorage.setItem('fanclubz-current-tab', tab);
     // Scroll to top when changing tabs (UI/UX best practice)
     scrollToTop({ delay: 100 });
   };

@@ -137,8 +137,48 @@ export const useWalletStore = create<WalletState>()(
 
       initializeWallet: () => {
         const state = get();
-        // No initial demo transactions - users start with empty wallet
-        // They need to deposit real money to get started
+        console.log('🔧 Initializing wallet with state:', state);
+        
+        // Ensure demo mode has proper balance and demo transactions
+        if (state.isDemoMode && state.transactions.length === 0) {
+          console.log('📊 Setting up demo transactions...');
+          const demoTransactions = [
+            {
+              id: 'demo_deposit_1',
+              type: 'deposit' as const,
+              amount: 2500,
+              description: 'Welcome Bonus (Demo)',
+              date: new Date(Date.now() - 24 * 60 * 60 * 1000), // Yesterday
+              status: 'completed' as const,
+              reference: 'DEMO_WB_001',
+              currency: 'USD' as const,
+              fee: 0
+            },
+            {
+              id: 'demo_prediction_1',
+              type: 'prediction' as const,
+              amount: 100,
+              description: 'Prediction: Premier League Match (Demo)',
+              date: new Date(Date.now() - 2 * 60 * 60 * 1000), // 2 hours ago
+              status: 'completed' as const,
+              reference: 'DEMO_PRED_001',
+              currency: 'USD' as const,
+              fee: 0,
+              predictionId: 'demo-prediction-1'
+            }
+          ];
+          
+          set({ 
+            transactions: demoTransactions,
+            balances: [
+              { currency: 'USD', available: 2400, reserved: 100, total: 2500 },
+              { currency: 'NGN', available: 0, reserved: 0, total: 0 },
+              { currency: 'USDT', available: 0, reserved: 0, total: 0 },
+              { currency: 'ETH', available: 0, reserved: 0, total: 0 },
+            ]
+          });
+          console.log('✅ Demo wallet initialized with $2400 available, $100 reserved');
+        }
       },
 
       setDemoMode: (isDemoMode: boolean) => {

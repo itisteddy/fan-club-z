@@ -141,9 +141,28 @@
 /* Update notification styles */
 .pwa-update-notification {
   background: linear-gradient(135deg, #3B82F6, #1D4ED8);
-  border-radius: 12px;
+  border-radius: 16px;
   box-shadow: 0 10px 25px rgba(59, 130, 246, 0.3);
-  animation: slideUp 0.3s ease-out;
+  animation: slideInFromTop 0.3s ease-out;
+  /* Ensure it appears above other content */
+  z-index: 60;
+}
+
+/* Top positioned notifications */
+.notification-top {
+  position: fixed;
+  top: 80px; /* Below typical header */
+  left: 16px;
+  right: 16px;
+  max-width: 400px;
+  margin: 0 auto;
+  z-index: 60;
+}
+
+/* Safe positioning that avoids bottom navigation */
+.notification-safe-position {
+  /* Ensure notification doesn't overlap with bottom nav (64px + safe area) */
+  bottom: calc(64px + env(safe-area-inset-bottom, 16px) + 16px);
 }
 
 /* Safe area adjustments for PWA */
