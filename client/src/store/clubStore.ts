@@ -227,57 +227,83 @@ export const useClubStore = create<ClubStore>((set, get) => ({
     set({ loading: true, error: null });
     
     try {
-      const token = localStorage.getItem('token');
-      console.log('Joining club:', clubId, 'with token:', token ? 'Present' : 'Missing');
+      console.log('🔄 Joining club via Supabase:', clubId);
       
-      const requestUrl = `/api/v2/clubs/${clubId}/join`;
-      console.log('Join club request URL:', requestUrl);
+      // Use Supabase instead of missing backend API
+      const { supabase } = await import('../lib/api');
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (!user) {
+        throw new Error('User not authenticated');
+      }
 
-      const response = await fetch(requestUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify({ password }),
-      });
+      // Check if user is already a member
+      const { data: existingMembership } = await supabase
+        .from('club_members')
+        .select('*')
+        .eq('club_id', clubId)
+        .eq('user_id', user.id)
+        .single();
 
-      console.log('Join club response:', response.status, response.statusText);
-
-      if (response.ok) {
-        const result = await response.json();
-        console.log('Join club success:', result);
-        
-        // Update current club membership status immediately
+      if (existingMembership) {
+        console.log('✅ User already a member of club');
+        // Update current club membership status
         const currentClub = get().currentClub;
         if (currentClub && currentClub.id === clubId) {
           set({ 
             currentClub: { 
               ...currentClub, 
               isMember: true, 
-              memberRole: 'member',
-              memberCount: (currentClub.memberCount || 0) + 1
+              memberRole: existingMembership.role || 'member'
             },
             loading: false
           });
-        } else {
-          set({ loading: false });
         }
-        
         return true;
-      } else {
-        const errorData = await response.json().catch(() => ({ message: 'Failed to join club' }));
-        console.error('Join club error response:', errorData);
-        throw new Error(errorData.message || 'Failed to join club');
       }
+
+      // Add user to club
+      const { error: joinError } = await supabase
+        .from('club_members')
+        .insert({
+          club_id: clubId,
+          user_id: user.id,
+          role: 'member',
+          joined_at: new Date().toISOString()
+        });
+
+      if (joinError) {
+        console.error('❌ Supabase join error:', joinError);
+        throw new Error(joinError.message || 'Failed to join club');
+      }
+
+      console.log('✅ Successfully joined club via Supabase');
+      
+      // Update current club membership status immediately
+      const currentClub = get().currentClub;
+      if (currentClub && currentClub.id === clubId) {
+        set({ 
+          currentClub: { 
+            ...currentClub, 
+            isMember: true, 
+            memberRole: 'member',
+            memberCount: (currentClub.memberCount || 0) + 1
+          },
+          loading: false
+        });
+      } else {
+        set({ loading: false });
+      }
+      
+      return true;
     } catch (error) {
-      console.error('Error joining club:', error);
+      console.error('❌ Error joining club:', error);
       const errorMessage = error instanceof Error ? error.message : 'Failed to join club';
       set({ 
         error: errorMessage,
         loading: false 
       });
-      throw new Error(errorMessage); // Re-throw to allow component to handle
+      return false; // Don't throw, return false for better UX
     }
   },
 
@@ -286,41 +312,47 @@ export const useClubStore = create<ClubStore>((set, get) => ({
     set({ loading: true, error: null });
     
     try {
-      const token = localStorage.getItem('token');
-      console.log('Leaving club:', clubId, 'with token:', token ? 'Present' : 'Missing');
-
-      const response = await fetch(`/api/v2/clubs/${clubId}/leave`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-      });
-
-      console.log('Leave club response:', response.status, response.statusText);
-
-      if (response.ok) {
-        // Update current club membership status
-        const currentClub = get().currentClub;
-        if (currentClub && currentClub.id === clubId) {
-          set({ 
-            currentClub: { 
-              ...currentClub, 
-              isMember: false, 
-              memberRole: null,
-              memberCount: Math.max((currentClub.memberCount || 1) - 1, 0)
-            }
-          });
-        }
-        
-        set({ loading: false });
-        return true;
-      } else {
-        const errorData = await response.json().catch(() => ({ message: 'Failed to leave club' }));
-        throw new Error(errorData.message || 'Failed to leave club');
+      console.log('🔄 Leaving club via Supabase:', clubId);
+      
+      // Use Supabase instead of missing backend API
+      const { supabase } = await import('../lib/api');
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (!user) {
+        throw new Error('User not authenticated');
       }
+
+      // Remove user from club
+      const { error: leaveError } = await supabase
+        .from('club_members')
+        .delete()
+        .eq('club_id', clubId)
+        .eq('user_id', user.id);
+
+      if (leaveError) {
+        console.error('❌ Supabase leave error:', leaveError);
+        throw new Error(leaveError.message || 'Failed to leave club');
+      }
+
+      console.log('✅ Successfully left club via Supabase');
+
+      // Update current club membership status
+      const currentClub = get().currentClub;
+      if (currentClub && currentClub.id === clubId) {
+        set({ 
+          currentClub: { 
+            ...currentClub, 
+            isMember: false, 
+            memberRole: null,
+            memberCount: Math.max((currentClub.memberCount || 1) - 1, 0)
+          }
+        });
+      }
+      
+      set({ loading: false });
+      return true;
     } catch (error) {
-      console.error('Error leaving club:', error);
+      console.error('❌ Error leaving club:', error);
       set({ 
         error: error instanceof Error ? error.message : 'Unknown error',
         loading: false 
