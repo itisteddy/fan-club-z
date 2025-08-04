@@ -153,8 +153,8 @@ const PredictionCard: React.FC<{
   onShare: (prediction: any) => void;
 }> = ({ prediction, index, onPredict, onLike, onComment, onShare }) => {
   const [isLiked, setIsLiked] = useState(false);
-  const [likeCount, setLikeCount] = useState(24);
-  const [commentCount, setCommentCount] = useState(12);
+  const [likeCount, setLikeCount] = useState(prediction.likes_count || 24);
+  const [commentCount, setCommentCount] = useState(prediction.comments_count || 12);
 
   if (!prediction || !prediction.options || prediction.options.length === 0) {
     return null;
@@ -187,12 +187,12 @@ const PredictionCard: React.FC<{
       <div className="flex items-center gap-2 mb-1.5">
         <div className="w-6 h-6 bg-gradient-to-br from-green-400 to-green-600 rounded-md flex items-center justify-center">
           <span className="text-white font-bold text-xs">
-            {prediction.creatorName?.charAt(0) || 'FC'}
+            {prediction.creator?.username?.charAt(0) || prediction.creatorName?.charAt(0) || 'FC'}
           </span>
         </div>
         <div className="flex-1 min-w-0">
           <div className="text-xs font-medium text-gray-900 truncate">
-            {prediction.creatorName || 'Fan Club Z'}
+            {prediction.creator?.username || prediction.creatorName || 'Fan Club Z'}
           </div>
           <div className="text-xs text-gray-500">2h ago</div>
               </div>
@@ -236,55 +236,173 @@ const PredictionCard: React.FC<{
             </div>
           </div>
           
-      {/* Compact prediction options - Grid layout */}
-      <div className="grid grid-cols-2 gap-1.5 mb-2">
-          {prediction.options.slice(0, 2).map((option: any, optionIndex: number) => {
-            const totalStaked = option.totalStaked || 0;
-            const poolTotal = prediction.poolTotal || 1;
-            const percentage = poolTotal > 0 ? Math.min((totalStaked / poolTotal * 100), 100) : 50;
-            const odds = totalStaked > 0 ? (poolTotal / totalStaked).toFixed(2) : '2.00';
-            
-            return (
-              <motion.button
-                key={option.id || optionIndex}
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              onClick={() => onPredict(prediction)}
-              className="p-2 bg-gray-50 hover:bg-gray-100 rounded-md transition-colors"
-            >
-              <div className="text-center">
-                <div className="flex items-center justify-center gap-1 mb-1">
-                  <div className={`w-1.5 h-1.5 rounded-full ${
-                      optionIndex === 0 ? 'bg-green-500' : 'bg-blue-500'
-                    }`} />
-                  <span className="font-medium text-xs text-gray-900 truncate">
-                      {option.label || `Option ${optionIndex + 1}`}
-                    </span>
+      {/* Compact prediction options - Adaptive layout */}
+      <div className="mb-2">
+        {prediction.options.length <= 2 ? (
+          // For 1-2 options, use 2-column grid
+          <div className="grid grid-cols-2 gap-1.5">
+            {prediction.options.map((option: any, optionIndex: number) => {
+              const totalStaked = option.totalStaked || 0;
+              const poolTotal = prediction.poolTotal || 1;
+              const percentage = poolTotal > 0 ? Math.min((totalStaked / poolTotal * 100), 100) : 50;
+              const odds = totalStaked > 0 ? (poolTotal / totalStaked).toFixed(2) : '2.00';
+              
+              return (
+                <motion.button
+                  key={option.id || optionIndex}
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={() => onPredict(prediction)}
+                  className="p-2 bg-gray-50 hover:bg-gray-100 rounded-md transition-colors"
+                >
+                  <div className="text-center">
+                    <div className="flex items-center justify-center gap-1 mb-1">
+                      <div className={`w-1.5 h-1.5 rounded-full ${
+                        optionIndex === 0 ? 'bg-green-500' : 'bg-blue-500'
+                      }`} />
+                      <span className="font-medium text-xs text-gray-900 truncate">
+                        {option.label || `Option ${optionIndex + 1}`}
+                      </span>
+                    </div>
+                    
+                    <div className="text-sm font-bold text-gray-900">
+                      {Math.round(percentage)}%
+                    </div>
+                    <div className="text-xs text-gray-600">
+                      {odds}x
+                    </div>
+                    
+                    {/* Mini progress bar */}
+                    <div className="w-full h-1 bg-gray-200 rounded-full overflow-hidden mt-1">
+                      <motion.div
+                        initial={{ width: 0 }}
+                        animate={{ width: `${Math.max(percentage, 2)}%` }}
+                        transition={{ duration: 0.8, delay: optionIndex * 0.1 }}
+                        className={`h-full rounded-full ${
+                          optionIndex === 0 ? 'bg-green-500' : 'bg-blue-500'
+                        }`}
+                      />
+                    </div>
                   </div>
-                  
-                <div className="text-sm font-bold text-gray-900">
-                  {Math.round(percentage)}%
+                </motion.button>
+              );
+            })}
+          </div>
+        ) : prediction.options.length <= 4 ? (
+          // For 3-4 options, use 2x2 grid
+          <div className="grid grid-cols-2 gap-1.5">
+            {prediction.options.map((option: any, optionIndex: number) => {
+              const totalStaked = option.totalStaked || 0;
+              const poolTotal = prediction.poolTotal || 1;
+              const percentage = poolTotal > 0 ? Math.min((totalStaked / poolTotal * 100), 100) : 50;
+              const odds = totalStaked > 0 ? (poolTotal / totalStaked).toFixed(2) : '2.00';
+              
+              return (
+                <motion.button
+                  key={option.id || optionIndex}
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={() => onPredict(prediction)}
+                  className="p-2 bg-gray-50 hover:bg-gray-100 rounded-md transition-colors"
+                >
+                  <div className="text-center">
+                    <div className="flex items-center justify-center gap-1 mb-1">
+                      <div className={`w-1.5 h-1.5 rounded-full ${
+                        optionIndex === 0 ? 'bg-green-500' : 
+                        optionIndex === 1 ? 'bg-blue-500' :
+                        optionIndex === 2 ? 'bg-purple-500' : 'bg-orange-500'
+                      }`} />
+                      <span className="font-medium text-xs text-gray-900 truncate">
+                        {option.label || `Option ${optionIndex + 1}`}
+                      </span>
+                    </div>
+                    
+                    <div className="text-sm font-bold text-gray-900">
+                      {Math.round(percentage)}%
+                    </div>
+                    <div className="text-xs text-gray-600">
+                      {odds}x
+                    </div>
+                    
+                    {/* Mini progress bar */}
+                    <div className="w-full h-1 bg-gray-200 rounded-full overflow-hidden mt-1">
+                      <motion.div
+                        initial={{ width: 0 }}
+                        animate={{ width: `${Math.max(percentage, 2)}%` }}
+                        transition={{ duration: 0.8, delay: optionIndex * 0.1 }}
+                        className={`h-full rounded-full ${
+                          optionIndex === 0 ? 'bg-green-500' : 
+                          optionIndex === 1 ? 'bg-blue-500' :
+                          optionIndex === 2 ? 'bg-purple-500' : 'bg-orange-500'
+                        }`}
+                      />
+                    </div>
                   </div>
-                <div className="text-xs text-gray-600">
-                  {odds}x
-                </div>
+                </motion.button>
+              );
+            })}
+          </div>
+        ) : (
+          // For 5+ options, show first 3 with "+X more" indicator
+          <div className="space-y-1.5">
+            <div className="grid grid-cols-3 gap-1.5">
+              {prediction.options.slice(0, 3).map((option: any, optionIndex: number) => {
+                const totalStaked = option.totalStaked || 0;
+                const poolTotal = prediction.poolTotal || 1;
+                const percentage = poolTotal > 0 ? Math.min((totalStaked / poolTotal * 100), 100) : 50;
+                const odds = totalStaked > 0 ? (poolTotal / totalStaked).toFixed(2) : '2.00';
                 
-                {/* Mini progress bar */}
-                <div className="w-full h-1 bg-gray-200 rounded-full overflow-hidden mt-1">
-                  <motion.div
-                    initial={{ width: 0 }}
-                    animate={{ width: `${Math.max(percentage, 2)}%` }}
-                    transition={{ duration: 0.8, delay: optionIndex * 0.1 }}
-                    className={`h-full rounded-full ${
-                      optionIndex === 0 ? 'bg-green-500' : 'bg-blue-500'
-                    }`}
-                  />
-                </div>
-                </div>
-              </motion.button>
-            );
-          })}
-        </div>
+                return (
+                  <motion.button
+                    key={option.id || optionIndex}
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={() => onPredict(prediction)}
+                    className="p-2 bg-gray-50 hover:bg-gray-100 rounded-md transition-colors"
+                  >
+                    <div className="text-center">
+                      <div className="flex items-center justify-center gap-1 mb-1">
+                        <div className={`w-1.5 h-1.5 rounded-full ${
+                          optionIndex === 0 ? 'bg-green-500' : 
+                          optionIndex === 1 ? 'bg-blue-500' : 'bg-purple-500'
+                        }`} />
+                        <span className="font-medium text-xs text-gray-900 truncate">
+                          {option.label || `Option ${optionIndex + 1}`}
+                        </span>
+                      </div>
+                      
+                      <div className="text-sm font-bold text-gray-900">
+                        {Math.round(percentage)}%
+                      </div>
+                      <div className="text-xs text-gray-600">
+                        {odds}x
+                      </div>
+                      
+                      {/* Mini progress bar */}
+                      <div className="w-full h-1 bg-gray-200 rounded-full overflow-hidden mt-1">
+                        <motion.div
+                          initial={{ width: 0 }}
+                          animate={{ width: `${Math.max(percentage, 2)}%` }}
+                          transition={{ duration: 0.8, delay: optionIndex * 0.1 }}
+                          className={`h-full rounded-full ${
+                            optionIndex === 0 ? 'bg-green-500' : 
+                            optionIndex === 1 ? 'bg-blue-500' : 'bg-purple-500'
+                          }`}
+                        />
+                      </div>
+                    </div>
+                  </motion.button>
+                );
+              })}
+            </div>
+            <div className="text-center">
+              <span className="text-xs text-gray-500 bg-gray-100 rounded-full px-3 py-1">
+                +{prediction.options.length - 3} more options
+              </span>
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* Compact engagement */}
       <div className="flex items-center justify-between pt-1.5 border-t border-gray-100">
