@@ -29,6 +29,8 @@ export interface Prediction {
     is_verified: boolean;
   };
   participant_count: number;
+  likes_count: number;
+  comments_count: number;
   user_entry?: {
     option_id: string;
     amount: number;
@@ -132,22 +134,26 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
               prediction_id: 'trump-iran-prediction',
               label: 'Yes',
               total_staked: 0,
-              current_odds: 2.0
+              current_odds: 2.0,
+              percentage: 50
             },
             {
               id: 'trump-iran-no', 
               prediction_id: 'trump-iran-prediction',
               label: 'No',
               total_staked: 0,
-              current_odds: 2.0
+              current_odds: 2.0,
+              percentage: 50
             }
           ],
           creator: {
-            username: 'Fan Club Z',
+            username: 'PoliticalPundit',
             avatar_url: undefined,
             is_verified: true
           },
-          participant_count: 0
+          participant_count: 0,
+          likes_count: 18,
+          comments_count: 7
         },
         {
           id: 'premier-league-match',
@@ -174,21 +180,24 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
               prediction_id: 'premier-league-match',
               label: 'Manchester United',
               total_staked: 4500,
-              current_odds: 2.8
+              current_odds: 2.8,
+              percentage: 36
             },
             {
               id: 'arsenal-win',
               prediction_id: 'premier-league-match', 
               label: 'Arsenal',
               total_staked: 6200,
-              current_odds: 1.9
+              current_odds: 1.9,
+              percentage: 50
             },
             {
               id: 'draw',
               prediction_id: 'premier-league-match',
               label: 'Draw',
               total_staked: 1800,
-              current_odds: 3.5
+              current_odds: 3.5,
+              percentage: 14
             }
           ],
           creator: {
@@ -196,7 +205,9 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
             avatar_url: undefined,
             is_verified: false
           },
-          participant_count: 47
+          participant_count: 47,
+          likes_count: 42,
+          comments_count: 23
         },
         {
           id: 'bitcoin-price',
@@ -223,14 +234,16 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
               prediction_id: 'bitcoin-price',
               label: 'Yes, $100k+',
               total_staked: 18200,
-              current_odds: 1.6
+              current_odds: 1.6,
+              percentage: 63
             },
             {
               id: 'btc-100k-no',
               prediction_id: 'bitcoin-price',
               label: 'No, under $100k',
               total_staked: 10700,
-              current_odds: 2.7
+              current_odds: 2.7,
+              percentage: 37
             }
           ],
           creator: {
@@ -238,7 +251,71 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
             avatar_url: undefined,
             is_verified: true
           },
-          participant_count: 89
+          participant_count: 89,
+          likes_count: 156,
+          comments_count: 89
+        },
+        {
+          id: 'best-burger-chain',
+          creator_id: 'mock-user-4',
+          title: 'Who makes the best burger?',
+          description: 'Which fast food chain has the tastiest burger?',
+          category: 'custom' as const,
+          type: 'multi_outcome' as const,
+          status: 'open' as const,
+          stake_min: 10,
+          stake_max: 1000,
+          pool_total: 0,
+          entry_deadline: new Date('2025-08-05T18:00:00Z').toISOString(),
+          settlement_method: 'manual' as const,
+          is_private: false,
+          creator_fee_percentage: 2.5,
+          platform_fee_percentage: 5,
+          tags: ['food', 'fast-food', 'burgers'],
+          created_at: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
+          updated_at: new Date().toISOString(),
+          options: [
+            {
+              id: 'burger-king',
+              prediction_id: 'best-burger-chain',
+              label: 'Burger King',
+              total_staked: 0,
+              current_odds: 2.0,
+              percentage: 25
+            },
+            {
+              id: 'wendys',
+              prediction_id: 'best-burger-chain',
+              label: 'Wendys',
+              total_staked: 0,
+              current_odds: 2.0,
+              percentage: 25
+            },
+            {
+              id: 'mcdonalds',
+              prediction_id: 'best-burger-chain',
+              label: 'McDonalds',
+              total_staked: 0,
+              current_odds: 2.0,
+              percentage: 25
+            },
+            {
+              id: 'five-guys',
+              prediction_id: 'best-burger-chain',
+              label: 'Five Guys',
+              total_staked: 0,
+              current_odds: 2.0,
+              percentage: 25
+            }
+          ],
+          creator: {
+            username: 'FoodCritic',
+            avatar_url: undefined,
+            is_verified: true
+          },
+          participant_count: 0,
+          likes_count: 8,
+          comments_count: 3
         }
       ];
       

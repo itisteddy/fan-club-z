@@ -3,7 +3,7 @@ import ReactDOM from 'react-dom/client'
 import App from './App.tsx'
 import './index.css'
 
-console.log('🚀 Fan Club Z v2.0.29 - FIXED JOIN CLUB BUGS & SCROLL CONSISTENCY')
+console.log('🚀 Fan Club Z v2.0.36 - REDESIGNED BETCARD COMPONENT WITH ADAPTIVE LAYOUT & PROGRESSIVE DISCLOSURE')
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>

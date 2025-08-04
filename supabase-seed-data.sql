@@ -22,20 +22,13 @@ ON CONFLICT (id) DO NOTHING;
 INSERT INTO public.wallets (user_id, currency, available_balance, total_deposited)
 SELECT 
     u.id,
-    'NGN' as currency,
-    floor(random() * 50000 + 1000) as available_balance,
-    floor(random() * 100000 + 5000) as total_deposited
-FROM public.users u
-WHERE NOT EXISTS (SELECT 1 FROM public.wallets w WHERE w.user_id = u.id AND w.currency = 'NGN');
-
-INSERT INTO public.wallets (user_id, currency, available_balance, total_deposited)
-SELECT 
-    u.id,
     'USD' as currency,
-    floor(random() * 1000 + 100) as available_balance,
-    floor(random() * 2000 + 500) as total_deposited
+    floor(random() * 5000 + 100) as available_balance,
+    floor(random() * 10000 + 500) as total_deposited
 FROM public.users u
 WHERE NOT EXISTS (SELECT 1 FROM public.wallets w WHERE w.user_id = u.id AND w.currency = 'USD');
+
+
 
 -- Create contextually meaningful clubs
 INSERT INTO public.clubs (id, name, description, owner_id, visibility, tags, member_count)
@@ -242,8 +235,8 @@ INSERT INTO public.wallet_transactions (user_id, type, currency, amount, status,
 SELECT 
     u.id,
     'deposit',
-    'NGN',
-    floor(random() * 50000 + 10000),
+    'USD',
+    floor(random() * 5000 + 1000),
     'completed',
     'Initial deposit',
     'DEP_' || extract(epoch from now())::bigint || '_' || substring(u.id from 1 for 8)

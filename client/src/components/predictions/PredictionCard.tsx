@@ -218,21 +218,63 @@ export const PredictionCard: React.FC<PredictionCardProps> = ({
               )}
             </div>
 
-            {/* Options - Ultra compact */}
+            {/* Options - Show all options with smart layout */}
             <div className="mb-1">
-              <div className="grid grid-cols-2 gap-0.5">
-                {prediction.options.slice(0, 2).map((option) => (
-                  <div
-                    key={option.id}
-                    className="bg-muted/50 rounded p-1 text-center"
-                  >
-                    <div className="text-xs font-medium mb-0.5 line-clamp-1 leading-tight">{option.label}</div>
-                    <div className="text-xs text-muted-foreground">
-                      {option.percentage.toFixed(0)}% • {option.current_odds.toFixed(1)}x
+              {prediction.options.length <= 2 ? (
+                // For 1-2 options, use 2-column grid
+                <div className="grid grid-cols-2 gap-0.5">
+                  {prediction.options.map((option) => (
+                    <div
+                      key={option.id}
+                      className="bg-muted/50 rounded p-1 text-center"
+                    >
+                      <div className="text-xs font-medium mb-0.5 line-clamp-1 leading-tight">{option.label}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {option.percentage.toFixed(0)}% • {option.current_odds.toFixed(1)}x
+                      </div>
                     </div>
+                  ))}
+                </div>
+              ) : prediction.options.length <= 4 ? (
+                // For 3-4 options, use 2x2 grid
+                <div className="grid grid-cols-2 gap-0.5">
+                  {prediction.options.map((option) => (
+                    <div
+                      key={option.id}
+                      className="bg-muted/50 rounded p-1 text-center"
+                    >
+                      <div className="text-xs font-medium mb-0.5 line-clamp-1 leading-tight">{option.label}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {option.percentage.toFixed(0)}% • {option.current_odds.toFixed(1)}x
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                // For 5+ options, show first 3 with "+X more" indicator
+                <div className="space-y-0.5">
+                  <div className="grid grid-cols-3 gap-0.5">
+                    {prediction.options.slice(0, 3).map((option) => (
+                      <div
+                        key={option.id}
+                        className="bg-muted/50 rounded p-1 text-center"
+                      >
+                        <div className="text-xs font-medium mb-0.5 line-clamp-1 leading-tight">{option.label}</div>
+                        <div className="text-xs text-muted-foreground">
+                          {option.percentage.toFixed(0)}% • {option.current_odds.toFixed(1)}x
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
+                  {prediction.options.length > 3 && (
+                    <div className="text-center">
+                      <span className="text-xs text-muted-foreground bg-muted/30 rounded px-2 py-0.5">
+                        +{prediction.options.length - 3} more options
+                      </span>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Stats - More compact */}
@@ -271,7 +313,7 @@ export const PredictionCard: React.FC<PredictionCardProps> = ({
                   )}
                 >
                   <Heart size={10} className={cn(isLiked && "fill-current")} />
-                  <span className="ml-1 text-xs">24</span>
+                  <span className="ml-1 text-xs">{prediction.likes_count}</span>
                 </Button>
                 
                 <Button
@@ -286,7 +328,7 @@ export const PredictionCard: React.FC<PredictionCardProps> = ({
                   className="text-muted-foreground hover:text-primary h-5 px-1"
                 >
                   <MessageCircle size={10} />
-                  <span className="ml-1 text-xs">12</span>
+                  <span className="ml-1 text-xs">{prediction.comments_count}</span>
                 </Button>
 
                 <Button

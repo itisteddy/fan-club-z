@@ -2,6 +2,7 @@ import React, { useState, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronLeft, Plus, X, Calendar, DollarSign, Users, Settings, Sparkles, Check } from 'lucide-react';
 import { usePredictionStore } from '../stores/predictionStore';
+import { useLocation } from 'wouter';
 import toast from 'react-hot-toast';
 import { scrollToTop } from '../utils/scroll';
 
@@ -19,6 +20,7 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitSuccess, setSubmitSuccess] = useState(false);
   const { createPrediction } = usePredictionStore();
+  const [, setLocation] = useLocation();
   
   // Scroll to top when component mounts (UI/UX best practice)
   useEffect(() => {
@@ -197,10 +199,9 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
         if (onNavigateBack) {
           // First navigate back to main app
           onNavigateBack();
-          // Then trigger navigation to My Bets
+          // Then trigger navigation to My Bets using proper wouter navigation
           setTimeout(() => {
-            // Use window.location to navigate to My Bets
-            window.location.href = '/predictions';
+            setLocation('/predictions');
           }, 100);
         }
       }, 2000);
@@ -210,7 +211,7 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
       toast.error(errorMessage);
       setIsSubmitting(false);
     }
-  }, [validateStep, title, category, entryDeadline, description, type, options, stakeMin, stakeMax, settlementMethod, isPrivate, createPrediction, onNavigateBack]);
+  }, [validateStep, title, category, entryDeadline, description, type, options, stakeMin, stakeMax, settlementMethod, isPrivate, createPrediction, onNavigateBack, setLocation]);
 
   // Success View
   if (submitSuccess) {
@@ -233,7 +234,7 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
           
           <h2 className="text-2xl font-bold text-gray-900 mb-2">Prediction Created!</h2>
           <p className="text-gray-600 mb-4">Your prediction has been successfully created and is now live.</p>
-          <div className="text-sm text-green-600 font-medium">Redirecting to My Bets...</div>
+          <div className="text-sm text-green-600 font-medium">Redirecting to My Predictions...</div>
         </motion.div>
       </div>
     );

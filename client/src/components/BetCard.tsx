@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Heart, MessageCircle, Share2, TrendingUp, Clock, Users } from 'lucide-react';
+import { Heart, MessageCircle, Share2, TrendingUp, Clock, Users, ChevronDown } from 'lucide-react';
 import { Bet } from '../../../shared/schema';
 
 interface BetCardProps {
@@ -9,7 +9,7 @@ interface BetCardProps {
   onLike?: () => void;
   onComment?: () => void;
   onShare?: () => void;
-  onBet?: () => void;
+  onBet?: (optionId?: string) => void;
 }
 
 const BetCard: React.FC<BetCardProps> = ({
@@ -20,6 +20,17 @@ const BetCard: React.FC<BetCardProps> = ({
   onShare,
   onBet,
 }) => {
+  const [showAllOptions, setShowAllOptions] = React.useState(false);
+  
+  // Calculate display logic for options
+  const options = bet.options || [];
+  const hasMultipleOptions = options.length > 2;
+  const displayOptions = showAllOptions ? options : options.slice(0, 2);
+  const hiddenOptionsCount = Math.max(0, options.length - 2);
+
+  // Calculate total pool and percentages
+  const totalPool = bet.poolTotal || options.reduce((sum, option) => sum + option.totalStaked, 0);
+
   if (variant === 'compact') {
     return (
       <motion.div
@@ -41,15 +52,20 @@ const BetCard: React.FC<BetCardProps> = ({
               {bet.category?.replace('_', ' ').toUpperCase()}
             </div>
             <h3 className="text-lg font-bold leading-tight">{bet.title}</h3>
+            {hasMultipleOptions && (
+              <div className="text-xs opacity-75 mt-1">
+                {options.length} options
+              </div>
+            )}
           </div>
           
           <div className="flex items-center justify-between">
             <div>
-              <div className="text-2xl font-bold">${bet.poolTotal.toLocaleString()}</div>
+              <div className="text-2xl font-bold">${totalPool.toLocaleString()}</div>
               <div className="text-sm opacity-90">Total Pool</div>
             </div>
             <motion.button
-              onClick={onBet}
+              onClick={() => onBet && onBet()}
               className="bg-white/20 backdrop-blur-sm px-4 py-2 rounded-lg font-medium"
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
@@ -85,6 +101,11 @@ const BetCard: React.FC<BetCardProps> = ({
               </span>
               <Clock className="w-3 h-3" />
               <span className="text-xs">2 days ago</span>
+              {hasMultipleOptions && (
+                <span className="text-xs text-gray-500">
+                  • {options.length} options
+                </span>
+              )}
             </div>
           </div>
         </div>
@@ -105,7 +126,7 @@ const BetCard: React.FC<BetCardProps> = ({
 
         <div className="flex gap-2">
           <motion.button
-            onClick={onBet}
+            onClick={() => onBet && onBet()}
             className="flex-1 bg-gradient-to-r from-green-600 to-emerald-600 text-white py-2.5 rounded-lg font-medium text-sm"
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
@@ -125,7 +146,7 @@ const BetCard: React.FC<BetCardProps> = ({
     );
   }
 
-  // Default variant
+  // Default variant - Enhanced for multiple options
   return (
     <motion.div
       className="bg-white rounded-2xl shadow-sm border border-gray-100/50 overflow-hidden mb-6"
@@ -149,14 +170,21 @@ const BetCard: React.FC<BetCardProps> = ({
               <div className="text-sm text-gray-500">2 hours ago</div>
             </div>
           </div>
-          <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-            bet.category === 'sports' ? 'bg-red-100 text-red-700' :
-            bet.category === 'pop_culture' ? 'bg-purple-100 text-purple-700' :
-            bet.category === 'politics' ? 'bg-blue-100 text-blue-700' :
-            'bg-green-100 text-green-700'
-          }`}>
-            {bet.category?.replace('_', ' ') || 'General'}
-          </span>
+          <div className="flex items-center gap-2">
+            <span className={`px-3 py-1 rounded-full text-xs font-medium ${
+              bet.category === 'sports' ? 'bg-red-100 text-red-700' :
+              bet.category === 'pop_culture' ? 'bg-purple-100 text-purple-700' :
+              bet.category === 'politics' ? 'bg-blue-100 text-blue-700' :
+              'bg-green-100 text-green-700'
+            }`}>
+              {bet.category?.replace('_', ' ') || 'General'}
+            </span>
+            {hasMultipleOptions && (
+              <span className="px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
+                {options.length} options
+              </span>
+            )}
+          </div>
         </div>
 
         <h3 className="text-xl font-semibold text-gray-900 mb-3 leading-tight">
@@ -170,62 +198,129 @@ const BetCard: React.FC<BetCardProps> = ({
         )}
       </div>
 
-      {/* Betting Options */}
+      {/* Betting Options - Enhanced for Multiple Choice */}
       <div className="px-6 mb-4">
-        <div className="grid grid-cols-2 gap-3">
-          {bet.options?.map((option, index) => (
+        {options.length === 0 ? (
+          // Fallback for binary betting (backward compatibility)
+          <div className="grid grid-cols-2 gap-3">
             <motion.button
-              key={option.id}
-              className={`p-4 rounded-xl border-2 transition-all ${
-                index === 0 
-                  ? 'border-green-200 bg-gradient-to-r from-green-50 to-emerald-50 hover:from-green-100 hover:to-emerald-100'
-                  : 'border-red-200 bg-gradient-to-r from-red-50 to-pink-50 hover:from-red-100 hover:to-pink-100'
-              }`}
+              className="p-4 rounded-xl border-2 border-green-200 bg-gradient-to-r from-green-50 to-emerald-50 hover:from-green-100 hover:to-emerald-100"
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
-              onClick={onBet}
+              onClick={() => onBet && onBet('yes')}
             >
               <div className="text-center">
-                <div className="font-semibold text-gray-900 mb-1">{option.label}</div>
-                <div className={`text-2xl font-bold ${
-                  index === 0 ? 'text-green-700' : 'text-red-700'
-                }`}>
-                  {option.currentOdds?.toFixed(2) || '2.5'}x
-                </div>
-                <div className="text-sm text-gray-600">
-                  {Math.round((option.totalStaked / bet.poolTotal) * 100) || 45}% backing
-                </div>
+                <div className="font-semibold text-gray-900 mb-1">Yes</div>
+                <div className="text-2xl font-bold text-green-700">2.1x</div>
+                <div className="text-sm text-gray-600">55% backing</div>
               </div>
             </motion.button>
-          )) || (
-            <>
+            <motion.button
+              className="p-4 rounded-xl border-2 border-red-200 bg-gradient-to-r from-red-50 to-pink-50 hover:from-red-100 hover:to-pink-100"
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={() => onBet && onBet('no')}
+            >
+              <div className="text-center">
+                <div className="font-semibold text-gray-900 mb-1">No</div>
+                <div className="text-2xl font-bold text-red-700">2.8x</div>
+                <div className="text-sm text-gray-600">45% backing</div>
+              </div>
+            </motion.button>
+          </div>
+        ) : options.length === 2 ? (
+          // Two options - Grid layout
+          <div className="grid grid-cols-2 gap-3">
+            {options.map((option, index) => {
+              const percentage = totalPool > 0 ? (option.totalStaked / totalPool) * 100 : 0;
+              const odds = option.totalStaked > 0 ? totalPool / option.totalStaked : 2.0;
+              
+              return (
+                <motion.button
+                  key={option.id}
+                  className={`p-4 rounded-xl border-2 transition-all ${
+                    index === 0 
+                      ? 'border-green-200 bg-gradient-to-r from-green-50 to-emerald-50 hover:from-green-100 hover:to-emerald-100'
+                      : 'border-blue-200 bg-gradient-to-r from-blue-50 to-indigo-50 hover:from-blue-100 hover:to-indigo-100'
+                  }`}
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={() => onBet && onBet(option.id)}
+                >
+                  <div className="text-center">
+                    <div className="font-semibold text-gray-900 mb-1 line-clamp-1">{option.label}</div>
+                    <div className={`text-2xl font-bold ${
+                      index === 0 ? 'text-green-700' : 'text-blue-700'
+                    }`}>
+                      {odds.toFixed(1)}x
+                    </div>
+                    <div className="text-sm text-gray-600">
+                      {percentage.toFixed(0)}% backing
+                    </div>
+                  </div>
+                </motion.button>
+              );
+            })}
+          </div>
+        ) : (
+          // Multiple options - List layout with expandable view
+          <div className="space-y-2">
+            {displayOptions.map((option, index) => {
+              const percentage = totalPool > 0 ? (option.totalStaked / totalPool) * 100 : 0;
+              const odds = option.totalStaked > 0 ? totalPool / option.totalStaked : 2.0;
+              
+              return (
+                <motion.button
+                  key={option.id}
+                  className="w-full p-3 rounded-lg border border-gray-200 bg-gradient-to-r from-gray-50 to-gray-50 hover:from-gray-100 hover:to-gray-100 transition-all"
+                  whileHover={{ scale: 1.01 }}
+                  whileTap={{ scale: 0.99 }}
+                  onClick={() => onBet && onBet(option.id)}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex-1 text-left">
+                      <div className="font-medium text-gray-900 line-clamp-1">{option.label}</div>
+                      <div className="text-sm text-gray-600">
+                        {percentage.toFixed(0)}% backing • ${option.totalStaked.toLocaleString()}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <div className="text-right">
+                        <div className="text-lg font-bold text-gray-900">{odds.toFixed(1)}x</div>
+                      </div>
+                      <div className="w-12 h-2 bg-gray-200 rounded-full overflow-hidden">
+                        <div 
+                          className="h-full bg-gradient-to-r from-green-500 to-emerald-500 transition-all duration-500"
+                          style={{ width: `${Math.min(percentage, 100)}%` }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </motion.button>
+              );
+            })}
+            
+            {/* Show more/less options button */}
+            {hasMultipleOptions && hiddenOptionsCount > 0 && (
               <motion.button
-                className="p-4 rounded-xl border-2 border-green-200 bg-gradient-to-r from-green-50 to-emerald-50 hover:from-green-100 hover:to-emerald-100"
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                onClick={onBet}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowAllOptions(!showAllOptions);
+                }}
+                className="w-full p-3 rounded-lg border border-dashed border-gray-300 bg-gray-50 hover:bg-gray-100 transition-all"
+                whileHover={{ scale: 1.01 }}
+                whileTap={{ scale: 0.99 }}
               >
-                <div className="text-center">
-                  <div className="font-semibold text-gray-900 mb-1">Yes</div>
-                  <div className="text-2xl font-bold text-green-700">2.1x</div>
-                  <div className="text-sm text-gray-600">55% backing</div>
+                <div className="flex items-center justify-center gap-2 text-gray-600">
+                  <span className="text-sm font-medium">
+                    {showAllOptions ? 'Show Less' : `Show ${hiddenOptionsCount} More Option${hiddenOptionsCount > 1 ? 's' : ''}`}
+                  </span>
+                  <ChevronDown className={`w-4 h-4 transition-transform ${showAllOptions ? 'rotate-180' : ''}`} />
                 </div>
               </motion.button>
-              <motion.button
-                className="p-4 rounded-xl border-2 border-red-200 bg-gradient-to-r from-red-50 to-pink-50 hover:from-red-100 hover:to-pink-100"
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                onClick={onBet}
-              >
-                <div className="text-center">
-                  <div className="font-semibold text-gray-900 mb-1">No</div>
-                  <div className="text-2xl font-bold text-red-700">2.8x</div>
-                  <div className="text-sm text-gray-600">45% backing</div>
-                </div>
-              </motion.button>
-            </>
-          )}
-        </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Stats Bar */}
@@ -236,7 +331,7 @@ const BetCard: React.FC<BetCardProps> = ({
               <div className="w-8 h-8 rounded-full bg-gradient-to-r from-green-500 to-emerald-500 flex items-center justify-center">
                 <span className="text-white text-xs font-bold">$</span>
               </div>
-              <span className="font-semibold text-gray-900">${bet.poolTotal.toLocaleString()}</span>
+              <span className="font-semibold text-gray-900">${totalPool.toLocaleString()}</span>
             </div>
             <div className="flex items-center gap-1 text-gray-600">
               <Users className="w-4 h-4" />
@@ -287,7 +382,7 @@ const BetCard: React.FC<BetCardProps> = ({
             </motion.button>
           </div>
           <motion.button
-            onClick={onBet}
+            onClick={() => onBet && onBet()}
             className="bg-gradient-to-r from-green-600 to-emerald-600 text-white px-6 py-2 rounded-lg font-medium shadow-sm"
             whileHover={{ scale: 1.02, boxShadow: '0 8px 25px rgba(16, 185, 129, 0.25)' }}
             whileTap={{ scale: 0.98 }}

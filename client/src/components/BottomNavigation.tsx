@@ -69,29 +69,57 @@ const BottomNavigation: React.FC<BottomNavigationProps> = ({
                     flexDirection: 'column',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    padding: '8px',
+                    padding: '8px 4px',
+                    minWidth: '0',
+                    flex: '1',
+                    position: 'relative',
                     background: 'none',
                     border: 'none',
-                    cursor: 'pointer'
+                    cursor: 'pointer',
+                    borderRadius: '12px'
                   }}
                 >
+                  {/* Icon container with circular background for create button */}
                   <div style={{
-                    width: '48px',
-                    height: '48px',
-                    background: 'linear-gradient(135deg, #10b981, #059669)',
-                    borderRadius: '50%',
+                    position: 'relative',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    marginBottom: '4px',
-                    boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)'
+                    marginBottom: '6px',
+                    marginTop: '2px',
+                    width: '44px',
+                    height: '44px',
+                    background: 'linear-gradient(135deg, #22c55e, #16a34a)',
+                    borderRadius: '50%',
+                    boxShadow: '0 4px 12px rgba(34, 197, 94, 0.3)'
                   }}>
                     <Icon size={20} style={{ color: 'white' }} />
+                    
+                    {/* Active indicator for create button */}
+                    {isActive && (
+                      <motion.div
+                        layoutId="activeTab"
+                        style={{
+                          position: 'absolute',
+                          top: '-6px',
+                          left: '50%',
+                          transform: 'translateX(-50%)',
+                          width: '4px',
+                          height: '4px',
+                          backgroundColor: '#22c55e',
+                          borderRadius: '50%',
+                          boxShadow: '0 0 6px rgba(34, 197, 94, 0.6)'
+                        }}
+                        initial={false}
+                        transition={{ type: "spring", stiffness: 400, damping: 30 }}
+                      />
+                    )}
                   </div>
                   <span style={{
                     fontSize: '11px',
-                    fontWeight: '600',
-                    color: '#6b7280',
+                    fontWeight: isActive ? '600' : '500',
+                    transition: 'all 0.2s',
+                    color: isActive ? '#22c55e' : '#6b7280',
                     textAlign: 'center',
                     lineHeight: '1.2'
                   }}>
@@ -146,7 +174,7 @@ const BottomNavigation: React.FC<BottomNavigationProps> = ({
                 }}>
                   <div style={{
                     transition: 'all 0.2s',
-                    color: isActive ? '#10b981' : '#6b7280',
+                    color: isActive ? '#22c55e' : '#6b7280',
                     transform: isActive ? 'scale(1.1)' : 'scale(1)',
                     display: 'flex',
                     alignItems: 'center',
@@ -166,9 +194,9 @@ const BottomNavigation: React.FC<BottomNavigationProps> = ({
                         transform: 'translateX(-50%)',
                         width: '4px',
                         height: '4px',
-                        backgroundColor: '#10b981',
+                        backgroundColor: '#22c55e',
                         borderRadius: '50%',
-                        boxShadow: '0 0 6px rgba(16, 185, 129, 0.6)'
+                        boxShadow: '0 0 6px rgba(34, 197, 94, 0.6)'
                       }}
                       initial={false}
                       transition={{ type: "spring", stiffness: 400, damping: 30 }}
@@ -179,7 +207,7 @@ const BottomNavigation: React.FC<BottomNavigationProps> = ({
                   fontSize: '11px',
                   fontWeight: isActive ? '600' : '500',
                   transition: 'all 0.2s',
-                  color: isActive ? '#10b981' : '#6b7280',
+                  color: isActive ? '#22c55e' : '#6b7280',
                   textAlign: 'center',
                   lineHeight: '1.2'
                 }}>

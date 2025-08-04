@@ -45,28 +45,19 @@ async function seedDatabase() {
 
     // Step 3: Create wallets
     console.log('💰 Step 3: Creating wallets...');
-    const { error: ngnWalletError } = await supabase
-      .from('wallets')
-      .upsert({
-        user_id: user.id,
-        currency: 'NGN',
-        available_balance: Math.floor(Math.random() * 50000) + 1000,
-        total_deposited: Math.floor(Math.random() * 100000) + 5000,
-      }, { onConflict: 'user_id,currency' });
-
     const { error: usdWalletError } = await supabase
       .from('wallets')
       .upsert({
         user_id: user.id,
         currency: 'USD',
-        available_balance: Math.floor(Math.random() * 1000) + 100,
-        total_deposited: Math.floor(Math.random() * 2000) + 500,
+        available_balance: Math.floor(Math.random() * 5000) + 100,
+        total_deposited: Math.floor(Math.random() * 10000) + 500,
       }, { onConflict: 'user_id,currency' });
 
-    if (ngnWalletError || usdWalletError) {
-      console.error('❌ Error creating wallets:', ngnWalletError || usdWalletError);
+    if (usdWalletError) {
+      console.error('❌ Error creating wallet:', usdWalletError);
     } else {
-      console.log('✅ Wallets created');
+      console.log('✅ Wallet created');
     }
 
     // Step 4: Create clubs
@@ -305,8 +296,8 @@ async function seedDatabase() {
     await supabase.from('wallet_transactions').insert({
       user_id: user.id,
       type: 'deposit',
-      currency: 'NGN',
-      amount: Math.floor(Math.random() * 50000) + 10000,
+      currency: 'USD',
+      amount: Math.floor(Math.random() * 5000) + 1000,
       status: 'completed',
       description: 'Initial deposit',
       reference: `DEP_${Date.now()}_${user.id.slice(0, 8)}`,
@@ -316,7 +307,7 @@ async function seedDatabase() {
     console.log('');
     console.log('📊 Summary:');
     console.log('- 1 user profile created');
-    console.log('- 2 wallets created');
+    console.log('- 1 wallet created');
     console.log('- 5 clubs created');
     console.log('- 5 predictions created');
     console.log('- 13 prediction options created');

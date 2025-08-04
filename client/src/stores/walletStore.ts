@@ -137,11 +137,11 @@ export const useWalletStore = create<WalletState>()(
 
       initializeWallet: () => {
         const state = get();
-        console.log('🔧 Initializing wallet with state:', state);
+        console.log('🔧 Initializing wallet with persisted state:', state);
         
-        // Ensure demo mode has proper balance and demo transactions
+        // Only set up initial demo data if we have no transactions at all
         if (state.isDemoMode && state.transactions.length === 0) {
-          console.log('📊 Setting up demo transactions...');
+          console.log('📊 Setting up initial demo transactions...');
           const demoTransactions = [
             {
               id: 'demo_deposit_1',
@@ -178,6 +178,9 @@ export const useWalletStore = create<WalletState>()(
             ]
           });
           console.log('✅ Demo wallet initialized with $2400 available, $100 reserved');
+        } else if (state.transactions.length > 0) {
+          console.log('🔄 Wallet already has persisted data:', state.transactions.length, 'transactions');
+          console.log('💰 Current balances:', state.balances);
         }
       },
 
@@ -541,13 +544,19 @@ export const useWalletStore = create<WalletState>()(
     }),
     {
       name: 'fanclubz-wallet-storage',
-      version: 1,
+      version: 2, // Increment version to force re-hydration
       partialize: (state) => ({
         balances: state.balances,
         transactions: state.transactions,
         isDemoMode: state.isDemoMode,
       }),
       skipHydration: false,
+      onRehydrateStorage: () => (state) => {
+        if (state) {
+          console.log('🔄 Wallet store rehydrated with:', state.transactions?.length || 0, 'transactions');
+          console.log('💰 Rehydrated balances:', state.balances);
+        }
+      },
     }
   )
 );

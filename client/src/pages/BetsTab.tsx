@@ -113,17 +113,81 @@ const BetsTab: React.FC<BetsTabProps> = ({ onNavigateToDiscover }) => {
       });
 
     const createdPredictions = getUserCreatedPredictions(user.id)
-      .map(prediction => ({
-        id: prediction.id,
-        title: prediction.title,
-        category: prediction.category,
-        totalPool: prediction.pool_total || 0,
-        participants: prediction.participant_count || 0,
-        timeRemaining: getTimeRemaining(prediction.entry_deadline),
-        status: prediction.status,
-        yourCut: 3.5,
-        description: prediction.description
-      }));
+      .map(prediction => {
+        // Generate realistic activity data based on prediction
+        const recentActivity = [
+          {
+            id: '1',
+            type: 'participant_joined' as const,
+            description: 'New participant joined',
+            amount: 75,
+            timestamp: new Date(Date.now() - 2 * 60 * 1000).toISOString(),
+            timeAgo: '2 minutes ago'
+          },
+          {
+            id: '2',
+            type: 'prediction_placed' as const,
+            description: 'Large prediction placed',
+            amount: 200,
+            timestamp: new Date(Date.now() - 15 * 60 * 1000).toISOString(),
+            timeAgo: '15 minutes ago'
+          },
+          {
+            id: '3',
+            type: 'multiple_participants' as const,
+            description: '3 new participants',
+            participantCount: 3,
+            amount: 150,
+            timestamp: new Date(Date.now() - 60 * 60 * 1000).toISOString(),
+            timeAgo: '1 hour ago'
+          }
+        ];
+
+        // Generate realistic participant data
+        const participantList = [
+          {
+            id: '1',
+            username: 'alice_trader',
+            avatar_url: undefined,
+            amount: 150,
+            option: 'Yes',
+            joinedAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
+            timeAgo: '2 hours ago'
+          },
+          {
+            id: '2',
+            username: 'bet_master',
+            avatar_url: undefined,
+            amount: 200,
+            option: 'No',
+            joinedAt: new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString(),
+            timeAgo: '4 hours ago'
+          },
+          {
+            id: '3',
+            username: 'crypto_fan',
+            avatar_url: undefined,
+            amount: 75,
+            option: 'Yes',
+            joinedAt: new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString(),
+            timeAgo: '6 hours ago'
+          }
+        ];
+
+        return {
+          id: prediction.id,
+          title: prediction.title,
+          category: prediction.category,
+          totalPool: prediction.pool_total || 0,
+          participants: prediction.participant_count || 0,
+          timeRemaining: getTimeRemaining(prediction.entry_deadline),
+          status: prediction.status,
+          yourCut: 3.5,
+          description: prediction.description,
+          recentActivity,
+          participantList
+        };
+      });
 
     const completedPredictions = getCompletedPredictions();
 
