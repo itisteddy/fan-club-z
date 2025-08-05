@@ -1,6 +1,6 @@
 {
   "name": "@fanclubz/client",
-  "version": "2.0.38",
+  "version": "2.0.39",
   "description": "Fan Club Z React Client Application",
   "type": "module",
   "scripts": {

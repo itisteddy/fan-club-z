@@ -3,7 +3,7 @@ import ReactDOM from 'react-dom/client'
 import App from './App.tsx'
 import './index.css'
 
-console.log('🚀 Fan Club Z v2.0.38 - ENHANCED BETCARD COMPONENT WITH UI/UX BEST PRACTICES')
+console.log('🚀 Fan Club Z v2.0.39 - FIXED PREDICTION PLACEMENT WITH WALLET INTEGRATION')
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>

@@ -263,8 +263,8 @@ router.post(
       return ApiUtils.error(res, 'You already have an entry for this option', 409);
     }
 
-    // Check user's wallet balance
-    const wallet = await db.wallets.findByUserId(userId);
+    // Check user's wallet balance (default to NGN currency)
+    const wallet = await db.wallets.findByUserId(userId, 'NGN');
     if (!wallet || wallet.available_balance < amount) {
       return ApiUtils.error(res, 'Insufficient wallet balance', 400);
     }
@@ -303,19 +303,20 @@ router.post(
       user_id: userId,
       type: 'prediction_lock',
       currency: 'NGN',
-      amount: -amount,
+      amount: amount, // Use positive amount for transaction record
       status: 'completed',
       description: `Locked funds for prediction: ${prediction.title}`,
       related_prediction_entry_id: entry.data.id,
       created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
     });
 
     // Update option total staked and odds
     const newTotalStaked = option.total_staked + amount;
-    const newOdds = calculateOdds(prediction.pool_total + amount, newTotalStaked);
+    const newPoolTotal = prediction.pool_total + amount;
+    const newOdds = calculateOdds(newPoolTotal, newTotalStaked);
 
-    await db.supabase
+    // Update the specific option
+    const { error: optionUpdateError } = await db.supabase
       .from('prediction_options')
       .update({
         total_staked: newTotalStaked,
@@ -324,12 +325,40 @@ router.post(
       })
       .eq('id', option_id);
 
-    // Update prediction pool total
-    await db.predictions.update(predictionId, {
-      pool_total: prediction.pool_total + amount,
-    });
+    if (optionUpdateError) {
+      throw optionUpdateError;
+    }
 
-    // Recalculate odds for all options
+    // Update prediction pool total and participant count
+    const { error: predictionUpdateError } = await db.supabase
+      .from('predictions')
+      .update({
+        pool_total: newPoolTotal,
+        participant_count: prediction.participant_count + 1,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', predictionId);
+
+    if (predictionUpdateError) {
+      throw predictionUpdateError;
+    }
+
+    // Recalculate odds for all options based on the new pool total
+    const allOptions = prediction.options || [];
+    for (const opt of allOptions) {
+      if (opt.id !== option_id) {
+        const updatedOdds = calculateOdds(newPoolTotal, opt.total_staked);
+        await db.supabase
+          .from('prediction_options')
+          .update({
+            current_odds: updatedOdds,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', opt.id);
+      }
+    }
+
+    // Get the updated prediction with all options
     const updatedPrediction = await db.predictions.findById(predictionId);
     
     logger.info('Prediction entry created', { 

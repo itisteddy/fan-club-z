@@ -104,7 +104,7 @@ CREATE POLICY "Users can create prediction options" ON prediction_options
 CREATE TABLE IF NOT EXISTS wallets (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID REFERENCES users(id) ON DELETE CASCADE,
-  currency TEXT NOT NULL DEFAULT 'USD',
+  currency TEXT NOT NULL DEFAULT 'NGN',
   available_balance DECIMAL(18,8) DEFAULT 0,
   reserved_balance DECIMAL(18,8) DEFAULT 0,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
@@ -125,7 +125,7 @@ CREATE TABLE IF NOT EXISTS wallet_transactions (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID REFERENCES users(id) ON DELETE CASCADE,
   type TEXT NOT NULL CHECK (type IN ('deposit', 'withdraw', 'bet_lock', 'bet_release', 'transfer_in', 'transfer_out', 'fee', 'creator_payout')),
-  currency TEXT NOT NULL DEFAULT 'USD',
+  currency TEXT NOT NULL DEFAULT 'NGN',
   amount DECIMAL(18,8) NOT NULL,
   status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'completed', 'failed', 'reversed')),
   reference TEXT UNIQUE,
@@ -318,9 +318,9 @@ END $$;
 
 -- 13. Create default wallet for existing users
 INSERT INTO wallets (user_id, currency, available_balance, reserved_balance)
-SELECT id, 'USD', 10000.00, 0.00
+SELECT id, 'NGN', 25000.00, 0.00
 FROM users
-WHERE id NOT IN (SELECT user_id FROM wallets WHERE currency = 'USD')
+WHERE id NOT IN (SELECT user_id FROM wallets WHERE currency = 'NGN')
 ON CONFLICT (user_id, currency) DO NOTHING;
 
 -- Success message

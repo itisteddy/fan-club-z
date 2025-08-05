@@ -11,23 +11,78 @@
 
 ## Key Conversations & Updates
 
-### Prediction Placement Bug Fixes (Current Session)
-- **Date**: August 3, 2025
-- **Focus**: Critical bug fixes for prediction placement functionality
-- **Issue**: Users were encountering "Please enter a valid amount" errors when trying to place predictions
-- **Root Cause**: Incorrect usage of wallet functions - calling `addFunds()` with negative amounts instead of `makePrediction()`
-- **Key Fixes**:
-  1. **Fixed incorrect wallet function calls** - Replaced `addFunds(-amount)` with `makePrediction(amount)`
-  2. **Corrected import paths** - Fixed store imports from `./stores/` to `./store/` across multiple components
-  3. **Currency standardization** - Unified all prediction operations to use NGN (₦) instead of mixed USD/NGN
-  4. **Interface consistency** - Updated all components to use correct store interfaces and methods
-- **Files Fixed**:
-  - `client/src/pages/DiscoverPage.tsx` - Main prediction placement modal
-  - `client/src/components/predictions/PlacePredictionModal.tsx` - Alternative prediction modal
-  - `client/src/App.tsx` - Wallet store import path
-- **Expected Result**: All prediction placement functionality now works without errors
-- **Technical Implementation**: Proper wallet integration with `makePrediction()` function that moves funds from available to reserved balance
-- **User Experience**: Smooth prediction placement with NGN currency display and proper success notifications
+### Critical Prediction Placement System Fix (Current Session)
+- **Date**: August 4, 2025
+- **Focus**: Complete overhaul of prediction placement system to fix core functionality
+- **Issue Identified**: Prediction placement had no effect on wallet balance, pool totals, or odds
+- **Root Cause Analysis**:
+  1. **Missing RPC function** - `update_wallet_balance()` function didn't exist in database
+  2. **Client bypassing API** - Frontend directly inserting into database instead of using server endpoints
+  3. **Incomplete server logic** - Odds recalculation and participant tracking wasn't working
+  4. **Currency mismatch** - Database defaulted to USD while app used NGN
+
+- **Comprehensive Fixes Applied**:
+
+  **Database Layer Fixes**:
+  1. **Created wallet RPC functions** (`supabase-wallet-functions.sql`)
+     - `update_wallet_balance()` - Atomic wallet balance updates
+     - `get_wallet_balance()` - Safe balance retrieval  
+     - `has_sufficient_balance()` - Balance validation
+  2. **Schema corrections** (`prediction-placement-fix.sql`)
+     - Changed default currency from USD to NGN
+     - Added missing `participant_count` column
+     - Updated transaction type constraints
+     - Added performance indexes
+
+  **Server Layer Fixes**:
+  1. **Enhanced database utilities** (`server/src/config/database.ts`)
+     - Added fallback mechanism for wallet updates
+     - Implemented `directUpdateBalance()` method for RPC failures
+     - Improved error handling and logging
+  2. **Fixed prediction routes** (`server/src/routes/predictions.ts`)
+     - Proper odds recalculation for ALL options, not just selected one
+     - Participant count tracking implementation
+     - Corrected transaction amount handling (positive for records)
+     - Enhanced error handling with specific error messages
+
+  **Client Layer Fixes**:
+  1. **Fixed prediction store** (`client/src/store/predictionStore.ts`)
+     - Replaced direct database insert with proper API endpoint call
+     - Added authentication headers for server requests
+     - Integrated wallet store updates on successful predictions
+     - Enhanced error handling and user feedback
+
+- **Technical Implementation Details**:
+  - **Atomic Operations**: All wallet updates now use database transactions
+  - **Odds Calculation**: Proper parimutuel system with real-time updates
+  - **Error Recovery**: Fallback mechanisms if RPC functions fail
+  - **Currency Consistency**: All operations default to NGN throughout stack
+  - **Real-time Updates**: Pool totals, odds, and participant counts update immediately
+
+- **Files Created/Modified**:
+  - ✅ `supabase-wallet-functions.sql` - New RPC functions for wallet operations
+  - ✅ `prediction-placement-fix.sql` - Complete database migration script
+  - ✅ `server/src/config/database.ts` - Enhanced with fallback mechanisms
+  - ✅ `server/src/routes/predictions.ts` - Fixed odds calculation and participant tracking
+  - ✅ `client/src/store/predictionStore.ts` - Fixed to use API instead of direct DB
+  - ✅ `supabase-schema-fixed.sql` - Updated currency defaults
+  - ✅ `deploy-prediction-fixes.sh` - Deployment automation script
+  - ✅ `PREDICTION_PLACEMENT_FIXES_APPLIED.md` - Complete fix documentation
+
+- **Expected Results After Fix**:
+  - ✅ Wallet balance decreases when placing predictions
+  - ✅ Prediction pool total increases immediately
+  - ✅ Odds recalculate correctly for all options
+  - ✅ Participant count increments properly
+  - ✅ Transaction records appear in wallet history
+  - ✅ Error handling provides clear feedback
+  - ✅ All operations work in NGN currency
+
+- **Deployment Requirements**:
+  1. Run `supabase-wallet-functions.sql` in Supabase SQL Editor
+  2. Run `prediction-placement-fix.sql` in Supabase SQL Editor
+  3. Deploy updated server and client code
+  4. Test prediction placement flow thoroughly
 
 ### Landing Page Mobile Optimization & PWA Integration (Previous Session)
 - **Date**: August 3, 2025
@@ -162,11 +217,15 @@
 ---
 
 ## Files Modified/Created (Current Session)
-- ✅ `client/src/pages/DiscoverPage.tsx` - Fixed prediction placement modal and wallet integration
-- ✅ `client/src/components/predictions/PlacePredictionModal.tsx` - Fixed store imports and currency handling
-- ✅ `client/src/App.tsx` - Corrected wallet store import path
-- ✅ `PREDICTION_PLACEMENT_FIXES.md` - Comprehensive documentation of all fixes made
-- ✅ `CONVERSATION_LOG.md` - Updated with current session progress
+- ✅ `supabase-wallet-functions.sql` - NEW: Critical RPC functions for wallet operations
+- ✅ `prediction-placement-fix.sql` - NEW: Complete database migration script
+- ✅ `server/src/config/database.ts` - Enhanced wallet operations with fallback mechanisms
+- ✅ `server/src/routes/predictions.ts` - Fixed odds calculation and participant tracking
+- ✅ `client/src/store/predictionStore.ts` - Fixed to use API endpoints properly
+- ✅ `supabase-schema-fixed.sql` - Updated currency defaults to NGN
+- ✅ `deploy-prediction-fixes.sh` - NEW: Automated deployment script
+- ✅ `PREDICTION_PLACEMENT_FIXES_APPLIED.md` - NEW: Complete technical documentation
+- ✅ `CONVERSATION_LOG.md` - Updated with comprehensive fix details
 
 ## Files Modified/Created (Previous Session - Landing Page)
 - ✅ `landing-page/index.html` - Complete responsive redesign with PWA integration
@@ -179,11 +238,18 @@
 ---
 
 ## Next Session Reminders
-- Verify prediction placement works correctly across all scenarios
-- Test wallet balance updates and reserved funds tracking
-- Ensure all currency displays show NGN (₦) consistently
-- Check that all console errors related to predictions are resolved
-- Test the full prediction flow: place → track → settle → payout
+- **PRIORITY**: Run database migrations before testing:
+  1. Execute `supabase-wallet-functions.sql` in Supabase SQL Editor
+  2. Execute `prediction-placement-fix.sql` in Supabase SQL Editor
+  3. Deploy updated server and client code
+- Test complete prediction placement flow to verify all fixes work
+- Monitor server logs for any RPC function errors
+- Verify wallet balance changes are atomic and consistent
+- Test edge cases: insufficient funds, invalid amounts, network errors
+- Confirm odds calculations update correctly for all prediction options
+- Check that participant counts increment properly
+- Verify transaction history shows prediction entries correctly
+- Test the full prediction lifecycle: place → track → settle → payout
 - Default to working within Fan Club Z v2.0 directory
 - Check this log for recent context and decisions
 - Update this document with any significant changes or decisions

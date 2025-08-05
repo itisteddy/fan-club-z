@@ -535,20 +535,42 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
         throw new Error('User not authenticated');
       }
 
-      // Create prediction entry in Supabase
-      const { error } = await supabase
-        .from('prediction_entries')
-        .insert({
-          user_id: user.id,
-          prediction_id: predictionId,
-          option_id: optionId,
-          amount: amount,
-          status: 'active'
-          // created_at and updated_at handled by DB triggers
-        });
+      // Get session for API call
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        throw new Error('No active session');
+      }
 
-      if (error) {
-        throw error;
+      // Use API endpoint instead of direct database insert
+      const response = await fetch('/api/predictions/place', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          predictionId,
+          optionId,
+          amount,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || `HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const result = await response.json();
+      
+      // Update wallet store if available
+      try {
+        const { useWalletStore } = await import('../store/walletStore');
+        const walletStore = useWalletStore.getState();
+        if (walletStore.refreshBalance) {
+          await walletStore.refreshBalance();
+        }
+      } catch (walletError) {
+        console.warn('Could not update wallet store:', walletError);
       }
       
       // Refresh predictions to get updated data
@@ -556,6 +578,10 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
       await get().fetchUserPredictions();
       
       set({ loading: false });
+      
+      // Show success message
+      console.log('Prediction placed successfully:', result);
+      
     } catch (error) {
       console.error('Failed to place prediction:', error);
       set({ error: error instanceof Error ? error.message : 'Failed to place prediction', loading: false });

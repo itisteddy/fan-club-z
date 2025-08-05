@@ -315,22 +315,37 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
         throw new Error('User not authenticated');
       }
 
-      // Create prediction entry in Supabase
-      const { error } = await supabase
-        .from('prediction_entries')
-        .insert({
-          user_id: user.id,
-          prediction_id: predictionId,
-          option_id: optionId,
-          amount: amount,
-          status: 'active',
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        });
-
-      if (error) {
-        throw error;
+      // Get the auth session for API calls
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        throw new Error('No valid session found');
       }
+
+      // Use the API endpoint instead of direct database insert
+      const response = await fetch(`/api/predictions/${predictionId}/entries`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`
+        },
+        body: JSON.stringify({
+          option_id: optionId,
+          amount: amount
+        })
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to place prediction');
+      }
+
+      console.log('Prediction placed successfully:', result);
+      
+      // Update wallet store to reflect the prediction
+      const { useWalletStore } = await import('./walletStore');
+      const walletStore = useWalletStore.getState();
+      await walletStore.makePrediction(amount, `Prediction: ${result.prediction?.title || 'Unknown'}`, predictionId, 'NGN');
       
       // Refresh predictions to get updated data
       await get().fetchPredictions();
