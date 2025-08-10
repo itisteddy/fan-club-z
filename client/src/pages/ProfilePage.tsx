@@ -1223,12 +1223,109 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigateBack }) => {
   };
 
   const handleLogout = () => {
-    if (window.confirm('Are you sure you want to sign out?')) {
+    // Use custom confirmation dialog that matches app's UI/UX design
+    const confirmLogout = () => {
       logout();
       if (onNavigateBack) {
         onNavigateBack();
       }
-    }
+    };
+    
+    // Show custom confirmation dialog
+    const dialog = document.createElement('div');
+    dialog.style.cssText = `
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.5);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 9999;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    `;
+    
+    dialog.innerHTML = `
+      <div style="
+        background: white;
+        border-radius: 16px;
+        padding: 24px;
+        max-width: 320px;
+        width: 90%;
+        text-align: center;
+        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
+      ">
+        <div style="
+          width: 48px;
+          height: 48px;
+          background: #fef3c7;
+          border-radius: 50%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          margin: 0 auto 16px;
+        ">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2">
+            <path d="M9 12l2 2 4-4"/>
+            <path d="M21 12c0 4.97-4.03 9-9 9s-9-4.03-9-9 4.03-9 9-9 9 4.03 9 9z"/>
+          </svg>
+        </div>
+        <h3 style="
+          font-size: 18px;
+          font-weight: 700;
+          color: #111827;
+          margin: 0 0 8px 0;
+        ">Sign Out</h3>
+        <p style="
+          font-size: 14px;
+          color: #6b7280;
+          margin: 0 0 24px 0;
+          line-height: 1.5;
+        ">Are you sure you want to sign out of your account?</p>
+        <div style="
+          display: flex;
+          gap: 12px;
+          justify-content: center;
+        ">
+          <button onclick="this.closest('[style*=\'position: fixed\']').remove()" style="
+            padding: 10px 20px;
+            background: #f3f4f6;
+            color: #374151;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 14px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+          " onmouseover="this.style.backgroundColor='#e5e7eb'" onmouseout="this.style.backgroundColor='#f3f4f6'">
+            Cancel
+          </button>
+          <button onclick="window.confirmLogout()" style="
+            padding: 10px 20px;
+            background: #ef4444;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 14px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+          " onmouseover="this.style.backgroundColor='#dc2626'" onmouseout="this.style.backgroundColor='#ef4444'">
+            Sign Out
+          </button>
+        </div>
+      </div>
+    `;
+    
+    // Add to window for button access
+    (window as any).confirmLogout = () => {
+      dialog.remove();
+      confirmLogout();
+    };
+    
+    document.body.appendChild(dialog);
   };
 
   // Render different sections based on activeSection

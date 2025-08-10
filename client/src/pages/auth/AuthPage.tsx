@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuthStore } from '../../store/authStore';
+import NotificationContainer from '../../components/ui/NotificationContainer';
 
 const AuthPage: React.FC = () => {
   const { login, register, loading } = useAuthStore();
@@ -1010,6 +1011,9 @@ const AuthPage: React.FC = () => {
           </p>
         </div>
       </div>
+      
+      {/* Custom notification system */}
+      <NotificationContainer />
     </div>
   );
 };

@@ -52,7 +52,7 @@ const convertSupabaseUser = (supabaseUser: any): User | null => {
   const activePredictions = metadata.activePredictions || 0;
   
   const winRate = totalPredictions > 0 ? Math.round((totalWins / totalPredictions) * 100) : 0;
-  const rank = metadata.rank || Math.floor(Math.random() * 1000) + 1; // Fallback rank
+  const rank = metadata.rank || 0; // No fallback rank - should be calculated from real data
   const level = getLevelFromStats(totalPredictions, winRate, totalEarnings);
   
   return {

@@ -70,8 +70,8 @@ const Notification: React.FC<NotificationProps> = ({
       right: '20px',
       zIndex: 9999,
       padding: '16px 20px',
-      borderRadius: '12px',
-      boxShadow: '0 10px 25px rgba(0, 0, 0, 0.15)',
+      borderRadius: '16px',
+      boxShadow: '0 20px 40px rgba(0, 0, 0, 0.15)',
       display: 'flex',
       alignItems: 'center',
       gap: '12px',
@@ -81,7 +81,8 @@ const Notification: React.FC<NotificationProps> = ({
       border: '1px solid',
       backdropFilter: 'blur(10px)',
       fontSize: '14px',
-      fontWeight: '500'
+      fontWeight: '600',
+      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
     };
 
     switch (type) {
