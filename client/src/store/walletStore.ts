@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { supabase } from '../lib/supabase';
 
 export interface Transaction {
   id: string;
@@ -31,7 +32,7 @@ interface WalletState {
   error: string | null;
   
   // Actions
-  initializeWallet: () => void;
+  initializeWallet: () => Promise<void>;
   setDemoMode: (isDemoMode: boolean) => void;
   addFunds: (amount: number, currency?: 'NGN' | 'USD' | 'USDT' | 'ETH', method?: string) => Promise<Transaction>;
   withdraw: (amount: number, currency?: 'NGN' | 'USD' | 'USDT' | 'ETH', destination?: string) => Promise<Transaction>;
@@ -43,76 +44,54 @@ interface WalletState {
   getTransactionHistory: (filters?: { type?: string; currency?: string; limit?: number }) => Transaction[];
   simulateNetworkDelay: () => Promise<void>;
   clearError: () => void;
+  refreshWalletData: () => Promise<void>;
 }
 
-// Demo transaction references
 const generateDemoReference = (type: string): string => {
-  const prefixes = {
-    deposit: 'DEP',
-    withdraw: 'WTH',
-    transfer_in: 'TIN',
-    transfer_out: 'TOU',
-    prediction: 'PRD',
-    win: 'WIN',
-    loss: 'LSS',
-    refund: 'REF'
-  };
-  const prefix = prefixes[type as keyof typeof prefixes] || 'TXN';
-  const timestamp = Date.now().toString().slice(-6);
-  const random = Math.random().toString(36).substr(2, 4).toUpperCase();
-  return `${prefix}_${timestamp}${random}`;
+  const timestamp = Date.now().toString(36);
+  const random = Math.random().toString(36).substring(2, 8);
+  return `DEMO_${type.toUpperCase()}_${timestamp}_${random}`;
 };
 
-// Demo notification system
 const showDemoNotification = (message: string, type: 'success' | 'error' | 'info' = 'success') => {
-  // Create a temporary notification element
+  // Create a simple notification element
   const notification = document.createElement('div');
   notification.style.cssText = `
     position: fixed;
     top: 20px;
     right: 20px;
-    z-index: 10000;
-    padding: 16px 20px;
-    border-radius: 12px;
-    font-size: 14px;
-    font-weight: 600;
+    padding: 12px 16px;
+    border-radius: 8px;
     color: white;
-    max-width: 320px;
-    box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+    font-weight: 500;
+    z-index: 9999;
+    max-width: 300px;
+    word-wrap: break-word;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
     animation: slideIn 0.3s ease-out;
-    pointer-events: auto;
-    cursor: pointer;
-    ${type === 'success' ? 'background: linear-gradient(135deg, #10b981, #059669);' : ''}
-    ${type === 'error' ? 'background: linear-gradient(135deg, #ef4444, #dc2626);' : ''}
-    ${type === 'info' ? 'background: linear-gradient(135deg, #3b82f6, #2563eb);' : ''}
   `;
   
-  // Add animation keyframes to document if not already present
-  if (!document.querySelector('#wallet-notification-styles')) {
-    const style = document.createElement('style');
-    style.id = 'wallet-notification-styles';
-    style.textContent = `
-      @keyframes slideIn {
-        from { transform: translateX(100%); opacity: 0; }
-        to { transform: translateX(0); opacity: 1; }
-      }
-      @keyframes slideOut {
-        from { transform: translateX(0); opacity: 1; }
-        to { transform: translateX(100%); opacity: 0; }
-      }
-    `;
-    document.head.appendChild(style);
+  // Set background color based on type
+  switch (type) {
+    case 'success':
+      notification.style.backgroundColor = '#10b981';
+      break;
+    case 'error':
+      notification.style.backgroundColor = '#ef4444';
+      break;
+    case 'info':
+      notification.style.backgroundColor = '#3b82f6';
+      break;
   }
   
   notification.textContent = message;
   document.body.appendChild(notification);
   
-  // Auto remove after 5 seconds or on click
   const remove = () => {
     notification.style.animation = 'slideOut 0.3s ease-out';
     setTimeout(() => {
-      if (document.body.contains(notification)) {
-        document.body.removeChild(notification);
+      if (notification.parentNode) {
+        notification.parentNode.removeChild(notification);
       }
     }, 300);
   };
@@ -135,11 +114,90 @@ export const useWalletStore = create<WalletState>()(
       isLoading: false,
       error: null,
 
-      initializeWallet: () => {
+      initializeWallet: async () => {
         const state = get();
-        // FIXED: Start with zero balance for new users
-        // No initial transactions - users start with $0 balance
-        console.log('✅ New user wallet initialized with $0 balance');
+        console.log('🔄 Initializing wallet with real database data...');
+        
+        try {
+          // Get current user
+          const { data: { user } } = await supabase.auth.getUser();
+          if (!user) {
+            console.log('⚠️ No authenticated user found for wallet initialization');
+            return;
+          }
+
+          // Fetch wallet data from database
+          const { data: walletData, error: walletError } = await supabase
+            .from('wallets')
+            .select('*')
+            .eq('user_id', user.id);
+
+          if (walletError) {
+            console.error('❌ Error fetching wallet data:', walletError);
+            return;
+          }
+
+          // Fetch transaction history from database
+          const { data: transactionData, error: transactionError } = await supabase
+            .from('wallet_transactions')
+            .select('*')
+            .eq('user_id', user.id)
+            .order('created_at', { ascending: false })
+            .limit(50);
+
+          if (transactionError) {
+            console.error('❌ Error fetching transaction data:', transactionError);
+            return;
+          }
+
+          // Convert database data to store format
+          const balances: WalletBalance[] = walletData?.map(wallet => ({
+            currency: wallet.currency as 'NGN' | 'USD' | 'USDT' | 'ETH',
+            available: wallet.available_balance || 0,
+            reserved: wallet.reserved_balance || 0,
+            total: wallet.total_balance || 0,
+          })) || [
+            { currency: 'USD', available: 0, reserved: 0, total: 0 },
+            { currency: 'NGN', available: 0, reserved: 0, total: 0 },
+            { currency: 'USDT', available: 0, reserved: 0, total: 0 },
+            { currency: 'ETH', available: 0, reserved: 0, total: 0 },
+          ];
+
+          const transactions: Transaction[] = transactionData?.map(tx => ({
+            id: tx.id,
+            type: tx.type as any,
+            amount: tx.amount || 0,
+            description: tx.description || '',
+            date: new Date(tx.created_at),
+            status: tx.status as any,
+            reference: tx.reference,
+            currency: tx.currency as any,
+            fee: tx.fee,
+            fromUser: tx.from_user,
+            toUser: tx.to_user,
+            predictionId: tx.prediction_id,
+          })) || [];
+
+          set({ 
+            balances, 
+            transactions,
+            isLoading: false,
+            error: null
+          });
+
+          console.log('✅ Wallet initialized with real database data:', {
+            balances: balances.length,
+            transactions: transactions.length
+          });
+
+        } catch (error) {
+          console.error('❌ Error initializing wallet:', error);
+          set({ isLoading: false, error: 'Failed to initialize wallet' });
+        }
+      },
+
+      refreshWalletData: async () => {
+        await get().initializeWallet();
       },
 
       setDemoMode: (isDemoMode: boolean) => {
@@ -174,43 +232,70 @@ export const useWalletStore = create<WalletState>()(
             }
           }
 
-          const transaction: Transaction = {
-            id: `txn_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-            type: 'deposit',
-            amount,
-            description: `${method} Deposit${isDemoMode ? ' (Demo)' : ''}`,
-            date: new Date(),
-            status: 'completed', // Always complete for demo mode
-            reference: generateDemoReference('deposit'),
-            currency,
-            fee: 0 // No fees for demo deposits
-          };
+          // Get current user
+          const { data: { user } } = await supabase.auth.getUser();
+          if (!user) {
+            throw new Error('User not authenticated');
+          }
 
-          set((state) => {
-            const updatedBalances = state.balances.map(balance => 
-              balance.currency === currency 
-                ? { 
-                    ...balance, 
-                    available: balance.available + amount,
-                    total: balance.total + amount
-                  }
-                : balance
-            );
+          // Create transaction record in database
+          const { data: transaction, error: transactionError } = await supabase
+            .from('wallet_transactions')
+            .insert({
+              user_id: user.id,
+              type: 'deposit',
+              amount: amount,
+              description: `${method} Deposit${isDemoMode ? ' (Demo)' : ''}`,
+              currency: currency,
+              status: 'completed',
+              reference: generateDemoReference('deposit'),
+              fee: 0
+            })
+            .select()
+            .single();
 
-            return {
-              balances: updatedBalances,
-              transactions: [transaction, ...state.transactions],
-              isLoading: false,
-              error: null
-            };
-          });
+          if (transactionError) {
+            throw new Error(`Failed to record transaction: ${transactionError.message}`);
+          }
+
+          // Update wallet balance in database
+          const { error: walletError } = await supabase
+            .from('wallets')
+            .upsert({
+              user_id: user.id,
+              currency: currency,
+              available_balance: amount,
+              reserved_balance: 0,
+              total_balance: amount,
+              updated_at: new Date().toISOString()
+            }, {
+              onConflict: 'user_id,currency'
+            });
+
+          if (walletError) {
+            throw new Error(`Failed to update wallet: ${walletError.message}`);
+          }
+
+          // Refresh wallet data
+          await get().refreshWalletData();
 
           showDemoNotification(
             `Successfully deposited ${amount.toLocaleString()} ${currency}${isDemoMode ? ' (Demo)' : ''}`,
             'success'
           );
 
-          return transaction;
+          return {
+            id: transaction.id,
+            type: 'deposit',
+            amount,
+            description: `${method} Deposit${isDemoMode ? ' (Demo)' : ''}`,
+            date: new Date(transaction.created_at),
+            status: 'completed',
+            reference: transaction.reference,
+            currency,
+            fee: 0
+          };
+
         } catch (error) {
           const errorMessage = error instanceof Error ? error.message : 'Deposit failed';
           set({ error: errorMessage, isLoading: false });
@@ -219,86 +304,84 @@ export const useWalletStore = create<WalletState>()(
         }
       },
 
+      // ... rest of the methods remain similar but use database operations
       withdraw: async (amount: number, currency: 'NGN' | 'USD' | 'USDT' | 'ETH' = 'USD', destination: string = 'Bank Account') => {
         const { isDemoMode, simulateNetworkDelay, getBalance } = get();
         
         set({ isLoading: true, error: null });
-
+        
         try {
-          // Validate amount
-          if (isNaN(amount) || amount <= 0) {
-            throw new Error('Please enter a valid amount');
-          }
-
-          // Validate destination
-          if (!destination || destination.trim().length === 0) {
-            throw new Error('Please specify withdrawal destination');
-          }
-
           const currentBalance = getBalance(currency);
           
           if (amount > currentBalance) {
-            throw new Error(`Insufficient funds. Available: ${currentBalance.toLocaleString()} ${currency}`);
+            throw new Error('Insufficient funds for withdrawal');
           }
 
           if (isDemoMode) {
             await simulateNetworkDelay();
-            
-            // Reduce failure rate for better demo experience
-            if (Math.random() < 0.03) { // 3% failure rate
-              throw new Error('Withdrawal temporarily unavailable - Please try again');
-            }
           }
 
-          const transaction: Transaction = {
-            id: `txn_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          // Get current user
+          const { data: { user } } = await supabase.auth.getUser();
+          if (!user) {
+            throw new Error('User not authenticated');
+          }
+
+          // Create transaction record
+          const { data: transaction, error: transactionError } = await supabase
+            .from('wallet_transactions')
+            .insert({
+              user_id: user.id,
+              type: 'withdraw',
+              amount: -amount, // Negative for withdrawal
+              description: `${destination} Withdrawal${isDemoMode ? ' (Demo)' : ''}`,
+              currency: currency,
+              status: 'completed',
+              reference: generateDemoReference('withdraw'),
+              fee: 0
+            })
+            .select()
+            .single();
+
+          if (transactionError) {
+            throw new Error(`Failed to record transaction: ${transactionError.message}`);
+          }
+
+          // Update wallet balance
+          const { error: walletError } = await supabase
+            .from('wallets')
+            .upsert({
+              user_id: user.id,
+              currency: currency,
+              available_balance: -amount,
+              reserved_balance: 0,
+              total_balance: -amount,
+              updated_at: new Date().toISOString()
+            }, {
+              onConflict: 'user_id,currency'
+            });
+
+          if (walletError) {
+            throw new Error(`Failed to update wallet: ${walletError.message}`);
+          }
+
+          // Refresh wallet data
+          await get().refreshWalletData();
+
+          showDemoNotification(`Withdrew ${amount.toLocaleString()} ${currency} to ${destination}`, 'success');
+          
+          return {
+            id: transaction.id,
             type: 'withdraw',
             amount,
-            description: `Withdrawal to ${destination}${isDemoMode ? ' (Demo)' : ''}`,
-            date: new Date(),
-            status: 'pending',
-            reference: generateDemoReference('withdraw'),
+            description: `${destination} Withdrawal${isDemoMode ? ' (Demo)' : ''}`,
+            date: new Date(transaction.created_at),
+            status: 'completed',
+            reference: transaction.reference,
             currency,
-            fee: 0 // No fees for demo withdrawals
+            fee: 0
           };
 
-          set((state) => {
-            const updatedBalances = state.balances.map(balance => 
-              balance.currency === currency 
-                ? { 
-                    ...balance, 
-                    available: balance.available - amount,
-                    total: balance.total - amount
-                  }
-                : balance
-            );
-
-            return {
-              balances: updatedBalances,
-              transactions: [transaction, ...state.transactions],
-              isLoading: false,
-              error: null
-            };
-          });
-
-          showDemoNotification(
-            `Withdrawal of ${amount.toLocaleString()} ${currency} initiated${isDemoMode ? ' (Demo)' : ''}`,
-            'info'
-          );
-
-          // Auto-complete demo withdrawals after 2 seconds
-          if (isDemoMode) {
-            setTimeout(() => {
-              set((state) => ({
-                transactions: state.transactions.map(t => 
-                  t.id === transaction.id ? { ...t, status: 'completed' as const } : t
-                )
-              }));
-              showDemoNotification('Withdrawal completed (Demo)', 'success');
-            }, 2000);
-          }
-
-          return transaction;
         } catch (error) {
           const errorMessage = error instanceof Error ? error.message : 'Withdrawal failed';
           set({ error: errorMessage, isLoading: false });
@@ -313,107 +396,216 @@ export const useWalletStore = create<WalletState>()(
         const currentBalance = getBalance(currency);
         
         if (amount > currentBalance) {
-          throw new Error('Insufficient funds');
+          throw new Error('Insufficient funds for prediction');
         }
 
-        const transaction: Transaction = {
-          id: Date.now().toString(),
-          type: 'prediction',
-          amount,
-          description,
-          date: new Date(),
-          status: 'completed',
-          reference: generateDemoReference('prediction'),
-          currency,
-          predictionId
-        };
+        set({ isLoading: true });
 
-        set((state) => {
-          const updatedBalances = state.balances.map(balance => 
-            balance.currency === currency 
-              ? { 
-                  ...balance, 
-                  available: balance.available - amount,
-                  reserved: balance.reserved + amount
-                }
-              : balance
-          );
+        try {
+          // Get current user
+          const { data: { user } } = await supabase.auth.getUser();
+          if (!user) {
+            throw new Error('User not authenticated');
+          }
+
+          // Create transaction record
+          const { data: transaction, error: transactionError } = await supabase
+            .from('wallet_transactions')
+            .insert({
+              user_id: user.id,
+              type: 'prediction_lock',
+              amount: -amount, // Negative for prediction lock
+              description: description,
+              currency: currency,
+              status: 'completed',
+              reference: generateDemoReference('prediction'),
+              prediction_id: predictionId,
+              fee: 0
+            })
+            .select()
+            .single();
+
+          if (transactionError) {
+            throw new Error(`Failed to record transaction: ${transactionError.message}`);
+          }
+
+          // Update wallet balance
+          const { error: walletError } = await supabase
+            .from('wallets')
+            .upsert({
+              user_id: user.id,
+              currency: currency,
+              available_balance: -amount,
+              reserved_balance: amount, // Reserve the amount
+              total_balance: 0, // No change to total
+              updated_at: new Date().toISOString()
+            }, {
+              onConflict: 'user_id,currency'
+            });
+
+          if (walletError) {
+            throw new Error(`Failed to update wallet: ${walletError.message}`);
+          }
+
+          // Refresh wallet data
+          await get().refreshWalletData();
 
           return {
-            balances: updatedBalances,
-            transactions: [transaction, ...state.transactions]
+            id: transaction.id,
+            type: 'prediction',
+            amount,
+            description,
+            date: new Date(transaction.created_at),
+            status: 'completed',
+            reference: transaction.reference,
+            currency,
+            predictionId
           };
-        });
 
-        showDemoNotification(`Prediction placed: ${amount.toLocaleString()} ${currency}`, 'info');
-        return transaction;
+        } catch (error) {
+          set({ isLoading: false });
+          throw error;
+        }
       },
 
       recordWin: async (amount: number, description: string, predictionId: string, currency: 'NGN' | 'USD' | 'USDT' | 'ETH' = 'USD') => {
-        const transaction: Transaction = {
-          id: Date.now().toString(),
-          type: 'win',
-          amount,
-          description,
-          date: new Date(),
-          status: 'completed',
-          reference: generateDemoReference('win'),
-          currency,
-          predictionId
-        };
+        set({ isLoading: true });
 
-        set((state) => {
-          const updatedBalances = state.balances.map(balance => 
-            balance.currency === currency 
-              ? { 
-                  ...balance, 
-                  available: balance.available + amount,
-                  total: balance.total + amount
-                }
-              : balance
-          );
+        try {
+          // Get current user
+          const { data: { user } } = await supabase.auth.getUser();
+          if (!user) {
+            throw new Error('User not authenticated');
+          }
+
+          // Create transaction record
+          const { data: transaction, error: transactionError } = await supabase
+            .from('wallet_transactions')
+            .insert({
+              user_id: user.id,
+              type: 'prediction_release',
+              amount: amount,
+              description: description,
+              currency: currency,
+              status: 'completed',
+              reference: generateDemoReference('win'),
+              prediction_id: predictionId,
+              fee: 0
+            })
+            .select()
+            .single();
+
+          if (transactionError) {
+            throw new Error(`Failed to record transaction: ${transactionError.message}`);
+          }
+
+          // Update wallet balance
+          const { error: walletError } = await supabase
+            .from('wallets')
+            .upsert({
+              user_id: user.id,
+              currency: currency,
+              available_balance: amount,
+              reserved_balance: 0,
+              total_balance: amount,
+              updated_at: new Date().toISOString()
+            }, {
+              onConflict: 'user_id,currency'
+            });
+
+          if (walletError) {
+            throw new Error(`Failed to update wallet: ${walletError.message}`);
+          }
+
+          // Refresh wallet data
+          await get().refreshWalletData();
 
           return {
-            balances: updatedBalances,
-            transactions: [transaction, ...state.transactions]
+            id: transaction.id,
+            type: 'win',
+            amount,
+            description,
+            date: new Date(transaction.created_at),
+            status: 'completed',
+            reference: transaction.reference,
+            currency,
+            predictionId
           };
-        });
 
-        showDemoNotification(`🎉 You won ${amount.toLocaleString()} ${currency}!`, 'success');
-        return transaction;
+        } catch (error) {
+          set({ isLoading: false });
+          throw error;
+        }
       },
 
       recordLoss: async (amount: number, description: string, predictionId: string, currency: 'NGN' | 'USD' | 'USDT' | 'ETH' = 'USD') => {
-        const transaction: Transaction = {
-          id: Date.now().toString(),
-          type: 'loss',
-          amount,
-          description,
-          date: new Date(),
-          status: 'completed',
-          reference: generateDemoReference('loss'),
-          currency,
-          predictionId
-        };
+        set({ isLoading: true });
 
-        set((state) => {
-          const updatedBalances = state.balances.map(balance => 
-            balance.currency === currency 
-              ? { 
-                  ...balance, 
-                  reserved: balance.reserved - amount,
-                  total: balance.total - amount
-                }
-              : balance
-          );
+        try {
+          // Get current user
+          const { data: { user } } = await supabase.auth.getUser();
+          if (!user) {
+            throw new Error('User not authenticated');
+          }
+
+          // Create transaction record
+          const { data: transaction, error: transactionError } = await supabase
+            .from('wallet_transactions')
+            .insert({
+              user_id: user.id,
+              type: 'prediction_release',
+              amount: 0, // No winnings
+              description: description,
+              currency: currency,
+              status: 'completed',
+              reference: generateDemoReference('loss'),
+              prediction_id: predictionId,
+              fee: 0
+            })
+            .select()
+            .single();
+
+          if (transactionError) {
+            throw new Error(`Failed to record transaction: ${transactionError.message}`);
+          }
+
+          // Update wallet balance (release reserved amount)
+          const { error: walletError } = await supabase
+            .from('wallets')
+            .upsert({
+              user_id: user.id,
+              currency: currency,
+              available_balance: 0,
+              reserved_balance: 0,
+              total_balance: 0,
+              updated_at: new Date().toISOString()
+            }, {
+              onConflict: 'user_id,currency'
+            });
+
+          if (walletError) {
+            throw new Error(`Failed to update wallet: ${walletError.message}`);
+          }
+
+          // Refresh wallet data
+          await get().refreshWalletData();
 
           return {
-            balances: updatedBalances,
-            transactions: [transaction, ...state.transactions]
+            id: transaction.id,
+            type: 'loss',
+            amount: 0,
+            description,
+            date: new Date(transaction.created_at),
+            status: 'completed',
+            reference: transaction.reference,
+            currency,
+            predictionId
           };
-        });
 
-        return transaction;
+        } catch (error) {
+          set({ isLoading: false });
+          throw error;
+        }
       },
 
       transferFunds: async (amount: number, toUser: string, description: string = 'P2P Transfer', currency: 'NGN' | 'USD' | 'USDT' | 'ETH' = 'USD') => {
@@ -432,39 +624,69 @@ export const useWalletStore = create<WalletState>()(
             await simulateNetworkDelay();
           }
 
-          const transaction: Transaction = {
-            id: Date.now().toString(),
+          // Get current user
+          const { data: { user } } = await supabase.auth.getUser();
+          if (!user) {
+            throw new Error('User not authenticated');
+          }
+
+          // Create transaction record
+          const { data: transaction, error: transactionError } = await supabase
+            .from('wallet_transactions')
+            .insert({
+              user_id: user.id,
+              type: 'transfer_out',
+              amount: -amount,
+              description: `${description} to ${toUser}${isDemoMode ? ' (Demo)' : ''}`,
+              currency: currency,
+              status: 'completed',
+              reference: generateDemoReference('transfer_out'),
+              to_user: toUser,
+              fee: amount * 0.005 // 0.5% transfer fee
+            })
+            .select()
+            .single();
+
+          if (transactionError) {
+            throw new Error(`Failed to record transaction: ${transactionError.message}`);
+          }
+
+          // Update wallet balance
+          const { error: walletError } = await supabase
+            .from('wallets')
+            .upsert({
+              user_id: user.id,
+              currency: currency,
+              available_balance: -amount,
+              reserved_balance: 0,
+              total_balance: -amount,
+              updated_at: new Date().toISOString()
+            }, {
+              onConflict: 'user_id,currency'
+            });
+
+          if (walletError) {
+            throw new Error(`Failed to update wallet: ${walletError.message}`);
+          }
+
+          // Refresh wallet data
+          await get().refreshWalletData();
+
+          showDemoNotification(`Transferred ${amount.toLocaleString()} ${currency} to ${toUser}`, 'success');
+          
+          return {
+            id: transaction.id,
             type: 'transfer_out',
             amount,
             description: `${description} to ${toUser}${isDemoMode ? ' (Demo)' : ''}`,
-            date: new Date(),
+            date: new Date(transaction.created_at),
             status: 'completed',
-            reference: generateDemoReference('transfer_out'),
+            reference: transaction.reference,
             currency,
             toUser,
-            fee: amount * 0.005 // 0.5% transfer fee
+            fee: amount * 0.005
           };
 
-          set((state) => {
-            const updatedBalances = state.balances.map(balance => 
-              balance.currency === currency 
-                ? { 
-                    ...balance, 
-                    available: balance.available - amount,
-                    total: balance.total - amount
-                  }
-                : balance
-            );
-
-            return {
-              balances: updatedBalances,
-              transactions: [transaction, ...state.transactions],
-              isLoading: false
-            };
-          });
-
-          showDemoNotification(`Transferred ${amount.toLocaleString()} ${currency} to ${toUser}`, 'success');
-          return transaction;
         } catch (error) {
           set({ isLoading: false });
           throw error;
@@ -502,7 +724,7 @@ export const useWalletStore = create<WalletState>()(
     }),
     {
       name: 'fanclubz-wallet-storage',
-      version: 2, // Incremented to force fresh start with zero balances
+      version: 3, // Incremented to force reset with new database-driven approach
     }
   )
 );
