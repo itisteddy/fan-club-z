@@ -21,7 +21,7 @@ interface WalletBalance {
   currency: 'NGN' | 'USD' | 'USDT' | 'ETH';
   available: number;
   reserved: number;
-  total: number;
+  total: number; // This will be calculated as available + reserved
 }
 
 interface WalletState {
@@ -155,7 +155,7 @@ export const useWalletStore = create<WalletState>()(
             currency: wallet.currency as 'NGN' | 'USD' | 'USDT' | 'ETH',
             available: wallet.available_balance || 0,
             reserved: wallet.reserved_balance || 0,
-            total: wallet.total_balance || 0,
+            total: (wallet.available_balance || 0) + (wallet.reserved_balance || 0), // Calculate total
           })) || [
             { currency: 'USD', available: 0, reserved: 0, total: 0 },
             { currency: 'NGN', available: 0, reserved: 0, total: 0 },
@@ -266,7 +266,8 @@ export const useWalletStore = create<WalletState>()(
               currency: currency,
               available_balance: amount,
               reserved_balance: 0,
-              total_balance: amount,
+              total_deposited: amount,
+              total_withdrawn: 0,
               updated_at: new Date().toISOString()
             }, {
               onConflict: 'user_id,currency'
@@ -355,7 +356,8 @@ export const useWalletStore = create<WalletState>()(
               currency: currency,
               available_balance: -amount,
               reserved_balance: 0,
-              total_balance: -amount,
+              total_deposited: 0,
+              total_withdrawn: amount,
               updated_at: new Date().toISOString()
             }, {
               onConflict: 'user_id,currency'
@@ -437,7 +439,8 @@ export const useWalletStore = create<WalletState>()(
               currency: currency,
               available_balance: -amount,
               reserved_balance: amount, // Reserve the amount
-              total_balance: 0, // No change to total
+              total_deposited: 0,
+              total_withdrawn: 0,
               updated_at: new Date().toISOString()
             }, {
               onConflict: 'user_id,currency'
@@ -507,7 +510,8 @@ export const useWalletStore = create<WalletState>()(
               currency: currency,
               available_balance: amount,
               reserved_balance: 0,
-              total_balance: amount,
+              total_deposited: amount,
+              total_withdrawn: 0,
               updated_at: new Date().toISOString()
             }, {
               onConflict: 'user_id,currency'
@@ -577,7 +581,8 @@ export const useWalletStore = create<WalletState>()(
               currency: currency,
               available_balance: 0,
               reserved_balance: 0,
-              total_balance: 0,
+              total_deposited: 0,
+              total_withdrawn: 0,
               updated_at: new Date().toISOString()
             }, {
               onConflict: 'user_id,currency'
@@ -659,7 +664,8 @@ export const useWalletStore = create<WalletState>()(
               currency: currency,
               available_balance: -amount,
               reserved_balance: 0,
-              total_balance: -amount,
+              total_deposited: 0,
+              total_withdrawn: amount,
               updated_at: new Date().toISOString()
             }, {
               onConflict: 'user_id,currency'

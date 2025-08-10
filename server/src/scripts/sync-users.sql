@@ -50,12 +50,14 @@ BEGIN
       currency,
       available_balance,
       reserved_balance,
-      total_balance,
+      total_deposited,
+      total_withdrawn,
       created_at,
       updated_at
     ) VALUES (
       NEW.id,
       'USD',
+      0.00,
       0.00,
       0.00,
       0.00,
@@ -170,13 +172,15 @@ INSERT INTO public.wallets (
   currency,
   available_balance,
   reserved_balance,
-  total_balance,
+  total_deposited,
+  total_withdrawn,
   created_at,
   updated_at
 )
 SELECT 
   u.id,
   'USD',
+  0.00,
   0.00,
   0.00,
   0.00,
