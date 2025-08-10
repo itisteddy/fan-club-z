@@ -4,6 +4,7 @@ import { Search, TrendingUp, Heart, MessageCircle, Share2, Clock, User, X } from
 import { usePredictionStore } from '../store/predictionStore';
 import { useAuthStore } from '../store/authStore';
 import { useWalletStore } from '../store/walletStore';
+import { useLocation } from 'wouter';
 import { scrollToTop } from '../utils/scroll';
 import { usePullToRefresh } from '../utils/pullToRefresh';
 import { formatTimeRemaining } from '../lib/utils';
@@ -152,8 +153,9 @@ const PredictionCard: React.FC<{
   onComment: (predictionId: string) => void;
   onShare: (prediction: any) => void;
 }> = ({ prediction, index, onPredict, onLike, onComment, onShare }) => {
+  const [, setLocation] = useLocation();
   const [isLiked, setIsLiked] = useState(false);
-  const [likeCount, setLikeCount] = useState(prediction.likes_count || 24);
+  const [likeCount, setLikeCount] = useState(prediction.likes_count || 0);
   const [commentCount, setCommentCount] = useState(prediction.comments_count || 12);
 
   if (!prediction || !prediction.options || prediction.options.length === 0) {
@@ -185,21 +187,35 @@ const PredictionCard: React.FC<{
     >
       {/* Compact header */}
       <div className="flex items-center gap-2 mb-1.5">
-        <div className="w-6 h-6 bg-gradient-to-br from-green-400 to-green-600 rounded-md flex items-center justify-center">
+        <div 
+          className="avatar-clickable w-6 h-6 bg-gradient-to-br from-green-400 to-green-600 rounded-md flex items-center justify-center"
+          onClick={(e) => {
+            e.stopPropagation();
+            // Navigate to creator profile
+            setLocation(`/profile/${prediction.creator?.id || 'unknown'}`);
+          }}
+        >
           <span className="text-white font-bold text-xs">
             {prediction.creator?.username?.charAt(0) || prediction.creatorName?.charAt(0) || 'FC'}
           </span>
         </div>
-        <div className="flex-1 min-w-0">
+        <div 
+          className="creator-profile-link flex-1 min-w-0"
+          onClick={(e) => {
+            e.stopPropagation();
+            // Navigate to creator profile
+            setLocation(`/profile/${prediction.creator?.id || 'unknown'}`);
+          }}
+        >
           <div className="text-xs font-medium text-gray-900 truncate">
             {prediction.creator?.username || prediction.creatorName || 'Fan Club Z'}
           </div>
           <div className="text-xs text-gray-500">2h ago</div>
-              </div>
+        </div>
         <div className="px-1.5 py-0.5 bg-green-50 text-green-700 text-xs font-medium rounded border border-green-200">
           {prediction.category || 'general'}
-              </div>
-            </div>
+        </div>
+      </div>
             
       {/* Compact content */}
       <div className="mb-2">
@@ -728,7 +744,7 @@ const DiscoverPage: React.FC<DiscoverPageProps> = ({ onNavigateToProfile }) => {
 
   const stats = {
     totalVolume: predictions?.reduce((sum, pred) => sum + (pred.pool_total || 0), 0) || 0,
-    activePredictions: predictions?.filter(pred => pred.status === 'active')?.length || 0,
+    activePredictions: predictions?.filter(pred => pred.status === 'open')?.length || 0,
     todayVolume: predictions?.filter(pred => {
       const today = new Date().toDateString();
       const predDate = new Date(pred.created_at).toDateString();

@@ -186,13 +186,29 @@ export const PredictionCard: React.FC<PredictionCardProps> = ({
             {/* Header - More compact */}
             <div className="flex items-center justify-between mb-1">
               <div className="flex items-center gap-1">
-                <Avatar className="w-5 h-5">
-                  <AvatarImage src={getAvatarUrl(prediction.creator)} />
-                  <AvatarFallback className="text-xs">
-                    {generateInitials(prediction.creator.username)}
-                  </AvatarFallback>
-                </Avatar>
-                <div>
+                <div 
+                  className="avatar-clickable"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    // Navigate to creator profile
+                    setLocation(`/profile/${prediction.creator.id}`);
+                  }}
+                >
+                  <Avatar className="w-5 h-5">
+                    <AvatarImage src={getAvatarUrl(prediction.creator)} />
+                    <AvatarFallback className="text-xs">
+                      {generateInitials(prediction.creator.username)}
+                    </AvatarFallback>
+                  </Avatar>
+                </div>
+                <div 
+                  className="creator-profile-link"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    // Navigate to creator profile
+                    setLocation(`/profile/${prediction.creator.id}`);
+                  }}
+                >
                   <div className="flex items-center gap-1">
                     <span className="text-xs font-medium">{prediction.creator.username}</span>
                     {prediction.creator.is_verified && (

@@ -309,7 +309,7 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
 
                 <div className="space-y-6">
                   {/* Title */}
-                  <div>
+                  <div className="input-container">
                     <label className="block text-sm font-semibold text-gray-700 mb-2">
                       Prediction Title *
                     </label>
@@ -323,7 +323,7 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
                   </div>
 
                   {/* Description */}
-                  <div>
+                  <div className="textarea-container">
                     <label className="block text-sm font-semibold text-gray-700 mb-2">
                       Description (Optional)
                     </label>
@@ -337,7 +337,7 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
                   </div>
 
                   {/* Category - Pill-based (consistent with DiscoverPage) */}
-                  <div>
+                  <div className="form-section">
                     <label className="block text-sm font-semibold text-gray-700 mb-3">
                       Category *
                     </label>
@@ -348,7 +348,7 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
                           whileHover={{ scale: 1.02 }}
                           whileTap={{ scale: 0.98 }}
                           onClick={() => setCategory(cat.id)}
-                          className={`pill-category px-4 py-2.5 rounded-full text-sm font-semibold transition-all flex items-center gap-2 min-h-[40px] ${
+                          className={`motion-button pill-category px-4 py-2.5 rounded-full text-sm font-semibold transition-all flex items-center gap-2 min-h-[40px] ${
                             category === cat.id
                               ? `bg-gradient-to-r ${cat.gradient} text-white shadow-lg`
                               : 'bg-gray-100 text-gray-700 hover:bg-gray-200 border border-gray-200'
@@ -410,7 +410,7 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
                               ]);
                             }
                           }}
-                          className={`w-full p-4 rounded-2xl border-2 text-left transition-all duration-200 ${
+                          className={`motion-button w-full p-4 rounded-2xl border-2 text-left transition-all duration-200 ${
                             type === predType.id
                               ? 'border-blue-500 bg-blue-50'
                               : 'border-gray-200 bg-white hover:border-blue-300'
@@ -437,19 +437,21 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
                       <div className="space-y-3">
                         {options.map((option, index) => (
                           <div key={option.id} className="flex items-center gap-3">
-                            <input
-                              type="text"
-                              value={option.label}
-                              onChange={(e) => updateOption(option.id, e.target.value)}
-                              placeholder={`Option ${index + 1}`}
-                              className="flex-1 p-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none transition-all duration-200"
-                            />
+                            <div className="input-container flex-1">
+                              <input
+                                type="text"
+                                value={option.label}
+                                onChange={(e) => updateOption(option.id, e.target.value)}
+                                placeholder={`Option ${index + 1}`}
+                                className="w-full p-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none transition-all duration-200"
+                              />
+                            </div>
                             {type === 'multiple' && options.length > 2 && (
                               <motion.button
                                 whileHover={{ scale: 1.1 }}
                                 whileTap={{ scale: 0.9 }}
                                 onClick={() => removeOption(option.id)}
-                                className="w-10 h-10 bg-red-100 text-red-600 rounded-xl flex items-center justify-center hover:bg-red-200 transition-colors"
+                                className="motion-button w-10 h-10 bg-red-100 text-red-600 rounded-xl flex items-center justify-center hover:bg-red-200 transition-colors"
                               >
                                 <X size={18} />
                               </motion.button>
@@ -462,7 +464,7 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
                             whileHover={{ scale: 1.02 }}
                             whileTap={{ scale: 0.98 }}
                             onClick={addOption}
-                            className="w-full p-3 border-2 border-dashed border-gray-300 rounded-xl text-gray-600 hover:border-blue-400 hover:text-blue-600 transition-all duration-200 flex items-center justify-center gap-2"
+                            className="motion-button w-full p-3 border-2 border-dashed border-gray-300 rounded-xl text-gray-600 hover:border-blue-400 hover:text-blue-600 transition-all duration-200 flex items-center justify-center gap-2"
                           >
                             <Plus size={18} />
                             <span>Add Option</span>
@@ -496,7 +498,7 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
 
                 <div className="space-y-6">
                   {/* Entry Deadline */}
-                  <div>
+                  <div className="input-container">
                     <label className="block text-sm font-semibold text-gray-700 mb-2">
                       Entry Deadline *
                     </label>
@@ -511,7 +513,7 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
 
                   {/* Stake Limits */}
                   <div className="grid grid-cols-2 gap-4">
-                    <div>
+                    <div className="input-container">
                       <label className="block text-sm font-semibold text-gray-700 mb-2">
                         Minimum Stake ($)
                       </label>
@@ -524,7 +526,7 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
                         className="w-full p-4 border-2 border-gray-200 rounded-2xl focus:border-green-500 focus:outline-none transition-all duration-200"
                       />
                     </div>
-                    <div>
+                    <div className="input-container">
                       <label className="block text-sm font-semibold text-gray-700 mb-2">
                         Maximum Stake ($)
                       </label>

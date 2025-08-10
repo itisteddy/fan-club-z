@@ -125,12 +125,146 @@
   }
 }
 
-/* Force focus states */
+/* Force focus states - FIXED: Proper outline containment */
 button:focus-visible,
 input:focus-visible,
 textarea:focus-visible {
   outline: 2px solid #10b981 !important;
   outline-offset: 2px !important;
+  /* Ensure outline doesn't get clipped */
+  position: relative !important;
+  z-index: 1 !important;
+}
+
+/* FIXED: Container overflow handling for focus states */
+.form-container,
+.input-container,
+.textarea-container {
+  position: relative !important;
+  overflow: visible !important;
+  padding: 2px !important; /* Space for focus outline */
+}
+
+/* FIXED: Button hover effects - prevent clipping */
+.btn,
+button,
+.motion-button {
+  position: relative !important;
+  z-index: 1 !important;
+  transform-origin: center !important;
+  /* Ensure hover effects are visible */
+  overflow: visible !important;
+}
+
+/* FIXED: Parent containers for buttons should not clip */
+.card,
+.prediction-card,
+.modal-content,
+.form-section {
+  overflow: visible !important;
+  position: relative !important;
+}
+
+/* FIXED: Text input and textarea proper sizing */
+input[type="text"],
+input[type="email"],
+input[type="password"],
+input[type="number"],
+input[type="datetime-local"],
+textarea {
+  box-sizing: border-box !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  /* Ensure proper padding for focus outline */
+  padding: 12px 16px !important;
+  border-radius: 12px !important;
+  border: 2px solid #e5e7eb !important;
+  transition: all 0.2s ease !important;
+  font-size: 16px !important; /* Prevent zoom on iOS */
+  line-height: 1.5 !important;
+}
+
+/* FIXED: Focus state improvements */
+input[type="text"]:focus,
+input[type="email"]:focus,
+input[type="password"]:focus,
+input[type="number"]:focus,
+input[type="datetime-local"]:focus,
+textarea:focus {
+  outline: none !important;
+  border-color: #10b981 !important;
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.1) !important;
+  /* Ensure focus state is fully visible */
+  position: relative !important;
+  z-index: 2 !important;
+}
+
+/* FIXED: Button hover and active states */
+.btn:hover,
+button:hover,
+.motion-button:hover {
+  transform: scale(1.02) !important;
+  transition: transform 0.2s ease !important;
+}
+
+.btn:active,
+button:active,
+.motion-button:active {
+  transform: scale(0.98) !important;
+  transition: transform 0.1s ease !important;
+}
+
+/* FIXED: Motion button specific fixes */
+.motion-button {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  /* Ensure proper positioning for transforms */
+  transform-style: preserve-3d !important;
+  backface-visibility: hidden !important;
+}
+
+/* FIXED: Category pill hover effects */
+.pill-category:hover {
+  transform: scale(1.05) !important;
+  transition: all 0.2s ease !important;
+}
+
+/* FIXED: Prediction card hover effects */
+.prediction-card:hover {
+  transform: translateY(-2px) !important;
+  transition: transform 0.2s ease !important;
+}
+
+/* FIXED: Avatar clickable styling */
+.avatar-clickable {
+  cursor: pointer !important;
+  transition: transform 0.2s ease !important;
+  position: relative !important;
+  z-index: 1 !important;
+}
+
+.avatar-clickable:hover {
+  transform: scale(1.1) !important;
+}
+
+.avatar-clickable:active {
+  transform: scale(0.95) !important;
+}
+
+/* FIXED: Creator profile link styling */
+.creator-profile-link {
+  cursor: pointer !important;
+  text-decoration: none !important;
+  color: inherit !important;
+  transition: color 0.2s ease !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+}
+
+.creator-profile-link:hover {
+  color: #10b981 !important;
 }
 
 /* Force reduced motion */
