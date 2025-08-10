@@ -52,7 +52,8 @@ const convertSupabaseUser = (supabaseUser: any): User | null => {
   const activePredictions = metadata.activePredictions || 0;
   
   const winRate = totalPredictions > 0 ? Math.round((totalWins / totalPredictions) * 100) : 0;
-  const rank = metadata.rank || 0; // No fallback rank - should be calculated from real data
+  // Calculate rank based on real data - for now, use totalPredictions as a simple rank indicator
+  const rank = metadata.rank || Math.max(0, totalPredictions + 1); // Simple rank based on activity
   const level = getLevelFromStats(totalPredictions, winRate, totalEarnings);
   
   return {
@@ -322,7 +323,7 @@ export const useAuthStore = create<AuthState>()(
             loading: false
           });
           
-          showSuccess(`Welcome back! Please check your email to verify your account, but you can start using the app now.`);
+          showSuccess(`Welcome back! Your account is ready to use. Please check your email to verify your account for full access.`);
           return; // Exit early to avoid throwing error
         } else if (error.message.includes('Too many requests') || error.message.includes('rate limit')) {
           userMessage = 'Too many login attempts. Please wait a few minutes before trying again.';
@@ -336,15 +337,10 @@ export const useAuthStore = create<AuthState>()(
           userMessage = 'Unable to sign in at this time. Please check your credentials and try again.';
         }
         
-        // Show error message with fallback
-        try {
-          showError(userMessage);
-        } catch (e) {
-          console.error('Error showing notification:', e);
-          toast.error(userMessage);
-        }
+        // Show single, well-designed error message
         set({ loading: false });
-        throw new Error(error.message);
+        showError(userMessage);
+        return; // Don't throw error to avoid duplicate notifications
       }
 
       if (data.user && data.session) {
@@ -463,7 +459,7 @@ export const useAuthStore = create<AuthState>()(
         let userMessage = 'Registration failed';
         
         // Enhanced error messages with better UX
-        if (error.message.includes('User already registered') || error.message.includes('already exists')) {
+        if (error.message.includes('User already registered') || error.message.includes('already exists') || error.message.includes('duplicate key')) {
           userMessage = 'An account with this email address already exists. Please try signing in instead, or use a different email address.';
         } else if (error.message.includes('Password should be at least') || error.message.includes('password')) {
           userMessage = 'Password must be at least 6 characters long. Please choose a stronger password.';
@@ -481,15 +477,10 @@ export const useAuthStore = create<AuthState>()(
           userMessage = 'Registration failed. Please check your information and try again, or contact support if the issue persists.';
         }
         
-        // Show error message with fallback
-        try {
-          showError(userMessage);
-        } catch (e) {
-          console.error('Error showing notification:', e);
-          toast.error(userMessage);
-        }
+        // Show single, well-designed error message
         set({ loading: false });
-        throw new Error(error.message);
+        showError(userMessage);
+        return; // Don't throw error to avoid duplicate notifications
       }
 
       if (data.user) {
@@ -528,8 +519,8 @@ export const useAuthStore = create<AuthState>()(
           console.log('🔄 No session created, attempting automatic login...');
           
           try {
-            // Wait a brief moment for the user to be fully created
-            await new Promise(resolve => setTimeout(resolve, 1000));
+            // Minimal delay for better UX
+            await new Promise(resolve => setTimeout(resolve, 300));
             
             const { data: loginData, error: loginError } = await auth.signIn(email, password);
             
@@ -545,7 +536,7 @@ export const useAuthStore = create<AuthState>()(
                   token: null,
                   loading: false
                 });
-                showSuccess(`Welcome to Fan Club Z, ${convertedUser?.firstName}! Please check your email to verify your account, but you can start using the app now.`);
+                showSuccess(`Welcome to Fan Club Z, ${convertedUser?.firstName}! Your account is ready to use. Please check your email to verify your account for full access.`);
               } else {
                 // For other errors, still allow access
                 set({ 
