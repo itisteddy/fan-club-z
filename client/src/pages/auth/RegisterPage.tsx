@@ -138,6 +138,7 @@ export const RegisterPage: React.FC = () => {
                 formErrors.firstName ? 'border-red-500' : 'border-border'
               }`}
               placeholder="Enter first name"
+              data-testid="first-name-input"
               required
               disabled={loading}
             />
@@ -158,6 +159,7 @@ export const RegisterPage: React.FC = () => {
                 formErrors.lastName ? 'border-red-500' : 'border-border'
               }`}
               placeholder="Enter last name"
+              data-testid="last-name-input"
               required
               disabled={loading}
             />
