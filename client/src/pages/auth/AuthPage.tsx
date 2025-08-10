@@ -487,7 +487,7 @@ const AuthPage: React.FC = () => {
                   type="text"
                   value={firstName}
                   onChange={(e) => setFirstName(e.target.value)}
-                  placeholder="Enter your first name"
+                  placeholder="Enter first name"
                   style={{
                     width: '100%',
                     padding: '14px 16px',
@@ -535,7 +535,7 @@ const AuthPage: React.FC = () => {
                   type="text"
                   value={lastName}
                   onChange={(e) => setLastName(e.target.value)}
-                  placeholder="Enter your last name"
+                  placeholder="Enter last name"
                   style={{
                     width: '100%',
                     padding: '14px 16px',
