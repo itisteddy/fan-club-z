@@ -44,7 +44,7 @@ const convertSupabaseUser = (supabaseUser: any): User | null => {
   const fullName = metadata.full_name || '';
   const nameParts = fullName.split(' ');
   
-  // Calculate analytics based on user data
+  // For now, use metadata but we'll enhance this with real database queries
   const totalPredictions = metadata.totalPredictions || 0;
   const totalWins = metadata.totalWins || 0;
   const totalEarnings = metadata.totalEarnings || 0;
@@ -73,6 +73,60 @@ const convertSupabaseUser = (supabaseUser: any): User | null => {
     level,
     createdAt: supabaseUser.created_at || new Date().toISOString()
   };
+};
+
+// Function to fetch real user analytics from database
+const fetchUserAnalytics = async (userId: string) => {
+  try {
+    const { data: predictions, error: predictionsError } = await supabase
+      .from('predictions')
+      .select('id, status, created_at')
+      .eq('creator_id', userId);
+    
+    const { data: entries, error: entriesError } = await supabase
+      .from('prediction_entries')
+      .select('id, amount, prediction_id, created_at')
+      .eq('user_id', userId);
+    
+    const { data: walletTransactions, error: walletError } = await supabase
+      .from('wallet_transactions')
+      .select('id, amount, type, created_at')
+      .eq('user_id', userId);
+    
+    if (predictionsError || entriesError || walletError) {
+      console.error('Error fetching user analytics:', { predictionsError, entriesError, walletError });
+      return null;
+    }
+    
+    // Calculate real analytics
+    const totalPredictions = predictions?.length || 0;
+    const activePredictions = predictions?.filter(p => p.status === 'active').length || 0;
+    const totalInvested = entries?.reduce((sum, entry) => sum + (entry.amount || 0), 0) || 0;
+    
+    // Calculate earnings from wallet transactions
+    const earnings = walletTransactions?.filter(t => t.type === 'win' || t.type === 'payout').reduce((sum, t) => sum + (t.amount || 0), 0) || 0;
+    const totalEarnings = earnings;
+    
+    // Calculate win rate from completed predictions
+    const completedPredictions = predictions?.filter(p => p.status === 'completed').length || 0;
+    const wins = entries?.filter(e => {
+      const prediction = predictions?.find(p => p.id === e.prediction_id);
+      return prediction?.status === 'completed' && e.is_winner;
+    }).length || 0;
+    
+    const winRate = completedPredictions > 0 ? Math.round((wins / completedPredictions) * 100) : 0;
+    
+    return {
+      totalPredictions,
+      activePredictions,
+      totalInvested,
+      totalEarnings,
+      winRate
+    };
+  } catch (error) {
+    console.error('Error fetching user analytics:', error);
+    return null;
+  }
 };
 
 // Helper function to determine user level based on stats
@@ -298,6 +352,18 @@ export const useAuthStore = create<AuthState>()(
         const token = data.session.access_token;
         
         console.log('✅ User logged in successfully:', convertedUser?.firstName);
+        
+        // FIXED: Fetch real user analytics from database
+        const analytics = await fetchUserAnalytics(data.user.id);
+        if (analytics) {
+          convertedUser.totalPredictions = analytics.totalPredictions;
+          convertedUser.activePredictions = analytics.activePredictions;
+          convertedUser.totalInvested = analytics.totalInvested;
+          convertedUser.totalEarnings = analytics.totalEarnings;
+          convertedUser.winRate = analytics.winRate;
+          convertedUser.level = getLevelFromStats(analytics.totalPredictions, analytics.winRate, analytics.totalEarnings);
+        }
+        
         set({ 
           isAuthenticated: true, 
           user: convertedUser,
@@ -437,6 +503,18 @@ export const useAuthStore = create<AuthState>()(
         // FIXED: Immediately authenticate user and redirect to app
         if (data.session) {
           // User has a session - log them in immediately
+          
+          // FIXED: Fetch real user analytics from database
+          const analytics = await fetchUserAnalytics(data.user.id);
+          if (analytics) {
+            convertedUser.totalPredictions = analytics.totalPredictions;
+            convertedUser.activePredictions = analytics.activePredictions;
+            convertedUser.totalInvested = analytics.totalInvested;
+            convertedUser.totalEarnings = analytics.totalEarnings;
+            convertedUser.winRate = analytics.winRate;
+            convertedUser.level = getLevelFromStats(analytics.totalPredictions, analytics.winRate, analytics.totalEarnings);
+          }
+          
           set({ 
             isAuthenticated: true,
             user: convertedUser,

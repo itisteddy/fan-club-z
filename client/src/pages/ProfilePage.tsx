@@ -1249,9 +1249,9 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigateBack }) => {
   }
 
   return (
-    <div style={{ minHeight: '100vh', backgroundColor: '#f9fafb', display: 'flex', flexDirection: 'column' }}>
-      {/* Fixed Header with Gradient Background */}
-      <div style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 1000, background: 'linear-gradient(135deg, #10b981, #059669)', minHeight: '300px' }}>
+    <div style={{ minHeight: '100vh', backgroundColor: '#f9fafb' }}>
+      {/* Header with Gradient Background */}
+      <div style={{ background: 'linear-gradient(135deg, #10b981, #059669)', minHeight: '300px' }}>
           {/* Decorative elements */}
           <div 
             style={{
@@ -1324,18 +1324,14 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigateBack }) => {
             </div>
           </div>
 
-        {/* Profile Card - Fixed positioning and z-index */}
+        {/* Profile Card - Normal positioning */}
         <div 
           style={{
-            position: 'fixed',
-            top: '200px',
-            left: '16px',
-            right: '16px',
+            margin: '16px',
             background: 'white',
             borderRadius: '16px',
             padding: '24px',
             boxShadow: '0 20px 40px rgba(0, 0, 0, 0.1)',
-            zIndex: 1001,
             minHeight: '180px'
           }}
         >
@@ -1590,8 +1586,8 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigateBack }) => {
         </div>
       </div>
 
-      {/* Content - Fixed spacing to account for profile card */}
-      <div style={{ paddingTop: '420px', padding: '420px 24px 100px 24px' }}>
+      {/* Content - Normal spacing */}
+      <div style={{ padding: '0 24px 100px 24px' }}>
         {/* Performance Overview */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
