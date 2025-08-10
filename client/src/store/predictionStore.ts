@@ -345,7 +345,7 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
       // Update wallet store to reflect the prediction
       const { useWalletStore } = await import('./walletStore');
       const walletStore = useWalletStore.getState();
-      await walletStore.makePrediction(amount, `Prediction: ${result.prediction?.title || 'Unknown'}`, predictionId, 'NGN');
+      await walletStore.makePrediction(amount, `Prediction: ${result.prediction?.title || 'Unknown'}`, predictionId, 'USD');
       
       // Refresh predictions to get updated data
       await get().fetchPredictions();

@@ -30,28 +30,34 @@ export const RegisterPage: React.FC = () => {
     
     if (!firstName.trim()) {
       errors.firstName = 'First name is required';
+    } else if (firstName.trim().length < 2) {
+      errors.firstName = 'First name must be at least 2 characters';
     }
     
     if (!lastName.trim()) {
       errors.lastName = 'Last name is required';
+    } else if (lastName.trim().length < 2) {
+      errors.lastName = 'Last name must be at least 2 characters';
     }
     
-    if (!email) {
-      errors.email = 'Email is required';
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      errors.email = 'Please enter a valid email address';
+    if (!email.trim()) {
+      errors.email = 'Email address is required';
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      errors.email = 'Please enter a valid email address (e.g., example@domain.com)';
     }
     
     if (!password) {
       errors.password = 'Password is required';
     } else if (password.length < 6) {
-      errors.password = 'Password must be at least 6 characters';
+      errors.password = 'Password must be at least 6 characters long';
+    } else if (password.length > 128) {
+      errors.password = 'Password is too long (maximum 128 characters)';
     }
     
     if (!confirmPassword) {
       errors.confirmPassword = 'Please confirm your password';
     } else if (password !== confirmPassword) {
-      errors.confirmPassword = 'Passwords do not match';
+      errors.confirmPassword = 'Passwords do not match. Please make sure both passwords are identical.';
     }
     
     setFormErrors(errors);
@@ -131,7 +137,7 @@ export const RegisterPage: React.FC = () => {
               className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary ${
                 formErrors.firstName ? 'border-red-500' : 'border-border'
               }`}
-              placeholder="First name"
+              placeholder="Enter first name"
               required
               disabled={loading}
             />
@@ -151,7 +157,7 @@ export const RegisterPage: React.FC = () => {
               className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary ${
                 formErrors.lastName ? 'border-red-500' : 'border-border'
               }`}
-              placeholder="Last name"
+              placeholder="Enter last name"
               required
               disabled={loading}
             />

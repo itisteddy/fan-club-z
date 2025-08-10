@@ -263,8 +263,8 @@ router.post(
       return ApiUtils.error(res, 'You already have an entry for this option', 409);
     }
 
-    // Check user's wallet balance (default to NGN currency)
-    const wallet = await db.wallets.findByUserId(userId, 'NGN');
+    // Check user's wallet balance (default to USD currency)
+    const wallet = await db.wallets.findByUserId(userId, 'USD');
     if (!wallet || wallet.available_balance < amount) {
       return ApiUtils.error(res, 'Insufficient wallet balance', 400);
     }
@@ -295,14 +295,14 @@ router.post(
     }
 
     // Update wallet balance (lock funds)
-    await db.wallets.updateBalance(userId, 'NGN', -amount, amount);
+    await db.wallets.updateBalance(userId, 'USD', -amount, amount);
 
     // Create transaction record
     await db.transactions.create({
       id: AuthUtils.generateSecureId(),
       user_id: userId,
       type: 'prediction_lock',
-      currency: 'NGN',
+      currency: 'USD',
       amount: amount, // Use positive amount for transaction record
       status: 'completed',
       description: `Locked funds for prediction: ${prediction.title}`,

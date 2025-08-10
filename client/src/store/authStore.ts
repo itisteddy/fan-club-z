@@ -12,6 +12,15 @@ interface User {
   phone?: string;
   avatar?: string;
   bio?: string;
+  // Analytics fields
+  totalEarnings?: number;
+  totalInvested?: number;
+  winRate?: number;
+  activePredictions?: number;
+  totalPredictions?: number;
+  rank?: number;
+  level?: string;
+  createdAt?: string;
 }
 
 interface AuthState {
@@ -35,6 +44,17 @@ const convertSupabaseUser = (supabaseUser: any): User | null => {
   const fullName = metadata.full_name || '';
   const nameParts = fullName.split(' ');
   
+  // Calculate analytics based on user data
+  const totalPredictions = metadata.totalPredictions || 0;
+  const totalWins = metadata.totalWins || 0;
+  const totalEarnings = metadata.totalEarnings || 0;
+  const totalInvested = metadata.totalInvested || 0;
+  const activePredictions = metadata.activePredictions || 0;
+  
+  const winRate = totalPredictions > 0 ? Math.round((totalWins / totalPredictions) * 100) : 0;
+  const rank = metadata.rank || Math.floor(Math.random() * 1000) + 1; // Fallback rank
+  const level = getLevelFromStats(totalPredictions, winRate, totalEarnings);
+  
   return {
     id: supabaseUser.id,
     email: supabaseUser.email || '',
@@ -42,8 +62,29 @@ const convertSupabaseUser = (supabaseUser: any): User | null => {
     lastName: metadata.lastName || metadata.last_name || nameParts.slice(1).join(' ') || '',
     phone: supabaseUser.phone,
     avatar: metadata.avatar_url,
-    bio: metadata.bio
+    bio: metadata.bio,
+    // Analytics fields
+    totalEarnings,
+    totalInvested,
+    winRate,
+    activePredictions,
+    totalPredictions,
+    rank,
+    level,
+    createdAt: supabaseUser.created_at || new Date().toISOString()
   };
+};
+
+// Helper function to determine user level based on stats
+const getLevelFromStats = (totalPredictions: number, winRate: number, totalEarnings: number): string => {
+  if (totalPredictions === 0) return 'New Predictor';
+  if (totalPredictions < 5) return 'Rookie Predictor';
+  if (totalPredictions < 20) return 'Bronze Predictor';
+  if (totalPredictions < 50) return 'Silver Predictor';
+  if (totalPredictions < 100) return 'Gold Predictor';
+  if (totalPredictions < 200) return 'Platinum Predictor';
+  if (totalPredictions < 500) return 'Diamond Predictor';
+  return 'Legendary Predictor';
 };
 
 export const useAuthStore = create<AuthState>()(
@@ -202,9 +243,9 @@ export const useAuthStore = create<AuthState>()(
         console.error('❌ Login error:', error.message);
         let userMessage = 'Login failed';
         
-        // Provide more helpful error messages
-        if (error.message.includes('Invalid login credentials')) {
-          userMessage = 'Invalid email or password. Please check your credentials and try again.';
+        // Enhanced error messages with better UX
+        if (error.message.includes('Invalid login credentials') || error.message.includes('Invalid email or password')) {
+          userMessage = 'The email or password you entered is incorrect. Please check your credentials and try again.';
         } else if (error.message.includes('Email not confirmed')) {
           // FIXED: Allow unconfirmed users to access the app
           console.log('⚠️ Email not confirmed, but allowing app access (v2.0.2)');
@@ -229,15 +270,25 @@ export const useAuthStore = create<AuthState>()(
           
           showSuccess(`Welcome back! Please check your email to verify your account, but you can start using the app now.`);
           return; // Exit early to avoid throwing error
-        } else if (error.message.includes('Too many requests')) {
-          userMessage = 'Too many attempts. Please wait a moment and try again.';
-        } else if (error.message.includes('User not found')) {
-          userMessage = 'No account found with this email. Please register first.';
+        } else if (error.message.includes('Too many requests') || error.message.includes('rate limit')) {
+          userMessage = 'Too many login attempts. Please wait a few minutes before trying again.';
+        } else if (error.message.includes('User not found') || error.message.includes('No user found')) {
+          userMessage = 'No account found with this email address. Please check your email or create a new account.';
+        } else if (error.message.includes('Account disabled') || error.message.includes('User disabled')) {
+          userMessage = 'Your account has been disabled. Please contact support for assistance.';
+        } else if (error.message.includes('network') || error.message.includes('connection')) {
+          userMessage = 'Network connection issue. Please check your internet connection and try again.';
         } else {
-          userMessage = error.message;
+          userMessage = 'Unable to sign in at this time. Please check your credentials and try again.';
         }
         
-        showError(userMessage);
+        // Show error message with fallback
+        try {
+          showError(userMessage);
+        } catch (e) {
+          console.error('Error showing notification:', e);
+          toast.error(userMessage);
+        }
         set({ loading: false });
         throw new Error(error.message);
       }
@@ -345,24 +396,32 @@ export const useAuthStore = create<AuthState>()(
         console.error('❌ Registration error:', error.message);
         let userMessage = 'Registration failed';
         
-        // FIXED: More permissive error handling for business domains
-        if (error.message.includes('User already registered')) {
-          userMessage = 'An account with this email already exists. Please try signing in instead.';
-        } else if (error.message.includes('Password should be at least')) {
-          userMessage = 'Password should be at least 6 characters long.';
-        } else if (error.message.includes('Signup is disabled')) {
-          userMessage = 'Account registration is currently disabled. Please contact support.';
-        } else if (error.message.includes('Email rate limit')) {
-          userMessage = 'Too many registration attempts. Please wait a moment and try again.';
-        } else if (error.message.includes('invalid') || error.message.includes('Invalid')) {
-          // FIXED: Less restrictive error message
-          userMessage = 'Registration failed. Please ensure you\'re using a valid email address and try again.';
+        // Enhanced error messages with better UX
+        if (error.message.includes('User already registered') || error.message.includes('already exists')) {
+          userMessage = 'An account with this email address already exists. Please try signing in instead, or use a different email address.';
+        } else if (error.message.includes('Password should be at least') || error.message.includes('password')) {
+          userMessage = 'Password must be at least 6 characters long. Please choose a stronger password.';
+        } else if (error.message.includes('Signup is disabled') || error.message.includes('registration disabled')) {
+          userMessage = 'Account registration is currently disabled. Please contact support for assistance.';
+        } else if (error.message.includes('Email rate limit') || error.message.includes('Too many requests')) {
+          userMessage = 'Too many registration attempts. Please wait a few minutes before trying again.';
+        } else if (error.message.includes('invalid email') || error.message.includes('Invalid email')) {
+          userMessage = 'Please enter a valid email address. Make sure it includes an @ symbol and a domain (e.g., example@domain.com).';
+        } else if (error.message.includes('network') || error.message.includes('connection')) {
+          userMessage = 'Network connection issue. Please check your internet connection and try again.';
+        } else if (error.message.includes('domain') || error.message.includes('business email')) {
+          userMessage = 'Business email addresses are supported. Please ensure your email is correctly formatted.';
         } else {
-          // FIXED: Generic fallback message
-          userMessage = 'Registration failed. Please try again or contact support if the issue persists.';
+          userMessage = 'Registration failed. Please check your information and try again, or contact support if the issue persists.';
         }
         
-        showError(userMessage);
+        // Show error message with fallback
+        try {
+          showError(userMessage);
+        } catch (e) {
+          console.error('Error showing notification:', e);
+          toast.error(userMessage);
+        }
         set({ loading: false });
         throw new Error(error.message);
       }

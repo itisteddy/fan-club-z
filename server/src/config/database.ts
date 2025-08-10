@@ -176,7 +176,7 @@ export const db = {
   
   // Wallet operations
   wallets: {
-    async findByUserId(userId: string, currency: string = 'NGN') {
+    async findByUserId(userId: string, currency: string = 'USD') {
       const { data, error } = await supabase
         .from('wallets')
         .select('*')
@@ -188,7 +188,7 @@ export const db = {
       return data;
     },
     
-    async createOrUpdate(userId: string, currency: string = 'NGN', updates: any = {}) {
+    async createOrUpdate(userId: string, currency: string = 'USD', updates: any = {}) {
       const { data, error } = await supabase
         .from('wallets')
         .upsert({

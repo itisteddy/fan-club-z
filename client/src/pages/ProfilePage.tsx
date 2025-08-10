@@ -1148,16 +1148,19 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigateBack }) => {
     disabled: false
   });
 
-  // Mock user stats
+  // Real user stats based on actual user data
   const userStats = {
-    totalEarnings: 15420,
-    totalInvested: 12000,
-    winRate: 68.5,
-    activePredictions: 8,
-    totalPredictions: 45,
-    rank: 147,
-    joinedDate: 'January 2024',
-    level: 'Gold Predictor'
+    totalEarnings: user?.totalEarnings || 0,
+    totalInvested: user?.totalInvested || 0,
+    winRate: user?.winRate || 0,
+    activePredictions: user?.activePredictions || 0,
+    totalPredictions: user?.totalPredictions || 0,
+    rank: user?.rank || 0,
+    joinedDate: user?.createdAt ? new Date(user.createdAt).toLocaleDateString('en-US', { 
+      year: 'numeric', 
+      month: 'long' 
+    }) : 'Recently',
+    level: user?.level || 'New Predictor'
   };
 
   const menuItems = [
@@ -1246,16 +1249,9 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigateBack }) => {
   }
 
   return (
-    <div style={{ minHeight: '100vh', backgroundColor: '#f9fafb', paddingBottom: '20px' }}>
-      {/* Header with Gradient Background */}
-      <div style={{ position: 'relative', overflow: 'visible', zIndex: 1000 }}>
-        <div 
-          style={{
-            background: 'linear-gradient(135deg, #10b981, #059669)',
-            minHeight: '300px',
-            position: 'relative'
-          }}
-        >
+    <div style={{ minHeight: '100vh', backgroundColor: '#f9fafb', display: 'flex', flexDirection: 'column' }}>
+      {/* Fixed Header with Gradient Background */}
+      <div style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 1000, background: 'linear-gradient(135deg, #10b981, #059669)', minHeight: '300px' }}>
           {/* Decorative elements */}
           <div 
             style={{
@@ -1327,20 +1323,19 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigateBack }) => {
               </button>
             </div>
           </div>
-        </div>
 
         {/* Profile Card - Fixed positioning and z-index */}
         <div 
           style={{
-            position: 'absolute',
-            bottom: '-100px',
+            position: 'fixed',
+            top: '200px',
             left: '16px',
             right: '16px',
             background: 'white',
             borderRadius: '16px',
             padding: '24px',
             boxShadow: '0 20px 40px rgba(0, 0, 0, 0.1)',
-            zIndex: 1000,
+            zIndex: 1001,
             minHeight: '180px'
           }}
         >
@@ -1596,7 +1591,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigateBack }) => {
       </div>
 
       {/* Content - Fixed spacing to account for profile card */}
-      <div style={{ paddingTop: '140px', padding: '140px 24px 0 24px' }}>
+      <div style={{ paddingTop: '420px', padding: '420px 24px 100px 24px' }}>
         {/* Performance Overview */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}

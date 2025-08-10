@@ -125,8 +125,8 @@ export const useWalletStore = create<WalletState>()(
   persist(
     (set, get) => ({
       balances: [
-        { currency: 'NGN', available: 2500, reserved: 0, total: 2500 },
-        { currency: 'USD', available: 0, reserved: 0, total: 0 },
+        { currency: 'USD', available: 25000, reserved: 0, total: 25000 },
+        { currency: 'NGN', available: 0, reserved: 0, total: 0 },
         { currency: 'USDT', available: 0, reserved: 0, total: 0 },
         { currency: 'ETH', available: 0, reserved: 0, total: 0 },
       ],
@@ -143,12 +143,12 @@ export const useWalletStore = create<WalletState>()(
             {
               id: 'init_001',
               type: 'deposit',
-              amount: 2500,
+              amount: 25000,
               description: 'Welcome Bonus - Demo Mode',
               date: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000), // 7 days ago
               status: 'completed',
-              reference: 'DEMO_WELCOME_2500',
-              currency: 'NGN'
+              reference: 'DEMO_WELCOME_25000',
+              currency: 'USD'
             }
           ];
           
@@ -168,7 +168,7 @@ export const useWalletStore = create<WalletState>()(
         await new Promise(resolve => setTimeout(resolve, delay));
       },
 
-      addFunds: async (amount: number, currency: 'NGN' | 'USD' | 'USDT' | 'ETH' = 'NGN', method: string = 'Bank Transfer') => {
+      addFunds: async (amount: number, currency: 'NGN' | 'USD' | 'USDT' | 'ETH' = 'USD', method: string = 'Bank Transfer') => {
         const { isDemoMode, simulateNetworkDelay } = get();
         
         set({ isLoading: true, error: null });
@@ -233,7 +233,7 @@ export const useWalletStore = create<WalletState>()(
         }
       },
 
-      withdraw: async (amount: number, currency: 'NGN' | 'USD' | 'USDT' | 'ETH' = 'NGN', destination: string = 'Bank Account') => {
+      withdraw: async (amount: number, currency: 'NGN' | 'USD' | 'USDT' | 'ETH' = 'USD', destination: string = 'Bank Account') => {
         const { isDemoMode, simulateNetworkDelay, getBalance } = get();
         
         set({ isLoading: true, error: null });
@@ -321,7 +321,7 @@ export const useWalletStore = create<WalletState>()(
         }
       },
 
-      makePrediction: async (amount: number, description: string, predictionId: string, currency: 'NGN' | 'USD' | 'USDT' | 'ETH' = 'NGN') => {
+      makePrediction: async (amount: number, description: string, predictionId: string, currency: 'NGN' | 'USD' | 'USDT' | 'ETH' = 'USD') => {
         const { getBalance } = get();
         
         const currentBalance = getBalance(currency);
@@ -363,7 +363,7 @@ export const useWalletStore = create<WalletState>()(
         return transaction;
       },
 
-      recordWin: async (amount: number, description: string, predictionId: string, currency: 'NGN' | 'USD' | 'USDT' | 'ETH' = 'NGN') => {
+      recordWin: async (amount: number, description: string, predictionId: string, currency: 'NGN' | 'USD' | 'USDT' | 'ETH' = 'USD') => {
         const transaction: Transaction = {
           id: Date.now().toString(),
           type: 'win',
@@ -397,7 +397,7 @@ export const useWalletStore = create<WalletState>()(
         return transaction;
       },
 
-      recordLoss: async (amount: number, description: string, predictionId: string, currency: 'NGN' | 'USD' | 'USDT' | 'ETH' = 'NGN') => {
+      recordLoss: async (amount: number, description: string, predictionId: string, currency: 'NGN' | 'USD' | 'USDT' | 'ETH' = 'USD') => {
         const transaction: Transaction = {
           id: Date.now().toString(),
           type: 'loss',
@@ -430,7 +430,7 @@ export const useWalletStore = create<WalletState>()(
         return transaction;
       },
 
-      transferFunds: async (amount: number, toUser: string, description: string = 'P2P Transfer', currency: 'NGN' | 'USD' | 'USDT' | 'ETH' = 'NGN') => {
+      transferFunds: async (amount: number, toUser: string, description: string = 'P2P Transfer', currency: 'NGN' | 'USD' | 'USDT' | 'ETH' = 'USD') => {
         const { getBalance, isDemoMode, simulateNetworkDelay } = get();
         
         const currentBalance = getBalance(currency);
@@ -485,7 +485,7 @@ export const useWalletStore = create<WalletState>()(
         }
       },
 
-      getBalance: (currency: 'NGN' | 'USD' | 'USDT' | 'ETH' = 'NGN') => {
+      getBalance: (currency: 'NGN' | 'USD' | 'USDT' | 'ETH' = 'USD') => {
         const { balances } = get();
         const balance = balances.find(b => b.currency === currency);
         return balance?.available || 0;
