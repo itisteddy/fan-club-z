@@ -442,6 +442,7 @@ export const useAuthStore = create<AuthState>()(
       // FIXED: Check if user already exists before registration
       console.log('🔍 Checking if user already exists...');
       try {
+        // First check our users table
         const { data: existingUser, error: checkError } = await supabase
           .from('users')
           .select('id, email')
@@ -449,11 +450,34 @@ export const useAuthStore = create<AuthState>()(
           .single();
         
         if (existingUser && !checkError) {
-          console.log('❌ User already exists:', existingUser.email);
+          console.log('❌ User already exists in users table:', existingUser.email);
           showError('An account with this email address already exists. Please try signing in instead, or use a different email address.');
           set({ loading: false });
           return;
         }
+        
+        // Try to sign in with a dummy password to check if user exists in auth
+        // This will fail with "Invalid login credentials" if user doesn't exist
+        // or "Email not confirmed" if user exists but email not confirmed
+        const { error: signInError } = await supabase.auth.signInWithPassword({
+          email: email,
+          password: 'dummy-password-for-check'
+        });
+        
+        if (signInError && (signInError.message.includes('Email not confirmed') || signInError.message.includes('Invalid login credentials'))) {
+          // If we get "Email not confirmed", it means the user exists
+          if (signInError.message.includes('Email not confirmed')) {
+            console.log('❌ User already exists in Supabase auth (email not confirmed):', email);
+            showError('An account with this email address already exists. Please try signing in instead, or use a different email address.');
+            set({ loading: false });
+            return;
+          }
+          // If we get "Invalid login credentials", it means the user doesn't exist
+          console.log('✅ No existing user found in auth, proceeding with registration...');
+        } else {
+          console.log('✅ No existing user found, proceeding with registration...');
+        }
+        
       } catch (error) {
         console.log('✅ No existing user found, proceeding with registration...');
       }

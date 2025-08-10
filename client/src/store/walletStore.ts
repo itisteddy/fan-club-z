@@ -502,7 +502,7 @@ export const useWalletStore = create<WalletState>()(
     }),
     {
       name: 'fanclubz-wallet-storage',
-      version: 1,
+      version: 2, // Incremented to force fresh start with zero balances
     }
   )
 );
