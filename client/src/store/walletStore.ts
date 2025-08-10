@@ -125,7 +125,7 @@ export const useWalletStore = create<WalletState>()(
   persist(
     (set, get) => ({
       balances: [
-        { currency: 'USD', available: 25000, reserved: 0, total: 25000 },
+        { currency: 'USD', available: 0, reserved: 0, total: 0 },
         { currency: 'NGN', available: 0, reserved: 0, total: 0 },
         { currency: 'USDT', available: 0, reserved: 0, total: 0 },
         { currency: 'ETH', available: 0, reserved: 0, total: 0 },
@@ -137,23 +137,9 @@ export const useWalletStore = create<WalletState>()(
 
       initializeWallet: () => {
         const state = get();
-        if (state.transactions.length === 0) {
-          // Add some initial demo transactions
-          const initialTransactions: Transaction[] = [
-            {
-              id: 'init_001',
-              type: 'deposit',
-              amount: 25000,
-              description: 'Welcome Bonus - Demo Mode',
-              date: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000), // 7 days ago
-              status: 'completed',
-              reference: 'DEMO_WELCOME_25000',
-              currency: 'USD'
-            }
-          ];
-          
-          set({ transactions: initialTransactions });
-        }
+        // FIXED: Start with zero balance for new users
+        // No initial transactions - users start with $0 balance
+        console.log('✅ New user wallet initialized with $0 balance');
       },
 
       setDemoMode: (isDemoMode: boolean) => {

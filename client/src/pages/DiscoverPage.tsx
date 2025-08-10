@@ -727,9 +727,13 @@ const DiscoverPage: React.FC<DiscoverPageProps> = ({ onNavigateToProfile }) => {
   });
 
   const stats = {
-    totalVolume: predictions?.reduce((sum, pred) => sum + (pred.pool_total || 0), 0) || 2547892,
-    activePredictions: predictions?.length || 0,
-    todayVolume: 89234,
+    totalVolume: predictions?.reduce((sum, pred) => sum + (pred.pool_total || 0), 0) || 0,
+    activePredictions: predictions?.filter(pred => pred.status === 'active')?.length || 0,
+    todayVolume: predictions?.filter(pred => {
+      const today = new Date().toDateString();
+      const predDate = new Date(pred.created_at).toDateString();
+      return predDate === today;
+    })?.reduce((sum, pred) => sum + (pred.pool_total || 0), 0) || 0,
   };
 
   // Filter predictions based on search query and category

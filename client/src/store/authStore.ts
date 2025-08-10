@@ -439,6 +439,25 @@ export const useAuthStore = create<AuthState>()(
         return;
       }
       
+      // FIXED: Check if user already exists before registration
+      console.log('🔍 Checking if user already exists...');
+      try {
+        const { data: existingUser, error: checkError } = await supabase
+          .from('users')
+          .select('id, email')
+          .eq('email', email)
+          .single();
+        
+        if (existingUser && !checkError) {
+          console.log('❌ User already exists:', existingUser.email);
+          showError('An account with this email address already exists. Please try signing in instead, or use a different email address.');
+          set({ loading: false });
+          return;
+        }
+      } catch (error) {
+        console.log('✅ No existing user found, proceeding with registration...');
+      }
+      
       // Prepare user metadata with improved field mapping
       const userData = {
         data: {
