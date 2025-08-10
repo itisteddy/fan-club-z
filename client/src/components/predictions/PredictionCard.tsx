@@ -179,7 +179,7 @@ export const PredictionCard: React.FC<PredictionCardProps> = ({
       <motion.div
         whileHover={{ y: -1 }}
         transition={{ type: "spring", stiffness: 300, damping: 30 }}
-        className="prediction-card-compact"
+        className="prediction-card-compact prediction-card"
       >
         <Card className="cursor-pointer overflow-hidden hover:shadow-md transition-shadow">
           <CardContent className="p-2.5">

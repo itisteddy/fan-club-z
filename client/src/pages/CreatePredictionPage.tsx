@@ -241,7 +241,7 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-100 pb-20">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-100 pb-20 create-prediction-page">
       {/* Header */}
       <div className="relative overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-br from-green-600 via-green-700 to-teal-600" />

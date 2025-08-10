@@ -828,7 +828,7 @@ const DiscoverPage: React.FC<DiscoverPageProps> = ({ onNavigateToProfile }) => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50" style={{ paddingBottom: 'calc(5rem + env(safe-area-inset-bottom))' }}>
+    <div className="min-h-screen bg-gray-50 discover-page" style={{ paddingBottom: 'calc(5rem + env(safe-area-inset-bottom))' }}>
       {/* Header */}
       <MobileHeader 
         user={user} 
