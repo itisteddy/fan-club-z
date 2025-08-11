@@ -149,17 +149,51 @@ export const useWalletStore = create<WalletState>()(
           }
 
           // Convert database data to store format
-          const balances: WalletBalance[] = walletData?.map(wallet => ({
-            currency: wallet.currency as 'NGN' | 'USD' | 'USDT' | 'ETH',
-            available: wallet.available_balance || 0,
-            reserved: wallet.reserved_balance || 0,
-            total: (wallet.available_balance || 0) + (wallet.reserved_balance || 0), // Calculate total
-          })) || [
-            { currency: 'USD', available: 0, reserved: 0, total: 0 },
-            { currency: 'NGN', available: 0, reserved: 0, total: 0 },
-            { currency: 'USDT', available: 0, reserved: 0, total: 0 },
-            { currency: 'ETH', available: 0, reserved: 0, total: 0 },
-          ];
+          let balances: WalletBalance[];
+          
+          if (walletData && walletData.length > 0) {
+            // User has existing wallet data
+            balances = walletData.map(wallet => ({
+              currency: wallet.currency as 'NGN' | 'USD' | 'USDT' | 'ETH',
+              available: wallet.available_balance || 0,
+              reserved: wallet.reserved_balance || 0,
+              total: (wallet.available_balance || 0) + (wallet.reserved_balance || 0), // Calculate total
+            }));
+          } else {
+            // New user - create default wallet with $0 balance
+            console.log('🆕 Creating default wallet for new user with $0 balance');
+            balances = [
+              { currency: 'USD', available: 0, reserved: 0, total: 0 },
+              { currency: 'NGN', available: 0, reserved: 0, total: 0 },
+              { currency: 'USDT', available: 0, reserved: 0, total: 0 },
+              { currency: 'ETH', available: 0, reserved: 0, total: 0 },
+            ];
+            
+            // Create wallet records in database for new user
+            try {
+              const walletPromises = balances.map(balance => 
+                supabase
+                  .from('wallets')
+                  .upsert({
+                    user_id: user.id,
+                    currency: balance.currency,
+                    available_balance: 0,
+                    reserved_balance: 0,
+                    total_deposited: 0,
+                    total_withdrawn: 0,
+                    created_at: new Date().toISOString(),
+                    updated_at: new Date().toISOString()
+                  }, {
+                    onConflict: 'user_id,currency'
+                  })
+              );
+              
+              await Promise.all(walletPromises);
+              console.log('✅ Default wallet records created for new user');
+            } catch (error) {
+              console.error('❌ Error creating default wallet records:', error);
+            }
+          }
 
           const transactions: Transaction[] = transactionData?.map(tx => ({
             id: tx.id,
