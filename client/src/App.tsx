@@ -66,6 +66,11 @@ function App() {
   // Persist current tab in localStorage to maintain state on refresh
   const [activeTab, setActiveTab] = useState(() => {
     const savedTab = localStorage.getItem('fanclubz-current-tab');
+    // Force discover tab on app load to prevent getting stuck
+    if (savedTab === 'wallet') {
+      localStorage.removeItem('fanclubz-current-tab');
+      return 'discover';
+    }
     return savedTab || 'discover';
   });
   const [navigationHistory] = useState(() => {
@@ -84,6 +89,14 @@ function App() {
   useEffect(() => {
     console.log('🚀 Initializing Fan Club Z...');
     
+    // Check if app is stuck on wallet tab and reset if needed
+    const savedTab = localStorage.getItem('fanclubz-current-tab');
+    if (savedTab === 'wallet') {
+      console.log('⚠️ App was stuck on wallet tab, resetting to discover...');
+      localStorage.removeItem('fanclubz-current-tab');
+      setActiveTab('discover');
+    }
+    
     // Initialize authentication first
     initializeAuth();
     
@@ -99,10 +112,12 @@ function App() {
   }, [initialized, isAuthenticated, initializeWallet]);
 
   const handleTabChange = (tab: string) => {
+    console.log('🔄 Tab change requested:', tab, 'Current activeTab:', activeTab);
     navigationHistory.push(tab);
     setActiveTab(tab);
     // Persist current tab for refresh navigation
     localStorage.setItem('fanclubz-current-tab', tab);
+    console.log('✅ Tab changed to:', tab);
     // Scroll to top when changing tabs (UI/UX best practice)
     scrollToTop({ delay: 100 });
   };

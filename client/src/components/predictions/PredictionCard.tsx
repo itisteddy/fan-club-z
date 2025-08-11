@@ -70,75 +70,81 @@ export const PredictionCard: React.FC<PredictionCardProps> = ({
     const shareUrl = `${window.location.origin}/prediction/${prediction.id}`;
     const shareText = `${prediction.title}\n\nMake your prediction on Fan Club Z!`;
 
-    if (navigator.share) {
+    // Mobile-first: Try native share API first
+    if (navigator.share && /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)) {
       navigator.share({
         title: prediction.title,
         text: shareText,
         url: shareUrl,
       }).catch((error) => {
-        // Fallback to clipboard if share fails
+        // Only fallback if it's not a user cancellation
         if (error.name !== 'AbortError') {
-          navigator.clipboard.writeText(`${shareText}\n${shareUrl}`)
-            .then(() => {
-              // Show success message
-              const notification = document.createElement('div');
-              notification.style.cssText = `
-                position: fixed;
-                top: 20px;
-                right: 20px;
-                padding: 12px 16px;
-                background-color: #10b981;
-                color: white;
-                border-radius: 8px;
-                font-weight: 500;
-                z-index: 9999;
-                animation: slideIn 0.3s ease-out;
-              `;
-              notification.textContent = 'Link copied to clipboard!';
-              document.body.appendChild(notification);
-              
-              setTimeout(() => {
-                if (notification.parentNode) {
-                  notification.parentNode.removeChild(notification);
-                }
-              }, 3000);
-            })
-            .catch(() => {
-              // Final fallback - just show the URL
-              alert(`Share this link: ${shareUrl}`);
-            });
+          copyToClipboard(shareUrl, shareText);
         }
       });
     } else {
-      // Fallback for browsers that don't support navigator.share
-      navigator.clipboard.writeText(`${shareText}\n${shareUrl}`)
-        .then(() => {
-          const notification = document.createElement('div');
-          notification.style.cssText = `
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            padding: 12px 16px;
-            background-color: #10b981;
-            color: white;
-            border-radius: 8px;
-            font-weight: 500;
-            z-index: 9999;
-            animation: slideIn 0.3s ease-out;
-          `;
-          notification.textContent = 'Link copied to clipboard!';
-          document.body.appendChild(notification);
-          
-          setTimeout(() => {
-            if (notification.parentNode) {
-              notification.parentNode.removeChild(notification);
-            }
-          }, 3000);
-        })
-        .catch(() => {
-          alert(`Share this link: ${shareUrl}`);
-        });
+      // Desktop or fallback: Copy to clipboard
+      copyToClipboard(shareUrl, shareText);
     }
+  };
+
+  const copyToClipboard = (shareUrl: string, shareText: string) => {
+    const fullText = `${shareText}\n\n${shareUrl}`;
+    
+    navigator.clipboard.writeText(fullText)
+      .then(() => {
+        // Show mobile-friendly success notification
+        showShareNotification('Link copied to clipboard! 📋', 'success');
+      })
+      .catch(() => {
+        // Final fallback for older browsers
+        showShareNotification(`Share this link: ${shareUrl}`, 'info');
+      });
+  };
+
+  const showShareNotification = (message: string, type: 'success' | 'info') => {
+    const notification = document.createElement('div');
+    const isSuccess = type === 'success';
+    
+    notification.style.cssText = `
+      position: fixed;
+      top: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      padding: 12px 20px;
+      background-color: ${isSuccess ? '#10b981' : '#3b82f6'};
+      color: white;
+      border-radius: 12px;
+      font-weight: 500;
+      font-size: 14px;
+      z-index: 9999;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+      max-width: 90vw;
+      text-align: center;
+      animation: slideInDown 0.3s ease-out;
+    `;
+    
+    notification.textContent = message;
+    document.body.appendChild(notification);
+    
+    // Add CSS animation
+    const style = document.createElement('style');
+    style.textContent = `
+      @keyframes slideInDown {
+        from { transform: translateX(-50%) translateY(-100%); opacity: 0; }
+        to { transform: translateX(-50%) translateY(0); opacity: 1; }
+      }
+    `;
+    document.head.appendChild(style);
+    
+    setTimeout(() => {
+      if (notification.parentNode) {
+        notification.parentNode.removeChild(notification);
+      }
+      if (style.parentNode) {
+        style.parentNode.removeChild(style);
+      }
+    }, 3000);
   };
 
   if (variant === 'horizontal') {
@@ -260,7 +266,10 @@ export const PredictionCard: React.FC<PredictionCardProps> = ({
         transition={{ type: "spring", stiffness: 300, damping: 30 }}
         className="prediction-card-compact prediction-card"
       >
-        <Card className="cursor-pointer overflow-hidden hover:shadow-md transition-shadow">
+        <Card 
+          className="cursor-pointer overflow-hidden hover:shadow-md transition-shadow"
+          onClick={handleCardClick}
+        >
           <CardContent className="p-2.5">
             {/* Header - More compact */}
             <div className="flex items-center justify-between mb-1">
@@ -319,48 +328,60 @@ export const PredictionCard: React.FC<PredictionCardProps> = ({
                 // For 1-2 options, use 2-column grid
                 <div className="grid grid-cols-2 gap-0.5">
                   {prediction.options.map((option) => (
-                    <div
+                    <button
                       key={option.id}
-                      className="bg-muted/50 rounded p-1 text-center"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleQuickBet(e);
+                      }}
+                      className="bg-muted/50 rounded p-1 text-center hover:bg-muted/70 transition-colors cursor-pointer"
                     >
                       <div className="text-xs font-medium mb-0.5 line-clamp-1 leading-tight">{option.label}</div>
                       <div className="text-xs text-muted-foreground">
                         {option.percentage.toFixed(0)}% • {option.current_odds.toFixed(1)}x
                       </div>
-                    </div>
+                    </button>
                   ))}
                 </div>
               ) : prediction.options.length <= 4 ? (
                 // For 3-4 options, use 2x2 grid
                 <div className="grid grid-cols-2 gap-0.5">
                   {prediction.options.map((option) => (
-                    <div
+                    <button
                       key={option.id}
-                      className="bg-muted/50 rounded p-1 text-center"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleQuickBet(e);
+                      }}
+                      className="bg-muted/50 rounded p-1 text-center hover:bg-muted/70 transition-colors cursor-pointer"
                     >
                       <div className="text-xs font-medium mb-0.5 line-clamp-1 leading-tight">{option.label}</div>
                       <div className="text-xs text-muted-foreground">
                         {option.percentage.toFixed(0)}% • {option.current_odds.toFixed(1)}x
                       </div>
-                    </div>
+                    </button>
                   ))}
                 </div>
               ) : (
                 // For 5+ options, show first 3 with "+X more" indicator
                 <div className="space-y-0.5">
-                  <div className="grid grid-cols-3 gap-0.5">
-                    {prediction.options.slice(0, 3).map((option) => (
-                      <div
-                        key={option.id}
-                        className="bg-muted/50 rounded p-1 text-center"
-                      >
-                        <div className="text-xs font-medium mb-0.5 line-clamp-1 leading-tight">{option.label}</div>
-                        <div className="text-xs text-muted-foreground">
-                          {option.percentage.toFixed(0)}% • {option.current_odds.toFixed(1)}x
-                        </div>
+                                  <div className="grid grid-cols-3 gap-0.5">
+                  {prediction.options.slice(0, 3).map((option) => (
+                    <button
+                      key={option.id}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleQuickBet(e);
+                      }}
+                      className="bg-muted/50 rounded p-1 text-center hover:bg-muted/70 transition-colors cursor-pointer"
+                    >
+                      <div className="text-xs font-medium mb-0.5 line-clamp-1 leading-tight">{option.label}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {option.percentage.toFixed(0)}% • {option.current_odds.toFixed(1)}x
                       </div>
-                    ))}
-                  </div>
+                    </button>
+                  ))}
+                </div>
                   {prediction.options.length > 3 && (
                     <div className="text-center">
                       <span className="text-xs text-muted-foreground bg-muted/30 rounded px-2 py-0.5">
