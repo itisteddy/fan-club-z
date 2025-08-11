@@ -40,36 +40,39 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
         return;
       }
 
-      setLoading(true);
-
-      // First try to find in existing predictions
+      // Check if we already have the prediction in store
       let foundPrediction = predictions.find(p => p.id === id);
       
-      // If not found, fetch predictions and try again
-      if (!foundPrediction) {
+      if (!foundPrediction && predictions.length === 0) {
+        // Only fetch if we don't have any predictions loaded
+        console.log('No predictions in store, fetching...');
+        setLoading(true);
         try {
-          console.log('Prediction not found in store, fetching predictions...');
           await fetchPredictions();
           foundPrediction = predictions.find(p => p.id === id);
         } catch (error) {
           console.error('Failed to fetch predictions:', error);
+          toast.error('Failed to load prediction');
+          setLocation('/discover');
+          return;
+        } finally {
+          setLoading(false);
         }
+      } else if (!foundPrediction) {
+        // Prediction not found even after having predictions
+        console.log('Prediction not found in store');
+        setPrediction(null);
+        return;
       }
 
       if (foundPrediction) {
-        console.log('Prediction found:', foundPrediction);
+        console.log('Prediction found:', foundPrediction.title);
         setPrediction(foundPrediction);
-      } else {
-        console.log('Prediction still not found after fetching');
-        // Don't redirect immediately, show error state instead
-        setPrediction(null);
       }
-      
-      setLoading(false);
     };
 
     loadPrediction();
-  }, [predictionId, predictions, fetchPredictions, setLocation]);
+  }, [predictionId, predictions, fetchPredictions]);
 
   const handleBack = () => {
     setLocation('/discover');

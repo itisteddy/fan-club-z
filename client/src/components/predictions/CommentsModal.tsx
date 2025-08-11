@@ -114,7 +114,7 @@ export const CommentsModal: React.FC<CommentsModalProps> = ({
               animate={{ y: 0 }}
               exit={{ y: '100%' }}
               transition={{ type: 'spring', damping: 30, stiffness: 300 }}
-              className="w-full max-w-md bg-white rounded-t-2xl shadow-2xl h-[85vh] flex flex-col"
+              className="w-full max-w-md bg-white rounded-t-2xl shadow-2xl h-[80vh] flex flex-col"
               onClick={(e) => e.stopPropagation()}
             >
               {/* Header */}
@@ -134,7 +134,7 @@ export const CommentsModal: React.FC<CommentsModalProps> = ({
               </div>
 
               {/* Comments List */}
-              <div className="flex-1 overflow-y-auto p-4 space-y-3">
+              <div className="flex-1 overflow-y-auto p-4 space-y-3 min-h-0">
                 {loading ? (
                   <div className="flex justify-center py-8">
                     <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
@@ -182,8 +182,8 @@ export const CommentsModal: React.FC<CommentsModalProps> = ({
                 <div ref={commentsEndRef} />
               </div>
 
-              {/* Comment Input - ALWAYS VISIBLE */}
-              <div className="border-t border-gray-200 p-4 flex-shrink-0 bg-white">
+              {/* Comment Input - ALWAYS VISIBLE AT BOTTOM */}
+              <div className="border-t border-gray-200 p-4 flex-shrink-0 bg-white z-10">
                 <div className="flex gap-3">
                   <Avatar className="w-8 h-8 flex-shrink-0">
                     <AvatarImage src={user ? getAvatarUrl(user) : undefined} />
