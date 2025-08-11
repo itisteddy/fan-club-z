@@ -675,8 +675,7 @@ const AuthPage: React.FC = () => {
                 disabled={loading}
                 required
               />
-              <button 
-                type="button"
+              <div 
                 style={{
                   position: 'absolute',
                   right: '16px',
@@ -686,15 +685,11 @@ const AuthPage: React.FC = () => {
                   height: '20px',
                   color: '#9ca3af',
                   cursor: 'pointer',
-                  padding: '0',
-                  borderRadius: '6px',
-                  transition: 'all 0.2s',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  background: 'none',
-                  border: 'none',
-                  outline: 'none'
+                  borderRadius: '6px',
+                  transition: 'all 0.2s'
                 }}
                 onClick={togglePassword}
               >
@@ -708,7 +703,7 @@ const AuthPage: React.FC = () => {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                   </svg>
                 )}
-              </button>
+              </div>
             </div>
             {formErrors.password && (
               <div style={{
@@ -762,8 +757,7 @@ const AuthPage: React.FC = () => {
                   disabled={loading}
                   required={!isLoginMode}
                 />
-                <button 
-                  type="button"
+                <div 
                   style={{
                     position: 'absolute',
                     right: '16px',
@@ -773,15 +767,11 @@ const AuthPage: React.FC = () => {
                     height: '20px',
                     color: '#9ca3af',
                     cursor: 'pointer',
-                    padding: '0',
-                    borderRadius: '6px',
-                    transition: 'all 0.2s',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    background: 'none',
-                    border: 'none',
-                    outline: 'none'
+                    borderRadius: '6px',
+                    transition: 'all 0.2s'
                   }}
                   onClick={toggleConfirmPassword}
                 >
@@ -795,7 +785,7 @@ const AuthPage: React.FC = () => {
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                     </svg>
                   )}
-                </button>
+                </div>
               </div>
               {formErrors.confirmPassword && (
                 <div style={{
