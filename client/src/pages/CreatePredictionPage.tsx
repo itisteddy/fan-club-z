@@ -1,10 +1,13 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronLeft, Plus, X, Calendar, DollarSign, Users, Settings, Sparkles, Check } from 'lucide-react';
+import { ChevronLeft, Plus, X, Calendar, DollarSign, Users, Settings, Sparkles, Check, Globe, Clock, Shield } from 'lucide-react';
 import { usePredictionStore } from '../stores/predictionStore';
+import { useSettlementStore } from '../store/settlementStore';
 import { useLocation } from 'wouter';
 import toast from 'react-hot-toast';
 import { scrollToTop } from '../utils/scroll';
+import SourcePill from '../components/settlement/SourcePill';
+import RulePreview from '../components/settlement/RulePreview';
 
 interface PredictionOption {
   id: string;
@@ -41,6 +44,16 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
   const [stakeMax, setStakeMax] = useState('10000');
   const [settlementMethod, setSettlementMethod] = useState('manual');
   const [isPrivate, setIsPrivate] = useState(false);
+  
+  // Settlement configuration state
+  const [primarySource, setPrimarySource] = useState<any>(null);
+  const [backupSource, setBackupSource] = useState<any>(null);
+  const [ruleText, setRuleText] = useState('');
+  const [timezone, setTimezone] = useState('Africa/Lagos');
+  const [contingencies, setContingencies] = useState({
+    postponed: 'auto_void',
+    source_down: 'use_backup'
+  });
 
   const categories = [
     { id: 'sports', label: 'Sports', icon: '⚽', gradient: 'from-orange-500 to-red-500' },
