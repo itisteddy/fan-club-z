@@ -18,6 +18,8 @@ import { Avatar, AvatarImage, AvatarFallback } from '../ui/avatar';
 import { Prediction } from '../../store/predictionStore';
 import { formatCurrency, formatTimeRemaining, generateInitials, getAvatarUrl, cn } from '../../lib/utils';
 import { PlacePredictionModal } from './PlacePredictionModal';
+import { CommentsModal } from './CommentsModal';
+import { useLikeStore } from '../../store/likeStore';
 
 interface PredictionCardProps {
   prediction: Prediction;
@@ -30,7 +32,9 @@ export const PredictionCard: React.FC<PredictionCardProps> = ({
 }) => {
   const [, setLocation] = useLocation();
   const [showModal, setShowModal] = useState(false);
-  const [isLiked, setIsLiked] = useState(false);
+  const [showCommentsModal, setShowCommentsModal] = useState(false);
+  const { toggleLike, checkIfLiked } = useLikeStore();
+  const isLiked = checkIfLiked(prediction.id);
 
   const categoryEmojis = {
     sports: '⚽',
@@ -394,9 +398,13 @@ export const PredictionCard: React.FC<PredictionCardProps> = ({
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={(e) => {
+                  onClick={async (e) => {
                     e.stopPropagation();
-                    setIsLiked(!isLiked);
+                    try {
+                      await toggleLike(prediction.id);
+                    } catch (error) {
+                      console.error('Failed to toggle like:', error);
+                    }
                   }}
                   className={cn(
                     "text-muted-foreground hover:text-primary h-5 px-1",
@@ -404,7 +412,7 @@ export const PredictionCard: React.FC<PredictionCardProps> = ({
                   )}
                 >
                   <Heart size={10} className={cn(isLiked && "fill-current")} />
-                  <span className="ml-1 text-xs">{prediction.likes_count}</span>
+                  <span className="ml-1 text-xs">{prediction.likes_count || 0}</span>
                 </Button>
                 
                 <Button
@@ -412,14 +420,12 @@ export const PredictionCard: React.FC<PredictionCardProps> = ({
                   size="sm"
                   onClick={(e) => {
                     e.stopPropagation();
-                    setLocation(`/prediction/${prediction.id}#comments`);
-                    // Scroll to top when navigating to comments
-                    scrollToTop({ behavior: 'instant' });
+                    setShowCommentsModal(true);
                   }}
                   className="text-muted-foreground hover:text-primary h-5 px-1"
                 >
                   <MessageCircle size={10} />
-                  <span className="ml-1 text-xs">{prediction.comments_count}</span>
+                  <span className="ml-1 text-xs">{prediction.comments_count || 0}</span>
                 </Button>
 
                 <Button
@@ -451,6 +457,13 @@ export const PredictionCard: React.FC<PredictionCardProps> = ({
         prediction={prediction}
         isOpen={showModal}
         onClose={() => setShowModal(false)}
+      />
+      
+      <CommentsModal
+        predictionId={prediction.id}
+        predictionTitle={prediction.title}
+        isOpen={showCommentsModal}
+        onClose={() => setShowCommentsModal(false)}
       />
     </>
   );

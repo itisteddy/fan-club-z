@@ -25,11 +25,14 @@ export interface Prediction {
   updated_at: string;
   options: PredictionOption[];
   creator: {
+    id: string;
     username: string;
     avatar_url?: string;
     is_verified: boolean;
   };
   participant_count: number;
+  likes_count: number;
+  comments_count: number;
   user_entry?: {
     option_id: string;
     amount: number;
@@ -86,7 +89,9 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
           *,
           creator:users!creator_id(id, username, full_name, avatar_url),
           options:prediction_options(*),
-          club:clubs(id, name, avatar_url)
+          club:clubs(id, name, avatar_url),
+          likes_count,
+          comments_count
         `)
         .eq('status', 'open')
         .order('created_at', { ascending: false });
@@ -116,7 +121,9 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
           *,
           creator:users!creator_id(id, username, full_name, avatar_url),
           options:prediction_options(*),
-          club:clubs(id, name, avatar_url)
+          club:clubs(id, name, avatar_url),
+          likes_count,
+          comments_count
         `)
         .eq('status', 'open')
         .order('pool_total', { ascending: false })
@@ -148,7 +155,9 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
           *,
           creator:users!creator_id(id, username, full_name, avatar_url),
           options:prediction_options(*),
-          club:clubs(id, name, avatar_url)
+          club:clubs(id, name, avatar_url),
+          likes_count,
+          comments_count
         `)
         .eq('creator_id', user.id)
         .order('created_at', { ascending: false });
@@ -172,7 +181,9 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
           *,
           creator:users!creator_id(id, username, full_name, avatar_url),
           options:prediction_options(*),
-          club:clubs(id, name, avatar_url)
+          club:clubs(id, name, avatar_url),
+          likes_count,
+          comments_count
         `)
         .eq('creator_id', userId)
         .order('created_at', { ascending: false });
