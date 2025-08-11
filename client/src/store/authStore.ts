@@ -3,6 +3,8 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 import { supabase, auth } from '../lib/supabase';
 import toast from 'react-hot-toast';
 import { showSuccess, showError, showWarning, showInfo } from './notificationStore';
+import { useCallback } from 'react';
+import { AuthChangeEvent, Session } from '@supabase/supabase-js';
 
 interface User {
   id: string;
@@ -112,7 +114,7 @@ const fetchUserAnalytics = async (userId: string) => {
     const completedPredictions = predictions?.filter(p => p.status === 'completed').length || 0;
     const wins = entries?.filter(e => {
       const prediction = predictions?.find(p => p.id === e.prediction_id);
-      return prediction?.status === 'completed' && e.is_winner;
+      return prediction?.status === 'settled';
     }).length || 0;
     
     const winRate = completedPredictions > 0 ? Math.round((wins / completedPredictions) * 100) : 0;
@@ -243,13 +245,13 @@ export const useAuthStore = create<AuthState>()(
           initialized: true
         });
       } else {
-        set({ 
-          isAuthenticated: false, 
-          user: null, 
-          token: null, 
-          loading: false,
-          initialized: true
-        });
+      set({ 
+        isAuthenticated: false, 
+        user: null, 
+        token: null, 
+        loading: false,
+        initialized: true
+      });
       }
     }
   },
@@ -582,9 +584,9 @@ export const useAuthStore = create<AuthState>()(
                 showSuccess(`Welcome to Fan Club Z, ${convertedUser?.firstName}! Your account is ready to use. Please check your email to verify your account for full access.`);
               } else {
                 // For other errors, still allow access
-                set({ 
-                  isAuthenticated: true,
-                  user: convertedUser,
+          set({ 
+            isAuthenticated: true,
+            user: convertedUser,
                   token: null,
                   loading: false
                 });
@@ -599,19 +601,19 @@ export const useAuthStore = create<AuthState>()(
                 isAuthenticated: true,
                 user: loggedInUser,
                 token: loginToken,
-                loading: false
-              });
-              
+            loading: false
+          });
+          
               showSuccess(`Welcome to Fan Club Z, ${loggedInUser?.firstName}! You're ready to start making predictions.`);
-            } else {
+        } else {
               // FIXED: Still authenticate and redirect
-              set({ 
+          set({ 
                 isAuthenticated: true,
                 user: convertedUser,
-                token: null,
-                loading: false
-              });
-              
+            token: null,
+            loading: false
+          });
+          
               showSuccess(`Welcome to Fan Club Z, ${convertedUser?.firstName}! You're now signed in.`);
             }
           } catch (autoLoginError: any) {
@@ -750,14 +752,14 @@ if (typeof window !== 'undefined') {
 
   // Listen for auth state changes
   supabase.auth.onAuthStateChange(async (event, session) => {
-    console.log('🔄 Auth state changed:', event, session?.user?.email);
+    console.log(`Auth state changed: ${event} ${session?.user?.email || 'undefined'}`);
     
     const store = useAuthStore.getState();
     
     if (event === 'SIGNED_IN' && session?.user) {
+      // Only log once per sign in
+      console.log('✔ Setting authenticated state via auth change: User');
       const convertedUser = convertSupabaseUser(session.user);
-      
-      console.log('✅ Setting authenticated state via auth change:', convertedUser?.firstName);
       useAuthStore.setState({
         isAuthenticated: true,
         user: convertedUser,
@@ -765,24 +767,34 @@ if (typeof window !== 'undefined') {
         loading: false
       });
     } else if (event === 'SIGNED_OUT') {
-      console.log('🚪 Setting signed out state via auth change');
+      console.log('✔ User signed out');
       useAuthStore.setState({
         isAuthenticated: false,
         user: null,
         token: null,
         loading: false
       });
-    } else if (event === 'TOKEN_REFRESHED' && session) {
-      console.log('🔄 Token refreshed');
-      useAuthStore.setState({
-        token: session.access_token
-      });
-    } else if (event === 'USER_UPDATED' && session?.user) {
-      console.log('👤 User updated');
-      const convertedUser = convertSupabaseUser(session.user);
-      useAuthStore.setState({
-        user: convertedUser
-      });
+    } else if (event === 'TOKEN_REFRESHED') {
+      // Don't log token refreshes unless there's an issue
+      if (session?.user) {
+        const convertedUser = convertSupabaseUser(session.user);
+        useAuthStore.setState({
+          user: convertedUser,
+          isAuthenticated: true,
+          token: session.access_token
+        });
+      }
+    } else if (event === 'INITIAL_SESSION') {
+      // Only log if there's no session
+      if (!session) {
+        console.log('No active session found, logging out');
+        useAuthStore.setState({
+          isAuthenticated: false,
+          user: null,
+          token: null,
+          loading: false
+        });
+      }
     }
   });
 }

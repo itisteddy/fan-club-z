@@ -100,7 +100,7 @@ const showDemoNotification = (message: string, type: 'success' | 'error' | 'info
 };
 
 export const useWalletStore = create<WalletState>()(
-  (set, get) => ({
+    (set, get) => ({
       balances: [
         { currency: 'USD', available: 0, reserved: 0, total: 0 },
         { currency: 'NGN', available: 0, reserved: 0, total: 0 },
@@ -275,12 +275,12 @@ export const useWalletStore = create<WalletState>()(
             .from('wallet_transactions')
             .insert({
               user_id: user.id,
-              type: 'deposit',
+            type: 'deposit',
               amount: amount,
-              description: `${method} Deposit${isDemoMode ? ' (Demo)' : ''}`,
+            description: `${method} Deposit${isDemoMode ? ' (Demo)' : ''}`,
               currency: currency,
               status: 'completed',
-              reference: generateDemoReference('deposit'),
+            reference: generateDemoReference('deposit'),
               fee: 0
             })
             .select()
@@ -342,7 +342,7 @@ export const useWalletStore = create<WalletState>()(
         const { isDemoMode, simulateNetworkDelay, getBalance } = get();
         
         set({ isLoading: true, error: null });
-        
+
         try {
           const currentBalance = getBalance(currency);
           
@@ -487,15 +487,15 @@ export const useWalletStore = create<WalletState>()(
 
           return {
             id: transaction.id,
-            type: 'prediction',
-            amount,
-            description,
+          type: 'prediction',
+          amount,
+          description,
             date: new Date(transaction.created_at),
-            status: 'completed',
+          status: 'completed',
             reference: transaction.reference,
-            currency,
-            predictionId
-          };
+          currency,
+          predictionId
+        };
 
         } catch (error) {
           set({ isLoading: false });
@@ -558,15 +558,15 @@ export const useWalletStore = create<WalletState>()(
 
           return {
             id: transaction.id,
-            type: 'win',
-            amount,
-            description,
+          type: 'win',
+          amount,
+          description,
             date: new Date(transaction.created_at),
-            status: 'completed',
+          status: 'completed',
             reference: transaction.reference,
-            currency,
-            predictionId
-          };
+          currency,
+          predictionId
+        };
 
         } catch (error) {
           set({ isLoading: false });
@@ -593,8 +593,8 @@ export const useWalletStore = create<WalletState>()(
               amount: 0, // No winnings
               description: description,
               currency: currency,
-              status: 'completed',
-              reference: generateDemoReference('loss'),
+          status: 'completed',
+          reference: generateDemoReference('loss'),
               prediction_id: predictionId,
               fee: 0
             })
@@ -635,9 +635,9 @@ export const useWalletStore = create<WalletState>()(
             date: new Date(transaction.created_at),
             status: 'completed',
             reference: transaction.reference,
-            currency,
-            predictionId
-          };
+          currency,
+          predictionId
+        };
 
         } catch (error) {
           set({ isLoading: false });
@@ -760,4 +760,4 @@ export const useWalletStore = create<WalletState>()(
         set({ error: null });
       }
     })
-  );
+);

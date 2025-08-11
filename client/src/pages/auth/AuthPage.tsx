@@ -387,15 +387,15 @@ const AuthPage: React.FC = () => {
       >
         {/* Logo section - Reduced margin */}
         <div style={{ textAlign: 'center', marginBottom: '20px' }}>
-          <div style={{
-            width: '80px',
-            height: '80px',
+        <div style={{
+          width: '80px',
+          height: '80px',
             background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-            borderRadius: '20px',
+          borderRadius: '20px',
             margin: '0 auto 16px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
             boxShadow: '0 12px 24px rgba(16, 185, 129, 0.3), 0 0 0 1px rgba(255, 255, 255, 0.1)',
             cursor: 'pointer',
             transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
@@ -405,12 +405,12 @@ const AuthPage: React.FC = () => {
             <span style={{
               fontSize: '32px',
               fontWeight: 'bold',
-              color: 'white',
+          color: 'white',
               textShadow: '0 2px 4px rgba(0, 0, 0, 0.1)'
             }}>Z</span>
           </div>
           <h1 style={{
-            fontSize: '32px',
+          fontSize: '32px',
             fontWeight: 'bold',
             color: '#111827',
             marginBottom: '8px',
@@ -480,8 +480,8 @@ const AuthPage: React.FC = () => {
                   fontSize: '14px',
                   fontWeight: '600',
                   color: '#374151',
-                  marginBottom: '8px'
-                }}>
+          marginBottom: '8px'
+        }}>
                   First Name
                 </label>
                 <input
@@ -494,7 +494,7 @@ const AuthPage: React.FC = () => {
                     padding: '14px 16px',
                     border: `2px solid ${formErrors.firstName ? '#ef4444' : '#e5e7eb'}`,
                     borderRadius: '12px',
-                    fontSize: '16px',
+          fontSize: '16px',
                     outline: 'none',
                     transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
                     boxSizing: 'border-box',
@@ -520,8 +520,8 @@ const AuthPage: React.FC = () => {
                     {formErrors.firstName}
                   </div>
                 )}
-              </div>
-              
+      </div>
+
               <div>
                 <label style={{
                   display: 'block',
@@ -584,10 +584,10 @@ const AuthPage: React.FC = () => {
               Email Address
             </label>
             <div style={{ position: 'relative' }}>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
                 placeholder="Enter your email address"
                 style={{
                   width: '100%',
@@ -604,8 +604,8 @@ const AuthPage: React.FC = () => {
                   minHeight: '52px'
                 }}
                 disabled={loading}
-                required
-              />
+            required
+          />
               <div style={{
                 position: 'absolute',
                 right: '16px',
@@ -639,7 +639,7 @@ const AuthPage: React.FC = () => {
                 {formErrors.email}
               </div>
             )}
-          </div>
+        </div>
 
           {/* FIXED: Password field with proper icon positioning */}
           <div style={{ marginBottom: '18px', position: 'relative' }}>
@@ -652,11 +652,11 @@ const AuthPage: React.FC = () => {
             }}>
               Password
             </label>
-            <div style={{ position: 'relative' }}>
-              <input
-                type={showPassword ? 'text' : 'password'}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
+          <div style={{ position: 'relative' }}>
+            <input
+              type={showPassword ? 'text' : 'password'}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
                 placeholder="Enter your password"
                 style={{
                   width: '100%',
@@ -673,18 +673,18 @@ const AuthPage: React.FC = () => {
                   minHeight: '52px'
                 }}
                 disabled={loading}
-                required
-              />
+              required
+            />
               <div 
-                style={{
-                  position: 'absolute',
+              style={{
+                position: 'absolute',
                   right: '16px',
-                  top: '50%',
-                  transform: 'translateY(-50%)',
+                top: '50%',
+                transform: 'translateY(-50%)',
                   width: '20px',
                   height: '20px',
                   color: '#9ca3af',
-                  cursor: 'pointer',
+                cursor: 'pointer',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
@@ -802,14 +802,14 @@ const AuthPage: React.FC = () => {
                   {formErrors.confirmPassword}
                 </div>
               )}
-            </div>
+        </div>
           )}
 
           {/* Forgot password - only show for login */}
           {isLoginMode && (
             <div style={{ textAlign: 'right', marginBottom: '20px' }}>
-              <a 
-                href="#" 
+          <a
+            href="#"
                 onClick={(e) => {
                   e.preventDefault();
                   alert('Password reset functionality will be available soon!');
@@ -864,13 +864,13 @@ const AuthPage: React.FC = () => {
                   borderRadius: '50%',
                   animation: 'spin 1s linear infinite'
                 }}>
-                </div>
+        </div>
                 {isLoginMode ? 'Signing in...' : 'Creating account...'}
               </>
             ) : (
               isLoginMode ? 'Sign In' : 'Create Account'
             )}
-          </button>
+        </button>
         </form>
 
         {/* Divider */}
@@ -904,8 +904,8 @@ const AuthPage: React.FC = () => {
           gap: '12px',
           marginBottom: '24px'
         }}>
-          <button
-            type="button"
+        <button 
+          type="button"
             onClick={() => handleSocialAuth('google')}
             disabled={loading}
             style={{
@@ -933,11 +933,11 @@ const AuthPage: React.FC = () => {
               <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
               <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
             </svg>
-            Continue with Google
-          </button>
+          Continue with Google
+        </button>
 
-          <button
-            type="button"
+        <button 
+          type="button"
             onClick={() => handleSocialAuth('apple')}
             disabled={loading}
             style={{
@@ -962,32 +962,32 @@ const AuthPage: React.FC = () => {
             <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
               <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/>
             </svg>
-            Continue with Apple
-          </button>
+          Continue with Apple
+        </button>
         </div>
 
         {/* Toggle between login/signup */}
-        <div style={{
-          textAlign: 'center',
+      <div style={{
+        textAlign: 'center',
           paddingTop: '20px',
           paddingBottom: '16px',
           borderTop: '1px solid #f3f4f6'
-        }}>
-          <p style={{
+      }}>
+        <p style={{
             color: '#6b7280',
             fontSize: '15px',
             margin: '0'
-          }}>
+        }}>
             {isLoginMode ? "Don't have an account?" : "Already have an account?"}{' '}
-            <a 
-              href="#" 
+          <a
+            href="#"
               onClick={(e) => {
                 e.preventDefault();
                 toggleMode();
               }} 
-              style={{
+            style={{
                 color: '#10b981',
-                textDecoration: 'none',
+              textDecoration: 'none',
                 fontWeight: '600',
                 padding: '8px 12px',
                 borderRadius: '6px',
@@ -997,9 +997,9 @@ const AuthPage: React.FC = () => {
               }}
             >
               {isLoginMode ? 'Create one now' : 'Sign in'}
-            </a>
-          </p>
-        </div>
+          </a>
+        </p>
+      </div>
       </div>
       
       {/* Custom notification system */}

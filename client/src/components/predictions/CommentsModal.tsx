@@ -114,11 +114,11 @@ export const CommentsModal: React.FC<CommentsModalProps> = ({
               animate={{ y: 0 }}
               exit={{ y: '100%' }}
               transition={{ type: 'spring', damping: 30, stiffness: 300 }}
-              className="w-full max-w-md bg-white rounded-t-2xl shadow-2xl h-[90vh] flex flex-col"
+              className="w-full max-w-md bg-white rounded-t-2xl shadow-2xl h-[90vh] flex flex-col relative"
               onClick={(e) => e.stopPropagation()}
             >
               {/* Header - Twitter Style */}
-              <div className="flex items-center justify-between p-4 border-b border-gray-200">
+              <div className="flex items-center justify-between p-4 border-b border-gray-200 flex-shrink-0">
                 <div className="flex items-center gap-3">
                   <Button variant="ghost" size="icon" onClick={onClose} className="w-8 h-8">
                     <ArrowLeft size={18} />
@@ -134,7 +134,7 @@ export const CommentsModal: React.FC<CommentsModalProps> = ({
               </div>
 
               {/* Comments List - iMessage Style */}
-              <div className="flex-1 overflow-y-auto p-4 space-y-3">
+              <div className="flex-1 overflow-y-auto p-4 space-y-3 min-h-0">
                 {loading ? (
                   <div className="flex justify-center py-8">
                     <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
@@ -202,8 +202,8 @@ export const CommentsModal: React.FC<CommentsModalProps> = ({
                 <div ref={commentsEndRef} />
               </div>
 
-              {/* Comment Input - Twitter Style */}
-              <div className="border-t border-gray-200 p-4">
+              {/* Comment Input - Always visible at bottom */}
+              <div className="border-t border-gray-200 p-4 flex-shrink-0 bg-white">
                 <div className="flex gap-3">
                   <Avatar className="w-8 h-8 flex-shrink-0">
                     <AvatarImage src={user ? getAvatarUrl(user) : undefined} />

@@ -109,11 +109,13 @@ function App() {
     
     if (path.startsWith('/prediction/')) {
       if (activeTab !== 'discover') {
+        console.log('Setting active tab to discover for prediction page');
         setActiveTab('discover');
         localStorage.setItem('fanclubz-current-tab', 'discover');
       }
     } else if (path.startsWith('/profile/')) {
       if (activeTab !== 'profile') {
+        console.log('Setting active tab to profile for profile page');
         setActiveTab('profile');
         localStorage.setItem('fanclubz-current-tab', 'profile');
       }

@@ -286,7 +286,7 @@ const PredictionModal: React.FC<{
           </div>
           <p className="text-gray-600 mt-2 text-sm">{prediction.title}</p>
         </div>
-        
+
         {/* Scrollable Content */}
         <div className="flex-1 overflow-y-auto overscroll-contain">
           <div className="p-6 space-y-6">
@@ -322,7 +322,7 @@ const PredictionModal: React.FC<{
                         <div className="w-full h-full rounded-full bg-white scale-50"></div>
                       )}
                     </div>
-                  </div>
+            </div>
                 </button>
               ))}
             </div>
@@ -354,9 +354,9 @@ const PredictionModal: React.FC<{
                 <div className="flex items-center justify-between text-xs text-gray-500 mt-1">
                                   <span>Min: $1</span>
                 <span>Balance: ${usdBalance.toLocaleString()}</span>
-                </div>
-              </div>
-              
+          </div>
+        </div>
+
               {/* Quick amounts */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Quick amounts:</label>
@@ -376,8 +376,8 @@ const PredictionModal: React.FC<{
                     </button>
                   ))}
                 </div>
-              </div>
-              
+                  </div>
+                  
               {/* Potential payout */}
               {numAmount > 0 && (
                 <div className="bg-green-50 border border-green-200 rounded-lg p-4">
@@ -388,7 +388,7 @@ const PredictionModal: React.FC<{
                         ${potentialPayout.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </div>
                     </div>
-                    <div className="text-right">
+                  <div className="text-right">
                       <div className="text-sm text-gray-600">Profit</div>
                       <div className={`font-semibold ${
                         potentialPayout > numAmount ? 'text-green-600' : 'text-red-600'
@@ -404,9 +404,9 @@ const PredictionModal: React.FC<{
           
           {/* Extra bottom padding for scrolling */}
           <div className="h-4"></div>
-          </div>
+                </div>
         </div>
-        
+
         {/* Fixed Footer with safe area */}
         <div className="p-6 border-t border-gray-100 space-y-3 flex-shrink-0">
           <button
@@ -426,7 +426,7 @@ const PredictionModal: React.FC<{
             ) : (
                               `Place Bet${numAmount > 0 ? ` ($${numAmount.toLocaleString()})` : ''}`
             )}
-          </button>
+            </button>
           
           <button
             onClick={onClose}
