@@ -20,6 +20,12 @@ const BottomNavigation: React.FC<BottomNavigationProps> = ({
   ];
 
   const handleTabClick = (tabId: string) => {
+    // Temporarily disable wallet tab to prevent getting stuck
+    if (tabId === 'wallet') {
+      console.log('⚠️ Wallet tab disabled temporarily');
+      return;
+    }
+    
     // Scroll to top when navigating to any tab
     if (typeof window !== 'undefined') {
       window.scrollTo({ top: 0, behavior: 'smooth' });

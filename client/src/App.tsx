@@ -15,6 +15,7 @@ import ClubsPage from './pages/ClubsPage';
 import ProfilePage from './pages/ProfilePage';
 import WalletPage from './pages/WalletPage';
 import AuthPage from './pages/auth/AuthPage';
+import AuthCallbackPage from './pages/auth/AuthCallbackPage';
 import PredictionDetailsPage from './pages/PredictionDetailsPage';
 
 import BottomNavigation from './components/BottomNavigation';
@@ -89,13 +90,9 @@ function App() {
   useEffect(() => {
     console.log('🚀 Initializing Fan Club Z...');
     
-    // Check if app is stuck on wallet tab and reset if needed
-    const savedTab = localStorage.getItem('fanclubz-current-tab');
-    if (savedTab === 'wallet') {
-      console.log('⚠️ App was stuck on wallet tab, resetting to discover...');
-      localStorage.removeItem('fanclubz-current-tab');
-      setActiveTab('discover');
-    }
+    // FORCE clear any wallet tab persistence to prevent getting stuck
+    localStorage.removeItem('fanclubz-current-tab');
+    console.log('🔧 Cleared localStorage to prevent wallet tab issues');
     
     // Initialize authentication first
     initializeAuth();
@@ -115,8 +112,12 @@ function App() {
     console.log('🔄 Tab change requested:', tab, 'Current activeTab:', activeTab);
     navigationHistory.push(tab);
     setActiveTab(tab);
-    // Persist current tab for refresh navigation
-    localStorage.setItem('fanclubz-current-tab', tab);
+    // Don't persist wallet tab to avoid getting stuck
+    if (tab !== 'wallet') {
+      localStorage.setItem('fanclubz-current-tab', tab);
+    } else {
+      localStorage.removeItem('fanclubz-current-tab');
+    }
     console.log('✅ Tab changed to:', tab);
     // Scroll to top when changing tabs (UI/UX best practice)
     scrollToTop({ delay: 100 });
@@ -163,6 +164,11 @@ function App() {
     if (path.startsWith('/prediction/')) {
       const predictionId = path.split('/prediction/')[1];
       return <PredictionDetailsPage predictionId={predictionId} />;
+    }
+    
+    // Check if we're on auth callback page
+    if (path === '/auth/callback') {
+      return <AuthCallbackPage />;
     }
     
     // Check if we're on a user profile page
