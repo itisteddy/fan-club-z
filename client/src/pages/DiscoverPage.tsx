@@ -156,6 +156,8 @@ const PredictionCardWrapper: React.FC<{
   onShare: (prediction: any) => void;
 }> = ({ prediction, index, onPredict, onLike, onComment, onShare }) => {
   // Transform the prediction data to match the imported component's interface
+  const poolTotal = prediction.poolTotal || 0;
+  
   const transformedPrediction = {
     ...prediction,
     creator: {
@@ -166,8 +168,19 @@ const PredictionCardWrapper: React.FC<{
     },
     likes_count: prediction.likes_count || 0,
     comments_count: prediction.comments_count || 0,
-    pool_total: prediction.poolTotal || 0,
-    participant_count: prediction.participantCount || 0
+    pool_total: poolTotal,
+    participant_count: prediction.participantCount || 0,
+    options: prediction.options?.map((option: any) => {
+      const totalStaked = option.totalStaked || 0;
+      const percentage = poolTotal > 0 ? Math.min((totalStaked / poolTotal * 100), 100) : 50;
+      const current_odds = totalStaked > 0 ? (poolTotal / totalStaked) : 2.0;
+      
+      return {
+        ...option,
+        percentage,
+        current_odds
+      };
+    }) || []
   };
 
   return (
