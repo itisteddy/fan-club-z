@@ -48,7 +48,8 @@ export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
   const usdBalance = getBalance('USD') || 2500; // Default for demo
   const numAmount = parseFloat(amount) || 0;
   const selectedOption = prediction.options.find(o => o.id === selectedOptionId);
-  const potentialPayout = selectedOption ? calculatePotentialPayout(numAmount, selectedOption.currentOdds) : 0;
+  const selectedOptionOdds = selectedOption?.current_odds || (selectedOption?.total_staked ? (prediction.pool_total / selectedOption.total_staked) : 2.0);
+  const potentialPayout = selectedOption ? calculatePotentialPayout(numAmount, selectedOptionOdds) : 0;
 
   const quickAmounts = [25, 50, 100, 250, 500, 1000];
 
@@ -63,13 +64,13 @@ export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
       return;
     }
 
-    if (numAmount < prediction.stakeMin) {
-      toast.error(`Minimum stake is ${formatCurrency(prediction.stakeMin)}. Please increase your amount.`);
+    if (numAmount < prediction.stake_min) {
+      toast.error(`Minimum stake is ${formatCurrency(prediction.stake_min)}. Please increase your amount.`);
       return;
     }
 
-    if (prediction.stakeMax && numAmount > prediction.stakeMax) {
-      toast.error(`Maximum stake is ${formatCurrency(prediction.stakeMax)}. Please reduce your amount.`);
+    if (prediction.stake_max && numAmount > prediction.stake_max) {
+      toast.error(`Maximum stake is ${formatCurrency(prediction.stake_max)}. Please reduce your amount.`);
       return;
     }
 
@@ -151,7 +152,7 @@ export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
                 <div>
                   <h3 className="font-semibold mb-2">{prediction.title}</h3>
                   <div className="text-sm text-gray-500">
-                    Pool: {formatCurrency(prediction.poolTotal)} • {prediction.participantCount} predictors
+                    Pool: {formatCurrency(prediction.pool_total)} • {prediction.participant_count} predictors
                   </div>
                 </div>
 
@@ -160,9 +161,10 @@ export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
                   <h4 className="font-medium mb-3">Choose your prediction:</h4>
                   <div className="space-y-2">
                     {prediction.options.map((option) => {
-                      const totalStaked = option.totalStaked || 0;
-                      const poolTotal = prediction.poolTotal || 1;
+                      const totalStaked = option.total_staked || 0;
+                      const poolTotal = prediction.pool_total || 1;
                       const percentage = poolTotal > 0 ? Math.min((totalStaked / poolTotal * 100), 100) : 50;
+                      const currentOdds = option.current_odds || (totalStaked > 0 ? (poolTotal / totalStaked) : 2.0);
                       
                       return (
                         <Card
@@ -185,7 +187,7 @@ export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
                               </div>
                               <div className="text-right">
                                 <div className="text-lg font-bold text-green-600">
-                                  {option.currentOdds.toFixed(2)}x
+                                  {currentOdds.toFixed(2)}x
                                 </div>
                               </div>
                             </div>
@@ -221,18 +223,18 @@ export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
                           value={amount}
                           onChange={(e) => setAmount(e.target.value)}
                           className="force-visible force-white-bg pl-8 text-lg text-gray-900"
-                          min={prediction.stakeMin}
-                          max={prediction.stakeMax || usdBalance}
+                          min={prediction.stake_min}
+                          max={prediction.stake_max || usdBalance}
                           style={{
                             backgroundColor: '#ffffff !important',
                             color: '#111827 !important',
                             opacity: '1 !important',
-                            visibility: 'visible !important'
+                            visibility: 'visible' as const
                           }}
                         />
                       </div>
                       <div className="flex items-center justify-between text-xs text-gray-500 mt-1">
-                        <span>Min: {formatCurrency(prediction.stakeMin)}</span>
+                        <span>Min: {formatCurrency(prediction.stake_min)}</span>
                         <span>Balance: {formatCurrency(usdBalance)}</span>
                       </div>
                     </div>
@@ -295,7 +297,7 @@ export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
                 style={{
                   backgroundColor: '#22c55e !important',
                   opacity: '1 !important',
-                  visibility: 'visible !important',
+                  visibility: 'visible' as const,
                   zIndex: 52,
                   position: 'relative',
                   display: 'flex !important'
