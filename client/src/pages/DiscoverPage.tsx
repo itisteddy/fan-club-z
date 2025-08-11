@@ -9,6 +9,7 @@ import { scrollToTop } from '../utils/scroll';
 import { usePullToRefresh } from '../utils/pullToRefresh';
 import { formatTimeRemaining } from '../lib/utils';
 import toast from 'react-hot-toast';
+import { PredictionCard } from '../components/predictions/PredictionCard';
 
 // Modern Mobile Header
 const MobileHeader: React.FC<{ 
@@ -145,7 +146,8 @@ const CategoryFilters: React.FC<{ selectedCategory: string; onSelect: (category:
 };
 
 // Modern prediction card
-const PredictionCard: React.FC<{ 
+// Local wrapper component to handle the specific props needed for this page
+const PredictionCardWrapper: React.FC<{ 
   prediction: any; 
   index: number;
   onPredict: (prediction: any) => void;
@@ -153,29 +155,19 @@ const PredictionCard: React.FC<{
   onComment: (predictionId: string) => void;
   onShare: (prediction: any) => void;
 }> = ({ prediction, index, onPredict, onLike, onComment, onShare }) => {
-  const [, setLocation] = useLocation();
-  const [isLiked, setIsLiked] = useState(false);
-  const [likeCount, setLikeCount] = useState(prediction.likes_count || 0);
-  const [commentCount, setCommentCount] = useState(prediction.comments_count || 12);
-
-  if (!prediction || !prediction.options || prediction.options.length === 0) {
-    return null;
-  }
-
-  const handleLike = () => {
-    setIsLiked(!isLiked);
-    setLikeCount(prev => isLiked ? prev - 1 : prev + 1);
-    onLike(prediction.id);
-    toast.success(isLiked ? 'Removed from likes' : 'Added to likes');
-  };
-
-  const handleComment = () => {
-    onComment(prediction.id);
-  };
-
-  const handleShare = () => {
-    onShare(prediction);
-    toast.success('Shared to social media!');
+  // Transform the prediction data to match the imported component's interface
+  const transformedPrediction = {
+    ...prediction,
+    creator: {
+      id: prediction.creator?.id || 'unknown',
+      username: prediction.creator?.username || prediction.creatorName || 'Fan Club Z',
+      avatar_url: prediction.creator?.avatar_url,
+      is_verified: prediction.creator?.is_verified || false
+    },
+    likes_count: prediction.likes_count || 0,
+    comments_count: prediction.comments_count || 0,
+    pool_total: prediction.poolTotal || 0,
+    participant_count: prediction.participantCount || 0
   };
 
   return (
@@ -183,281 +175,12 @@ const PredictionCard: React.FC<{
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3, delay: index * 0.1 }}
-      className="bg-white rounded-lg p-3 mx-4 mb-3 shadow-sm border border-gray-100"
+      className="mx-4 mb-3"
     >
-      {/* Compact header */}
-      <div className="flex items-center gap-2 mb-1.5">
-        <div 
-          className="avatar-clickable w-6 h-6 bg-gradient-to-br from-green-400 to-green-600 rounded-md flex items-center justify-center"
-          onClick={(e) => {
-            e.stopPropagation();
-            // Navigate to creator profile
-            setLocation(`/profile/${prediction.creator?.id || 'unknown'}`);
-          }}
-        >
-          <span className="text-white font-bold text-xs">
-            {prediction.creator?.username?.charAt(0) || prediction.creatorName?.charAt(0) || 'FC'}
-          </span>
-        </div>
-        <div 
-          className="creator-profile-link flex-1 min-w-0"
-          onClick={(e) => {
-            e.stopPropagation();
-            // Navigate to creator profile
-            setLocation(`/profile/${prediction.creator?.id || 'unknown'}`);
-          }}
-        >
-          <div className="text-xs font-medium text-gray-900 truncate">
-            {prediction.creator?.username || prediction.creatorName || 'Fan Club Z'}
-          </div>
-          <div className="text-xs text-gray-500">2h ago</div>
-        </div>
-        <div className="px-1.5 py-0.5 bg-green-50 text-green-700 text-xs font-medium rounded border border-green-200">
-          {prediction.category || 'general'}
-        </div>
-      </div>
-            
-      {/* Compact content */}
-      <div className="mb-2">
-        <h3 className="text-sm font-bold text-gray-900 mb-0.5 leading-tight line-clamp-2">
-              {prediction.title || 'Untitled Prediction'}
-            </h3>
-            
-            {prediction.description && (
-          <p className="text-gray-600 text-xs leading-tight line-clamp-1">
-                {prediction.description}
-              </p>
-            )}
-          </div>
-          
-      {/* Compact stats */}
-      <div className="flex items-center justify-between py-1.5 border-t border-gray-100 mb-1.5">
-        <div className="flex items-center gap-2">
-          <div className="flex items-center gap-1">
-            <div className="w-1 h-1 bg-green-500 rounded-full" />
-            <span className="text-sm font-bold text-gray-900">
-              ${(prediction.poolTotal || 0).toLocaleString()}
-            </span>
-          </div>
-          <div className="text-xs text-gray-600">
-            {prediction.participantCount || 0} predictors
-          </div>
-        </div>
-
-        <div className="flex items-center gap-1 text-orange-500">
-          <Clock className="w-3 h-3" />
-          <span className="text-xs font-semibold">
-            {formatTimeRemaining(prediction.entry_deadline)}
-          </span>
-            </div>
-          </div>
-          
-      {/* Compact prediction options - Adaptive layout */}
-      <div className="mb-2">
-        {prediction.options.length <= 2 ? (
-          // For 1-2 options, use 2-column grid
-          <div className="grid grid-cols-2 gap-1.5">
-            {prediction.options.map((option: any, optionIndex: number) => {
-              const totalStaked = option.totalStaked || 0;
-              const poolTotal = prediction.poolTotal || 1;
-              const percentage = poolTotal > 0 ? Math.min((totalStaked / poolTotal * 100), 100) : 50;
-              const odds = totalStaked > 0 ? (poolTotal / totalStaked).toFixed(2) : '2.00';
-              
-              return (
-                <motion.button
-                  key={option.id || optionIndex}
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  onClick={() => onPredict(prediction)}
-                  className="p-2 bg-gray-50 hover:bg-gray-100 rounded-md transition-colors"
-                >
-                  <div className="text-center">
-                    <div className="flex items-center justify-center gap-1 mb-1">
-                      <div className={`w-1.5 h-1.5 rounded-full ${
-                        optionIndex === 0 ? 'bg-green-500' : 'bg-blue-500'
-                      }`} />
-                      <span className="font-medium text-xs text-gray-900 truncate">
-                        {option.label || `Option ${optionIndex + 1}`}
-                      </span>
-                    </div>
-                    
-                    <div className="text-sm font-bold text-gray-900">
-                      {Math.round(percentage)}%
-                    </div>
-                    <div className="text-xs text-gray-600">
-                      {odds}x
-                    </div>
-                    
-                    {/* Mini progress bar */}
-                    <div className="w-full h-1 bg-gray-200 rounded-full overflow-hidden mt-1">
-                      <motion.div
-                        initial={{ width: 0 }}
-                        animate={{ width: `${Math.max(percentage, 2)}%` }}
-                        transition={{ duration: 0.8, delay: optionIndex * 0.1 }}
-                        className={`h-full rounded-full ${
-                          optionIndex === 0 ? 'bg-green-500' : 'bg-blue-500'
-                        }`}
-                      />
-                    </div>
-                  </div>
-                </motion.button>
-              );
-            })}
-          </div>
-        ) : prediction.options.length <= 4 ? (
-          // For 3-4 options, use 2x2 grid
-          <div className="grid grid-cols-2 gap-1.5">
-            {prediction.options.map((option: any, optionIndex: number) => {
-              const totalStaked = option.totalStaked || 0;
-              const poolTotal = prediction.poolTotal || 1;
-              const percentage = poolTotal > 0 ? Math.min((totalStaked / poolTotal * 100), 100) : 50;
-              const odds = totalStaked > 0 ? (poolTotal / totalStaked).toFixed(2) : '2.00';
-              
-              return (
-                <motion.button
-                  key={option.id || optionIndex}
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  onClick={() => onPredict(prediction)}
-                  className="p-2 bg-gray-50 hover:bg-gray-100 rounded-md transition-colors"
-                >
-                  <div className="text-center">
-                    <div className="flex items-center justify-center gap-1 mb-1">
-                      <div className={`w-1.5 h-1.5 rounded-full ${
-                        optionIndex === 0 ? 'bg-green-500' : 
-                        optionIndex === 1 ? 'bg-blue-500' :
-                        optionIndex === 2 ? 'bg-purple-500' : 'bg-orange-500'
-                      }`} />
-                      <span className="font-medium text-xs text-gray-900 truncate">
-                        {option.label || `Option ${optionIndex + 1}`}
-                      </span>
-                    </div>
-                    
-                    <div className="text-sm font-bold text-gray-900">
-                      {Math.round(percentage)}%
-                    </div>
-                    <div className="text-xs text-gray-600">
-                      {odds}x
-                    </div>
-                    
-                    {/* Mini progress bar */}
-                    <div className="w-full h-1 bg-gray-200 rounded-full overflow-hidden mt-1">
-                      <motion.div
-                        initial={{ width: 0 }}
-                        animate={{ width: `${Math.max(percentage, 2)}%` }}
-                        transition={{ duration: 0.8, delay: optionIndex * 0.1 }}
-                        className={`h-full rounded-full ${
-                          optionIndex === 0 ? 'bg-green-500' : 
-                          optionIndex === 1 ? 'bg-blue-500' :
-                          optionIndex === 2 ? 'bg-purple-500' : 'bg-orange-500'
-                        }`}
-                      />
-                    </div>
-                  </div>
-                </motion.button>
-              );
-            })}
-          </div>
-        ) : (
-          // For 5+ options, show first 3 with "+X more" indicator
-          <div className="space-y-1.5">
-            <div className="grid grid-cols-3 gap-1.5">
-              {prediction.options.slice(0, 3).map((option: any, optionIndex: number) => {
-                const totalStaked = option.totalStaked || 0;
-                const poolTotal = prediction.poolTotal || 1;
-                const percentage = poolTotal > 0 ? Math.min((totalStaked / poolTotal * 100), 100) : 50;
-                const odds = totalStaked > 0 ? (poolTotal / totalStaked).toFixed(2) : '2.00';
-                
-                return (
-                  <motion.button
-                    key={option.id || optionIndex}
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                    onClick={() => onPredict(prediction)}
-                    className="p-2 bg-gray-50 hover:bg-gray-100 rounded-md transition-colors"
-                  >
-                    <div className="text-center">
-                      <div className="flex items-center justify-center gap-1 mb-1">
-                        <div className={`w-1.5 h-1.5 rounded-full ${
-                          optionIndex === 0 ? 'bg-green-500' : 
-                          optionIndex === 1 ? 'bg-blue-500' : 'bg-purple-500'
-                        }`} />
-                        <span className="font-medium text-xs text-gray-900 truncate">
-                          {option.label || `Option ${optionIndex + 1}`}
-                        </span>
-                      </div>
-                      
-                      <div className="text-sm font-bold text-gray-900">
-                        {Math.round(percentage)}%
-                      </div>
-                      <div className="text-xs text-gray-600">
-                        {odds}x
-                      </div>
-                      
-                      {/* Mini progress bar */}
-                      <div className="w-full h-1 bg-gray-200 rounded-full overflow-hidden mt-1">
-                        <motion.div
-                          initial={{ width: 0 }}
-                          animate={{ width: `${Math.max(percentage, 2)}%` }}
-                          transition={{ duration: 0.8, delay: optionIndex * 0.1 }}
-                          className={`h-full rounded-full ${
-                            optionIndex === 0 ? 'bg-green-500' : 
-                            optionIndex === 1 ? 'bg-blue-500' : 'bg-purple-500'
-                          }`}
-                        />
-                      </div>
-                    </div>
-                  </motion.button>
-                );
-              })}
-            </div>
-            <div className="text-center">
-              <span className="text-xs text-gray-500 bg-gray-100 rounded-full px-3 py-1">
-                +{prediction.options.length - 3} more options
-              </span>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Compact engagement */}
-      <div className="flex items-center justify-between pt-1.5 border-t border-gray-100">
-        <div className="flex items-center gap-3">
-          <button 
-            onClick={handleLike}
-            className={`flex items-center gap-0.5 transition-colors ${
-              isLiked ? 'text-red-500' : 'text-gray-600 hover:text-red-500'
-            }`}
-          >
-            <Heart className={`w-3 h-3 ${isLiked ? 'fill-current' : ''}`} />
-            <span className="text-xs font-medium">{likeCount}</span>
-          </button>
-          
-          <button 
-            onClick={handleComment}
-            className="flex items-center gap-0.5 text-gray-600 hover:text-blue-500 transition-colors"
-          >
-            <MessageCircle className="w-3 h-3" />
-            <span className="text-xs font-medium">{commentCount}</span>
-            </button>
-            
-          <button 
-            onClick={handleShare}
-            className="flex items-center gap-0.5 text-gray-600 hover:text-green-500 transition-colors"
-          >
-            <Share2 className="w-3 h-3" />
-            </button>
-          </div>
-          
-          <motion.button
-          whileHover={{ scale: 1.02 }}
-          whileTap={{ scale: 0.98 }}
-          onClick={() => onPredict(prediction)}
-          className="px-3 py-1.5 bg-green-500 hover:bg-green-600 text-white font-medium rounded-md transition-colors text-xs"
-          >
-            Predict
-          </motion.button>
-      </div>
+      <PredictionCard 
+        prediction={transformedPrediction}
+        variant="default"
+      />
     </motion.div>
   );
 };
@@ -866,7 +589,7 @@ const DiscoverPage: React.FC<DiscoverPageProps> = ({ onNavigateToProfile }) => {
         <div className="pb-6">
           <AnimatePresence initial={false}>
             {filteredPredictions.map((prediction, index) => (
-              <PredictionCard
+              <PredictionCardWrapper
                 key={prediction?.id || `prediction-${index}`}
                 prediction={prediction}
                 index={index}
