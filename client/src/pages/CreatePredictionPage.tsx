@@ -51,8 +51,8 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
   const [ruleText, setRuleText] = useState('');
   const [timezone, setTimezone] = useState('Africa/Lagos');
   const [contingencies, setContingencies] = useState({
-    postponed: 'auto_void',
-    source_down: 'use_backup'
+    postponed: 'auto_void' as 'auto_void' | 'extend_lock' | 'keep_open',
+    source_down: 'use_backup' as 'use_backup' | 'pause_and_escalate'
   });
 
   const categories = [
@@ -182,9 +182,29 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
       console.log('Creating prediction with data:', predictionData);
 
       // Create the prediction (this is now async and saves to Supabase)
-      await createPrediction(predictionData);
+      const createdPrediction = await createPrediction(predictionData);
       
-      console.log('Prediction created successfully!');
+      console.log('Prediction created successfully!', createdPrediction);
+      
+      // Create settlement configuration if automatic settlement is selected
+      if (settlementMethod === 'auto' && createdPrediction) {
+        try {
+          const { createSettlementConfig } = useSettlementStore.getState();
+          await createSettlementConfig(createdPrediction.id, {
+            method: 'web',
+            primary_source_id: primarySource?.id,
+            backup_source_id: backupSource?.id,
+            rule_text: ruleText || `Check if ${title} by ${entryDeadline}`,
+            timezone: timezone,
+            contingencies: contingencies
+          });
+          console.log('Settlement configuration created successfully!');
+        } catch (error) {
+          console.error('Failed to create settlement configuration:', error);
+          // Don't fail the prediction creation if settlement config fails
+        }
+      }
+      
       toast.success('🎉 Prediction created successfully!');
       setSubmitSuccess(true);
       

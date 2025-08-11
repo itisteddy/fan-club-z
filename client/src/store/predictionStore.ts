@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { supabase } from '../lib/api';
+import { useAuthStore } from './authStore';
 
 export interface Prediction {
   id: string;
@@ -199,12 +200,14 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
   createPrediction: async (data: any) => {
     set({ loading: true, error: null });
     try {
-      // Get current user
-      const { data: { user } } = await supabase.auth.getUser();
+      // Get current user from auth store
+      const authStore = useAuthStore.getState();
       
-      if (!user) {
+      if (!authStore.isAuthenticated || !authStore.user) {
         throw new Error('User not authenticated');
       }
+      
+      const user = authStore.user;
 
       // Validate entry deadline is in the future
       const deadline = new Date(data.entryDeadline);
@@ -308,12 +311,14 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
   placePrediction: async (predictionId: string, optionId: string, amount: number) => {
     set({ loading: true, error: null });
     try {
-      // Get current user
-      const { data: { user } } = await supabase.auth.getUser();
+      // Get current user from auth store
+      const authStore = useAuthStore.getState();
       
-      if (!user) {
+      if (!authStore.isAuthenticated || !authStore.user) {
         throw new Error('User not authenticated');
       }
+      
+      const user = authStore.user;
 
       // Get the auth session for API calls
       const { data: { session } } = await supabase.auth.getSession();
