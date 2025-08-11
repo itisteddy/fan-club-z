@@ -114,11 +114,11 @@ const CategoryFilters: React.FC<{ selectedCategory: string; onSelect: (category:
 }) => {
   const categories = [
     { id: 'all', label: 'All', gradient: 'from-gray-500 to-gray-600' },
-    { id: 'Sports', label: 'Sports', gradient: 'from-blue-500 to-blue-600' },
-    { id: 'Politics', label: 'Politics', gradient: 'from-purple-500 to-purple-600' },
-    { id: 'Entertainment', label: 'Entertainment', gradient: 'from-pink-500 to-pink-600' },
-    { id: 'Crypto', label: 'Crypto', gradient: 'from-orange-500 to-orange-600' },
-    { id: 'Tech', label: 'Tech', gradient: 'from-indigo-500 to-indigo-600' },
+    { id: 'sports', label: 'Sports', gradient: 'from-blue-500 to-blue-600' },
+    { id: 'politics', label: 'Politics', gradient: 'from-purple-500 to-purple-600' },
+    { id: 'celebrity_gossip', label: 'Entertainment', gradient: 'from-pink-500 to-pink-600' },
+    { id: 'esports', label: 'Gaming', gradient: 'from-orange-500 to-orange-600' },
+    { id: 'pop_culture', label: 'Pop Culture', gradient: 'from-indigo-500 to-indigo-600' },
   ];
 
   return (
@@ -796,17 +796,18 @@ const DiscoverPage: React.FC<DiscoverPageProps> = ({ onNavigateToProfile }) => {
   }, [isAuthenticated]);
 
   const handleShare = useCallback((prediction: any) => {
+    const shareUrl = `${window.location.origin}/prediction/${prediction.id}`;
     const shareText = `${prediction.title}\n\nMake your prediction on Fan Club Z!`;
     
     if (navigator.share) {
       navigator.share({
         title: prediction.title,
         text: shareText,
-        url: window.location.href,
+        url: shareUrl,
       }).catch(console.error);
     } else {
       // Fallback: copy to clipboard
-      navigator.clipboard.writeText(`${shareText}\n${window.location.href}`)
+      navigator.clipboard.writeText(`${shareText}\n${shareUrl}`)
         .then(() => toast.success('Link copied to clipboard!'))
         .catch(() => toast.error('Failed to copy link'));
     }

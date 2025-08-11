@@ -15,6 +15,7 @@ import ClubsPage from './pages/ClubsPage';
 import ProfilePage from './pages/ProfilePage';
 import WalletPage from './pages/WalletPage';
 import AuthPage from './pages/auth/AuthPage';
+import PredictionDetailsPage from './pages/PredictionDetailsPage';
 
 import BottomNavigation from './components/BottomNavigation';
 
@@ -138,6 +139,13 @@ function App() {
   };
 
   const renderPage = () => {
+    // Check if we're on a prediction details page
+    const path = window.location.pathname;
+    if (path.startsWith('/prediction/')) {
+      const predictionId = path.split('/prediction/')[1];
+      return <PredictionDetailsPage predictionId={predictionId} />;
+    }
+
     switch (activeTab) {
       case 'discover':
         return <DiscoverPage onNavigateToProfile={handleNavigateToProfile} />;
