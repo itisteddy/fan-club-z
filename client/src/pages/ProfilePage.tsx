@@ -33,6 +33,7 @@ import { usePullToRefresh } from '../utils/pullToRefresh';
 
 interface ProfilePageProps {
   onNavigateBack?: () => void;
+  userId?: string; // Optional userId for viewing other users' profiles
 }
 
 // Settings Components
@@ -1120,7 +1121,7 @@ const HelpSupport: React.FC<{ onBack: () => void }> = ({ onBack }) => {
   );
 };
 
-const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigateBack }) => {
+const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigateBack, userId }) => {
   const { user, updateProfile, logout } = useAuthStore();
   const [activeSection, setActiveSection] = useState('overview');
   const [isEditing, setIsEditing] = useState(false);

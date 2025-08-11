@@ -404,7 +404,7 @@ const WalletPage: React.FC = () => {
               <div key={balance.currency} className="bg-white/15 backdrop-blur-xl rounded-2xl border border-white/20 p-4">
                 <p className="text-white/80 text-sm mb-1">{balance.currency}</p>
                 <p className="text-white text-xl font-bold">
-                  {balance.currency === 'USD' ? '$' : balance.currency === 'NGN' ? '₦' : ''}
+                  {balance.currency === 'USD' ? '$' : ''}
                   {balance.total.toLocaleString()}
                 </p>
                 {balance.reserved > 0 && (

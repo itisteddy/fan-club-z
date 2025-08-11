@@ -62,6 +62,81 @@ export const PredictionCard: React.FC<PredictionCardProps> = ({
     setShowModal(true);
   };
 
+  const handleShare = () => {
+    const shareUrl = `${window.location.origin}/prediction/${prediction.id}`;
+    const shareText = `${prediction.title}\n\nMake your prediction on Fan Club Z!`;
+
+    if (navigator.share) {
+      navigator.share({
+        title: prediction.title,
+        text: shareText,
+        url: shareUrl,
+      }).catch((error) => {
+        // Fallback to clipboard if share fails
+        if (error.name !== 'AbortError') {
+          navigator.clipboard.writeText(`${shareText}\n${shareUrl}`)
+            .then(() => {
+              // Show success message
+              const notification = document.createElement('div');
+              notification.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                padding: 12px 16px;
+                background-color: #10b981;
+                color: white;
+                border-radius: 8px;
+                font-weight: 500;
+                z-index: 9999;
+                animation: slideIn 0.3s ease-out;
+              `;
+              notification.textContent = 'Link copied to clipboard!';
+              document.body.appendChild(notification);
+              
+              setTimeout(() => {
+                if (notification.parentNode) {
+                  notification.parentNode.removeChild(notification);
+                }
+              }, 3000);
+            })
+            .catch(() => {
+              // Final fallback - just show the URL
+              alert(`Share this link: ${shareUrl}`);
+            });
+        }
+      });
+    } else {
+      // Fallback for browsers that don't support navigator.share
+      navigator.clipboard.writeText(`${shareText}\n${shareUrl}`)
+        .then(() => {
+          const notification = document.createElement('div');
+          notification.style.cssText = `
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 12px 16px;
+            background-color: #10b981;
+            color: white;
+            border-radius: 8px;
+            font-weight: 500;
+            z-index: 9999;
+            animation: slideIn 0.3s ease-out;
+          `;
+          notification.textContent = 'Link copied to clipboard!';
+          document.body.appendChild(notification);
+          
+          setTimeout(() => {
+            if (notification.parentNode) {
+              notification.parentNode.removeChild(notification);
+            }
+          }, 3000);
+        })
+        .catch(() => {
+          alert(`Share this link: ${shareUrl}`);
+        });
+    }
+  };
+
   if (variant === 'horizontal') {
     return (
       <motion.div
@@ -352,7 +427,7 @@ export const PredictionCard: React.FC<PredictionCardProps> = ({
                   size="sm"
                   onClick={(e) => {
                     e.stopPropagation();
-                    // Handle share
+                    handleShare();
                   }}
                   className="text-muted-foreground hover:text-primary h-5 px-1"
                 >

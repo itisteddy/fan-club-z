@@ -145,6 +145,12 @@ function App() {
       const predictionId = path.split('/prediction/')[1];
       return <PredictionDetailsPage predictionId={predictionId} />;
     }
+    
+    // Check if we're on a user profile page
+    if (path.startsWith('/profile/')) {
+      const userId = path.split('/profile/')[1];
+      return <ProfilePage userId={userId} onNavigateBack={handleNavigateBackFromProfile} />;
+    }
 
     switch (activeTab) {
       case 'discover':
