@@ -90,36 +90,35 @@ function App() {
   useEffect(() => {
     console.log('🚀 Initializing Fan Club Z...');
     
-    // FORCE clear any wallet tab persistence to prevent getting stuck
-    localStorage.removeItem('fanclubz-current-tab');
-    console.log('🔧 Cleared localStorage to prevent wallet tab issues');
-    
     // Initialize authentication first
     initializeAuth();
     
     console.log('✅ App initialization started');
   }, [initializeAuth]);
 
-  // Initialize wallet only after authentication is complete
+  // Initialize wallet after auth is ready
   useEffect(() => {
-    if (initialized && isAuthenticated) {
-      console.log('🏦 Initializing wallet for authenticated user...');
+    if (isAuthenticated && !loading) {
       initializeWallet();
     }
-  }, [initialized, isAuthenticated, initializeWallet]);
+  }, [isAuthenticated, loading, initializeWallet]);
 
   const handleTabChange = (tab: string) => {
     console.log('🔄 Tab change requested:', tab, 'Current activeTab:', activeTab);
+    
+    // Prevent infinite loops by checking if we're already on this tab
+    if (tab === activeTab) {
+      console.log('⚠️ Already on tab:', tab);
+      return;
+    }
+    
     navigationHistory.push(tab);
     setActiveTab(tab);
-    // Don't persist wallet tab to avoid getting stuck
-    if (tab !== 'wallet') {
-      localStorage.setItem('fanclubz-current-tab', tab);
-    } else {
-      localStorage.removeItem('fanclubz-current-tab');
-    }
+    
+    // Persist tab in localStorage for all tabs
+    localStorage.setItem('fanclubz-current-tab', tab);
+    
     console.log('✅ Tab changed to:', tab);
-    // Scroll to top when changing tabs (UI/UX best practice)
     scrollToTop({ delay: 100 });
   };
 

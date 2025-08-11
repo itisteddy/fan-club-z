@@ -20,7 +20,7 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
   const [prediction, setPrediction] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   
-  const { predictions } = usePredictionStore();
+  const { predictions, fetchPredictions } = usePredictionStore();
   const { isAuthenticated } = useAuthStore();
   const { getBalance } = useWalletStore();
 
@@ -32,18 +32,39 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
   };
 
   useEffect(() => {
-    const id = getPredictionIdFromUrl();
-    if (id && predictions.length > 0) {
-      const foundPrediction = predictions.find(p => p.id === id);
+    const loadPrediction = async () => {
+      const id = getPredictionIdFromUrl();
+      if (!id) {
+        toast.error('Invalid prediction ID');
+        setLocation('/discover');
+        return;
+      }
+
+      // First try to find in existing predictions
+      let foundPrediction = predictions.find(p => p.id === id);
+      
+      // If not found, fetch predictions and try again
+      if (!foundPrediction) {
+        try {
+          await fetchPredictions();
+          foundPrediction = predictions.find(p => p.id === id);
+        } catch (error) {
+          console.error('Failed to fetch predictions:', error);
+        }
+      }
+
       if (foundPrediction) {
         setPrediction(foundPrediction);
       } else {
         toast.error('Prediction not found');
         setLocation('/discover');
       }
-    }
-    setLoading(false);
-  }, [predictions, predictionId, setLocation]);
+      
+      setLoading(false);
+    };
+
+    loadPrediction();
+  }, [predictionId, predictions, fetchPredictions, setLocation]);
 
   const handleBack = () => {
     setLocation('/discover');
