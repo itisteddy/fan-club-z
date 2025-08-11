@@ -125,26 +125,22 @@
   }
 }
 
-/* SPECIFIC: Focus states and hover effects - only for CreatePredictionPage */
+/* SPECIFIC: Only for CreatePredictionPage components */
 .create-prediction-page .input-container input:focus,
-.create-prediction-page .textarea-container textarea:focus,
-.create-prediction-page .motion-button:focus-visible {
+.create-prediction-page .textarea-container textarea:focus {
   outline: 2px solid #10b981 !important;
   outline-offset: 2px !important;
   position: relative !important;
   z-index: 1 !important;
 }
 
-/* SPECIFIC: Container overflow handling for CreatePredictionPage */
 .create-prediction-page .input-container,
-.create-prediction-page .textarea-container,
-.create-prediction-page .form-section {
+.create-prediction-page .textarea-container {
   position: relative !important;
   overflow: visible !important;
   padding: 2px !important;
 }
 
-/* SPECIFIC: Button hover effects for CreatePredictionPage */
 .create-prediction-page .motion-button {
   position: relative !important;
   z-index: 1 !important;
@@ -152,130 +148,50 @@
   overflow: visible !important;
 }
 
-/* SPECIFIC: Text input and textarea sizing for CreatePredictionPage only */
-.create-prediction-page .input-container input[type="text"],
-.create-prediction-page .input-container input[type="email"],
-.create-prediction-page .input-container input[type="password"],
-.create-prediction-page .input-container input[type="number"],
-.create-prediction-page .input-container input[type="datetime-local"],
-.create-prediction-page .textarea-container textarea {
-  box-sizing: border-box !important;
-  width: 100% !important;
-  max-width: 100% !important;
-  padding: 12px 16px !important;
-  border-radius: 12px !important;
-  border: 2px solid #e5e7eb !important;
-  transition: all 0.2s ease !important;
-  font-size: 16px !important;
-  line-height: 1.5 !important;
-}
-
-/* SPECIFIC: Focus state improvements for CreatePredictionPage only */
-.create-prediction-page .input-container input[type="text"]:focus,
-.create-prediction-page .input-container input[type="email"]:focus,
-.create-prediction-page .input-container input[type="password"]:focus,
-.create-prediction-page .input-container input[type="number"]:focus,
-.create-prediction-page .input-container input[type="datetime-local"]:focus,
-.create-prediction-page .textarea-container textarea:focus {
-  outline: none !important;
-  border-color: #10b981 !important;
-  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.1) !important;
-  position: relative !important;
-  z-index: 2 !important;
-}
-
-/* FIXED: Button hover and active states */
-.btn:hover,
-button:hover,
-.motion-button:hover {
+.create-prediction-page .motion-button:hover {
   transform: scale(1.02) !important;
   transition: transform 0.2s ease !important;
 }
 
-.btn:active,
-button:active,
-.motion-button:active {
+.create-prediction-page .motion-button:active {
   transform: scale(0.98) !important;
   transition: transform 0.1s ease !important;
 }
 
-/* FIXED: Motion button specific fixes */
-.motion-button {
-  display: inline-flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  /* Ensure proper positioning for transforms */
-  transform-style: preserve-3d !important;
-  backface-visibility: hidden !important;
-}
-
-/* FIXED: Category pill hover effects */
-.pill-category:hover {
+.create-prediction-page .pill-category:hover {
   transform: scale(1.05) !important;
   transition: all 0.2s ease !important;
 }
 
-/* FIXED: Prediction card hover effects */
-.prediction-card:hover {
+/* SPECIFIC: Only for prediction cards */
+.prediction-card-compact .avatar-clickable {
+  cursor: pointer !important;
+  transition: transform 0.2s ease !important;
+  position: relative !important;
+  z-index: 1 !important;
+}
+
+.prediction-card-compact .avatar-clickable:hover {
+  transform: scale(1.1) !important;
+}
+
+.prediction-card-compact .creator-profile-link {
+  cursor: pointer !important;
+  text-decoration: none !important;
+  color: inherit !important;
+  transition: color 0.2s ease !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+}
+
+.prediction-card-compact .creator-profile-link:hover {
+  color: #10b981 !important;
+}
+
+.prediction-card-compact:hover {
   transform: translateY(-2px) !important;
   transition: transform 0.2s ease !important;
-}
-
-/* SPECIFIC: Avatar clickable styling - only for prediction cards */
-.prediction-card .avatar-clickable {
-  cursor: pointer !important;
-  transition: transform 0.2s ease !important;
-  position: relative !important;
-  z-index: 1 !important;
-}
-
-.prediction-card .avatar-clickable:hover {
-  transform: scale(1.1) !important;
-}
-
-.prediction-card .avatar-clickable:active {
-  transform: scale(0.95) !important;
-}
-
-/* SPECIFIC: Creator profile link styling - only for prediction cards */
-.prediction-card .creator-profile-link {
-  cursor: pointer !important;
-  text-decoration: none !important;
-  color: inherit !important;
-  transition: color 0.2s ease !important;
-  display: flex !important;
-  align-items: center !important;
-  gap: 8px !important;
-}
-
-.prediction-card .creator-profile-link:hover {
-  color: #10b981 !important;
-}
-
-/* SPECIFIC: Discover page avatar and link styling */
-.discover-page .avatar-clickable {
-  cursor: pointer !important;
-  transition: transform 0.2s ease !important;
-  position: relative !important;
-  z-index: 1 !important;
-}
-
-.discover-page .avatar-clickable:hover {
-  transform: scale(1.1) !important;
-}
-
-.discover-page .creator-profile-link {
-  cursor: pointer !important;
-  text-decoration: none !important;
-  color: inherit !important;
-  transition: color 0.2s ease !important;
-  display: flex !important;
-  align-items: center !important;
-  gap: 8px !important;
-}
-
-.discover-page .creator-profile-link:hover {
-  color: #10b981 !important;
 }
 
 /* Force reduced motion */

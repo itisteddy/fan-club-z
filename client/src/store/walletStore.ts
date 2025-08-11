@@ -1,5 +1,4 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
 import { supabase } from '../lib/supabase';
 
 export interface Transaction {
@@ -101,8 +100,7 @@ const showDemoNotification = (message: string, type: 'success' | 'error' | 'info
 };
 
 export const useWalletStore = create<WalletState>()(
-  persist(
-    (set, get) => ({
+  (set, get) => ({
       balances: [
         { currency: 'USD', available: 0, reserved: 0, total: 0 },
         { currency: 'NGN', available: 0, reserved: 0, total: 0 },
@@ -727,10 +725,5 @@ export const useWalletStore = create<WalletState>()(
       clearError: () => {
         set({ error: null });
       }
-    }),
-    {
-      name: 'fanclubz-wallet-storage',
-      version: 3, // Incremented to force reset with new database-driven approach
-    }
-  )
-);
+    })
+  );
