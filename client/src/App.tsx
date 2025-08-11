@@ -106,21 +106,32 @@ function App() {
   // Handle URL changes and update active tab accordingly
   useEffect(() => {
     const path = window.location.pathname;
+    console.log('🔍 Current path:', path);
+    
+    let newActiveTab = 'discover';
     
     if (path.startsWith('/prediction/')) {
-      if (activeTab !== 'discover') {
-        console.log('Setting active tab to discover for prediction page');
-        setActiveTab('discover');
-        localStorage.setItem('fanclubz-current-tab', 'discover');
-      }
+      newActiveTab = 'discover';
     } else if (path.startsWith('/profile/')) {
-      if (activeTab !== 'profile') {
-        console.log('Setting active tab to profile for profile page');
-        setActiveTab('profile');
-        localStorage.setItem('fanclubz-current-tab', 'profile');
-      }
+      newActiveTab = 'profile';
+    } else if (path === '/discover' || path === '/') {
+      newActiveTab = 'discover';
+    } else if (path === '/predictions') {
+      newActiveTab = 'predictions';
+    } else if (path === '/create') {
+      newActiveTab = 'create';
+    } else if (path === '/clubs') {
+      newActiveTab = 'clubs';
+    } else if (path === '/wallet') {
+      newActiveTab = 'wallet';
     }
-  }, [window.location.pathname, activeTab]);
+    
+    if (newActiveTab !== activeTab) {
+      console.log(`🔄 Updating active tab from ${activeTab} to ${newActiveTab}`);
+      setActiveTab(newActiveTab);
+      localStorage.setItem('fanclubz-current-tab', newActiveTab);
+    }
+  }, [window.location.pathname]);
 
   const handleTabChange = (tab: string) => {
     console.log('🔄 Tab change requested:', tab, 'Current activeTab:', activeTab);

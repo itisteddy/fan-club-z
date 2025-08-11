@@ -56,6 +56,7 @@ export const PredictionCard: React.FC<PredictionCardProps> = ({
   };
 
   const handleCardClick = () => {
+    console.log('🎯 Prediction card clicked, navigating to:', `/prediction/${prediction.id}`);
     setLocation(`/prediction/${prediction.id}`);
     // Scroll to top when navigating to prediction detail
     scrollToTop({ behavior: 'instant' });
@@ -294,8 +295,7 @@ export const PredictionCard: React.FC<PredictionCardProps> = ({
                   className="creator-profile-link cursor-pointer hover:text-primary transition-colors"
                   onClick={(e) => {
                     e.stopPropagation();
-                    console.log('Navigating to creator profile:', prediction.creator.id);
-                    // Navigate to creator profile
+                    console.log('👤 Navigating to creator profile:', prediction.creator.id);
                     setLocation(`/profile/${prediction.creator.id}`);
                   }}
                 >

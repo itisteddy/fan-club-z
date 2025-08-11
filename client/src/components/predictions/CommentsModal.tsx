@@ -106,7 +106,7 @@ export const CommentsModal: React.FC<CommentsModalProps> = ({
             onClick={onClose}
           />
           
-          {/* Modal Content - Twitter/iMessage Style */}
+          {/* Modal Content */}
           <div className="fixed inset-0 z-50 flex items-end justify-center">
             <motion.div
               key="comments-modal-content"
@@ -114,10 +114,10 @@ export const CommentsModal: React.FC<CommentsModalProps> = ({
               animate={{ y: 0 }}
               exit={{ y: '100%' }}
               transition={{ type: 'spring', damping: 30, stiffness: 300 }}
-              className="w-full max-w-md bg-white rounded-t-2xl shadow-2xl h-[90vh] flex flex-col relative"
+              className="w-full max-w-md bg-white rounded-t-2xl shadow-2xl h-[85vh] flex flex-col"
               onClick={(e) => e.stopPropagation()}
             >
-              {/* Header - Twitter Style */}
+              {/* Header */}
               <div className="flex items-center justify-between p-4 border-b border-gray-200 flex-shrink-0">
                 <div className="flex items-center gap-3">
                   <Button variant="ghost" size="icon" onClick={onClose} className="w-8 h-8">
@@ -133,8 +133,8 @@ export const CommentsModal: React.FC<CommentsModalProps> = ({
                 </Button>
               </div>
 
-              {/* Comments List - iMessage Style */}
-              <div className="flex-1 overflow-y-auto p-4 space-y-3 min-h-0">
+              {/* Comments List */}
+              <div className="flex-1 overflow-y-auto p-4 space-y-3">
                 {loading ? (
                   <div className="flex justify-center py-8">
                     <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
@@ -154,17 +154,12 @@ export const CommentsModal: React.FC<CommentsModalProps> = ({
                         animate={{ opacity: 1, y: 0 }}
                         className="flex gap-3"
                       >
-                        {/* Avatar */}
-                        <div className="flex-shrink-0">
-                          <Avatar className="w-8 h-8">
-                            <AvatarImage src={getAvatarUrl(comment.user)} />
-                            <AvatarFallback className="text-xs">
-                              {generateInitials(comment.user.username)}
-                            </AvatarFallback>
-                          </Avatar>
-                        </div>
-
-                        {/* Comment Content - iMessage Bubble */}
+                        <Avatar className="w-8 h-8 flex-shrink-0">
+                          <AvatarImage src={getAvatarUrl(comment.user)} />
+                          <AvatarFallback className="text-xs">
+                            {generateInitials(comment.user.username)}
+                          </AvatarFallback>
+                        </Avatar>
                         <div className="flex-1 min-w-0">
                           <div className="bg-gray-100 rounded-2xl px-3 py-2 max-w-[85%]">
                             <div className="flex items-center gap-2 mb-1">
@@ -179,21 +174,6 @@ export const CommentsModal: React.FC<CommentsModalProps> = ({
                               {comment.content}
                             </p>
                           </div>
-                          
-                          {/* Comment Actions - Twitter Style */}
-                          <div className="flex items-center gap-4 mt-2 ml-1">
-                            <button
-                              onClick={() => handleLikeComment(comment.id, comment.is_liked_by_user)}
-                              className={`flex items-center gap-1 text-xs transition-colors ${
-                                comment.is_liked_by_user 
-                                  ? 'text-red-500' 
-                                  : 'text-gray-500 hover:text-red-500'
-                              }`}
-                            >
-                              <Heart size={12} className={comment.is_liked_by_user ? 'fill-current' : ''} />
-                              {comment.likes_count > 0 && comment.likes_count}
-                            </button>
-                          </div>
                         </div>
                       </motion.div>
                     ))}
@@ -202,7 +182,7 @@ export const CommentsModal: React.FC<CommentsModalProps> = ({
                 <div ref={commentsEndRef} />
               </div>
 
-              {/* Comment Input - Always visible at bottom */}
+              {/* Comment Input - ALWAYS VISIBLE */}
               <div className="border-t border-gray-200 p-4 flex-shrink-0 bg-white">
                 <div className="flex gap-3">
                   <Avatar className="w-8 h-8 flex-shrink-0">
