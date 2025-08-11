@@ -115,7 +115,11 @@ function App() {
 
   const handleNavigateBackFromProfile = () => {
     const previousTab = navigationHistory.getPrevious();
-    setActiveTab(previousTab);
+    // If no previous tab in history, default to discover
+    const targetTab = previousTab || 'discover';
+    setActiveTab(targetTab);
+    // Update URL to match the target tab
+    window.history.pushState({}, '', '/');
     scrollToTop({ delay: 100 });
   };
 
@@ -149,6 +153,7 @@ function App() {
     // Check if we're on a user profile page
     if (path.startsWith('/profile/')) {
       const userId = path.split('/profile/')[1];
+      // Don't update activeTab here - let the navigation system handle it
       return <ProfilePage userId={userId} onNavigateBack={handleNavigateBackFromProfile} />;
     }
 
