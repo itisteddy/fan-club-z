@@ -40,12 +40,15 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
         return;
       }
 
+      setLoading(true);
+
       // First try to find in existing predictions
       let foundPrediction = predictions.find(p => p.id === id);
       
       // If not found, fetch predictions and try again
       if (!foundPrediction) {
         try {
+          console.log('Prediction not found in store, fetching predictions...');
           await fetchPredictions();
           foundPrediction = predictions.find(p => p.id === id);
         } catch (error) {
@@ -54,10 +57,12 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
       }
 
       if (foundPrediction) {
+        console.log('Prediction found:', foundPrediction);
         setPrediction(foundPrediction);
       } else {
-        toast.error('Prediction not found');
-        setLocation('/discover');
+        console.log('Prediction still not found after fetching');
+        // Don't redirect immediately, show error state instead
+        setPrediction(null);
       }
       
       setLoading(false);

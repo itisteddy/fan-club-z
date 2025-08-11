@@ -275,9 +275,10 @@ export const PredictionCard: React.FC<PredictionCardProps> = ({
             <div className="flex items-center justify-between mb-1">
               <div className="flex items-center gap-1">
                 <div 
-                  className="avatar-clickable"
+                  className="avatar-clickable cursor-pointer"
                   onClick={(e) => {
                     e.stopPropagation();
+                    console.log('Navigating to creator profile via avatar:', prediction.creator.id);
                     // Navigate to creator profile
                     setLocation(`/profile/${prediction.creator.id}`);
                   }}
@@ -290,9 +291,10 @@ export const PredictionCard: React.FC<PredictionCardProps> = ({
                   </Avatar>
                 </div>
                 <div 
-                  className="creator-profile-link"
+                  className="creator-profile-link cursor-pointer hover:text-primary transition-colors"
                   onClick={(e) => {
                     e.stopPropagation();
+                    console.log('Navigating to creator profile:', prediction.creator.id);
                     // Navigate to creator profile
                     setLocation(`/profile/${prediction.creator.id}`);
                   }}

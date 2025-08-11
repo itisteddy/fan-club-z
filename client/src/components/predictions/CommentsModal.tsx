@@ -114,7 +114,7 @@ export const CommentsModal: React.FC<CommentsModalProps> = ({
               animate={{ y: 0 }}
               exit={{ y: '100%' }}
               transition={{ type: 'spring', damping: 30, stiffness: 300 }}
-              className="w-full max-w-md bg-white rounded-t-2xl shadow-2xl max-h-[80vh] flex flex-col"
+              className="w-full max-w-md bg-white rounded-t-2xl shadow-2xl h-[90vh] flex flex-col"
               onClick={(e) => e.stopPropagation()}
             >
               {/* Header - Twitter Style */}
