@@ -103,6 +103,23 @@ function App() {
     }
   }, [isAuthenticated, loading, initializeWallet]);
 
+  // Handle URL changes and update active tab accordingly
+  useEffect(() => {
+    const path = window.location.pathname;
+    
+    if (path.startsWith('/prediction/')) {
+      if (activeTab !== 'discover') {
+        setActiveTab('discover');
+        localStorage.setItem('fanclubz-current-tab', 'discover');
+      }
+    } else if (path.startsWith('/profile/')) {
+      if (activeTab !== 'profile') {
+        setActiveTab('profile');
+        localStorage.setItem('fanclubz-current-tab', 'profile');
+      }
+    }
+  }, [window.location.pathname, activeTab]);
+
   const handleTabChange = (tab: string) => {
     console.log('🔄 Tab change requested:', tab, 'Current activeTab:', activeTab);
     
@@ -162,6 +179,11 @@ function App() {
     const path = window.location.pathname;
     if (path.startsWith('/prediction/')) {
       const predictionId = path.split('/prediction/')[1];
+      // Set active tab to discover when viewing prediction details
+      if (activeTab !== 'discover') {
+        setActiveTab('discover');
+        localStorage.setItem('fanclubz-current-tab', 'discover');
+      }
       return <PredictionDetailsPage predictionId={predictionId} />;
     }
     
@@ -173,7 +195,11 @@ function App() {
     // Check if we're on a user profile page
     if (path.startsWith('/profile/')) {
       const userId = path.split('/profile/')[1];
-      // Don't update activeTab here - let the navigation system handle it
+      // Set active tab to profile when viewing user profiles
+      if (activeTab !== 'profile') {
+        setActiveTab('profile');
+        localStorage.setItem('fanclubz-current-tab', 'profile');
+      }
       return <ProfilePage userId={userId} onNavigateBack={handleNavigateBackFromProfile} />;
     }
 
