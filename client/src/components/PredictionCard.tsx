@@ -1,7 +1,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { Heart, MessageCircle, Share, TrendingUp, Clock, Users } from 'lucide-react';
-import { Prediction, PredictionEntry } from '../stores/types';
+import { Prediction, PredictionEntry } from '../store/predictionStore';
 
 interface PredictionCardProps {
   prediction: Prediction;

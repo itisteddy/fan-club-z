@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import EnhancedPredictionCard from '../components/EnhancedPredictionCard';
 import PredictionPlacementModal from '../components/PredictionPlacementModal';
-import { Prediction } from '../stores/types';
+import { Prediction } from '../store/predictionStore';
 
 const EnhancedDiscoverPage: React.FC = () => {
   const [selectedPrediction, setSelectedPrediction] = useState<Prediction | null>(null);

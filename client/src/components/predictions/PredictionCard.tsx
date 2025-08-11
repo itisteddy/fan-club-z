@@ -15,7 +15,7 @@ import { Button } from '../ui/button';
 import { Card, CardContent } from '../ui/card';
 import { scrollToTop } from '../../utils/scroll';
 import { Avatar, AvatarImage, AvatarFallback } from '../ui/avatar';
-import { Prediction } from '../../stores/predictionStore';
+import { Prediction } from '../../store/predictionStore';
 import { formatCurrency, formatTimeRemaining, generateInitials, getAvatarUrl, cn } from '../../lib/utils';
 import { PlacePredictionModal } from './PlacePredictionModal';
 

@@ -12,7 +12,7 @@ import {
   TrendingDown,
   Minus
 } from 'lucide-react';
-import { Prediction, PredictionEntry, PredictionOption } from '../stores/types';
+import { Prediction, PredictionEntry, PredictionOption } from '../store/predictionStore';
 
 interface EnhancedPredictionCardProps {
   prediction: Prediction;

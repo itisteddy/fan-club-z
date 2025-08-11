@@ -1,6 +1,6 @@
 import React from 'react';
 import { PredictionCard } from './PredictionCard';
-import { Prediction } from '../../stores/predictionStore';
+import { Prediction } from '../../store/predictionStore';
 
 interface TrendingPredictionsProps {
   predictions: Prediction[];

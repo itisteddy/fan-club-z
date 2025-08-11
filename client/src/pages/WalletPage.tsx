@@ -24,7 +24,7 @@ import {
   Banknote,
   Shield
 } from 'lucide-react';
-import { useWalletStore, type Transaction } from '../stores/walletStore';
+import { useWalletStore, type Transaction } from '../store/walletStore';
 import { scrollToTop } from '../utils/scroll';
 import { usePullToRefresh } from '../utils/pullToRefresh';
 

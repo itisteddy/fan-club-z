@@ -4,7 +4,7 @@ import { X, Banknote, AlertTriangle } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Card, CardContent } from '../ui/card';
-import { useWalletStore } from '../../stores/walletStore';
+import { useWalletStore } from '../../store/walletStore';
 import { formatCurrency } from '../../lib/utils';
 import toast from 'react-hot-toast';
 

@@ -11,7 +11,7 @@ import {
   Clock,
   AlertTriangle
 } from 'lucide-react';
-import { Prediction, PredictionOption } from '../stores/types';
+import { Prediction, PredictionOption } from '../store/predictionStore';
 
 interface PredictionPlacementModalProps {
   prediction: Prediction;
