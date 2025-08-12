@@ -10,6 +10,7 @@ interface CompactPredictionCardProps {
   onLike: (predictionId: string) => void;
   onComment: (predictionId: string) => void;
   onShare: (prediction: Prediction) => void;
+  onNavigate?: (predictionId: string) => void;
 }
 
 const CompactPredictionCard: React.FC<CompactPredictionCardProps> = ({
@@ -19,6 +20,7 @@ const CompactPredictionCard: React.FC<CompactPredictionCardProps> = ({
   onLike,
   onComment,
   onShare,
+  onNavigate,
 }) => {
   const formatTimeRemaining = (deadline: string | Date) => {
     const now = new Date();
@@ -57,8 +59,16 @@ const CompactPredictionCard: React.FC<CompactPredictionCardProps> = ({
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.1 }}
-      className="bg-white rounded-2xl p-4 mb-3 shadow-sm border border-gray-100"
+      className="bg-white rounded-2xl p-4 mb-3 shadow-sm border border-gray-100 cursor-pointer hover:shadow-md transition-shadow"
       style={{ margin: '0 1rem 0.75rem 1rem' }}
+      onClick={() => {
+        if (onNavigate) {
+          onNavigate(prediction.id);
+        } else {
+          // Fallback navigation
+          window.location.href = `/prediction/${prediction.id}`;
+        }
+      }}
     >
       {/* Header */}
       <div className="flex items-start justify-between mb-3">
@@ -88,7 +98,10 @@ const CompactPredictionCard: React.FC<CompactPredictionCardProps> = ({
               return (
                 <button
                   key={option.id}
-                  onClick={() => onPredict(prediction)}
+                  onClick={(e) => {
+                    e.stopPropagation(); // Prevent card click
+                    onPredict(prediction);
+                  }}
                   className="p-3 border-2 border-gray-200 rounded-xl hover:border-green-500 hover:bg-green-50 transition-all group"
                 >
                   <div className="text-sm font-medium text-gray-900 mb-1">
@@ -132,28 +145,40 @@ const CompactPredictionCard: React.FC<CompactPredictionCardProps> = ({
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
           <button
-            onClick={() => onLike(prediction.id)}
+            onClick={(e) => {
+              e.stopPropagation();
+              onLike(prediction.id);
+            }}
             className="flex items-center gap-1 text-gray-500 hover:text-red-500 transition-colors"
           >
             <Heart size={16} />
             <span className="text-sm">{likesCount}</span>
           </button>
           <button
-            onClick={() => onComment(prediction.id)}
+            onClick={(e) => {
+              e.stopPropagation();
+              onComment(prediction.id);
+            }}
             className="flex items-center gap-1 text-gray-500 hover:text-blue-500 transition-colors"
           >
             <MessageCircle size={16} />
             <span className="text-sm">{commentsCount}</span>
           </button>
           <button
-            onClick={() => onShare(prediction)}
+            onClick={(e) => {
+              e.stopPropagation();
+              onShare(prediction);
+            }}
             className="flex items-center gap-1 text-gray-500 hover:text-green-500 transition-colors"
           >
             <Share2 size={16} />
           </button>
         </div>
         <button
-          onClick={() => onPredict(prediction)}
+          onClick={(e) => {
+            e.stopPropagation();
+            onPredict(prediction);
+          }}
           className="px-4 py-2 bg-green-500 text-white rounded-lg font-medium hover:bg-green-600 transition-colors"
         >
           Predict

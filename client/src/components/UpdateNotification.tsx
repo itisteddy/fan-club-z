@@ -28,7 +28,7 @@ const UpdateNotification: React.FC<UpdateNotificationProps> = ({
 
   return (
     <div className={`
-      fixed inset-x-4 z-50 max-w-md mx-auto transition-all duration-300 ease-out
+      fixed inset-x-4 max-w-md mx-auto transition-all duration-300 ease-out update-notification
       ${isVisible && !isAnimatingOut 
         ? 'top-20 opacity-100 transform translate-y-0' 
         : 'top-16 opacity-0 transform -translate-y-4'

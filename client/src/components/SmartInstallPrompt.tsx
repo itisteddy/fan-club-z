@@ -28,9 +28,9 @@ const InstallPromptCard: React.FC<InstallPromptCardProps> = ({ onInstall, onDism
 
   return (
     <div className={`
-      fixed inset-x-4 top-20 z-50 max-w-sm mx-auto transition-all duration-300 ease-out
+      fixed inset-x-4 top-20 max-w-sm mx-auto transition-all duration-300 ease-out pwa-install-prompt
       ${isVisible ? 'opacity-100 transform translate-y-0' : 'opacity-0 transform -translate-y-4'}
-    `}>
+    `} style={{ zIndex: 10000 }}>
       <div className="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
         {/* Header with gradient */}
         <div className="bg-gradient-to-r from-green-500 to-green-600 p-4 text-white">

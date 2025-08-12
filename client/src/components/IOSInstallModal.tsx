@@ -11,14 +11,16 @@ const IOSInstallModal: React.FC<IOSInstallModalProps> = ({ isOpen, onClose }) =>
 
   return (
     <div 
-      className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex flex-col"
+      className="fixed inset-0 bg-black/50 backdrop-blur-sm flex flex-col ios-install-modal"
       onClick={onClose}
+      style={{ zIndex: 10000 }}
     >
       {/* Safe area top spacing */}
       <div className="flex-1 flex items-center justify-center p-4 pb-24">
         <div 
           className="bg-white rounded-2xl w-full max-w-md shadow-2xl animate-in zoom-in-95 duration-200 flex flex-col max-h-[calc(100vh-8rem)]"
           onClick={(e) => e.stopPropagation()}
+          style={{ zIndex: 10001 }}
         >
           {/* Fixed Header */}
           <div className="bg-gradient-to-r from-green-500 to-green-600 p-4 text-center text-white relative rounded-t-2xl flex-shrink-0">

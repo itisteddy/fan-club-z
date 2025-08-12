@@ -10,9 +10,10 @@ import toast from 'react-hot-toast';
 
 interface PredictionDetailsPageProps {
   predictionId?: string;
+  onNavigateBack?: () => void;
 }
 
-const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictionId }) => {
+const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictionId, onNavigateBack }) => {
   const [, setLocation] = useLocation();
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
   const [stakeAmount, setStakeAmount] = useState<string>('');
@@ -89,16 +90,20 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
   const handleBack = () => {
     console.log('🔙 Navigating back');
     
-    // Use more reliable navigation
-    try {
-      if (window.history.length > 1) {
-        window.history.back();
-      } else {
+    if (onNavigateBack) {
+      onNavigateBack();
+    } else {
+      // Fallback navigation
+      try {
+        if (window.history.length > 1) {
+          window.history.back();
+        } else {
+          setLocation('/discover');
+        }
+      } catch (error) {
+        console.error('Navigation error:', error);
         setLocation('/discover');
       }
-    } catch (error) {
-      console.error('Navigation error:', error);
-      setLocation('/discover');
     }
   };
 

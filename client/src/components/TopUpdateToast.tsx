@@ -30,20 +30,20 @@ const TopUpdateToast: React.FC<TopUpdateToastProps> = ({
     <>
       {/* Backdrop overlay for important notifications */}
       <div className={`
-        fixed inset-0 bg-black/10 backdrop-blur-sm z-40 transition-opacity duration-300
+        fixed inset-0 bg-black/10 backdrop-blur-sm transition-opacity duration-300 update-notification
         ${isVisible && !isAnimatingOut ? 'opacity-100' : 'opacity-0'}
-      `} />
+      `} style={{ zIndex: 10000 }} />
       
       {/* Toast notification - Properly centered with responsive width */}
       <div className={`
-        fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-50 
+        fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 update-notification
         w-[calc(100vw-32px)] max-w-sm max-h-[90vh] overflow-y-auto
         transition-all duration-300 ease-out
         ${isVisible && !isAnimatingOut 
           ? 'opacity-100 scale-100' 
           : 'opacity-0 scale-95'
         }
-      `}>
+      `} style={{ zIndex: 10001 }}>
         <div className="bg-white rounded-2xl shadow-2xl border border-gray-200 overflow-hidden">
           {/* Header with icon and close */}
           <div className="bg-gradient-to-r from-green-500 to-green-600 p-4 text-white relative">

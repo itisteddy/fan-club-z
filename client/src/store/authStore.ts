@@ -3,6 +3,7 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 import { supabase, auth } from '../lib/supabase';
 import toast from 'react-hot-toast';
 import { showSuccess, showError } from './notificationStore';
+import type { Provider } from '@supabase/supabase-js';
 
 interface User {
   id: string;
@@ -12,6 +13,7 @@ interface User {
   phone?: string;
   avatar?: string;
   bio?: string;
+  provider?: string; // Added provider tracking
   totalEarnings?: number;
   totalInvested?: number;
   winRate?: number;
@@ -31,9 +33,11 @@ interface AuthState {
   lastAuthCheck: number;
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string, firstName: string, lastName: string) => Promise<void>;
+  loginWithOAuth: (provider: 'google' | 'apple') => Promise<void>;
   logout: () => Promise<void>;
   updateProfile: (profileData: any) => Promise<void>;
   initializeAuth: () => Promise<void>;
+  handleOAuthCallback: () => Promise<void>;
 }
 
 // Convert Supabase user to our User interface
@@ -41,16 +45,39 @@ const convertSupabaseUser = (supabaseUser: any): User | null => {
   if (!supabaseUser) return null;
   
   const metadata = supabaseUser.user_metadata || {};
-  const fullName = metadata.full_name || '';
-  const nameParts = fullName.split(' ');
+  const appMetadata = supabaseUser.app_metadata || {};
+  
+  // Handle different OAuth providers
+  let firstName = '';
+  let lastName = '';
+  let avatar = '';
+  
+  if (metadata.full_name) {
+    const nameParts = metadata.full_name.split(' ');
+    firstName = nameParts[0] || '';
+    lastName = nameParts.slice(1).join(' ') || '';
+  } else {
+    firstName = metadata.firstName || metadata.first_name || metadata.given_name || 'User';
+    lastName = metadata.lastName || metadata.last_name || metadata.family_name || '';
+  }
+  
+  // Handle avatar from different providers
+  if (metadata.avatar_url) {
+    avatar = metadata.avatar_url;
+  } else if (metadata.picture) {
+    avatar = metadata.picture; // Google
+  } else if (metadata.photo) {
+    avatar = metadata.photo; // Apple
+  }
   
   return {
     id: supabaseUser.id,
     email: supabaseUser.email || '',
-    firstName: metadata.firstName || metadata.first_name || nameParts[0] || 'User',
-    lastName: metadata.lastName || metadata.last_name || nameParts.slice(1).join(' ') || '',
+    firstName,
+    lastName,
     phone: supabaseUser.phone,
-    avatar: metadata.avatar_url,
+    avatar,
+    provider: appMetadata.provider || 'email',
     bio: metadata.bio,
     totalEarnings: metadata.totalEarnings || 0,
     totalInvested: metadata.totalInvested || 0,
@@ -299,6 +326,82 @@ export const useAuthStore = create<AuthState>()(
         }
       },
 
+      loginWithOAuth: async (provider: 'google' | 'apple') => {
+        set({ loading: true });
+        
+        try {
+          console.log(`🔑 Starting ${provider} OAuth login...`);
+          
+          const redirectTo = import.meta.env.PROD 
+            ? import.meta.env.VITE_OAUTH_REDIRECT_URL_PRODUCTION
+            : import.meta.env.VITE_OAUTH_REDIRECT_URL;
+
+          const { data, error } = await supabase.auth.signInWithOAuth({
+            provider: provider as Provider,
+            options: {
+              redirectTo,
+              queryParams: {
+                access_type: 'offline',
+                prompt: 'consent',
+              },
+            },
+          });
+
+          if (error) {
+            console.error(`❌ ${provider} OAuth error:`, error.message);
+            set({ loading: false });
+            showError(`${provider} sign-in failed. Please try again.`);
+            throw new Error(error.message);
+          }
+
+          // OAuth redirect will handle the rest
+          console.log(`✅ ${provider} OAuth initiated, redirecting...`);
+          
+        } catch (error: any) {
+          console.error(`❌ ${provider} OAuth exception:`, error.message);
+          set({ loading: false });
+          throw error;
+        }
+      },
+
+      handleOAuthCallback: async () => {
+        try {
+          console.log('🔄 Handling OAuth callback...');
+          
+          const { data, error } = await supabase.auth.getSession();
+          
+          if (error) {
+            console.error('❌ OAuth callback error:', error.message);
+            showError('Authentication failed. Please try again.');
+            throw new Error(error.message);
+          }
+
+          if (data.session?.user) {
+            const convertedUser = convertSupabaseUser(data.session.user);
+            console.log('✅ OAuth authentication successful for:', convertedUser?.firstName);
+            
+            set({ 
+              isAuthenticated: true, 
+              user: convertedUser,
+              token: data.session.access_token,
+              loading: false,
+              initialized: true,
+              lastAuthCheck: Date.now()
+            });
+            
+            const providerName = convertedUser?.provider?.charAt(0).toUpperCase() + convertedUser?.provider?.slice(1);
+            showSuccess(`Welcome ${convertedUser?.firstName}! Signed in with ${providerName}.`);
+          } else {
+            throw new Error('No user session found after OAuth callback');
+          }
+          
+        } catch (error: any) {
+          console.error('❌ OAuth callback exception:', error.message);
+          set({ loading: false });
+          throw error;
+        }
+      },
+
       logout: async () => {
         set({ loading: true });
         
@@ -388,7 +491,7 @@ export const useAuthStore = create<AuthState>()(
         initialized: state.initialized,
         lastAuthCheck: state.lastAuthCheck
       }),
-      version: 4, // Increment version to clear old cache and fix auth loops
+      version: 5, // Increment version for OAuth support
     }
   )
 );

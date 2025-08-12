@@ -102,42 +102,46 @@ export const CommentsModal: React.FC<CommentsModalProps> = ({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
-            className="fixed inset-0 bg-black/50 z-50"
+            className="modal-overlay"
             onClick={onClose}
+            style={{ zIndex: 8000 }}
           />
           
           {/* Modal Content - Match Predict Modal Style */}
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="comment-modal fixed inset-0 flex items-center justify-center p-4" style={{ zIndex: 8500, pointerEvents: 'none' }}>
             <motion.div
               key="comments-modal-content"
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
               transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-              className="w-full max-w-md bg-white rounded-2xl shadow-2xl max-h-[90vh] flex flex-col"
+              className="modal-container w-full max-w-md max-h-[90vh]"
               onClick={(e) => e.stopPropagation()}
+              style={{ pointerEvents: 'auto' }}
             >
               {/* Header - Match Predict Modal */}
-              <div className="flex items-center justify-between p-6 border-b border-gray-200 flex-shrink-0">
-                <div className="flex items-center gap-3">
-                  <Button variant="ghost" size="icon" onClick={onClose} className="w-8 h-8">
-                    <ArrowLeft size={18} />
-                  </Button>
-                  <div>
-                    <h2 className="font-semibold text-lg text-gray-900">Comments</h2>
-                    <p className="text-sm text-gray-500 truncate max-w-[200px]">{predictionTitle}</p>
+              <div className="modal-header">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <Button variant="ghost" size="icon" onClick={onClose} className="w-8 h-8">
+                      <ArrowLeft size={18} />
+                    </Button>
+                    <div>
+                      <h2 className="font-semibold text-lg text-gray-900">Comments</h2>
+                      <p className="text-sm text-gray-500 truncate max-w-[200px]">{predictionTitle}</p>
+                    </div>
                   </div>
+                  <Button variant="ghost" size="icon" onClick={onClose} className="w-8 h-8">
+                    <X size={18} />
+                  </Button>
                 </div>
-                <Button variant="ghost" size="icon" onClick={onClose} className="w-8 h-8">
-                  <X size={18} />
-                </Button>
               </div>
 
               {/* Comments List - Scrollable Area */}
-              <div className="flex-1 overflow-y-auto p-6 space-y-4 min-h-0">
+              <div className="modal-body">
                 {loading ? (
                   <div className="flex justify-center py-8">
-                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
+                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-green-500"></div>
                   </div>
                 ) : comments.length === 0 ? (
                   <div className="text-center py-8">
@@ -183,14 +187,14 @@ export const CommentsModal: React.FC<CommentsModalProps> = ({
               </div>
 
               {/* Comment Input - Always Visible at Bottom */}
-              <div className="border-t border-gray-200 p-6 flex-shrink-0 bg-white">
+              <div className="modal-footer">
                 <div className="flex gap-3">
                   <div className="flex-1 flex gap-3">
                     <Input
                       value={newComment}
                       onChange={(e) => setNewComment(e.target.value)}
                       placeholder="Add a comment..."
-                      className="flex-1 text-sm border-gray-200 rounded-full focus:ring-2 focus:ring-primary/20"
+                      className="flex-1 text-sm border-gray-200 rounded-full focus:ring-2 focus:ring-green-500/20"
                       onKeyPress={(e) => {
                         if (e.key === 'Enter' && !e.shiftKey) {
                           e.preventDefault();
@@ -202,7 +206,7 @@ export const CommentsModal: React.FC<CommentsModalProps> = ({
                       onClick={handleSubmitComment}
                       disabled={!newComment.trim() || isSubmitting}
                       size="sm"
-                      className="rounded-full px-4 bg-primary hover:bg-primary/90"
+                      className="rounded-full px-4 bg-green-500 hover:bg-green-600"
                     >
                       {isSubmitting ? (
                         <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>

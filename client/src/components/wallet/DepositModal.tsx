@@ -13,13 +13,10 @@ interface DepositModalProps {
   onClose: () => void;
 }
 
-// Removed payment methods since using demo funds
-
 const quickAmounts = [500, 1000, 2500, 5000, 10000, 25000];
 
 export const DepositModal: React.FC<DepositModalProps> = ({ isOpen, onClose }) => {
   const [amount, setAmount] = useState<string>('');
-  // Removed selectedMethod since no payment methods needed for demo
   const [isLoading, setIsLoading] = useState(false);
   
   const { deposit } = useWalletStore();
@@ -62,133 +59,127 @@ export const DepositModal: React.FC<DepositModalProps> = ({ isOpen, onClose }) =
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
             className="modal-overlay"
-            style={{
-              position: 'fixed',
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0,
-              backgroundColor: 'rgba(0, 0, 0, 0.5)',
-              zIndex: 1000,
-              pointerEvents: 'auto'
-            }}
             onClick={onClose}
+            style={{ zIndex: 8600 }}
           />
           
           {/* Modal Content */}
-          <div className="fixed inset-0 flex items-end justify-center pointer-events-none" style={{ zIndex: 1001, bottom: 'calc(80px + env(safe-area-inset-bottom, 20px))' }}>
+          <div className="deposit-modal fixed inset-0 flex items-end justify-center" style={{ zIndex: 8600, pointerEvents: 'none', bottom: 'calc(80px + env(safe-area-inset-bottom, 20px))' }}>
             <motion.div
               initial={{ y: '100%' }}
               animate={{ y: 0 }}
               exit={{ y: '100%' }}
               transition={{ type: 'spring', damping: 30, stiffness: 300 }}
-              className="bg-background rounded-t-3xl w-full max-w-md max-h-[calc(85vh-100px)] overflow-hidden pointer-events-auto"
+              className="modal-container w-full max-w-md max-h-[calc(85vh-100px)]"
               onClick={(e) => e.stopPropagation()}
+              style={{ pointerEvents: 'auto' }}
             >
-          <div className="sticky top-0 bg-background border-b border-border px-6 py-4">
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold">Deposit Funds</h2>
-              <Button variant="ghost" size="icon" onClick={onClose}>
-                <X size={20} />
-              </Button>
-            </div>
-          </div>
-
-          <div className="px-6 py-4 space-y-6 max-h-[calc(90vh-80px)] overflow-y-auto">
-            {/* Amount Input */}
-            <div>
-              <label className="block text-sm font-medium mb-2">
-                Amount to deposit
-              </label>
-              <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
-                  $
-                </span>
-                <Input
-                  type="number"
-                  placeholder="0"
-                  value={amount}
-                  onChange={(e) => setAmount(e.target.value)}
-                  className="pl-8 text-lg"
-                  min={100}
-                />
-              </div>
-              <div className="text-xs text-muted-foreground mt-1">
-                Minimum deposit: $100
-              </div>
-            </div>
-
-            {/* Quick amounts */}
-            <div>
-              <label className="block text-sm font-medium mb-2">Quick amounts:</label>
-              <div className="grid grid-cols-3 gap-2">
-                {quickAmounts.map((quickAmount) => (
-                  <Button
-                    key={quickAmount}
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setAmount(quickAmount.toString())}
-                    className="text-sm"
-                  >
-                    {formatCurrency(quickAmount)}
+              {/* Header */}
+              <div className="modal-header">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-lg font-semibold">Deposit Funds</h2>
+                  <Button variant="ghost" size="icon" onClick={onClose}>
+                    <X size={20} />
                   </Button>
-                ))}
+                </div>
               </div>
-            </div>
 
-            {/* Demo Funds Notice */}
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-              <div className="flex items-center gap-2 text-blue-800">
-                <Banknote size={20} />
-                <div className="font-medium">Demo Mode</div>
+              {/* Body */}
+              <div className="modal-body space-y-6">
+                {/* Amount Input */}
+                <div>
+                  <label className="block text-sm font-medium mb-2">
+                    Amount to deposit
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">
+                      $
+                    </span>
+                    <Input
+                      type="number"
+                      placeholder="0"
+                      value={amount}
+                      onChange={(e) => setAmount(e.target.value)}
+                      className="pl-8 text-lg"
+                      min={100}
+                    />
+                  </div>
+                  <div className="text-xs text-gray-500 mt-1">
+                    Minimum deposit: $100
+                  </div>
+                </div>
+
+                {/* Quick amounts */}
+                <div>
+                  <label className="block text-sm font-medium mb-2">Quick amounts:</label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {quickAmounts.map((quickAmount) => (
+                      <Button
+                        key={quickAmount}
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setAmount(quickAmount.toString())}
+                        className="text-sm"
+                      >
+                        {formatCurrency(quickAmount)}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Demo Funds Notice */}
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <div className="flex items-center gap-2 text-blue-800">
+                    <Banknote size={20} />
+                    <div className="font-medium">Demo Mode</div>
+                  </div>
+                  <div className="text-sm text-blue-700 mt-1">
+                    You're using demo funds for testing. No real money will be charged.
+                  </div>
+                </div>
+
+                {/* Summary */}
+                {numAmount > 0 && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                  >
+                    <Card className="bg-green-50 border-green-200">
+                      <CardContent className="p-4">
+                        <div className="space-y-2 text-sm">
+                          <div className="flex justify-between">
+                            <span>Demo Amount:</span>
+                            <span className="font-medium">{formatCurrency(numAmount)}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span>Fee:</span>
+                            <span className="font-medium text-green-600">Free</span>
+                          </div>
+                          <hr className="border-green-200" />
+                          <div className="flex justify-between font-semibold">
+                            <span>Total Added:</span>
+                            <span className="text-green-600">
+                              {formatCurrency(numAmount)}
+                            </span>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </motion.div>
+                )}
               </div>
-              <div className="text-sm text-blue-700 mt-1">
-                You're using demo funds for testing. No real money will be charged.
+
+              {/* Footer */}
+              <div className="modal-footer">
+                <Button
+                  onClick={handleDeposit}
+                  disabled={!numAmount || numAmount < 100 || isLoading}
+                  className="w-full bg-green-500 hover:bg-green-600"
+                  size="lg"
+                >
+                  {isLoading ? 'Adding Demo Funds...' : `Add ${formatCurrency(numAmount)} Demo Funds`}
+                </Button>
               </div>
-            </div>
-
-            {/* Summary */}
-            {numAmount > 0 && (
-              <motion.div
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: 'auto' }}
-              >
-                <Card className="bg-primary/5 border-primary/20">
-                  <CardContent className="p-4">
-                    <div className="space-y-2 text-sm">
-                      <div className="flex justify-between">
-                        <span>Demo Amount:</span>
-                        <span className="font-medium">{formatCurrency(numAmount)}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span>Fee:</span>
-                        <span className="font-medium text-green-600">Free</span>
-                      </div>
-                      <hr className="border-primary/20" />
-                      <div className="flex justify-between font-semibold">
-                        <span>Total Added:</span>
-                        <span className="text-primary">
-                          {formatCurrency(numAmount)}
-                        </span>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              </motion.div>
-            )}
-          </div>
-
-          {/* Submit Button */}
-          <div className="sticky bottom-0 bg-background border-t border-border p-6">
-            <Button
-              onClick={handleDeposit}
-              disabled={!numAmount || numAmount < 100 || isLoading}
-              className="w-full"
-              size="lg"
-            >
-              {isLoading ? 'Adding Demo Funds...' : `Add ${formatCurrency(numAmount)} Demo Funds`}
-            </Button>
-          </div>
             </motion.div>
           </div>
         </>

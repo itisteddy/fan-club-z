@@ -4,6 +4,7 @@
 @import './styles/pwa.css';
 @import './styles/category-filters.css';
 @import './styles/layout-fixes.css';
+@import './styles/z-index-fixes.css';
 
 @tailwind base;
 @tailwind components;

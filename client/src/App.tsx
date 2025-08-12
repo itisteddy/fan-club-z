@@ -8,7 +8,7 @@ import NotificationContainer from './components/ui/NotificationContainer';
 import PWAInstallManager from './components/PWAInstallManager';
 import PageWrapper from './components/PageWrapper';
 
-// Import all page components with better error boundaries
+// Import all page components
 import DiscoverPage from './pages/DiscoverPage';
 import CreatePredictionPage from './pages/CreatePredictionPage';
 import BetsTab from './pages/BetsTab';
@@ -19,7 +19,7 @@ import AuthCallbackPage from './pages/auth/AuthCallbackPage';
 import PredictionDetailsPage from './pages/PredictionDetailsPage';
 import BottomNavigation from './components/BottomNavigation';
 
-// Enhanced Loading Component
+// Simple Loading Component
 const LoadingSpinner: React.FC<{ message?: string }> = ({ message = "Loading..." }) => (
   <div className="min-h-screen bg-gray-50 flex items-center justify-center">
     <div className="text-center">
@@ -29,19 +29,16 @@ const LoadingSpinner: React.FC<{ message?: string }> = ({ message = "Loading..."
   </div>
 );
 
-// Enhanced Auth Guard Component with better state handling
+// Simplified Auth Guard
 const AuthGuard: React.FC<{ children: React.ReactNode }> = memo(({ children }) => {
   const { isAuthenticated, loading, initialized, initializeAuth } = useAuthStore();
   
-  // Force re-initialization if needed
   useEffect(() => {
     if (!initialized && !loading) {
-      console.log('🔄 AuthGuard: Force initializing auth...');
       initializeAuth();
     }
   }, [initialized, loading, initializeAuth]);
   
-  // Show loading only when actually loading and not initialized
   if (!initialized || (loading && !isAuthenticated)) {
     return <LoadingSpinner message="Authenticating..." />;
   }
@@ -55,147 +52,84 @@ const AuthGuard: React.FC<{ children: React.ReactNode }> = memo(({ children }) =
 
 AuthGuard.displayName = 'AuthGuard';
 
-// Enhanced Route Component for better error handling with forced re-mounting
-const SafeRoute: React.FC<{ 
-  component: React.ComponentType<any>; 
-  title: string;
-  path: string; // Add path for proper keying
-  [key: string]: any;
-}> = ({ component: Component, title, path, ...props }) => {
-  return (
-    <Suspense fallback={<LoadingSpinner message={`Loading ${title}...`} />}>
-      <PageWrapper title={title}>
-        {/* Key by path to force re-mount when route changes */}
-        <Component key={path} {...props} />
-      </PageWrapper>
-    </Suspense>
-  );
-};
-
-// Optimized Main Layout Component with enhanced navigation
+// Main Layout Component with proper navigation
 const MainLayout: React.FC<{ children: React.ReactNode }> = memo(({ children }) => {
   const [location, navigate] = useLocation();
   
-  // Memoized function to get current tab with better path matching
   const getCurrentTab = useCallback(() => {
     const path = location.toLowerCase();
-    // Only log path changes, not every render
-    const currentTab = getCurrentTabFromPath(path);
-    return currentTab;
-  }, [location]);
-  
-  const getCurrentTabFromPath = (path: string) => {
-    
     if (path === '/' || path === '/discover') return 'discover';
-    if (path.startsWith('/bets')) return 'bets';
-    if (path.startsWith('/profile')) return 'profile';
-    if (path.startsWith('/wallet')) return 'wallet';
-    if (path.startsWith('/create')) return 'create';
+    if (path === '/bets') return 'bets';
+    if (path === '/profile') return 'profile';
+    if (path === '/wallet') return 'wallet';
     return 'discover';
-  };
+  }, [location]);
 
-  // Enhanced tab change handler with forced navigation
   const handleTabChange = useCallback((tab: string) => {
-    console.log('🔄 Tab change requested:', tab, 'from:', location);
+    console.log('🔄 Navigating to tab:', tab);
     
-    const routes = {
-      discover: '/',
-      bets: '/bets',
-      profile: '/profile',
-      wallet: '/wallet',
-      create: '/create'
-    };
+    // Scroll to top
+    scrollToTop();
     
-    const targetRoute = routes[tab as keyof typeof routes] || '/';
-    
-    console.log('🚀 Navigating to:', targetRoute);
-    
-    // Always use replace: false to ensure proper navigation history
-    navigate(targetRoute, { replace: false });
-    
-    // Scroll to top with slight delay for better UX
-    setTimeout(() => scrollToTop({ delay: 0 }), 100);
-  }, [navigate, location]);
-
-  // Enhanced FAB click handler with better modal/route handling
-  const handleFABClick = useCallback(() => {
-    console.log('🎯 FAB clicked - opening create prediction');
-    
-    // Always navigate to create page
-    console.log('Navigating to create page...');
-    navigate('/create', { replace: false });
-    
-    // Ensure scroll to top
-    setTimeout(() => scrollToTop({ delay: 0 }), 100);
+    // Navigate to the appropriate route
+    switch (tab) {
+      case 'discover':
+        navigate('/');
+        break;
+      case 'bets':
+        navigate('/bets');
+        break;
+      case 'profile':
+        navigate('/profile');
+        break;
+      case 'wallet':
+        navigate('/wallet');
+        break;
+      default:
+        navigate('/');
+    }
   }, [navigate]);
 
-  const activeTab = getCurrentTab();
-  const showFAB = activeTab === 'discover';
+  const handleFABClick = useCallback(() => {
+    console.log('➕ FAB clicked - navigating to create');
+    navigate('/create');
+  }, [navigate]);
 
-  console.log('🎯 MainLayout render - activeTab:', activeTab, 'showFAB:', showFAB, 'location:', location);
+  const showFAB = getCurrentTab() === 'discover';
+
+  console.log('🏗️ MainLayout render - activeTab:', getCurrentTab(), 'showFAB:', showFAB, 'location:', location);
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <PWAInstallManager />
-      
-      {/* Main content area with proper padding for bottom nav */}
-      <main className="pb-20" style={{ paddingBottom: 'calc(5rem + env(safe-area-inset-bottom))' }}>
-        {/* Key the children by location to force re-render */}
-        <div key={location}>
+    <div className="min-h-screen bg-gray-50 flex flex-col">
+      {/* Main Content */}
+      <main className="flex-1 pb-20">
+        <Suspense fallback={<LoadingSpinner message="Loading page..." />}>
           {children}
-        </div>
+        </Suspense>
       </main>
 
       {/* Bottom Navigation */}
-      <BottomNavigation 
-        activeTab={activeTab} 
+      <BottomNavigation
+        activeTab={getCurrentTab()}
         onTabChange={handleTabChange}
         showFAB={showFAB}
         onFABClick={handleFABClick}
       />
 
-      {/* Notification Container */}
+      {/* Notifications */}
       <NotificationContainer />
       
-      {/* Enhanced Toast Notifications */}
-      <Toaster 
+      {/* PWA Install Manager */}
+      <PWAInstallManager />
+      
+      {/* Toast Notifications */}
+      <Toaster
         position="top-center"
-        containerStyle={{
-          top: 20,
-          zIndex: 9999,
-        }}
         toastOptions={{
-          duration: 3000,
+          duration: 4000,
           style: {
-            background: '#ffffff',
-            color: '#111827',
-            border: '1px solid #e5e7eb',
-            borderRadius: '12px',
-            boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
-            fontSize: '14px',
-            fontWeight: '500',
-            maxWidth: '400px',
-            padding: '16px',
-          },
-          success: {
-            duration: 2500,
-            iconTheme: {
-              primary: '#22c55e',
-              secondary: '#fff',
-            },
-            style: {
-              border: '1px solid #22c55e',
-            },
-          },
-          error: {
-            duration: 4000,
-            iconTheme: {
-              primary: '#ef4444',
-              secondary: '#fff',
-            },
-            style: {
-              border: '1px solid #ef4444',
-            },
+            background: '#363636',
+            color: '#fff',
           },
         }}
       />
@@ -205,162 +139,105 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = memo(({ children }) 
 
 MainLayout.displayName = 'MainLayout';
 
-// Enhanced page wrapper components with proper keying for re-mounting
-const DiscoverPageWrapper: React.FC = memo(() => {
-  const [location, navigate] = useLocation();
+// Page Wrapper Components with proper props
+const DiscoverPageWrapper: React.FC = () => {
+  const [, navigate] = useLocation();
   
   const handleNavigateToProfile = useCallback(() => {
-    console.log('🚀 Navigating to profile from discover...');
     navigate('/profile');
   }, [navigate]);
 
   return (
-    <SafeRoute 
-      component={DiscoverPage} 
-      title="Discover"
-      path={location}
-      onNavigateToProfile={handleNavigateToProfile}
-    />
+    <PageWrapper title="Discover">
+      <DiscoverPage onNavigateToProfile={handleNavigateToProfile} />
+    </PageWrapper>
   );
-});
+};
 
-DiscoverPageWrapper.displayName = 'DiscoverPageWrapper';
-
-const BetsPageWrapper: React.FC = memo(() => {
-  const [location, navigate] = useLocation();
+const BetsPageWrapper: React.FC = () => {
+  const [, navigate] = useLocation();
   
   const handleNavigateToDiscover = useCallback(() => {
-    console.log('🚀 Navigating to discover from bets...');
     navigate('/');
   }, [navigate]);
 
   return (
-    <SafeRoute 
-      component={BetsTab} 
-      title="My Predictions"
-      path={location}
-      onNavigateToDiscover={handleNavigateToDiscover}
-    />
+    <PageWrapper title="My Predictions">
+      <BetsTab onNavigateToDiscover={handleNavigateToDiscover} />
+    </PageWrapper>
   );
-});
+};
 
-BetsPageWrapper.displayName = 'BetsPageWrapper';
-
-const ProfilePageWrapper: React.FC = memo(() => {
-  const [location, navigate] = useLocation();
+const CreatePredictionPageWrapper: React.FC = () => {
+  const [, navigate] = useLocation();
   
   const handleNavigateBack = useCallback(() => {
-    console.log('🚀 Navigating back from profile...');
-    navigate('/');
-  }, [navigate]);
-
-  return (
-    <SafeRoute 
-      component={ProfilePage} 
-      title="Profile"
-      path={location}
-      onNavigateBack={handleNavigateBack}
-    />
-  );
-});
-
-ProfilePageWrapper.displayName = 'ProfilePageWrapper';
-
-const WalletPageWrapper: React.FC = memo(() => {
-  const [location] = useLocation();
-  
-  return (
-    <SafeRoute 
-      component={WalletPage} 
-      title="Wallet"
-      path={location}
-    />
-  );
-});
-
-WalletPageWrapper.displayName = 'WalletPageWrapper';
-
-const CreatePredictionPageWrapper: React.FC = memo(() => {
-  const [location, navigate] = useLocation();
-  
-  const handleNavigateBack = useCallback(() => {
-    console.log('🚀 Navigating back from create...');
     navigate('/');
   }, [navigate]);
 
   const handleComplete = useCallback(() => {
-    console.log('🎉 Prediction created, navigating to discover...');
     navigate('/');
   }, [navigate]);
 
   return (
-    <SafeRoute 
-      component={CreatePredictionPage} 
-      title="Create Prediction"
-      path={location}
-      onNavigateBack={handleNavigateBack}
-      onComplete={handleComplete}
-    />
+    <PageWrapper title="Create Prediction">
+      <CreatePredictionPage 
+        onNavigateBack={handleNavigateBack}
+        onComplete={handleComplete}
+      />
+    </PageWrapper>
   );
-});
+};
 
-CreatePredictionPageWrapper.displayName = 'CreatePredictionPageWrapper';
-
-// Enhanced prediction details wrapper with proper routing
-const PredictionDetailsWrapper: React.FC<{ params: { id: string } }> = memo(({ params }) => {
-  const [location, navigate] = useLocation();
+const ProfilePageWrapper: React.FC = () => {
+  const [, navigate] = useLocation();
   
   const handleNavigateBack = useCallback(() => {
-    console.log('🚀 Navigating back from prediction details...');
     navigate('/');
   }, [navigate]);
 
   return (
-    <SafeRoute 
-      component={PredictionDetailsPage} 
-      title="Prediction Details"
-      path={location}
-      predictionId={params.id}
-      onNavigateBack={handleNavigateBack}
-    />
+    <PageWrapper title="Profile">
+      <ProfilePage onNavigateBack={handleNavigateBack} />
+    </PageWrapper>
   );
-});
+};
 
-PredictionDetailsWrapper.displayName = 'PredictionDetailsWrapper';
+const WalletPageWrapper: React.FC = () => {
+  return (
+    <PageWrapper title="Wallet">
+      <WalletPage />
+    </PageWrapper>
+  );
+};
 
-// User profile wrapper with proper routing
-const UserProfileWrapper: React.FC<{ params: { id: string } }> = memo(({ params }) => {
-  const [location, navigate] = useLocation();
+const PredictionDetailsWrapper: React.FC<{ params: { id: string } }> = ({ params }) => {
+  const [, navigate] = useLocation();
   
   const handleNavigateBack = useCallback(() => {
-    console.log('🚀 Navigating back from user profile...');
     navigate('/');
   }, [navigate]);
 
   return (
-    <SafeRoute 
-      component={ProfilePage} 
-      title="User Profile"
-      path={location}
-      userId={params.id}
-      onNavigateBack={handleNavigateBack}
-    />
+    <PageWrapper title="Prediction Details">
+      <PredictionDetailsPage 
+        predictionId={params.id}
+        onNavigateBack={handleNavigateBack}
+      />
+    </PageWrapper>
   );
-});
+};
 
-UserProfileWrapper.displayName = 'UserProfileWrapper';
-
-// Main App Component with optimized initialization and error handling
+// Main App Component with simplified routing
 function App() {
   const { initializeWallet } = useWalletStore();
   const { initializeAuth, isAuthenticated, loading, initialized } = useAuthStore();
 
-  // Initialize auth once on app start with better error handling
+  // Initialize auth once on app start
   useEffect(() => {
     console.log('🚀 Initializing Fan Club Z v2.0...');
     
     try {
-      // Only initialize if not already done
       if (!initialized && !loading) {
         console.log('🔐 Starting auth initialization...');
         initializeAuth();
@@ -370,7 +247,7 @@ function App() {
     }
   }, [initializeAuth, initialized, loading]);
 
-  // Initialize wallet after auth is ready and user is authenticated
+  // Initialize wallet after auth is ready
   useEffect(() => {
     if (isAuthenticated && !loading && initialized) {
       console.log('💰 Initializing wallet...');
@@ -382,9 +259,8 @@ function App() {
     }
   }, [isAuthenticated, loading, initialized, initializeWallet]);
 
-  // Log auth state changes for debugging (less verbose)
+  // Log auth state changes (less verbose)
   useEffect(() => {
-    // Only log significant auth state changes
     if (!loading) {
       console.log('🔐 Auth state settled:', { isAuthenticated, initialized });
     }
@@ -395,7 +271,9 @@ function App() {
       <Switch>
         {/* Public auth routes */}
         <Route path="/auth/callback">
-          <SafeRoute component={AuthCallbackPage} title="Authentication" path="/auth/callback" />
+          <PageWrapper title="Authentication">
+            <AuthCallbackPage />
+          </PageWrapper>
         </Route>
         
         {/* Protected app routes */}
@@ -403,22 +281,16 @@ function App() {
           <AuthGuard>
             <MainLayout>
               <Switch>
-                {/* Main navigation routes - each with unique path for proper keying */}
                 <Route path="/" component={DiscoverPageWrapper} />
                 <Route path="/discover" component={DiscoverPageWrapper} />
                 <Route path="/bets" component={BetsPageWrapper} />
                 <Route path="/create" component={CreatePredictionPageWrapper} />
                 <Route path="/profile" component={ProfilePageWrapper} />
                 <Route path="/wallet" component={WalletPageWrapper} />
-                
-                {/* Dynamic detail routes */}
                 <Route path="/prediction/:id" component={PredictionDetailsWrapper} />
-                <Route path="/profile/:id" component={UserProfileWrapper} />
                 
-                {/* Fallback to discover */}
-                <Route>
-                  <DiscoverPageWrapper />
-                </Route>
+                {/* Fallback */}
+                <Route component={DiscoverPageWrapper} />
               </Switch>
             </MainLayout>
           </AuthGuard>

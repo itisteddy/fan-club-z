@@ -191,6 +191,12 @@ const DiscoverPage: React.FC<DiscoverPageProps> = memo(({ onNavigateToProfile })
     setIsPredictionModalOpen(true);
   }, []);
 
+  const handleNavigateToPrediction = useCallback((predictionId: string) => {
+    console.log('🔗 Navigating to prediction details:', predictionId);
+    // Use wouter navigation instead of manually setting location
+    window.location.href = `/prediction/${predictionId}`;
+  }, []);
+
   const handleLike = useCallback((predictionId: string) => {
     console.log('❤️ Liked prediction:', predictionId);
     toast.success('Prediction liked!');
@@ -347,6 +353,7 @@ const DiscoverPage: React.FC<DiscoverPageProps> = memo(({ onNavigateToProfile })
                   onLike={handleLike}
                   onComment={handleComment}
                   onShare={handleShare}
+                  onNavigate={handleNavigateToPrediction}
                 />
               ))
             ) : (
