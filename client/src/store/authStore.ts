@@ -63,9 +63,11 @@ const convertSupabaseUser = (supabaseUser: any): User | null => {
   };
 };
 
-// Flag to prevent multiple auth state listeners
+// Flags to prevent multiple auth state listeners and initializations
 let authStateChangeListenerSet = false;
 let initializationInProgress = false;
+let lastAuthEvent = '';
+let lastAuthEventTime = 0;
 
 export const useAuthStore = create<AuthState>()(
   persist(
@@ -379,23 +381,33 @@ export const useAuthStore = create<AuthState>()(
         initialized: state.initialized,
         lastAuthCheck: state.lastAuthCheck
       }),
-      version: 3, // Increment version to clear old cache
+      version: 4, // Increment version to clear old cache and fix auth loops
     }
   )
 );
 
-// Set up auth state change listener only once per session
+// Set up auth state change listener only once per session with better event filtering
 if (typeof window !== 'undefined' && !authStateChangeListenerSet) {
   authStateChangeListenerSet = true;
   
   console.log('🔧 Setting up auth state listener...');
   
   supabase.auth.onAuthStateChange((event, session) => {
+    const now = Date.now();
+    
+    // Prevent rapid duplicate events (max 1 per second)
+    if (lastAuthEvent === event && (now - lastAuthEventTime) < 1000) {
+      return;
+    }
+    
+    lastAuthEvent = event;
+    lastAuthEventTime = now;
+    
     console.log('🔄 Auth state change:', event);
     
     // Only handle specific critical events to prevent loops
     if (event === 'SIGNED_OUT') {
-      console.log('🔓 Auth state: signed out');
+      console.log('🔓 User signed out');
       useAuthStore.setState({
         isAuthenticated: false,
         user: null,
@@ -403,12 +415,12 @@ if (typeof window !== 'undefined' && !authStateChangeListenerSet) {
         lastAuthCheck: 0
       });
     } else if (event === 'TOKEN_REFRESHED' && session?.user) {
-      console.log('🔄 Auth state: token refreshed');
+      console.log('🔄 Token refreshed');
       const convertedUser = convertSupabaseUser(session.user);
       useAuthStore.setState({
         user: convertedUser,
         token: session.access_token,
-        lastAuthCheck: Date.now()
+        lastAuthCheck: now
       });
     }
     // Deliberately ignore SIGNED_IN, INITIAL_SESSION to prevent re-auth loops

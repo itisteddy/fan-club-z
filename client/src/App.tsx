@@ -55,16 +55,18 @@ const AuthGuard: React.FC<{ children: React.ReactNode }> = memo(({ children }) =
 
 AuthGuard.displayName = 'AuthGuard';
 
-// Enhanced Route Component for better error handling
+// Enhanced Route Component for better error handling with forced re-mounting
 const SafeRoute: React.FC<{ 
   component: React.ComponentType<any>; 
   title: string;
+  path: string; // Add path for proper keying
   [key: string]: any;
-}> = ({ component: Component, title, ...props }) => {
+}> = ({ component: Component, title, path, ...props }) => {
   return (
     <Suspense fallback={<LoadingSpinner message={`Loading ${title}...`} />}>
       <PageWrapper title={title}>
-        <Component {...props} />
+        {/* Key by path to force re-mount when route changes */}
+        <Component key={path} {...props} />
       </PageWrapper>
     </Suspense>
   );
@@ -87,7 +89,7 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = memo(({ children }) 
     return 'discover';
   }, [location]);
 
-  // Enhanced tab change handler with better state management
+  // Enhanced tab change handler with forced navigation
   const handleTabChange = useCallback((tab: string) => {
     console.log('🔄 Tab change requested:', tab, 'from:', location);
     
@@ -101,19 +103,9 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = memo(({ children }) 
     
     const targetRoute = routes[tab as keyof typeof routes] || '/';
     
-    // Force navigation even if same route to refresh content
-    if (location === targetRoute) {
-      console.log('🔄 Same route, forcing refresh...');
-      // Force a re-render by adding a timestamp query param and removing it
-      navigate(`${targetRoute}?refresh=${Date.now()}`, { replace: false });
-      setTimeout(() => {
-        navigate(targetRoute, { replace: true });
-        scrollToTop({ delay: 0 });
-      }, 50);
-      return;
-    }
-    
     console.log('🚀 Navigating to:', targetRoute);
+    
+    // Always use replace: false to ensure proper navigation history
     navigate(targetRoute, { replace: false });
     
     // Scroll to top with slight delay for better UX
@@ -124,23 +116,13 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = memo(({ children }) 
   const handleFABClick = useCallback(() => {
     console.log('🎯 FAB clicked - opening create prediction');
     
-    // Check if we're already on create page
-    if (location.startsWith('/create')) {
-      console.log('Already on create page, refreshing...');
-      // Force refresh of create page
-      navigate('/create?refresh=' + Date.now(), { replace: false });
-      setTimeout(() => {
-        navigate('/create', { replace: true });
-      }, 50);
-    } else {
-      // Navigate to create page
-      console.log('Navigating to create page...');
-      navigate('/create', { replace: false });
-    }
+    // Always navigate to create page
+    console.log('Navigating to create page...');
+    navigate('/create', { replace: false });
     
     // Ensure scroll to top
     setTimeout(() => scrollToTop({ delay: 0 }), 100);
-  }, [navigate, location]);
+  }, [navigate]);
 
   const activeTab = getCurrentTab();
   const showFAB = activeTab === 'discover';
@@ -153,7 +135,10 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = memo(({ children }) 
       
       {/* Main content area with proper padding for bottom nav */}
       <main className="pb-20" style={{ paddingBottom: 'calc(5rem + env(safe-area-inset-bottom))' }}>
-        {children}
+        {/* Key the children by location to force re-render */}
+        <div key={location}>
+          {children}
+        </div>
       </main>
 
       {/* Bottom Navigation */}
@@ -215,9 +200,9 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = memo(({ children }) 
 
 MainLayout.displayName = 'MainLayout';
 
-// Enhanced page wrapper components with better error handling and performance
+// Enhanced page wrapper components with proper keying for re-mounting
 const DiscoverPageWrapper: React.FC = memo(() => {
-  const [, navigate] = useLocation();
+  const [location, navigate] = useLocation();
   
   const handleNavigateToProfile = useCallback(() => {
     console.log('🚀 Navigating to profile from discover...');
@@ -228,6 +213,7 @@ const DiscoverPageWrapper: React.FC = memo(() => {
     <SafeRoute 
       component={DiscoverPage} 
       title="Discover"
+      path={location}
       onNavigateToProfile={handleNavigateToProfile}
     />
   );
@@ -236,7 +222,7 @@ const DiscoverPageWrapper: React.FC = memo(() => {
 DiscoverPageWrapper.displayName = 'DiscoverPageWrapper';
 
 const BetsPageWrapper: React.FC = memo(() => {
-  const [, navigate] = useLocation();
+  const [location, navigate] = useLocation();
   
   const handleNavigateToDiscover = useCallback(() => {
     console.log('🚀 Navigating to discover from bets...');
@@ -247,6 +233,7 @@ const BetsPageWrapper: React.FC = memo(() => {
     <SafeRoute 
       component={BetsTab} 
       title="My Predictions"
+      path={location}
       onNavigateToDiscover={handleNavigateToDiscover}
     />
   );
@@ -255,7 +242,7 @@ const BetsPageWrapper: React.FC = memo(() => {
 BetsPageWrapper.displayName = 'BetsPageWrapper';
 
 const ProfilePageWrapper: React.FC = memo(() => {
-  const [, navigate] = useLocation();
+  const [location, navigate] = useLocation();
   
   const handleNavigateBack = useCallback(() => {
     console.log('🚀 Navigating back from profile...');
@@ -266,6 +253,7 @@ const ProfilePageWrapper: React.FC = memo(() => {
     <SafeRoute 
       component={ProfilePage} 
       title="Profile"
+      path={location}
       onNavigateBack={handleNavigateBack}
     />
   );
@@ -274,10 +262,13 @@ const ProfilePageWrapper: React.FC = memo(() => {
 ProfilePageWrapper.displayName = 'ProfilePageWrapper';
 
 const WalletPageWrapper: React.FC = memo(() => {
+  const [location] = useLocation();
+  
   return (
     <SafeRoute 
       component={WalletPage} 
       title="Wallet"
+      path={location}
     />
   );
 });
@@ -285,7 +276,7 @@ const WalletPageWrapper: React.FC = memo(() => {
 WalletPageWrapper.displayName = 'WalletPageWrapper';
 
 const CreatePredictionPageWrapper: React.FC = memo(() => {
-  const [, navigate] = useLocation();
+  const [location, navigate] = useLocation();
   
   const handleNavigateBack = useCallback(() => {
     console.log('🚀 Navigating back from create...');
@@ -301,6 +292,7 @@ const CreatePredictionPageWrapper: React.FC = memo(() => {
     <SafeRoute 
       component={CreatePredictionPage} 
       title="Create Prediction"
+      path={location}
       onNavigateBack={handleNavigateBack}
       onComplete={handleComplete}
     />
@@ -311,7 +303,7 @@ CreatePredictionPageWrapper.displayName = 'CreatePredictionPageWrapper';
 
 // Enhanced prediction details wrapper with proper routing
 const PredictionDetailsWrapper: React.FC<{ params: { id: string } }> = memo(({ params }) => {
-  const [, navigate] = useLocation();
+  const [location, navigate] = useLocation();
   
   const handleNavigateBack = useCallback(() => {
     console.log('🚀 Navigating back from prediction details...');
@@ -322,6 +314,7 @@ const PredictionDetailsWrapper: React.FC<{ params: { id: string } }> = memo(({ p
     <SafeRoute 
       component={PredictionDetailsPage} 
       title="Prediction Details"
+      path={location}
       predictionId={params.id}
       onNavigateBack={handleNavigateBack}
     />
@@ -332,7 +325,7 @@ PredictionDetailsWrapper.displayName = 'PredictionDetailsWrapper';
 
 // User profile wrapper with proper routing
 const UserProfileWrapper: React.FC<{ params: { id: string } }> = memo(({ params }) => {
-  const [, navigate] = useLocation();
+  const [location, navigate] = useLocation();
   
   const handleNavigateBack = useCallback(() => {
     console.log('🚀 Navigating back from user profile...');
@@ -343,6 +336,7 @@ const UserProfileWrapper: React.FC<{ params: { id: string } }> = memo(({ params 
     <SafeRoute 
       component={ProfilePage} 
       title="User Profile"
+      path={location}
       userId={params.id}
       onNavigateBack={handleNavigateBack}
     />
@@ -383,7 +377,7 @@ function App() {
     }
   }, [isAuthenticated, loading, initialized, initializeWallet]);
 
-  // Log auth state changes for debugging
+  // Log auth state changes for debugging (less verbose)
   useEffect(() => {
     console.log('🔐 Auth state:', { isAuthenticated, loading, initialized });
   }, [isAuthenticated, loading, initialized]);
@@ -393,7 +387,7 @@ function App() {
       <Switch>
         {/* Public auth routes */}
         <Route path="/auth/callback">
-          <SafeRoute component={AuthCallbackPage} title="Authentication" />
+          <SafeRoute component={AuthCallbackPage} title="Authentication" path="/auth/callback" />
         </Route>
         
         {/* Protected app routes */}
@@ -401,7 +395,7 @@ function App() {
           <AuthGuard>
             <MainLayout>
               <Switch>
-                {/* Main navigation routes */}
+                {/* Main navigation routes - each with unique path for proper keying */}
                 <Route path="/" component={DiscoverPageWrapper} />
                 <Route path="/discover" component={DiscoverPageWrapper} />
                 <Route path="/bets" component={BetsPageWrapper} />
