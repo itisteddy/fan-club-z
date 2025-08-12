@@ -35,39 +35,49 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
     const loadPrediction = async () => {
       const id = getPredictionIdFromUrl();
       if (!id) {
-        toast.error('Invalid prediction ID');
+        console.log('No prediction ID found in URL');
         setLocation('/discover');
         return;
       }
 
-      // Check if we already have the prediction in store
+      console.log('Loading prediction:', id);
+      
+      // First check if we already have this prediction in store
       let foundPrediction = predictions.find(p => p.id === id);
       
-      if (!foundPrediction && predictions.length === 0) {
-        // Only fetch if we don't have any predictions loaded
+      if (foundPrediction) {
+        console.log('Prediction found in store:', foundPrediction.title);
+        setPrediction(foundPrediction);
+        setLoading(false);
+        return;
+      }
+
+      // If not in store, check if we have any predictions loaded
+      if (predictions.length === 0) {
         console.log('No predictions in store, fetching...');
         setLoading(true);
         try {
           await fetchPredictions();
           foundPrediction = predictions.find(p => p.id === id);
+          
+          if (foundPrediction) {
+            console.log('Prediction found after fetch:', foundPrediction.title);
+            setPrediction(foundPrediction);
+          } else {
+            console.log('Prediction not found after fetch');
+            setPrediction(null);
+          }
         } catch (error) {
           console.error('Failed to fetch predictions:', error);
-          toast.error('Failed to load prediction');
-          setLocation('/discover');
-          return;
+          setPrediction(null);
         } finally {
           setLoading(false);
         }
-      } else if (!foundPrediction) {
-        // Prediction not found even after having predictions
-        console.log('Prediction not found in store');
+      } else {
+        // We have predictions but not this one - it might not exist
+        console.log('Prediction not found in available predictions');
         setPrediction(null);
-        return;
-      }
-
-      if (foundPrediction) {
-        console.log('Prediction found:', foundPrediction.title);
-        setPrediction(foundPrediction);
+        setLoading(false);
       }
     };
 

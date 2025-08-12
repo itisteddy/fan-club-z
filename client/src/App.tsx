@@ -106,7 +106,6 @@ function App() {
   // Handle URL changes and update active tab accordingly
   useEffect(() => {
     const path = window.location.pathname;
-    console.log('🔍 Current path:', path);
     
     let newActiveTab = 'discover';
     
@@ -127,7 +126,7 @@ function App() {
     }
     
     if (newActiveTab !== activeTab) {
-      console.log(`🔄 Updating active tab from ${activeTab} to ${newActiveTab}`);
+      console.log(`🔄 Updating active tab from ${activeTab} to ${newActiveTab} for path: ${path}`);
       setActiveTab(newActiveTab);
       localStorage.setItem('fanclubz-current-tab', newActiveTab);
     }
