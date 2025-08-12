@@ -102,46 +102,40 @@ function App() {
     }
   }, [isAuthenticated, loading, initializeWallet]);
 
-  // Handle URL changes and update active tab accordingly - optimized for performance
+  // Simplified URL handling - only update for direct URL navigation
   useEffect(() => {
     const path = window.location.pathname;
     
-    let newActiveTab = 'discover';
-    
-    if (path.startsWith('/prediction/')) {
-      newActiveTab = 'discover';
-    } else if (path.startsWith('/profile/')) {
-      newActiveTab = 'profile';
-    } else if (path === '/discover' || path === '/') {
-      newActiveTab = 'discover';
-    } else if (path === '/bets') {
-      newActiveTab = 'bets';
-    } else if (path === '/wallet') {
-      newActiveTab = 'wallet';
-    } else if (path === '/profile') {
-      newActiveTab = 'profile';
-    }
-    
-    if (newActiveTab !== activeTab) {
-      setActiveTab(newActiveTab);
-      localStorage.setItem('fanclubz-current-tab', newActiveTab);
+    // Only update active tab for direct URL navigation, not tab switching
+    if (path === '/bets' && activeTab !== 'bets') {
+      setActiveTab('bets');
+      localStorage.setItem('fanclubz-current-tab', 'bets');
+    } else if (path === '/wallet' && activeTab !== 'wallet') {
+      setActiveTab('wallet');
+      localStorage.setItem('fanclubz-current-tab', 'wallet');
+    } else if (path === '/profile' && activeTab !== 'profile') {
+      setActiveTab('profile');
+      localStorage.setItem('fanclubz-current-tab', 'profile');
+    } else if ((path === '/discover' || path === '/') && activeTab !== 'discover') {
+      setActiveTab('discover');
+      localStorage.setItem('fanclubz-current-tab', 'discover');
     }
   }, [window.location.pathname, activeTab]);
 
   const handleTabChange = (tab: string) => {
+    console.log('🔄 Tab change requested:', tab, 'Current:', activeTab);
+    
     // Prevent infinite loops by checking if we're already on this tab
     if (tab === activeTab) {
+      console.log('⚠️ Already on tab:', tab);
       return;
     }
     
-    navigationHistory.push(tab);
+    // Direct tab switching without URL changes
     setActiveTab(tab);
-    
-    // Persist tab in localStorage for all tabs
     localStorage.setItem('fanclubz-current-tab', tab);
     
-    // Optimized scroll to top with reduced delay
-    scrollToTop({ delay: 50 });
+    console.log('✅ Tab changed to:', tab);
   };
 
   const handleNavigateToProfile = () => {
@@ -190,11 +184,6 @@ function App() {
     const path = window.location.pathname;
     if (path.startsWith('/prediction/')) {
       const predictionId = path.split('/prediction/')[1];
-      // Set active tab to discover when viewing prediction details
-      if (activeTab !== 'discover') {
-        setActiveTab('discover');
-        localStorage.setItem('fanclubz-current-tab', 'discover');
-      }
       return <PredictionDetailsPage predictionId={predictionId} />;
     }
     
@@ -206,68 +195,28 @@ function App() {
     // Check if we're on a user profile page
     if (path.startsWith('/profile/')) {
       const userId = path.split('/profile/')[1];
-      console.log('👤 Rendering ProfilePage for user:', userId);
-      // Set active tab to profile when viewing user profiles
-      if (activeTab !== 'profile') {
-        console.log('🔄 Setting active tab to profile for profile route');
-        setActiveTab('profile');
-        localStorage.setItem('fanclubz-current-tab', 'profile');
-      }
       return <ProfilePage userId={userId} onNavigateBack={handleNavigateBackFromProfile} />;
     }
 
+    // Simple tab-based navigation
     switch (activeTab) {
       case 'discover':
-        return <DiscoverPage key="discover" onNavigateToProfile={handleNavigateToProfile} />;
+        return <DiscoverPage onNavigateToProfile={handleNavigateToProfile} />;
       case 'bets':
-        return <BetsTab key="bets" onNavigateToDiscover={handleNavigateToDiscover} />;
+        return <BetsTab onNavigateToDiscover={handleNavigateToDiscover} />;
       case 'profile':
-        return <ProfilePage key="profile" onNavigateBack={handleNavigateBackFromProfile} />;
+        return <ProfilePage onNavigateBack={handleNavigateBackFromProfile} />;
       case 'wallet':
-        return <WalletPage key="wallet" />;
+        return <WalletPage />;
       default:
-        return <DiscoverPage key="discover-default" onNavigateToProfile={handleNavigateToProfile} />;
+        return <DiscoverPage onNavigateToProfile={handleNavigateToProfile} />;
     }
   };
 
-  // Show loading screen while initializing
-  if (!initialized || loading) {
-    return (
-      <div style={{ 
-        minHeight: '100vh', 
-        backgroundColor: '#f9fafb',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        flexDirection: 'column',
-        gap: '20px'
-      }}>
-        <div style={{
-          width: '48px',
-          height: '48px',
-          border: '4px solid #e5e7eb',
-          borderTop: '4px solid #22c55e',
-          borderRadius: '50%',
-          animation: 'spin 1s linear infinite'
-        }} />
-        <p style={{ 
-          fontSize: '16px', 
-          color: '#6b7280',
-          fontWeight: '500'
-        }}>
-          Initializing Fan Club Z...
-        </p>
-        <style>
-          {`
-            @keyframes spin {
-              0% { transform: rotate(0deg); }
-              100% { transform: rotate(360deg); }
-            }
-          `}
-        </style>
-      </div>
-    );
-  }
+  // Skip loading screen for faster navigation
+  // if (!initialized || loading) {
+  //   return null;
+  // }
 
   // Show auth page if not authenticated
   if (!isAuthenticated) {
