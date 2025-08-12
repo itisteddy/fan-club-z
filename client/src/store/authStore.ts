@@ -751,14 +751,9 @@ if (typeof window !== 'undefined') {
   (window as any).authStore = useAuthStore;
 
   // Listen for auth state changes
-  supabase.auth.onAuthStateChange(async (event, session) => {
-    console.log(`Auth state changed: ${event} ${session?.user?.email || 'undefined'}`);
-    
-    const store = useAuthStore.getState();
-    
+  supabase.auth.onAuthStateChange((event, session) => {
     if (event === 'SIGNED_IN' && session?.user) {
-      // Only log once per sign in
-      console.log('✔ Setting authenticated state via auth change: User');
+      console.log('✔ User signed in:', session.user.email);
       const convertedUser = convertSupabaseUser(session.user);
       useAuthStore.setState({
         isAuthenticated: true,
@@ -775,7 +770,7 @@ if (typeof window !== 'undefined') {
         loading: false
       });
     } else if (event === 'TOKEN_REFRESHED') {
-      // Don't log token refreshes unless there's an issue
+      // Only log token refreshes if there's an issue
       if (session?.user) {
         const convertedUser = convertSupabaseUser(session.user);
         useAuthStore.setState({

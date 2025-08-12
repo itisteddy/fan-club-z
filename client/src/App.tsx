@@ -106,6 +106,7 @@ function App() {
   // Handle URL changes and update active tab accordingly
   useEffect(() => {
     const path = window.location.pathname;
+    console.log('🔍 Current path:', path);
     
     let newActiveTab = 'discover';
     
@@ -130,7 +131,7 @@ function App() {
       setActiveTab(newActiveTab);
       localStorage.setItem('fanclubz-current-tab', newActiveTab);
     }
-  }, [window.location.pathname]);
+  }, [window.location.pathname, activeTab]);
 
   const handleTabChange = (tab: string) => {
     console.log('🔄 Tab change requested:', tab, 'Current activeTab:', activeTab);
@@ -207,8 +208,10 @@ function App() {
     // Check if we're on a user profile page
     if (path.startsWith('/profile/')) {
       const userId = path.split('/profile/')[1];
+      console.log('👤 Rendering ProfilePage for user:', userId);
       // Set active tab to profile when viewing user profiles
       if (activeTab !== 'profile') {
+        console.log('🔄 Setting active tab to profile for profile route');
         setActiveTab('profile');
         localStorage.setItem('fanclubz-current-tab', 'profile');
       }

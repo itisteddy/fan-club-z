@@ -207,7 +207,6 @@ export const useWalletStore = create<WalletState>()(
             fee: tx.fee,
             fromUser: tx.from_user,
             toUser: tx.to_user,
-            predictionId: tx.prediction_id,
           })) || [];
 
           set({ 
@@ -453,8 +452,6 @@ export const useWalletStore = create<WalletState>()(
               currency: currency,
               status: 'completed',
               reference: generateDemoReference('prediction'),
-              prediction_id: predictionId,
-              fee: 0
             })
             .select()
             .single();
@@ -524,8 +521,6 @@ export const useWalletStore = create<WalletState>()(
               currency: currency,
               status: 'completed',
               reference: generateDemoReference('win'),
-              prediction_id: predictionId,
-              fee: 0
             })
             .select()
             .single();
@@ -595,8 +590,6 @@ export const useWalletStore = create<WalletState>()(
               currency: currency,
           status: 'completed',
           reference: generateDemoReference('loss'),
-              prediction_id: predictionId,
-              fee: 0
             })
             .select()
             .single();
