@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { Router, Route, Switch, useLocation, useRoute } from 'wouter';
+import { Router, Route, Switch, useLocation } from 'wouter';
 import { useWalletStore } from './store/walletStore';
 import { useAuthStore } from './store/authStore';
 import { Toaster } from 'react-hot-toast';
@@ -18,7 +18,6 @@ import AuthPage from './pages/auth/AuthPage';
 import AuthCallbackPage from './pages/auth/AuthCallbackPage';
 import PredictionDetailsPage from './pages/PredictionDetailsPage';
 import BottomNavigation from './components/BottomNavigation';
-import PageWrapper from './components/PageWrapper';
 
 // Auth Guard Component
 const AuthGuard: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -42,46 +41,37 @@ const AuthGuard: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   return <>{children}</>;
 };
 
-// Main Layout Component
+// Main Layout Component with simplified navigation
 const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [location, navigate] = useLocation();
   
   // Get current tab from route
   const getCurrentTab = () => {
-    if (location === '/' || location === '/discover') return 'discover';
-    if (location === '/bets') return 'bets';
-    if (location === '/profile') return 'profile';
-    if (location === '/wallet') return 'wallet';
-    if (location === '/create') return 'create';
-    return 'discover'; // default
+    const path = location.toLowerCase();
+    if (path === '/' || path === '/discover') return 'discover';
+    if (path.startsWith('/bets')) return 'bets';
+    if (path.startsWith('/profile')) return 'profile';
+    if (path.startsWith('/wallet')) return 'wallet';
+    if (path.startsWith('/create')) return 'create';
+    return 'discover';
   };
 
   const handleTabChange = (tab: string) => {
     console.log('🔄 Tab change requested:', tab);
     
-    // Navigate to the appropriate route
-    switch (tab) {
-      case 'discover':
-        navigate('/');
-        break;
-      case 'bets':
-        navigate('/bets');
-        break;
-      case 'profile':
-        navigate('/profile');
-        break;
-      case 'wallet':
-        navigate('/wallet');
-        break;
-      case 'create':
-        navigate('/create');
-        break;
-      default:
-        navigate('/');
-    }
+    const routes = {
+      discover: '/',
+      bets: '/bets',
+      profile: '/profile',
+      wallet: '/wallet',
+      create: '/create'
+    };
     
-    // Scroll to top after navigation
-    setTimeout(() => scrollToTop({ delay: 100 }), 50);
+    const targetRoute = routes[tab as keyof typeof routes] || '/';
+    navigate(targetRoute);
+    
+    // Immediate scroll to top
+    scrollToTop({ delay: 0 });
   };
 
   const handleFABClick = () => {
@@ -93,18 +83,11 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const showFAB = activeTab === 'discover';
 
   return (
-    <div style={{ minHeight: '100vh', backgroundColor: '#f9fafb' }}>
+    <div className="min-h-screen bg-gray-50">
       <PWAInstallManager />
       
-      <main className="page-content">
-        <div style={{
-          width: '100%',
-          maxWidth: '100%',
-          overflow: 'hidden',
-          paddingBottom: 'calc(4rem + env(safe-area-inset-bottom, 1rem))'
-        }}>
-          {children}
-        </div>
+      <main className="pb-20">
+        {children}
       </main>
 
       <BottomNavigation 
@@ -123,39 +106,35 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
           zIndex: 9999,
         }}
         toastOptions={{
-          duration: 4000,
+          duration: 3000,
           style: {
             background: '#ffffff',
             color: '#111827',
             border: '1px solid #e5e7eb',
             borderRadius: '12px',
-            boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
+            boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
             fontSize: '14px',
             fontWeight: '500',
             maxWidth: '400px',
             padding: '16px',
           },
           success: {
-            duration: 3000,
+            duration: 2500,
             iconTheme: {
               primary: '#22c55e',
               secondary: '#fff',
             },
             style: {
-              background: '#ffffff',
-              color: '#111827',
               border: '1px solid #22c55e',
             },
           },
           error: {
-            duration: 5000,
+            duration: 4000,
             iconTheme: {
               primary: '#ef4444',
               secondary: '#fff',
             },
             style: {
-              background: '#ffffff',
-              color: '#111827',
               border: '1px solid #ef4444',
             },
           },
@@ -165,7 +144,7 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   );
 };
 
-// Page wrapper components that handle navigation properly
+// Optimized page wrapper components
 const DiscoverPageWrapper: React.FC = () => {
   const [, navigate] = useLocation();
   return (
@@ -218,7 +197,7 @@ const CreatePredictionPageWrapper: React.FC = () => {
   );
 };
 
-// Prediction details wrapper
+// Prediction details wrapper with proper routing
 const PredictionDetailsWrapper: React.FC<{ params: { id: string } }> = ({ params }) => {
   return (
     <PageWrapper title="Prediction Details">
@@ -240,16 +219,15 @@ const UserProfileWrapper: React.FC<{ params: { id: string } }> = ({ params }) =>
   );
 };
 
-// Main App Component
+// Main App Component with optimized initialization
 function App() {
   const { initializeWallet } = useWalletStore();
   const { initializeAuth, isAuthenticated, loading } = useAuthStore();
 
-  // Initialize auth and wallet on app start
+  // Initialize auth on app start
   useEffect(() => {
     console.log('🚀 Initializing Fan Club Z...');
     initializeAuth();
-    console.log('✅ App initialization started');
   }, [initializeAuth]);
 
   // Initialize wallet after auth is ready
@@ -262,15 +240,15 @@ function App() {
   return (
     <Router>
       <Switch>
-        {/* Public routes */}
+        {/* Public auth routes */}
         <Route path="/auth/callback" component={AuthCallbackPage} />
         
-        {/* Protected routes */}
+        {/* Protected app routes */}
         <Route path="/">
           <AuthGuard>
             <MainLayout>
               <Switch>
-                {/* Main app routes */}
+                {/* Main navigation routes */}
                 <Route path="/" component={DiscoverPageWrapper} />
                 <Route path="/discover" component={DiscoverPageWrapper} />
                 <Route path="/bets" component={BetsPageWrapper} />
@@ -278,7 +256,7 @@ function App() {
                 <Route path="/profile" component={ProfilePageWrapper} />
                 <Route path="/wallet" component={WalletPageWrapper} />
                 
-                {/* Dynamic routes */}
+                {/* Dynamic detail routes */}
                 <Route path="/prediction/:id" component={PredictionDetailsWrapper} />
                 <Route path="/profile/:id" component={UserProfileWrapper} />
                 

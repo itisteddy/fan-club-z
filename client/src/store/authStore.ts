@@ -2,9 +2,7 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { supabase, auth } from '../lib/supabase';
 import toast from 'react-hot-toast';
-import { showSuccess, showError, showWarning, showInfo } from './notificationStore';
-import { useCallback } from 'react';
-import { AuthChangeEvent, Session } from '@supabase/supabase-js';
+import { showSuccess, showError } from './notificationStore';
 
 interface User {
   id: string;
@@ -14,7 +12,6 @@ interface User {
   phone?: string;
   avatar?: string;
   bio?: string;
-  // Analytics fields
   totalEarnings?: number;
   totalInvested?: number;
   winRate?: number;
@@ -31,6 +28,7 @@ interface AuthState {
   token: string | null;
   loading: boolean;
   initialized: boolean;
+  authCheckCount: number;
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string, firstName: string, lastName: string) => Promise<void>;
   logout: () => Promise<void>;
@@ -46,18 +44,6 @@ const convertSupabaseUser = (supabaseUser: any): User | null => {
   const fullName = metadata.full_name || '';
   const nameParts = fullName.split(' ');
   
-  // For now, use metadata but we'll enhance this with real database queries
-  const totalPredictions = metadata.totalPredictions || 0;
-  const totalWins = metadata.totalWins || 0;
-  const totalEarnings = metadata.totalEarnings || 0;
-  const totalInvested = metadata.totalInvested || 0;
-  const activePredictions = metadata.activePredictions || 0;
-  
-  const winRate = totalPredictions > 0 ? Math.round((totalWins / totalPredictions) * 100) : 0;
-  // Calculate rank based on real data - for now, use totalPredictions as a simple rank indicator
-  const rank = metadata.rank || Math.max(0, totalPredictions + 1); // Simple rank based on activity
-  const level = getLevelFromStats(totalPredictions, winRate, totalEarnings);
-  
   return {
     id: supabaseUser.id,
     email: supabaseUser.email || '',
@@ -66,137 +52,91 @@ const convertSupabaseUser = (supabaseUser: any): User | null => {
     phone: supabaseUser.phone,
     avatar: metadata.avatar_url,
     bio: metadata.bio,
-    // Analytics fields
-    totalEarnings,
-    totalInvested,
-    winRate,
-    activePredictions,
-    totalPredictions,
-    rank,
-    level,
+    totalEarnings: metadata.totalEarnings || 0,
+    totalInvested: metadata.totalInvested || 0,
+    winRate: metadata.winRate || 0,
+    activePredictions: metadata.activePredictions || 0,
+    totalPredictions: metadata.totalPredictions || 0,
+    rank: metadata.rank || 0,
+    level: metadata.level || 'New Predictor',
     createdAt: supabaseUser.created_at || new Date().toISOString()
   };
 };
 
-// Function to fetch real user analytics from database
-const fetchUserAnalytics = async (userId: string) => {
-  try {
-    const { data: predictions, error: predictionsError } = await supabase
-      .from('predictions')
-      .select('id, status, created_at')
-      .eq('creator_id', userId);
-    
-    const { data: entries, error: entriesError } = await supabase
-      .from('prediction_entries')
-      .select('id, amount, prediction_id, created_at')
-      .eq('user_id', userId);
-    
-    const { data: walletTransactions, error: walletError } = await supabase
-      .from('wallet_transactions')
-      .select('id, amount, type, created_at')
-      .eq('user_id', userId);
-    
-    if (predictionsError || entriesError || walletError) {
-      console.error('Error fetching user analytics:', { predictionsError, entriesError, walletError });
-      return null;
-    }
-    
-    // Calculate real analytics
-    const totalPredictions = predictions?.length || 0;
-    const activePredictions = predictions?.filter(p => p.status === 'active').length || 0;
-    const totalInvested = entries?.reduce((sum, entry) => sum + (entry.amount || 0), 0) || 0;
-    
-    // Calculate earnings from wallet transactions
-    const earnings = walletTransactions?.filter(t => t.type === 'win' || t.type === 'payout').reduce((sum, t) => sum + (t.amount || 0), 0) || 0;
-    const totalEarnings = earnings;
-    
-    // Calculate win rate from completed predictions
-    const completedPredictions = predictions?.filter(p => p.status === 'completed').length || 0;
-    const wins = entries?.filter(e => {
-      const prediction = predictions?.find(p => p.id === e.prediction_id);
-      return prediction?.status === 'settled';
-    }).length || 0;
-    
-    const winRate = completedPredictions > 0 ? Math.round((wins / completedPredictions) * 100) : 0;
-    
-    return {
-      totalPredictions,
-      activePredictions,
-      totalInvested,
-      totalEarnings,
-      winRate
-    };
-  } catch (error) {
-    console.error('Error fetching user analytics:', error);
-    return null;
-  }
-};
-
-// Helper function to determine user level based on stats
-const getLevelFromStats = (totalPredictions: number, winRate: number, totalEarnings: number): string => {
-  if (totalPredictions === 0) return 'New Predictor';
-  if (totalPredictions < 5) return 'Rookie Predictor';
-  if (totalPredictions < 20) return 'Bronze Predictor';
-  if (totalPredictions < 50) return 'Silver Predictor';
-  if (totalPredictions < 100) return 'Gold Predictor';
-  if (totalPredictions < 200) return 'Platinum Predictor';
-  if (totalPredictions < 500) return 'Diamond Predictor';
-  return 'Legendary Predictor';
-};
+let authStateChangeListenerSet = false;
 
 export const useAuthStore = create<AuthState>()(
   persist(
     (set, get) => ({
-  isAuthenticated: false,
-  user: null,
-  token: null,
-  loading: false,
-  initialized: false,
+      isAuthenticated: false,
+      user: null,
+      token: null,
+      loading: false,
+      initialized: false,
+      authCheckCount: 0,
 
-  initializeAuth: async () => {
-    const currentState = get();
-    
-    // If we have persisted auth state, show it immediately to prevent logout flash
-    if (currentState.isAuthenticated && currentState.user && !currentState.initialized) {
-      console.log('🔄 Using persisted auth state while verifying with Supabase...');
-      set({ loading: false, initialized: false }); // Keep showing authenticated state
-    } else {
-      set({ loading: true });
-    }
-    
-    try {
-      console.log('🔐 Initializing authentication...');
-      
-      // For local development, use mock authentication if explicitly enabled
-      if (import.meta.env.DEV && import.meta.env.VITE_USE_MOCK_AUTH === 'true') {
-        console.log('🔧 Using mock authentication for development');
-        set({ 
-          isAuthenticated: false, 
-          user: null, 
-          token: null, 
-          loading: false,
-          initialized: true
-        });
-        return;
-      }
-      
-      // Production: Use real Supabase authentication
-      console.log('🔧 Using Supabase authentication for production');
-      
-      // Get current session first
-      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
-      
-      if (sessionError) {
-        console.error('❌ Error getting session:', sessionError.message);
-        // If we had persisted auth but can't verify with Supabase, keep user logged in
-        // but mark as needs verification
-        if (currentState.isAuthenticated && currentState.user) {
-          console.log('⚠️ Session error but persisted auth exists, keeping user logged in');
-          set({ 
-            loading: false,
-            initialized: true
-          });
-        } else {
+      initializeAuth: async () => {
+        const state = get();
+        
+        // Prevent multiple initialization attempts
+        if (state.initialized || state.authCheckCount > 3) {
+          console.log('🔄 Auth already initialized or too many attempts, skipping...');
+          return;
+        }
+
+        set({ authCheckCount: state.authCheckCount + 1 });
+
+        // If we have persisted data, use it immediately
+        if (state.isAuthenticated && state.user) {
+          console.log('✅ Using persisted auth state for:', state.user.firstName);
+          set({ loading: false, initialized: true });
+          return;
+        }
+
+        set({ loading: true });
+
+        try {
+          console.log('🔐 Checking authentication status...');
+
+          // Get current session without triggering auth state change
+          const { data: { session }, error } = await supabase.auth.getSession();
+
+          if (error) {
+            console.log('⚠️ Session check error:', error.message);
+            set({ 
+              isAuthenticated: false, 
+              user: null, 
+              token: null, 
+              loading: false,
+              initialized: true
+            });
+            return;
+          }
+
+          if (session?.user) {
+            const convertedUser = convertSupabaseUser(session.user);
+            console.log('✅ Found active session for:', convertedUser?.firstName);
+            
+            set({ 
+              isAuthenticated: true, 
+              user: convertedUser,
+              token: session.access_token,
+              loading: false,
+              initialized: true
+            });
+          } else {
+            console.log('ℹ️ No active session found');
+            set({ 
+              isAuthenticated: false, 
+              user: null, 
+              token: null, 
+              loading: false,
+              initialized: true
+            });
+          }
+
+        } catch (error: any) {
+          console.error('❌ Auth initialization error:', error.message);
           set({ 
             isAuthenticated: false, 
             user: null, 
@@ -205,531 +145,197 @@ export const useAuthStore = create<AuthState>()(
             initialized: true
           });
         }
-        return;
-      }
+      },
 
-      if (sessionData.session && sessionData.session.user) {
-        const convertedUser = convertSupabaseUser(sessionData.session.user);
-        const token = sessionData.session.access_token;
+      login: async (email: string, password: string) => {
+        set({ loading: true });
         
-        console.log('✅ User authenticated from fresh session:', convertedUser?.firstName);
-        set({ 
-          isAuthenticated: true, 
-          user: convertedUser,
-          token,
-          loading: false,
-          initialized: true
-        });
-      } else {
-        // No valid session found
-        if (currentState.isAuthenticated && currentState.user) {
-          console.log('⚠️ No Supabase session but persisted auth exists, logging out');
-        }
-        console.log('ℹ️ No active session found, logging out');
-        set({ 
-          isAuthenticated: false, 
-          user: null, 
-          token: null, 
-          loading: false,
-          initialized: true
-        });
-      }
-    } catch (error: any) {
-      console.error('❌ Error initializing auth:', error.message);
-      // If we have persisted auth state and there's a network/temporary error,
-      // keep the user logged in rather than forcing logout
-      if (currentState.isAuthenticated && currentState.user) {
-        console.log('⚠️ Auth initialization failed but persisted auth exists, keeping user logged in');
-        set({ 
-          loading: false,
-          initialized: true
-        });
-      } else {
-      set({ 
-        isAuthenticated: false, 
-        user: null, 
-        token: null, 
-        loading: false,
-        initialized: true
-      });
-      }
-    }
-  },
+        try {
+          console.log('🔑 Logging in user:', email);
 
-  login: async (email: string, password: string) => {
-    set({ loading: true });
-    try {
-      console.log('🔑 Attempting to log in user:', email);
-      
-      // For local development, use mock authentication
-      if (import.meta.env.DEV && import.meta.env.VITE_USE_MOCK_AUTH === 'true') {
-        console.log('🔧 Using mock authentication for development');
-        
-        // Simulate a brief delay
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        
-        const mockUser = {
-          id: 'mock-user-' + Date.now(),
-          firstName: 'Demo',
-          lastName: 'User',
-          email,
-          avatar: undefined,
-          bio: undefined
-        };
-        
-        console.log('✅ Mock user logged in successfully:', mockUser.firstName);
-        
-        set({ 
-          isAuthenticated: true, 
-          user: mockUser,
-          token: 'mock-token-' + Date.now(),
-          loading: false
-        });
-        
-        showSuccess(`Welcome back, ${mockUser.firstName}!`);
-        return;
-      }
-      
-      // Production: Use Supabase authentication
-      console.log('🔧 Using Supabase authentication for production');
-      
-      console.log('📤 Sending login request to Supabase...');
-      const { data, error } = await auth.signIn(email, password);
-      
-      if (error) {
-        console.error('❌ Login error:', error.message);
-        let userMessage = 'Login failed';
-        
-        // Enhanced error messages with better UX
-        if (error.message.includes('Invalid login credentials') || error.message.includes('Invalid email or password')) {
-          userMessage = 'The email or password you entered is incorrect. Please check your credentials and try again.';
-        } else if (error.message.includes('Email not confirmed')) {
-          // FIXED: Allow unconfirmed users to access the app
-          console.log('⚠️ Email not confirmed, but allowing app access (v2.0.2)');
-          
-          // Create a user object from the email (limited functionality)
-          const unconfirmedUser = {
-            id: `unconfirmed-${Date.now()}`,
-            email: email,
-            firstName: email.split('@')[0] || 'User',
-            lastName: '',
-            phone: undefined,
-            avatar: undefined,
-            bio: undefined
-          };
-          
-          set({ 
-            isAuthenticated: true,
-            user: unconfirmedUser,
-            token: null,
-            loading: false
-          });
-          
-          showSuccess(`Welcome back! Your account is ready to use. Please check your email to verify your account for full access.`);
-          return; // Exit early to avoid throwing error
-        } else if (error.message.includes('Too many requests') || error.message.includes('rate limit')) {
-          userMessage = 'Too many login attempts. Please wait a few minutes before trying again.';
-        } else if (error.message.includes('User not found') || error.message.includes('No user found')) {
-          userMessage = 'No account found with this email address. Please check your email or create a new account.';
-        } else if (error.message.includes('Account disabled') || error.message.includes('User disabled')) {
-          userMessage = 'Your account has been disabled. Please contact support for assistance.';
-        } else if (error.message.includes('network') || error.message.includes('connection')) {
-          userMessage = 'Network connection issue. Please check your internet connection and try again.';
-        } else {
-          userMessage = 'Unable to sign in at this time. Please check your credentials and try again.';
-        }
-        
-        // Show single, well-designed error message
-        set({ loading: false });
-        showError(userMessage);
-        return; // Don't throw error to avoid duplicate notifications
-      }
+          const { data, error } = await auth.signIn(email, password);
 
-      if (data.user && data.session) {
-        const convertedUser = convertSupabaseUser(data.user);
-        const token = data.session.access_token;
-        
-        console.log('✅ User logged in successfully:', convertedUser?.firstName);
-        
-        // FIXED: Fetch real user analytics from database
-        const analytics = await fetchUserAnalytics(data.user.id);
-        if (analytics) {
-          convertedUser.totalPredictions = analytics.totalPredictions;
-          convertedUser.activePredictions = analytics.activePredictions;
-          convertedUser.totalInvested = analytics.totalInvested;
-          convertedUser.totalEarnings = analytics.totalEarnings;
-          convertedUser.winRate = analytics.winRate;
-          convertedUser.level = getLevelFromStats(analytics.totalPredictions, analytics.winRate, analytics.totalEarnings);
-        }
-        
-        set({ 
-          isAuthenticated: true, 
-          user: convertedUser,
-          token,
-          loading: false
-        });
-        
-        showSuccess(`Welcome back, ${convertedUser?.firstName}!`);
-      } else {
-        // This shouldn't happen for login but handle it gracefully
-        set({ loading: false });
-        showError('Login successful but no session created. Please try again.');
-        throw new Error('No session created after login');
-      }
-    } catch (error: any) {
-      console.error('❌ Login exception:', error.message);
-      set({ loading: false });
-      showError('Login failed. Please try again.');
-      throw error;
-    }
-  },
-
-  register: async (email: string, password: string, firstName: string, lastName: string) => {
-    set({ loading: true });
-    try {
-      console.log('📝 Attempting to register user:', email);
-      
-      // For local development, use mock authentication
-      if (import.meta.env.DEV && import.meta.env.VITE_USE_MOCK_AUTH === 'true') {
-        console.log('🔧 Using mock authentication for development');
-        
-        // Simulate a brief delay
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        
-        const mockUser = {
-          id: 'mock-user-' + Date.now(),
-          firstName,
-          lastName,
-          email,
-          avatar: undefined,
-          bio: undefined
-        };
-        
-        console.log('✅ Mock user registered successfully:', mockUser.firstName);
-        
-        set({ 
-          isAuthenticated: true, 
-          user: mockUser,
-          token: 'mock-token-' + Date.now(),
-          loading: false
-        });
-        
-        showSuccess(`Welcome to Fan Club Z, ${mockUser.firstName}!`);
-        return;
-      }
-      
-      // Production: Use Supabase authentication
-      console.log('🔧 Using Supabase authentication for production');
-      
-      // Validate password strength
-      if (password.length < 6) {
-        showError('Password must be at least 6 characters long.');
-        set({ loading: false });
-        return;
-      }
-      
-      // FIXED: More flexible email validation
-      const isValidEmail = (email: string): boolean => {
-        // Basic format check
-        const basicEmailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        return basicEmailRegex.test(email);
-      };
-      
-      if (!isValidEmail(email)) {
-        showError('Please enter a valid email address. Business domains and common providers are supported.');
-        set({ loading: false });
-        return;
-      }
-      
-      // FIXED: Check if user already exists before registration
-      console.log('🔍 Checking if user already exists...');
-      try {
-        // First check our users table
-        const { data: existingUser, error: checkError } = await supabase
-          .from('users')
-          .select('id, email')
-          .eq('email', email)
-          .single();
-        
-        if (existingUser && !checkError) {
-          console.log('❌ User already exists in users table:', existingUser.email);
-          showError('An account with this email address already exists. Please try signing in instead, or use a different email address.');
-          set({ loading: false });
-          return;
-        }
-        
-        // Try to sign in with a dummy password to check if user exists in auth
-        // This will fail with "Invalid login credentials" if user doesn't exist
-        // or "Email not confirmed" if user exists but email not confirmed
-        const { error: signInError } = await supabase.auth.signInWithPassword({
-          email: email,
-          password: 'dummy-password-for-check'
-        });
-        
-        if (signInError && (signInError.message.includes('Email not confirmed') || signInError.message.includes('Invalid login credentials'))) {
-          // If we get "Email not confirmed", it means the user exists
-          if (signInError.message.includes('Email not confirmed')) {
-            console.log('❌ User already exists in Supabase auth (email not confirmed):', email);
-            showError('An account with this email address already exists. Please try signing in instead, or use a different email address.');
+          if (error) {
+            console.error('❌ Login error:', error.message);
+            let userMessage = 'Login failed. Please check your credentials.';
+            
+            if (error.message.includes('Invalid login credentials')) {
+              userMessage = 'Invalid email or password. Please try again.';
+            } else if (error.message.includes('Email not confirmed')) {
+              userMessage = 'Please check your email and click the confirmation link.';
+            }
+            
             set({ loading: false });
-            return;
+            showError(userMessage);
+            throw new Error(userMessage);
           }
-          // If we get "Invalid login credentials", it means the user doesn't exist
-          console.log('✅ No existing user found in auth, proceeding with registration...');
-        } else {
-          console.log('✅ No existing user found, proceeding with registration...');
-        }
-        
-      } catch (error) {
-        console.log('✅ No existing user found, proceeding with registration...');
-      }
-      
-      // Prepare user metadata with improved field mapping
-      const userData = {
-        data: {
-          firstName: firstName,
-          lastName: lastName,
-          first_name: firstName,
-          last_name: lastName,
-          full_name: `${firstName} ${lastName}`,
-          username: email.split('@')[0], // Use email prefix as username
-        }
-      };
 
-      console.log('📤 Sending registration request to Supabase...');
-      const { data, error } = await auth.signUp(email, password, userData);
-      
-      if (error) {
-        console.error('❌ Registration error:', error.message);
-        let userMessage = 'Registration failed';
-        
-        // Enhanced error messages with better UX
-        if (error.message.includes('User already registered') || error.message.includes('already exists') || error.message.includes('duplicate key')) {
-          userMessage = 'An account with this email address already exists. Please try signing in instead, or use a different email address.';
-        } else if (error.message.includes('Password should be at least') || error.message.includes('password')) {
-          userMessage = 'Password must be at least 6 characters long. Please choose a stronger password.';
-        } else if (error.message.includes('Signup is disabled') || error.message.includes('registration disabled')) {
-          userMessage = 'Account registration is currently disabled. Please contact support for assistance.';
-        } else if (error.message.includes('Email rate limit') || error.message.includes('Too many requests')) {
-          userMessage = 'Too many registration attempts. Please wait a few minutes before trying again.';
-        } else if (error.message.includes('invalid email') || error.message.includes('Invalid email')) {
-          userMessage = 'Please enter a valid email address. Make sure it includes an @ symbol and a domain (e.g., example@domain.com).';
-        } else if (error.message.includes('network') || error.message.includes('connection')) {
-          userMessage = 'Network connection issue. Please check your internet connection and try again.';
-        } else if (error.message.includes('domain') || error.message.includes('business email')) {
-          userMessage = 'Business email addresses are supported. Please ensure your email is correctly formatted.';
-        } else {
-          userMessage = 'Registration failed. Please check your information and try again, or contact support if the issue persists.';
-        }
-        
-        // Show single, well-designed error message
-        set({ loading: false });
-        showError(userMessage);
-        return; // Don't throw error to avoid duplicate notifications
-      }
-
-      if (data.user) {
-        const convertedUser = convertSupabaseUser(data.user);
-        const token = data.session?.access_token || null;
-        
-        console.log('✅ User registered successfully:', convertedUser?.firstName);
-        console.log('Session created:', !!data.session);
-        console.log('User confirmed:', data.user.email_confirmed_at ? 'Yes' : 'No');
-        
-        // FIXED: Immediately authenticate user and redirect to app
-        if (data.session) {
-          // User has a session - log them in immediately
-          
-          // FIXED: Fetch real user analytics from database
-          const analytics = await fetchUserAnalytics(data.user.id);
-          if (analytics) {
-            convertedUser.totalPredictions = analytics.totalPredictions;
-            convertedUser.activePredictions = analytics.activePredictions;
-            convertedUser.totalInvested = analytics.totalInvested;
-            convertedUser.totalEarnings = analytics.totalEarnings;
-            convertedUser.winRate = analytics.winRate;
-            convertedUser.level = getLevelFromStats(analytics.totalPredictions, analytics.winRate, analytics.totalEarnings);
+          if (data.user && data.session) {
+            const convertedUser = convertSupabaseUser(data.user);
+            console.log('✅ Login successful for:', convertedUser?.firstName);
+            
+            set({ 
+              isAuthenticated: true, 
+              user: convertedUser,
+              token: data.session.access_token,
+              loading: false
+            });
+            
+            showSuccess(`Welcome back, ${convertedUser?.firstName}!`);
           }
-          
-          set({ 
-            isAuthenticated: true,
-            user: convertedUser,
-            token,
-            loading: false
-          });
-          
-          showSuccess(`Welcome to Fan Club Z, ${convertedUser?.firstName}! You're ready to start making predictions.`);
-        } else {
-          // No session created - try automatic login
-          console.log('🔄 No session created, attempting automatic login...');
-          
-          try {
-            // Minimal delay for better UX
-            await new Promise(resolve => setTimeout(resolve, 300));
-            
-            const { data: loginData, error: loginError } = await auth.signIn(email, password);
-            
-            if (loginError) {
-              console.log('⚠️ Automatic login failed:', loginError.message);
-              
-              // FIXED: Handle email confirmation issue gracefully
-              if (loginError.message.includes('Email not confirmed')) {
-                console.log('⚠️ Email not confirmed during auto-login, but allowing app access (v2.0.2)');
-                set({ 
-                  isAuthenticated: true,
-                  user: convertedUser,
-                  token: null,
-                  loading: false
-                });
-                showSuccess(`Welcome to Fan Club Z, ${convertedUser?.firstName}! Your account is ready to use. Please check your email to verify your account for full access.`);
-              } else {
-                // For other errors, still allow access
-          set({ 
-            isAuthenticated: true,
-            user: convertedUser,
-                  token: null,
-                  loading: false
-                });
-                showSuccess(`Welcome to Fan Club Z, ${convertedUser?.firstName}! You're now signed in.`);
-              }
-            } else if (loginData.user && loginData.session) {
-              console.log('✅ Automatic login successful after registration');
-              const loggedInUser = convertSupabaseUser(loginData.user);
-              const loginToken = loginData.session.access_token;
-              
-              set({ 
-                isAuthenticated: true,
-                user: loggedInUser,
-                token: loginToken,
-            loading: false
-          });
-          
-              showSuccess(`Welcome to Fan Club Z, ${loggedInUser?.firstName}! You're ready to start making predictions.`);
-        } else {
-              // FIXED: Still authenticate and redirect
-          set({ 
-                isAuthenticated: true,
-                user: convertedUser,
-            token: null,
-            loading: false
-          });
-          
-              showSuccess(`Welcome to Fan Club Z, ${convertedUser?.firstName}! You're now signed in.`);
+
+        } catch (error: any) {
+          console.error('❌ Login exception:', error.message);
+          set({ loading: false });
+          throw error;
+        }
+      },
+
+      register: async (email: string, password: string, firstName: string, lastName: string) => {
+        set({ loading: true });
+        
+        try {
+          console.log('📝 Registering user:', email);
+
+          if (password.length < 6) {
+            throw new Error('Password must be at least 6 characters long');
+          }
+
+          const userData = {
+            data: {
+              firstName,
+              lastName,
+              first_name: firstName,
+              last_name: lastName,
+              full_name: `${firstName} ${lastName}`,
             }
-          } catch (autoLoginError: any) {
-            console.log('⚠️ Automatic login exception:', autoLoginError.message);
+          };
+
+          const { data, error } = await auth.signUp(email, password, userData);
+
+          if (error) {
+            console.error('❌ Registration error:', error.message);
+            let userMessage = 'Registration failed. Please try again.';
             
-            // FIXED: Handle email confirmation issue in catch block too
-            if (autoLoginError.message.includes('Email not confirmed')) {
-              console.log('⚠️ Email not confirmed exception during auto-login, but allowing app access (v2.0.2)');
+            if (error.message.includes('User already registered')) {
+              userMessage = 'An account with this email already exists. Please sign in instead.';
+            } else if (error.message.includes('Password should be at least')) {
+              userMessage = 'Password must be at least 6 characters long.';
+            }
+            
+            set({ loading: false });
+            showError(userMessage);
+            throw new Error(userMessage);
+          }
+
+          if (data.user) {
+            const convertedUser = convertSupabaseUser(data.user);
+            console.log('✅ Registration successful for:', convertedUser?.firstName);
+            
+            // If we have a session, log them in immediately
+            if (data.session) {
               set({ 
                 isAuthenticated: true,
                 user: convertedUser,
-                token: null,
+                token: data.session.access_token,
                 loading: false
               });
-              showSuccess(`Welcome to Fan Club Z, ${convertedUser?.firstName}! Please check your email to verify your account, but you can start using the app now.`);
+              showSuccess(`Welcome to Fan Club Z, ${convertedUser?.firstName}!`);
             } else {
-              // For other errors, still allow access
+              // No immediate session, but allow app access
               set({ 
                 isAuthenticated: true,
                 user: convertedUser,
                 token: null,
                 loading: false
               });
-              showSuccess(`Welcome to Fan Club Z, ${convertedUser?.firstName}! You're now signed in.`);
+              showSuccess(`Welcome to Fan Club Z, ${convertedUser?.firstName}! Please check your email to verify your account.`);
             }
           }
+
+        } catch (error: any) {
+          console.error('❌ Registration exception:', error.message);
+          set({ loading: false });
+          throw error;
         }
-      } else {
-        set({ loading: false });
-        showError('Registration failed. Please try again.');
-        throw new Error('No user created');
-      }
-    } catch (error: any) {
-      console.error('❌ Registration exception:', error.message);
-      set({ loading: false });
-      showError('Registration failed. Please try again or contact support if the issue persists.');
-      throw error;
-    }
-  },
+      },
 
-  logout: async () => {
-    set({ loading: true });
-    try {
-      console.log('🚪 Logging out user...');
-      
-      const { error } = await auth.signOut();
-      
-      if (error) {
-        console.error('❌ Logout error:', error.message);
-        showError('Error signing out');
-      } else {
-        console.log('✅ User logged out successfully');
-        showSuccess('Signed out successfully');
-      }
-      
-      set({ 
-        isAuthenticated: false, 
-        user: null,
-        token: null,
-        loading: false
-      });
-    } catch (error: any) {
-      console.error('❌ Error during logout:', error.message);
-      set({ 
-        isAuthenticated: false, 
-        user: null,
-        token: null,
-        loading: false
-      });
-    }
-  },
-
-  updateProfile: async (profileData: any) => {
-    set({ loading: true });
-    try {
-      const currentUser = get().user;
-      if (!currentUser) {
-        throw new Error('No user logged in');
-      }
-
-      console.log('📝 Updating user profile...');
-
-      // Update user metadata in Supabase
-      const { data, error } = await supabase.auth.updateUser({
-        data: {
-          firstName: profileData.firstName || currentUser.firstName,
-          lastName: profileData.lastName || currentUser.lastName,
-          first_name: profileData.firstName || currentUser.firstName,
-          last_name: profileData.lastName || currentUser.lastName,
-          full_name: `${profileData.firstName || currentUser.firstName} ${profileData.lastName || currentUser.lastName}`,
-          bio: profileData.bio !== undefined ? profileData.bio : currentUser.bio
-        }
-      });
-
-      if (error) {
-        console.error('❌ Profile update error:', error.message);
-        showError(error.message || 'Failed to update profile');
-        set({ loading: false });
-        throw new Error(error.message);
-      }
-
-      if (data.user) {
-        const updatedUser = convertSupabaseUser(data.user);
-        set({ 
-          user: updatedUser,
-          loading: false
-        });
+      logout: async () => {
+        set({ loading: true });
         
-        showSuccess('Profile updated successfully!');
-      }
-    } catch (error: any) {
-      set({ loading: false });
-      throw error;
-    }
-  },
-}),
+        try {
+          console.log('🚪 Logging out...');
+          
+          const { error } = await auth.signOut();
+          
+          if (error) {
+            console.error('❌ Logout error:', error.message);
+          }
+          
+          set({ 
+            isAuthenticated: false, 
+            user: null,
+            token: null,
+            loading: false,
+            authCheckCount: 0
+          });
+          
+          showSuccess('Signed out successfully');
+          
+        } catch (error: any) {
+          console.error('❌ Logout exception:', error.message);
+          
+          // Force logout regardless of error
+          set({ 
+            isAuthenticated: false, 
+            user: null,
+            token: null,
+            loading: false,
+            authCheckCount: 0
+          });
+        }
+      },
+
+      updateProfile: async (profileData: any) => {
+        set({ loading: true });
+        
+        try {
+          const currentUser = get().user;
+          if (!currentUser) {
+            throw new Error('No user logged in');
+          }
+
+          console.log('📝 Updating profile...');
+
+          const { data, error } = await supabase.auth.updateUser({
+            data: {
+              firstName: profileData.firstName || currentUser.firstName,
+              lastName: profileData.lastName || currentUser.lastName,
+              bio: profileData.bio !== undefined ? profileData.bio : currentUser.bio
+            }
+          });
+
+          if (error) {
+            throw new Error(error.message);
+          }
+
+          if (data.user) {
+            const updatedUser = convertSupabaseUser(data.user);
+            set({ 
+              user: updatedUser,
+              loading: false
+            });
+            showSuccess('Profile updated successfully!');
+          }
+
+        } catch (error: any) {
+          console.error('❌ Profile update error:', error.message);
+          set({ loading: false });
+          showError(error.message || 'Failed to update profile');
+          throw error;
+        }
+      },
+    }),
     {
       name: 'fanclubz-auth-storage',
       storage: createJSONStorage(() => localStorage),
@@ -739,57 +345,35 @@ export const useAuthStore = create<AuthState>()(
         token: state.token,
         initialized: state.initialized
       }),
-      // Version to handle migrations if needed
       version: 1,
     }
   )
 );
 
-// Initialize auth when the store is created
-if (typeof window !== 'undefined') {
-  // Expose auth store to window for debugging
-  (window as any).authStore = useAuthStore;
-
-  // Listen for auth state changes
+// Set up auth state change listener only once
+if (typeof window !== 'undefined' && !authStateChangeListenerSet) {
+  authStateChangeListenerSet = true;
+  
   supabase.auth.onAuthStateChange((event, session) => {
-    if (event === 'SIGNED_IN' && session?.user) {
-      console.log('✔ User signed in:', session.user.email);
-      const convertedUser = convertSupabaseUser(session.user);
-      useAuthStore.setState({
-        isAuthenticated: true,
-        user: convertedUser,
-        token: session.access_token,
-        loading: false
-      });
-    } else if (event === 'SIGNED_OUT') {
-      console.log('✔ User signed out');
+    const state = useAuthStore.getState();
+    
+    // Only handle specific events to prevent loops
+    if (event === 'SIGNED_OUT') {
+      console.log('🔓 Auth state: signed out');
       useAuthStore.setState({
         isAuthenticated: false,
         user: null,
         token: null,
-        loading: false
+        authCheckCount: 0
       });
-    } else if (event === 'TOKEN_REFRESHED') {
-      // Only log token refreshes if there's an issue
-      if (session?.user) {
-        const convertedUser = convertSupabaseUser(session.user);
-        useAuthStore.setState({
-          user: convertedUser,
-          isAuthenticated: true,
-          token: session.access_token
-        });
-      }
-    } else if (event === 'INITIAL_SESSION') {
-      // Only log if there's no session
-      if (!session) {
-        console.log('No active session found, logging out');
-        useAuthStore.setState({
-          isAuthenticated: false,
-          user: null,
-          token: null,
-          loading: false
-        });
-      }
+    } else if (event === 'TOKEN_REFRESHED' && session?.user) {
+      console.log('🔄 Auth state: token refreshed');
+      const convertedUser = convertSupabaseUser(session.user);
+      useAuthStore.setState({
+        user: convertedUser,
+        token: session.access_token
+      });
     }
+    // Ignore other events to prevent continuous re-authentication
   });
 }

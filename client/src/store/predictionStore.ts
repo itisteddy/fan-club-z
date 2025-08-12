@@ -57,10 +57,12 @@ interface PredictionState {
   loading: boolean;
   error: string | null;
   selectedCategory: string | null;
+  lastFetch: number;
+  initialized: boolean;
 }
 
 interface PredictionActions {
-  fetchPredictions: (category?: string) => Promise<void>;
+  fetchPredictions: (category?: string, force?: boolean) => Promise<void>;
   fetchTrendingPredictions: () => Promise<void>;
   fetchUserPredictions: () => Promise<void>;
   fetchUserCreatedPredictions: (userId: string) => Promise<void>;
@@ -69,7 +71,11 @@ interface PredictionActions {
   placePrediction: (predictionId: string, optionId: string, amount: number) => Promise<void>;
   setSelectedCategory: (category: string | null) => void;
   clearError: () => void;
+  getPredictionById: (id: string) => Prediction | null;
 }
+
+// Cache duration: 2 minutes for better performance
+const CACHE_DURATION = 2 * 60 * 1000;
 
 export const usePredictionStore = create<PredictionState & PredictionActions>((set, get) => ({
   predictions: [],
@@ -79,29 +85,46 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
   loading: false,
   error: null,
   selectedCategory: null,
+  lastFetch: 0,
+  initialized: false,
 
-  fetchPredictions: async (category?: string) => {
+  getPredictionById: (id: string) => {
     const state = get();
+    return state.predictions.find(p => p.id === id) || null;
+  },
+
+  fetchPredictions: async (category?: string, force = false) => {
+    const state = get();
+    const now = Date.now();
     
-    // Don't fetch if we already have predictions and no category filter is applied
-    if (state.predictions.length > 0 && !category) {
+    // Skip fetch if we have recent data and not forcing refresh
+    if (!force && state.predictions.length > 0 && (now - state.lastFetch) < CACHE_DURATION) {
+      console.log('📋 Using cached predictions data');
+      return;
+    }
+    
+    // Don't start multiple fetch operations
+    if (state.loading && !force) {
+      console.log('🔄 Predictions fetch already in progress');
       return;
     }
     
     set({ loading: true, error: null });
+    
     try {
+      console.log('📡 Fetching predictions from Supabase...');
+      
       let query = supabase
         .from('predictions')
         .select(`
           *,
           creator:users!creator_id(id, username, full_name, avatar_url),
           options:prediction_options(*),
-          club:clubs(id, name, avatar_url),
-          likes_count,
-          comments_count
+          club:clubs(id, name, avatar_url)
         `)
         .eq('status', 'open')
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false })
+        .limit(50);
 
       if (category && category !== 'all') {
         query = query.eq('category', category);
@@ -110,39 +133,95 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
       const { data: predictions, error } = await query;
 
       if (error) {
+        console.error('❌ Supabase error:', error);
         throw error;
       }
 
-      set({ predictions: predictions || [], loading: false });
+      console.log(`✅ Fetched ${predictions?.length || 0} predictions`);
+
+      // Transform data to match our interface
+      const transformedPredictions = (predictions || []).map((pred: any) => ({
+        ...pred,
+        creator: pred.creator ? {
+          id: pred.creator.id,
+          username: pred.creator.username || pred.creator.full_name || 'Unknown',
+          avatar_url: pred.creator.avatar_url,
+          is_verified: false
+        } : {
+          id: pred.creator_id,
+          username: 'Fan Club Z',
+          avatar_url: null,
+          is_verified: true
+        },
+        options: (pred.options || []).map((opt: any) => ({
+          ...opt,
+          percentage: pred.pool_total > 0 ? (opt.total_staked / pred.pool_total) * 100 : 0
+        })),
+        likes_count: pred.likes_count || 0,
+        comments_count: pred.comments_count || 0
+      }));
+
+      set({ 
+        predictions: transformedPredictions, 
+        loading: false,
+        lastFetch: now,
+        initialized: true,
+        error: null
+      });
+
     } catch (error) {
-      console.error('Error fetching predictions:', error);
-      set({ error: 'Failed to fetch predictions', loading: false });
+      console.error('❌ Error fetching predictions:', error);
+      set({ 
+        error: error instanceof Error ? error.message : 'Failed to fetch predictions', 
+        loading: false 
+      });
     }
   },
 
   fetchTrendingPredictions: async () => {
     try {
+      console.log('📡 Fetching trending predictions...');
+      
       const { data: trendingPredictions, error } = await supabase
         .from('predictions')
         .select(`
           *,
           creator:users!creator_id(id, username, full_name, avatar_url),
           options:prediction_options(*),
-          club:clubs(id, name, avatar_url),
-          likes_count,
-          comments_count
+          club:clubs(id, name, avatar_url)
         `)
         .eq('status', 'open')
         .order('pool_total', { ascending: false })
-        .limit(10);
+        .limit(6);
 
       if (error) {
         throw error;
       }
 
-      set({ trendingPredictions: trendingPredictions || [] });
+      // Transform data
+      const transformedTrending = (trendingPredictions || []).map((pred: any) => ({
+        ...pred,
+        creator: pred.creator ? {
+          id: pred.creator.id,
+          username: pred.creator.username || pred.creator.full_name || 'Unknown',
+          avatar_url: pred.creator.avatar_url,
+          is_verified: false
+        } : {
+          id: pred.creator_id,
+          username: 'Fan Club Z',
+          avatar_url: null,
+          is_verified: true
+        },
+        options: (pred.options || []).map((opt: any) => ({
+          ...opt,
+          percentage: pred.pool_total > 0 ? (opt.total_staked / pred.pool_total) * 100 : 0
+        }))
+      }));
+
+      set({ trendingPredictions: transformedTrending });
+
     } catch (error) {
-      console.error('Error fetching trending predictions:', error);
+      console.error('❌ Error fetching trending predictions:', error);
       set({ error: 'Failed to fetch trending predictions' });
     }
   },
@@ -156,56 +235,59 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
         return;
       }
 
+      console.log('📡 Fetching user predictions...');
+
       const { data: userPredictions, error } = await supabase
         .from('predictions')
         .select(`
           *,
           creator:users!creator_id(id, username, full_name, avatar_url),
           options:prediction_options(*),
-          club:clubs(id, name, avatar_url),
-          likes_count,
-          comments_count
+          club:clubs(id, name, avatar_url)
         `)
         .eq('creator_id', user.id)
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false })
+        .limit(20);
 
       if (error) {
         throw error;
       }
 
       set({ userPredictions: userPredictions || [] });
+
     } catch (error) {
-      console.error('Error fetching user predictions:', error);
+      console.error('❌ Error fetching user predictions:', error);
       set({ error: 'Failed to fetch user predictions' });
     }
   },
 
   fetchUserCreatedPredictions: async (userId: string) => {
     try {
+      console.log('📡 Fetching user created predictions for:', userId);
+
       const { data: userCreatedPredictions, error } = await supabase
         .from('predictions')
         .select(`
           *,
           creator:users!creator_id(id, username, full_name, avatar_url),
           options:prediction_options(*),
-          club:clubs(id, name, avatar_url),
-          likes_count,
-          comments_count
+          club:clubs(id, name, avatar_url)
         `)
         .eq('creator_id', userId)
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false })
+        .limit(20);
 
       if (error) {
         throw error;
       }
 
-      // Store user created predictions in a separate state
       set((state) => ({
         ...state,
         userCreatedPredictions: userCreatedPredictions || []
       }));
+
     } catch (error) {
-      console.error('Error fetching user created predictions:', error);
+      console.error('❌ Error fetching user created predictions:', error);
       set({ error: 'Failed to fetch user created predictions' });
     }
   },
@@ -217,8 +299,8 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
 
   createPrediction: async (data: any) => {
     set({ loading: true, error: null });
+    
     try {
-      // Get current user from auth store
       const authStore = useAuthStore.getState();
       
       if (!authStore.isAuthenticated || !authStore.user) {
@@ -236,8 +318,8 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
 
       console.log('Creating prediction with validated data:', data);
 
-      // Ensure stake values are properly converted
-      const stakeMin = Number(data.stakeMin) || 100;
+      // Ensure stake values are properly converted to USD
+      const stakeMin = Number(data.stakeMin) || 1;
       const stakeMax = data.stakeMax ? Number(data.stakeMax) : null;
 
       if (stakeMin < 1) {
@@ -248,13 +330,13 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
         throw new Error('Maximum stake must be greater than minimum stake');
       }
 
-      // Create prediction in Supabase with correct field names
+      // Create prediction in Supabase
       const predictionPayload = {
         creator_id: user.id,
         title: data.title,
         description: data.description || null,
         category: data.category,
-        type: data.type === 'multiple' ? 'multi_outcome' : data.type, // Convert multiple to multi_outcome
+        type: data.type === 'multiple' ? 'multi_outcome' : data.type,
         stake_min: stakeMin,
         stake_max: stakeMax,
         entry_deadline: deadline.toISOString(),
@@ -285,7 +367,7 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
       // Create prediction options
       if (data.options && data.options.length > 0) {
         const optionsData = data.options
-          .filter((opt: any) => opt.label && opt.label.trim()) // Only include options with labels
+          .filter((opt: any) => opt.label && opt.label.trim())
           .map((option: any) => ({
             prediction_id: prediction.id,
             label: option.label.trim(),
@@ -305,19 +387,19 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
 
         if (optionsError) {
           console.error('Error creating prediction options:', optionsError);
-          // Don't throw here, prediction was created successfully
         } else {
           console.log('Prediction options created successfully');
         }
       }
 
-      // Refresh predictions
-      await get().fetchPredictions();
+      // Force refresh predictions
+      await get().fetchPredictions(undefined, true);
       await get().fetchUserPredictions();
       await get().fetchUserCreatedPredictions(user.id);
 
       set({ loading: false });
       return prediction;
+      
     } catch (error) {
       console.error('Failed to create prediction:', error);
       const errorMessage = error instanceof Error ? error.message : 'Failed to create prediction';
@@ -328,8 +410,8 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
 
   placePrediction: async (predictionId: string, optionId: string, amount: number) => {
     set({ loading: true, error: null });
+    
     try {
-      // Get current user from auth store
       const authStore = useAuthStore.getState();
       
       if (!authStore.isAuthenticated || !authStore.user) {
@@ -343,6 +425,8 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
       if (!session?.access_token) {
         throw new Error('No valid session found');
       }
+
+      console.log('🎲 Placing prediction:', { predictionId, optionId, amount });
 
       // Use the API endpoint instead of direct database insert
       const response = await fetch(`/api/predictions/${predictionId}/entries`, {
@@ -363,20 +447,21 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
         throw new Error(result.error || 'Failed to place prediction');
       }
 
-      console.log('Prediction placed successfully:', result);
+      console.log('✅ Prediction placed successfully:', result);
       
       // Update wallet store to reflect the prediction
       const { useWalletStore } = await import('./walletStore');
       const walletStore = useWalletStore.getState();
       await walletStore.makePrediction(amount, `Prediction: ${result.prediction?.title || 'Unknown'}`, predictionId, 'USD');
       
-      // Refresh predictions to get updated data
-      await get().fetchPredictions();
+      // Force refresh predictions to get updated data
+      await get().fetchPredictions(undefined, true);
       await get().fetchUserPredictions();
       
       set({ loading: false });
+      
     } catch (error) {
-      console.error('Failed to place prediction:', error);
+      console.error('❌ Failed to place prediction:', error);
       set({ error: error instanceof Error ? error.message : 'Failed to place prediction', loading: false });
       throw error;
     }

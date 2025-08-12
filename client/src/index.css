@@ -7,13 +7,13 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Force CSS reset and base styles */
+/* Force CSS reset and base styles - Performance optimized */
 @layer base {
-* {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
-}
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
 
   html {
     height: 100%;
@@ -21,8 +21,8 @@
     max-width: 100%;
     overflow-x: hidden;
     -webkit-tap-highlight-color: transparent;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
     position: relative;
   }
 
@@ -46,807 +46,344 @@
     overflow-x: hidden;
   }
 
-  /* Prevent horizontal scroll on all elements */
+  /* Prevent horizontal scroll and optimize performance */
   *, *::before, *::after {
     max-width: 100%;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
   }
 
-  /* Ensure containers don't exceed viewport width */
-  .container, .page-content, main {
-    width: 100%;
+  /* Input and form optimizations */
+  input, textarea, select, button {
+    font-family: inherit;
+    font-size: inherit;
+    line-height: inherit;
+  }
+
+  /* Button reset with improved touch targets */
+  button {
+    cursor: pointer;
+    border: none;
+    background: none;
+    min-height: 44px;
+    min-width: 44px;
+    touch-action: manipulation;
+  }
+
+  /* Link styling */
+  a {
+    color: inherit;
+    text-decoration: none;
+    touch-action: manipulation;
+  }
+
+  /* Image optimization */
+  img {
     max-width: 100%;
-    overflow-x: hidden;
+    height: auto;
+    display: block;
+  }
+
+  /* Scrollbar styling */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 3px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
   }
 }
 
-/* Force component styles */
+/* Simplified animations for better performance */
 @layer components {
-  .btn-primary {
-    @apply bg-green-500 hover:bg-green-600 text-white font-semibold px-6 py-2 rounded-xl transition-colors shadow-lg;
+  /* Reduce motion for users who prefer it */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
   }
 
-  .card {
-    @apply bg-white rounded-2xl p-4 shadow-sm border border-gray-100;
+  /* Fast, simple transitions */
+  .transition-fast {
+    transition: all 0.15s ease-out;
   }
 
-  .nav-item {
-    @apply flex flex-col items-center justify-center p-2 transition-colors;
+  .transition-colors-fast {
+    transition: color 0.15s ease-out, background-color 0.15s ease-out, border-color 0.15s ease-out;
   }
 
-  .nav-item-active {
-    @apply text-green-500;
+  /* Optimized loading states */
+  .loading-skeleton {
+    background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%);
+    background-size: 200% 100%;
+    animation: skeleton-shimmer 1.5s ease-in-out infinite;
   }
 
-  .nav-item-inactive {
-    @apply text-gray-500;
+  @keyframes skeleton-shimmer {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+  }
+
+  /* Simple fade animations */
+  .fade-in {
+    animation: fade-in 0.3s ease-out forwards;
+  }
+
+  @keyframes fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
+  .fade-in-up {
+    animation: fade-in-up 0.3s ease-out forwards;
+  }
+
+  @keyframes fade-in-up {
+    from { 
+      opacity: 0; 
+      transform: translateY(10px); 
+    }
+    to { 
+      opacity: 1; 
+      transform: translateY(0); 
+    }
+  }
+
+  /* Simple scale for interactions */
+  .scale-tap {
+    transform-origin: center;
+    transition: transform 0.1s ease-out;
+  }
+
+  .scale-tap:active {
+    transform: scale(0.98);
+  }
+
+  /* Loading spinner - optimized */
+  .spinner {
+    width: 20px;
+    height: 20px;
+    border: 2px solid #e5e7eb;
+    border-top: 2px solid #22c55e;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+  }
+
+  @keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+  }
+
+  /* Card hover effects - simplified */
+  .card-hover {
+    transition: transform 0.2s ease-out, box-shadow 0.2s ease-out;
+  }
+
+  .card-hover:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+  }
+
+  /* Focus states for accessibility */
+  .focus-ring {
+    outline: 2px solid transparent;
+    outline-offset: 2px;
+    transition: outline-color 0.15s ease-out;
+  }
+
+  .focus-ring:focus {
+    outline-color: #22c55e;
+  }
+
+  /* Page transitions - minimal */
+  .page-enter {
+    opacity: 0;
+  }
+
+  .page-enter-active {
+    opacity: 1;
+    transition: opacity 0.2s ease-out;
+  }
+
+  .page-exit {
+    opacity: 1;
+  }
+
+  .page-exit-active {
+    opacity: 0;
+    transition: opacity 0.1s ease-out;
   }
 }
 
-/* Force utility styles */
+/* Utility classes */
 @layer utilities {
-  .scrollbar-hide {
-    -ms-overflow-style: none;
-    scrollbar-width: none;
+  /* Safe area padding for mobile devices */
+  .safe-top {
+    padding-top: env(safe-area-inset-top, 0);
   }
-  
+
+  .safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom, 0);
+  }
+
+  .safe-left {
+    padding-left: env(safe-area-inset-left, 0);
+  }
+
+  .safe-right {
+    padding-right: env(safe-area-inset-right, 0);
+  }
+
+  /* Hide scrollbar but keep functionality */
+  .scrollbar-hide {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
   .scrollbar-hide::-webkit-scrollbar {
     display: none;
   }
-  
-  .safe-area-pb {
-    padding-bottom: env(safe-area-inset-bottom, 1rem);
-  }
-  
-  .safe-area-pt {
-    padding-top: env(safe-area-inset-top, 1rem);
-  }
 
-  .text-balance {
-    text-wrap: balance;
-  }
-
-  .bg-gradient-primary {
-    background: linear-gradient(135deg, #10b981, #059669);
-  }
-
-  /* Line clamp utilities for text truncation */
-  .line-clamp-2 {
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
-  }
-  
-  .line-clamp-3 {
-    display: -webkit-box;
-    -webkit-line-clamp: 3;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
-  }
-}
-
-/* SPECIFIC: Only for CreatePredictionPage components */
-.create-prediction-page .input-container input:focus,
-.create-prediction-page .textarea-container textarea:focus {
-  outline: 2px solid #10b981 !important;
-  outline-offset: 2px !important;
-  position: relative !important;
-  z-index: 1 !important;
-}
-
-.create-prediction-page .input-container,
-.create-prediction-page .textarea-container {
-  position: relative !important;
-  overflow: visible !important;
-  padding: 2px !important;
-}
-
-.create-prediction-page .motion-button {
-  position: relative !important;
-  z-index: 1 !important;
-  transform-origin: center !important;
-  overflow: visible !important;
-}
-
-.create-prediction-page .motion-button:hover {
-  transform: scale(1.02) !important;
-  transition: transform 0.2s ease !important;
-}
-
-.create-prediction-page .motion-button:active {
-  transform: scale(0.98) !important;
-  transition: transform 0.1s ease !important;
-}
-
-.create-prediction-page .pill-category:hover {
-  transform: scale(1.05) !important;
-  transition: all 0.2s ease !important;
-}
-
-/* SPECIFIC: Only for prediction cards */
-.prediction-card-compact .avatar-clickable {
-  cursor: pointer !important;
-  transition: transform 0.2s ease !important;
-  position: relative !important;
-  z-index: 1 !important;
-}
-
-.prediction-card-compact .avatar-clickable:hover {
-  transform: scale(1.1) !important;
-}
-
-.prediction-card-compact .creator-profile-link {
-  cursor: pointer !important;
-  text-decoration: none !important;
-  color: inherit !important;
-  transition: color 0.2s ease !important;
-  display: flex !important;
-  align-items: center !important;
-  gap: 8px !important;
-}
-
-.prediction-card-compact .creator-profile-link:hover {
-  color: #10b981 !important;
-}
-
-.prediction-card-compact:hover {
-  transform: translateY(-2px) !important;
-  transition: transform 0.2s ease !important;
-}
-
-/* Force reduced motion */
-@media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-    scroll-behavior: auto !important;
-  }
-}
-
-/* Force modal fixes - loaded after Tailwind for proper override */
-
-/* Fix 1: Comments Modal Textarea Visibility */
-.comments-modal .sticky:last-child {
-  background: white !important;
-  border-top: 1px solid #e5e7eb !important;
-  box-shadow: 0 -4px 6px -1px rgba(0, 0, 0, 0.1) !important;
-  position: sticky !important;
-  bottom: 0 !important;
-  z-index: 20 !important;
-  padding: 16px !important;
-}
-
-.comments-modal textarea {
-  background-color: #ffffff !important;
-  color: #111827 !important;
-  border: 2px solid #e5e7eb !important;
-  border-radius: 12px !important;
-  padding: 12px 48px 12px 16px !important;
-  min-height: 48px !important;
-  max-height: 120px !important;
-  resize: none !important;
-  font-size: 14px !important;
-  line-height: 1.5 !important;
-  width: 100% !important;
-  display: block !important;
-  opacity: 1 !important;
-  visibility: visible !important;
-}
-
-.comments-modal textarea:focus {
-  background-color: #ffffff !important;
-  color: #111827 !important;
-  border-color: #22c55e !important;
-  outline: none !important;
-  box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.1) !important;
-}
-
-.comments-modal textarea::placeholder {
-  color: #9ca3af !important;
-  opacity: 1 !important;
-}
-
-/* Fix 2: Prediction Modal Button Visibility */
-.prediction-modal .sticky:last-child {
-  background: white !important;
-  border-top: 1px solid #e5e7eb !important;
-  box-shadow: 0 -4px 6px -1px rgba(0, 0, 0, 0.1) !important;
-  position: sticky !important;
-  bottom: 0 !important;
-  z-index: 20 !important;
-  padding: 16px !important;
-}
-
-.prediction-modal .modal-bottom-button {
-  background-color: #22c55e !important;
-  color: white !important;
-  width: 100% !important;
-  height: 48px !important;
-  display: flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  border: none !important;
-  border-radius: 12px !important;
-  font-weight: 600 !important;
-  font-size: 16px !important;
-  cursor: pointer !important;
-  opacity: 1 !important;
-  visibility: visible !important;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1) !important;
-}
-
-.prediction-modal .modal-bottom-button:hover {
-  background-color: #16a34a !important;
-}
-
-.prediction-modal .modal-bottom-button:disabled {
-  background-color: #9ca3af !important;
-  cursor: not-allowed !important;
-}
-
-/* Fix 3: Compact Prediction Cards */
-.prediction-card-compact {
-  padding: 12px !important;
-  margin-bottom: 12px !important;
-}
-
-.prediction-card-compact .card-header {
-  padding-bottom: 8px !important;
-  margin-bottom: 8px !important;
-}
-
-.prediction-card-compact .card-content {
-  padding: 0 !important;
-}
-
-.prediction-card-compact h3 {
-  font-size: 16px !important;
-  line-height: 1.3 !important;
-  margin-bottom: 8px !important;
-}
-
-.prediction-card-compact .description {
-  font-size: 13px !important;
-  line-height: 1.4 !important;
-  margin-bottom: 12px !important;
-  max-height: 36px !important;
-  overflow: hidden !important;
-}
-
-.prediction-card-compact .options-grid {
-  gap: 8px !important;
-  margin-bottom: 12px !important;
-}
-
-.prediction-card-compact .option-card {
-  padding: 8px 12px !important;
-}
-
-.prediction-card-compact .stats-bar {
-  padding: 8px 0 !important;
-  margin: 8px 0 !important;
-}
-
-.prediction-card-compact .actions-bar {
-  padding: 8px 0 !important;
-}
-
-/* General Modal Improvements */
-.modal-overlay {
-  position: fixed !important;
-  top: 0 !important;
-  left: 0 !important;
-  right: 0 !important;
-  bottom: 0 !important;
-  background: rgba(0, 0, 0, 0.5) !important;
-  z-index: 50 !important;
-}
-
-.modal-container {
-  position: fixed !important;
-  bottom: 0 !important;
-  left: 0 !important;
-  right: 0 !important;
-  max-width: 448px !important;
-  margin: 0 auto !important;
-  background: white !important;
-  border-radius: 24px 24px 0 0 !important;
-  max-height: 90vh !important;
-  display: flex !important;
-  flex-direction: column !important;
-  overflow: hidden !important;
-}
-
-.modal-header {
-  position: sticky !important;
-  top: 0 !important;
-  background: white !important;
-  border-bottom: 1px solid #e5e7eb !important;
-  padding: 16px 24px !important;
-  z-index: 10 !important;
-}
-
-.modal-body {
-  flex: 1 !important;
-  overflow-y: auto !important;
-  padding: 12px 16px !important;
-}
-
-.modal-footer {
-  position: sticky !important;
-  bottom: 0 !important;
-  background: white !important;
-  border-top: 1px solid #e5e7eb !important;
-  box-shadow: 0 -4px 6px -1px rgba(0, 0, 0, 0.1) !important;
-  padding: 16px 24px !important;
-  z-index: 10 !important;
-}
-
-/* Comments Modal Specific Improvements - More Compact */
-.comments-modal .modal-body {
-  padding: 4px 16px !important;
-}
-
-.comments-modal .space-y-0 > * + * {
-  margin-top: 0px !important;
-}
-
-/* Comment item spacing - Much more compact */
-.comments-modal .flex.gap-3.mb-2 {
-  margin-bottom: 6px !important;
-  padding: 4px 0 !important;
-}
-
-.comments-modal .flex.gap-3.mb-2:last-child {
-  margin-bottom: 0 !important;
-}
-
-/* Ensure buttons in modal footers are always visible */
-.modal-footer button {
-  opacity: 1 !important;
-  visibility: visible !important;
-  display: flex !important;
-}
-
-/* Force text visibility in all modal inputs */
-.modal-container input,
-.modal-container textarea,
-.modal-container select {
-  background-color: #ffffff !important;
-  color: #111827 !important;
-  opacity: 1 !important;
-  visibility: visible !important;
-}
-
-.modal-container input::placeholder,
-.modal-container textarea::placeholder {
-  color: #9ca3af !important;
-  opacity: 1 !important;
-}
-
-/* Category pill improved text alignment */
-.category-pill {
-  display: inline-flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  line-height: 1 !important;
-  height: 40px !important;
-  padding: 0 16px !important;
-  border-radius: 20px !important;
-  background-color: #f3f4f6 !important;
-  color: #374151 !important;
-  font-size: 14px !important;
-  font-weight: 500 !important;
-}
-
-.category-pill.active {
-  background-color: #22c55e !important;
-  color: white !important;
-}
-
-/* Toast Notification Improvements */
-.react-hot-toast {
-  z-index: 9999 !important;
-}
-
-/* Responsive toast positioning */
-@media (max-width: 480px) {
-  .react-hot-toast > div {
-    margin: 0 16px !important;
-    max-width: calc(100% - 32px) !important;
-  }
-}
-
-/* Force mobile optimizations */
-@media (max-width: 768px) {
-  html {
-    touch-action: manipulation;
-  }
-  
-  body {
-    overflow-x: hidden !important;
-    width: 100% !important;
-    max-width: 100% !important;
-  }
-  
-  #root {
-    overflow-x: hidden !important;
-    width: 100% !important;
-    max-width: 100% !important;
-  }
-  
-  /* Ensure all containers fit within viewport */
-  *, *::before, *::after {
-    max-width: 100% !important;
-    box-sizing: border-box !important;
-  }
-  
-  /* Prevent any element from causing horizontal scroll */
-  div, section, main, header, footer, nav {
-    max-width: 100% !important;
-    overflow-x: hidden !important;
-  }
-  
-  button {
+  /* Touch-friendly tap targets */
+  .tap-target {
     min-height: 44px;
     min-width: 44px;
+    touch-action: manipulation;
+  }
+
+  /* Prevent text selection on interactive elements */
+  .no-select {
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+  }
+
+  /* Better text rendering */
+  .text-crisp {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* GPU acceleration for animations */
+  .gpu-accelerated {
+    transform: translateZ(0);
+    will-change: transform;
+  }
+
+  /* Momentum scrolling for iOS */
+  .momentum-scroll {
+    -webkit-overflow-scrolling: touch;
+    overflow-scrolling: touch;
   }
 }
 
-/* BetDetailPage CSS Classes */
-.page-container {
-  max-width: 400px;
-  margin: 0 auto;
-  padding: 16px;
-  background: #f9fafb;
-  min-height: 100vh;
-}
-
+/* Component-specific styles */
 .prediction-card {
-  background: white;
-  border-radius: 16px;
-  padding: 20px;
-  margin-bottom: 16px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  @apply bg-white rounded-2xl border border-gray-100 shadow-sm transition-fast hover:shadow-md;
+  will-change: transform, box-shadow;
 }
 
-.prediction-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 16px;
-}
-
-.prediction-avatar {
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, #10b981, #059669);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: white;
-  font-weight: 600;
-}
-
-.prediction-creator-info {
-  flex: 1;
-  margin-left: 12px;
-}
-
-.prediction-creator-name {
-  font-weight: 600;
-  font-size: 14px;
-  color: #111827;
-}
-
-.prediction-timestamp {
-  font-size: 12px;
-  color: #6b7280;
-}
-
-.prediction-category {
-  background: #10b981;
-  color: white;
-  padding: 4px 8px;
-  border-radius: 8px;
-  font-size: 12px;
-  font-weight: 600;
-}
-
-.prediction-title {
-  font-size: 20px;
-  font-weight: 700;
-  color: #111827;
-  margin-bottom: 8px;
-}
-
-.stake-section {
-  background: white;
-  border-radius: 16px;
-  padding: 20px;
-  margin-bottom: 16px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-}
-
-.stake-title {
-  font-size: 18px;
-  font-weight: 600;
-  color: #111827;
-  margin-bottom: 16px;
-}
-
-.prediction-options {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
-  margin-bottom: 16px;
+.prediction-card:hover {
+  transform: translateY(-1px);
 }
 
 .prediction-option {
-  padding: 16px;
-  border: 2px solid #e5e7eb;
-  border-radius: 12px;
-  text-align: center;
-  cursor: pointer;
-  transition: all 0.2s;
-  background: #f9fafb;
+  @apply border-2 border-gray-200 rounded-xl p-4 transition-fast;
+  touch-action: manipulation;
 }
 
 .prediction-option:hover {
-  border-color: #10b981;
-  background: #f0fdf4;
+  @apply border-gray-300;
 }
 
 .prediction-option.selected {
-  border-color: #10b981;
-  background: #f0fdf4;
+  @apply border-green-500 bg-green-50;
 }
 
-.prediction-option-label {
-  font-weight: 600;
-  font-size: 14px;
-  color: #111827;
-  margin-bottom: 4px;
-}
-
-.prediction-option-value {
-  font-size: 18px;
-  font-weight: 700;
-  color: #10b981;
-  margin-bottom: 4px;
-}
-
-.prediction-option-amount {
-  font-size: 12px;
-  color: #6b7280;
-}
-
-.stake-input-group {
-  margin-bottom: 16px;
-}
-
-.stake-input {
-  width: 100%;
-  padding: 12px 16px;
-  border: 2px solid #e5e7eb;
-  border-radius: 8px;
-  font-size: 16px;
-  background: white;
-}
-
-.stake-input:focus {
-  outline: none;
-  border-color: #10b981;
-}
-
-.btn {
-  padding: 12px 24px;
-  border: none;
-  border-radius: 8px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.btn-primary {
-  background: #10b981;
-  color: white;
-}
-
-.btn-primary:hover {
-  background: #059669;
-}
-
-.btn-primary:disabled {
-  background: #9ca3af;
-  cursor: not-allowed;
-}
-
-.btn-full {
-  width: 100%;
-}
-
-/* Comments Section */
-.comments-section {
-  background: white;
-  border-radius: 16px;
-  padding: 20px;
-  margin-bottom: 16px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-}
-
-.comments-header {
-  margin-bottom: 12px;
-}
-
-.comments-title {
-  font-size: 16px;
-  font-weight: 600;
-  color: #111827;
-  margin: 0;
-}
-
-.comments-list {
-  margin-bottom: 16px;
-}
-
-.comment-item {
-  margin-bottom: 8px;
-  padding: 8px 0;
-  border-bottom: 1px solid #f3f4f6;
-}
-
-.comment-item:last-child {
-  border-bottom: none;
-  margin-bottom: 0;
-}
-
-.comment-header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 4px;
-}
-
-.comment-avatar {
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, #10b981, #059669);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: white;
-  font-weight: 600;
-  font-size: 12px;
-}
-
-.comment-author {
-  font-weight: 600;
-  font-size: 14px;
-  color: #111827;
-}
-
-.comment-time {
-  font-size: 12px;
-  color: #6b7280;
-  margin-left: auto;
-}
-
-.comment-content {
-  font-size: 14px;
-  color: #374151;
-  line-height: 1.4;
-  margin-left: 32px;
-}
-
-.comment-input-section {
-  border-top: 1px solid #f3f4f6;
-  padding-top: 16px;
-}
-
-.comment-input-group {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-}
-
-.comment-input {
-  flex: 1;
-  padding: 8px 12px;
-  border: 1px solid #e5e7eb;
-  border-radius: 20px;
-  font-size: 14px;
-  background: white;
-}
-
-.comment-input:focus {
-  outline: none;
-  border-color: #10b981;
-}
-
-.comment-send-btn {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  background: #10b981;
-  color: white;
-  border: none;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  font-size: 14px;
-}
-
-.comment-send-btn:hover {
-  background: #059669;
-}
-
-.success-toast {
-  position: fixed;
-  top: 20px;
-  left: 50%;
-  transform: translateX(-50%);
-  background: #10b981;
-  color: white;
-  padding: 12px 20px;
-  border-radius: 8px;
+.bottom-nav {
+  @apply fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 safe-bottom;
   z-index: 1000;
-  font-weight: 600;
+  will-change: transform;
+}
+
+.modal-overlay {
+  @apply fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4;
+  z-index: 9999;
+  backdrop-filter: blur(4px);
+}
+
+.modal-content {
+  @apply bg-white rounded-2xl max-w-md w-full max-h-[90vh] overflow-y-auto;
+  will-change: transform;
+}
+
+/* Print styles */
+@media print {
+  * {
+    background: transparent !important;
+    color: black !important;
+    box-shadow: none !important;
+    text-shadow: none !important;
+  }
+  
+  .no-print {
+    display: none !important;
+  }
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+  .prediction-card {
+    border: 2px solid #000;
+  }
+  
+  .prediction-option {
+    border: 2px solid #000;
+  }
+}
+
+/* Optimize for better rendering performance */
+* {
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+/* Critical above-the-fold styles */
+.discover-header {
+  @apply bg-white border-b border-gray-200 sticky top-0;
+  z-index: 100;
+  will-change: transform;
+}
+
+.prediction-grid {
+  @apply space-y-4 pb-20;
+  contain: layout style paint;
+}
+
+/* Error and loading states */
+.error-state {
+  @apply text-center py-12 text-gray-500;
+}
+
+.loading-state {
+  @apply text-center py-12;
 }
 
 .empty-state {
-  text-align: center;
-  padding: 40px 20px;
-}
-
-.empty-state-icon {
-  font-size: 48px;
-  margin-bottom: 16px;
-}
-
-.empty-state-title {
-  font-size: 18px;
-  font-weight: 600;
-  color: #111827;
-  margin-bottom: 8px;
-}
-
-.empty-state-message {
-  font-size: 14px;
-  color: #6b7280;
-}
-
-/* CATEGORY SCROLL FIX - Force horizontal scrolling */
-.category-filters-container {
-  overflow-x: auto !important;
-  overflow-y: hidden !important;
-  -webkit-overflow-scrolling: touch !important;
-  scroll-behavior: smooth !important;
-  /* Hide scrollbar but keep functionality */
-  scrollbar-width: none !important;
-  -ms-overflow-style: none !important;
-}
-
-.category-filters-container::-webkit-scrollbar {
-  display: none !important;
-}
-
-.category-pill {
-  flex-shrink: 0 !important;
-  min-width: fit-content !important;
-  white-space: nowrap !important;
-}
-
-/* Ensure categories container doesn't wrap */
-.category-filters-flex {
-  display: flex !important;
-  flex-wrap: nowrap !important;
-  gap: 12px !important;
-  padding-bottom: 4px !important;
+  @apply text-center py-16 text-gray-500;
 }
