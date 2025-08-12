@@ -125,28 +125,31 @@ export const useWalletStore = create<WalletState>()(
             return;
           }
 
-          // Fetch wallet data from database
-          const { data: walletData, error: walletError } = await supabase
-            .from('wallets')
-            .select('*')
-            .eq('user_id', user.id);
+          // Fetch wallet data and recent transactions in parallel for better performance
+          const [walletResult, transactionResult] = await Promise.all([
+            supabase
+              .from('wallets')
+              .select('*')
+              .eq('user_id', user.id),
+            supabase
+              .from('wallet_transactions')
+              .select('*')
+              .eq('user_id', user.id)
+              .order('created_at', { ascending: false })
+              .limit(20) // Reduced limit for faster loading
+          ]);
+
+          const { data: walletData, error: walletError } = walletResult;
+          const { data: transactionData, error: transactionError } = transactionResult;
 
           if (walletError) {
             console.error('❌ Error fetching wallet data:', walletError);
             return;
           }
 
-          // Fetch transaction history from database
-          const { data: transactionData, error: transactionError } = await supabase
-            .from('wallet_transactions')
-            .select('*')
-            .eq('user_id', user.id)
-            .order('created_at', { ascending: false })
-            .limit(50);
-
           if (transactionError) {
             console.error('❌ Error fetching transaction data:', transactionError);
-            return;
+            // Continue without transactions rather than failing completely
           }
 
           // Convert database data to store format
@@ -170,27 +173,29 @@ export const useWalletStore = create<WalletState>()(
               { currency: 'ETH', available: 0, reserved: 0, total: 0 },
             ];
             
-            // Create wallet records in database for new user
+            // Create wallet records in database for new user - optimized for performance
             try {
-              const walletPromises = balances.map(balance => 
-                supabase
-                  .from('wallets')
-                  .upsert({
-                    user_id: user.id,
-                    currency: balance.currency,
-                    available_balance: 0,
-                    reserved_balance: 0,
-                    total_deposited: 0,
-                    total_withdrawn: 0,
-                    created_at: new Date().toISOString(),
-                    updated_at: new Date().toISOString()
-                  }, {
-                    onConflict: 'user_id,currency'
-                  })
-              );
+              // Use a single bulk insert instead of multiple upserts
+              const walletRecords = balances.map(balance => ({
+                user_id: user.id,
+                currency: balance.currency,
+                available_balance: 0,
+                reserved_balance: 0,
+                total_deposited: 0,
+                total_withdrawn: 0,
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString()
+              }));
               
-              await Promise.all(walletPromises);
-              console.log('✅ Default wallet records created for new user');
+              const { error: bulkError } = await supabase
+                .from('wallets')
+                .insert(walletRecords);
+              
+              if (bulkError) {
+                console.error('❌ Error creating default wallet records:', bulkError);
+              } else {
+                console.log('✅ Default wallet records created for new user');
+              }
             } catch (error) {
               console.error('❌ Error creating default wallet records:', error);
             }
@@ -240,7 +245,8 @@ export const useWalletStore = create<WalletState>()(
       },
 
       simulateNetworkDelay: async () => {
-        const delay = Math.random() * 1000 + 500; // 500-1500ms delay
+        // Reduced delay for better performance - only 100-300ms
+        const delay = Math.random() * 200 + 100; // 100-300ms delay
         await new Promise(resolve => setTimeout(resolve, delay));
       },
 

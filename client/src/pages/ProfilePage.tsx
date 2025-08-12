@@ -1149,8 +1149,8 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigateBack, userId }) => 
     disabled: false
   });
 
-  // Real user stats based on actual user data
-  const userStats = {
+  // Real user stats based on actual user data - memoized for performance
+  const userStats = React.useMemo(() => ({
     totalEarnings: user?.totalEarnings || 0,
     totalInvested: user?.totalInvested || 0,
     winRate: user?.winRate || 0,
@@ -1162,9 +1162,9 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigateBack, userId }) => 
       month: 'long' 
     }) : 'Recently',
     level: user?.level || 'New Predictor'
-  };
+  }), [user?.totalEarnings, user?.totalInvested, user?.winRate, user?.activePredictions, user?.totalPredictions, user?.rank, user?.createdAt, user?.level]);
 
-  const menuItems = [
+  const menuItems = React.useMemo(() => [
     {
       id: 'account',
       label: 'Account Settings',
@@ -1193,14 +1193,14 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigateBack, userId }) => 
       description: 'Get help and contact support',
       action: () => setActiveSection('help')
     }
-  ];
+  ], [setActiveSection]);
 
-  const achievements = [
+  const achievements = React.useMemo(() => [
     { id: 1, title: 'First Prediction', icon: '🎯', unlocked: true },
     { id: 2, title: 'Winning Streak', icon: '🔥', unlocked: true },
     { id: 3, title: 'Top Predictor', icon: '👑', unlocked: false },
     { id: 4, title: 'Community Leader', icon: '⭐', unlocked: false }
-  ];
+  ], []);
 
   const handleSaveProfile = () => {
     updateProfile({

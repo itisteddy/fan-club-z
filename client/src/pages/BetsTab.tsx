@@ -25,10 +25,15 @@ const BetsTab: React.FC<BetsTabProps> = ({ onNavigateToDiscover }) => {
     scrollToTop({ behavior: 'instant' });
   }, []);
 
-  // Fetch user's created predictions when component mounts or user changes
+  // Fetch user's created predictions when component mounts or user changes - optimized
   useEffect(() => {
     if (user?.id && isAuthenticated) {
-      fetchUserCreatedPredictions(user.id);
+      // Add a small delay to prevent excessive fetching during rapid navigation
+      const timeoutId = setTimeout(() => {
+        fetchUserCreatedPredictions(user.id);
+      }, 100);
+      
+      return () => clearTimeout(timeoutId);
     }
   }, [user?.id, isAuthenticated, fetchUserCreatedPredictions]);
   

@@ -102,10 +102,9 @@ function App() {
     }
   }, [isAuthenticated, loading, initializeWallet]);
 
-  // Handle URL changes and update active tab accordingly
+  // Handle URL changes and update active tab accordingly - optimized for performance
   useEffect(() => {
     const path = window.location.pathname;
-    console.log('🔍 Current path:', path);
     
     let newActiveTab = 'discover';
     
@@ -124,18 +123,14 @@ function App() {
     }
     
     if (newActiveTab !== activeTab) {
-      console.log(`🔄 Updating active tab from ${activeTab} to ${newActiveTab} for path: ${path}`);
       setActiveTab(newActiveTab);
       localStorage.setItem('fanclubz-current-tab', newActiveTab);
     }
   }, [window.location.pathname, activeTab]);
 
   const handleTabChange = (tab: string) => {
-    console.log('🔄 Tab change requested:', tab, 'Current activeTab:', activeTab);
-    
     // Prevent infinite loops by checking if we're already on this tab
     if (tab === activeTab) {
-      console.log('⚠️ Already on tab:', tab);
       return;
     }
     
@@ -145,8 +140,8 @@ function App() {
     // Persist tab in localStorage for all tabs
     localStorage.setItem('fanclubz-current-tab', tab);
     
-    console.log('✅ Tab changed to:', tab);
-    scrollToTop({ delay: 100 });
+    // Optimized scroll to top with reduced delay
+    scrollToTop({ delay: 50 });
   };
 
   const handleNavigateToProfile = () => {
@@ -288,12 +283,12 @@ function App() {
         <AnimatePresence mode="wait" initial={false}>
           <motion.div
             key={activeTab}
-            initial={{ opacity: 0, x: 20 }}
+            initial={{ opacity: 0, x: 10 }}
             animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -20 }}
+            exit={{ opacity: 0, x: -10 }}
             transition={{ 
-              duration: 0.2,
-              ease: "easeInOut"
+              duration: 0.15, // Reduced animation duration for faster transitions
+              ease: "easeOut"
             }}
             style={{
               width: '100%',
