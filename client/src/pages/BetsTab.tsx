@@ -6,7 +6,7 @@ import { usePredictionStore } from '../store/predictionStore';
 import { useAuthStore } from '../store/authStore';
 import { scrollToTop } from '../utils/scroll';
 import { formatTimeRemaining } from '../lib/utils';
-import { Prediction } from '../types';
+import { Prediction } from '../types/index';
 import BetCard from '../components/BetCard';
 import ManagePredictionModal from '../components/modals/ManagePredictionModal';
 

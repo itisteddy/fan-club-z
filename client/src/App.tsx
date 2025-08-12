@@ -6,6 +6,7 @@ import { Toaster } from 'react-hot-toast';
 import { scrollToTop } from './utils/scroll';
 import NotificationContainer from './components/ui/NotificationContainer';
 import PWAInstallManager from './components/PWAInstallManager';
+import PageWrapper from './components/PageWrapper';
 
 // Import all page components
 import DiscoverPage from './pages/DiscoverPage';
@@ -17,6 +18,7 @@ import AuthPage from './pages/auth/AuthPage';
 import AuthCallbackPage from './pages/auth/AuthCallbackPage';
 import PredictionDetailsPage from './pages/PredictionDetailsPage';
 import BottomNavigation from './components/BottomNavigation';
+import PageWrapper from './components/PageWrapper';
 
 // Auth Guard Component
 const AuthGuard: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -167,52 +169,74 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 const DiscoverPageWrapper: React.FC = () => {
   const [, navigate] = useLocation();
   return (
-    <DiscoverPage 
-      onNavigateToProfile={() => navigate('/profile')}
-    />
+    <PageWrapper title="Discover">
+      <DiscoverPage 
+        onNavigateToProfile={() => navigate('/profile')}
+      />
+    </PageWrapper>
   );
 };
 
 const BetsPageWrapper: React.FC = () => {
   const [, navigate] = useLocation();
   return (
-    <BetsTab 
-      onNavigateToDiscover={() => navigate('/')}
-    />
+    <PageWrapper title="My Predictions">
+      <BetsTab 
+        onNavigateToDiscover={() => navigate('/')}
+      />
+    </PageWrapper>
   );
 };
 
 const ProfilePageWrapper: React.FC = () => {
   const [, navigate] = useLocation();
   return (
-    <ProfilePage 
-      onNavigateBack={() => navigate('/')}
-    />
+    <PageWrapper title="Profile">
+      <ProfilePage 
+        onNavigateBack={() => navigate('/')}
+      />
+    </PageWrapper>
+  );
+};
+
+const WalletPageWrapper: React.FC = () => {
+  return (
+    <PageWrapper title="Wallet">
+      <WalletPage />
+    </PageWrapper>
   );
 };
 
 const CreatePredictionPageWrapper: React.FC = () => {
   const [, navigate] = useLocation();
   return (
-    <CreatePredictionPage 
-      onNavigateBack={() => navigate('/')}
-    />
+    <PageWrapper title="Create Prediction">
+      <CreatePredictionPage 
+        onNavigateBack={() => navigate('/')}
+      />
+    </PageWrapper>
   );
 };
 
 // Prediction details wrapper
 const PredictionDetailsWrapper: React.FC<{ params: { id: string } }> = ({ params }) => {
-  return <PredictionDetailsPage predictionId={params.id} />;
+  return (
+    <PageWrapper title="Prediction Details">
+      <PredictionDetailsPage predictionId={params.id} />
+    </PageWrapper>
+  );
 };
 
 // User profile wrapper
 const UserProfileWrapper: React.FC<{ params: { id: string } }> = ({ params }) => {
   const [, navigate] = useLocation();
   return (
-    <ProfilePage 
-      userId={params.id}
-      onNavigateBack={() => navigate('/')}
-    />
+    <PageWrapper title="User Profile">
+      <ProfilePage 
+        userId={params.id}
+        onNavigateBack={() => navigate('/')}
+      />
+    </PageWrapper>
   );
 };
 
@@ -252,7 +276,7 @@ function App() {
                 <Route path="/bets" component={BetsPageWrapper} />
                 <Route path="/create" component={CreatePredictionPageWrapper} />
                 <Route path="/profile" component={ProfilePageWrapper} />
-                <Route path="/wallet" component={WalletPage} />
+                <Route path="/wallet" component={WalletPageWrapper} />
                 
                 {/* Dynamic routes */}
                 <Route path="/prediction/:id" component={PredictionDetailsWrapper} />
