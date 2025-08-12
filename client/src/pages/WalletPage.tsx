@@ -53,13 +53,13 @@ const WalletPage: React.FC = () => {
   // Deposit form state
   const [depositForm, setDepositForm] = useState({
     amount: '',
-    currency: 'USD' as 'USD' | 'NGN' | 'USDT' | 'ETH'
+    currency: 'NGN' as 'NGN' | 'USD' | 'USDT' | 'ETH'
   });
 
   // Withdrawal form state
   const [withdrawForm, setWithdrawForm] = useState({
     amount: '',
-    currency: 'USD' as 'USD' | 'NGN' | 'USDT' | 'ETH',
+    currency: 'NGN' as 'NGN' | 'USD' | 'USDT' | 'ETH',
     destination: ''
   });
 
@@ -97,7 +97,7 @@ const WalletPage: React.FC = () => {
   }, [showDepositModal, showWithdrawModal, clearError]);
 
   // Calculate wallet data
-  const primaryBalance = getBalance('USD');
+  const primaryBalance = getBalance('NGN');
   const totalUSDValue = balances.reduce((total, balance) => {
     // Mock exchange rates for demo
     const rates = { USD: 1, NGN: 850, USDT: 1, ETH: 2400 };

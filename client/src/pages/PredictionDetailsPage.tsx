@@ -118,12 +118,12 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
 
     const amount = parseFloat(stakeAmount);
     if (!amount || amount < prediction.stake_min) {
-      toast.error(`Minimum stake is $${prediction.stake_min}`);
+      toast.error(`Minimum stake is ₦${prediction.stake_min}`);
       return;
     }
 
     if (prediction.stake_max && amount > prediction.stake_max) {
-      toast.error(`Maximum stake is $${prediction.stake_max}`);
+      toast.error(`Maximum stake is ₦${prediction.stake_max}`);
       return;
     }
 

@@ -11,7 +11,6 @@ import PWAInstallManager from './components/PWAInstallManager';
 import DiscoverPage from './pages/DiscoverPage';
 import CreatePredictionPage from './pages/CreatePredictionPage';
 import BetsTab from './pages/BetsTab';
-import ClubsPage from './pages/ClubsPage';
 import ProfilePage from './pages/ProfilePage';
 import WalletPage from './pages/WalletPage';
 import AuthPage from './pages/auth/AuthPage';
@@ -120,8 +119,6 @@ function App() {
       newActiveTab = 'predictions';
     } else if (path === '/create') {
       newActiveTab = 'create';
-    } else if (path === '/clubs') {
-      newActiveTab = 'clubs';
     } else if (path === '/wallet') {
       newActiveTab = 'wallet';
     }
@@ -225,8 +222,6 @@ function App() {
         return <MyPredictionsPage onNavigateToDiscover={handleNavigateToDiscover} />;
       case 'create':
         return <CreatePredictionPage onNavigateBack={handleNavigateBackFromCreate} />;
-      case 'clubs':
-        return <ClubsPage onNavigateToCreate={handleNavigateToCreateFromClubs} />;
       case 'wallet':
         return <WalletPage />;
       case 'profile':

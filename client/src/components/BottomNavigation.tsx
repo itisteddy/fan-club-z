@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Home, TrendingUp, Plus, Users, Wallet } from 'lucide-react';
+import { Home, TrendingUp, Plus, Wallet } from 'lucide-react';
 
 interface BottomNavigationProps {
   activeTab?: string;
@@ -15,7 +15,6 @@ const BottomNavigation: React.FC<BottomNavigationProps> = ({
     { id: 'discover', label: 'Discover', icon: Home },
     { id: 'predictions', label: 'Bets', icon: TrendingUp },
     { id: 'create', label: 'Create', icon: Plus, isCreate: true },
-    { id: 'clubs', label: 'Clubs', icon: Users },
     { id: 'wallet', label: 'Wallet', icon: Wallet },
   ];
 

@@ -41,7 +41,7 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
   ]);
   const [entryDeadline, setEntryDeadline] = useState('');
   const [stakeMin, setStakeMin] = useState('100');
-  const [stakeMax, setStakeMax] = useState('10000');
+  const [stakeMax, setStakeMax] = useState('100000');
   const [settlementMethod, setSettlementMethod] = useState('manual');
   const [isPrivate, setIsPrivate] = useState(false);
   
@@ -548,7 +548,7 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
                   <div className="grid grid-cols-2 gap-4">
                     <div className="input-container">
                       <label className="block text-sm font-semibold text-gray-700 mb-2">
-                        Minimum Stake ($)
+                        Minimum Stake (₦)
                       </label>
                       <input
                         type="number"
@@ -561,13 +561,13 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
                     </div>
                     <div className="input-container">
                       <label className="block text-sm font-semibold text-gray-700 mb-2">
-                        Maximum Stake ($)
+                        Maximum Stake (₦)
                       </label>
                       <input
                         type="number"
                         value={stakeMax}
                         onChange={(e) => setStakeMax(e.target.value)}
-                        placeholder="10000"
+                        placeholder="100000"
                         min={stakeMin || "1"}
                         className="w-full p-4 border-2 border-gray-200 rounded-2xl focus:border-green-500 focus:outline-none transition-all duration-200"
                       />

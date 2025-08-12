@@ -23,10 +23,13 @@ const PWAInstallBanner: React.FC = () => {
       const daysThreshold = isIOS ? 3 : 1;
       const shouldShow = !dismissed || daysSinceDissmissal > daysThreshold;
       
-      if (shouldShow) {
+      // For MVP, show banner only once per session and make it easily dismissible
+      const sessionDismissed = sessionStorage.getItem('pwa-banner-session-dismissed');
+      
+      if (shouldShow && !sessionDismissed) {
         if (isIOS) {
           // For iOS, show after a delay
-          setTimeout(() => setShowBanner(true), 3000);
+          setTimeout(() => setShowBanner(true), 5000); // Increased delay
         } else {
           // For Android, wait for install prompt
           setCanInstall(pwaManager.canInstall());
@@ -80,6 +83,8 @@ const PWAInstallBanner: React.FC = () => {
     setShowBanner(false);
     const storageKey = pwaManager.isIOSDevice() ? 'ios-install-dismissed' : 'pwa-banner-dismissed';
     localStorage.setItem(storageKey, Date.now().toString());
+    // Also dismiss for this session
+    sessionStorage.setItem('pwa-banner-session-dismissed', 'true');
   };
 
   if (!showBanner) {
