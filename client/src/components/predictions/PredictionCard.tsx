@@ -270,14 +270,21 @@ export const PredictionCard: React.FC<PredictionCardProps> = ({
                     {generateInitials(prediction.creator.username)}
                   </AvatarFallback>
                 </Avatar>
-                <div className="flex items-center gap-1">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    console.log('👤 Navigating to creator profile:', prediction.creator.id);
+                    setLocation(`/profile/${prediction.creator.id}`);
+                  }}
+                  className="flex items-center gap-1 hover:text-primary transition-colors cursor-pointer"
+                >
                   <span className="font-medium text-sm text-gray-900">
                     {prediction.creator.username}
                   </span>
                   {prediction.creator.is_verified && (
                     <CheckCircle size={12} className="text-primary" />
                   )}
-                </div>
+                </button>
               </div>
               <div className="text-lg">
                 {categoryEmojis[prediction.category]}
@@ -297,17 +304,21 @@ export const PredictionCard: React.FC<PredictionCardProps> = ({
             )}
           </div>
 
-          {/* Options Section */}
+          {/* Options Section - No more nested cards */}
           <div className="px-4 pb-3">
             <div className="grid grid-cols-2 gap-2">
               {prediction.options?.map((option, index) => (
-                <div 
+                <button
                   key={option.id}
-                  className="bg-gray-50 rounded-lg p-3 border border-gray-100"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleQuickBet(e);
+                  }}
+                  className="bg-gray-50 hover:bg-gray-100 rounded-lg p-3 border border-gray-200 transition-colors text-left"
                 >
-                                     <div className="font-medium text-sm text-gray-900 mb-1">
-                     {option.label}
-                   </div>
+                  <div className="font-medium text-sm text-gray-900 mb-1">
+                    {option.label}
+                  </div>
                   <div className="flex items-center justify-between">
                     <span className="text-xs text-gray-600">
                       {option.percentage}%
@@ -316,7 +327,7 @@ export const PredictionCard: React.FC<PredictionCardProps> = ({
                       {option.current_odds?.toFixed(1)}x
                     </span>
                   </div>
-                </div>
+                </button>
               ))}
             </div>
           </div>

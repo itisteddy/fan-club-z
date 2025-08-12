@@ -85,7 +85,13 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
   }, [predictionId, predictions, fetchPredictions]);
 
   const handleBack = () => {
-    setLocation('/discover');
+    console.log('🔙 Back button clicked');
+    // Use browser history for faster navigation
+    if (window.history.length > 1) {
+      window.history.back();
+    } else {
+      setLocation('/discover');
+    }
   };
 
   const handleOptionSelect = (optionId: string) => {
