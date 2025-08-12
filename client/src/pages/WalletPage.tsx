@@ -34,7 +34,7 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
   
   const { 
     getBalance, 
-    getTransactions, 
+    getTransactionHistory, 
     addFunds, 
     resetDemoBalance,
     isDemoMode 
@@ -48,7 +48,7 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
   }, []);
 
   const usdBalance = getBalance('USD') || 0;
-  const transactions = getTransactions('USD') || [];
+  const transactions = getTransactionHistory({ currency: 'USD' }) || [];
   
   // Demo mode quick amounts
   const quickAmounts = [10, 25, 50, 100];
@@ -62,7 +62,7 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
     setIsAddingFunds(true);
     
     try {
-      await addFunds(amount, 'Demo funds added', 'USD');
+      await addFunds(amount, 'USD', 'Demo funds added');
       toast.success(`Successfully added $${amount.toLocaleString()} to your wallet!`);
       setSelectedAmount(null);
       setCustomAmount('');
@@ -103,8 +103,8 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
     }).format(amount);
   };
 
-  const formatDate = (date: string) => {
-    return new Date(date).toLocaleDateString('en-US', {
+  const formatDate = (date: Date) => {
+    return date.toLocaleDateString('en-US', {
       month: 'short',
       day: 'numeric',
       hour: '2-digit',
