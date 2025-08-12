@@ -12,7 +12,6 @@ import {
   Zap
 } from 'lucide-react';
 import { Button } from '../ui/button';
-import { Card, CardContent } from '../ui/card';
 import { scrollToTop } from '../../utils/scroll';
 import { Avatar, AvatarImage, AvatarFallback } from '../ui/avatar';
 import { Prediction } from '../../store/predictionStore';
@@ -58,7 +57,6 @@ export const PredictionCard: React.FC<PredictionCardProps> = ({
   const handleCardClick = () => {
     console.log('🎯 Prediction card clicked, navigating to:', `/prediction/${prediction.id}`);
     setLocation(`/prediction/${prediction.id}`);
-    // Scroll to top when navigating to prediction detail
     scrollToTop({ behavior: 'instant' });
   };
 
@@ -71,20 +69,17 @@ export const PredictionCard: React.FC<PredictionCardProps> = ({
     const shareUrl = `${window.location.origin}/prediction/${prediction.id}`;
     const shareText = `${prediction.title}\n\nMake your prediction on Fan Club Z!`;
 
-    // Mobile-first: Try native share API first
     if (navigator.share && /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)) {
       navigator.share({
         title: prediction.title,
         text: shareText,
         url: shareUrl,
       }).catch((error) => {
-        // Only fallback if it's not a user cancellation
         if (error.name !== 'AbortError') {
           copyToClipboard(shareUrl, shareText);
         }
       });
     } else {
-      // Desktop or fallback: Copy to clipboard
       copyToClipboard(shareUrl, shareText);
     }
   };
@@ -94,11 +89,9 @@ export const PredictionCard: React.FC<PredictionCardProps> = ({
     
     navigator.clipboard.writeText(fullText)
       .then(() => {
-        // Show mobile-friendly success notification
         showShareNotification('Link copied to clipboard! 📋', 'success');
       })
       .catch(() => {
-        // Final fallback for older browsers
         showShareNotification(`Share this link: ${shareUrl}`, 'info');
       });
   };
@@ -128,7 +121,6 @@ export const PredictionCard: React.FC<PredictionCardProps> = ({
     notification.textContent = message;
     document.body.appendChild(notification);
     
-    // Add CSS animation
     const style = document.createElement('style');
     style.textContent = `
       @keyframes slideInDown {
@@ -154,28 +146,26 @@ export const PredictionCard: React.FC<PredictionCardProps> = ({
         whileTap={{ scale: 0.95 }}
         className="shrink-0 w-36"
       >
-        <Card 
-          className="cursor-pointer overflow-hidden bg-gradient-to-br from-primary/10 to-secondary/10 border-primary/20 h-24"
+        <div 
+          className="cursor-pointer overflow-hidden bg-gradient-to-br from-primary/10 to-secondary/10 border border-primary/20 rounded-xl h-24 p-3"
           onClick={handleCardClick}
         >
-          <CardContent className="p-3">
-            <div className="text-xs font-medium text-primary mb-1">
-              {categoryEmojis[prediction.category]}
+          <div className="text-xs font-medium text-primary mb-1">
+            {categoryEmojis[prediction.category]}
+          </div>
+          <h3 className="font-semibold text-xs leading-tight mb-2 line-clamp-2">
+            {prediction.title}
+          </h3>
+          <div className="flex items-center justify-between">
+            <div className="text-sm font-bold text-primary">
+              {formatCurrency(prediction.pool_total)}
             </div>
-            <h3 className="font-semibold text-xs leading-tight mb-2 line-clamp-2">
-              {prediction.title}
-            </h3>
-            <div className="flex items-center justify-between">
-              <div className="text-sm font-bold text-primary">
-                {formatCurrency(prediction.pool_total)}
-              </div>
-              <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                <Users size={10} />
-                {prediction.participant_count}
-              </div>
+            <div className="flex items-center gap-1 text-xs text-muted-foreground">
+              <Users size={10} />
+              {prediction.participant_count}
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       </motion.div>
     );
   }
@@ -185,309 +175,242 @@ export const PredictionCard: React.FC<PredictionCardProps> = ({
     const isWon = prediction.status === 'settled' && userEntry;
     
     return (
-      <Card className={cn(
-        "border-l-4",
+      <div className={cn(
+        "border border-l-4 rounded-xl p-3 bg-white",
         isWon ? "border-l-green-500 bg-green-50/50" : 
         prediction.status === 'settled' ? "border-l-red-500 bg-red-50/50" :
         "border-l-primary bg-primary/5"
       )}>
-        <CardContent className="p-3">
-          <div className="flex items-start justify-between mb-2">
-            <div className="flex-1">
-              <h3 className="font-semibold text-sm mb-1 cursor-pointer hover:text-primary line-clamp-2" onClick={handleCardClick}>
-                {prediction.title}
-              </h3>
-              <div className="text-xs text-muted-foreground">
-                Your position: Option {userEntry?.option_id}
-              </div>
-            </div>
-            <div className="text-right">
-              {prediction.status === 'settled' ? (
-                <span className={cn(
-                  "text-xs font-medium",
-                  isWon ? "text-green-600" : "text-red-600"
-                )}>
-                  {isWon ? "Won" : "Lost"}
-                </span>
-              ) : (
-                <span className="text-xs text-muted-foreground">Active</span>
-              )}
+        <div className="flex items-start justify-between mb-2">
+          <div className="flex-1">
+            <h3 className="font-semibold text-sm mb-1 cursor-pointer hover:text-primary line-clamp-2" onClick={handleCardClick}>
+              {prediction.title}
+            </h3>
+            <div className="text-xs text-muted-foreground">
+              Your position: Option {userEntry?.option_id}
             </div>
           </div>
-
-          <div className="grid grid-cols-2 gap-3 text-xs">
-            <div>
-              <div className="text-muted-foreground">Invested</div>
-              <div className="font-semibold">
-                {formatCurrency(userEntry?.amount || 0)}
-              </div>
-            </div>
-            <div>
-              <div className="text-muted-foreground">
-                {prediction.status === 'settled' ? 'Final Return' : 'Potential Return'}
-              </div>
-              <div className={cn(
-                "font-semibold",
-                prediction.status === 'settled' 
-                  ? isWon ? "text-green-600" : "text-red-600"
-                  : "text-primary"
+          <div className="text-right">
+            {prediction.status === 'settled' ? (
+              <span className={cn(
+                "text-xs font-medium",
+                isWon ? "text-green-600" : "text-red-600"
               )}>
-                {formatCurrency(userEntry?.potential_payout || 0)}
-              </div>
+                {isWon ? "Won" : "Lost"}
+              </span>
+            ) : (
+              <span className="text-xs text-muted-foreground">Active</span>
+            )}
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3 text-xs">
+          <div>
+            <div className="text-muted-foreground">Invested</div>
+            <div className="font-semibold">
+              {formatCurrency(userEntry?.amount || 0)}
             </div>
           </div>
-
-          {prediction.status !== 'settled' && (
-            <div className="mt-2 pt-2 border-t border-border">
-              <div className="flex items-center justify-between text-xs text-muted-foreground">
-                <span className={getTimeColor()}>
-                  <Clock size={10} className="inline mr-1" />
-                  {formatTimeRemaining(prediction.entry_deadline)}
-                </span>
-                <Button 
-                  size="sm" 
-                  variant="outline"
-                  onClick={handleQuickBet}
-                  className="text-xs h-6 px-2"
-                >
-                  Add More
-                </Button>
-              </div>
+          <div>
+            <div className="text-muted-foreground">
+              {prediction.status === 'settled' ? 'Final Return' : 'Potential Return'}
             </div>
-          )}
-        </CardContent>
-      </Card>
+            <div className={cn(
+              "font-semibold",
+              prediction.status === 'settled' 
+                ? isWon ? "text-green-600" : "text-red-600"
+                : "text-primary"
+            )}>
+              {formatCurrency(userEntry?.potential_payout || 0)}
+            </div>
+          </div>
+        </div>
+
+        {prediction.status !== 'settled' && (
+          <div className="mt-2 pt-2 border-t border-border">
+            <div className="flex items-center justify-between text-xs text-muted-foreground">
+              <span className={getTimeColor()}>
+                <Clock size={10} className="inline mr-1" />
+                {formatTimeRemaining(prediction.entry_deadline)}
+              </span>
+              <Button 
+                size="sm" 
+                variant="outline"
+                onClick={handleQuickBet}
+                className="text-xs h-6 px-2"
+              >
+                Add More
+              </Button>
+            </div>
+          </div>
+        )}
+      </div>
     );
   }
 
+  // Main prediction card - completely redesigned
   return (
     <>
       <motion.div
         whileHover={{ y: -1 }}
         transition={{ type: "spring", stiffness: 300, damping: 30 }}
-        className="prediction-card-compact prediction-card"
+        className="prediction-card"
       >
-        <Card 
-          className="cursor-pointer overflow-hidden hover:shadow-md transition-shadow"
+        <div 
+          className="bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer overflow-hidden"
           onClick={handleCardClick}
         >
-          <CardContent className="p-2.5">
-            {/* Header - More compact */}
-            <div className="flex items-center justify-between mb-1">
-              <div className="flex items-center gap-1">
-                <div 
-                  className="avatar-clickable cursor-pointer"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    console.log('Navigating to creator profile via avatar:', prediction.creator.id);
-                    // Navigate to creator profile
-                    setLocation(`/profile/${prediction.creator.id}`);
-                  }}
-                >
-                  <Avatar className="w-5 h-5">
-                    <AvatarImage src={getAvatarUrl(prediction.creator)} />
-                    <AvatarFallback className="text-xs">
-                      {generateInitials(prediction.creator.username)}
-                    </AvatarFallback>
-                  </Avatar>
-                </div>
-                <div 
-                  className="creator-profile-link cursor-pointer hover:text-primary transition-colors"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    console.log('👤 Navigating to creator profile:', prediction.creator.id);
-                    setLocation(`/profile/${prediction.creator.id}`);
-                  }}
-                >
-                  <div className="flex items-center gap-1">
-                    <span className="text-xs font-medium">{prediction.creator.username}</span>
-                    {prediction.creator.is_verified && (
-                      <CheckCircle size={8} className="text-primary" />
-                    )}
-                  </div>
+          {/* Header Section */}
+          <div className="p-4 pb-3">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <Avatar className="w-8 h-8">
+                  <AvatarImage src={getAvatarUrl(prediction.creator)} />
+                  <AvatarFallback className="text-xs">
+                    {generateInitials(prediction.creator.username)}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="flex items-center gap-1">
+                  <span className="font-medium text-sm text-gray-900">
+                    {prediction.creator.username}
+                  </span>
+                  {prediction.creator.is_verified && (
+                    <CheckCircle size={12} className="text-primary" />
+                  )}
                 </div>
               </div>
-              <div className="text-xs bg-primary/10 text-primary px-1 py-0.5 rounded-full">
+              <div className="text-lg">
                 {categoryEmojis[prediction.category]}
               </div>
             </div>
 
-            {/* Content - More compact */}
-            <div onClick={handleCardClick}>
-              <h3 className="font-semibold text-sm mb-1 leading-tight line-clamp-2">
-                {prediction.title}
-              </h3>
-              {prediction.description && (
-                <p className="text-muted-foreground text-xs mb-1 line-clamp-1">
-                  {prediction.description}
-                </p>
-              )}
-            </div>
+            {/* Prediction Question */}
+            <h3 className="font-semibold text-gray-900 text-base leading-tight mb-2 line-clamp-2">
+              {prediction.title}
+            </h3>
+            
+            {/* Prediction Description */}
+            {prediction.description && (
+              <p className="text-sm text-gray-600 mb-3 line-clamp-2">
+                {prediction.description}
+              </p>
+            )}
+          </div>
 
-            {/* Options - Show all options with smart layout */}
-            <div className="mb-1">
-              {prediction.options.length <= 2 ? (
-                // For 1-2 options, use 2-column grid
-                <div className="grid grid-cols-2 gap-0.5">
-                  {prediction.options.map((option) => (
-                    <button
-                      key={option.id}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleQuickBet(e);
-                      }}
-                      className="bg-muted/50 rounded p-1 text-center hover:bg-muted/70 transition-colors cursor-pointer"
-                    >
-                      <div className="text-xs font-medium mb-0.5 line-clamp-1 leading-tight">{option.label}</div>
-                      <div className="text-xs text-muted-foreground">
-                        {option.percentage.toFixed(0)}% • {option.current_odds.toFixed(1)}x
-                      </div>
-                    </button>
-                  ))}
+          {/* Options Section */}
+          <div className="px-4 pb-3">
+            <div className="grid grid-cols-2 gap-2">
+              {prediction.options?.map((option, index) => (
+                <div 
+                  key={option.id}
+                  className="bg-gray-50 rounded-lg p-3 border border-gray-100"
+                >
+                                     <div className="font-medium text-sm text-gray-900 mb-1">
+                     {option.label}
+                   </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-gray-600">
+                      {option.percentage}%
+                    </span>
+                    <span className="text-sm font-semibold text-primary">
+                      {option.current_odds?.toFixed(1)}x
+                    </span>
+                  </div>
                 </div>
-              ) : prediction.options.length <= 4 ? (
-                // For 3-4 options, use 2x2 grid
-                <div className="grid grid-cols-2 gap-0.5">
-                  {prediction.options.map((option) => (
-                    <button
-                      key={option.id}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleQuickBet(e);
-                      }}
-                      className="bg-muted/50 rounded p-1 text-center hover:bg-muted/70 transition-colors cursor-pointer"
-                    >
-                      <div className="text-xs font-medium mb-0.5 line-clamp-1 leading-tight">{option.label}</div>
-                      <div className="text-xs text-muted-foreground">
-                        {option.percentage.toFixed(0)}% • {option.current_odds.toFixed(1)}x
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              ) : (
-                // For 5+ options, show first 3 with "+X more" indicator
-                <div className="space-y-0.5">
-                                  <div className="grid grid-cols-3 gap-0.5">
-                  {prediction.options.slice(0, 3).map((option) => (
-                    <button
-                      key={option.id}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleQuickBet(e);
-                      }}
-                      className="bg-muted/50 rounded p-1 text-center hover:bg-muted/70 transition-colors cursor-pointer"
-                    >
-                      <div className="text-xs font-medium mb-0.5 line-clamp-1 leading-tight">{option.label}</div>
-                      <div className="text-xs text-muted-foreground">
-                        {option.percentage.toFixed(0)}% • {option.current_odds.toFixed(1)}x
-                      </div>
-                    </button>
-                  ))}
-                </div>
-                  {prediction.options.length > 3 && (
-                    <div className="text-center">
-                      <span className="text-xs text-muted-foreground bg-muted/30 rounded px-2 py-0.5">
-                        +{prediction.options.length - 3} more options
-                      </span>
-                    </div>
-                  )}
-                </div>
-              )}
+              ))}
             </div>
+          </div>
 
-            {/* Stats - More compact */}
-            <div className="py-1 border-t border-border">
-              <div className="flex items-center justify-between text-xs">
-                <div className="flex items-center gap-2">
-                  <div className="flex items-center gap-1 text-primary font-semibold">
-                    <Zap size={9} />
-                    {formatCurrency(prediction.pool_total)}
-                  </div>
-                  <div className="flex items-center gap-1 text-muted-foreground">
-                    <Users size={9} />
-                    {prediction.participant_count}
-                  </div>
-                  <div className={cn("flex items-center gap-1", getTimeColor())}>
-                    <Clock size={9} />
-                    <span className="text-xs">{formatTimeRemaining(prediction.entry_deadline)}</span>
-                  </div>
+          {/* Stats Section */}
+          <div className="px-4 pb-3">
+            <div className="flex items-center justify-between text-xs text-gray-500">
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-1">
+                  <Zap size={12} />
+                  <span>{formatCurrency(prediction.pool_total)}</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <Users size={12} />
+                  <span>{prediction.participant_count}</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <Clock size={12} />
+                  <span className={getTimeColor()}>
+                    {formatTimeRemaining(prediction.entry_deadline)}
+                  </span>
                 </div>
               </div>
             </div>
+          </div>
 
-            {/* Actions - More compact */}
-            <div className="pt-1 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={async (e) => {
+          {/* Action Section */}
+          <div className="px-4 pb-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <button
+                  onClick={(e) => {
                     e.stopPropagation();
-                    try {
-                      await toggleLike(prediction.id);
-                    } catch (error) {
-                      console.error('Failed to toggle like:', error);
-                    }
+                    toggleLike(prediction.id);
                   }}
-                  className={cn(
-                    "text-muted-foreground hover:text-primary h-5 px-1",
-                    isLiked && "text-red-500 hover:text-red-600"
-                  )}
+                  className={`flex items-center gap-1 text-xs transition-colors ${
+                    isLiked ? 'text-red-500' : 'text-gray-500 hover:text-red-500'
+                  }`}
                 >
-                  <Heart size={10} className={cn(isLiked && "fill-current")} />
-                  <span className="ml-1 text-xs">{prediction.likes_count || 0}</span>
-                </Button>
+                  <Heart size={14} className={isLiked ? 'fill-current' : ''} />
+                  <span>{prediction.likes_count || 0}</span>
+                </button>
                 
-                <Button
-                  variant="ghost"
-                  size="sm"
+                <button
                   onClick={(e) => {
                     e.stopPropagation();
                     setShowCommentsModal(true);
                   }}
-                  className="text-muted-foreground hover:text-primary h-5 px-1"
+                  className="flex items-center gap-1 text-xs text-gray-500 hover:text-primary transition-colors"
                 >
-                  <MessageCircle size={10} />
-                  <span className="ml-1 text-xs">{prediction.comments_count || 0}</span>
-                </Button>
-
-                <Button
-                  variant="ghost"
-                  size="sm"
+                  <MessageCircle size={14} />
+                  <span>{prediction.comments_count || 0}</span>
+                </button>
+                
+                <button
                   onClick={(e) => {
                     e.stopPropagation();
                     handleShare();
                   }}
-                  className="text-muted-foreground hover:text-primary h-5 px-1"
+                  className="flex items-center gap-1 text-xs text-gray-500 hover:text-primary transition-colors"
                 >
-                  <Share2 size={10} />
-                </Button>
+                  <Share2 size={14} />
+                </button>
               </div>
-
-              <Button 
-                size="sm"
+              
+              <Button
                 onClick={handleQuickBet}
-                className="h-6 px-3 text-xs"
+                size="sm"
+                className="bg-primary hover:bg-primary/90 text-white px-4 py-2 rounded-lg text-sm font-medium"
               >
                 Predict
               </Button>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       </motion.div>
 
-      <PlacePredictionModal
-        prediction={prediction}
-        isOpen={showModal}
-        onClose={() => setShowModal(false)}
-      />
-      
-      <CommentsModal
-        predictionId={prediction.id}
-        predictionTitle={prediction.title}
-        isOpen={showCommentsModal}
-        onClose={() => setShowCommentsModal(false)}
-      />
+      {/* Modals */}
+      {showModal && (
+        <PlacePredictionModal
+          prediction={prediction}
+          isOpen={showModal}
+          onClose={() => setShowModal(false)}
+        />
+      )}
+
+             {showCommentsModal && (
+         <CommentsModal
+           predictionId={prediction.id}
+           predictionTitle={prediction.title}
+           isOpen={showCommentsModal}
+           onClose={() => setShowCommentsModal(false)}
+         />
+       )}
     </>
   );
 };
