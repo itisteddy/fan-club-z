@@ -515,10 +515,13 @@ const DiscoverPage: React.FC<{ onNavigateToProfile?: () => void }> = ({ onNaviga
     disabled: false
   });
 
-  // Fetch predictions on mount
+  // Fetch predictions on mount - optimized to prevent unnecessary reloads
   useEffect(() => {
-    fetchPredictions();
-  }, [fetchPredictions]);
+    // Only fetch if we don't already have predictions or if they're stale
+    if (!predictions || predictions.length === 0) {
+      fetchPredictions();
+    }
+  }, [fetchPredictions, predictions]);
 
   // Mock stats for now - these should come from the backend
   const stats = {

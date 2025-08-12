@@ -218,15 +218,15 @@ function App() {
 
     switch (activeTab) {
       case 'discover':
-        return <DiscoverPage onNavigateToProfile={handleNavigateToProfile} />;
+        return <DiscoverPage key="discover" onNavigateToProfile={handleNavigateToProfile} />;
       case 'bets':
-        return <BetsTab onNavigateToDiscover={handleNavigateToDiscover} />;
+        return <BetsTab key="bets" onNavigateToDiscover={handleNavigateToDiscover} />;
       case 'profile':
-        return <ProfilePage onNavigateBack={handleNavigateBackFromProfile} />;
+        return <ProfilePage key="profile" onNavigateBack={handleNavigateBackFromProfile} />;
       case 'wallet':
-        return <WalletPage />;
+        return <WalletPage key="wallet" />;
       default:
-        return <DiscoverPage onNavigateToProfile={handleNavigateToProfile} />;
+        return <DiscoverPage key="discover-default" onNavigateToProfile={handleNavigateToProfile} />;
     }
   };
 
@@ -280,26 +280,14 @@ function App() {
       <PWAInstallManager />
       
       <main className="page-content">
-        <AnimatePresence mode="wait" initial={false}>
-          <motion.div
-            key={activeTab}
-            initial={{ opacity: 0, x: 10 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -10 }}
-            transition={{ 
-              duration: 0.15, // Reduced animation duration for faster transitions
-              ease: "easeOut"
-            }}
-            style={{
-              width: '100%',
-              maxWidth: '100%',
-              overflow: 'hidden',
-              paddingBottom: 'calc(4rem + env(safe-area-inset-bottom, 1rem))'
-            }}
-          >
-            {renderPage()}
-          </motion.div>
-        </AnimatePresence>
+        <div style={{
+          width: '100%',
+          maxWidth: '100%',
+          overflow: 'hidden',
+          paddingBottom: 'calc(4rem + env(safe-area-inset-bottom, 1rem))'
+        }}>
+          {renderPage()}
+        </div>
       </main>
 
       <BottomNavigation 

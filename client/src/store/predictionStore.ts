@@ -81,6 +81,13 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
   selectedCategory: null,
 
   fetchPredictions: async (category?: string) => {
+    const state = get();
+    
+    // Don't fetch if we already have predictions and no category filter is applied
+    if (state.predictions.length > 0 && !category) {
+      return;
+    }
+    
     set({ loading: true, error: null });
     try {
       let query = supabase
