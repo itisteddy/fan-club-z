@@ -115,12 +115,12 @@ function App() {
       newActiveTab = 'profile';
     } else if (path === '/discover' || path === '/') {
       newActiveTab = 'discover';
-    } else if (path === '/predictions') {
-      newActiveTab = 'predictions';
-    } else if (path === '/create') {
-      newActiveTab = 'create';
+    } else if (path === '/bets') {
+      newActiveTab = 'bets';
     } else if (path === '/wallet') {
       newActiveTab = 'wallet';
+    } else if (path === '/profile') {
+      newActiveTab = 'profile';
     }
     
     if (newActiveTab !== activeTab) {
@@ -184,6 +184,12 @@ function App() {
     scrollToTop({ delay: 100 });
   };
 
+  // NEW: Handle FAB click to create prediction
+  const handleFABClick = () => {
+    console.log('🎯 FAB clicked - navigating to create prediction');
+    setLocation('/create');
+  };
+
   const renderPage = () => {
     // Check if we're on a prediction details page
     const path = window.location.pathname;
@@ -218,14 +224,12 @@ function App() {
     switch (activeTab) {
       case 'discover':
         return <DiscoverPage onNavigateToProfile={handleNavigateToProfile} />;
-      case 'predictions':
-        return <MyPredictionsPage onNavigateToDiscover={handleNavigateToDiscover} />;
-      case 'create':
-        return <CreatePredictionPage onNavigateBack={handleNavigateBackFromCreate} />;
-      case 'wallet':
-        return <WalletPage />;
+      case 'bets':
+        return <BetsTab onNavigateToDiscover={handleNavigateToDiscover} />;
       case 'profile':
         return <ProfilePage onNavigateBack={handleNavigateBackFromProfile} />;
+      case 'wallet':
+        return <WalletPage />;
       default:
         return <DiscoverPage onNavigateToProfile={handleNavigateToProfile} />;
     }
@@ -303,7 +307,12 @@ function App() {
         </AnimatePresence>
       </main>
 
-      <BottomNavigation activeTab={activeTab} onTabChange={handleTabChange} />
+      <BottomNavigation 
+        activeTab={activeTab} 
+        onTabChange={handleTabChange}
+        showFAB={activeTab === 'discover'}
+        onFABClick={handleFABClick}
+      />
 
       {/* Custom notification system */}
       <NotificationContainer />
