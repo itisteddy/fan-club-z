@@ -222,13 +222,20 @@ const CompactPredictionCard: React.FC<{
             </p>
           )}
           
-          {/* Options strip with odds */}
+          {/* Options strip with odds - clickable for participation */}
           <div className="flex gap-2 mb-3">
             {prediction.options?.slice(0, 2).map((option: any, idx: number) => (
-              <div key={option.id} className="flex-1 bg-gray-50 rounded-lg p-2 text-center">
+              <button
+                key={option.id}
+                onClick={(e) => {
+                  e.stopPropagation(); // Prevent card click
+                  onPredict(prediction);
+                }}
+                className="flex-1 bg-gray-50 hover:bg-gray-100 rounded-lg p-2 text-center transition-colors"
+              >
                 <div className="text-sm font-semibold text-gray-900">{option.label}</div>
                 <div className="text-xs text-gray-600">{option.current_odds?.toFixed(1)}x</div>
-              </div>
+              </button>
             ))}
           </div>
         </div>
@@ -246,13 +253,7 @@ const CompactPredictionCard: React.FC<{
             </div>
           </div>
           
-          {/* Predict button */}
-          <button
-            onClick={handlePredictClick}
-            className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors"
-          >
-            Predict
-          </button>
+
         </div>
       </div>
     </motion.div>
