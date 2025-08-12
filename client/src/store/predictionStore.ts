@@ -38,6 +38,12 @@ export interface Prediction {
     amount: number;
     potential_payout: number;
   };
+  // Additional properties for compatibility
+  poolTotal?: number;
+  entryDeadline?: string;
+  entries?: any[];
+  likes?: number;
+  comments?: number;
 }
 
 export interface PredictionOption {
@@ -47,6 +53,7 @@ export interface PredictionOption {
   total_staked: number;
   current_odds: number;
   percentage: number;
+  totalStaked?: number; // Compatibility alias
 }
 
 interface PredictionState {
@@ -63,12 +70,13 @@ interface PredictionState {
 
 interface PredictionActions {
   fetchPredictions: (category?: string, force?: boolean) => Promise<void>;
+  refreshPredictions: (force?: boolean) => Promise<void>; // Added this method
   fetchTrendingPredictions: () => Promise<void>;
   fetchUserPredictions: () => Promise<void>;
   fetchUserCreatedPredictions: (userId: string) => Promise<void>;
   getUserCreatedPredictions: (userId: string) => Prediction[];
   createPrediction: (data: any) => Promise<Prediction>;
-  placePrediction: (predictionId: string, optionId: string, amount: number) => Promise<void>;
+  placePrediction: (data: { predictionId: string; optionId: string; amount: number; userId: string }) => Promise<void>;
   setSelectedCategory: (category: string | null) => void;
   clearError: () => void;
   getPredictionById: (id: string) => Prediction | null;
@@ -91,6 +99,12 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
   getPredictionById: (id: string) => {
     const state = get();
     return state.predictions.find(p => p.id === id) || null;
+  },
+
+  // Added refreshPredictions method
+  refreshPredictions: async (force = false) => {
+    const state = get();
+    return await get().fetchPredictions(state.selectedCategory || undefined, force);
   },
 
   fetchPredictions: async (category?: string, force = false) => {
@@ -139,9 +153,16 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
 
       console.log(`✅ Fetched ${predictions?.length || 0} predictions`);
 
-      // Transform data to match our interface
+      // Transform data to match our interface with compatibility properties
       const transformedPredictions = (predictions || []).map((pred: any) => ({
         ...pred,
+        // Compatibility aliases
+        poolTotal: pred.pool_total,
+        entryDeadline: pred.entry_deadline,
+        entries: [], // Mock data for now
+        likes: pred.likes_count || 0,
+        comments: pred.comments_count || 0,
+        
         creator: pred.creator ? {
           id: pred.creator.id,
           username: pred.creator.username || pred.creator.full_name || 'Unknown',
@@ -155,6 +176,7 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
         },
         options: (pred.options || []).map((opt: any) => ({
           ...opt,
+          totalStaked: opt.total_staked, // Compatibility alias
           percentage: pred.pool_total > 0 ? (opt.total_staked / pred.pool_total) * 100 : 0
         })),
         likes_count: pred.likes_count || 0,
@@ -201,6 +223,12 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
       // Transform data
       const transformedTrending = (trendingPredictions || []).map((pred: any) => ({
         ...pred,
+        poolTotal: pred.pool_total,
+        entryDeadline: pred.entry_deadline,
+        entries: [],
+        likes: pred.likes_count || 0,
+        comments: pred.comments_count || 0,
+        
         creator: pred.creator ? {
           id: pred.creator.id,
           username: pred.creator.username || pred.creator.full_name || 'Unknown',
@@ -214,6 +242,7 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
         },
         options: (pred.options || []).map((opt: any) => ({
           ...opt,
+          totalStaked: opt.total_staked,
           percentage: pred.pool_total > 0 ? (opt.total_staked / pred.pool_total) * 100 : 0
         }))
       }));
@@ -408,7 +437,7 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
     }
   },
 
-  placePrediction: async (predictionId: string, optionId: string, amount: number) => {
+  placePrediction: async (data: { predictionId: string; optionId: string; amount: number; userId: string }) => {
     set({ loading: true, error: null });
     
     try {
@@ -426,18 +455,18 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
         throw new Error('No valid session found');
       }
 
-      console.log('🎲 Placing prediction:', { predictionId, optionId, amount });
+      console.log('🎲 Placing prediction:', data);
 
       // Use the API endpoint instead of direct database insert
-      const response = await fetch(`/api/predictions/${predictionId}/entries`, {
+      const response = await fetch(`/api/predictions/${data.predictionId}/entries`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${session.access_token}`
         },
         body: JSON.stringify({
-          option_id: optionId,
-          amount: amount
+          option_id: data.optionId,
+          amount: data.amount
         })
       });
 
@@ -452,7 +481,7 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
       // Update wallet store to reflect the prediction
       const { useWalletStore } = await import('./walletStore');
       const walletStore = useWalletStore.getState();
-      await walletStore.makePrediction(amount, `Prediction: ${result.prediction?.title || 'Unknown'}`, predictionId, 'USD');
+      await walletStore.makePrediction(data.amount, `Prediction: ${result.prediction?.title || 'Unknown'}`, data.predictionId, 'USD');
       
       // Force refresh predictions to get updated data
       await get().fetchPredictions(undefined, true);

@@ -28,7 +28,7 @@ interface AuthState {
   token: string | null;
   loading: boolean;
   initialized: boolean;
-  authCheckCount: number;
+  lastAuthCheck: number;
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string, firstName: string, lastName: string) => Promise<void>;
   logout: () => Promise<void>;
@@ -63,7 +63,9 @@ const convertSupabaseUser = (supabaseUser: any): User | null => {
   };
 };
 
+// Flag to prevent multiple auth state listeners
 let authStateChangeListenerSet = false;
+let initializationInProgress = false;
 
 export const useAuthStore = create<AuthState>()(
   persist(
@@ -73,30 +75,46 @@ export const useAuthStore = create<AuthState>()(
       token: null,
       loading: false,
       initialized: false,
-      authCheckCount: 0,
+      lastAuthCheck: 0,
 
       initializeAuth: async () => {
         const state = get();
+        const now = Date.now();
         
-        // Prevent multiple initialization attempts
-        if (state.initialized || state.authCheckCount > 3) {
-          console.log('🔄 Auth already initialized or too many attempts, skipping...');
+        // Prevent multiple concurrent initializations
+        if (initializationInProgress) {
+          console.log('🔄 Auth initialization already in progress, waiting...');
           return;
         }
 
-        set({ authCheckCount: state.authCheckCount + 1 });
-
-        // If we have persisted data, use it immediately
-        if (state.isAuthenticated && state.user) {
-          console.log('✅ Using persisted auth state for:', state.user.firstName);
-          set({ loading: false, initialized: true });
+        // Prevent frequent re-initialization (max once per 30 seconds)
+        if (state.initialized && (now - state.lastAuthCheck < 30000)) {
+          console.log('🔄 Auth recently checked, skipping initialization');
           return;
         }
 
-        set({ loading: true });
+        // If we have valid persisted data and it's recent, use it
+        if (state.isAuthenticated && state.user && state.token && (now - state.lastAuthCheck < 300000)) { // 5 minutes
+          console.log('✅ Using cached auth state for:', state.user.firstName);
+          set({ 
+            loading: false, 
+            initialized: true,
+            lastAuthCheck: now
+          });
+          return;
+        }
+
+        // Prevent concurrent initialization attempts
+        if (state.loading) {
+          console.log('🔄 Auth check already in progress...');
+          return;
+        }
+
+        initializationInProgress = true;
+        set({ loading: true, lastAuthCheck: now });
 
         try {
-          console.log('🔐 Checking authentication status...');
+          console.log('🔐 Initializing authentication...');
 
           // Get current session without triggering auth state change
           const { data: { session }, error } = await supabase.auth.getSession();
@@ -108,7 +126,8 @@ export const useAuthStore = create<AuthState>()(
               user: null, 
               token: null, 
               loading: false,
-              initialized: true
+              initialized: true,
+              lastAuthCheck: now
             });
             return;
           }
@@ -122,7 +141,8 @@ export const useAuthStore = create<AuthState>()(
               user: convertedUser,
               token: session.access_token,
               loading: false,
-              initialized: true
+              initialized: true,
+              lastAuthCheck: now
             });
           } else {
             console.log('ℹ️ No active session found');
@@ -131,7 +151,8 @@ export const useAuthStore = create<AuthState>()(
               user: null, 
               token: null, 
               loading: false,
-              initialized: true
+              initialized: true,
+              lastAuthCheck: now
             });
           }
 
@@ -142,8 +163,11 @@ export const useAuthStore = create<AuthState>()(
             user: null, 
             token: null, 
             loading: false,
-            initialized: true
+            initialized: true,
+            lastAuthCheck: now
           });
+        } finally {
+          initializationInProgress = false;
         }
       },
 
@@ -178,7 +202,9 @@ export const useAuthStore = create<AuthState>()(
               isAuthenticated: true, 
               user: convertedUser,
               token: data.session.access_token,
-              loading: false
+              loading: false,
+              initialized: true,
+              lastAuthCheck: Date.now()
             });
             
             showSuccess(`Welcome back, ${convertedUser?.firstName}!`);
@@ -238,7 +264,9 @@ export const useAuthStore = create<AuthState>()(
                 isAuthenticated: true,
                 user: convertedUser,
                 token: data.session.access_token,
-                loading: false
+                loading: false,
+                initialized: true,
+                lastAuthCheck: Date.now()
               });
               showSuccess(`Welcome to Fan Club Z, ${convertedUser?.firstName}!`);
             } else {
@@ -247,7 +275,9 @@ export const useAuthStore = create<AuthState>()(
                 isAuthenticated: true,
                 user: convertedUser,
                 token: null,
-                loading: false
+                loading: false,
+                initialized: true,
+                lastAuthCheck: Date.now()
               });
               showSuccess(`Welcome to Fan Club Z, ${convertedUser?.firstName}! Please check your email to verify your account.`);
             }
@@ -277,7 +307,8 @@ export const useAuthStore = create<AuthState>()(
             user: null,
             token: null,
             loading: false,
-            authCheckCount: 0
+            initialized: true,
+            lastAuthCheck: 0
           });
           
           showSuccess('Signed out successfully');
@@ -291,7 +322,8 @@ export const useAuthStore = create<AuthState>()(
             user: null,
             token: null,
             loading: false,
-            authCheckCount: 0
+            initialized: true,
+            lastAuthCheck: 0
           });
         }
       },
@@ -323,7 +355,8 @@ export const useAuthStore = create<AuthState>()(
             const updatedUser = convertSupabaseUser(data.user);
             set({ 
               user: updatedUser,
-              loading: false
+              loading: false,
+              lastAuthCheck: Date.now()
             });
             showSuccess('Profile updated successfully!');
           }
@@ -343,37 +376,41 @@ export const useAuthStore = create<AuthState>()(
         isAuthenticated: state.isAuthenticated,
         user: state.user,
         token: state.token,
-        initialized: state.initialized
+        initialized: state.initialized,
+        lastAuthCheck: state.lastAuthCheck
       }),
-      version: 1,
+      version: 3, // Increment version to clear old cache
     }
   )
 );
 
-// Set up auth state change listener only once
+// Set up auth state change listener only once per session
 if (typeof window !== 'undefined' && !authStateChangeListenerSet) {
   authStateChangeListenerSet = true;
   
+  console.log('🔧 Setting up auth state listener...');
+  
   supabase.auth.onAuthStateChange((event, session) => {
-    const state = useAuthStore.getState();
+    console.log('🔄 Auth state change:', event);
     
-    // Only handle specific events to prevent loops
+    // Only handle specific critical events to prevent loops
     if (event === 'SIGNED_OUT') {
       console.log('🔓 Auth state: signed out');
       useAuthStore.setState({
         isAuthenticated: false,
         user: null,
         token: null,
-        authCheckCount: 0
+        lastAuthCheck: 0
       });
     } else if (event === 'TOKEN_REFRESHED' && session?.user) {
       console.log('🔄 Auth state: token refreshed');
       const convertedUser = convertSupabaseUser(session.user);
       useAuthStore.setState({
         user: convertedUser,
-        token: session.access_token
+        token: session.access_token,
+        lastAuthCheck: Date.now()
       });
     }
-    // Ignore other events to prevent continuous re-authentication
+    // Deliberately ignore SIGNED_IN, INITIAL_SESSION to prevent re-auth loops
   });
 }
