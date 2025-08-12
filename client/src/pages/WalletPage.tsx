@@ -313,7 +313,7 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
                               {transaction.description}
                             </div>
                             <div className="text-xs text-gray-500">
-                              {formatDate(transaction.timestamp)}
+                              {formatDate(transaction.date)}
                             </div>
                           </div>
                           <div className={`text-sm font-semibold ${getTransactionColor(transaction.type)}`}>
@@ -357,7 +357,7 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
                               {transaction.description}
                             </div>
                             <div className="text-xs text-gray-500">
-                              {formatDate(transaction.timestamp)}
+                              {formatDate(transaction.date)}
                             </div>
                           </div>
                           <div className={`text-sm font-semibold ${getTransactionColor(transaction.type)}`}>
