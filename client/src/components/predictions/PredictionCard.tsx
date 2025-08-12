@@ -314,7 +314,7 @@ export const PredictionCard: React.FC<PredictionCardProps> = ({
                     e.stopPropagation();
                     handleQuickBet(e);
                   }}
-                  className="bg-gray-50 hover:bg-gray-100 rounded-lg p-3 border border-gray-200 transition-colors text-left"
+                  className="bg-gray-50 hover:bg-gray-100 rounded-lg p-3 transition-colors text-left"
                 >
                   <div className="font-medium text-sm text-gray-900 mb-1">
                     {option.label}

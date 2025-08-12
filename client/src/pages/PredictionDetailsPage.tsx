@@ -231,19 +231,27 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
         >
           {/* Creator Info */}
           <div className="flex items-center gap-3 mb-4">
-            <div className="w-10 h-10 bg-gradient-to-br from-green-400 to-green-600 rounded-full flex items-center justify-center">
-              <span className="text-white font-bold text-sm">
-                {prediction.creator?.username?.charAt(0) || 'FC'}
-              </span>
-            </div>
-            <div>
-              <div className="font-semibold text-gray-900">
-                {prediction.creator?.username || 'Fan Club Z'}
+            <button
+              onClick={() => {
+                console.log('👤 Navigating to creator profile from details:', prediction.creator?.id);
+                setLocation(`/profile/${prediction.creator?.id}`);
+              }}
+              className="flex items-center gap-3 hover:opacity-80 transition-opacity cursor-pointer"
+            >
+              <div className="w-10 h-10 bg-gradient-to-br from-green-400 to-green-600 rounded-full flex items-center justify-center">
+                <span className="text-white font-bold text-sm">
+                  {prediction.creator?.username?.charAt(0)?.toUpperCase() || 'FC'}
+                </span>
               </div>
-              <div className="text-sm text-gray-500">
-                {new Date(prediction.created_at).toLocaleDateString()}
+              <div>
+                <div className="font-semibold text-gray-900 hover:text-primary transition-colors">
+                  {prediction.creator?.username || 'Fan Club Z'}
+                </div>
+                <div className="text-sm text-gray-500">
+                  {new Date(prediction.created_at).toLocaleDateString()}
+                </div>
               </div>
-            </div>
+            </button>
           </div>
 
           {/* Title */}

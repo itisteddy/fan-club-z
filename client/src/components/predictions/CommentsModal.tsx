@@ -185,12 +185,6 @@ export const CommentsModal: React.FC<CommentsModalProps> = ({
               {/* Comment Input - Always Visible at Bottom */}
               <div className="border-t border-gray-200 p-6 flex-shrink-0 bg-white">
                 <div className="flex gap-3">
-                  <Avatar className="w-8 h-8 flex-shrink-0">
-                    <AvatarImage src={user ? getAvatarUrl(user) : undefined} />
-                    <AvatarFallback className="text-xs">
-                      {user ? generateInitials(user.firstName) : 'U'}
-                    </AvatarFallback>
-                  </Avatar>
                   <div className="flex-1 flex gap-3">
                     <Input
                       value={newComment}
