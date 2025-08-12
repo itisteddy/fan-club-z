@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { useAuthStore } from '../../store/authStore';
-import { Navigate } from 'react-router-dom';
+import { useLocation } from 'wouter';
 
 const AuthCallbackPage: React.FC = () => {
   const { handleOAuthCallback, isAuthenticated, loading } = useAuthStore();
+  const [, navigate] = useLocation();
   const [callbackProcessed, setCallbackProcessed] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -39,7 +40,8 @@ const AuthCallbackPage: React.FC = () => {
 
   // Redirect to app if authenticated
   if (isAuthenticated) {
-    return <Navigate to="/" replace />;
+    navigate('/');
+    return null;
   }
 
   // Show error state
