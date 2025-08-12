@@ -3,6 +3,7 @@
 @import './styles/compact-cards.css';
 @import './styles/pwa.css';
 @import './styles/category-filters.css';
+@import './styles/layout-fixes.css';
 
 @tailwind base;
 @tailwind components;

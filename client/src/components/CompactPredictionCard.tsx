@@ -57,7 +57,8 @@ const CompactPredictionCard: React.FC<CompactPredictionCardProps> = ({
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.1 }}
-      className="bg-white rounded-2xl p-4 mx-4 mb-3 shadow-sm border border-gray-100"
+      className="bg-white rounded-2xl p-4 mb-3 shadow-sm border border-gray-100"
+      style={{ margin: '0 1rem 0.75rem 1rem' }}
     >
       {/* Header */}
       <div className="flex items-start justify-between mb-3">

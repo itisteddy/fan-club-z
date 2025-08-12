@@ -97,7 +97,10 @@ export const useAuthStore = create<AuthState>()(
 
         // If we have valid persisted data and it's recent, use it
         if (state.isAuthenticated && state.user && state.token && (now - state.lastAuthCheck < 300000)) { // 5 minutes
-          console.log('✅ Using cached auth state for:', state.user.firstName);
+          // Only log once per session for cached auth
+          if (!state.initialized) {
+            console.log('✅ Using cached auth state for:', state.user.firstName);
+          }
           set({ 
             loading: false, 
             initialized: true,
@@ -136,7 +139,9 @@ export const useAuthStore = create<AuthState>()(
 
           if (session?.user) {
             const convertedUser = convertSupabaseUser(session.user);
-            console.log('✅ Found active session for:', convertedUser?.firstName);
+            if (!state.initialized) {
+              console.log('✅ Found active session for:', convertedUser?.firstName);
+            }
             
             set({ 
               isAuthenticated: true, 
@@ -147,7 +152,9 @@ export const useAuthStore = create<AuthState>()(
               lastAuthCheck: now
             });
           } else {
-            console.log('ℹ️ No active session found');
+            if (!state.initialized) {
+              console.log('ℹ️ No active session found');
+            }
             set({ 
               isAuthenticated: false, 
               user: null, 

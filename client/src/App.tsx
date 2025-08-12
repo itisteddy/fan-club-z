@@ -79,7 +79,12 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = memo(({ children }) 
   // Memoized function to get current tab with better path matching
   const getCurrentTab = useCallback(() => {
     const path = location.toLowerCase();
-    console.log('🗺️ Current path:', path);
+    // Only log path changes, not every render
+    const currentTab = getCurrentTabFromPath(path);
+    return currentTab;
+  }, [location]);
+  
+  const getCurrentTabFromPath = (path: string) => {
     
     if (path === '/' || path === '/discover') return 'discover';
     if (path.startsWith('/bets')) return 'bets';
@@ -87,7 +92,7 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = memo(({ children }) 
     if (path.startsWith('/wallet')) return 'wallet';
     if (path.startsWith('/create')) return 'create';
     return 'discover';
-  }, [location]);
+  };
 
   // Enhanced tab change handler with forced navigation
   const handleTabChange = useCallback((tab: string) => {
@@ -379,7 +384,10 @@ function App() {
 
   // Log auth state changes for debugging (less verbose)
   useEffect(() => {
-    console.log('🔐 Auth state:', { isAuthenticated, loading, initialized });
+    // Only log significant auth state changes
+    if (!loading) {
+      console.log('🔐 Auth state settled:', { isAuthenticated, initialized });
+    }
   }, [isAuthenticated, loading, initialized]);
 
   return (
@@ -407,12 +415,9 @@ function App() {
                 <Route path="/prediction/:id" component={PredictionDetailsWrapper} />
                 <Route path="/profile/:id" component={UserProfileWrapper} />
                 
-                {/* Fallback to discover with logging */}
+                {/* Fallback to discover */}
                 <Route>
-                  {(params) => {
-                    console.log('🔄 Fallback route hit with params:', params);
-                    return <DiscoverPageWrapper />;
-                  }}
+                  <DiscoverPageWrapper />
                 </Route>
               </Switch>
             </MainLayout>

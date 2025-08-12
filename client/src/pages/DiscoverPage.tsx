@@ -295,35 +295,41 @@ const DiscoverPage: React.FC<DiscoverPageProps> = memo(({ onNavigateToProfile })
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 discover-page" style={{ paddingBottom: 'calc(5rem + env(safe-area-inset-bottom))' }}>
-      {/* Header */}
-      <MobileHeader 
-        user={user} 
-        stats={stats} 
-        searchQuery={searchQuery}
-        onSearchChange={handleSearchChange}
-        onNavigateToProfile={onNavigateToProfile || (() => console.log('No navigation handler provided'))}
-      />
+    <div className="discover-page content-with-bottom-nav">
+      {/* Header with proper z-index */}
+      <div className="discover-header">
+        <div className="header-content">
+          <MobileHeader 
+            user={user} 
+            stats={stats} 
+            searchQuery={searchQuery}
+            onSearchChange={handleSearchChange}
+            onNavigateToProfile={onNavigateToProfile || (() => console.log('No navigation handler provided'))}
+          />
+        </div>
+      </div>
 
-      {/* Category filters */}
-      <CategoryFilters 
-        selectedCategory={selectedCategory} 
-        onSelect={handleCategorySelect} 
-      />
+      {/* Category filters with proper z-index */}
+      <div className="category-filters">
+        <CategoryFilters 
+          selectedCategory={selectedCategory} 
+          onSelect={handleCategorySelect} 
+        />
+      </div>
 
-      {/* Content */}
-      <div className="py-4">
+      {/* Content with proper spacing */}
+      <div className="prediction-cards-container">
         {/* Section header */}
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
-          className="px-4 mb-6"
+          className="px-4 mb-4"
         >
-          <h2 className="text-2xl font-bold text-gray-900 mb-1">
+          <h2 className="text-xl font-bold text-gray-900 mb-1">
             {selectedCategory === 'all' ? 'All Predictions' : `${selectedCategory} Predictions`}
             {searchQuery && ` - "${searchQuery}"`}
           </h2>
-          <p className="text-gray-600">
+          <p className="text-sm text-gray-600">
             {filteredPredictions.length} predictions available
           </p>
         </motion.div>
