@@ -37,6 +37,7 @@ const WalletPage: React.FC = () => {
     error,
     addFunds,
     withdraw,
+    resetDemoBalance,
     getBalance,
     getTransactionHistory,
     setDemoMode,
@@ -96,6 +97,15 @@ const WalletPage: React.FC = () => {
     }
   }, [showDepositModal, showWithdrawModal, clearError]);
 
+  // Handle reset demo balance
+  const handleResetDemoBalance = async () => {
+    try {
+      await resetDemoBalance();
+    } catch (error) {
+      console.error('Failed to reset demo balance:', error);
+    }
+  };
+
   // Calculate wallet data
   const primaryBalance = getBalance('NGN');
   const totalUSDValue = balances.reduce((total, balance) => {
@@ -125,17 +135,17 @@ const WalletPage: React.FC = () => {
       }
 
       if (amount < 100) {
-        throw new Error('Minimum deposit amount is $100');
+        throw new Error('Minimum deposit amount is ₦100');
       }
 
       if (amount > 100000) {
-        throw new Error('Maximum deposit amount is $100,000');
+        throw new Error('Maximum deposit amount is ₦100,000');
       }
 
       await addFunds(amount, depositForm.currency, 'Demo Funds');
       
       setShowDepositModal(false);
-      setDepositForm({ amount: '', currency: 'USD' });
+      setDepositForm({ amount: '', currency: 'NGN' });
     } catch (error) {
       // Error is handled by the store - do nothing as store will show notification
       console.error('Deposit error:', error);
@@ -383,12 +393,12 @@ const WalletPage: React.FC = () => {
               <motion.button
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
-                onClick={() => setShowWithdrawModal(true)}
-                disabled={isLoading || primaryBalance <= 0}
+                onClick={() => isDemoMode ? handleResetDemoBalance() : setShowWithdrawModal(true)}
+                disabled={isLoading || (isDemoMode ? false : primaryBalance <= 0)}
                 className="flex items-center justify-center gap-2 p-4 bg-white/20 backdrop-blur-sm rounded-2xl text-white font-semibold hover:bg-white/30 transition-all duration-200 disabled:opacity-60"
               >
-                <Minus size={20} />
-                <span>Withdraw</span>
+                {isDemoMode ? <RefreshCcw size={20} /> : <Minus size={20} />}
+                <span>{isDemoMode ? 'Reset Demo' : 'Withdraw'}</span>
               </motion.button>
             </div>
           </motion.div>
@@ -691,7 +701,7 @@ const WalletPage: React.FC = () => {
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">Amount</label>
                   <div className="relative">
-                    <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">$</span>
+                    <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">₦</span>
                     <input
                       type="number"
                       value={depositForm.amount}
@@ -707,7 +717,7 @@ const WalletPage: React.FC = () => {
                         onClick={() => setDepositForm({ ...depositForm, amount: amount.toString() })}
                         className="flex-1 py-2 px-3 text-sm font-semibold text-green-600 bg-green-50 rounded-lg hover:bg-green-100 transition-colors"
                       >
-                        ${amount.toLocaleString()}
+                        ₦{amount.toLocaleString()}
                       </button>
                     ))}
                   </div>

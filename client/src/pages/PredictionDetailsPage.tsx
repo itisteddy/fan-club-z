@@ -127,7 +127,7 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
       return;
     }
 
-    const userBalance = getBalance('USD');
+    const userBalance = getBalance('NGN');
     if (amount > userBalance) {
       toast.error('Insufficient wallet balance');
       return;
@@ -270,7 +270,7 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
           <div className="grid grid-cols-3 gap-4 mb-4">
             <div className="text-center">
               <div className="text-2xl font-bold text-green-600">
-                ${prediction.pool_total?.toLocaleString() || '0'}
+                ₦{prediction.pool_total?.toLocaleString() || '0'}
               </div>
               <div className="text-sm text-gray-500">Total Pool</div>
             </div>

@@ -44,6 +44,7 @@ interface WalletState {
   simulateNetworkDelay: () => Promise<void>;
   clearError: () => void;
   refreshWalletData: () => Promise<void>;
+  resetDemoBalance: () => Promise<void>;
 }
 
 const generateDemoReference = (type: string): string => {
@@ -345,8 +346,14 @@ export const useWalletStore = create<WalletState>()(
         try {
           const currentBalance = getBalance(currency);
           
+          // Prevent negative balances
           if (amount > currentBalance) {
             throw new Error('Insufficient funds for withdrawal');
+          }
+
+          // For demo mode, prevent withdrawals that would result in negative balance
+          if (isDemoMode && amount >= currentBalance) {
+            throw new Error('Demo mode: Cannot withdraw all funds. Please keep some balance for testing.');
           }
 
           if (isDemoMode) {
@@ -358,6 +365,24 @@ export const useWalletStore = create<WalletState>()(
           if (!user) {
             throw new Error('User not authenticated');
           }
+
+          // Get current wallet data
+          const { data: currentWallet, error: walletFetchError } = await supabase
+            .from('wallets')
+            .select('*')
+            .eq('user_id', user.id)
+            .eq('currency', currency)
+            .single();
+
+          if (walletFetchError && walletFetchError.code !== 'PGRST116') {
+            throw new Error(`Failed to fetch wallet: ${walletFetchError.message}`);
+          }
+
+          // Calculate new balance
+          const newAvailableBalance = currentWallet ? 
+            Math.max(0, currentWallet.available_balance - amount) : 0;
+          const newTotalWithdrawn = currentWallet ? 
+            currentWallet.total_withdrawn + amount : amount;
 
           // Create transaction record
           const { data: transaction, error: transactionError } = await supabase
@@ -385,10 +410,10 @@ export const useWalletStore = create<WalletState>()(
             .upsert({
               user_id: user.id,
               currency: currency,
-              available_balance: -amount,
-              reserved_balance: 0,
-              total_deposited: 0,
-              total_withdrawn: amount,
+              available_balance: newAvailableBalance,
+              reserved_balance: currentWallet?.reserved_balance || 0,
+              total_deposited: currentWallet?.total_deposited || 0,
+              total_withdrawn: newTotalWithdrawn,
               updated_at: new Date().toISOString()
             }, {
               onConflict: 'user_id,currency'
@@ -401,8 +426,11 @@ export const useWalletStore = create<WalletState>()(
           // Refresh wallet data
           await get().refreshWalletData();
 
-          showDemoNotification(`Withdrew ${amount.toLocaleString()} ${currency} to ${destination}`, 'success');
-          
+          showDemoNotification(
+            `Successfully withdrew ${amount.toLocaleString()} ${currency}${isDemoMode ? ' (Demo)' : ''}`,
+            'success'
+          );
+
           return {
             id: transaction.id,
             type: 'withdraw',
@@ -417,6 +445,58 @@ export const useWalletStore = create<WalletState>()(
 
         } catch (error) {
           const errorMessage = error instanceof Error ? error.message : 'Withdrawal failed';
+          set({ error: errorMessage, isLoading: false });
+          showDemoNotification(errorMessage, 'error');
+          throw error;
+        }
+      },
+
+      // Add reset demo balance function
+      resetDemoBalance: async () => {
+        const { isDemoMode } = get();
+        
+        if (!isDemoMode) {
+          throw new Error('Reset balance is only available in demo mode');
+        }
+
+        set({ isLoading: true, error: null });
+
+        try {
+          // Get current user
+          const { data: { user } } = await supabase.auth.getUser();
+          if (!user) {
+            throw new Error('User not authenticated');
+          }
+
+          // Reset balances to demo amounts
+          const demoBalances = [
+            { currency: 'NGN', available_balance: 50000, total_deposited: 50000 },
+            { currency: 'USD', available_balance: 1000, total_deposited: 1000 }
+          ];
+
+          for (const balance of demoBalances) {
+            await supabase
+              .from('wallets')
+              .upsert({
+                user_id: user.id,
+                currency: balance.currency,
+                available_balance: balance.available_balance,
+                reserved_balance: 0,
+                total_deposited: balance.total_deposited,
+                total_withdrawn: 0,
+                updated_at: new Date().toISOString()
+              }, {
+                onConflict: 'user_id,currency'
+              });
+          }
+
+          // Refresh wallet data
+          await get().refreshWalletData();
+
+          showDemoNotification('Demo balance reset successfully!', 'success');
+
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : 'Failed to reset demo balance';
           set({ error: errorMessage, isLoading: false });
           showDemoNotification(errorMessage, 'error');
           throw error;

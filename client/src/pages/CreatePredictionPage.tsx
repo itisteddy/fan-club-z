@@ -102,13 +102,15 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
         return !!(type && options.every(opt => opt.label.trim()));
       case 3:
         return !!(entryDeadline && stakeMin);
+      case 4:
+        return true; // Preview step is always valid
       default:
         return true;
     }
   }, [title, category, type, options, entryDeadline, stakeMin]);
 
   const handleNext = useCallback(() => {
-    if (validateStep(step) && step < 3) {
+    if (validateStep(step) && step < 4) {
       setStep(step + 1);
       // Scroll to top when advancing to next step
       scrollToTop({ delay: 150 });
@@ -129,7 +131,7 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
   }, [step, onNavigateBack]);
 
   const handleSubmit = useCallback(async () => {
-    if (!validateStep(3)) {
+    if (!validateStep(4)) {
       toast.error('Please fill in all required fields');
       return;
     }
@@ -649,6 +651,100 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
                 </div>
               </motion.div>
             )}
+
+            {/* Step 4: Preview & Confirmation */}
+            {step === 4 && (
+              <motion.div
+                key="step4"
+                initial={{ opacity: 0, x: 50 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -50 }}
+                transition={{ duration: 0.3 }}
+              >
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-purple-600 rounded-2xl flex items-center justify-center">
+                    <Check size={24} className="text-white" />
+                  </div>
+                  <div>
+                    <h2 className="text-2xl font-bold text-gray-900">Preview & Confirm</h2>
+                    <p className="text-gray-600">Review your prediction before publishing</p>
+                  </div>
+                </div>
+
+                <div className="space-y-6">
+                  {/* Prediction Preview Card */}
+                  <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm">
+                    <h3 className="text-lg font-bold text-gray-900 mb-4">Prediction Preview</h3>
+                    
+                    {/* Title */}
+                    <div className="mb-4">
+                      <label className="block text-sm font-medium text-gray-600 mb-1">Title</label>
+                      <p className="text-lg font-semibold text-gray-900">{title}</p>
+                    </div>
+
+                    {/* Description */}
+                    {description && (
+                      <div className="mb-4">
+                        <label className="block text-sm font-medium text-gray-600 mb-1">Description</label>
+                        <p className="text-gray-700">{description}</p>
+                      </div>
+                    )}
+
+                    {/* Category */}
+                    <div className="mb-4">
+                      <label className="block text-sm font-medium text-gray-600 mb-1">Category</label>
+                      <span className="inline-block px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm font-medium">
+                        {categories.find(cat => cat.id === category)?.label || category}
+                      </span>
+                    </div>
+
+                    {/* Options */}
+                    <div className="mb-4">
+                      <label className="block text-sm font-medium text-gray-600 mb-2">Options</label>
+                      <div className="space-y-2">
+                        {options.map((option, index) => (
+                          <div key={option.id} className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                            <span className="text-sm font-medium text-gray-600">Option {index + 1}:</span>
+                            <span className="font-semibold text-gray-900">{option.label}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Settings */}
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-600 mb-1">Stake Limits</label>
+                        <p className="text-gray-900">₦{stakeMin} - ₦{stakeMax}</p>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-600 mb-1">Deadline</label>
+                        <p className="text-gray-900">{new Date(entryDeadline).toLocaleString()}</p>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-600 mb-1">Settlement</label>
+                        <p className="text-gray-900 capitalize">{settlementMethod}</p>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-600 mb-1">Privacy</label>
+                        <p className="text-gray-900">{isPrivate ? 'Private' : 'Public'}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Confirmation Message */}
+                  <div className="bg-green-50 border border-green-200 rounded-2xl p-4">
+                    <div className="flex items-center gap-3">
+                      <CheckCircle size={20} className="text-green-600" />
+                      <div>
+                        <h4 className="font-semibold text-green-800">Ready to Publish</h4>
+                        <p className="text-sm text-green-700">Your prediction looks good! Click "Create Prediction" to publish it.</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </motion.div>
+            )}
           </AnimatePresence>
 
           {/* Navigation Buttons */}
@@ -662,7 +758,7 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
               {step === 1 ? 'Cancel' : 'Back'}
             </motion.button>
 
-            {step < 3 ? (
+            {step < 4 ? (
               <motion.button
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
@@ -674,16 +770,16 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
                     : 'bg-gray-300 text-gray-500 cursor-not-allowed'
                 }`}
               >
-                Continue
+                {step === 3 ? 'Preview' : 'Continue'}
               </motion.button>
             ) : (
               <motion.button
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
                 onClick={handleSubmit}
-                disabled={!validateStep(3) || isSubmitting}
+                disabled={!validateStep(4) || isSubmitting}
                 className={`px-8 py-3 font-semibold rounded-xl shadow-lg transition-all duration-200 flex items-center gap-2 ${
-                  validateStep(3) && !isSubmitting
+                  validateStep(4) && !isSubmitting
                     ? 'bg-gradient-to-r from-green-500 to-green-600 text-white shadow-green-500/25 hover:shadow-xl hover:shadow-green-500/30'
                     : 'bg-gray-300 text-gray-500 cursor-not-allowed'
                 }`}
