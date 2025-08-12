@@ -104,10 +104,10 @@ const BetDetailPage: React.FC = () => {
                 {option.label}
               </div>
               <div className="prediction-option-value">
-                {index === 0 ? '15,000' : '8,500'}
+                {(index === 0 ? 15000 : 8500).toLocaleString('en-US')}
               </div>
               <div className="prediction-option-amount">
-                ${index === 0 ? '15,000' : '8,500'}
+                ${(index === 0 ? 15000 : 8500).toLocaleString('en-US')}
               </div>
             </div>
           ))}

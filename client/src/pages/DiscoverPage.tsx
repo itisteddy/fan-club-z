@@ -63,7 +63,7 @@ const MobileHeader: React.FC<{
         <div className="grid grid-cols-3 gap-4">
           <div className="text-center">
             <div className="text-white text-xl font-bold">
-              ${stats.totalVolume.toLocaleString()}
+              ${stats.totalVolume.toLocaleString('en-US')}
             </div>
             <div className="text-green-100 text-xs font-medium uppercase tracking-wide">
               Total Volume
@@ -81,7 +81,7 @@ const MobileHeader: React.FC<{
             
           <div className="text-center">
             <div className="text-white text-xl font-bold">
-              ${stats.todayVolume.toLocaleString()}
+              ${stats.todayVolume.toLocaleString('en-US')}
             </div>
             <div className="text-green-100 text-xs font-medium uppercase tracking-wide">
               Today
@@ -303,7 +303,7 @@ const PredictionModal: React.FC<{
       // Make prediction and deduct from wallet
       await makePrediction(numAmount, `Prediction: ${selectedOption.label}`, prediction.id, 'USD');
       
-      toast.success(`Successfully placed $${numAmount.toLocaleString()} on "${selectedOption.label}"!`);
+      toast.success(`Successfully placed ${numAmount.toLocaleString('en-US')} on "${selectedOption.label}"!`);
       onClose();
       
       // Reset form
@@ -415,7 +415,7 @@ const PredictionModal: React.FC<{
                     </div>
                     <div className="flex items-center justify-between text-xs text-gray-500 mt-1">
                       <span>Min: $1</span>
-                      <span>Balance: ${usdBalance.toLocaleString()}</span>
+                      <span>Balance: ${usdBalance.toLocaleString('en-US')}</span>
                     </div>
                   </div>
 
@@ -447,7 +447,7 @@ const PredictionModal: React.FC<{
                         <div>
                           <div className="text-sm text-gray-600">Potential return</div>
                           <div className="text-lg font-bold text-green-600">
-                            ${potentialPayout.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            ${potentialPayout.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                           </div>
                         </div>
                         <div className="text-right">
@@ -455,7 +455,7 @@ const PredictionModal: React.FC<{
                           <div className={`font-semibold ${
                             potentialPayout > numAmount ? 'text-green-600' : 'text-red-600'
                           }`}>
-                            ${(potentialPayout - numAmount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            ${(potentialPayout - numAmount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                           </div>
                         </div>
                       </div>
@@ -483,7 +483,7 @@ const PredictionModal: React.FC<{
                   Placing Bet...
                 </div>
               ) : (
-                `Place Bet${numAmount > 0 ? ` ($${numAmount.toLocaleString()})` : ''}`
+                `Place Bet${numAmount > 0 ? ` (${numAmount.toLocaleString('en-US')})` : ''}`
               )}
             </button>
           </div>

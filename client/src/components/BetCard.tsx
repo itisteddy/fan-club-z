@@ -61,7 +61,7 @@ const BetCard: React.FC<BetCardProps> = ({
           
           <div className="flex items-center justify-between">
             <div>
-              <div className="text-2xl font-bold">${totalPool.toLocaleString()}</div>
+              <div className="text-2xl font-bold">${totalPool.toLocaleString('en-US')}</div>
               <div className="text-sm opacity-90">Total Pool</div>
             </div>
             <motion.button
@@ -113,13 +113,13 @@ const BetCard: React.FC<BetCardProps> = ({
         <div className="grid grid-cols-2 gap-3 mb-3">
           <div className="bg-gray-50/80 rounded-lg p-3">
             <div className="text-xs text-gray-600 mb-1">Your Investment</div>
-            <div className="text-lg font-bold text-gray-900">${(bet.stakeMin * 2).toLocaleString()}</div>
+            <div className="text-lg font-bold text-gray-900">${(bet.stakeMin * 2).toLocaleString('en-US')}</div>
           </div>
           <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-lg p-3">
             <div className="text-xs text-gray-600 mb-1">
               {bet.status === 'settled' ? 'Final Return' : 'Potential Return'}
             </div>
-            <div className="text-lg font-bold text-green-700">${(bet.stakeMin * 3.5).toLocaleString()}</div>
+            <div className="text-lg font-bold text-green-700">${(bet.stakeMin * 3.5).toLocaleString('en-US')}</div>
             <div className="text-xs text-green-600 font-medium">+75% gain</div>
           </div>
         </div>
@@ -309,7 +309,7 @@ const BetCard: React.FC<BetCardProps> = ({
                           {option.label}
                         </div>
                         <div className="text-sm text-gray-600">
-                          {percentage.toFixed(0)}% backing • ${option.totalStaked?.toLocaleString() || '0'}
+                          {percentage.toFixed(0)}% backing • ${option.totalStaked?.toLocaleString('en-US') || '0'}
                         </div>
                       </div>
                       <div className="flex items-center gap-4">
@@ -363,7 +363,7 @@ const BetCard: React.FC<BetCardProps> = ({
               <div className="w-6 h-6 rounded-full bg-gradient-to-r from-green-500 to-emerald-500 flex items-center justify-center">
                 <span className="text-white text-xs font-bold">$</span>
               </div>
-              <span className="font-semibold text-gray-900">${totalPool.toLocaleString()}</span>
+              <span className="font-semibold text-gray-900">${totalPool.toLocaleString('en-US')}</span>
               <span className="text-gray-500">pool</span>
             </div>
             <div className="flex items-center gap-1 text-gray-600">

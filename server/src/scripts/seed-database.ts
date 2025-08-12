@@ -2,7 +2,7 @@ import { createClient } from '@supabase/supabase-js';
 import { config } from '../config';
 import { logger } from '../utils/logger';
 
-const supabase = createClient(config.supabase.url, config.supabase.serviceKey);
+const supabase = createClient(config.supabase.url, config.supabase.serviceRoleKey);
 
 export async function seedDatabase() {
   try {
