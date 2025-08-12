@@ -1,224 +1,129 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
-  Wallet, 
-  ArrowUpRight, 
-  ArrowDownLeft, 
-  Eye, 
-  EyeOff, 
+  ArrowLeft, 
   Plus, 
   Minus, 
-  History, 
-  CreditCard, 
-  Smartphone,
-  TrendingUp,
+  RefreshCw, 
+  TrendingUp, 
+  TrendingDown, 
   DollarSign,
-  Copy,
-  ExternalLink,
-  RefreshCcw,
-  AlertCircle,
-  CheckCircle,
   Clock,
-  X,
-  Send,
-  Banknote,
-  Shield
+  CheckCircle,
+  AlertCircle,
+  ChevronRight,
+  Download,
+  Upload
 } from 'lucide-react';
-import { useWalletStore, type Transaction } from '../store/walletStore';
+import { useWalletStore } from '../store/walletStore';
+import { useAuthStore } from '../store/authStore';
+import { useLocation } from 'wouter';
 import { scrollToTop } from '../utils/scroll';
-import { usePullToRefresh } from '../utils/pullToRefresh';
+import toast from 'react-hot-toast';
 
-const WalletPage: React.FC = () => {
-  const {
-    balances,
-    transactions,
-    isDemoMode,
-    isLoading,
-    error,
-    addFunds,
-    withdraw,
+interface WalletPageProps {
+  onNavigateBack?: () => void;
+}
+
+const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
+  const [activeTab, setActiveTab] = useState<'overview' | 'transactions'>('overview');
+  const [isAddingFunds, setIsAddingFunds] = useState(false);
+  const [isResetting, setIsResetting] = useState(false);
+  const [selectedAmount, setSelectedAmount] = useState<number | null>(null);
+  const [customAmount, setCustomAmount] = useState('');
+  
+  const { 
+    getBalance, 
+    getTransactions, 
+    addFunds, 
     resetDemoBalance,
-    getBalance,
-    getTransactionHistory,
-    setDemoMode,
-    initializeWallet,
-    clearError
+    isDemoMode 
   } = useWalletStore();
-
-  const [showBalance, setShowBalance] = useState(true);
-  const [activeTab, setActiveTab] = useState('overview');
-  const [showDepositModal, setShowDepositModal] = useState(false);
-  const [showWithdrawModal, setShowWithdrawModal] = useState(false);
-  const [showDemoAlert, setShowDemoAlert] = useState(false);
-
-  // Deposit form state
-  const [depositForm, setDepositForm] = useState({
-    amount: '',
-    currency: 'NGN' as 'NGN' | 'USD' | 'USDT' | 'ETH'
-  });
-
-  // Withdrawal form state
-  const [withdrawForm, setWithdrawForm] = useState({
-    amount: '',
-    currency: 'NGN' as 'NGN' | 'USD' | 'USDT' | 'ETH',
-    destination: ''
-  });
+  const { user } = useAuthStore();
+  const [, setLocation] = useLocation();
 
   // Scroll to top when component mounts
   useEffect(() => {
-    scrollToTop({ behavior: 'instant' });
+    scrollToTop({ delay: 200 });
   }, []);
 
-  // Pull to refresh functionality - refresh wallet balance and transactions
-  const handleRefresh = useCallback(async () => {
-    console.log('Pull to refresh triggered on Wallet page');
-    // Wallet data is already persistent and updated in real-time
-    // We could add a small delay for user feedback
-    await new Promise(resolve => setTimeout(resolve, 500));
-  }, []);
+  const usdBalance = getBalance('USD') || 0;
+  const transactions = getTransactions('USD') || [];
+  
+  // Demo mode quick amounts
+  const quickAmounts = [10, 25, 50, 100];
 
-  usePullToRefresh(handleRefresh, {
-    threshold: 60,
-    disabled: false
-  });
-
-  // Initialize wallet on mount
-  useEffect(() => {
-    initializeWallet();
-    if (isDemoMode && !showDemoAlert) {
-      setShowDemoAlert(true);
+  const handleAddFunds = async (amount: number) => {
+    if (amount <= 0) {
+      toast.error('Please enter a valid amount');
+      return;
     }
-  }, [initializeWallet, isDemoMode, showDemoAlert]);
 
-  // Clear error when modals close
-  useEffect(() => {
-    if (!showDepositModal && !showWithdrawModal) {
-      clearError();
+    setIsAddingFunds(true);
+    
+    try {
+      await addFunds(amount, 'Demo funds added', 'USD');
+      toast.success(`Successfully added $${amount.toLocaleString()} to your wallet!`);
+      setSelectedAmount(null);
+      setCustomAmount('');
+    } catch (error) {
+      toast.error('Failed to add funds. Please try again.');
+    } finally {
+      setIsAddingFunds(false);
     }
-  }, [showDepositModal, showWithdrawModal, clearError]);
+  };
 
-  // Handle reset demo balance
-  const handleResetDemoBalance = async () => {
+  const handleResetDemo = async () => {
+    setIsResetting(true);
+    
     try {
       await resetDemoBalance();
+      toast.success('Demo balance reset successfully!');
     } catch (error) {
-      console.error('Failed to reset demo balance:', error);
+      toast.error('Failed to reset demo balance. Please try again.');
+    } finally {
+      setIsResetting(false);
     }
   };
 
-  // Calculate wallet data
-  const primaryBalance = getBalance('NGN');
-  const totalUSDValue = balances.reduce((total, balance) => {
-    // Mock exchange rates for demo
-    const rates = { USD: 1, NGN: 850, USDT: 1, ETH: 2400 };
-    return total + (balance.total * (rates[balance.currency] || 1));
-  }, 0);
-
-  const todayTransactions = transactions.filter(t => {
-    const today = new Date();
-    const transactionDate = new Date(t.date);
-    return transactionDate.toDateString() === today.toDateString();
-  });
-
-  const todayChange = todayTransactions.reduce((sum, t) => {
-    return sum + (t.type === 'deposit' || t.type === 'win' ? t.amount : 
-                  t.type === 'withdraw' || t.type === 'prediction' || t.type === 'loss' ? -t.amount : 0);
-  }, 0);
-
-  const todayChangePercent = primaryBalance > 0 ? (todayChange / primaryBalance) * 100 : 0;
-
-  const handleDeposit = async () => {
-    try {
-      const amount = parseFloat(depositForm.amount);
-      if (isNaN(amount) || amount <= 0) {
-        throw new Error('Please enter a valid amount');
-      }
-
-      if (amount < 100) {
-        throw new Error('Minimum deposit amount is ₦100');
-      }
-
-      if (amount > 100000) {
-        throw new Error('Maximum deposit amount is ₦100,000');
-      }
-
-      await addFunds(amount, depositForm.currency, 'Demo Funds');
-      
-      setShowDepositModal(false);
-      setDepositForm({ amount: '', currency: 'NGN' });
-    } catch (error) {
-      // Error is handled by the store - do nothing as store will show notification
-      console.error('Deposit error:', error);
+  const handleBackClick = () => {
+    if (onNavigateBack) {
+      onNavigateBack();
+    } else {
+      setLocation('/');
     }
   };
 
-  const handleWithdraw = async () => {
-    try {
-      const amount = parseFloat(withdrawForm.amount);
-      if (isNaN(amount) || amount <= 0) {
-        throw new Error('Please enter a valid amount');
-      }
-
-      if (amount < 50) {
-        throw new Error('Minimum withdrawal amount is $50');
-      }
-
-      if (!withdrawForm.destination.trim()) {
-        throw new Error('Please specify withdrawal destination');
-      }
-
-      if (withdrawForm.destination.trim().length < 5) {
-        throw new Error('Please provide a valid destination');
-      }
-
-      await withdraw(amount, withdrawForm.currency, withdrawForm.destination.trim());
-      
-      setShowWithdrawModal(false);
-              setWithdrawForm({ amount: '', currency: 'USD', destination: '' });
-    } catch (error) {
-      // Error is handled by the store - do nothing as store will show notification
-      console.error('Withdrawal error:', error);
-    }
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    }).format(amount);
   };
 
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text);
-    // Show temporary feedback
-    const element = document.createElement('div');
-    element.style.cssText = `
-      position: fixed;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      background: rgba(0, 0, 0, 0.8);
-      color: white;
-      padding: 8px 16px;
-      border-radius: 8px;
-      font-size: 14px;
-      z-index: 10001;
-    `;
-    element.textContent = 'Copied!';
-    document.body.appendChild(element);
-    setTimeout(() => document.body.removeChild(element), 1000);
+  const formatDate = (date: string) => {
+    return new Date(date).toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
   };
 
   const getTransactionIcon = (type: string) => {
     switch (type) {
       case 'deposit':
-        return <ArrowDownLeft size={16} className="text-green-600" />;
-      case 'withdraw':
-        return <ArrowUpRight size={16} className="text-red-600" />;
-      case 'win':
-        return <TrendingUp size={16} className="text-green-600" />;
-      case 'loss':
+        return <Download size={16} className="text-green-500" />;
+      case 'withdrawal':
+        return <Upload size={16} className="text-red-500" />;
       case 'prediction':
-        return <TrendingUp size={16} className="text-red-600 rotate-180" />;
-      case 'transfer_in':
-        return <Send size={16} className="text-blue-600 rotate-180" />;
-      case 'transfer_out':
-        return <Send size={16} className="text-orange-600" />;
+        return <TrendingUp size={16} className="text-blue-500" />;
+      case 'win':
+        return <CheckCircle size={16} className="text-green-500" />;
       default:
-        return <DollarSign size={16} className="text-gray-600" />;
+        return <DollarSign size={16} className="text-gray-500" />;
     }
   };
 
@@ -226,677 +131,336 @@ const WalletPage: React.FC = () => {
     switch (type) {
       case 'deposit':
       case 'win':
-      case 'transfer_in':
         return 'text-green-600';
-      case 'withdraw':
-      case 'loss':
+      case 'withdrawal':
       case 'prediction':
-      case 'transfer_out':
         return 'text-red-600';
       default:
         return 'text-gray-600';
     }
   };
 
-  const getStatusBadge = (status: string) => {
-    const styles = {
-      completed: 'bg-green-100 text-green-600',
-      pending: 'bg-yellow-100 text-yellow-600',
-      failed: 'bg-red-100 text-red-600'
-    };
-    
-    const icons = {
-      completed: <CheckCircle size={12} />,
-      pending: <Clock size={12} />,
-      failed: <AlertCircle size={12} />
-    };
-
-    return (
-      <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-semibold ${styles[status as keyof typeof styles]}`}>
-        {icons[status as keyof typeof icons]}
-        {status}
-      </span>
-    );
-  };
-
   return (
-    <div className="main-page-wrapper bg-gradient-to-br from-gray-50 via-white to-gray-100">
-      {/* Demo Mode Alert */}
-      <AnimatePresence initial={false}>
-        {showDemoAlert && isDemoMode && (
-          <motion.div
-            initial={{ opacity: 0, y: -50 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -50 }}
-            className="fixed top-0 left-0 right-0 z-50 bg-blue-600 text-white p-4"
-          >
-            <div className="flex items-center justify-between max-w-lg mx-auto">
-              <div className="flex items-center gap-3">
-                <Shield size={20} />
-                <div>
-                  <div className="font-semibold">Demo Mode Active</div>
-                  <div className="text-sm opacity-90">All transactions are simulated</div>
-                </div>
-              </div>
-              <button
-                onClick={() => setShowDemoAlert(false)}
-                className="text-white/80 hover:text-white"
-              >
-                <X size={20} />
-              </button>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
+    <div className="min-h-screen bg-gray-50 wallet-page">
       {/* Header */}
-      <div className="relative overflow-hidden" style={{ marginTop: showDemoAlert && isDemoMode ? '80px' : '0' }}>
-        <div className="absolute inset-0 bg-gradient-to-br from-green-600 via-green-700 to-teal-600" />
-        <div className="absolute inset-0 bg-gradient-to-r from-blue-600/10 via-transparent to-purple-600/10" />
+      <div className="bg-white border-b border-gray-100">
+        {/* Status bar spacer */}
+        <div className="h-11" />
         
-        {/* Animated background elements */}
-        <div className="absolute top-0 right-1/4 w-72 h-72 bg-white/10 rounded-full blur-3xl animate-pulse" />
-        <div className="absolute bottom-0 left-1/4 w-72 h-72 bg-white/10 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }} />
-        
-        <div className="relative z-10 px-6 pt-14 pb-8">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6 }}
-            className="mb-6"
-          >
-            <div className="flex items-center justify-between mb-2">
-              <h1 className="text-3xl font-bold text-white">My Wallet 💳</h1>
+        <div className="px-4 py-4">
+          <div className="flex items-center justify-between">
+            <button
+              onClick={handleBackClick}
+              className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center hover:bg-gray-200 transition-colors"
+            >
+              <ArrowLeft size={20} className="text-gray-700" />
+            </button>
+            
+            <div className="text-center">
+              <h1 className="text-xl font-bold text-gray-900">Wallet</h1>
               {isDemoMode && (
-                <div className="bg-white/20 backdrop-blur-sm px-3 py-1 rounded-full">
-                  <span className="text-white text-sm font-semibold">DEMO</span>
-                </div>
+                <p className="text-xs text-gray-500 mt-1">Demo Mode</p>
               )}
             </div>
-            <p className="text-green-100 text-lg">Manage your funds and transactions</p>
-          </motion.div>
-
-          {/* Balance Card */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.2 }}
-            className="bg-white/15 backdrop-blur-xl rounded-3xl border border-white/20 p-6 mb-6"
-          >
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center">
-                  <Wallet size={24} className="text-white" />
-                </div>
-                <div>
-                  <p className="text-white/80 text-sm">Total Balance</p>
-                  <div className="flex items-center gap-2">
-                    {showBalance ? (
-                      <h2 className="text-3xl font-bold text-white">
-                        ${primaryBalance.toLocaleString()}
-                      </h2>
-                    ) : (
-                      <h2 className="text-3xl font-bold text-white">$••••••</h2>
-                    )}
-                    <motion.button
-                      whileHover={{ scale: 1.1 }}
-                      whileTap={{ scale: 0.9 }}
-                      onClick={() => setShowBalance(!showBalance)}
-                      className="text-white/60 hover:text-white transition-colors"
-                    >
-                      {showBalance ? <EyeOff size={20} /> : <Eye size={20} />}
-                    </motion.button>
-                  </div>
-                </div>
-              </div>
-              
-              <motion.button
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                className="p-3 bg-white/20 rounded-xl text-white hover:bg-white/30 transition-all duration-200"
-                onClick={() => window.location.reload()}
-              >
-                <RefreshCcw size={20} />
-              </motion.button>
-            </div>
-
-            {/* Today's Change */}
-            {todayChange !== 0 && (
-              <div className="flex items-center gap-2 mb-6">
-                <div className={`flex items-center gap-1 px-3 py-1 rounded-full ${
-                  todayChangePercent > 0 ? 'bg-green-500/20' : 'bg-red-500/20'
-                }`}>
-                  <TrendingUp size={14} className={todayChangePercent > 0 ? 'text-green-400' : 'text-red-400 rotate-180'} />
-                  <span className={`text-sm font-semibold ${
-                    todayChangePercent > 0 ? 'text-green-400' : 'text-red-400'
-                  }`}>
-                    {todayChangePercent > 0 ? '+' : ''}${todayChange.toLocaleString()} ({todayChangePercent.toFixed(1)}%)
-                  </span>
-                </div>
-                <span className="text-white/60 text-sm">today</span>
-              </div>
-            )}
-
-            {/* Quick Actions */}
-            <div className="grid grid-cols-2 gap-3">
-              <motion.button
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                onClick={() => setShowDepositModal(true)}
-                disabled={isLoading}
-                className="flex items-center justify-center gap-2 p-4 bg-white/20 backdrop-blur-sm rounded-2xl text-white font-semibold hover:bg-white/30 transition-all duration-200 disabled:opacity-60"
-              >
-                <Plus size={20} />
-                <span>Deposit</span>
-              </motion.button>
-              
-              <motion.button
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                onClick={() => isDemoMode ? handleResetDemoBalance() : setShowWithdrawModal(true)}
-                disabled={isLoading || (isDemoMode ? false : primaryBalance <= 0)}
-                className="flex items-center justify-center gap-2 p-4 bg-white/20 backdrop-blur-sm rounded-2xl text-white font-semibold hover:bg-white/30 transition-all duration-200 disabled:opacity-60"
-              >
-                {isDemoMode ? <RefreshCcw size={20} /> : <Minus size={20} />}
-                <span>{isDemoMode ? 'Reset Demo' : 'Withdraw'}</span>
-              </motion.button>
-            </div>
-          </motion.div>
-
-          {/* Multi-Currency Balances */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.3 }}
-            className="grid grid-cols-2 gap-4"
-          >
-            {balances.filter(b => b.total > 0 || b.currency === 'USD').map((balance) => (
-              <div key={balance.currency} className="bg-white/15 backdrop-blur-xl rounded-2xl border border-white/20 p-4">
-                <p className="text-white/80 text-sm mb-1">{balance.currency}</p>
-                <p className="text-white text-xl font-bold">
-                  {balance.currency === 'USD' ? '$' : ''}
-                  {balance.total.toLocaleString()}
-                </p>
-                {balance.reserved > 0 && (
-                  <p className="text-white/60 text-xs">
-                    {balance.reserved.toLocaleString()} reserved
-                  </p>
-                )}
-              </div>
-            ))}
-          </motion.div>
+            
+            <div className="w-10" /> {/* Spacer for centering */}
+          </div>
         </div>
       </div>
 
-      {/* Content Tabs */}
-      <div className="px-6 -mt-4 mb-6 relative z-20">
+      {/* Demo Mode Banner */}
+      {isDemoMode && (
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
+          initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, delay: 0.4 }}
-          className="bg-white/90 backdrop-blur-xl rounded-2xl border border-gray-200/50 shadow-xl p-2"
+          className="mx-4 mt-4 bg-gradient-to-r from-blue-500 to-blue-600 rounded-xl p-4"
         >
-          <div className="flex">
-            {[
-              { id: 'overview', label: 'Overview', icon: Wallet },
-              { id: 'transactions', label: 'Transactions', icon: History }
-            ].map((tab) => {
-              const Icon = tab.icon;
-              const isActive = activeTab === tab.id;
-              
-              return (
-                <motion.button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
-                  className={`flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-xl font-semibold transition-all duration-200 ${
-                    isActive
-                      ? 'bg-green-500 text-white shadow-lg shadow-green-500/25'
-                      : 'text-gray-600 hover:text-green-600 hover:bg-green-50'
-                  }`}
-                  whileHover={{ scale: isActive ? 1 : 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                >
-                  <Icon size={18} />
-                  <span>{tab.label}</span>
-                </motion.button>
-              );
-            })}
+          <div className="flex items-center gap-3">
+            <AlertCircle size={20} className="text-white" />
+            <div className="flex-1">
+              <h3 className="text-white font-semibold text-sm">Demo Funds</h3>
+              <p className="text-blue-100 text-xs">
+                This is a demo wallet. All transactions are simulated.
+              </p>
+            </div>
           </div>
         </motion.div>
+      )}
+
+      {/* Balance Card */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.1 }}
+        className="mx-4 mt-4 bg-gradient-to-br from-green-500 to-green-600 rounded-2xl p-6 text-white"
+      >
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h2 className="text-sm font-medium text-green-100 uppercase tracking-wide">
+              Available Balance
+            </h2>
+            <div className="text-3xl font-bold mt-1">
+              {formatCurrency(usdBalance)}
+            </div>
+          </div>
+          <div className="w-12 h-12 bg-white bg-opacity-20 rounded-full flex items-center justify-center">
+            <DollarSign size={24} className="text-white" />
+          </div>
+        </div>
+
+        {/* Quick Actions */}
+        <div className="flex gap-2">
+          <button
+            onClick={() => setSelectedAmount(25)}
+            className="flex-1 bg-white bg-opacity-20 hover:bg-opacity-30 rounded-lg py-2 px-3 text-sm font-medium transition-all"
+          >
+            Add Funds
+          </button>
+          {isDemoMode && (
+            <button
+              onClick={handleResetDemo}
+              disabled={isResetting}
+              className="flex-1 bg-white bg-opacity-20 hover:bg-opacity-30 rounded-lg py-2 px-3 text-sm font-medium transition-all disabled:opacity-50"
+            >
+              {isResetting ? (
+                <div className="flex items-center justify-center gap-2">
+                  <RefreshCw size={14} className="animate-spin" />
+                  Resetting...
+                </div>
+              ) : (
+                'Reset Demo'
+              )}
+            </button>
+          )}
+        </div>
+      </motion.div>
+
+      {/* Tab Navigation */}
+      <div className="mx-4 mt-6">
+        <div className="bg-white rounded-xl p-1 flex">
+          <button
+            onClick={() => setActiveTab('overview')}
+            className={`flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-all ${
+              activeTab === 'overview'
+                ? 'bg-green-500 text-white'
+                : 'text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            Overview
+          </button>
+          <button
+            onClick={() => setActiveTab('transactions')}
+            className={`flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-all ${
+              activeTab === 'transactions'
+                ? 'bg-green-500 text-white'
+                : 'text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            Transactions
+          </button>
+        </div>
       </div>
 
       {/* Tab Content */}
-      <div className="px-6 pb-8">
-        <AnimatePresence mode="wait" initial={false}>
-          {activeTab === 'overview' && (
+      <div className="mx-4 mt-4">
+        <AnimatePresence mode="wait">
+          {activeTab === 'overview' ? (
             <motion.div
               key="overview"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              transition={{ duration: 0.3 }}
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              className="space-y-4"
             >
-              {/* Account Summary */}
-              <div className="bg-white/90 backdrop-blur-sm rounded-2xl border border-gray-200/50 shadow-lg p-6 mb-6">
-                <h3 className="text-xl font-bold text-gray-900 mb-4">Account Summary</h3>
-                
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="p-4 bg-green-50 rounded-xl">
-                    <p className="text-sm text-green-600 mb-1">Available</p>
-                    <p className="text-2xl font-bold text-green-700">${getBalance('USD').toLocaleString()}</p>
+              {/* Stats Cards */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="bg-white rounded-xl p-4 border border-gray-100">
+                  <div className="flex items-center gap-2 mb-2">
+                    <TrendingUp size={16} className="text-green-500" />
+                    <span className="text-xs text-gray-500 uppercase tracking-wide">Total Won</span>
                   </div>
-                  
-                  <div className="p-4 bg-blue-50 rounded-xl">
-                    <p className="text-sm text-blue-600 mb-1">Reserved</p>
-                    <p className="text-2xl font-bold text-blue-700">
-                      ${(balances.find(b => b.currency === 'USD')?.reserved || 0).toLocaleString()}
-                    </p>
+                  <div className="text-lg font-bold text-gray-900">
+                    {formatCurrency(transactions.filter(t => t.type === 'win').reduce((sum, t) => sum + t.amount, 0))}
                   </div>
                 </div>
-              </div>
-
-              {/* Quick Stats */}
-              <div className="bg-white/90 backdrop-blur-sm rounded-2xl border border-gray-200/50 shadow-lg p-6 mb-6">
-                <h3 className="text-xl font-bold text-gray-900 mb-4">Transaction Stats</h3>
                 
-                <div className="grid grid-cols-3 gap-4">
-                  <div className="text-center">
-                    <div className="text-2xl font-bold text-gray-900">{transactions.length}</div>
-                    <div className="text-sm text-gray-600">Total</div>
+                <div className="bg-white rounded-xl p-4 border border-gray-100">
+                  <div className="flex items-center gap-2 mb-2">
+                    <TrendingDown size={16} className="text-red-500" />
+                    <span className="text-xs text-gray-500 uppercase tracking-wide">Total Lost</span>
                   </div>
-                  <div className="text-center">
-                    <div className="text-2xl font-bold text-green-600">
-                      {transactions.filter(t => t.type === 'deposit' || t.type === 'win').length}
-                    </div>
-                    <div className="text-sm text-gray-600">Credits</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-2xl font-bold text-red-600">
-                      {transactions.filter(t => t.type === 'withdraw' || t.type === 'prediction').length}
-                    </div>
-                    <div className="text-sm text-gray-600">Debits</div>
+                  <div className="text-lg font-bold text-gray-900">
+                    {formatCurrency(Math.abs(transactions.filter(t => t.type === 'prediction').reduce((sum, t) => sum + t.amount, 0)))}
                   </div>
                 </div>
               </div>
 
               {/* Recent Activity */}
-              <div className="bg-white/90 backdrop-blur-sm rounded-2xl border border-gray-200/50 shadow-lg p-6">
-                <h3 className="text-xl font-bold text-gray-900 mb-4">Recent Activity</h3>
-                
-                <div className="space-y-4">
-                  {getTransactionHistory({ limit: 5 }).map((transaction) => (
-                    <div key={transaction.id} className="flex items-center gap-3 p-4 bg-gray-50 rounded-xl">
-                      {/* Transaction Icon */}
-                      <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center flex-shrink-0">
-                        {getTransactionIcon(transaction.type)}
-                      </div>
-                      
-                      {/* Transaction Details - Flexible with proper constraints */}
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium text-gray-900 truncate pr-2">{transaction.description}</p>
-                        <div className="flex items-center gap-2 text-sm text-gray-500 mt-1">
-                          <span className="whitespace-nowrap">
-                            {new Date(transaction.date).toLocaleDateString()}
-                          </span>
-                          <span className="hidden sm:inline">
-                            at {new Date(transaction.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                          </span>
-                          {transaction.reference && (
-                            <>
-                              <span className="text-gray-300 hidden sm:inline">•</span>
-                              <button
-                                onClick={() => copyToClipboard(transaction.reference!)}
-                                className="text-xs text-gray-400 hover:text-gray-600 flex items-center gap-1 hidden sm:flex"
-                              >
-                                <span className="truncate max-w-20">{transaction.reference}</span>
-                                <Copy size={10} />
-                              </button>
-                            </>
-                          )}
-                        </div>
-                      </div>
-                      
-                      {/* Amount - Fixed width on right */}
-                      <div className="text-right flex-shrink-0">
-                        <p className={`font-bold ${getTransactionColor(transaction.type)}`}>
-                          {(transaction.type === 'deposit' || transaction.type === 'win' || transaction.type === 'transfer_in') ? '+' : '-'}
-                          ${transaction.amount.toLocaleString()}
-                        </p>
-                        {getStatusBadge(transaction.status)}
-                      </div>
-                    </div>
-                  ))}
+              <div className="bg-white rounded-xl border border-gray-100">
+                <div className="p-4 border-b border-gray-100">
+                  <h3 className="font-semibold text-gray-900">Recent Activity</h3>
                 </div>
-                
-                {transactions.length > 5 && (
-                  <motion.button
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                    onClick={() => setActiveTab('transactions')}
-                    className="w-full mt-4 py-3 text-green-600 font-semibold hover:text-green-700 transition-colors"
-                  >
-                    View All Transactions
-                  </motion.button>
-                )}
+                <div className="p-4">
+                  {transactions.slice(0, 3).length > 0 ? (
+                    <div className="space-y-3">
+                      {transactions.slice(0, 3).map((transaction, index) => (
+                        <div key={index} className="flex items-center gap-3">
+                          <div className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center">
+                            {getTransactionIcon(transaction.type)}
+                          </div>
+                          <div className="flex-1">
+                            <div className="text-sm font-medium text-gray-900">
+                              {transaction.description}
+                            </div>
+                            <div className="text-xs text-gray-500">
+                              {formatDate(transaction.timestamp)}
+                            </div>
+                          </div>
+                          <div className={`text-sm font-semibold ${getTransactionColor(transaction.type)}`}>
+                            {transaction.amount > 0 ? '+' : ''}{formatCurrency(transaction.amount)}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-6">
+                      <Clock size={24} className="text-gray-400 mx-auto mb-2" />
+                      <p className="text-gray-500 text-sm">No transactions yet</p>
+                    </div>
+                  )}
+                </div>
               </div>
             </motion.div>
-          )}
-
-          {activeTab === 'transactions' && (
+          ) : (
             <motion.div
               key="transactions"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              transition={{ duration: 0.3 }}
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              className="space-y-4"
             >
-              <div className="bg-white/90 backdrop-blur-sm rounded-2xl border border-gray-200/50 shadow-lg p-6">
-                <div className="flex items-center justify-between mb-6">
-                  <h3 className="text-xl font-bold text-gray-900">All Transactions</h3>
-                  <span className="text-sm text-gray-500">{transactions.length} transactions</span>
+              {/* Transactions List */}
+              <div className="bg-white rounded-xl border border-gray-100">
+                <div className="p-4 border-b border-gray-100">
+                  <h3 className="font-semibold text-gray-900">All Transactions</h3>
                 </div>
-                
-                <div className="space-y-4">
-                  {getTransactionHistory().map((transaction, index) => (
-                    <motion.div
-                      key={transaction.id}
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ duration: 0.3, delay: index * 0.05 }}
-                      className="flex items-center gap-3 p-4 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors"
-                    >
-                      {/* Transaction Icon */}
-                      <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center flex-shrink-0">
-                        {getTransactionIcon(transaction.type)}
-                      </div>
-                      
-                      {/* Transaction Details - Flexible with proper constraints */}
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium text-gray-900 truncate pr-2">{transaction.description}</p>
-                        <div className="flex items-center gap-2 text-sm text-gray-500 mt-1">
-                          <span className="whitespace-nowrap">
-                            {new Date(transaction.date).toLocaleDateString()}
-                          </span>
-                          <span className="hidden sm:inline">
-                            at {new Date(transaction.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                          </span>
-                          {transaction.reference && (
-                            <>
-                              <span className="text-gray-300 hidden sm:inline">•</span>
-                              <button
-                                onClick={() => copyToClipboard(transaction.reference!)}
-                                className="text-xs text-gray-400 hover:text-gray-600 flex items-center gap-1 hidden sm:flex"
-                              >
-                                <span className="truncate max-w-20">{transaction.reference}</span>
-                                <Copy size={12} />
-                              </button>
-                            </>
-                          )}
+                <div className="divide-y divide-gray-100">
+                  {transactions.length > 0 ? (
+                    transactions.map((transaction, index) => (
+                      <div key={index} className="p-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center">
+                            {getTransactionIcon(transaction.type)}
+                          </div>
+                          <div className="flex-1">
+                            <div className="text-sm font-medium text-gray-900">
+                              {transaction.description}
+                            </div>
+                            <div className="text-xs text-gray-500">
+                              {formatDate(transaction.timestamp)}
+                            </div>
+                          </div>
+                          <div className={`text-sm font-semibold ${getTransactionColor(transaction.type)}`}>
+                            {transaction.amount > 0 ? '+' : ''}{formatCurrency(transaction.amount)}
+                          </div>
                         </div>
-                        {transaction.fee && (
-                          <p className="text-xs text-gray-400 mt-1">Fee: ${transaction.fee.toLocaleString()}</p>
-                        )}
                       </div>
-                      
-                      {/* Amount - Fixed width on right */}
-                      <div className="text-right flex-shrink-0">
-                        <p className={`font-bold ${getTransactionColor(transaction.type)}`}>
-                          {(transaction.type === 'deposit' || transaction.type === 'win' || transaction.type === 'transfer_in') ? '+' : '-'}
-                          ${transaction.amount.toLocaleString()}
-                        </p>
-                        {getStatusBadge(transaction.status)}
-                      </div>
-                    </motion.div>
-                  ))}
+                    ))
+                  ) : (
+                    <div className="text-center py-12">
+                      <Clock size={32} className="text-gray-400 mx-auto mb-3" />
+                      <p className="text-gray-500">No transactions yet</p>
+                      <p className="text-gray-400 text-sm mt-1">Start making predictions to see your activity</p>
+                    </div>
+                  )}
                 </div>
-
-                {transactions.length === 0 && (
-                  <div className="text-center py-12">
-                    <Wallet size={48} className="text-gray-300 mx-auto mb-4" />
-                    <h4 className="text-lg font-semibold text-gray-600 mb-2">No transactions yet</h4>
-                    <p className="text-gray-500">Your transaction history will appear here</p>
-                  </div>
-                )}
               </div>
             </motion.div>
           )}
         </AnimatePresence>
       </div>
 
-      {/* Deposit Modal */}
-      <AnimatePresence initial={false}>
-        {showDepositModal && (
+      {/* Add Funds Modal */}
+      <AnimatePresence>
+        {selectedAmount !== null && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-6"
-            onClick={() => setShowDepositModal(false)}
+            className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4"
+            onClick={() => setSelectedAmount(null)}
           >
             <motion.div
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
-              transition={{ type: "spring", stiffness: 300, damping: 30 }}
-              className="bg-white rounded-3xl p-6 w-full max-w-md max-h-[80vh] overflow-y-auto"
+              className="bg-white rounded-2xl w-full max-w-sm p-6"
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="flex items-center justify-between mb-6">
-                <h3 className="text-2xl font-bold text-gray-900">Deposit Funds</h3>
-                {isDemoMode && (
-                  <div className="bg-blue-100 text-blue-600 px-2 py-1 rounded text-xs font-semibold">
-                    DEMO
-                  </div>
-                )}
-              </div>
-
-              {error && (
-                <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2 text-red-700">
-                  <AlertCircle size={16} />
-                  <span className="text-sm">{error}</span>
-                </div>
-              )}
+              <h3 className="text-lg font-bold text-gray-900 mb-4">Add Demo Funds</h3>
               
-              <div className="space-y-4 mb-6">
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Amount</label>
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">₦</span>
-                    <input
-                      type="number"
-                      value={depositForm.amount}
-                      onChange={(e) => setDepositForm({ ...depositForm, amount: e.target.value })}
-                      placeholder="0.00"
-                      className="w-full pl-8 pr-4 py-3 border-2 border-gray-200 rounded-2xl focus:border-green-500 focus:outline-none transition-all duration-200 text-lg font-semibold"
-                    />
-                  </div>
-                  <div className="flex gap-2 mt-2">
-                    {[1000, 5000, 10000, 25000].map((amount) => (
-                      <button
-                        key={amount}
-                        onClick={() => setDepositForm({ ...depositForm, amount: amount.toString() })}
-                        className="flex-1 py-2 px-3 text-sm font-semibold text-green-600 bg-green-50 rounded-lg hover:bg-green-100 transition-colors"
-                      >
-                        ₦{amount.toLocaleString()}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4">
-                  <div className="flex items-center gap-3 text-blue-800">
-                    <Banknote size={24} />
-                    <div>
-                      <h4 className="font-semibold">Demo Mode</h4>
-                      <p className="text-sm text-blue-700">You're using demo funds for testing. No real money will be charged.</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              
-              <div className="space-y-3">
-                <motion.button
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  onClick={handleDeposit}
-                  disabled={isLoading || !depositForm.amount || parseFloat(depositForm.amount) <= 0}
-                  className="w-full py-4 bg-gradient-to-r from-green-500 to-green-600 text-white font-semibold rounded-xl shadow-lg shadow-green-500/25 disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                >
-                  {isLoading ? (
-                    <>
-                      <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                      Adding Demo Funds...
-                    </>
-                  ) : (
-                    <>
-                      <Plus size={16} />
-                      Add Demo Funds
-                    </>
-                  )}
-                </motion.button>
-                <motion.button
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  onClick={() => setShowDepositModal(false)}
-                  disabled={isLoading}
-                  className="w-full py-3 border-2 border-gray-200 text-gray-700 font-semibold rounded-xl hover:bg-gray-50 transition-all duration-200 disabled:opacity-60"
-                >
-                  Cancel
-                </motion.button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Withdraw Modal */}
-      <AnimatePresence initial={false}>
-        {showWithdrawModal && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-6"
-            onClick={() => setShowWithdrawModal(false)}
-          >
-            <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              transition={{ type: "spring", stiffness: 300, damping: 30 }}
-              className="bg-white rounded-3xl p-6 w-full max-w-md"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="flex items-center justify-between mb-6">
-                <h3 className="text-2xl font-bold text-gray-900">Withdraw Funds</h3>
-                {isDemoMode && (
-                  <div className="bg-blue-100 text-blue-600 px-2 py-1 rounded text-xs font-semibold">
-                    DEMO
-                  </div>
-                )}
+              {/* Quick amounts */}
+              <div className="grid grid-cols-2 gap-3 mb-4">
+                {quickAmounts.map((amount) => (
+                  <button
+                    key={amount}
+                    onClick={() => setCustomAmount(amount.toString())}
+                    className={`py-3 px-4 rounded-lg border-2 text-sm font-medium transition-all ${
+                      customAmount === amount.toString()
+                        ? 'border-green-500 bg-green-50 text-green-700'
+                        : 'border-gray-200 text-gray-700 hover:border-gray-300'
+                    }`}
+                  >
+                    ${amount}
+                  </button>
+                ))}
               </div>
 
-              {error && (
-                <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2 text-red-700">
-                  <AlertCircle size={16} />
-                  <span className="text-sm">{error}</span>
-                </div>
-              )}
-              
-              <div className="space-y-4 mb-6">
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Available Balance
-                  </label>
-                  <div className="p-3 bg-gray-50 rounded-xl">
-                    <p className="text-2xl font-bold text-gray-900">${getBalance('USD').toLocaleString()}</p>
-                  </div>
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Withdrawal Amount
-                  </label>
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">$</span>
-                    <input
-                      type="number"
-                      value={withdrawForm.amount}
-                      onChange={(e) => setWithdrawForm({ ...withdrawForm, amount: e.target.value })}
-                      placeholder="0.00"
-                      max={getBalance('USD')}
-                      className="w-full pl-8 pr-4 py-3 border-2 border-gray-200 rounded-2xl focus:border-green-500 focus:outline-none transition-all duration-200 text-lg font-semibold"
-                    />
-                  </div>
-                  <div className="flex gap-2 mt-2">
-                    {[25, 50, 75, 100].map((percentage) => {
-                      const amount = Math.floor((getBalance('USD') * percentage) / 100);
-                      return (
-                        <button
-                          key={percentage}
-                          onClick={() => setWithdrawForm({ ...withdrawForm, amount: amount.toString() })}
-                          className="flex-1 py-2 px-3 text-sm font-semibold text-red-600 bg-red-50 rounded-lg hover:bg-red-100 transition-colors"
-                          disabled={amount <= 0}
-                        >
-                          {percentage}%
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Destination
-                  </label>
+              {/* Custom amount */}
+              <div className="mb-6">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Custom Amount
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
                   <input
-                    type="text"
-                    value={withdrawForm.destination}
-                    onChange={(e) => setWithdrawForm({ ...withdrawForm, destination: e.target.value })}
-                    placeholder="Bank account, wallet address, etc."
-                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-2xl focus:border-green-500 focus:outline-none transition-all duration-200"
+                    type="number"
+                    placeholder="0"
+                    value={customAmount}
+                    onChange={(e) => setCustomAmount(e.target.value)}
+                    className="w-full pl-8 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                    min="1"
+                    max="10000"
                   />
                 </div>
-
-                {isDemoMode && (
-                  <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                    <p className="text-sm text-blue-700">
-                      <Shield className="inline w-4 h-4 mr-1" />
-                      Demo mode: Withdrawal will be processed instantly for testing
-                    </p>
-                  </div>
-                )}
               </div>
-              
+
+              {/* Action buttons */}
               <div className="flex gap-3">
-                <motion.button
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                  onClick={() => setShowWithdrawModal(false)}
-                  disabled={isLoading}
-                  className="flex-1 py-3 border-2 border-gray-200 text-gray-700 font-semibold rounded-xl hover:bg-gray-50 transition-all duration-200 disabled:opacity-60"
+                <button
+                  onClick={() => setSelectedAmount(null)}
+                  className="flex-1 py-3 bg-gray-100 text-gray-700 rounded-lg font-medium hover:bg-gray-200 transition-colors"
                 >
                   Cancel
-                </motion.button>
-                <motion.button
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                  onClick={handleWithdraw}
-                  disabled={isLoading || !withdrawForm.amount || parseFloat(withdrawForm.amount) <= 0 || !withdrawForm.destination.trim()}
-                  className="flex-1 py-3 bg-gradient-to-r from-red-500 to-red-600 text-white font-semibold rounded-xl shadow-lg shadow-red-500/25 disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                </button>
+                <button
+                  onClick={() => handleAddFunds(parseFloat(customAmount) || 0)}
+                  disabled={!customAmount || parseFloat(customAmount) <= 0 || isAddingFunds}
+                  className={`flex-1 py-3 rounded-lg font-medium transition-colors ${
+                    !customAmount || parseFloat(customAmount) <= 0 || isAddingFunds
+                      ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                      : 'bg-green-600 text-white hover:bg-green-700'
+                  }`}
                 >
-                  {isLoading ? (
-                    <>
-                      <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                      Processing...
-                    </>
+                  {isAddingFunds ? (
+                    <div className="flex items-center justify-center gap-2">
+                      <RefreshCw size={16} className="animate-spin" />
+                      Adding...
+                    </div>
                   ) : (
-                    <>
-                      <Minus size={16} />
-                      Withdraw ${withdrawForm.amount ? parseFloat(withdrawForm.amount).toLocaleString() : '0'}
-                    </>
+                    'Add Funds'
                   )}
-                </motion.button>
+                </button>
               </div>
             </motion.div>
           </motion.div>
