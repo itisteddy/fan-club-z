@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import React, { useEffect } from 'react';
+import { Router, Route, Switch, useLocation, useRoute } from 'wouter';
 import { useWalletStore } from './store/walletStore';
 import { useAuthStore } from './store/authStore';
 import { Toaster } from 'react-hot-toast';
@@ -16,216 +16,82 @@ import WalletPage from './pages/WalletPage';
 import AuthPage from './pages/auth/AuthPage';
 import AuthCallbackPage from './pages/auth/AuthCallbackPage';
 import PredictionDetailsPage from './pages/PredictionDetailsPage';
-
 import BottomNavigation from './components/BottomNavigation';
 
-// Create the missing page components
-const MyPredictionsPage: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNavigateToDiscover }) => {
-  return <BetsTab onNavigateToDiscover={onNavigateToDiscover} />;
-};
-
-// Navigation History Manager
-class NavigationHistory {
-  private history: string[] = ['discover'];
-  private previousTab: string = 'discover';
+// Auth Guard Component
+const AuthGuard: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { isAuthenticated, loading } = useAuthStore();
   
-  push(tab: string) {
-    // Store previous tab before updating
-    if (this.history.length > 0) {
-      this.previousTab = this.history[this.history.length - 1];
-    }
-    // Remove if already exists to avoid duplicates
-    this.history = this.history.filter(t => t !== tab);
-    this.history.push(tab);
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-500 mx-auto"></div>
+          <p className="mt-2 text-gray-600">Loading...</p>
+        </div>
+      </div>
+    );
   }
   
-  pop(): string {
-    if (this.history.length > 1) {
-      this.history.pop(); // Remove current
-      return this.history[this.history.length - 1]; // Return previous
-    }
-    return this.previousTab || 'discover'; // Use stored previous or default fallback
-  }
-  
-  getCurrent(): string {
-    return this.history[this.history.length - 1] || 'discover';
-  }
-  
-  getPrevious(): string {
-    return this.previousTab || 'discover';
-  }
-  
-  clear() {
-    this.history = ['discover'];
-    this.previousTab = 'discover';
-  }
-}
-
-// Main App Component
-function App() {
-  // Persist current tab in localStorage to maintain state on refresh
-  const [activeTab, setActiveTab] = useState(() => {
-    const savedTab = localStorage.getItem('fanclubz-current-tab');
-    // Force discover tab on app load to prevent getting stuck
-    if (savedTab === 'wallet') {
-      localStorage.removeItem('fanclubz-current-tab');
-      return 'discover';
-    }
-    return savedTab || 'discover';
-  });
-  const [navigationHistory] = useState(() => {
-    const history = new NavigationHistory();
-    // Initialize with the persisted tab if available
-    const savedTab = localStorage.getItem('fanclubz-current-tab');
-    if (savedTab && savedTab !== 'discover') {
-      history.push(savedTab);
-    }
-    return history;
-  });
-  const { initializeWallet } = useWalletStore();
-  const { initializeAuth, isAuthenticated, loading, initialized } = useAuthStore();
-
-  // Initialize auth and wallet on app start
-  useEffect(() => {
-    console.log('🚀 Initializing Fan Club Z...');
-    
-    // Initialize authentication first
-    initializeAuth();
-    
-    console.log('✅ App initialization started');
-  }, [initializeAuth]);
-
-  // Initialize wallet after auth is ready
-  useEffect(() => {
-    if (isAuthenticated && !loading) {
-      initializeWallet();
-    }
-  }, [isAuthenticated, loading, initializeWallet]);
-
-  // Simplified URL handling - only update for direct URL navigation
-  useEffect(() => {
-    const path = window.location.pathname;
-    
-    // Only update active tab for direct URL navigation, not tab switching
-    if (path === '/bets' && activeTab !== 'bets') {
-      setActiveTab('bets');
-      localStorage.setItem('fanclubz-current-tab', 'bets');
-    } else if (path === '/wallet' && activeTab !== 'wallet') {
-      setActiveTab('wallet');
-      localStorage.setItem('fanclubz-current-tab', 'wallet');
-    } else if (path === '/profile' && activeTab !== 'profile') {
-      setActiveTab('profile');
-      localStorage.setItem('fanclubz-current-tab', 'profile');
-    } else if ((path === '/discover' || path === '/') && activeTab !== 'discover') {
-      setActiveTab('discover');
-      localStorage.setItem('fanclubz-current-tab', 'discover');
-    }
-  }, [window.location.pathname, activeTab]);
-
-  const handleTabChange = (tab: string) => {
-    console.log('🔄 Tab change requested:', tab, 'Current:', activeTab);
-    
-    // Prevent infinite loops by checking if we're already on this tab
-    if (tab === activeTab) {
-      console.log('⚠️ Already on tab:', tab);
-      return;
-    }
-    
-    // Direct tab switching without URL changes
-    setActiveTab(tab);
-    localStorage.setItem('fanclubz-current-tab', tab);
-    
-    console.log('✅ Tab changed to:', tab);
-  };
-
-  const handleNavigateToProfile = () => {
-    navigationHistory.push('profile');
-    setActiveTab('profile');
-    scrollToTop({ delay: 100 });
-  };
-
-  const handleNavigateBackFromProfile = () => {
-    const previousTab = navigationHistory.getPrevious();
-    // If no previous tab in history, default to discover
-    const targetTab = previousTab || 'discover';
-    setActiveTab(targetTab);
-    // Update URL to match the target tab
-    window.history.pushState({}, '', '/');
-    scrollToTop({ delay: 100 });
-  };
-
-  const handleNavigateToDiscover = () => {
-    navigationHistory.push('discover');
-    setActiveTab('discover');
-    scrollToTop({ delay: 100 });
-  };
-
-  const handleNavigateBackFromCreate = () => {
-    const previousTab = navigationHistory.getPrevious();
-    setActiveTab(previousTab);
-    scrollToTop({ delay: 100 });
-  };
-
-  // NEW: Handle navigation to create prediction from clubs
-  const handleNavigateToCreateFromClubs = () => {
-    navigationHistory.push('create');
-    setActiveTab('create');
-    scrollToTop({ delay: 100 });
-  };
-
-  // NEW: Handle FAB click to create prediction
-  const handleFABClick = () => {
-    console.log('🎯 FAB clicked - navigating to create prediction');
-    setLocation('/create');
-  };
-
-  const renderPage = () => {
-    // Check if we're on a prediction details page
-    const path = window.location.pathname;
-    if (path.startsWith('/prediction/')) {
-      const predictionId = path.split('/prediction/')[1];
-      return <PredictionDetailsPage predictionId={predictionId} />;
-    }
-    
-    // Check if we're on auth callback page
-    if (path === '/auth/callback') {
-      return <AuthCallbackPage />;
-    }
-    
-    // Check if we're on a user profile page
-    if (path.startsWith('/profile/')) {
-      const userId = path.split('/profile/')[1];
-      return <ProfilePage userId={userId} onNavigateBack={handleNavigateBackFromProfile} />;
-    }
-
-    // Simple tab-based navigation
-    switch (activeTab) {
-      case 'discover':
-        return <DiscoverPage onNavigateToProfile={handleNavigateToProfile} />;
-      case 'bets':
-        return <BetsTab onNavigateToDiscover={handleNavigateToDiscover} />;
-      case 'profile':
-        return <ProfilePage onNavigateBack={handleNavigateBackFromProfile} />;
-      case 'wallet':
-        return <WalletPage />;
-      default:
-        return <DiscoverPage onNavigateToProfile={handleNavigateToProfile} />;
-    }
-  };
-
-  // Skip loading screen for faster navigation
-  // if (!initialized || loading) {
-  //   return null;
-  // }
-
-  // Show auth page if not authenticated
   if (!isAuthenticated) {
     return <AuthPage />;
   }
+  
+  return <>{children}</>;
+};
+
+// Main Layout Component
+const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [location, navigate] = useLocation();
+  
+  // Get current tab from route
+  const getCurrentTab = () => {
+    if (location === '/' || location === '/discover') return 'discover';
+    if (location === '/bets') return 'bets';
+    if (location === '/profile') return 'profile';
+    if (location === '/wallet') return 'wallet';
+    if (location === '/create') return 'create';
+    return 'discover'; // default
+  };
+
+  const handleTabChange = (tab: string) => {
+    console.log('🔄 Tab change requested:', tab);
+    
+    // Navigate to the appropriate route
+    switch (tab) {
+      case 'discover':
+        navigate('/');
+        break;
+      case 'bets':
+        navigate('/bets');
+        break;
+      case 'profile':
+        navigate('/profile');
+        break;
+      case 'wallet':
+        navigate('/wallet');
+        break;
+      case 'create':
+        navigate('/create');
+        break;
+      default:
+        navigate('/');
+    }
+    
+    // Scroll to top after navigation
+    setTimeout(() => scrollToTop({ delay: 100 }), 50);
+  };
+
+  const handleFABClick = () => {
+    console.log('🎯 FAB clicked - navigating to create prediction');
+    navigate('/create');
+  };
+
+  const activeTab = getCurrentTab();
+  const showFAB = activeTab === 'discover';
 
   return (
     <div style={{ minHeight: '100vh', backgroundColor: '#f9fafb' }}>
-      {/* PWA Install Manager - Shows install banners and handles app installation */}
       <PWAInstallManager />
       
       <main className="page-content">
@@ -235,21 +101,19 @@ function App() {
           overflow: 'hidden',
           paddingBottom: 'calc(4rem + env(safe-area-inset-bottom, 1rem))'
         }}>
-          {renderPage()}
+          {children}
         </div>
       </main>
 
       <BottomNavigation 
         activeTab={activeTab} 
         onTabChange={handleTabChange}
-        showFAB={activeTab === 'discover'}
+        showFAB={showFAB}
         onFABClick={handleFABClick}
       />
 
-      {/* Custom notification system */}
       <NotificationContainer />
-
-      {/* Toast notifications */}
+      
       <Toaster 
         position="top-center"
         containerStyle={{
@@ -296,6 +160,112 @@ function App() {
         }}
       />
     </div>
+  );
+};
+
+// Page wrapper components that handle navigation properly
+const DiscoverPageWrapper: React.FC = () => {
+  const [, navigate] = useLocation();
+  return (
+    <DiscoverPage 
+      onNavigateToProfile={() => navigate('/profile')}
+    />
+  );
+};
+
+const BetsPageWrapper: React.FC = () => {
+  const [, navigate] = useLocation();
+  return (
+    <BetsTab 
+      onNavigateToDiscover={() => navigate('/')}
+    />
+  );
+};
+
+const ProfilePageWrapper: React.FC = () => {
+  const [, navigate] = useLocation();
+  return (
+    <ProfilePage 
+      onNavigateBack={() => navigate('/')}
+    />
+  );
+};
+
+const CreatePredictionPageWrapper: React.FC = () => {
+  const [, navigate] = useLocation();
+  return (
+    <CreatePredictionPage 
+      onNavigateBack={() => navigate('/')}
+    />
+  );
+};
+
+// Prediction details wrapper
+const PredictionDetailsWrapper: React.FC<{ params: { id: string } }> = ({ params }) => {
+  return <PredictionDetailsPage predictionId={params.id} />;
+};
+
+// User profile wrapper
+const UserProfileWrapper: React.FC<{ params: { id: string } }> = ({ params }) => {
+  const [, navigate] = useLocation();
+  return (
+    <ProfilePage 
+      userId={params.id}
+      onNavigateBack={() => navigate('/')}
+    />
+  );
+};
+
+// Main App Component
+function App() {
+  const { initializeWallet } = useWalletStore();
+  const { initializeAuth, isAuthenticated, loading } = useAuthStore();
+
+  // Initialize auth and wallet on app start
+  useEffect(() => {
+    console.log('🚀 Initializing Fan Club Z...');
+    initializeAuth();
+    console.log('✅ App initialization started');
+  }, [initializeAuth]);
+
+  // Initialize wallet after auth is ready
+  useEffect(() => {
+    if (isAuthenticated && !loading) {
+      initializeWallet();
+    }
+  }, [isAuthenticated, loading, initializeWallet]);
+
+  return (
+    <Router>
+      <Switch>
+        {/* Public routes */}
+        <Route path="/auth/callback" component={AuthCallbackPage} />
+        
+        {/* Protected routes */}
+        <Route path="/">
+          <AuthGuard>
+            <MainLayout>
+              <Switch>
+                {/* Main app routes */}
+                <Route path="/" component={DiscoverPageWrapper} />
+                <Route path="/discover" component={DiscoverPageWrapper} />
+                <Route path="/bets" component={BetsPageWrapper} />
+                <Route path="/create" component={CreatePredictionPageWrapper} />
+                <Route path="/profile" component={ProfilePageWrapper} />
+                <Route path="/wallet" component={WalletPage} />
+                
+                {/* Dynamic routes */}
+                <Route path="/prediction/:id" component={PredictionDetailsWrapper} />
+                <Route path="/profile/:id" component={UserProfileWrapper} />
+                
+                {/* Fallback to discover */}
+                <Route component={DiscoverPageWrapper} />
+              </Switch>
+            </MainLayout>
+          </AuthGuard>
+        </Route>
+      </Switch>
+    </Router>
   );
 }
 

@@ -160,9 +160,9 @@ const BottomNavigation: React.FC<BottomNavigationProps> = ({
             whileTap={{ scale: 0.9 }}
             onClick={onFABClick}
             style={{
-              position: 'absolute',
-              bottom: '60px',
-              right: '20px',
+              position: 'fixed',
+              bottom: 'calc(80px + env(safe-area-inset-bottom, 0px))',
+              right: '16px',
               width: '56px',
               height: '56px',
               borderRadius: '50%',
