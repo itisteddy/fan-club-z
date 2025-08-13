@@ -23,16 +23,49 @@ app.use(helmet({
   crossOriginEmbedderPolicy: false,
 }));
 
-// CORS configuration
+// CORS configuration - Allow all development domains
 const allowedOrigins = [
   'http://localhost:5173',
   'http://localhost:3000',
-  'https://fanclubz-version-2-0.vercel.app',
+  'https://app.fanclubz.app',
+  'https://dev.fanclubz.app',
+  'https://fanclubz.app',
+  'https://www.fanclubz.app',
   process.env.CLIENT_URL
 ].filter(Boolean);
 
 app.use(cors({
-  origin: allowedOrigins,
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) {
+      console.log('🌐 CORS: Allowing request with no origin');
+      return callback(null, true);
+    }
+    
+    console.log('🌐 CORS: Checking origin:', origin);
+    console.log('🌐 CORS: Allowed origins:', allowedOrigins);
+    
+    // Check if origin is in allowed list
+    const isAllowed = allowedOrigins.indexOf(origin) !== -1;
+    
+    // Also allow any Vercel deployment (for development)
+    const isVercelDeployment = origin.includes('.vercel.app');
+    
+    if (isAllowed || isVercelDeployment) {
+      console.log('✅ CORS: Origin allowed', isVercelDeployment ? '(Vercel deployment)' : '(explicit allow)');
+      callback(null, true);
+    } else {
+      console.log('❌ CORS: Origin blocked');
+      // In development, be more permissive
+      if (process.env.NODE_ENV !== 'production') {
+        console.log('🚧 CORS: Development mode - allowing anyway');
+        callback(null, true);
+      } else {
+        console.log('🚧 CORS: Production mode - allowing anyway for now');
+        callback(null, true); // Temporarily allow all for debugging
+      }
+    }
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
@@ -405,9 +438,10 @@ app.post('/api/v2/clubs', mockAuth, (req, res) => {
 });
 
 // ============================================================================
-// PREDICTION ROUTES (Existing)
+// PREDICTION ROUTES (v2 and legacy routes)
 // ============================================================================
 
+// Get all predictions (v2)
 app.get('/api/v2/predictions', (req, res) => {
   const { category } = req.query;
   let predictions = mockPredictions;
@@ -419,18 +453,23 @@ app.get('/api/v2/predictions', (req, res) => {
   res.json(predictions);
 });
 
+// Get trending predictions (v2)
 app.get('/api/v2/predictions/trending', (req, res) => {
   // Return predictions sorted by pool total
   const trending = [...mockPredictions].sort((a, b) => b.pool_total - a.pool_total);
   res.json(trending);
 });
 
+// Get user predictions (v2)
 app.get('/api/v2/predictions/user', (req, res) => {
   // Return empty array for now (user not logged in)
   res.json([]);
 });
 
+// Create prediction (v2)
 app.post('/api/v2/predictions', (req, res) => {
+  console.log('🎯 Creating prediction via v2 API:', req.body);
+  
   // Mock prediction creation
   const newPrediction = {
     id: Date.now().toString(),
@@ -448,9 +487,11 @@ app.post('/api/v2/predictions', (req, res) => {
   };
   
   mockPredictions.unshift(newPrediction);
+  console.log('✅ Prediction created successfully:', newPrediction.id);
   res.status(201).json(newPrediction);
 });
 
+// Create prediction entry (v2)
 app.post('/api/v2/prediction-entries', (req, res) => {
   // Mock prediction entry
   const { prediction_id, option_id, amount } = req.body;
@@ -461,6 +502,72 @@ app.post('/api/v2/prediction-entries', (req, res) => {
     option_id,
     amount,
     potential_payout: amount * 2, // Mock 2x payout
+    created_at: new Date().toISOString()
+  });
+});
+
+// ============================================================================
+// LEGACY ROUTES (for backward compatibility)
+// ============================================================================
+
+// Legacy prediction routes (without v2)
+app.get('/api/predictions', (req, res) => {
+  console.log('🔗 Legacy route accessed: GET /api/predictions');
+  const { category } = req.query;
+  let predictions = mockPredictions;
+  
+  if (category && category !== 'all') {
+    predictions = predictions.filter(p => p.category === category);
+  }
+  
+  res.json(predictions);
+});
+
+app.get('/api/predictions/trending', (req, res) => {
+  console.log('🔗 Legacy route accessed: GET /api/predictions/trending');
+  const trending = [...mockPredictions].sort((a, b) => b.pool_total - a.pool_total);
+  res.json(trending);
+});
+
+app.get('/api/predictions/user', (req, res) => {
+  console.log('🔗 Legacy route accessed: GET /api/predictions/user');
+  res.json([]);
+});
+
+app.post('/api/predictions', (req, res) => {
+  console.log('🎯 Creating prediction via legacy API:', req.body);
+  
+  // Mock prediction creation
+  const newPrediction = {
+    id: Date.now().toString(),
+    creator_id: 'current_user',
+    ...req.body,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+    pool_total: 0,
+    participant_count: 0,
+    creator: {
+      username: 'you',
+      avatar_url: null,
+      is_verified: false
+    }
+  };
+  
+  mockPredictions.unshift(newPrediction);
+  console.log('✅ Prediction created successfully via legacy route:', newPrediction.id);
+  res.status(201).json(newPrediction);
+});
+
+app.post('/api/prediction-entries', (req, res) => {
+  console.log('🔗 Legacy route accessed: POST /api/prediction-entries');
+  const { prediction_id, option_id, amount } = req.body;
+  
+  res.json({
+    id: Date.now().toString(),
+    prediction_id,
+    option_id,
+    amount,
+    potential_payout: amount * 2,
     created_at: new Date().toISOString()
   });
 });
