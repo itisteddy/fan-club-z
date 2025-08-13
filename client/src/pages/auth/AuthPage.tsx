@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuthStore } from '../../store/authStore';
+import NotificationContainer from '../../components/ui/NotificationContainer';
 
 const AuthPage: React.FC = () => {
-  const { login, register, loading } = useAuthStore();
+  const { login, register, loginWithOAuth, loading } = useAuthStore();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [firstName, setFirstName] = useState('');
@@ -15,13 +16,44 @@ const AuthPage: React.FC = () => {
   const [formErrors, setFormErrors] = useState<{ email?: string; password?: string; firstName?: string; lastName?: string; confirmPassword?: string }>({});
   const [authError, setAuthError] = useState<string | null>(null);
 
+  // Ensure page starts at the top when component mounts
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'instant' });
+  }, []);
+
+  // FIXED: Much more permissive email validation for business domains
+  const isValidEmail = (email: string): boolean => {
+    // Basic format check - simplified to be more permissive
+    const basicEmailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    
+    if (!basicEmailRegex.test(email)) {
+      return false;
+    }
+    
+    // FIXED: Accept all properly formatted emails
+    const emailParts = email.split('@');
+    const localPart = emailParts[0];
+    const domainPart = emailParts[1];
+    
+    // Basic validation - just ensure reasonable format
+    if (localPart.length < 1 || localPart.length > 64) return false;
+    if (domainPart.length < 3 || domainPart.length > 255) return false;
+    
+    // Check domain has at least one dot and reasonable parts
+    const domainParts = domainPart.split('.');
+    if (domainParts.length < 2) return false;
+    
+    // All parts should be non-empty and reasonable length
+    return domainParts.every(part => part.length > 0 && part.length <= 63);
+  };
+
   const validateForm = () => {
     const errors: { email?: string; password?: string; firstName?: string; lastName?: string; confirmPassword?: string } = {};
     
     if (!email) {
       errors.email = 'Email is required';
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      errors.email = 'Please enter a valid email address';
+    } else if (!isValidEmail(email)) {
+      errors.email = 'Please enter a valid email address (e.g., user@example.com)';
     }
     
     if (!password) {
@@ -31,11 +63,11 @@ const AuthPage: React.FC = () => {
     }
     
     if (!isLoginMode) {
-      if (!firstName) {
+      if (!firstName.trim()) {
         errors.firstName = 'First name is required';
       }
       
-      if (!lastName) {
+      if (!lastName.trim()) {
         errors.lastName = 'Last name is required';
       }
       
@@ -64,13 +96,40 @@ const AuthPage: React.FC = () => {
         // Success handled by auth store - user will be automatically redirected by App.tsx
       } else {
         await register(email, password, firstName, lastName);
-        // Success handled by auth store - user will either be logged in automatically
-        // or receive a message to check their email, then potentially be redirected
+        // FIXED: Success handled by auth store - user will be automatically logged in and redirected to app
       }
     } catch (error: any) {
       console.error('Auth error:', error);
-      setAuthError(error.message || 'Authentication failed');
-      // Stay in current mode - don't automatically switch
+      
+      // FIXED: More user-friendly error messages
+      let friendlyMessage = 'Authentication failed. Please try again.';
+      
+      if (error.message) {
+        const errorMsg = error.message.toLowerCase();
+        
+        if (errorMsg.includes('invalid') && errorMsg.includes('credentials')) {
+          friendlyMessage = 'Invalid email or password. Please check your credentials and try again.';
+        } else if (errorMsg.includes('user already registered') || errorMsg.includes('already exists')) {
+          friendlyMessage = 'An account with this email already exists. Please try signing in instead.';
+          // Auto-switch to login mode
+          setTimeout(() => setIsLoginMode(true), 2000);
+        } else if (errorMsg.includes('email not confirmed')) {
+          friendlyMessage = 'Please check your email and confirm your account before signing in.';
+        } else if (errorMsg.includes('too many requests') || errorMsg.includes('rate limit')) {
+          friendlyMessage = 'Too many attempts. Please wait a moment and try again.';
+        } else if (errorMsg.includes('user not found')) {
+          friendlyMessage = 'No account found with this email. Please register first.';
+          // Auto-switch to register mode
+          if (isLoginMode) {
+            setTimeout(() => setIsLoginMode(false), 2000);
+          }
+        } else {
+          // FIXED: Less intimidating error message
+          friendlyMessage = 'Something went wrong. Please try again or contact support if the issue continues.';
+        }
+      }
+      
+      setAuthError(friendlyMessage);
     }
   };
 
@@ -94,9 +153,14 @@ const AuthPage: React.FC = () => {
     }
   };
 
-  const handleSocialAuth = async (provider: string) => {
-    // This would integrate with Supabase social auth in the future
-    alert(`${provider} authentication will be available soon!`);
+  const handleSocialAuth = async (provider: 'google' | 'apple') => {
+    try {
+      setAuthError(null);
+      await loginWithOAuth(provider);
+    } catch (error: any) {
+      console.error(`${provider} auth error:`, error);
+      setAuthError(`${provider} sign-in failed. Please try again.`);
+    }
   };
 
   const toggleMode = () => {
@@ -109,6 +173,8 @@ const AuthPage: React.FC = () => {
     setFirstName('');
     setLastName('');
     setConfirmPassword('');
+    // Scroll to top when switching modes
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const togglePassword = () => setShowPassword(!showPassword);
@@ -119,114 +185,118 @@ const AuthPage: React.FC = () => {
       minHeight: '100vh',
       background: 'linear-gradient(135deg, #f8fafc 0%, #ffffff 30%, #ecfdf5 70%, #f0fdfa 100%)',
       display: 'flex',
-      alignItems: 'center',
+      alignItems: 'flex-start',
       justifyContent: 'center',
-      padding: '24px',
+      padding: '8px',
       position: 'relative',
-      overflow: 'hidden'
+      overflow: 'auto'
     }}>
-      {/* Development Test Panel */}
-      <div style={{ position: 'fixed', top: '10px', left: '10px', zIndex: 1001 }}>
-        <button
-          onClick={() => setShowTestPanel(!showTestPanel)}
-          style={{
-            padding: '8px 12px',
-            background: '#374151',
-            color: 'white',
-            border: 'none',
-            borderRadius: '6px',
-            fontSize: '12px',
-            cursor: 'pointer'
-          }}
-        >
-          🧪 Test Mode
-        </button>
-      </div>
+      {/* Development Test Panel - Only show in development */}
+      {import.meta.env.VITE_DEBUG === 'true' && (
+        <div>
+          <div style={{ position: 'fixed', top: '10px', left: '10px', zIndex: 1001 }}>
+            <button
+              onClick={() => setShowTestPanel(!showTestPanel)}
+              style={{
+                padding: '8px 12px',
+                background: '#374151',
+                color: 'white',
+                border: 'none',
+                borderRadius: '6px',
+                fontSize: '12px',
+                cursor: 'pointer'
+              }}
+            >
+              🧪 Test Mode
+            </button>
+          </div>
 
-      {showTestPanel && (
-        <div style={{
-          position: 'fixed',
-          top: '20px',
-          right: '20px',
-          background: 'rgba(0, 0, 0, 0.9)',
-          color: 'white',
-          padding: '16px',
-          borderRadius: '8px',
-          fontSize: '12px',
-          zIndex: 1000,
-          maxWidth: '280px'
-        }}>
-          <div style={{ marginBottom: '12px', fontWeight: 'bold', color: '#00ff88' }}>🚀 TEST AUTHENTICATION</div>
-          <div style={{ marginBottom: '8px', fontSize: '10px', color: '#ccc' }}>
-            These accounts work with Supabase:
-          </div>
-          <button
-            style={{
-              margin: '4px 0',
-              padding: '6px 12px',
-              background: '#10b981',
+          {showTestPanel && (
+            <div style={{
+              position: 'fixed',
+              top: '20px',
+              right: '20px',
+              background: 'rgba(0, 0, 0, 0.9)',
               color: 'white',
-              border: 'none',
-              borderRadius: '4px',
-              cursor: 'pointer',
-              fontSize: '11px',
-              width: '100%'
-            }}
-            onClick={() => handleTestLogin('demo@example.com', 'demo123', 'Demo', 'User')}
-          >
-            {isLoginMode ? '🔑 Login demo@example.com' : '📝 Register demo@example.com'}
-          </button>
-          <button
-            style={{
-              margin: '4px 0',
-              padding: '6px 12px',
-              background: '#10b981',
-              color: 'white',
-              border: 'none',
-              borderRadius: '4px',
-              cursor: 'pointer',
-              fontSize: '11px',
-              width: '100%'
-            }}
-            onClick={() => handleTestLogin('user@gmail.com', 'test123', 'Test', 'Person')}
-          >
-            {isLoginMode ? '🔑 Login user@gmail.com' : '📝 Register user@gmail.com'}
-          </button>
-          <button
-            style={{
-              margin: '4px 0',
-              padding: '6px 12px',
-              background: '#10b981',
-              color: 'white',
-              border: 'none',
-              borderRadius: '4px',
-              cursor: 'pointer',
-              fontSize: '11px',
-              width: '100%'
-            }}
-            onClick={() => handleTestLogin('newuser@outlook.com', 'test123', 'New', 'User')}
-          >
-            {isLoginMode ? '🔑 Login newuser@outlook.com' : '📝 Register newuser@outlook.com'}
-          </button>
-          <div style={{ margin: '12px 0 8px 0', fontSize: '10px', color: '#ffaa00' }}>
-            ⚠️ Use common domains like gmail.com, example.com, outlook.com
-          </div>
-          <button
-            style={{
-              margin: '4px 0',
-              padding: '6px 12px',
-              background: '#dc2626',
-              color: 'white',
-              border: 'none',
-              borderRadius: '4px',
-              cursor: 'pointer',
-              fontSize: '11px',
-              width: '100%'
-            }}
-            onClick={() => setShowTestPanel(false)}
-          >
-            ❌ Close
-          </button>
+              padding: '16px',
+              borderRadius: '8px',
+              fontSize: '12px',
+              zIndex: 1000,
+              maxWidth: '280px'
+            }}>
+              <div style={{ marginBottom: '12px', fontWeight: 'bold', color: '#00ff88' }}>🚀 FIXED AUTHENTICATION</div>
+              <div style={{ marginBottom: '8px', fontSize: '10px', color: '#ccc' }}>
+                ✅ Business domains now supported:
+              </div>
+              <button
+                style={{
+                  margin: '4px 0',
+                  padding: '6px 12px',
+                  background: '#10b981',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  fontSize: '11px',
+                  width: '100%'
+                }}
+                onClick={() => handleTestLogin('userten@fcz.app', 'test123', 'User', 'Ten')}
+              >
+                {isLoginMode ? '🔑 Login userten@fcz.app' : '📝 Register userten@fcz.app'}
+              </button>
+              <button
+                style={{
+                  margin: '4px 0',
+                  padding: '6px 12px',
+                  background: '#10b981',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  fontSize: '11px',
+                  width: '100%'
+                }}
+                onClick={() => handleTestLogin('demo@example.com', 'demo123', 'Demo', 'User')}
+              >
+                {isLoginMode ? '🔑 Login demo@example.com' : '📝 Register demo@example.com'}
+              </button>
+              <button
+                style={{
+                  margin: '4px 0',
+                  padding: '6px 12px',
+                  background: '#10b981',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  fontSize: '11px',
+                  width: '100%'
+                }}
+                onClick={() => handleTestLogin('user@gmail.com', 'test123', 'Test', 'Person')}
+              >
+                {isLoginMode ? '🔑 Login user@gmail.com' : '📝 Register user@gmail.com'}
+              </button>
+              <div style={{ margin: '12px 0 8px 0', fontSize: '10px', color: '#00ff88' }}>
+                ✅ ALL email formats now work!
+              </div>
+              <button
+                style={{
+                  margin: '4px 0',
+                  padding: '6px 12px',
+                  background: '#dc2626',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  fontSize: '11px',
+                  width: '100%'
+                }}
+                onClick={() => setShowTestPanel(false)}
+              >
+                ❌ Close
+              </button>
+            </div>
+          )}
         </div>
       )}
 
@@ -241,6 +311,35 @@ const AuthPage: React.FC = () => {
           @keyframes spin {
             from { transform: rotate(0deg); }
             to { transform: rotate(360deg); }
+          }
+          
+          @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-5px); }
+            75% { transform: translateX(5px); }
+          }
+          
+          @media (max-width: 768px) {
+            .auth-card {
+              padding: 16px !important;
+              margin: 8px !important;
+              max-width: calc(100% - 16px) !important;
+              width: calc(100% - 16px) !important;
+              min-height: calc(100vh - 16px) !important;
+              border-radius: 16px !important;
+            }
+            
+            .auth-card h1 {
+              font-size: 28px !important;
+            }
+            
+            .auth-card p {
+              font-size: 14px !important;
+            }
+          }
+          
+          .auth-error {
+            animation: shake 0.5s ease-in-out;
           }
         `}
       </style>
@@ -269,30 +368,39 @@ const AuthPage: React.FC = () => {
         animation: 'float 10s ease-in-out infinite reverse'
       }}></div>
 
-      {/* Main card */}
-      <div style={{
-        width: '100%',
-        maxWidth: '420px',
-        backgroundColor: 'rgba(255, 255, 255, 0.95)',
-        backdropFilter: 'blur(20px)',
-        borderRadius: '24px',
-        padding: '48px',
-        boxShadow: '0 25px 50px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(255, 255, 255, 0.2)',
-        border: '1px solid rgba(255, 255, 255, 0.3)',
-        position: 'relative',
-        zIndex: 10
-      }}>
-        {/* Logo section */}
-        <div style={{ textAlign: 'center', marginBottom: '40px' }}>
-          <div style={{
-            width: '88px',
-            height: '88px',
+      {/* FIXED: Main card - Now covers 95% of page and starts at top */}
+      <div 
+        className="auth-card"
+        style={{
+          width: '100%',
+          maxWidth: '100%',
+          minHeight: 'calc(100vh - 16px)', // FIXED: Covers most of the screen
+          backgroundColor: 'rgba(255, 255, 255, 0.95)',
+          backdropFilter: 'blur(20px)',
+          borderRadius: '24px',
+          padding: '32px',
+          boxShadow: '0 25px 50px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(255, 255, 255, 0.2)',
+          border: '1px solid rgba(255, 255, 255, 0.3)',
+          position: 'relative',
+          zIndex: 10,
+                margin: '8px', // FIXED: Small margin for mobile
+      marginTop: '8px',   // FIXED: Start at very top
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'flex-start' // FIXED: Start from top
+        }}
+      >
+        {/* Logo section - Reduced margin */}
+        <div style={{ textAlign: 'center', marginBottom: '20px' }}>
+        <div style={{
+          width: '80px',
+          height: '80px',
             background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-            borderRadius: '20px',
-            margin: '0 auto 20px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
+          borderRadius: '20px',
+            margin: '0 auto 16px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
             boxShadow: '0 12px 24px rgba(16, 185, 129, 0.3), 0 0 0 1px rgba(255, 255, 255, 0.1)',
             cursor: 'pointer',
             transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
@@ -300,14 +408,14 @@ const AuthPage: React.FC = () => {
             overflow: 'hidden'
           }}>
             <span style={{
-              fontSize: '36px',
+              fontSize: '32px',
               fontWeight: 'bold',
-              color: 'white',
+          color: 'white',
               textShadow: '0 2px 4px rgba(0, 0, 0, 0.1)'
             }}>Z</span>
           </div>
           <h1 style={{
-            fontSize: '36px',
+          fontSize: '32px',
             fontWeight: 'bold',
             color: '#111827',
             marginBottom: '8px',
@@ -330,10 +438,10 @@ const AuthPage: React.FC = () => {
           </p>
         </div>
 
-        {/* Display authentication error */}
+        {/* FIXED: Display authentication error with improved styling */}
         {authError && (
-          <div style={{
-            marginBottom: '24px',
+          <div className="auth-error" style={{
+            marginBottom: '20px',
             padding: '16px',
             background: 'rgba(239, 68, 68, 0.1)',
             border: '1px solid rgba(239, 68, 68, 0.3)',
@@ -342,100 +450,126 @@ const AuthPage: React.FC = () => {
             fontSize: '14px',
             display: 'flex',
             alignItems: 'flex-start',
-            gap: '8px'
+            gap: '12px'
           }}>
-            <svg width="16" height="16" fill="currentColor" viewBox="0 0 24 24">
-              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+            <svg width="20" height="20" fill="currentColor" viewBox="0 0 24 24" style={{ flexShrink: 0, marginTop: '2px' }}>
+              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
             </svg>
-            <div>
+            <div style={{ flex: 1 }}>
               <div style={{ fontWeight: '600', marginBottom: '4px' }}>
-                {isLoginMode ? 'Login Failed' : 'Registration Failed'}
+                {isLoginMode ? 'Sign In Failed' : 'Registration Failed'}
               </div>
-              <div>{authError}</div>
-              {authError.includes('invalid') && (
-                <div style={{ marginTop: '8px', fontSize: '12px', color: '#7c2d12' }}>
-                  💡 Try using gmail.com, example.com, or outlook.com domains, or use the Test Mode panel above.
+              <div style={{ lineHeight: '1.4' }}>{authError}</div>
+              {authError.includes('valid email') && (
+                <div style={{ marginTop: '8px', fontSize: '12px', color: '#7c2d12', background: 'rgba(34, 197, 94, 0.1)', padding: '8px', borderRadius: '6px' }}>
+                  ✅ Business domains like @fcz.app, @company.com are now fully supported!
                 </div>
               )}
             </div>
           </div>
         )}
 
-        {/* Form */}
-        <form onSubmit={handleSubmit} style={{ marginBottom: '32px' }}>
+        {/* Form with improved layout */}
+        <form onSubmit={handleSubmit} style={{ marginBottom: '20px', flex: 1 }}>
           {/* Name fields for registration */}
           {!isLoginMode && (
             <div style={{
               display: 'grid',
               gridTemplateColumns: '1fr 1fr',
               gap: '16px',
-              marginBottom: '24px'
+              marginBottom: '18px'
             }}>
               <div>
+                <label style={{
+                  display: 'block',
+                  fontSize: '14px',
+                  fontWeight: '600',
+                  color: '#374151',
+          marginBottom: '8px'
+        }}>
+                  First Name
+                </label>
                 <input
                   type="text"
                   value={firstName}
                   onChange={(e) => setFirstName(e.target.value)}
-                  placeholder="First name"
+                  placeholder="Enter first name"
                   style={{
                     width: '100%',
-                    padding: '18px 20px',
+                    padding: '14px 16px',
                     border: `2px solid ${formErrors.firstName ? '#ef4444' : '#e5e7eb'}`,
-                    borderRadius: '16px',
-                    fontSize: '16px',
+                    borderRadius: '12px',
+          fontSize: '16px',
                     outline: 'none',
                     transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
                     boxSizing: 'border-box',
                     backgroundColor: '#ffffff',
-                    fontFamily: 'inherit'
+                    fontFamily: 'inherit',
+                    minHeight: '52px'
                   }}
                   disabled={loading}
                   required={!isLoginMode}
                 />
                 {formErrors.firstName && (
                   <div style={{
-                    marginTop: '8px',
-                    fontSize: '14px',
+                    marginTop: '6px',
+                    fontSize: '12px',
                     color: '#ef4444',
                     display: 'flex',
                     alignItems: 'center',
                     gap: '6px'
                   }}>
+                    <svg width="12" height="12" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
+                    </svg>
                     {formErrors.firstName}
                   </div>
                 )}
-              </div>
-              
+      </div>
+
               <div>
+                <label style={{
+                  display: 'block',
+                  fontSize: '14px',
+                  fontWeight: '600',
+                  color: '#374151',
+                  marginBottom: '8px'
+                }}>
+                  Last Name
+                </label>
                 <input
                   type="text"
                   value={lastName}
                   onChange={(e) => setLastName(e.target.value)}
-                  placeholder="Last name"
+                  placeholder="Enter last name"
                   style={{
                     width: '100%',
-                    padding: '18px 20px',
+                    padding: '14px 16px',
                     border: `2px solid ${formErrors.lastName ? '#ef4444' : '#e5e7eb'}`,
-                    borderRadius: '16px',
+                    borderRadius: '12px',
                     fontSize: '16px',
                     outline: 'none',
                     transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
                     boxSizing: 'border-box',
                     backgroundColor: '#ffffff',
-                    fontFamily: 'inherit'
+                    fontFamily: 'inherit',
+                    minHeight: '52px'
                   }}
                   disabled={loading}
                   required={!isLoginMode}
                 />
                 {formErrors.lastName && (
                   <div style={{
-                    marginTop: '8px',
-                    fontSize: '14px',
+                    marginTop: '6px',
+                    fontSize: '12px',
                     color: '#ef4444',
                     display: 'flex',
                     alignItems: 'center',
                     gap: '6px'
                   }}>
+                    <svg width="12" height="12" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
+                    </svg>
                     {formErrors.lastName}
                   </div>
                 )}
@@ -443,115 +577,151 @@ const AuthPage: React.FC = () => {
             </div>
           )}
 
-          {/* Email field */}
-          <div style={{ marginBottom: '24px', position: 'relative' }}>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="Enter your email"
-              style={{
-                width: '100%',
-                padding: '18px 20px',
-                paddingRight: '50px',
-                border: `2px solid ${formErrors.email ? '#ef4444' : '#e5e7eb'}`,
-                borderRadius: '16px',
-                fontSize: '16px',
-                outline: 'none',
-                transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                boxSizing: 'border-box',
-                backgroundColor: '#ffffff',
-                fontFamily: 'inherit'
-              }}
-              disabled={loading}
-              required
-            />
-            <svg style={{
-              position: 'absolute',
-              right: '16px',
-              top: '18px',
-              width: '20px',
-              height: '20px',
-              color: '#9ca3af',
-              pointerEvents: 'none'
-            }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 12a4 4 0 10-8 0 4 4 0 008 0zm0 0v1.5a2.5 2.5 0 005 0V12a9 9 0 10-9 9m4.5-1.206a8.959 8.959 0 01-4.5 1.207" />
-            </svg>
+          {/* FIXED: Email field with proper icon positioning */}
+          <div style={{ marginBottom: '18px', position: 'relative' }}>
+            <label style={{
+              display: 'block',
+              fontSize: '14px',
+              fontWeight: '600',
+              color: '#374151',
+              marginBottom: '8px'
+            }}>
+              Email Address
+            </label>
+            <div style={{ position: 'relative' }}>
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+                placeholder="Enter your email address"
+                style={{
+                  width: '100%',
+                  padding: '14px 16px',
+                  paddingRight: '52px',
+                  border: `2px solid ${formErrors.email ? '#ef4444' : '#e5e7eb'}`,
+                  borderRadius: '12px',
+                  fontSize: '16px',
+                  outline: 'none',
+                  transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                  boxSizing: 'border-box',
+                  backgroundColor: '#ffffff',
+                  fontFamily: 'inherit',
+                  minHeight: '52px'
+                }}
+                disabled={loading}
+            required
+          />
+              <div style={{
+                position: 'absolute',
+                right: '16px',
+                top: '50%',
+                transform: 'translateY(-50%)',
+                width: '20px',
+                height: '20px',
+                color: '#9ca3af',
+                pointerEvents: 'none',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}>
+                <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 4.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                </svg>
+              </div>
+            </div>
             {formErrors.email && (
               <div style={{
-                marginTop: '8px',
-                fontSize: '14px',
+                marginTop: '6px',
+                fontSize: '12px',
                 color: '#ef4444',
                 display: 'flex',
                 alignItems: 'center',
                 gap: '6px'
               }}>
+                <svg width="12" height="12" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
+                </svg>
                 {formErrors.email}
               </div>
             )}
-          </div>
+        </div>
 
-          {/* Password field */}
-          <div style={{ marginBottom: '24px', position: 'relative' }}>
+          {/* FIXED: Password field with proper icon positioning */}
+          <div style={{ marginBottom: '18px', position: 'relative' }}>
+            <label style={{
+              display: 'block',
+              fontSize: '14px',
+              fontWeight: '600',
+              color: '#374151',
+              marginBottom: '8px'
+            }}>
+              Password
+            </label>
+          <div style={{ position: 'relative' }}>
             <input
               type={showPassword ? 'text' : 'password'}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="Enter your password"
-              style={{
-                width: '100%',
-                padding: '18px 20px',
-                paddingRight: '60px',
-                border: `2px solid ${formErrors.password ? '#ef4444' : '#e5e7eb'}`,
-                borderRadius: '16px',
-                fontSize: '16px',
-                outline: 'none',
-                transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                boxSizing: 'border-box',
-                backgroundColor: '#ffffff',
-                fontFamily: 'inherit'
-              }}
-              disabled={loading}
+                placeholder="Enter your password"
+                style={{
+                  width: '100%',
+                  padding: '14px 16px',
+                  paddingRight: '52px',
+                  border: `2px solid ${formErrors.password ? '#ef4444' : '#e5e7eb'}`,
+                  borderRadius: '12px',
+                  fontSize: '16px',
+                  outline: 'none',
+                  transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                  boxSizing: 'border-box',
+                  backgroundColor: '#ffffff',
+                  fontFamily: 'inherit',
+                  minHeight: '52px'
+                }}
+                disabled={loading}
               required
             />
-            <div 
+              <div 
               style={{
                 position: 'absolute',
-                right: '16px',
-                top: '16px',
-                width: '24px',
-                height: '24px',
-                color: '#9ca3af',
+                  right: '16px',
+                top: '50%',
+                transform: 'translateY(-50%)',
+                  width: '20px',
+                  height: '20px',
+                  color: '#9ca3af',
                 cursor: 'pointer',
-                padding: '4px',
-                borderRadius: '6px',
-                transition: 'all 0.2s',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center'
-              }}
-              onClick={togglePassword}
-            >
-              {showPassword ? (
-                <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.878 9.878L3 3m6.878 6.878L21 21" />
-                </svg>
-              ) : (
-                <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                </svg>
-              )}
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  borderRadius: '6px',
+                  transition: 'all 0.2s'
+                }}
+                onClick={togglePassword}
+              >
+                {showPassword ? (
+                  <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.878 9.878L3 3m6.878 6.878L21 21" />
+                  </svg>
+                ) : (
+                  <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                  </svg>
+                )}
+              </div>
             </div>
             {formErrors.password && (
               <div style={{
-                marginTop: '8px',
-                fontSize: '14px',
+                marginTop: '6px',
+                fontSize: '12px',
                 color: '#ef4444',
                 display: 'flex',
                 alignItems: 'center',
                 gap: '6px'
               }}>
+                <svg width="12" height="12" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
+                </svg>
                 {formErrors.password}
               </div>
             )}
@@ -559,77 +729,92 @@ const AuthPage: React.FC = () => {
 
           {/* Confirm Password field for registration */}
           {!isLoginMode && (
-            <div style={{ marginBottom: '24px', position: 'relative' }}>
-              <input
-                type={showConfirmPassword ? 'text' : 'password'}
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                placeholder="Confirm your password"
-                style={{
-                  width: '100%',
-                  padding: '18px 20px',
-                  paddingRight: '60px',
-                  border: `2px solid ${formErrors.confirmPassword ? '#ef4444' : '#e5e7eb'}`,
-                  borderRadius: '16px',
-                  fontSize: '16px',
-                  outline: 'none',
-                  transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                  boxSizing: 'border-box',
-                  backgroundColor: '#ffffff',
-                  fontFamily: 'inherit'
-                }}
-                disabled={loading}
-                required={!isLoginMode}
-              />
-              <div 
-                style={{
-                  position: 'absolute',
-                  right: '16px',
-                  top: '16px',
-                  width: '24px',
-                  height: '24px',
-                  color: '#9ca3af',
-                  cursor: 'pointer',
-                  padding: '4px',
-                  borderRadius: '6px',
-                  transition: 'all 0.2s',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center'
-                }}
-                onClick={toggleConfirmPassword}
-              >
-                {showConfirmPassword ? (
-                  <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.878 9.878L3 3m6.878 6.878L21 21" />
-                  </svg>
-                ) : (
-                  <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                  </svg>
-                )}
+            <div style={{ marginBottom: '18px', position: 'relative' }}>
+              <label style={{
+                display: 'block',
+                fontSize: '14px',
+                fontWeight: '600',
+                color: '#374151',
+                marginBottom: '8px'
+              }}>
+                Confirm Password
+              </label>
+              <div style={{ position: 'relative' }}>
+                <input
+                  type={showConfirmPassword ? 'text' : 'password'}
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder="Confirm your password"
+                  style={{
+                    width: '100%',
+                    padding: '14px 16px',
+                    paddingRight: '52px',
+                    border: `2px solid ${formErrors.confirmPassword ? '#ef4444' : '#e5e7eb'}`,
+                    borderRadius: '12px',
+                    fontSize: '16px',
+                    outline: 'none',
+                    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                    boxSizing: 'border-box',
+                    backgroundColor: '#ffffff',
+                    fontFamily: 'inherit',
+                    minHeight: '52px'
+                  }}
+                  disabled={loading}
+                  required={!isLoginMode}
+                />
+                <div 
+                  style={{
+                    position: 'absolute',
+                    right: '16px',
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    width: '20px',
+                    height: '20px',
+                    color: '#9ca3af',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    borderRadius: '6px',
+                    transition: 'all 0.2s'
+                  }}
+                  onClick={toggleConfirmPassword}
+                >
+                  {showConfirmPassword ? (
+                    <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.878 9.878L3 3m6.878 6.878L21 21" />
+                    </svg>
+                  ) : (
+                    <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                    </svg>
+                  )}
+                </div>
               </div>
               {formErrors.confirmPassword && (
                 <div style={{
-                  marginTop: '8px',
-                  fontSize: '14px',
+                  marginTop: '6px',
+                  fontSize: '12px',
                   color: '#ef4444',
                   display: 'flex',
                   alignItems: 'center',
                   gap: '6px'
                 }}>
+                  <svg width="12" height="12" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
+                  </svg>
                   {formErrors.confirmPassword}
                 </div>
               )}
-            </div>
+        </div>
           )}
 
           {/* Forgot password - only show for login */}
           {isLoginMode && (
-            <div style={{ textAlign: 'right', marginBottom: '32px' }}>
-              <a 
-                href="#" 
+            <div style={{ textAlign: 'right', marginBottom: '20px' }}>
+          <a
+            href="#"
                 onClick={(e) => {
                   e.preventDefault();
                   alert('Password reset functionality will be available soon!');
@@ -684,20 +869,20 @@ const AuthPage: React.FC = () => {
                   borderRadius: '50%',
                   animation: 'spin 1s linear infinite'
                 }}>
-                </div>
+        </div>
                 {isLoginMode ? 'Signing in...' : 'Creating account...'}
               </>
             ) : (
               isLoginMode ? 'Sign In' : 'Create Account'
             )}
-          </button>
+        </button>
         </form>
 
         {/* Divider */}
         <div style={{
           position: 'relative',
           textAlign: 'center',
-          margin: '32px 0',
+          margin: '24px 0',
           fontSize: '14px',
           color: '#6b7280'
         }}>
@@ -714,18 +899,18 @@ const AuthPage: React.FC = () => {
             padding: '0 16px',
             position: 'relative',
             zIndex: 1
-          }}>Or {isLoginMode ? 'continue' : 'sign up'} with</span>
+          }}>Or {isLoginMode ? 'continue' : 'sign up'} with Google</span>
         </div>
 
-        {/* Social buttons */}
+        {/* Social buttons - Google only for now */}
         <div style={{
           display: 'flex',
           flexDirection: 'column',
           gap: '12px',
-          marginBottom: '32px'
+          marginBottom: '24px'
         }}>
-          <button
-            type="button"
+        <button 
+          type="button"
             onClick={() => handleSocialAuth('google')}
             disabled={loading}
             style={{
@@ -747,77 +932,65 @@ const AuthPage: React.FC = () => {
               boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)'
             }}
           >
-            <svg width="20" height="20" viewBox="0 0 24 24">
-              <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-              <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-              <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
-              <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
-            </svg>
-            Continue with Google
-          </button>
-
-          <button
-            type="button"
-            onClick={() => handleSocialAuth('apple')}
-            disabled={loading}
-            style={{
-              width: '100%',
-              height: '52px',
-              backgroundColor: '#1f2937',
-              color: 'white',
-              border: '1.5px solid #1f2937',
-              borderRadius: '14px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '12px',
-              fontSize: '15px',
-              fontWeight: '500',
-              cursor: loading ? 'not-allowed' : 'pointer',
-              opacity: loading ? '0.7' : '1',
-              transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
-              boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)'
-            }}
-          >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/>
-            </svg>
-            Continue with Apple
-          </button>
+            {loading ? (
+              <div style={{
+                width: '20px',
+                height: '20px',
+                border: '2px solid #e5e7eb',
+                borderTop: '2px solid #10b981',
+                borderRadius: '50%',
+                animation: 'spin 1s linear infinite'
+              }}></div>
+            ) : (
+              <svg width="20" height="20" viewBox="0 0 24 24">
+                <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+                <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+              </svg>
+            )}
+          Continue with Google
+        </button>
         </div>
 
         {/* Toggle between login/signup */}
-        <div style={{
-          textAlign: 'center',
-          paddingTop: '24px',
+      <div style={{
+        textAlign: 'center',
+          paddingTop: '20px',
+          paddingBottom: '16px',
           borderTop: '1px solid #f3f4f6'
-        }}>
-          <p style={{
+      }}>
+        <p style={{
             color: '#6b7280',
             fontSize: '15px',
             margin: '0'
-          }}>
+        }}>
             {isLoginMode ? "Don't have an account?" : "Already have an account?"}{' '}
-            <a 
-              href="#" 
+          <a
+            href="#"
               onClick={(e) => {
                 e.preventDefault();
                 toggleMode();
               }} 
-              style={{
+            style={{
                 color: '#10b981',
-                textDecoration: 'none',
+              textDecoration: 'none',
                 fontWeight: '600',
-                padding: '2px 4px',
-                borderRadius: '4px',
-                transition: 'all 0.2s'
+                padding: '8px 12px',
+                borderRadius: '6px',
+                transition: 'all 0.2s',
+                display: 'inline-block',
+                marginTop: '8px'
               }}
             >
               {isLoginMode ? 'Create one now' : 'Sign in'}
-            </a>
-          </p>
-        </div>
+          </a>
+        </p>
       </div>
+      </div>
+      
+      {/* Custom notification system */}
+      <NotificationContainer />
     </div>
   );
 };

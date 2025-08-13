@@ -1,22 +1,25 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Home, TrendingUp, Plus, Users, Wallet } from 'lucide-react';
+import { Home, TrendingUp, User, Wallet, Plus } from 'lucide-react';
 
 interface BottomNavigationProps {
   activeTab?: string;
   onTabChange?: (tab: string) => void;
+  showFAB?: boolean;
+  onFABClick?: () => void;
 }
 
 const BottomNavigation: React.FC<BottomNavigationProps> = ({ 
   activeTab = 'discover', 
-  onTabChange 
+  onTabChange,
+  showFAB = false,
+  onFABClick
 }) => {
   const tabs = [
     { id: 'discover', label: 'Discover', icon: Home },
-    { id: 'predictions', label: 'My Bets', icon: TrendingUp },
-    { id: 'create', label: 'Create', icon: Plus, isCreate: true },
-    { id: 'clubs', label: 'Clubs', icon: Users },
+    { id: 'bets', label: 'My Bets', icon: TrendingUp },
     { id: 'wallet', label: 'Wallet', icon: Wallet },
+    { id: 'profile', label: 'Profile', icon: User },
   ];
 
   const handleTabClick = (tabId: string) => {
@@ -42,71 +45,28 @@ const BottomNavigation: React.FC<BottomNavigationProps> = ({
         borderTop: '1px solid #e5e7eb',
         paddingBottom: 'max(env(safe-area-inset-bottom), 0.5rem)',
         paddingTop: '0.5rem',
-        boxShadow: '0 -2px 10px rgba(0, 0, 0, 0.1)'
+        boxShadow: '0 -4px 20px rgba(0, 0, 0, 0.1)'
       }}
     >
-      <nav style={{ padding: '0 1rem' }}>
+      <nav style={{ padding: '0 1rem', position: 'relative' }}>
         <div style={{ 
           display: 'flex', 
           alignItems: 'center', 
           justifyContent: 'space-around',
           maxWidth: '400px',
-          margin: '0 auto'
+          margin: '0 auto',
+          position: 'relative'
         }}>
           {tabs.map((tab) => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
             
-            if (tab.isCreate) {
-              return (
-                <motion.button
-                  key={tab.id}
-                  onClick={() => handleTabClick(tab.id)}
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                  style={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    padding: '8px',
-                    background: 'none',
-                    border: 'none',
-                    cursor: 'pointer'
-                  }}
-                >
-                  <div style={{
-                    width: '48px',
-                    height: '48px',
-                    background: 'linear-gradient(135deg, #10b981, #059669)',
-                    borderRadius: '50%',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    marginBottom: '4px',
-                    boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)'
-                  }}>
-                    <Icon size={20} style={{ color: 'white' }} />
-                  </div>
-                  <span style={{
-                    fontSize: '11px',
-                    fontWeight: '600',
-                    color: '#6b7280',
-                    textAlign: 'center',
-                    lineHeight: '1.2'
-                  }}>
-                    {tab.label}
-                  </span>
-                </motion.button>
-              );
-            }
-
             return (
               <motion.button
                 key={tab.id}
                 onClick={() => handleTabClick(tab.id)}
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
                 style={{
                   display: 'flex',
                   flexDirection: 'column',
@@ -120,7 +80,7 @@ const BottomNavigation: React.FC<BottomNavigationProps> = ({
                   border: 'none',
                   cursor: 'pointer',
                   borderRadius: '12px',
-                  transition: 'background-color 0.2s'
+                  transition: 'all 0.2s ease'
                 }}
                 onMouseEnter={(e) => {
                   if (!isActive) {
@@ -133,7 +93,7 @@ const BottomNavigation: React.FC<BottomNavigationProps> = ({
                   }
                 }}
               >
-                {/* Icon container for better centering */}
+                {/* Icon container */}
                 <div style={{
                   position: 'relative',
                   display: 'flex',
@@ -145,8 +105,8 @@ const BottomNavigation: React.FC<BottomNavigationProps> = ({
                   height: '24px'
                 }}>
                   <div style={{
-                    transition: 'all 0.2s',
-                    color: isActive ? '#10b981' : '#6b7280',
+                    transition: 'all 0.2s ease',
+                    color: isActive ? '#22c55e' : '#6b7280',
                     transform: isActive ? 'scale(1.1)' : 'scale(1)',
                     display: 'flex',
                     alignItems: 'center',
@@ -155,7 +115,7 @@ const BottomNavigation: React.FC<BottomNavigationProps> = ({
                     <Icon size={20} />
                   </div>
                   
-                  {/* Active indicator - positioned relative to icon container */}
+                  {/* Active indicator */}
                   {isActive && (
                     <motion.div
                       layoutId="activeTab"
@@ -166,9 +126,9 @@ const BottomNavigation: React.FC<BottomNavigationProps> = ({
                         transform: 'translateX(-50%)',
                         width: '4px',
                         height: '4px',
-                        backgroundColor: '#10b981',
+                        backgroundColor: '#22c55e',
                         borderRadius: '50%',
-                        boxShadow: '0 0 6px rgba(16, 185, 129, 0.6)'
+                        boxShadow: '0 0 6px rgba(34, 197, 94, 0.6)'
                       }}
                       initial={false}
                       transition={{ type: "spring", stiffness: 400, damping: 30 }}
@@ -178,8 +138,8 @@ const BottomNavigation: React.FC<BottomNavigationProps> = ({
                 <span style={{
                   fontSize: '11px',
                   fontWeight: isActive ? '600' : '500',
-                  transition: 'all 0.2s',
-                  color: isActive ? '#10b981' : '#6b7280',
+                  transition: 'all 0.2s ease',
+                  color: isActive ? '#22c55e' : '#6b7280',
                   textAlign: 'center',
                   lineHeight: '1.2'
                 }}>
@@ -189,6 +149,36 @@ const BottomNavigation: React.FC<BottomNavigationProps> = ({
             );
           })}
         </div>
+
+        {/* Floating Action Button - Only show on Discover page */}
+        {showFAB && (
+          <motion.button
+            initial={{ scale: 0, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0, opacity: 0 }}
+            whileHover={{ scale: 1.1 }}
+            whileTap={{ scale: 0.9 }}
+            onClick={onFABClick}
+            style={{
+              position: 'fixed',
+              bottom: 'calc(80px + env(safe-area-inset-bottom, 0px))',
+              right: '16px',
+              width: '56px',
+              height: '56px',
+              borderRadius: '50%',
+              background: 'linear-gradient(135deg, #22c55e, #16a34a)',
+              border: 'none',
+              boxShadow: '0 8px 24px rgba(34, 197, 94, 0.4)',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              zIndex: 1001
+            }}
+          >
+            <Plus size={24} style={{ color: 'white' }} />
+          </motion.button>
+        )}
       </nav>
     </div>
   );

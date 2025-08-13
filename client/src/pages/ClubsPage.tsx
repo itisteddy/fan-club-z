@@ -7,6 +7,8 @@ import CreateClubPage from './CreateClubPage';
 import { ClubDetailPage } from './ClubDetailPage';
 import { useClubStore } from '../store/clubStore';
 import { useAuthStore } from '../store/authStore';
+import { scrollToTop } from '../utils/scroll';
+import { usePullToRefresh } from '../utils/pullToRefresh';
 import type { Prediction } from '../../shared/src/schemas';
 import { 
   Search, 
@@ -191,14 +193,14 @@ const CategoryFilters: React.FC<{ selectedCategory: string; onSelect: (category:
 
   return (
     <div className="px-4 py-4 bg-white border-b border-gray-100">
-      <div className="flex gap-3 overflow-x-auto scrollbar-hide">
+      <div className="category-filters-container category-filters-flex">
         {categories.map((category) => (
           <motion.button
             key={category.id}
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
             onClick={() => onSelect(category.id)}
-            className={`px-4 py-2.5 rounded-full whitespace-nowrap text-sm font-semibold transition-all flex items-center justify-center h-10 min-w-max ${
+            className={`category-pill px-4 py-2.5 rounded-full text-sm font-semibold transition-all flex items-center justify-center h-10 ${
               selectedCategory === category.id
                 ? `bg-gradient-to-r ${category.gradient} text-white shadow-lg`
                 : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
@@ -364,10 +366,32 @@ const ClubsPage: React.FC<ClubsPageProps> = ({ onNavigateToCreate }) => {
   
   const { clubs, fetchClubs, loading } = useClubStore();
 
-  // Fetch clubs on component mount
+  // Scroll to top when component mounts
   React.useEffect(() => {
-    fetchClubs();
-  }, [fetchClubs]);
+    scrollToTop({ behavior: 'instant' });
+  }, []);
+
+  // Fetch clubs on component mount and when category/search changes
+  React.useEffect(() => {
+    fetchClubs({ 
+      category: selectedCategory, 
+      search: searchQuery 
+    });
+  }, [fetchClubs, selectedCategory, searchQuery]);
+
+  // Pull to refresh functionality
+  const handleRefresh = useCallback(async () => {
+    console.log('Pull to refresh triggered');
+    await fetchClubs({ 
+      category: selectedCategory, 
+      search: searchQuery 
+    });
+  }, [fetchClubs, selectedCategory, searchQuery]);
+
+  usePullToRefresh(handleRefresh, {
+    threshold: 80,
+    disabled: loading || currentView !== 'discover'
+  });
 
   // Simple filtered clubs (following DiscoverPage pattern)
   const filteredClubs = useMemo(() => {

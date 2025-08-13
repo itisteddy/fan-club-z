@@ -2,6 +2,26 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Users, Clock, DollarSign, BarChart3, Settings, Trash2, Eye, Share2, Edit3 } from 'lucide-react';
 
+interface ActivityItem {
+  id: string;
+  type: 'participant_joined' | 'prediction_placed' | 'multiple_participants';
+  description: string;
+  amount?: number;
+  participantCount?: number;
+  timestamp: string;
+  timeAgo: string;
+}
+
+interface Participant {
+  id: string;
+  username: string;
+  avatar_url?: string;
+  amount: number;
+  option: string;
+  joinedAt: string;
+  timeAgo: string;
+}
+
 interface ManagePredictionModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -15,6 +35,8 @@ interface ManagePredictionModalProps {
     yourCut: number;
     status: string;
     description?: string;
+    recentActivity?: ActivityItem[];
+    participantList?: Participant[];
   };
 }
 
@@ -80,7 +102,7 @@ const ManagePredictionModal: React.FC<ManagePredictionModalProps> = ({
             <DollarSign className="w-5 h-5 text-blue-600" />
             <span className="text-sm font-medium text-blue-800">Total Pool</span>
           </div>
-          <div className="text-2xl font-bold text-blue-900">₦{prediction.totalPool.toLocaleString()}</div>
+          <div className="text-2xl font-bold text-blue-900">${prediction.totalPool.toLocaleString()}</div>
           <div className="text-sm text-blue-600">Your cut: {prediction.yourCut}%</div>
         </div>
         
@@ -107,7 +129,7 @@ const ManagePredictionModal: React.FC<ManagePredictionModalProps> = ({
             <BarChart3 className="w-5 h-5 text-purple-600" />
             <span className="text-sm font-medium text-purple-800">Your Earnings</span>
           </div>
-          <div className="text-xl font-bold text-purple-900">₦{(prediction.totalPool * prediction.yourCut / 100).toLocaleString()}</div>
+          <div className="text-xl font-bold text-purple-900">${(prediction.totalPool * prediction.yourCut / 100).toLocaleString()}</div>
           <div className="text-sm text-purple-600">Current projected</div>
         </div>
       </div>
@@ -116,44 +138,36 @@ const ManagePredictionModal: React.FC<ManagePredictionModalProps> = ({
       <div className="bg-gray-50 rounded-xl p-4">
         <h3 className="font-semibold text-gray-900 mb-3">Recent Activity</h3>
         <div className="space-y-3">
-          <div className="flex items-center justify-between py-2">
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
-                <Users className="w-4 h-4 text-blue-600" />
+          {prediction.recentActivity && prediction.recentActivity.length > 0 ? (
+            prediction.recentActivity.map((activity) => (
+              <div key={activity.id} className="flex items-center justify-between py-2">
+                <div className="flex items-center gap-3">
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                    activity.type === 'participant_joined' || activity.type === 'multiple_participants' 
+                      ? 'bg-blue-100' 
+                      : 'bg-green-100'
+                  }`}>
+                    {activity.type === 'participant_joined' || activity.type === 'multiple_participants' ? (
+                      <Users className="w-4 h-4 text-blue-600" />
+                    ) : (
+                      <DollarSign className="w-4 h-4 text-green-600" />
+                    )}
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-gray-900">{activity.description}</p>
+                    <p className="text-xs text-gray-500">{activity.timeAgo}</p>
+                  </div>
+                </div>
+                {activity.amount && (
+                  <span className="text-sm text-green-600 font-medium">+${activity.amount.toLocaleString()}</span>
+                )}
               </div>
-              <div>
-                <p className="text-sm font-medium text-gray-900">New participant joined</p>
-                <p className="text-xs text-gray-500">2 minutes ago</p>
-              </div>
+            ))
+          ) : (
+            <div className="text-center py-4">
+              <p className="text-sm text-gray-500">No recent activity</p>
             </div>
-            <span className="text-sm text-green-600 font-medium">+₦50</span>
-          </div>
-          
-          <div className="flex items-center justify-between py-2">
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
-                <DollarSign className="w-4 h-4 text-green-600" />
-              </div>
-              <div>
-                <p className="text-sm font-medium text-gray-900">Large prediction placed</p>
-                <p className="text-xs text-gray-500">15 minutes ago</p>
-              </div>
-            </div>
-            <span className="text-sm text-green-600 font-medium">+₦200</span>
-          </div>
-          
-          <div className="flex items-center justify-between py-2">
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
-                <Users className="w-4 h-4 text-blue-600" />
-              </div>
-              <div>
-                <p className="text-sm font-medium text-gray-900">3 new participants</p>
-                <p className="text-xs text-gray-500">1 hour ago</p>
-              </div>
-            </div>
-            <span className="text-sm text-green-600 font-medium">+₦150</span>
-          </div>
+          )}
         </div>
       </div>
     </div>
@@ -282,59 +296,43 @@ const ManagePredictionModal: React.FC<ManagePredictionModalProps> = ({
             <div className="text-sm text-gray-600">Total Participants</div>
           </div>
           <div className="text-center">
-            <div className="text-2xl font-bold text-green-600">₦{prediction.totalPool.toLocaleString()}</div>
+            <div className="text-2xl font-bold text-green-600">${prediction.totalPool.toLocaleString()}</div>
             <div className="text-sm text-gray-600">Total Pool</div>
           </div>
         </div>
 
         <div className="space-y-3">
-          <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center font-semibold text-blue-600">
-                A
+          {prediction.participantList && prediction.participantList.length > 0 ? (
+            prediction.participantList.map((participant, index) => (
+              <div key={participant.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                <div className="flex items-center gap-3">
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center font-semibold ${
+                    index === 0 ? 'bg-blue-100 text-blue-600' :
+                    index === 1 ? 'bg-green-100 text-green-600' :
+                    index === 2 ? 'bg-purple-100 text-purple-600' :
+                    index === 3 ? 'bg-orange-100 text-orange-600' :
+                    'bg-gray-100 text-gray-600'
+                  }`}>
+                    {String.fromCharCode(65 + index)}
+                  </div>
+                  <div>
+                    <p className="font-medium text-gray-900">@{participant.username}</p>
+                    <p className="text-sm text-gray-500">Joined {participant.timeAgo}</p>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <p className="font-semibold text-gray-900">${participant.amount.toLocaleString()}</p>
+                  <p className={`text-sm ${participant.option === 'Yes' ? 'text-green-600' : 'text-red-600'}`}>
+                    {participant.option}
+                  </p>
+                </div>
               </div>
-              <div>
-                <p className="font-medium text-gray-900">@alice_trader</p>
-                <p className="text-sm text-gray-500">Joined 2 hours ago</p>
-              </div>
+            ))
+          ) : (
+            <div className="text-center py-4">
+              <p className="text-sm text-gray-500">No participants yet</p>
             </div>
-            <div className="text-right">
-              <p className="font-semibold text-gray-900">₦150</p>
-              <p className="text-sm text-green-600">Yes</p>
-            </div>
-          </div>
-
-          <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center font-semibold text-green-600">
-                B
-              </div>
-              <div>
-                <p className="font-medium text-gray-900">@bet_master</p>
-                <p className="text-sm text-gray-500">Joined 4 hours ago</p>
-              </div>
-            </div>
-            <div className="text-right">
-              <p className="font-semibold text-gray-900">₦200</p>
-              <p className="text-sm text-red-600">No</p>
-            </div>
-          </div>
-
-          <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center font-semibold text-purple-600">
-                C
-              </div>
-              <div>
-                <p className="font-medium text-gray-900">@crypto_fan</p>
-                <p className="text-sm text-gray-500">Joined 6 hours ago</p>
-              </div>
-            </div>
-            <div className="text-right">
-              <p className="font-semibold text-gray-900">₦75</p>
-              <p className="text-sm text-green-600">Yes</p>
-            </div>
-          </div>
+          )}
         </div>
       </div>
     </div>

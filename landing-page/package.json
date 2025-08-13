@@ -1,0 +1,27 @@
+{
+  "name": "fanclubz-landing",
+  "version": "1.0.0",
+  "description": "Fan Club Z - Official Landing Page",
+  "main": "index.html",
+  "scripts": {
+    "dev": "echo 'Open index.html in browser or use live server'",
+    "deploy": "vercel --prod",
+    "deploy:preview": "vercel"
+  },
+  "keywords": [
+    "fan-club-z",
+    "landing-page",
+    "predictions",
+    "social-gaming",
+    "web-app"
+  ],
+  "author": "Fan Club Z Team",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/itisteddy/fanclubz-landing.git"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+} 

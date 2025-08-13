@@ -36,8 +36,7 @@ BEGIN
     -- Step 3: Create wallets
     INSERT INTO wallets (user_id, currency, available_balance, total_deposited)
     VALUES 
-        (first_user_id, 'NGN', 25000, 50000),
-        (first_user_id, 'USD', 500, 1000)
+        (first_user_id, 'USD', 25000, 50000)
     ON CONFLICT (user_id, currency) DO UPDATE SET
         available_balance = EXCLUDED.available_balance,
         total_deposited = EXCLUDED.total_deposited;
@@ -133,10 +132,10 @@ BEGIN
     -- Step 10: Create transactions
     INSERT INTO wallet_transactions (user_id, type, currency, amount, status, description, reference)
     VALUES 
-        (first_user_id, 'deposit', 'NGN', 25000, 'completed', 'Initial deposit', 'DEP_' || EXTRACT(EPOCH FROM NOW())::bigint || '_' || SUBSTRING(first_user_id::text, 1, 8))
+        (first_user_id, 'deposit', 'USD', 25000, 'completed', 'Initial deposit', 'DEP_' || EXTRACT(EPOCH FROM NOW())::bigint || '_' || SUBSTRING(first_user_id::text, 1, 8))
     ON CONFLICT DO NOTHING;
     
     RAISE NOTICE 'Database seeding completed successfully!';
-    RAISE NOTICE 'Created: 1 user profile, 2 wallets, 5 clubs, 5 predictions, 13 options, 3 comments, 3 reactions, 1 transaction';
+    RAISE NOTICE 'Created: 1 user profile, 1 wallet, 5 clubs, 5 predictions, 13 options, 3 comments, 3 reactions, 1 transaction';
     
 END $$; 

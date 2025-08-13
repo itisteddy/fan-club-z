@@ -81,7 +81,7 @@ function App() {
                       <span className="text-sm text-green-600">Yes: 60%</span>
                       <span className="text-sm text-red-600">No: 40%</span>
                     </div>
-                    <span className="text-sm text-gray-600">₦12,500 pool</span>
+                    <span className="text-sm text-gray-600">$12,500 pool</span>
                   </div>
                   <button className="mt-3 bg-green-500 text-white px-4 py-2 rounded text-sm hover:bg-green-600">
                     Place Prediction
@@ -100,7 +100,7 @@ function App() {
                       <span className="text-sm text-green-600">Yes: 75%</span>
                       <span className="text-sm text-red-600">No: 25%</span>
                     </div>
-                    <span className="text-sm text-gray-600">₦45,200 pool</span>
+                    <span className="text-sm text-gray-600">$45,200 pool</span>
                   </div>
                   <button className="mt-3 bg-green-500 text-white px-4 py-2 rounded text-sm hover:bg-green-600">
                     Place Prediction
@@ -120,7 +120,7 @@ function App() {
                       <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded">Sarah: 45%</span>
                       <span className="text-xs bg-purple-100 text-purple-800 px-2 py-1 rounded">Mike: 25%</span>
                     </div>
-                    <span className="text-sm text-gray-600">₦78,900 pool</span>
+                    <span className="text-sm text-gray-600">$78,900 pool</span>
                   </div>
                   <button className="mt-3 bg-green-500 text-white px-4 py-2 rounded text-sm hover:bg-green-600">
                     Place Prediction
@@ -155,7 +155,7 @@ function App() {
             <h1 className="text-2xl font-bold text-gray-900 mb-6">Wallet</h1>
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
               <h2 className="text-lg font-semibold text-gray-900 mb-2">Balance</h2>
-              <div className="text-3xl font-bold text-green-500">₦0.00</div>
+              <div className="text-3xl font-bold text-green-500">$0.00</div>
               <p className="text-gray-600 text-sm mt-1">Nigerian Naira</p>
             </div>
             <div className="space-y-3">

@@ -248,26 +248,26 @@ const CreateClubPage: React.FC<CreateClubPageProps> = ({ onNavigateBack }) => {
                 />
               </div>
 
-              {/* Category */}
+              {/* Category - Pill-based (consistent with DiscoverPage & CreatePredictionPage) */}
               <div className="mb-6">
                 <label className="block text-sm font-semibold text-gray-700 mb-3">
                   Category *
                 </label>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="flex flex-wrap gap-3">
                   {categories.map((cat) => (
                     <motion.button
                       key={cat.id}
                       whileHover={{ scale: 1.02 }}
                       whileTap={{ scale: 0.98 }}
                       onClick={() => setCategory(cat.id)}
-                      className={`p-4 rounded-xl border-2 text-left transition-all ${
+                      className={`pill-category px-4 py-2.5 rounded-full text-sm font-semibold transition-all flex items-center gap-2 min-h-[40px] ${
                         category === cat.id
-                          ? 'border-purple-500 bg-purple-50 text-purple-700'
-                          : 'border-gray-200 bg-gray-50 text-gray-700 hover:border-gray-300'
+                          ? 'bg-gradient-to-r from-purple-500 to-purple-600 text-white shadow-lg'
+                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200 border border-gray-200'
                       }`}
                     >
-                      <div className="text-2xl mb-2">{cat.icon}</div>
-                      <div className="font-semibold">{cat.label}</div>
+                      <span className="text-base">{cat.icon}</span>
+                      <span>{cat.label}</span>
                     </motion.button>
                   ))}
                 </div>

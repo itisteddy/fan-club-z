@@ -12,11 +12,13 @@ import {
   Zap
 } from 'lucide-react';
 import { Button } from '../ui/button';
-import { Card, CardContent } from '../ui/card';
+import { scrollToTop } from '../../utils/scroll';
 import { Avatar, AvatarImage, AvatarFallback } from '../ui/avatar';
-import { Prediction } from '../../stores/predictionStore';
+import { Prediction } from '../../store/predictionStore';
 import { formatCurrency, formatTimeRemaining, generateInitials, getAvatarUrl, cn } from '../../lib/utils';
 import { PlacePredictionModal } from './PlacePredictionModal';
+import { CommentsModal } from './CommentsModal';
+import { useLikeStore } from '../../store/likeStore';
 
 interface PredictionCardProps {
   prediction: Prediction;
@@ -29,7 +31,9 @@ export const PredictionCard: React.FC<PredictionCardProps> = ({
 }) => {
   const [, setLocation] = useLocation();
   const [showModal, setShowModal] = useState(false);
-  const [isLiked, setIsLiked] = useState(false);
+  const [showCommentsModal, setShowCommentsModal] = useState(false);
+  const { toggleLike, checkIfLiked } = useLikeStore();
+  const isLiked = checkIfLiked(prediction.id);
 
   const categoryEmojis = {
     sports: '⚽',
@@ -51,12 +55,89 @@ export const PredictionCard: React.FC<PredictionCardProps> = ({
   };
 
   const handleCardClick = () => {
+    console.log('🎯 Prediction card clicked, navigating to:', `/prediction/${prediction.id}`);
     setLocation(`/prediction/${prediction.id}`);
+    scrollToTop({ behavior: 'instant' });
   };
 
   const handleQuickBet = (e: React.MouseEvent) => {
     e.stopPropagation();
     setShowModal(true);
+  };
+
+  const handleShare = () => {
+    const shareUrl = `${window.location.origin}/prediction/${prediction.id}`;
+    const shareText = `${prediction.title}\n\nMake your prediction on Fan Club Z!`;
+
+    if (navigator.share && /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)) {
+      navigator.share({
+        title: prediction.title,
+        text: shareText,
+        url: shareUrl,
+      }).catch((error) => {
+        if (error.name !== 'AbortError') {
+          copyToClipboard(shareUrl, shareText);
+        }
+      });
+    } else {
+      copyToClipboard(shareUrl, shareText);
+    }
+  };
+
+  const copyToClipboard = (shareUrl: string, shareText: string) => {
+    const fullText = `${shareText}\n\n${shareUrl}`;
+    
+    navigator.clipboard.writeText(fullText)
+      .then(() => {
+        showShareNotification('Link copied to clipboard! 📋', 'success');
+      })
+      .catch(() => {
+        showShareNotification(`Share this link: ${shareUrl}`, 'info');
+      });
+  };
+
+  const showShareNotification = (message: string, type: 'success' | 'info') => {
+    const notification = document.createElement('div');
+    const isSuccess = type === 'success';
+    
+    notification.style.cssText = `
+      position: fixed;
+      top: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      padding: 12px 20px;
+      background-color: ${isSuccess ? '#10b981' : '#3b82f6'};
+      color: white;
+      border-radius: 12px;
+      font-weight: 500;
+      font-size: 14px;
+      z-index: 9999;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+      max-width: 90vw;
+      text-align: center;
+      animation: slideInDown 0.3s ease-out;
+    `;
+    
+    notification.textContent = message;
+    document.body.appendChild(notification);
+    
+    const style = document.createElement('style');
+    style.textContent = `
+      @keyframes slideInDown {
+        from { transform: translateX(-50%) translateY(-100%); opacity: 0; }
+        to { transform: translateX(-50%) translateY(0); opacity: 1; }
+      }
+    `;
+    document.head.appendChild(style);
+    
+    setTimeout(() => {
+      if (notification.parentNode) {
+        notification.parentNode.removeChild(notification);
+      }
+      if (style.parentNode) {
+        style.parentNode.removeChild(style);
+      }
+    }, 3000);
   };
 
   if (variant === 'horizontal') {
@@ -65,28 +146,26 @@ export const PredictionCard: React.FC<PredictionCardProps> = ({
         whileTap={{ scale: 0.95 }}
         className="shrink-0 w-36"
       >
-        <Card 
-          className="cursor-pointer overflow-hidden bg-gradient-to-br from-primary/10 to-secondary/10 border-primary/20 h-24"
+        <div 
+          className="cursor-pointer overflow-hidden bg-gradient-to-br from-primary/10 to-secondary/10 border border-primary/20 rounded-xl h-24 p-3"
           onClick={handleCardClick}
         >
-          <CardContent className="p-3">
-            <div className="text-xs font-medium text-primary mb-1">
-              {categoryEmojis[prediction.category]}
+          <div className="text-xs font-medium text-primary mb-1">
+            {categoryEmojis[prediction.category]}
+          </div>
+          <h3 className="font-semibold text-xs leading-tight mb-2 line-clamp-2">
+            {prediction.title}
+          </h3>
+          <div className="flex items-center justify-between">
+            <div className="text-sm font-bold text-primary">
+              {formatCurrency(prediction.pool_total)}
             </div>
-            <h3 className="font-semibold text-xs leading-tight mb-2 line-clamp-2">
-              {prediction.title}
-            </h3>
-            <div className="flex items-center justify-between">
-              <div className="text-sm font-bold text-primary">
-                {formatCurrency(prediction.pool_total)}
-              </div>
-              <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                <Users size={10} />
-                {prediction.participant_count}
-              </div>
+            <div className="flex items-center gap-1 text-xs text-muted-foreground">
+              <Users size={10} />
+              {prediction.participant_count}
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       </motion.div>
     );
   }
@@ -96,227 +175,253 @@ export const PredictionCard: React.FC<PredictionCardProps> = ({
     const isWon = prediction.status === 'settled' && userEntry;
     
     return (
-      <Card className={cn(
-        "border-l-4",
+      <div className={cn(
+        "border border-l-4 rounded-xl p-3 bg-white",
         isWon ? "border-l-green-500 bg-green-50/50" : 
         prediction.status === 'settled' ? "border-l-red-500 bg-red-50/50" :
         "border-l-primary bg-primary/5"
       )}>
-        <CardContent className="p-3">
-          <div className="flex items-start justify-between mb-2">
-            <div className="flex-1">
-              <h3 className="font-semibold text-sm mb-1 cursor-pointer hover:text-primary line-clamp-2" onClick={handleCardClick}>
-                {prediction.title}
-              </h3>
-              <div className="text-xs text-muted-foreground">
-                Your position: Option {userEntry?.option_id}
-              </div>
-            </div>
-            <div className="text-right">
-              {prediction.status === 'settled' ? (
-                <span className={cn(
-                  "text-xs font-medium",
-                  isWon ? "text-green-600" : "text-red-600"
-                )}>
-                  {isWon ? "Won" : "Lost"}
-                </span>
-              ) : (
-                <span className="text-xs text-muted-foreground">Active</span>
-              )}
+        <div className="flex items-start justify-between mb-2">
+          <div className="flex-1">
+            <h3 className="font-semibold text-sm mb-1 cursor-pointer hover:text-primary line-clamp-2" onClick={handleCardClick}>
+              {prediction.title}
+            </h3>
+            <div className="text-xs text-muted-foreground">
+              Your position: Option {userEntry?.option_id}
             </div>
           </div>
-
-          <div className="grid grid-cols-2 gap-3 text-xs">
-            <div>
-              <div className="text-muted-foreground">Invested</div>
-              <div className="font-semibold">
-                {formatCurrency(userEntry?.amount || 0)}
-              </div>
-            </div>
-            <div>
-              <div className="text-muted-foreground">
-                {prediction.status === 'settled' ? 'Final Return' : 'Potential Return'}
-              </div>
-              <div className={cn(
-                "font-semibold",
-                prediction.status === 'settled' 
-                  ? isWon ? "text-green-600" : "text-red-600"
-                  : "text-primary"
+          <div className="text-right">
+            {prediction.status === 'settled' ? (
+              <span className={cn(
+                "text-xs font-medium",
+                isWon ? "text-green-600" : "text-red-600"
               )}>
-                {formatCurrency(userEntry?.potential_payout || 0)}
-              </div>
+                {isWon ? "Won" : "Lost"}
+              </span>
+            ) : (
+              <span className="text-xs text-muted-foreground">Active</span>
+            )}
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3 text-xs">
+          <div>
+            <div className="text-muted-foreground">Invested</div>
+            <div className="font-semibold">
+              {formatCurrency(userEntry?.amount || 0)}
             </div>
           </div>
-
-          {prediction.status !== 'settled' && (
-            <div className="mt-2 pt-2 border-t border-border">
-              <div className="flex items-center justify-between text-xs text-muted-foreground">
-                <span className={getTimeColor()}>
-                  <Clock size={10} className="inline mr-1" />
-                  {formatTimeRemaining(prediction.entry_deadline)}
-                </span>
-                <Button 
-                  size="sm" 
-                  variant="outline"
-                  onClick={handleQuickBet}
-                  className="text-xs h-6 px-2"
-                >
-                  Add More
-                </Button>
-              </div>
+          <div>
+            <div className="text-muted-foreground">
+              {prediction.status === 'settled' ? 'Final Return' : 'Potential Return'}
             </div>
-          )}
-        </CardContent>
-      </Card>
+            <div className={cn(
+              "font-semibold",
+              prediction.status === 'settled' 
+                ? isWon ? "text-green-600" : "text-red-600"
+                : "text-primary"
+            )}>
+              {formatCurrency(userEntry?.potential_payout || 0)}
+            </div>
+          </div>
+        </div>
+
+        {prediction.status !== 'settled' && (
+          <div className="mt-2 pt-2 border-t border-border">
+            <div className="flex items-center justify-between text-xs text-muted-foreground">
+              <span className={getTimeColor()}>
+                <Clock size={10} className="inline mr-1" />
+                {formatTimeRemaining(prediction.entry_deadline)}
+              </span>
+              <Button 
+                size="sm" 
+                variant="outline"
+                onClick={handleQuickBet}
+                className="text-xs h-6 px-2"
+              >
+                Add More
+              </Button>
+            </div>
+          </div>
+        )}
+      </div>
     );
   }
 
+  // Main prediction card - completely redesigned
   return (
     <>
       <motion.div
         whileHover={{ y: -1 }}
         transition={{ type: "spring", stiffness: 300, damping: 30 }}
-        className="prediction-card-compact"
+        className="prediction-card"
       >
-        <Card className="cursor-pointer overflow-hidden hover:shadow-md transition-shadow">
-          <CardContent className="p-2">
-            {/* Header - More compact */}
-            <div className="flex items-center justify-between mb-1">
-              <div className="flex items-center gap-1">
-                <Avatar className="w-5 h-5">
+        <div 
+          className="bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer overflow-hidden"
+          onClick={handleCardClick}
+        >
+          {/* Header Section */}
+          <div className="p-4 pb-3">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <Avatar className="w-8 h-8">
                   <AvatarImage src={getAvatarUrl(prediction.creator)} />
                   <AvatarFallback className="text-xs">
                     {generateInitials(prediction.creator.username)}
                   </AvatarFallback>
                 </Avatar>
-                <div>
-                  <div className="flex items-center gap-1">
-                    <span className="text-xs font-medium">{prediction.creator.username}</span>
-                    {prediction.creator.is_verified && (
-                      <CheckCircle size={8} className="text-primary" />
-                    )}
-                  </div>
-                </div>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    console.log('👤 Navigating to creator profile:', prediction.creator.id);
+                    setLocation(`/profile/${prediction.creator.id}`);
+                  }}
+                  className="flex items-center gap-1 hover:text-primary transition-colors cursor-pointer"
+                >
+                  <span className="font-medium text-sm text-gray-900">
+                    {prediction.creator.username}
+                  </span>
+                  {prediction.creator.is_verified && (
+                    <CheckCircle size={12} className="text-primary" />
+                  )}
+                </button>
               </div>
-              <div className="text-xs bg-primary/10 text-primary px-1 py-0.5 rounded-full">
+              <div className="text-lg">
                 {categoryEmojis[prediction.category]}
               </div>
             </div>
 
-            {/* Content - More compact */}
-            <div onClick={handleCardClick}>
-              <h3 className="font-semibold text-sm mb-1 leading-tight line-clamp-2">
-                {prediction.title}
-              </h3>
-              {prediction.description && (
-                <p className="text-muted-foreground text-xs mb-1 line-clamp-1">
-                  {prediction.description}
-                </p>
-              )}
-            </div>
+            {/* Prediction Question */}
+            <h3 className="font-semibold text-gray-900 text-base leading-tight mb-2 line-clamp-2">
+              {prediction.title}
+            </h3>
+            
+            {/* Prediction Description */}
+            {prediction.description && (
+              <p className="text-sm text-gray-600 mb-3 line-clamp-2">
+                {prediction.description}
+              </p>
+            )}
+          </div>
 
-            {/* Options - More compact */}
-            <div className="mb-1">
-              <div className="grid grid-cols-2 gap-1">
-                {prediction.options.slice(0, 2).map((option) => (
-                  <div
-                    key={option.id}
-                    className="bg-muted/50 rounded-md p-1 text-center"
-                  >
-                    <div className="text-xs font-medium mb-0.5 line-clamp-1">{option.label}</div>
-                    <div className="text-xs text-muted-foreground mb-0.5">
-                      {option.percentage.toFixed(1)}%
-                    </div>
-                    <div className="text-xs font-bold text-primary">
-                      {option.current_odds.toFixed(2)}x
-                    </div>
+          {/* Options Section - No more nested cards */}
+          <div className="px-4 pb-3">
+            <div className="grid grid-cols-2 gap-2">
+              {prediction.options?.map((option, index) => (
+                <button
+                  key={option.id}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleQuickBet(e);
+                  }}
+                  className="bg-gray-50 hover:bg-gray-100 rounded-lg p-3 transition-colors text-left"
+                >
+                  <div className="font-medium text-sm text-gray-900 mb-1">
+                    {option.label}
                   </div>
-                ))}
-              </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-gray-600">
+                      {option.percentage}%
+                    </span>
+                    <span className="text-sm font-semibold text-primary">
+                      {option.current_odds?.toFixed(1)}x
+                    </span>
+                  </div>
+                </button>
+              ))}
             </div>
+          </div>
 
-            {/* Stats - More compact */}
-            <div className="py-1 border-t border-border">
-              <div className="flex items-center justify-between text-xs">
-                <div className="flex items-center gap-2">
-                  <div className="flex items-center gap-1 text-primary font-semibold">
-                    <Zap size={9} />
-                    {formatCurrency(prediction.pool_total)}
-                  </div>
-                  <div className="flex items-center gap-1 text-muted-foreground">
-                    <Users size={9} />
-                    {prediction.participant_count}
-                  </div>
-                  <div className={cn("flex items-center gap-1", getTimeColor())}>
-                    <Clock size={9} />
-                    <span className="text-xs">{formatTimeRemaining(prediction.entry_deadline)}</span>
-                  </div>
+          {/* Stats Section */}
+          <div className="px-4 pb-3">
+            <div className="flex items-center justify-between text-xs text-gray-500">
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-1">
+                  <Zap size={12} />
+                  <span>{formatCurrency(prediction.pool_total)}</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <Users size={12} />
+                  <span>{prediction.participant_count}</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <Clock size={12} />
+                  <span className={getTimeColor()}>
+                    {formatTimeRemaining(prediction.entry_deadline)}
+                  </span>
                 </div>
               </div>
             </div>
+          </div>
 
-            {/* Actions - More compact */}
-            <div className="pt-1 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="ghost"
-                  size="sm"
+          {/* Action Section */}
+          <div className="px-4 pb-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    setIsLiked(!isLiked);
+                    toggleLike(prediction.id);
                   }}
-                  className={cn(
-                    "text-muted-foreground hover:text-primary h-5 px-1",
-                    isLiked && "text-red-500 hover:text-red-600"
-                  )}
+                  className={`flex items-center gap-1 text-xs transition-colors ${
+                    isLiked ? 'text-red-500' : 'text-gray-500 hover:text-red-500'
+                  }`}
                 >
-                  <Heart size={10} className={cn(isLiked && "fill-current")} />
-                  <span className="ml-1 text-xs">24</span>
-                </Button>
+                  <Heart size={14} className={isLiked ? 'fill-current' : ''} />
+                  <span>{prediction.likes_count || 0}</span>
+                </button>
                 
-                <Button
-                  variant="ghost"
-                  size="sm"
+                <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    setLocation(`/prediction/${prediction.id}#comments`);
+                    setShowCommentsModal(true);
                   }}
-                  className="text-muted-foreground hover:text-primary h-5 px-1"
+                  className="flex items-center gap-1 text-xs text-gray-500 hover:text-primary transition-colors"
                 >
-                  <MessageCircle size={10} />
-                  <span className="ml-1 text-xs">12</span>
-                </Button>
-
-                <Button
-                  variant="ghost"
-                  size="sm"
+                  <MessageCircle size={14} />
+                  <span>{prediction.comments_count || 0}</span>
+                </button>
+                
+                <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    // Handle share
+                    handleShare();
                   }}
-                  className="text-muted-foreground hover:text-primary h-5 px-1"
+                  className="flex items-center gap-1 text-xs text-gray-500 hover:text-primary transition-colors"
                 >
-                  <Share2 size={10} />
-                </Button>
+                  <Share2 size={14} />
+                </button>
               </div>
-
-              <Button 
-                size="sm"
+              
+              <Button
                 onClick={handleQuickBet}
-                className="h-6 px-3 text-xs"
+                size="sm"
+                className="bg-primary hover:bg-primary/90 text-white px-4 py-2 rounded-lg text-sm font-medium"
               >
                 Predict
               </Button>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       </motion.div>
 
-      <PlacePredictionModal
-        prediction={prediction}
-        isOpen={showModal}
-        onClose={() => setShowModal(false)}
-      />
+      {/* Modals */}
+      {showModal && (
+        <PlacePredictionModal
+          prediction={prediction}
+          isOpen={showModal}
+          onClose={() => setShowModal(false)}
+        />
+      )}
+
+             {showCommentsModal && (
+         <CommentsModal
+           predictionId={prediction.id}
+           predictionTitle={prediction.title}
+           isOpen={showCommentsModal}
+           onClose={() => setShowCommentsModal(false)}
+         />
+       )}
     </>
   );
 };

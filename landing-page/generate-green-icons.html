@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fan Club Z Icon Generator</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .preview {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+            margin: 20px 0;
+        }
+        .icon-preview {
+            text-align: center;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border: 1px solid #e9ecef;
+        }
+        .icon-preview canvas {
+            border-radius: 8px;
+            margin-bottom: 10px;
+        }
+        button {
+            background: #00D084;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px;
+        }
+        button:hover {
+            background: #00A86B;
+        }
+        .download-all {
+            background: #007bff;
+        }
+        .download-all:hover {
+            background: #0056b3;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎯 Fan Club Z PWA Icon Generator</h1>
+        <p>Generate proper green Fan Club Z icons for PWA installation</p>
+        
+        <button onclick="generateAllIcons()">Generate All Icons</button>
+        <button class="download-all" onclick="downloadAll()">Download All as ZIP</button>
+        
+        <div class="preview" id="preview"></div>
+    </div>
+
+    <script>
+        const iconSizes = [
+            { name: 'favicon-16x16.png', size: 16 },
+            { name: 'favicon-32x32.png', size: 32 },
+            { name: 'favicon-96x96.png', size: 96 },
+            { name: 'apple-touch-icon.png', size: 180 },
+            { name: 'android-chrome-192x192.png', size: 192 },
+            { name: 'android-chrome-512x512.png', size: 512 }
+        ];
+
+        function createFanClubZIcon(size) {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            canvas.width = size;
+            canvas.height = size;
+
+            // Create gradient background
+            const gradient = ctx.createLinearGradient(0, 0, size, size);
+            gradient.addColorStop(0, '#00D084');
+            gradient.addColorStop(1, '#00A86B');
+            
+            // Draw background circle
+            ctx.fillStyle = gradient;
+            ctx.beginPath();
+            ctx.arc(size/2, size/2, size/2 - 2, 0, 2 * Math.PI);
+            ctx.fill();
+
+            // Add shadow effect
+            ctx.shadowColor = 'rgba(0,0,0,0.3)';
+            ctx.shadowBlur = size * 0.02;
+            ctx.shadowOffsetY = size * 0.008;
+
+            // Set text properties
+            ctx.fillStyle = 'white';
+            ctx.textAlign = 'center';
+            ctx.shadowColor = 'rgba(0,0,0,0.3)';
+            ctx.shadowBlur = size * 0.01;
+            ctx.shadowOffsetY = size * 0.004;
+
+            // Always show just the "Z" for all icon sizes
+            ctx.font = `${size * 0.6}px Inter, Arial, sans-serif`;
+            ctx.fontWeight = '900';
+            ctx.fillText('Z', size/2, size * 0.68);
+
+            // Add highlight ring
+            ctx.strokeStyle = 'rgba(255,255,255,0.2)';
+            ctx.lineWidth = size * 0.006;
+            ctx.beginPath();
+            ctx.arc(size/2, size/2, size/2 - size * 0.02, 0, 2 * Math.PI);
+            ctx.stroke();
+
+            return canvas;
+        }
+
+        function generateAllIcons() {
+            const preview = document.getElementById('preview');
+            preview.innerHTML = '';
+
+            iconSizes.forEach(icon => {
+                const canvas = createFanClubZIcon(icon.size);
+                
+                const container = document.createElement('div');
+                container.className = 'icon-preview';
+                
+                const title = document.createElement('h3');
+                title.textContent = icon.name;
+                
+                const sizeText = document.createElement('p');
+                sizeText.textContent = `${icon.size}×${icon.size}`;
+                
+                const downloadBtn = document.createElement('button');
+                downloadBtn.textContent = 'Download';
+                downloadBtn.onclick = () => downloadIcon(canvas, icon.name);
+                
+                container.appendChild(title);
+                container.appendChild(canvas);
+                container.appendChild(sizeText);
+                container.appendChild(downloadBtn);
+                
+                preview.appendChild(container);
+            });
+        }
+
+        function downloadIcon(canvas, filename) {
+            const link = document.createElement('a');
+            link.download = filename;
+            link.href = canvas.toDataURL('image/png');
+            link.click();
+        }
+
+        function downloadAll() {
+            iconSizes.forEach(icon => {
+                setTimeout(() => {
+                    const canvas = createFanClubZIcon(icon.size);
+                    downloadIcon(canvas, icon.name);
+                }, icon.size / 50); // Stagger downloads
+            });
+        }
+
+        // Generate icons on page load
+        window.onload = generateAllIcons;
+    </script>
+</body>
+</html>

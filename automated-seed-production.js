@@ -67,20 +67,12 @@ async function seedProductionDatabase() {
     const { data: users } = await supabase.from('users').select('id');
     
     for (const user of users) {
-      // Create NGN wallet
-      await supabase.from('wallets').upsert({
-        user_id: user.id,
-        currency: 'NGN',
-        available_balance: Math.floor(Math.random() * 50000) + 1000,
-        total_deposited: Math.floor(Math.random() * 100000) + 5000,
-      }, { onConflict: 'user_id,currency' });
-
       // Create USD wallet
       await supabase.from('wallets').upsert({
         user_id: user.id,
         currency: 'USD',
-        available_balance: Math.floor(Math.random() * 1000) + 100,
-        total_deposited: Math.floor(Math.random() * 2000) + 500,
+        available_balance: Math.floor(Math.random() * 5000) + 100,
+        total_deposited: Math.floor(Math.random() * 10000) + 500,
       }, { onConflict: 'user_id,currency' });
     }
     console.log(`✅ Created wallets for ${users.length} users`);
@@ -322,8 +314,8 @@ async function seedProductionDatabase() {
       await supabase.from('wallet_transactions').insert({
         user_id: user.id,
         type: 'deposit',
-        currency: 'NGN',
-        amount: Math.floor(Math.random() * 50000) + 10000,
+        currency: 'USD',
+        amount: Math.floor(Math.random() * 5000) + 1000,
         status: 'completed',
         description: 'Initial deposit',
         reference: `DEP_${Date.now()}_${user.id.slice(0, 8)}`,
@@ -334,7 +326,7 @@ async function seedProductionDatabase() {
     console.log('');
     console.log('📊 Summary:');
     console.log(`- ${users.length} user profiles created`);
-    console.log(`- ${users.length * 2} wallets created`);
+    console.log(`- ${users.length} wallets created`);
     console.log(`- ${clubs.length} clubs created`);
     console.log(`- ${predictions.length} predictions created`);
     console.log(`- ${options.length} prediction options created`);

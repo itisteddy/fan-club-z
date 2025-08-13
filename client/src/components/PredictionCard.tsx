@@ -1,7 +1,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { Heart, MessageCircle, Share, TrendingUp, Clock, Users } from 'lucide-react';
-import { Prediction, PredictionEntry } from '../stores/types';
+import { Prediction, PredictionEntry } from '../store/predictionStore';
 
 interface PredictionCardProps {
   prediction: Prediction;
@@ -60,7 +60,7 @@ const PredictionCard: React.FC<PredictionCardProps> = ({
             </div>
             <div className="flex items-center gap-1">
               <div className="w-2 h-2 bg-green-500 rounded-full" />
-              <span>₦{totalPool.toLocaleString()}</span>
+              <span>${totalPool.toLocaleString()}</span>
             </div>
           </div>
 
@@ -115,14 +115,14 @@ const PredictionCard: React.FC<PredictionCardProps> = ({
           <div className="grid grid-cols-2 gap-4 p-4 bg-gray-50 rounded-xl mb-4">
             <div>
               <p className="text-sm text-gray-600">Invested</p>
-              <p className="text-lg font-bold text-gray-900">₦{entry.amount.toLocaleString()}</p>
+              <p className="text-lg font-bold text-gray-900">${entry.amount.toLocaleString()}</p>
             </div>
             <div>
               <p className="text-sm text-gray-600">
                 {entry.status === 'won' ? 'Won' : 'Potential Return'}
               </p>
               <p className={`text-lg font-bold ${isWinning ? 'text-green-600' : 'text-gray-900'}`}>
-                ₦{(entry.actualPayout || entry.potentialPayout || 0).toLocaleString()}
+                ${(entry.actualPayout || entry.potentialPayout || 0).toLocaleString()}
               </p>
             </div>
           </div>
@@ -183,7 +183,7 @@ const PredictionCard: React.FC<PredictionCardProps> = ({
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-1">
               <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-              <span className="font-semibold">₦{totalPool.toLocaleString()}</span>
+              <span className="font-semibold">${totalPool.toLocaleString()}</span>
             </div>
             <div className="flex items-center gap-1">
               <Users size={14} />

@@ -1,485 +1,223 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, memo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, TrendingUp, Heart, MessageCircle, Share2, Clock, User } from 'lucide-react';
+import { toast } from 'react-hot-toast';
+import { TrendingUp, Search } from 'lucide-react';
 import { usePredictionStore } from '../store/predictionStore';
 import { useAuthStore } from '../store/authStore';
-import toast from 'react-hot-toast';
-
-// Modern Mobile Header
-const MobileHeader: React.FC<{ 
-  user: any; 
-  stats: any; 
-  searchQuery: string;
-  onSearchChange: (query: string) => void;
-  onNavigateToProfile: () => void;
-}> = ({ user, stats, searchQuery, onSearchChange, onNavigateToProfile }) => (
-  <div className="bg-white border-b border-gray-100">
-    {/* Status bar spacer */}
-    <div className="h-11" />
-    
-    {/* Header content */}
-    <div className="px-4 pb-4">
-      {/* Welcome text with profile button */}
-      <motion.div
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="mb-4 flex items-center justify-between"
-      >
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 mb-1">
-            Welcome back, {user?.full_name || user?.username || user?.email?.split('@')[0] || 'User'}!
-          </h1>
-          <p className="text-gray-600">
-            Ready to make some winning predictions?
-          </p>
-        </div>
-        <button 
-          onClick={onNavigateToProfile}
-          className="w-10 h-10 bg-gradient-to-br from-green-400 to-green-600 rounded-full flex items-center justify-center shadow-lg"
-        >
-          <User size={20} className="text-white" />
-        </button>
-      </motion.div>
-
-      {/* Live stats */}
-      <motion.div
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.1 }}
-        className="bg-gradient-to-r from-green-500 to-green-600 rounded-2xl p-4 mb-4"
-      >
-        <div className="flex items-center gap-2 mb-3">
-          <div className="w-2 h-2 bg-white rounded-full animate-pulse" />
-          <span className="text-white text-sm font-semibold uppercase tracking-wide">
-            Live Market
-          </span>
-        </div>
-        
-        <div className="grid grid-cols-3 gap-4">
-          <div className="text-center">
-            <div className="text-white text-xl font-bold">
-              ₦{stats.totalVolume.toLocaleString()}
-            </div>
-            <div className="text-green-100 text-xs font-medium uppercase tracking-wide">
-              Total Volume
-            </div>
-          </div>
-          
-          <div className="text-center">
-            <div className="text-white text-xl font-bold">
-              {stats.activePredictions}
-            </div>
-            <div className="text-green-100 text-xs font-medium uppercase tracking-wide">
-              Active
-            </div>
-          </div>
-          
-          <div className="text-center">
-            <div className="text-white text-xl font-bold">
-              ₦{stats.todayVolume.toLocaleString()}
-            </div>
-            <div className="text-green-100 text-xs font-medium uppercase tracking-wide">
-              Today
-            </div>
-          </div>
-        </div>
-      </motion.div>
-
-      {/* Search bar */}
-      <motion.div
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.2 }}
-        className="relative"
-      >
-        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-        <input
-          type="text"
-          placeholder="Search predictions, categories..."
-          value={searchQuery}
-          onChange={(e) => onSearchChange(e.target.value)}
-          className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
-        />
-      </motion.div>
-    </div>
-  </div>
-);
-
-// Category filters with improved text alignment
-const CategoryFilters: React.FC<{ selectedCategory: string; onSelect: (category: string) => void }> = ({ 
-  selectedCategory, 
-  onSelect 
-}) => {
-  const categories = [
-    { id: 'all', label: 'All', gradient: 'from-gray-500 to-gray-600' },
-    { id: 'Sports', label: 'Sports', gradient: 'from-blue-500 to-blue-600' },
-    { id: 'Politics', label: 'Politics', gradient: 'from-purple-500 to-purple-600' },
-    { id: 'Entertainment', label: 'Entertainment', gradient: 'from-pink-500 to-pink-600' },
-    { id: 'Crypto', label: 'Crypto', gradient: 'from-orange-500 to-orange-600' },
-    { id: 'Tech', label: 'Tech', gradient: 'from-indigo-500 to-indigo-600' },
-  ];
-
-  return (
-    <div className="px-4 py-4 bg-white border-b border-gray-100">
-      <div className="flex gap-3 overflow-x-auto scrollbar-hide">
-        {categories.map((category) => (
-          <motion.button
-            key={category.id}
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
-            onClick={() => onSelect(category.id)}
-            className={`category-pill px-4 py-2.5 rounded-full whitespace-nowrap text-sm font-semibold transition-all flex items-center justify-center h-10 min-w-max ${
-              selectedCategory === category.id
-                ? `bg-gradient-to-r ${category.gradient} text-white shadow-lg`
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-            }`}
-            style={{ height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-          >
-            <span className="leading-none flex items-center justify-center">{category.label}</span>
-          </motion.button>
-        ))}
-      </div>
-    </div>
-  );
-};
-
-// Modern prediction card
-const PredictionCard: React.FC<{ 
-  prediction: any; 
-  index: number;
-  onPredict: (prediction: any) => void;
-  onLike: (predictionId: string) => void;
-  onComment: (predictionId: string) => void;
-  onShare: (prediction: any) => void;
-}> = ({ prediction, index, onPredict, onLike, onComment, onShare }) => {
-  const [isLiked, setIsLiked] = useState(false);
-  const [likeCount, setLikeCount] = useState(24);
-  const [commentCount, setCommentCount] = useState(12);
-
-  if (!prediction || !prediction.options || prediction.options.length === 0) {
-    return null;
-  }
-
-  const handleLike = () => {
-    setIsLiked(!isLiked);
-    setLikeCount(prev => isLiked ? prev - 1 : prev + 1);
-    onLike(prediction.id);
-    toast.success(isLiked ? 'Removed from likes' : 'Added to likes');
-  };
-
-  const handleComment = () => {
-    onComment(prediction.id);
-  };
-
-  const handleShare = () => {
-    onShare(prediction);
-    toast.success('Shared to social media!');
-  };
-
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.3, delay: index * 0.1 }}
-      className="bg-white rounded-xl p-4 mx-4 mb-4 shadow-sm border border-gray-100"
-    >
-      {/* Compact header */}
-      <div className="flex items-center gap-2 mb-2">
-        <div className="w-8 h-8 bg-gradient-to-br from-green-400 to-green-600 rounded-lg flex items-center justify-center">
-          <span className="text-white font-bold text-xs">
-            {prediction.creatorName?.charAt(0) || 'FC'}
-          </span>
-        </div>
-        <div className="flex-1 min-w-0">
-          <div className="text-sm font-semibold text-gray-900 truncate">
-            {prediction.creatorName || 'Fan Club Z'}
-          </div>
-          <div className="text-xs text-gray-500">2h ago</div>
-        </div>
-        <div className="px-2 py-1 bg-green-50 text-green-700 text-xs font-medium rounded-md border border-green-200">
-          {prediction.category || 'general'}
-        </div>
-      </div>
-
-      {/* Compact content */}
-      <div className="mb-3">
-        <h3 className="text-base font-bold text-gray-900 mb-1 leading-tight line-clamp-2">
-          {prediction.title || 'Untitled Prediction'}
-        </h3>
-        
-        {prediction.description && (
-          <p className="text-gray-600 text-xs leading-relaxed line-clamp-2">
-            {prediction.description}
-          </p>
-        )}
-      </div>
-
-      {/* Compact stats */}
-      <div className="flex items-center justify-between py-2 border-t border-b border-gray-100 mb-2">
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-1">
-            <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
-            <span className="text-base font-bold text-gray-900">
-              ₦{(prediction.poolTotal || 0).toLocaleString()}
-            </span>
-          </div>
-          <div className="text-xs text-gray-600">
-            {prediction.participantCount || 0} predictors
-          </div>
-        </div>
-        
-        <div className="flex items-center gap-1 text-orange-500">
-          <Clock className="w-3 h-3" />
-          <span className="text-xs font-semibold">
-            {getTimeRemaining(prediction.entryDeadline)}
-          </span>
-        </div>
-      </div>
-
-      {/* Compact prediction options */}
-      <div className="space-y-1.5 mb-3">
-        {prediction.options.slice(0, 2).map((option: any, optionIndex: number) => {
-          const totalStaked = option.totalStaked || 0;
-          const poolTotal = prediction.poolTotal || 1;
-          const percentage = poolTotal > 0 ? Math.min((totalStaked / poolTotal * 100), 100) : 50;
-          const odds = totalStaked > 0 ? (poolTotal / totalStaked).toFixed(2) : '2.00';
-          
-          return (
-            <motion.button
-              key={option.id || optionIndex}
-              whileHover={{ scale: 1.01 }}
-              whileTap={{ scale: 0.99 }}
-              onClick={() => onPredict(prediction)}
-              className="w-full p-3 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors"
-            >
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-2">
-                  <div className={`w-2 h-2 rounded-full ${
-                    optionIndex === 0 ? 'bg-green-500' : 'bg-blue-500'
-                  }`} />
-                  <span className="font-semibold text-sm text-gray-900">
-                    {option.label || `Option ${optionIndex + 1}`}
-                  </span>
-                </div>
-                
-                <div className="text-right">
-                  <div className="text-lg font-bold text-gray-900">
-                    {Math.round(percentage)}%
-                  </div>
-                  <div className="text-xs text-gray-600">
-                    {odds}x odds
-                  </div>
-                </div>
-              </div>
-              
-              {/* Compact progress bar */}
-              <div className="w-full h-1.5 bg-gray-200 rounded-full overflow-hidden">
-                <motion.div
-                  initial={{ width: 0 }}
-                  animate={{ width: `${Math.max(percentage, 2)}%` }}
-                  transition={{ duration: 0.8, delay: optionIndex * 0.1 }}
-                  className={`h-full rounded-full ${
-                    optionIndex === 0 ? 'bg-green-500' : 'bg-blue-500'
-                  }`}
-                />
-              </div>
-            </motion.button>
-          );
-        })}
-      </div>
-
-      {/* Compact engagement */}
-      <div className="flex items-center justify-between pt-2 border-t border-gray-100">
-        <div className="flex items-center gap-4">
-          <button 
-            onClick={handleLike}
-            className={`flex items-center gap-1 transition-colors ${
-              isLiked ? 'text-red-500' : 'text-gray-600 hover:text-red-500'
-            }`}
-          >
-            <Heart className={`w-4 h-4 ${isLiked ? 'fill-current' : ''}`} />
-            <span className="text-xs font-semibold">{likeCount}</span>
-          </button>
-          
-          <button 
-            onClick={handleComment}
-            className="flex items-center gap-1 text-gray-600 hover:text-blue-500 transition-colors"
-          >
-            <MessageCircle className="w-4 h-4" />
-            <span className="text-xs font-semibold">{commentCount}</span>
-          </button>
-          
-          <button 
-            onClick={handleShare}
-            className="flex items-center gap-1 text-gray-600 hover:text-green-500 transition-colors"
-          >
-            <Share2 className="w-4 h-4" />
-          </button>
-        </div>
-        
-        <motion.button
-          whileHover={{ scale: 1.02 }}
-          whileTap={{ scale: 0.98 }}
-          onClick={() => onPredict(prediction)}
-          className="px-4 py-2 bg-green-500 hover:bg-green-600 text-white font-semibold rounded-lg transition-colors shadow-sm text-sm"
-        >
-          Predict Now
-        </motion.button>
-      </div>
-    </motion.div>
-  );
-};
-
-// Simple modal for prediction placement (placeholder)
-const PredictionModal: React.FC<{
-  prediction: any;
-  isOpen: boolean;
-  onClose: () => void;
-}> = ({ prediction, isOpen, onClose }) => {
-  if (!isOpen || !prediction) return null;
-
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <motion.div
-        initial={{ opacity: 0, scale: 0.9 }}
-        animate={{ opacity: 1, scale: 1 }}
-        exit={{ opacity: 0, scale: 0.9 }}
-        className="bg-white rounded-xl p-6 max-w-md w-full"
-      >
-        <h3 className="text-lg font-bold text-gray-900 mb-4">
-          Make Your Prediction
-        </h3>
-        
-        <p className="text-gray-600 mb-6">
-          {prediction.title}
-        </p>
-        
-        <div className="space-y-3 mb-6">
-          {prediction.options?.map((option: any, index: number) => (
-            <button
-              key={option.id || index}
-              onClick={() => {
-                toast.success(`Predicted: ${option.label}`);
-                onClose();
-              }}
-              className="w-full p-3 bg-gray-50 hover:bg-green-50 border border-gray-200 hover:border-green-200 rounded-lg text-left transition-colors"
-            >
-              <div className="font-semibold text-gray-900">{option.label}</div>
-              <div className="text-sm text-gray-600">
-                Current odds: {(option.currentOdds || 2.0).toFixed(2)}x
-              </div>
-            </button>
-          ))}
-        </div>
-        
-        <button
-          onClick={onClose}
-          className="w-full py-3 bg-gray-100 text-gray-700 rounded-lg font-medium hover:bg-gray-200 transition-colors"
-        >
-          Cancel
-        </button>
-      </motion.div>
-    </div>
-  );
-};
-
-// Helper function to calculate time remaining
-const getTimeRemaining = (deadline: Date | string | undefined) => {
-  if (!deadline) return '5h left';
-  
-  const now = new Date().getTime();
-  const deadlineTime = new Date(deadline).getTime();
-  const diff = deadlineTime - now;
-  
-  if (diff <= 0) return 'Ended';
-  
-  const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-  const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-  
-  if (days > 0) return `${days}d ${hours}h left`;
-  return `${hours}h left`;
-};
+import CompactPredictionCard from '../components/CompactPredictionCard';
+import PredictionModal from '../components/modals/PredictionModal';
+import PredictionCardSkeleton from '../components/PredictionCardSkeleton';
+import type { Prediction } from '../../../shared/schema';
 
 interface DiscoverPageProps {
   onNavigateToProfile?: () => void;
+  onNavigateToPrediction?: (predictionId: string) => void;
 }
 
-const DiscoverPage: React.FC<DiscoverPageProps> = ({ onNavigateToProfile }) => {
-  const [selectedCategory, setSelectedCategory] = useState('all');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [selectedPrediction, setSelectedPrediction] = useState<any>(null);
-  const [isPredictionModalOpen, setIsPredictionModalOpen] = useState(false);
+// Enhanced Category Filter Component
+const CategoryFilters: React.FC<{
+  selectedCategory: string;
+  onSelect: (category: string) => void;
+}> = memo(({ selectedCategory, onSelect }) => {
+  const categories = [
+    { id: 'all', label: 'All', icon: '🌟' },
+    { id: 'sports', label: 'Sports', icon: '⚽' },
+    { id: 'pop_culture', label: 'Pop Culture', icon: '🎬' },
+    { id: 'custom', label: 'Custom', icon: '✨' },
+    { id: 'politics', label: 'Politics', icon: '🗳️' },
+    { id: 'crypto', label: 'Crypto', icon: '₿' },
+    { id: 'tech', label: 'Tech', icon: '💻' },
+    { id: 'finance', label: 'Finance', icon: '📈' }
+  ];
+
+  return (
+    <div className="category-filters bg-white border-b border-gray-100 px-4 py-3">
+      <div className="category-filters-container overflow-x-auto -mx-2 px-2">
+        <div className="category-filters-flex flex gap-2 pb-1">
+          {categories.map((category) => (
+            <motion.button
+              key={category.id}
+              onClick={() => onSelect(category.id)}
+              className={`
+                category-pill flex-shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium
+                transition-all duration-200 whitespace-nowrap
+                ${selectedCategory === category.id
+                  ? 'active bg-green-500 text-white shadow-sm'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }
+              `}
+              whileTap={{ scale: 0.96 }}
+            >
+              <span className="text-xs">{category.icon}</span>
+              <span>{category.label}</span>
+            </motion.button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+});
+
+CategoryFilters.displayName = 'CategoryFilters';
+
+// Enhanced Mobile Header Component
+const MobileHeader: React.FC<{
+  user: any;
+  stats: any;
+  searchQuery: string;
+  onSearchChange: (query: string) => void;
+  onNavigateToProfile: () => void;
+}> = memo(({ user, stats, searchQuery, onSearchChange, onNavigateToProfile }) => {
+  return (
+    <div className="bg-white border-b border-gray-100 sticky top-0 z-50">
+      {/* Status bar spacer */}
+      <div className="h-11" />
+      
+      <div className="px-4 pb-4">
+        {/* Top section */}
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">Discover</h1>
+            <p className="text-sm text-gray-600">Find your next winning prediction</p>
+          </div>
+          <button
+            onClick={onNavigateToProfile}
+            className="w-10 h-10 rounded-full bg-gradient-to-r from-green-400 to-green-500 flex items-center justify-center text-white font-semibold shadow-lg"
+          >
+            {user?.email?.[0]?.toUpperCase() || 'U'}
+          </button>
+        </div>
+
+        {/* Live market stats */}
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-2xl p-4 mb-4"
+        >
+          <div className="flex items-center gap-2 mb-3">
+            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+            <span className="text-sm font-medium text-gray-900">LIVE MARKETS</span>
+          </div>
+          <div className="grid grid-cols-3 gap-4">
+            <div className="text-center">
+              <div className="text-lg font-bold text-gray-900">
+                ${stats?.totalVolume || '0'}
+              </div>
+              <div className="text-xs text-gray-600">Volume</div>
+            </div>
+            <div className="text-center">
+              <div className="text-lg font-bold text-gray-900">
+                {stats?.activePredictions || '0'}
+              </div>
+              <div className="text-xs text-gray-600">Live</div>
+            </div>
+            <div className="text-center">
+              <div className="text-lg font-bold text-gray-900">
+                {stats?.totalUsers || '0'}
+              </div>
+              <div className="text-xs text-gray-600">Players</div>
+            </div>
+          </div>
+        </motion.div>
+
+        {/* Search bar */}
+        <div className="relative">
+          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+            <Search className="h-5 w-5 text-gray-400" />
+          </div>
+          <input
+            type="text"
+            placeholder="Search predictions..."
+            value={searchQuery}
+            onChange={(e) => onSearchChange(e.target.value)}
+            className="w-full pl-10 pr-4 py-3 bg-gray-50 border-0 rounded-xl text-gray-900 placeholder-gray-500 focus:bg-white focus:ring-2 focus:ring-green-500 focus:outline-none transition-all"
+          />
+        </div>
+      </div>
+    </div>
+  );
+});
+
+MobileHeader.displayName = 'MobileHeader';
+
+// Main DiscoverPage Component
+const DiscoverPage: React.FC<DiscoverPageProps> = memo(({ onNavigateToProfile, onNavigateToPrediction }) => {
+  const { user } = useAuthStore();
+  const { predictions, loading, refreshPredictions } = usePredictionStore();
   
-  const { predictions, loading, fetchPredictions } = usePredictionStore();
-  const { user, isAuthenticated } = useAuthStore();
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('all');
+  const [selectedPrediction, setSelectedPrediction] = useState<Prediction | null>(null);
+  const [isPredictionModalOpen, setIsPredictionModalOpen] = useState(false);
 
-  // Fetch predictions on component mount
+  // Initialize data on mount
   useEffect(() => {
-    console.log('🔄 DiscoverPage mounted, fetching predictions...');
-    fetchPredictions();
-  }, [fetchPredictions]);
+    refreshPredictions();
+  }, [refreshPredictions]);
 
-  const stats = {
-    totalVolume: predictions?.reduce((sum, pred) => sum + (pred.pool_total || 0), 0) || 2547892,
-    activePredictions: predictions?.length || 0,
-    todayVolume: 89234,
-  };
+  // Calculate stats
+  const stats = useMemo(() => ({
+    totalVolume: '127.5K',
+    activePredictions: predictions?.filter(p => p.status === 'open').length || 0,
+    totalUsers: '2.1K'
+  }), [predictions]);
 
-  // Filter predictions based on search query and category
-  const filteredPredictions = (predictions || []).filter(prediction => {
-    if (!prediction) return false;
+  // Filter predictions based on search and category
+  const filteredPredictions = useMemo(() => {
+    if (!predictions) return [];
     
-    // Category filter
-    const matchesCategory = selectedCategory === 'all' || 
-      (prediction.category && prediction.category === selectedCategory);
-    
-    // Search filter
-    const matchesSearch = !searchQuery || 
-      prediction.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      prediction.description?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      prediction.category?.toLowerCase().includes(searchQuery.toLowerCase());
-    
-    return matchesCategory && matchesSearch;
-  });
+    return predictions.filter(prediction => {
+      // Category filter
+      if (selectedCategory !== 'all' && prediction.category !== selectedCategory) {
+        return false;
+      }
+      
+      // Search filter
+      if (searchQuery.trim() && 
+          !prediction.title.toLowerCase().includes(searchQuery.toLowerCase()) &&
+          !prediction.description?.toLowerCase().includes(searchQuery.toLowerCase())) {
+        return false;
+      }
+      
+      return true;
+    });
+  }, [predictions, selectedCategory, searchQuery]);
 
-  const handlePredict = useCallback((prediction: any) => {
-    if (!isAuthenticated) {
-      toast.error('Please sign in to make predictions');
-      return;
-    }
+  // Event handlers
+  const handlePredict = useCallback((prediction: Prediction) => {
     setSelectedPrediction(prediction);
     setIsPredictionModalOpen(true);
-  }, [isAuthenticated]);
+  }, []);
+
+  const handleNavigateToPrediction = useCallback((predictionId: string) => {
+    if (onNavigateToPrediction) {
+      onNavigateToPrediction(predictionId);
+    } else {
+      window.location.href = `/prediction/${predictionId}`;
+    }
+  }, [onNavigateToPrediction]);
 
   const handleLike = useCallback((predictionId: string) => {
-    if (!isAuthenticated) {
-      toast.error('Please sign in to like predictions');
-      return;
-    }
-    console.log('Liked prediction:', predictionId);
-  }, [isAuthenticated]);
+    toast.success('Prediction liked!');
+  }, []);
 
   const handleComment = useCallback((predictionId: string) => {
-    if (!isAuthenticated) {
-      toast.error('Please sign in to comment');
-      return;
-    }
-    console.log('Comment on prediction:', predictionId);
-    toast.success('Comments feature coming soon!');
-  }, [isAuthenticated]);
+    // Navigate to prediction detail page with comments
+    handleNavigateToPrediction(predictionId);
+  }, [handleNavigateToPrediction]);
 
-  const handleShare = useCallback((prediction: any) => {
-    const shareText = `${prediction.title}\n\nMake your prediction on Fan Club Z!`;
+  const handleShare = useCallback((prediction: Prediction) => {
+    const shareText = `Check out this prediction: ${prediction.title}`;
+    const shareUrl = `${window.location.origin}/prediction/${prediction.id}`;
     
     if (navigator.share) {
       navigator.share({
         title: prediction.title,
         text: shareText,
-        url: window.location.href,
+        url: shareUrl
       }).catch(console.error);
     } else {
-      // Fallback: copy to clipboard
-      navigator.clipboard.writeText(`${shareText}\n${window.location.href}`)
+      navigator.clipboard.writeText(`${shareText}\n${shareUrl}`)
         .then(() => toast.success('Link copied to clipboard!'))
         .catch(() => toast.error('Failed to copy link'));
     }
@@ -489,102 +227,167 @@ const DiscoverPage: React.FC<DiscoverPageProps> = ({ onNavigateToProfile }) => {
     setSearchQuery(query);
   }, []);
 
+  const handleCategorySelect = useCallback((category: string) => {
+    setSelectedCategory(category);
+  }, []);
+
+  const handleModalClose = useCallback(() => {
+    setIsPredictionModalOpen(false);
+    setSelectedPrediction(null);
+  }, []);
+
+  // Show optimized loading state
   if (loading && (!predictions || predictions.length === 0)) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-8 h-8 border-2 border-green-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading predictions...</p>
+      <div className="min-h-screen bg-gray-50">
+        {/* Header skeleton */}
+        <div className="bg-white border-b border-gray-100">
+          <div className="h-11" />
+          <div className="px-4 pb-4">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <div className="h-8 bg-gray-200 rounded w-24 mb-2 loading-skeleton"></div>
+                <div className="h-4 bg-gray-200 rounded w-32 loading-skeleton"></div>
+              </div>
+              <div className="w-10 h-10 bg-gray-200 rounded-full loading-skeleton"></div>
+            </div>
+            <div className="bg-gray-200 rounded-2xl p-4 mb-4 loading-skeleton">
+              <div className="h-4 bg-gray-300 rounded w-20 mb-3 loading-skeleton"></div>
+              <div className="grid grid-cols-3 gap-4">
+                <div className="text-center">
+                  <div className="h-6 bg-gray-300 rounded mb-1 loading-skeleton"></div>
+                  <div className="h-3 bg-gray-300 rounded w-16 mx-auto loading-skeleton"></div>
+                </div>
+                <div className="text-center">
+                  <div className="h-6 bg-gray-300 rounded mb-1 loading-skeleton"></div>
+                  <div className="h-3 bg-gray-300 rounded w-12 mx-auto loading-skeleton"></div>
+                </div>
+                <div className="text-center">
+                  <div className="h-6 bg-gray-300 rounded mb-1 loading-skeleton"></div>
+                  <div className="h-3 bg-gray-300 rounded w-14 mx-auto loading-skeleton"></div>
+                </div>
+              </div>
+            </div>
+            <div className="h-12 bg-gray-200 rounded-xl loading-skeleton"></div>
+          </div>
+        </div>
+
+        {/* Category filters skeleton */}
+        <div className="px-4 py-3 bg-white border-b border-gray-100">
+          <div className="flex gap-2 overflow-x-auto">
+            {[1, 2, 3, 4, 5, 6].map((i) => (
+              <div key={i} className="h-8 bg-gray-200 rounded-full w-20 flex-shrink-0 loading-skeleton"></div>
+            ))}
+          </div>
+        </div>
+
+        {/* Content skeleton */}
+        <div className="py-4">
+          <div className="px-4 mb-6">
+            <div className="h-8 bg-gray-200 rounded w-32 mb-2 loading-skeleton"></div>
+            <div className="h-4 bg-gray-200 rounded w-24 loading-skeleton"></div>
+          </div>
+          
+          {/* Prediction card skeletons */}
+          <div className="space-y-2">
+            {[1, 2, 3, 4, 5].map((i) => (
+              <PredictionCardSkeleton key={i} />
+            ))}
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50" style={{ paddingBottom: 'calc(5rem + env(safe-area-inset-bottom))' }}>
-      {/* Header */}
-      <MobileHeader 
-        user={user} 
-        stats={stats} 
-        searchQuery={searchQuery}
-        onSearchChange={handleSearchChange}
-        onNavigateToProfile={onNavigateToProfile || (() => console.log('No navigation handler provided'))}
-      />
+    <div className="discover-page content-with-bottom-nav" style={{ position: 'relative', zIndex: 1 }}>
+      {/* Header with proper z-index */}
+      <div className="discover-header">
+        <div className="header-content">
+          <MobileHeader 
+            user={user} 
+            stats={stats} 
+            searchQuery={searchQuery}
+            onSearchChange={handleSearchChange}
+            onNavigateToProfile={onNavigateToProfile || (() => {})}
+          />
+        </div>
+      </div>
 
-      {/* Category filters */}
-      <CategoryFilters 
-        selectedCategory={selectedCategory} 
-        onSelect={setSelectedCategory} 
-      />
+      {/* Category filters with explicit positioning */}
+      <div className="category-filters-wrapper" style={{ position: 'relative', zIndex: 45 }}>
+        <CategoryFilters 
+          selectedCategory={selectedCategory} 
+          onSelect={handleCategorySelect} 
+        />
+      </div>
 
-      {/* Content */}
-      <div className="py-4">
+      {/* Content with proper spacing */}
+      <div className="prediction-cards-container">
         {/* Section header */}
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
-          className="px-4 mb-6"
+          className="px-4 mb-4"
         >
-          <h2 className="text-2xl font-bold text-gray-900 mb-1">
+          <h2 className="text-xl font-bold text-gray-900 mb-1">
             {selectedCategory === 'all' ? 'All Predictions' : `${selectedCategory} Predictions`}
             {searchQuery && ` - "${searchQuery}"`}
           </h2>
-          <p className="text-gray-600">
+          <p className="text-sm text-gray-600">
             {filteredPredictions.length} predictions available
           </p>
         </motion.div>
 
-        {/* Predictions list */}
-        <div className="pb-6">
-          <AnimatePresence initial={false}>
-            {filteredPredictions.map((prediction, index) => (
-              <PredictionCard
-                key={prediction?.id || `prediction-${index}`}
-                prediction={prediction}
-                index={index}
-                onPredict={handlePredict}
-                onLike={handleLike}
-                onComment={handleComment}
-                onShare={handleShare}
-              />
-            ))}
+        {/* Predictions Grid */}
+        <div className="space-y-2">
+          <AnimatePresence mode="wait">
+            {filteredPredictions.length > 0 ? (
+              filteredPredictions.map((prediction, index) => (
+                <CompactPredictionCard
+                  key={prediction.id}
+                  prediction={prediction}
+                  index={index}
+                  onPredict={handlePredict}
+                  onLike={handleLike}
+                  onComment={handleComment}
+                  onShare={handleShare}
+                  onNavigate={handleNavigateToPrediction}
+                />
+              ))
+            ) : (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                className="text-center py-12 px-4"
+              >
+                <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <TrendingUp size={24} className="text-gray-400" />
+                </div>
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">No predictions found</h3>
+                <p className="text-gray-600">
+                  {searchQuery 
+                    ? `No predictions match "${searchQuery}"`
+                    : 'Try adjusting your filters or check back later'
+                  }
+                </p>
+              </motion.div>
+            )}
           </AnimatePresence>
         </div>
-
-        {/* Empty state */}
-        {filteredPredictions.length === 0 && !loading && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="text-center py-12 px-4"
-          >
-            <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <TrendingUp className="w-8 h-8 text-gray-400" />
-            </div>
-            <h3 className="text-xl font-bold text-gray-900 mb-2">
-              {searchQuery ? 'No predictions found' : 'No predictions available'}
-            </h3>
-            <p className="text-gray-600">
-              {searchQuery 
-                ? 'Try adjusting your search terms or category filter'
-                : 'Check back later for new predictions'
-              }
-            </p>
-          </motion.div>
-        )}
       </div>
 
       {/* Prediction Modal */}
       <PredictionModal
         prediction={selectedPrediction}
         isOpen={isPredictionModalOpen}
-        onClose={() => {
-          setIsPredictionModalOpen(false);
-          setSelectedPrediction(null);
-        }}
+        onClose={handleModalClose}
       />
     </div>
   );
-};
+});
+
+DiscoverPage.displayName = 'DiscoverPage';
 
 export default DiscoverPage;

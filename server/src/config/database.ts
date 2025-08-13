@@ -176,7 +176,7 @@ export const db = {
   
   // Wallet operations
   wallets: {
-    async findByUserId(userId: string, currency: string = 'NGN') {
+    async findByUserId(userId: string, currency: string = 'USD') {
       const { data, error } = await supabase
         .from('wallets')
         .select('*')
@@ -188,7 +188,7 @@ export const db = {
       return data;
     },
     
-    async createOrUpdate(userId: string, currency: string = 'NGN', updates: any = {}) {
+    async createOrUpdate(userId: string, currency: string = 'USD', updates: any = {}) {
       const { data, error } = await supabase
         .from('wallets')
         .upsert({
@@ -205,16 +205,50 @@ export const db = {
     },
     
     async updateBalance(userId: string, currency: string, availableChange: number, reservedChange: number = 0) {
-      // Use RPC function for atomic balance updates
-      const { data, error } = await supabase.rpc('update_wallet_balance', {
-        user_id: userId,
-        currency_code: currency,
-        available_change: availableChange,
-        reserved_change: reservedChange,
-      });
+      try {
+        // First check if RPC function exists and use it
+        const { data, error } = await supabase.rpc('update_wallet_balance', {
+          user_id: userId,
+          currency_code: currency,
+          available_change: availableChange,
+          reserved_change: reservedChange,
+        });
+        
+        if (error) {
+          console.error('RPC function error, falling back to direct update:', error);
+          // Fallback to direct wallet update
+          return await this.directUpdateBalance(userId, currency, availableChange, reservedChange);
+        }
+        return data;
+      } catch (rpcError) {
+        console.error('RPC function not available, using direct update:', rpcError);
+        // Fallback to direct wallet update
+        return await this.directUpdateBalance(userId, currency, availableChange, reservedChange);
+      }
+    },
+
+    async directUpdateBalance(userId: string, currency: string, availableChange: number, reservedChange: number = 0) {
+      // First, get current wallet or create one
+      let wallet = await this.findByUserId(userId, currency);
       
-      if (error) throw error;
-      return data;
+      if (!wallet) {
+        // Create new wallet
+        wallet = await this.createOrUpdate(userId, currency, {
+          available_balance: Math.max(0, availableChange),
+          reserved_balance: Math.max(0, reservedChange),
+        });
+      } else {
+        // Update existing wallet
+        const newAvailable = Math.max(0, wallet.available_balance + availableChange);
+        const newReserved = Math.max(0, wallet.reserved_balance + reservedChange);
+        
+        wallet = await this.createOrUpdate(userId, currency, {
+          available_balance: newAvailable,
+          reserved_balance: newReserved,
+        });
+      }
+      
+      return wallet;
     },
   },
   

@@ -1,0 +1,249 @@
+/* PWA Install Animations and Styles */
+
+/* Install banner animation */
+@keyframes slideInFromTop {
+  from {
+    transform: translateY(-100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes slideOutToTop {
+  from {
+    transform: translateY(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateY(-100%);
+    opacity: 0;
+  }
+}
+
+.pwa-banner-enter {
+  animation: slideInFromTop 0.3s ease-out;
+}
+
+.pwa-banner-exit {
+  animation: slideOutToTop 0.3s ease-in;
+}
+
+/* Modal backdrop animation */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes fadeOut {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+/* Modal slide up animation */
+@keyframes slideUp {
+  from {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes slideDown {
+  from {
+    transform: translateY(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+}
+
+.ios-modal-backdrop {
+  animation: fadeIn 0.3s ease-out;
+}
+
+.ios-modal-content {
+  animation: slideUp 0.3s ease-out;
+}
+
+/* PWA Install Button States */
+.pwa-install-button {
+  transition: all 0.2s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.pwa-install-button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.pwa-install-button:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+/* Loading state for install button */
+.pwa-install-button.loading::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 16px;
+  height: 16px;
+  margin: -8px 0 0 -8px;
+  border: 2px solid transparent;
+  border-top-color: currentColor;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* PWA Status Indicators */
+.pwa-status-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.pwa-status-indicator.installable {
+  background: rgba(34, 197, 94, 0.1);
+  color: #00A86B;
+}
+
+.pwa-status-indicator.installed {
+  background: rgba(59, 130, 246, 0.1);
+  color: #2563EB;
+}
+
+.pwa-status-indicator.offline {
+  background: rgba(156, 163, 175, 0.1);
+  color: #6B7280;
+}
+
+/* Update notification styles */
+.pwa-update-notification {
+  background: linear-gradient(135deg, #3B82F6, #1D4ED8);
+  border-radius: 16px;
+  box-shadow: 0 10px 25px rgba(59, 130, 246, 0.3);
+  animation: slideInFromTop 0.3s ease-out;
+  /* Ensure it appears above other content */
+  z-index: 60;
+}
+
+/* Top positioned notifications */
+.notification-top {
+  position: fixed;
+  top: 80px; /* Below typical header */
+  left: 16px;
+  right: 16px;
+  max-width: 400px;
+  margin: 0 auto;
+  z-index: 60;
+}
+
+/* Safe positioning that avoids bottom navigation */
+.notification-safe-position {
+  /* Ensure notification doesn't overlap with bottom nav (64px + safe area) */
+  bottom: calc(64px + env(safe-area-inset-bottom, 16px) + 16px);
+}
+
+/* Safe area adjustments for PWA */
+@supports (padding: max(0px)) {
+  .pwa-banner {
+    padding-top: max(12px, env(safe-area-inset-top));
+    padding-left: max(16px, env(safe-area-inset-left));
+    padding-right: max(16px, env(safe-area-inset-right));
+  }
+  
+  .pwa-modal {
+    padding-bottom: max(16px, env(safe-area-inset-bottom));
+  }
+}
+
+/* Responsive adjustments */
+@media (max-width: 375px) {
+  .pwa-banner {
+    padding: 8px 12px;
+  }
+  
+  .pwa-banner-text {
+    font-size: 13px;
+  }
+  
+  .pwa-banner-subtext {
+    font-size: 11px;
+  }
+  
+  .pwa-install-button {
+    padding: 6px 12px;
+    font-size: 13px;
+  }
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+  .pwa-update-notification {
+    background: #1F2937;
+    border: 1px solid #374151;
+  }
+  
+  .ios-modal-content {
+    background: #1F2937;
+    color: #F9FAFB;
+  }
+  
+  .ios-modal-step {
+    background: #374151;
+  }
+}
+
+/* Accessibility improvements */
+@media (prefers-reduced-motion: reduce) {
+  .pwa-banner-enter,
+  .pwa-banner-exit,
+  .ios-modal-backdrop,
+  .ios-modal-content,
+  .pwa-update-notification {
+    animation: none;
+  }
+  
+  .pwa-install-button {
+    transition: none;
+  }
+}
+
+/* Focus styles for keyboard navigation */
+.pwa-install-button:focus-visible,
+.pwa-dismiss-button:focus-visible {
+  outline: 2px solid #22C55E;
+  outline-offset: 2px;
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+  .pwa-banner {
+    border: 2px solid;
+  }
+  
+  .pwa-install-button {
+    border: 2px solid;
+  }
+}

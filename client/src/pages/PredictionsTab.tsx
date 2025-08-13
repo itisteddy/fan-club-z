@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { TrendingUp, Target, CheckCircle, Plus, ArrowRight } from 'lucide-react';
-import { usePredictionsStore } from '../stores/predictionsStore';
+import { usePredictionStore } from '../store/predictionStore';
+import { formatTimeRemaining } from '../lib/utils';
 import ManagePredictionModal from '../components/modals/ManagePredictionModal';
 
 interface PredictionsTabProps {
@@ -9,7 +10,7 @@ interface PredictionsTabProps {
 }
 
 const PredictionsTab: React.FC<PredictionsTabProps> = ({ onNavigateToDiscover }) => {
-  const { predictions, predictionEntries } = usePredictionsStore();
+  const { predictions, predictionEntries } = usePredictionStore();
   const [activeTab, setActiveTab] = useState('Active');
   const [isManageModalOpen, setIsManageModalOpen] = useState(false);
   const [selectedPrediction, setSelectedPrediction] = useState(null);
@@ -170,11 +171,11 @@ const PredictionsTab: React.FC<PredictionsTabProps> = ({ onNavigateToDiscover })
         <div className="grid grid-cols-3 gap-4 mt-3">
           <div>
             <p className="text-xs text-emerald-600 mb-1">Staked</p>
-            <p className="font-semibold text-emerald-900">₦{prediction.stake}</p>
+            <p className="font-semibold text-emerald-900">${prediction.stake}</p>
           </div>
           <div>
             <p className="text-xs text-emerald-600 mb-1">Potential</p>
-            <p className="font-semibold text-emerald-900">₦{prediction.potentialReturn}</p>
+            <p className="font-semibold text-emerald-900">${prediction.potentialReturn}</p>
           </div>
           <div>
             <p className="text-xs text-emerald-600 mb-1">Odds</p>
@@ -229,7 +230,7 @@ const PredictionsTab: React.FC<PredictionsTabProps> = ({ onNavigateToDiscover })
         <div className="grid grid-cols-3 gap-4">
           <div>
             <p className="text-xs text-blue-600 mb-1">Total Pool</p>
-            <p className="font-semibold text-blue-900">₦{prediction.totalPool}</p>
+            <p className="font-semibold text-blue-900">${prediction.totalPool}</p>
           </div>
           <div>
             <p className="text-xs text-blue-600 mb-1">Participants</p>
@@ -244,7 +245,7 @@ const PredictionsTab: React.FC<PredictionsTabProps> = ({ onNavigateToDiscover })
 
       {/* Footer */}
       <div className="flex items-center justify-between">
-        <span className="text-sm text-gray-500">Closes in {prediction.timeRemaining}</span>
+        <span className="text-sm text-gray-500">Closes in {formatTimeRemaining(prediction.entry_deadline || prediction.timeRemaining)}</span>
         <motion.button
           onClick={() => {
             // Open manage modal

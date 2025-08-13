@@ -12,14 +12,16 @@ export const LoginPage: React.FC = () => {
   const validateForm = () => {
     const errors: { email?: string; password?: string } = {};
     
-    if (!email) {
-      errors.email = 'Email is required';
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      errors.email = 'Please enter a valid email address';
+    if (!email.trim()) {
+      errors.email = 'Email address is required';
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      errors.email = 'Please enter a valid email address (e.g., example@domain.com)';
     }
     
     if (!password) {
       errors.password = 'Password is required';
+    } else if (password.length < 1) {
+      errors.password = 'Please enter your password';
     }
     
     setFormErrors(errors);

@@ -28,9 +28,12 @@ import {
   Heart
 } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
+import { scrollToTop } from '../utils/scroll';
+import { usePullToRefresh } from '../utils/pullToRefresh';
 
 interface ProfilePageProps {
   onNavigateBack?: () => void;
+  userId?: string; // Optional userId for viewing other users' profiles
 }
 
 // Settings Components
@@ -1118,7 +1121,7 @@ const HelpSupport: React.FC<{ onBack: () => void }> = ({ onBack }) => {
   );
 };
 
-const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigateBack }) => {
+const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigateBack, userId }) => {
   const { user, updateProfile, logout } = useAuthStore();
   const [activeSection, setActiveSection] = useState('overview');
   const [isEditing, setIsEditing] = useState(false);
@@ -1129,19 +1132,39 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigateBack }) => {
     bio: user?.bio || ''
   });
 
-  // Mock user stats
-  const userStats = {
-    totalEarnings: 15420,
-    totalInvested: 12000,
-    winRate: 68.5,
-    activePredictions: 8,
-    totalPredictions: 45,
-    rank: 147,
-    joinedDate: 'January 2024',
-    level: 'Gold Predictor'
-  };
+  // Scroll to top when component mounts
+  React.useEffect(() => {
+    scrollToTop({ behavior: 'instant' });
+  }, []);
 
-  const menuItems = [
+  // Pull to refresh functionality - refresh profile data
+  const handleRefresh = React.useCallback(async () => {
+    console.log('Pull to refresh triggered on Profile page');
+    // Profile data is mostly static, but we could refresh user data
+    await new Promise(resolve => setTimeout(resolve, 500));
+  }, []);
+
+  usePullToRefresh(handleRefresh, {
+    threshold: 60,
+    disabled: false
+  });
+
+  // Real user stats based on actual user data - memoized for performance
+  const userStats = React.useMemo(() => ({
+    totalEarnings: user?.totalEarnings || 0,
+    totalInvested: user?.totalInvested || 0,
+    winRate: user?.winRate || 0,
+    activePredictions: user?.activePredictions || 0,
+    totalPredictions: user?.totalPredictions || 0,
+    rank: user?.rank || 0,
+    joinedDate: user?.createdAt ? new Date(user.createdAt).toLocaleDateString('en-US', { 
+      year: 'numeric', 
+      month: 'long' 
+    }) : 'Recently',
+    level: user?.level || 'New Predictor'
+  }), [user?.totalEarnings, user?.totalInvested, user?.winRate, user?.activePredictions, user?.totalPredictions, user?.rank, user?.createdAt, user?.level]);
+
+  const menuItems = React.useMemo(() => [
     {
       id: 'account',
       label: 'Account Settings',
@@ -1170,14 +1193,14 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigateBack }) => {
       description: 'Get help and contact support',
       action: () => setActiveSection('help')
     }
-  ];
+  ], [setActiveSection]);
 
-  const achievements = [
+  const achievements = React.useMemo(() => [
     { id: 1, title: 'First Prediction', icon: '🎯', unlocked: true },
     { id: 2, title: 'Winning Streak', icon: '🔥', unlocked: true },
     { id: 3, title: 'Top Predictor', icon: '👑', unlocked: false },
     { id: 4, title: 'Community Leader', icon: '⭐', unlocked: false }
-  ];
+  ], []);
 
   const handleSaveProfile = () => {
     updateProfile({
@@ -1201,12 +1224,109 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigateBack }) => {
   };
 
   const handleLogout = () => {
-    if (window.confirm('Are you sure you want to sign out?')) {
+    // Use custom confirmation dialog that matches app's UI/UX design
+    const confirmLogout = () => {
       logout();
       if (onNavigateBack) {
         onNavigateBack();
       }
-    }
+    };
+    
+    // Show custom confirmation dialog
+    const dialog = document.createElement('div');
+    dialog.style.cssText = `
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.5);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 9999;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    `;
+    
+    dialog.innerHTML = `
+      <div style="
+        background: white;
+        border-radius: 16px;
+        padding: 24px;
+        max-width: 320px;
+        width: 90%;
+        text-align: center;
+        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
+      ">
+        <div style="
+          width: 48px;
+          height: 48px;
+          background: #fef3c7;
+          border-radius: 50%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          margin: 0 auto 16px;
+        ">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2">
+            <path d="M9 12l2 2 4-4"/>
+            <path d="M21 12c0 4.97-4.03 9-9 9s-9-4.03-9-9 4.03-9 9-9 9 4.03 9 9z"/>
+          </svg>
+        </div>
+        <h3 style="
+          font-size: 18px;
+          font-weight: 700;
+          color: #111827;
+          margin: 0 0 8px 0;
+        ">Sign Out</h3>
+        <p style="
+          font-size: 14px;
+          color: #6b7280;
+          margin: 0 0 24px 0;
+          line-height: 1.5;
+        ">Are you sure you want to sign out of your account?</p>
+        <div style="
+          display: flex;
+          gap: 12px;
+          justify-content: center;
+        ">
+          <button onclick="this.closest('[style*=\'position: fixed\']').remove()" style="
+            padding: 10px 20px;
+            background: #f3f4f6;
+            color: #374151;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 14px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+          " onmouseover="this.style.backgroundColor='#e5e7eb'" onmouseout="this.style.backgroundColor='#f3f4f6'">
+            Cancel
+          </button>
+          <button onclick="window.confirmLogout()" style="
+            padding: 10px 20px;
+            background: #ef4444;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 14px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+          " onmouseover="this.style.backgroundColor='#dc2626'" onmouseout="this.style.backgroundColor='#ef4444'">
+            Sign Out
+          </button>
+        </div>
+      </div>
+    `;
+    
+    // Add to window for button access
+    (window as any).confirmLogout = () => {
+      dialog.remove();
+      confirmLogout();
+    };
+    
+    document.body.appendChild(dialog);
   };
 
   // Render different sections based on activeSection
@@ -1227,16 +1347,9 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigateBack }) => {
   }
 
   return (
-    <div style={{ minHeight: '100vh', backgroundColor: '#f9fafb', paddingBottom: '20px' }}>
+    <div style={{ minHeight: '100vh', backgroundColor: '#f9fafb' }}>
       {/* Header with Gradient Background */}
-      <div style={{ position: 'relative', overflow: 'visible', zIndex: 1000 }}>
-        <div 
-          style={{
-            background: 'linear-gradient(135deg, #10b981, #059669)',
-            minHeight: '300px',
-            position: 'relative'
-          }}
-        >
+      <div style={{ background: 'linear-gradient(135deg, #10b981, #059669)', minHeight: '300px' }}>
           {/* Decorative elements */}
           <div 
             style={{
@@ -1308,20 +1421,15 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigateBack }) => {
               </button>
             </div>
           </div>
-        </div>
 
-        {/* Profile Card - Fixed positioning and z-index */}
+        {/* Profile Card - Normal positioning */}
         <div 
           style={{
-            position: 'absolute',
-            bottom: '-100px',
-            left: '16px',
-            right: '16px',
+            margin: '16px',
             background: 'white',
             borderRadius: '16px',
             padding: '24px',
             boxShadow: '0 20px 40px rgba(0, 0, 0, 0.1)',
-            zIndex: 1000,
             minHeight: '180px'
           }}
         >
@@ -1565,7 +1673,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigateBack }) => {
                   </div>
                   <div style={{ textAlign: 'center', padding: '6px' }}>
                     <div style={{ fontSize: '18px', fontWeight: '700', color: '#111827' }}>
-                      ₦{(userStats.totalEarnings - userStats.totalInvested).toLocaleString()}
+                      ${(userStats.totalEarnings - userStats.totalInvested).toLocaleString()}
                     </div>
                     <div style={{ fontSize: '11px', color: '#6b7280' }}>Net Profit</div>
                   </div>
@@ -1576,8 +1684,8 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigateBack }) => {
         </div>
       </div>
 
-      {/* Content - Fixed spacing to account for profile card */}
-      <div style={{ paddingTop: '140px', padding: '140px 24px 0 24px' }}>
+      {/* Content - Normal spacing */}
+      <div style={{ padding: '0 24px 100px 24px' }}>
         {/* Performance Overview */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -1613,7 +1721,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigateBack }) => {
               </div>
               <div style={{ minWidth: 0 }}>
                 <div style={{ fontSize: '16px', fontWeight: '700', color: '#111827' }}>
-                  ₦{userStats.totalEarnings.toLocaleString()}
+                  ${userStats.totalEarnings.toLocaleString()}
                 </div>
                 <div style={{ fontSize: '12px', color: '#6b7280' }}>Total Earnings</div>
               </div>

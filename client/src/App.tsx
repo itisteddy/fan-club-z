@@ -1,261 +1,325 @@
-import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { useWalletStore } from './stores/walletStore';
+import React, { useEffect, useCallback, memo, Suspense } from 'react';
+import { Router, Route, Switch, useLocation } from 'wouter';
+import { useWalletStore } from './store/walletStore';
 import { useAuthStore } from './store/authStore';
 import { Toaster } from 'react-hot-toast';
 import { scrollToTop } from './utils/scroll';
+import NotificationContainer from './components/ui/NotificationContainer';
+import PWAInstallManager from './components/PWAInstallManager';
+import PageWrapper from './components/PageWrapper';
 
 // Import all page components
 import DiscoverPage from './pages/DiscoverPage';
 import CreatePredictionPage from './pages/CreatePredictionPage';
 import BetsTab from './pages/BetsTab';
-import ClubsPage from './pages/ClubsPage';
 import ProfilePage from './pages/ProfilePage';
 import WalletPage from './pages/WalletPage';
 import AuthPage from './pages/auth/AuthPage';
-
+import AuthCallbackPage from './pages/auth/AuthCallbackPage';
+import PredictionDetailsPage from './pages/PredictionDetailsPage';
 import BottomNavigation from './components/BottomNavigation';
 
-// Create the missing page components
-const MyPredictionsPage: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNavigateToDiscover }) => {
-  return <BetsTab onNavigateToDiscover={onNavigateToDiscover} />;
-};
+// Simple Loading Component
+const LoadingSpinner: React.FC<{ message?: string }> = ({ message = "Loading..." }) => (
+  <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+    <div className="text-center">
+      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-500 mx-auto"></div>
+      <p className="mt-2 text-gray-600">{message}</p>
+    </div>
+  </div>
+);
 
-// Navigation History Manager
-class NavigationHistory {
-  private history: string[] = ['discover'];
-  private previousTab: string = 'discover';
+// Simplified Auth Guard
+const AuthGuard: React.FC<{ children: React.ReactNode }> = memo(({ children }) => {
+  const { isAuthenticated, loading, initialized, initializeAuth } = useAuthStore();
   
-  push(tab: string) {
-    // Store previous tab before updating
-    if (this.history.length > 0) {
-      this.previousTab = this.history[this.history.length - 1];
-    }
-    // Remove if already exists to avoid duplicates
-    this.history = this.history.filter(t => t !== tab);
-    this.history.push(tab);
-  }
-  
-  pop(): string {
-    if (this.history.length > 1) {
-      this.history.pop(); // Remove current
-      return this.history[this.history.length - 1]; // Return previous
-    }
-    return this.previousTab || 'discover'; // Use stored previous or default fallback
-  }
-  
-  getCurrent(): string {
-    return this.history[this.history.length - 1] || 'discover';
-  }
-  
-  getPrevious(): string {
-    return this.previousTab || 'discover';
-  }
-  
-  clear() {
-    this.history = ['discover'];
-    this.previousTab = 'discover';
-  }
-}
-
-// Main App Component
-function App() {
-  const [activeTab, setActiveTab] = useState('discover');
-  const [navigationHistory] = useState(new NavigationHistory());
-  const { initializeWallet } = useWalletStore();
-  const { initializeAuth, isAuthenticated, loading, initialized } = useAuthStore();
-
-  // Initialize auth and wallet on app start
   useEffect(() => {
-    console.log('🚀 Initializing Fan Club Z...');
-    
-    // Initialize authentication first
-    initializeAuth();
-    
-    console.log('✅ App initialization started');
-  }, [initializeAuth]);
-
-  // Initialize wallet only after authentication is complete
-  useEffect(() => {
-    if (initialized && isAuthenticated) {
-      console.log('🏦 Initializing wallet for authenticated user...');
-      initializeWallet();
+    if (!initialized && !loading) {
+      initializeAuth();
     }
-  }, [initialized, isAuthenticated, initializeWallet]);
-
-  const handleTabChange = (tab: string) => {
-    navigationHistory.push(tab);
-    setActiveTab(tab);
-    // Scroll to top when changing tabs (UI/UX best practice)
-    scrollToTop({ delay: 100 });
-  };
-
-  const handleNavigateToProfile = () => {
-    navigationHistory.push('profile');
-    setActiveTab('profile');
-    scrollToTop({ delay: 100 });
-  };
-
-  const handleNavigateBackFromProfile = () => {
-    const previousTab = navigationHistory.getPrevious();
-    setActiveTab(previousTab);
-    scrollToTop({ delay: 100 });
-  };
-
-  const handleNavigateToDiscover = () => {
-    navigationHistory.push('discover');
-    setActiveTab('discover');
-    scrollToTop({ delay: 100 });
-  };
-
-  const handleNavigateBackFromCreate = () => {
-    const previousTab = navigationHistory.getPrevious();
-    setActiveTab(previousTab);
-    scrollToTop({ delay: 100 });
-  };
-
-  // NEW: Handle navigation to create prediction from clubs
-  const handleNavigateToCreateFromClubs = () => {
-    navigationHistory.push('create');
-    setActiveTab('create');
-    scrollToTop({ delay: 100 });
-  };
-
-  const renderPage = () => {
-    switch (activeTab) {
-      case 'discover':
-        return <DiscoverPage onNavigateToProfile={handleNavigateToProfile} />;
-      case 'predictions':
-        return <MyPredictionsPage onNavigateToDiscover={handleNavigateToDiscover} />;
-      case 'create':
-        return <CreatePredictionPage onNavigateBack={handleNavigateBackFromCreate} />;
-      case 'clubs':
-        return <ClubsPage onNavigateToCreate={handleNavigateToCreateFromClubs} />;
-      case 'wallet':
-        return <WalletPage />;
-      case 'profile':
-        return <ProfilePage onNavigateBack={handleNavigateBackFromProfile} />;
-      default:
-        return <DiscoverPage onNavigateToProfile={handleNavigateToProfile} />;
-    }
-  };
-
-  // Show loading screen while initializing
-  if (!initialized || loading) {
-    return (
-      <div style={{ 
-        minHeight: '100vh', 
-        backgroundColor: '#f9fafb',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        flexDirection: 'column',
-        gap: '20px'
-      }}>
-        <div style={{
-          width: '48px',
-          height: '48px',
-          border: '4px solid #e5e7eb',
-          borderTop: '4px solid #22c55e',
-          borderRadius: '50%',
-          animation: 'spin 1s linear infinite'
-        }} />
-        <p style={{ 
-          fontSize: '16px', 
-          color: '#6b7280',
-          fontWeight: '500'
-        }}>
-          Initializing Fan Club Z...
-        </p>
-        <style>
-          {`
-            @keyframes spin {
-              0% { transform: rotate(0deg); }
-              100% { transform: rotate(360deg); }
-            }
-          `}
-        </style>
-      </div>
-    );
+  }, [initialized, loading, initializeAuth]);
+  
+  if (!initialized || (loading && !isAuthenticated)) {
+    return <LoadingSpinner message="Authenticating..." />;
   }
-
-  // Show auth page if not authenticated
+  
   if (!isAuthenticated) {
     return <AuthPage />;
   }
+  
+  return <>{children}</>;
+});
+
+AuthGuard.displayName = 'AuthGuard';
+
+// Main Layout Component with fixed navigation
+const MainLayout: React.FC<{ children: React.ReactNode }> = memo(({ children }) => {
+  const [location, navigate] = useLocation();
+  
+  const getCurrentTab = useCallback(() => {
+    const path = location.toLowerCase();
+    if (path === '/' || path === '/discover') return 'discover';
+    if (path === '/bets' || path === '/predictions') return 'bets';
+    if (path === '/profile') return 'profile';
+    if (path === '/wallet') return 'wallet';
+    return 'discover';
+  }, [location]);
+
+  const handleTabChange = useCallback((tab: string) => {
+    // Prevent infinite loops by checking if we're already on the target route
+    const currentTab = getCurrentTab();
+    if (currentTab === tab) return;
+    
+    // Navigate to the appropriate route
+    switch (tab) {
+      case 'discover':
+        navigate('/');
+        break;
+      case 'bets':
+        navigate('/predictions');
+        break;
+      case 'profile':
+        navigate('/profile');
+        break;
+      case 'wallet':
+        navigate('/wallet');
+        break;
+      default:
+        navigate('/');
+    }
+    
+    // Scroll to top after navigation
+    setTimeout(() => {
+      scrollToTop();
+    }, 50);
+  }, [navigate, getCurrentTab]);
+
+  const handleFABClick = useCallback(() => {
+    navigate('/create');
+  }, [navigate]);
+
+  const showFAB = getCurrentTab() === 'discover';
 
   return (
-    <div style={{ minHeight: '100vh', backgroundColor: '#f9fafb' }}>
-      <main className="page-content">
-        <AnimatePresence mode="wait" initial={false}>
-          <motion.div
-            key={activeTab}
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -20 }}
-            transition={{ 
-              duration: 0.2,
-              ease: "easeInOut"
-            }}
-            style={{
-              width: '100%',
-              paddingBottom: 'calc(4rem + env(safe-area-inset-bottom, 1rem))'
-            }}
-          >
-            {renderPage()}
-          </motion.div>
-        </AnimatePresence>
+    <div className="min-h-screen bg-gray-50 flex flex-col">
+      {/* Main Content */}
+      <main className="flex-1 pb-20">
+        <Suspense fallback={<LoadingSpinner message="Loading page..." />}>
+          {children}
+        </Suspense>
       </main>
 
-      <BottomNavigation activeTab={activeTab} onTabChange={handleTabChange} />
+      {/* Bottom Navigation */}
+      <BottomNavigation
+        activeTab={getCurrentTab()}
+        onTabChange={handleTabChange}
+        showFAB={showFAB}
+        onFABClick={handleFABClick}
+      />
 
-      {/* Toast notifications */}
-      <Toaster 
+      {/* Notifications */}
+      <NotificationContainer />
+      
+      {/* PWA Install Manager */}
+      <PWAInstallManager />
+      
+      {/* Toast Notifications */}
+      <Toaster
         position="top-center"
-        containerStyle={{
-          top: 20,
-          zIndex: 9999,
-        }}
         toastOptions={{
           duration: 4000,
           style: {
-            background: '#ffffff',
-            color: '#111827',
-            border: '1px solid #e5e7eb',
-            borderRadius: '12px',
-            boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
-            fontSize: '14px',
-            fontWeight: '500',
-            maxWidth: '400px',
-            padding: '16px',
-          },
-          success: {
-            duration: 3000,
-            iconTheme: {
-              primary: '#22c55e',
-              secondary: '#fff',
-            },
-            style: {
-              background: '#ffffff',
-              color: '#111827',
-              border: '1px solid #22c55e',
-            },
-          },
-          error: {
-            duration: 5000,
-            iconTheme: {
-              primary: '#ef4444',
-              secondary: '#fff',
-            },
-            style: {
-              background: '#ffffff',
-              color: '#111827',
-              border: '1px solid #ef4444',
-            },
+            background: '#363636',
+            color: '#fff',
           },
         }}
       />
     </div>
+  );
+});
+
+MainLayout.displayName = 'MainLayout';
+
+// Page Wrapper Components with proper props and error handling
+const DiscoverPageWrapper: React.FC = () => {
+  const [, navigate] = useLocation();
+  
+  const handleNavigateToProfile = useCallback(() => {
+    navigate('/profile');
+  }, [navigate]);
+
+  const handleNavigateToPrediction = useCallback((predictionId: string) => {
+    navigate(`/prediction/${predictionId}`);
+  }, [navigate]);
+
+  return (
+    <PageWrapper title="Discover">
+      <DiscoverPage 
+        onNavigateToProfile={handleNavigateToProfile}
+        onNavigateToPrediction={handleNavigateToPrediction}
+      />
+    </PageWrapper>
+  );
+};
+
+const PredictionsPageWrapper: React.FC = () => {
+  const [, navigate] = useLocation();
+  
+  const handleNavigateToDiscover = useCallback(() => {
+    navigate('/');
+  }, [navigate]);
+
+  return (
+    <PageWrapper title="My Predictions">
+      <BetsTab onNavigateToDiscover={handleNavigateToDiscover} />
+    </PageWrapper>
+  );
+};
+
+const CreatePredictionPageWrapper: React.FC = () => {
+  const [, navigate] = useLocation();
+  
+  const handleNavigateBack = useCallback(() => {
+    navigate('/');
+  }, [navigate]);
+
+  const handleComplete = useCallback(() => {
+    navigate('/');
+  }, [navigate]);
+
+  return (
+    <PageWrapper title="Create Prediction">
+      <CreatePredictionPage 
+        onNavigateBack={handleNavigateBack}
+        onComplete={handleComplete}
+      />
+    </PageWrapper>
+  );
+};
+
+const ProfilePageWrapper: React.FC = () => {
+  const [, navigate] = useLocation();
+  
+  const handleNavigateBack = useCallback(() => {
+    navigate('/');
+  }, [navigate]);
+
+  return (
+    <PageWrapper title="Profile">
+      <ProfilePage onNavigateBack={handleNavigateBack} />
+    </PageWrapper>
+  );
+};
+
+const WalletPageWrapper: React.FC = () => {
+  const [, navigate] = useLocation();
+  
+  const handleNavigateBack = useCallback(() => {
+    navigate('/');
+  }, [navigate]);
+
+  return (
+    <PageWrapper title="Wallet">
+      <WalletPage onNavigateBack={handleNavigateBack} />
+    </PageWrapper>
+  );
+};
+
+const PredictionDetailsWrapper: React.FC<{ params: { id: string } }> = ({ params }) => {
+  const [, navigate] = useLocation();
+  
+  const handleNavigateBack = useCallback(() => {
+    navigate('/');
+  }, [navigate]);
+
+  if (!params?.id) {
+    return (
+      <PageWrapper title="Error">
+        <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+          <div className="text-center">
+            <h2 className="text-xl font-semibold text-gray-900 mb-2">Prediction Not Found</h2>
+            <p className="text-gray-600 mb-4">The prediction you're looking for doesn't exist.</p>
+            <button
+              onClick={handleNavigateBack}
+              className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600"
+            >
+              Go Back
+            </button>
+          </div>
+        </div>
+      </PageWrapper>
+    );
+  }
+
+  return (
+    <PageWrapper title="Prediction Details">
+      <PredictionDetailsPage 
+        predictionId={params.id}
+        onNavigateBack={handleNavigateBack}
+      />
+    </PageWrapper>
+  );
+};
+
+// Main App Component with improved error handling
+function App() {
+  const { initializeWallet } = useWalletStore();
+  const { initializeAuth, isAuthenticated, loading, initialized } = useAuthStore();
+
+  // Initialize auth once on app start
+  useEffect(() => {
+    if (!initialized && !loading) {
+      try {
+        console.log('App: Initializing auth...');
+        initializeAuth();
+      } catch (error) {
+        console.error('Auth initialization failed:', error);
+      }
+    }
+  }, [initializeAuth, initialized, loading]);
+
+  // Initialize wallet after auth is ready
+  useEffect(() => {
+    if (isAuthenticated && !loading && initialized) {
+      try {
+        console.log('App: Initializing wallet...');
+        initializeWallet();
+      } catch (error) {
+        console.error('Wallet initialization failed:', error);
+      }
+    }
+  }, [isAuthenticated, loading, initialized, initializeWallet]);
+
+  return (
+    <Router>
+      <Switch>
+        {/* Public auth routes */}
+        <Route path="/auth/callback">
+          <PageWrapper title="Authentication">
+            <AuthCallbackPage />
+          </PageWrapper>
+        </Route>
+        
+        {/* Protected app routes */}
+        <AuthGuard>
+          <MainLayout>
+            <Switch>
+              <Route path="/" component={DiscoverPageWrapper} />
+              <Route path="/discover" component={DiscoverPageWrapper} />
+              <Route path="/predictions" component={PredictionsPageWrapper} />
+              <Route path="/bets" component={PredictionsPageWrapper} />
+              <Route path="/create" component={CreatePredictionPageWrapper} />
+              <Route path="/profile" component={ProfilePageWrapper} />
+              <Route path="/wallet" component={WalletPageWrapper} />
+              <Route path="/prediction/:id" component={PredictionDetailsWrapper} />
+
+              {/* Fallback */}
+              <Route component={DiscoverPageWrapper} />
+            </Switch>
+          </MainLayout>
+        </AuthGuard>
+      </Switch>
+    </Router>
   );
 }
 

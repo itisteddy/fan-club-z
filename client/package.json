@@ -1,6 +1,6 @@
 {
   "name": "@fanclubz/client",
-  "version": "2.0.0",
+  "version": "2.0.41",
   "description": "Fan Club Z React Client Application",
   "type": "module",
   "scripts": {
@@ -10,7 +10,10 @@
     "preview": "vite preview",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "lint:fix": "eslint . --ext ts,tsx --fix",
-    "type-check": "tsc --noEmit"
+    "type-check": "tsc --noEmit",
+    "generate-icons": "bash ../generate-pwa-icons.sh",
+    "pwa-audit": "lighthouse --view --chrome-flags='--headless' --only-categories=pwa http://localhost:5173",
+    "check-manifest": "node -e \"console.log('Checking manifest...'); fetch('http://localhost:5173/manifest.json').then(r=>r.json()).then(console.log).catch(console.error)\""
   },
   "dependencies": {
     "@fanclubz/shared": "file:../shared",

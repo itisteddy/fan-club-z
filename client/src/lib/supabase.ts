@@ -67,6 +67,9 @@ export const auth = {
         password,
         options: {
           data: userData,
+          emailRedirectTo: import.meta.env.PROD 
+            ? 'https://app.fanclubz.app/auth/callback'
+            : `${window.location.origin}/auth/callback`,
         },
       });
       

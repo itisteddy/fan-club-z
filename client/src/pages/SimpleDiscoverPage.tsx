@@ -74,7 +74,7 @@ const SimpleDiscoverPage: React.FC = () => {
             fontWeight: 'bold',
             color: '#22c55e',
             marginBottom: '8px'
-          }}>₦2.5M</div>
+          }}>$2.5M</div>
           <div style={{
             fontSize: '14px',
             color: '#6b7280'
@@ -199,7 +199,7 @@ const SimpleDiscoverPage: React.FC = () => {
             fontSize: '14px',
             color: '#15803d'
           }}>
-            💰 Pool: ₦70,000 | 👥 23 predictors
+            💰 Pool: $70,000 | 👥 23 predictors
           </div>
         </div>
       </div>

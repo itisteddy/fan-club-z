@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useLocation } from 'wouter';
+import { scrollToTop } from '../utils/scroll';
 import { 
   Search, 
   TrendingUp, 
@@ -152,7 +153,10 @@ const ModernDiscoverPage: React.FC = () => {
   const PredictionCard: React.FC<{ prediction: any }> = ({ prediction }) => (
     <motion.div 
       className="prediction-card group"
-      onClick={() => setLocation(`/prediction/${prediction.id}`)}
+                      onClick={() => {
+                  setLocation(`/prediction/${prediction.id}`);
+                  scrollToTop({ behavior: 'instant' });
+                }}
       whileHover={{ y: -4, scale: 1.01 }}
       whileTap={{ scale: 0.99 }}
       transition={{ type: "spring", stiffness: 400, damping: 25 }}
@@ -231,7 +235,7 @@ const ModernDiscoverPage: React.FC = () => {
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-1.5 text-sm text-neutral-600">
               <DollarSign className="w-4 h-4" />
-              <span className="font-semibold">₦{(prediction.poolTotal || 0).toLocaleString()}</span>
+              <span className="font-semibold">${(prediction.poolTotal || 0).toLocaleString()}</span>
             </div>
             <div className="flex items-center gap-1.5 text-sm text-neutral-600">
               <Users className="w-4 h-4" />
@@ -353,7 +357,7 @@ const ModernDiscoverPage: React.FC = () => {
               animate={{ scale: [1, 1.05, 1] }}
               transition={{ duration: 2, repeat: Infinity, delay: 1 }}
             >
-              ₦{(totalVolume / 1000).toFixed(0)}K
+              ${(totalVolume / 1000).toFixed(0)}K
             </motion.div>
             <div className="text-xs text-neutral-500 uppercase tracking-wide font-medium">
               Total Volume
@@ -514,7 +518,10 @@ const ModernDiscoverPage: React.FC = () => {
           
           <motion.div 
             className="relative bg-gradient-to-br from-primary-500 to-primary-700 rounded-2xl p-6 text-white cursor-pointer overflow-hidden shadow-primary-lg"
-            onClick={() => setLocation(`/prediction/${featuredPrediction.id}`)}
+            onClick={() => {
+              setLocation(`/prediction/${featuredPrediction.id}`);
+              scrollToTop({ behavior: 'instant' });
+            }}
             whileHover={{ 
               scale: 1.01, 
               y: -2,
@@ -558,7 +565,7 @@ const ModernDiscoverPage: React.FC = () => {
                   >
                     <div className="flex items-center gap-1.5">
                       <DollarSign className="w-4 h-4" />
-                      <span className="font-semibold">₦{(featuredPrediction.poolTotal || 0).toLocaleString()}</span>
+                      <span className="font-semibold">${(featuredPrediction.poolTotal || 0).toLocaleString()}</span>
                     </div>
                     <div className="flex items-center gap-1.5">
                       <Users className="w-4 h-4" />
@@ -661,7 +668,10 @@ const ModernDiscoverPage: React.FC = () => {
               <div className="flex flex-col gap-3 max-w-xs mx-auto">
                 <motion.button 
                   className="btn btn-primary flex items-center justify-center gap-2"
-                  onClick={() => setLocation('/create')}
+                  onClick={() => {
+            setLocation('/create');
+            scrollToTop({ behavior: 'instant' });
+          }}
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
                 >

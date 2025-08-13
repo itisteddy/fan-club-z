@@ -33,15 +33,10 @@ export const ClubDetailPage: React.FC<ClubDetailPageProps> = ({ onBack, hideHead
     clearError
   } = useClubStore();
 
-  // Scroll to top when component mounts
+  // Scroll to top when component mounts (consistent with other pages)
   useEffect(() => {
     scrollToTop({ behavior: 'instant' });
   }, []);
-
-  // Scroll to top when tab changes
-  useEffect(() => {
-    scrollToTop({ behavior: 'smooth' });
-  }, [activeTab]);
 
   useEffect(() => {
     if (currentView === 'members' && currentClub) {
@@ -112,7 +107,7 @@ export const ClubDetailPage: React.FC<ClubDetailPageProps> = ({ onBack, hideHead
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-NG', {
       style: 'currency',
-      currency: 'NGN',
+      currency: 'USD',
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
     }).format(amount);
@@ -231,10 +226,10 @@ export const ClubDetailPage: React.FC<ClubDetailPageProps> = ({ onBack, hideHead
   const isOwner = currentClub.ownerId === user?.id;
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Header with Back Button - Only render if not hidden */}
+    <div className="min-h-screen bg-background flex flex-col">
+      {/* Fixed Header - Always visible */}
       {!hideHeader && (
-        <header className="sticky top-0 z-40 bg-white shadow-sm border-b border-border">
+        <header className="flex-shrink-0 bg-white shadow-sm border-b border-border">
           <div className="flex items-center justify-between px-4 py-3">
             <button
               onClick={handleBackClick}
@@ -248,7 +243,8 @@ export const ClubDetailPage: React.FC<ClubDetailPageProps> = ({ onBack, hideHead
         </header>
       )}
 
-      <div className="pb-6 pt-0">
+      {/* Scrollable Content */}
+      <div className="flex-1 overflow-y-auto" style={{ paddingBottom: 'calc(5rem + env(safe-area-inset-bottom))' }}>
         {/* Cover Photo & Profile */}
         <div className="relative">
           <div className="h-40 bg-gradient-to-br from-primary/20 to-secondary/20 relative">

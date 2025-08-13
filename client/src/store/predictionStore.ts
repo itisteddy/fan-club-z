@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { supabase } from '../lib/api';
+import { useAuthStore } from './authStore';
 
 export interface Prediction {
   id: string;
@@ -24,16 +25,25 @@ export interface Prediction {
   updated_at: string;
   options: PredictionOption[];
   creator: {
+    id: string;
     username: string;
     avatar_url?: string;
     is_verified: boolean;
   };
   participant_count: number;
+  likes_count: number;
+  comments_count: number;
   user_entry?: {
     option_id: string;
     amount: number;
     potential_payout: number;
   };
+  // Additional properties for compatibility
+  poolTotal?: number;
+  entryDeadline?: string;
+  entries?: any[];
+  likes?: number;
+  comments?: number;
 }
 
 export interface PredictionOption {
@@ -43,6 +53,7 @@ export interface PredictionOption {
   total_staked: number;
   current_odds: number;
   percentage: number;
+  totalStaked?: number; // Compatibility alias
 }
 
 interface PredictionState {
@@ -53,19 +64,193 @@ interface PredictionState {
   loading: boolean;
   error: string | null;
   selectedCategory: string | null;
+  lastFetch: number;
+  initialized: boolean;
 }
 
 interface PredictionActions {
-  fetchPredictions: (category?: string) => Promise<void>;
+  fetchPredictions: (category?: string, force?: boolean) => Promise<void>;
+  refreshPredictions: (force?: boolean) => Promise<void>; // Added this method
   fetchTrendingPredictions: () => Promise<void>;
   fetchUserPredictions: () => Promise<void>;
   fetchUserCreatedPredictions: (userId: string) => Promise<void>;
   getUserCreatedPredictions: (userId: string) => Prediction[];
   createPrediction: (data: any) => Promise<Prediction>;
-  placePrediction: (predictionId: string, optionId: string, amount: number) => Promise<void>;
+  placePrediction: (data: { predictionId: string; optionId: string; amount: number; userId: string }) => Promise<void>;
   setSelectedCategory: (category: string | null) => void;
   clearError: () => void;
+  getPredictionById: (id: string) => Prediction | null;
 }
+
+// Mock data for when database is empty
+const mockPredictions: Prediction[] = [
+  {
+    id: '4b6592c9-e811-409d-8bbf-4da4f71fe261',
+    creator_id: 'sample-user-1',
+    title: 'Will Bitcoin reach $100,000 by end of 2025?',
+    description: 'With Bitcoin\'s recent surge and institutional adoption, many experts predict it could hit the six-figure mark. What do you think?',
+    category: 'custom',
+    type: 'binary',
+    status: 'open',
+    stake_min: 1.00,
+    stake_max: 1000.00,
+    pool_total: 2547.50,
+    entry_deadline: '2025-12-31T23:59:59Z',
+    settlement_method: 'manual',
+    is_private: false,
+    creator_fee_percentage: 3.5,
+    platform_fee_percentage: 1.5,
+    tags: ['crypto', 'bitcoin', 'investment'],
+    created_at: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
+    updated_at: new Date().toISOString(),
+    options: [
+      {
+        id: 'opt-btc-yes',
+        prediction_id: '4b6592c9-e811-409d-8bbf-4da4f71fe261',
+        label: 'Yes, Bitcoin will reach $100K',
+        total_staked: 1547.50,
+        current_odds: 1.65,
+        percentage: 60.8,
+        totalStaked: 1547.50
+      },
+      {
+        id: 'opt-btc-no',
+        prediction_id: '4b6592c9-e811-409d-8bbf-4da4f71fe261',
+        label: 'No, Bitcoin will stay below $100K',
+        total_staked: 1000.00,
+        current_odds: 2.55,
+        percentage: 39.2,
+        totalStaked: 1000.00
+      }
+    ],
+    creator: {
+      id: 'sample-user-1',
+      username: 'fanclubz_creator',
+      avatar_url: null,
+      is_verified: true
+    },
+    participant_count: 42,
+    likes_count: 67,
+    comments_count: 23,
+    // Compatibility aliases
+    poolTotal: 2547.50,
+    entryDeadline: '2025-12-31T23:59:59Z',
+    entries: [],
+    likes: 67,
+    comments: 23
+  },
+  {
+    id: 'a1b2c3d4-e5f6-7g8h-9i0j-1k2l3m4n5o6p',
+    creator_id: 'sample-user-1',
+    title: 'Will Taylor Swift announce a new album in 2025?',
+    description: 'Following her recent Eras Tour success, fans are speculating about her next musical project. Will she surprise us with a new album announcement this year?',
+    category: 'pop_culture',
+    type: 'binary',
+    status: 'open',
+    stake_min: 5.00,
+    stake_max: 500.00,
+    pool_total: 1823.25,
+    entry_deadline: '2025-12-15T23:59:59Z',
+    settlement_method: 'manual',
+    is_private: false,
+    creator_fee_percentage: 3.5,
+    platform_fee_percentage: 1.5,
+    tags: ['music', 'taylor-swift', 'entertainment'],
+    created_at: new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString(),
+    updated_at: new Date().toISOString(),
+    options: [
+      {
+        id: 'opt-ts-yes',
+        prediction_id: 'a1b2c3d4-e5f6-7g8h-9i0j-1k2l3m4n5o6p',
+        label: 'Yes, she will announce a new album',
+        total_staked: 823.25,
+        current_odds: 2.21,
+        percentage: 45.2,
+        totalStaked: 823.25
+      },
+      {
+        id: 'opt-ts-no',
+        prediction_id: 'a1b2c3d4-e5f6-7g8h-9i0j-1k2l3m4n5o6p',
+        label: 'No, no new album announcement',
+        total_staked: 1000.00,
+        current_odds: 1.82,
+        percentage: 54.8,
+        totalStaked: 1000.00
+      }
+    ],
+    creator: {
+      id: 'sample-user-1',
+      username: 'fanclubz_creator',
+      avatar_url: null,
+      is_verified: true
+    },
+    participant_count: 29,
+    likes_count: 43,
+    comments_count: 15,
+    poolTotal: 1823.25,
+    entryDeadline: '2025-12-15T23:59:59Z',
+    entries: [],
+    likes: 43,
+    comments: 15
+  },
+  {
+    id: 'p1q2r3s4-t5u6-v7w8-x9y0-z1a2b3c4d5e6',
+    creator_id: 'sample-user-1',
+    title: 'Will the Lakers make the NBA playoffs this season?',
+    description: 'With LeBron and AD leading the team, the Lakers are fighting for a playoff spot. Can they secure their position?',
+    category: 'sports',
+    type: 'binary',
+    status: 'open',
+    stake_min: 2.50,
+    stake_max: 750.00,
+    pool_total: 3241.75,
+    entry_deadline: '2025-04-15T23:59:59Z',
+    settlement_method: 'auto',
+    is_private: false,
+    creator_fee_percentage: 3.5,
+    platform_fee_percentage: 1.5,
+    tags: ['nba', 'lakers', 'basketball'],
+    created_at: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+    updated_at: new Date().toISOString(),
+    options: [
+      {
+        id: 'opt-lakers-yes',
+        prediction_id: 'p1q2r3s4-t5u6-v7w8-x9y0-z1a2b3c4d5e6',
+        label: 'Yes, Lakers will make playoffs',
+        total_staked: 2041.75,
+        current_odds: 1.59,
+        percentage: 63.0,
+        totalStaked: 2041.75
+      },
+      {
+        id: 'opt-lakers-no',
+        prediction_id: 'p1q2r3s4-t5u6-v7w8-x9y0-z1a2b3c4d5e6',
+        label: 'No, Lakers will miss playoffs',
+        total_staked: 1200.00,
+        current_odds: 2.70,
+        percentage: 37.0,
+        totalStaked: 1200.00
+      }
+    ],
+    creator: {
+      id: 'sample-user-1',
+      username: 'fanclubz_creator',
+      avatar_url: null,
+      is_verified: true
+    },
+    participant_count: 67,
+    likes_count: 89,
+    comments_count: 34,
+    poolTotal: 3241.75,
+    entryDeadline: '2025-04-15T23:59:59Z',
+    entries: [],
+    likes: 89,
+    comments: 34
+  }
+];
+
+// Cache duration: 2 minutes for better performance
+const CACHE_DURATION = 2 * 60 * 1000;
 
 export const usePredictionStore = create<PredictionState & PredictionActions>((set, get) => ({
   predictions: [],
@@ -75,10 +260,57 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
   loading: false,
   error: null,
   selectedCategory: null,
+  lastFetch: 0,
+  initialized: false,
 
-  fetchPredictions: async (category?: string) => {
+  getPredictionById: (id: string) => {
+    const state = get();
+    // Try to find in current predictions first
+    let prediction = state.predictions.find(p => p.id === id);
+    
+    // If not found and we don't have any predictions, try mock data
+    if (!prediction && state.predictions.length === 0) {
+      prediction = mockPredictions.find(p => p.id === id);
+    }
+    
+    return prediction || null;
+  },
+
+  // Added refreshPredictions method
+  refreshPredictions: async (force = false) => {
+    console.log('🔄 refreshPredictions called with force:', force);
+    const state = get();
+    console.log('📊 Current state before refresh:', {
+      predictionsCount: state.predictions?.length || 0,
+      loading: state.loading,
+      initialized: state.initialized,
+      lastFetch: state.lastFetch,
+      selectedCategory: state.selectedCategory
+    });
+    return await get().fetchPredictions(state.selectedCategory || undefined, force);
+  },
+
+  fetchPredictions: async (category?: string, force = false) => {
+    const state = get();
+    const now = Date.now();
+    
+    // Skip fetch if we have recent data and not forcing refresh
+    if (!force && state.predictions.length > 0 && (now - state.lastFetch) < CACHE_DURATION) {
+      console.log('📋 Using cached predictions data');
+      return;
+    }
+    
+    // Don't start multiple fetch operations
+    if (state.loading && !force) {
+      console.log('🔄 Predictions fetch already in progress');
+      return;
+    }
+    
     set({ loading: true, error: null });
+    
     try {
+      console.log('📡 Fetching predictions from Supabase...');
+      
       let query = supabase
         .from('predictions')
         .select(`
@@ -88,7 +320,8 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
           club:clubs(id, name, avatar_url)
         `)
         .eq('status', 'open')
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false })
+        .limit(50);
 
       if (category && category !== 'all') {
         query = query.eq('category', category);
@@ -97,18 +330,116 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
       const { data: predictions, error } = await query;
 
       if (error) {
+        console.error('❌ Supabase error:', error);
         throw error;
       }
 
-      set({ predictions: predictions || [], loading: false });
+      console.log(`✅ Fetched ${predictions?.length || 0} predictions`);
+
+      // If no predictions found in database, use mock data as fallback
+      if (!predictions || predictions.length === 0) {
+        console.log('📝 No predictions in database, using mock data as fallback');
+        let fallbackPredictions = mockPredictions;
+        
+        // Filter by category if specified
+        if (category && category !== 'all') {
+          fallbackPredictions = mockPredictions.filter(p => p.category === category);
+        }
+        
+        console.log('📋 Using mock fallback predictions:', fallbackPredictions.length);
+        
+        set({ 
+          predictions: fallbackPredictions, 
+          loading: false,
+          lastFetch: now,
+          initialized: true,
+          error: null
+        });
+        
+        // Verify mock state was set correctly
+        const mockState = get();
+        console.log('📊 State after setting mock predictions:', {
+          predictionsCount: mockState.predictions?.length || 0,
+          loading: mockState.loading,
+          initialized: mockState.initialized
+        });
+        
+        return;
+      }
+
+      // Transform data to match our interface with compatibility properties
+      const transformedPredictions = (predictions || []).map((pred: any) => ({
+        ...pred,
+        // Compatibility aliases
+        poolTotal: pred.pool_total,
+        entryDeadline: pred.entry_deadline,
+        entries: [], // Mock data for now
+        likes: pred.likes_count || 0,
+        comments: pred.comments_count || 0,
+        
+        creator: pred.creator ? {
+          id: pred.creator.id,
+          username: pred.creator.username || pred.creator.full_name || 'Unknown',
+          avatar_url: pred.creator.avatar_url,
+          is_verified: false
+        } : {
+          id: pred.creator_id,
+          username: 'Fan Club Z',
+          avatar_url: null,
+          is_verified: true
+        },
+        options: (pred.options || []).map((opt: any) => ({
+          ...opt,
+          totalStaked: opt.total_staked, // Compatibility alias
+          percentage: pred.pool_total > 0 ? (opt.total_staked / pred.pool_total) * 100 : 0
+        })),
+        likes_count: pred.likes_count || 0,
+        comments_count: pred.comments_count || 0
+      }));
+
+      console.log('✅ Successfully transformed and set predictions:', transformedPredictions.length);
+      
+      set({ 
+        predictions: transformedPredictions, 
+        loading: false,
+        lastFetch: now,
+        initialized: true,
+        error: null
+      });
+      
+      // Verify state was set correctly
+      const newState = get();
+      console.log('📊 State after setting predictions:', {
+        predictionsCount: newState.predictions?.length || 0,
+        loading: newState.loading,
+        initialized: newState.initialized
+      });
+
     } catch (error) {
-      console.error('Error fetching predictions:', error);
-      set({ error: 'Failed to fetch predictions', loading: false });
+      console.error('❌ Error fetching predictions:', error);
+      
+      // On error, try to use mock data as fallback
+      console.log('📝 Using mock data as fallback due to fetch error');
+      let fallbackPredictions = mockPredictions;
+      
+      if (category && category !== 'all') {
+        fallbackPredictions = mockPredictions.filter(p => p.category === category);
+      }
+      
+      set({ 
+        predictions: fallbackPredictions,
+        error: 'Using offline data', 
+        loading: false,
+        lastFetch: now,
+        initialized: true
+      });
     }
   },
 
   fetchTrendingPredictions: async () => {
     try {
+      console.log('📡 Fetching trending predictions...');
+      
       const { data: trendingPredictions, error } = await supabase
         .from('predictions')
         .select(`
@@ -119,16 +450,53 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
         `)
         .eq('status', 'open')
         .order('pool_total', { ascending: false })
-        .limit(10);
+        .limit(6);
 
       if (error) {
         throw error;
       }
 
-      set({ trendingPredictions: trendingPredictions || [] });
+      // If no data, use mock trending data
+      if (!trendingPredictions || trendingPredictions.length === 0) {
+        const mockTrending = mockPredictions.slice(0, 3);
+        set({ trendingPredictions: mockTrending });
+        return;
+      }
+
+      // Transform data
+      const transformedTrending = (trendingPredictions || []).map((pred: any) => ({
+        ...pred,
+        poolTotal: pred.pool_total,
+        entryDeadline: pred.entry_deadline,
+        entries: [],
+        likes: pred.likes_count || 0,
+        comments: pred.comments_count || 0,
+        
+        creator: pred.creator ? {
+          id: pred.creator.id,
+          username: pred.creator.username || pred.creator.full_name || 'Unknown',
+          avatar_url: pred.creator.avatar_url,
+          is_verified: false
+        } : {
+          id: pred.creator_id,
+          username: 'Fan Club Z',
+          avatar_url: null,
+          is_verified: true
+        },
+        options: (pred.options || []).map((opt: any) => ({
+          ...opt,
+          totalStaked: opt.total_staked,
+          percentage: pred.pool_total > 0 ? (opt.total_staked / pred.pool_total) * 100 : 0
+        }))
+      }));
+
+      set({ trendingPredictions: transformedTrending });
+
     } catch (error) {
-      console.error('Error fetching trending predictions:', error);
-      set({ error: 'Failed to fetch trending predictions' });
+      console.error('❌ Error fetching trending predictions:', error);
+      // Fallback to mock data
+      const mockTrending = mockPredictions.slice(0, 3);
+      set({ trendingPredictions: mockTrending });
     }
   },
 
@@ -141,6 +509,8 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
         return;
       }
 
+      console.log('📡 Fetching user predictions...');
+
       const { data: userPredictions, error } = await supabase
         .from('predictions')
         .select(`
@@ -150,21 +520,27 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
           club:clubs(id, name, avatar_url)
         `)
         .eq('creator_id', user.id)
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false })
+        .limit(20);
 
       if (error) {
         throw error;
       }
 
       set({ userPredictions: userPredictions || [] });
+
     } catch (error) {
-      console.error('Error fetching user predictions:', error);
+      console.error('❌ Error fetching user predictions:', error);
       set({ error: 'Failed to fetch user predictions' });
     }
   },
 
   fetchUserCreatedPredictions: async (userId: string) => {
+    set({ loading: true, error: null });
+    
     try {
+      console.log('📡 Fetching user created predictions for:', userId);
+
       const { data: userCreatedPredictions, error } = await supabase
         .from('predictions')
         .select(`
@@ -174,20 +550,55 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
           club:clubs(id, name, avatar_url)
         `)
         .eq('creator_id', userId)
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false })
+        .limit(20);
 
       if (error) {
         throw error;
       }
 
-      // Store user created predictions in a separate state
-      set((state) => ({
-        ...state,
-        userCreatedPredictions: userCreatedPredictions || []
+      // Transform data to match our interface
+      const transformedPredictions = (userCreatedPredictions || []).map((pred: any) => ({
+        ...pred,
+        poolTotal: pred.pool_total,
+        entryDeadline: pred.entry_deadline,
+        entries: [],
+        likes: pred.likes_count || 0,
+        comments: pred.comments_count || 0,
+        
+        creator: pred.creator ? {
+          id: pred.creator.id,
+          username: pred.creator.username || pred.creator.full_name || 'Unknown',
+          avatar_url: pred.creator.avatar_url,
+          is_verified: false
+        } : {
+          id: pred.creator_id,
+          username: 'Fan Club Z',
+          avatar_url: null,
+          is_verified: true
+        },
+        options: (pred.options || []).map((opt: any) => ({
+          ...opt,
+          totalStaked: opt.total_staked,
+          percentage: pred.pool_total > 0 ? (opt.total_staked / pred.pool_total) * 100 : 0
+        }))
       }));
+
+      set({
+        userCreatedPredictions: transformedPredictions,
+        loading: false,
+        error: null
+      });
+
+      console.log('✅ Successfully fetched user created predictions:', transformedPredictions.length);
+
     } catch (error) {
-      console.error('Error fetching user created predictions:', error);
-      set({ error: 'Failed to fetch user created predictions' });
+      console.error('❌ Error fetching user created predictions:', error);
+      set({ 
+        loading: false,
+        error: 'Failed to fetch user created predictions',
+        userCreatedPredictions: [] // Set empty array on error
+      });
     }
   },
 
@@ -198,13 +609,15 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
 
   createPrediction: async (data: any) => {
     set({ loading: true, error: null });
+    
     try {
-      // Get current user
-      const { data: { user } } = await supabase.auth.getUser();
+      const authStore = useAuthStore.getState();
       
-      if (!user) {
+      if (!authStore.isAuthenticated || !authStore.user) {
         throw new Error('User not authenticated');
       }
+      
+      const user = authStore.user;
 
       // Validate entry deadline is in the future
       const deadline = new Date(data.entryDeadline);
@@ -213,132 +626,135 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
         throw new Error('Entry deadline must be in the future');
       }
 
-      console.log('Creating prediction with validated data:', data);
+      console.log('🎯 Creating prediction with validated data:', data);
 
-      // Ensure stake values are properly converted
-      const stakeMin = Number(data.stakeMin) || 100;
+      // Ensure stake values are properly converted to USD
+      const stakeMin = Number(data.stakeMin) || 1;
       const stakeMax = data.stakeMax ? Number(data.stakeMax) : null;
 
       if (stakeMin < 1) {
-        throw new Error('Minimum stake must be at least ₦1');
+        throw new Error('Minimum stake must be at least $1');
       }
 
       if (stakeMax && stakeMax < stakeMin) {
         throw new Error('Maximum stake must be greater than minimum stake');
       }
 
-      // Create prediction in Supabase with correct field names
+      // Get the auth session for API calls
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        throw new Error('No valid session found');
+      }
+
+      // Prepare prediction payload for API
       const predictionPayload = {
-        creator_id: user.id,
         title: data.title,
         description: data.description || null,
         category: data.category,
-        type: data.type === 'multiple' ? 'multi_outcome' : data.type, // Convert multiple to multi_outcome
+        type: data.type === 'multiple' ? 'multi_outcome' : 'binary',
         stake_min: stakeMin,
         stake_max: stakeMax,
         entry_deadline: deadline.toISOString(),
         settlement_method: data.settlementMethod,
         is_private: data.isPrivate || false,
-        status: 'open',
-        pool_total: 0,
-        participant_count: 0,
-        creator_fee_percentage: 3.5,
-        platform_fee_percentage: 1.5
+        options: data.options
+          .filter((opt: any) => opt.label && opt.label.trim())
+          .map((option: any) => ({
+            label: option.label.trim()
+          }))
       };
 
-      console.log('Final prediction payload:', predictionPayload);
+      console.log('📡 Sending prediction to API:', predictionPayload);
 
-      const { data: prediction, error } = await supabase
-        .from('predictions')
-        .insert(predictionPayload)
-        .select()
-        .single();
+      // Use the server API endpoint instead of direct Supabase calls
+      const response = await fetch('/api/predictions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`
+        },
+        body: JSON.stringify(predictionPayload)
+      });
 
-      if (error) {
-        console.error('Supabase error creating prediction:', error);
-        throw new Error(error.message || 'Failed to create prediction');
+      const result = await response.json();
+
+      if (!response.ok) {
+        console.error('❌ API error creating prediction:', result);
+        throw new Error(result.error || result.message || 'Failed to create prediction');
       }
 
-      console.log('Prediction created successfully:', prediction);
+      console.log('✅ Prediction created successfully via API:', result);
 
-      // Create prediction options
-      if (data.options && data.options.length > 0) {
-        const optionsData = data.options
-          .filter((opt: any) => opt.label && opt.label.trim()) // Only include options with labels
-          .map((option: any) => ({
-            prediction_id: prediction.id,
-            label: option.label.trim(),
-            total_staked: 0,
-            current_odds: 1.0,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
-          }));
-
-        if (optionsData.length < 2) {
-          throw new Error('At least 2 valid prediction options are required');
-        }
-
-        const { error: optionsError } = await supabase
-          .from('prediction_options')
-          .insert(optionsData);
-
-        if (optionsError) {
-          console.error('Error creating prediction options:', optionsError);
-          // Don't throw here, prediction was created successfully
-        } else {
-          console.log('Prediction options created successfully');
-        }
-      }
-
-      // Refresh predictions
-      await get().fetchPredictions();
+      // Force refresh predictions
+      await get().fetchPredictions(undefined, true);
       await get().fetchUserPredictions();
       await get().fetchUserCreatedPredictions(user.id);
 
       set({ loading: false });
-      return prediction;
+      return result.data || result;
+      
     } catch (error) {
-      console.error('Failed to create prediction:', error);
+      console.error('❌ Failed to create prediction:', error);
       const errorMessage = error instanceof Error ? error.message : 'Failed to create prediction';
       set({ error: errorMessage, loading: false });
       throw new Error(errorMessage);
     }
   },
 
-  placePrediction: async (predictionId: string, optionId: string, amount: number) => {
+  placePrediction: async (data: { predictionId: string; optionId: string; amount: number; userId: string }) => {
     set({ loading: true, error: null });
+    
     try {
-      // Get current user
-      const { data: { user } } = await supabase.auth.getUser();
+      const authStore = useAuthStore.getState();
       
-      if (!user) {
+      if (!authStore.isAuthenticated || !authStore.user) {
         throw new Error('User not authenticated');
       }
-
-      // Create prediction entry in Supabase
-      const { error } = await supabase
-        .from('prediction_entries')
-        .insert({
-          user_id: user.id,
-          prediction_id: predictionId,
-          option_id: optionId,
-          amount: amount,
-          status: 'active',
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        });
-
-      if (error) {
-        throw error;
-      }
       
-      // Refresh predictions to get updated data
-      await get().fetchPredictions();
+      const user = authStore.user;
+
+      // Get the auth session for API calls
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        throw new Error('No valid session found');
+      }
+
+      console.log('🎲 Placing prediction:', data);
+
+      // Use the API endpoint instead of direct database insert
+      const response = await fetch(`/api/predictions/${data.predictionId}/entries`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`
+        },
+        body: JSON.stringify({
+          option_id: data.optionId,
+          amount: data.amount
+        })
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to place prediction');
+      }
+
+      console.log('✅ Prediction placed successfully:', result);
+      
+      // Update wallet store to reflect the prediction
+      const { useWalletStore } = await import('./walletStore');
+      const walletStore = useWalletStore.getState();
+      await walletStore.makePrediction(data.amount, `Prediction: ${result.prediction?.title || 'Unknown'}`, data.predictionId, 'USD');
+      
+      // Force refresh predictions to get updated data
+      await get().fetchPredictions(undefined, true);
       await get().fetchUserPredictions();
       
       set({ loading: false });
+      
     } catch (error) {
-      console.error('Failed to place prediction:', error);
+      console.error('❌ Failed to place prediction:', error);
       set({ error: error instanceof Error ? error.message : 'Failed to place prediction', loading: false });
       throw error;
     }

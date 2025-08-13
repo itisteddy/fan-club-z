@@ -5,7 +5,7 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-export const formatCurrency = (amount: number, currency: string = 'NGN'): string => {
+export const formatCurrency = (amount: number, currency: string = 'USD'): string => {
   const formatters: Record<string, Intl.NumberFormat> = {
     NGN: new Intl.NumberFormat('en-NG', {
       style: 'currency',
@@ -31,7 +31,7 @@ export const formatCurrency = (amount: number, currency: string = 'NGN'): string
     }),
   };
 
-  const formatter = formatters[currency] || formatters.NGN;
+  const formatter = formatters[currency] || formatters.USD;
   
   if (currency === 'USDT') {
     return `${formatter.format(amount)} USDT`;
@@ -54,8 +54,24 @@ export const formatTimeRemaining = (dateString: string): string => {
   const diffMins = Math.floor(diffMs / 60000);
   const diffHours = Math.floor(diffMs / 3600000);
   const diffDays = Math.floor(diffMs / 86400000);
+  const diffYears = Math.floor(diffDays / 365);
 
-  if (diffDays > 0) return `${diffDays}d left`;
+  // For very long periods (over 999 hours = ~41 days), use years and days
+  if (diffHours > 999) {
+    if (diffYears > 0) {
+      const remainingDays = diffDays % 365;
+      if (remainingDays > 0) {
+        return `${diffYears}y ${remainingDays}d left`;
+      } else {
+        return `${diffYears}y left`;
+      }
+    } else {
+      return `${diffDays}d left`;
+    }
+  }
+
+  // Standard formatting for shorter periods
+  if (diffDays > 0) return `${diffDays}d ${diffHours % 24}h left`;
   if (diffHours > 0) return `${diffHours}h left`;
   if (diffMins > 0) return `${diffMins}m left`;
   
