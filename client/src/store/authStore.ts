@@ -332,9 +332,13 @@ export const useAuthStore = create<AuthState>()(
         try {
           console.log(`🔑 Starting ${provider} OAuth login...`);
           
-          const redirectTo = import.meta.env.PROD 
-            ? import.meta.env.VITE_OAUTH_REDIRECT_URL_PRODUCTION
-            : import.meta.env.VITE_OAUTH_REDIRECT_URL;
+          // Get the correct redirect URL based on environment
+          const isDevelopment = window.location.hostname === 'localhost';
+          const redirectTo = isDevelopment 
+            ? 'http://localhost:5173/auth/callback'
+            : 'https://fanclubz-version2-0.vercel.app/auth/callback';
+
+          console.log('🔗 OAuth redirect URL:', redirectTo);
 
           const { data, error } = await supabase.auth.signInWithOAuth({
             provider: provider as Provider,
