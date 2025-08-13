@@ -1,114 +1,160 @@
-# Fan Club Z - Development & Deployment Workflow
+# Fan Club Z - Development Workflow Guide
 
-## Current Setup
-- **Frontend**: Vercel (fanclubz-version-2-0.vercel.app)
-- **Backend**: Render (fan-club-z.onrender.com) 
-- **Database**: Supabase
-- **Repository**: GitHub
+## 🎯 Overview
+This guide ensures proper development workflow with separate development and production environments.
 
-## Recommended Development Workflow
+## 🌿 Branch Strategy
 
-### 1. Branch Strategy
-```
-main (production)
-├── development (staging)
-├── feature/improvement-name
-└── hotfix/urgent-fix-name
-```
+### **Development Branch (`development`)**
+- **Purpose**: Active development and testing
+- **Deployment**: Development environment
+- **URL**: Development-specific Vercel deployment
+- **Safety**: Safe to experiment and break things
 
-### 2. Development Process
+### **Main Branch (`main`)**
+- **Purpose**: Production-ready code
+- **Deployment**: Production environment
+- **URL**: https://app.fanclubz.app
+- **Safety**: Must be stable and tested
 
-#### For New Features:
+## 🚀 Development Workflow
+
+### **1. Starting Development Work**
 ```bash
-# 1. Start from development branch
+# Always start from development branch
 git checkout development
 git pull origin development
-
-# 2. Create feature branch
-git checkout -b feature/ui-improvements
-# or
-git checkout -b feature/new-prediction-flow
-
-# 3. Make changes and commit
-git add .
-git commit -m "feat: improve prediction card UI"
-
-# 4. Push and create PR
-git push origin feature/ui-improvements
-# Create PR to development branch (not main)
 ```
 
-#### For Hotfixes:
+### **2. Making Changes**
 ```bash
-# 1. Create hotfix from main
-git checkout main
-git checkout -b hotfix/critical-bug-fix
-
-# 2. Fix and commit
-git add .
-git commit -m "fix: resolve prediction submission error"
-
-# 3. Push and create PR to both development and main
-git push origin hotfix/critical-bug-fix
-```
-
-### 3. Deployment Environments
-
-#### Production (Current)
-- **Branch**: `main`
-- **Frontend**: fanclubz-version-2-0.vercel.app
-- **Backend**: fan-club-z.onrender.com
-- **Deploy**: Manual merge to main
-
-#### Staging (Recommended Setup)
-- **Branch**: `development`
-- **Frontend**: fanclubz-staging.vercel.app
-- **Backend**: fan-club-z-staging.onrender.com
-- **Deploy**: Auto-deploy on push to development
-
-#### Feature Testing
-- **Branch**: feature/*
-- **Frontend**: Vercel preview deployments
-- **Backend**: Use staging backend
-- **Deploy**: Auto-deploy on PR creation
-
-## Quick Commands
-
-### Start Development
-```bash
+# Make your changes
+# Test locally
 npm run dev
-```
 
-### Test Build Locally
-```bash
-npm run build
-npm run check-build
-```
-
-### Quick Save Work
-```bash
-npm run save-work "your commit message"
-```
-
-### Deploy to Staging (after setup)
-```bash
+# Commit changes to development
+git add .
+git commit -m "feat: your feature description"
 git push origin development
 ```
 
-### Deploy to Production
+### **3. Deploying to Development**
 ```bash
-# Via PR merge to main, or:
-git checkout main
-git merge development
-git push origin main
+# Use the development deployment script
+./deploy-dev.sh
 ```
 
-## Environment Variables
-- Production: Set in Vercel/Render dashboards
-- Development: Use .env.development
-- Local: Use .env.local
+### **4. Testing in Development Environment**
+- Test all features thoroughly
+- Ensure no breaking changes
+- Get feedback from team/stakeholders
 
-## Testing Strategy
-1. **Local Testing**: `npm run dev`
-2. **Staging Testing**: Push to development branch
-3. **Production Testing**: Merge to main after staging approval
+### **5. Promoting to Production**
+```bash
+# Switch to main branch
+git checkout main
+
+# Merge development into main
+git merge development
+
+# Deploy to production
+./deploy-production.sh
+```
+
+## 📋 Deployment Scripts
+
+### **Development Deployment**
+```bash
+./deploy-dev.sh
+```
+- ✅ Checks you're on development branch
+- ✅ Pulls latest changes
+- ✅ Verifies no uncommitted changes
+- ✅ Deploys to development environment
+
+### **Production Deployment**
+```bash
+./deploy-production.sh
+```
+- ✅ Checks you're on main branch
+- ✅ Pulls latest changes
+- ✅ Verifies no uncommitted changes
+- ✅ Deploys to production environment
+
+## 🔒 Safety Measures
+
+### **Branch Protection**
+- **Development**: Safe to experiment
+- **Main**: Must be stable and tested
+
+### **Deployment Safety**
+- Scripts prevent wrong-branch deployments
+- Uncommitted changes are blocked
+- Automatic environment variable management
+
+### **Environment Separation**
+- **Development**: Uses development environment variables
+- **Production**: Uses production environment variables
+
+## 🛠️ Quick Commands
+
+### **Check Current Branch**
+```bash
+git branch --show-current
+```
+
+### **Switch to Development**
+```bash
+git checkout development
+```
+
+### **Switch to Main**
+```bash
+git checkout main
+```
+
+### **View Deployment Status**
+```bash
+vercel ls
+```
+
+## 📝 Best Practices
+
+1. **Always work on development branch** for new features
+2. **Test thoroughly** before merging to main
+3. **Use descriptive commit messages**
+4. **Deploy to development first** for testing
+5. **Only merge to main** when ready for production
+6. **Use deployment scripts** to prevent mistakes
+
+## 🚨 Emergency Procedures
+
+### **If you accidentally deploy from wrong branch**
+1. Immediately stop the deployment if possible
+2. Check which environment was affected
+3. Rollback if necessary
+4. Fix the issue and redeploy correctly
+
+### **If development environment is broken**
+1. Check the development branch
+2. Fix the issue locally
+3. Test thoroughly
+4. Redeploy to development
+
+### **If production environment is broken**
+1. Check the main branch
+2. Identify the issue
+3. Fix and test on development first
+4. Merge to main and redeploy
+
+## 📞 Support
+
+If you encounter issues:
+1. Check this guide first
+2. Review the deployment scripts
+3. Check Vercel dashboard for deployment status
+4. Contact the development team
+
+---
+
+**Remember**: Development branch is for experimenting, Main branch is for production-ready code! 🎯

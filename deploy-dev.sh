@@ -1,80 +1,39 @@
 #!/bin/bash
 
-# Fan Club Z - Development Deployment Script
-# Quick deployment for development environment
+# Development Deployment Script
+# This script ensures we're deploying from the development branch
 
-set -e
+echo "🚀 Starting Development Deployment..."
 
-echo "🛠️  Fan Club Z - Development Deployment"
-echo "======================================="
-
-# Colors for output
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m'
-
-print_status() {
-    echo -e "${GREEN}✅ $1${NC}"
-}
-
-print_info() {
-    echo -e "${BLUE}ℹ️  $1${NC}"
-}
-
-print_warning() {
-    echo -e "${YELLOW}⚠️  $1${NC}"
-}
-
-# Check if we're in the right directory
-if [ ! -f "package.json" ]; then
-    echo "❌ Error: Not in Fan Club Z project directory"
+# Check if we're on the development branch
+CURRENT_BRANCH=$(git branch --show-current)
+if [ "$CURRENT_BRANCH" != "development" ]; then
+    echo "❌ ERROR: You must be on the development branch to deploy to dev!"
+    echo "Current branch: $CURRENT_BRANCH"
+    echo "Please run: git checkout development"
     exit 1
 fi
 
-# Check current branch
-current_branch=$(git branch | grep '*' | cut -d' ' -f2)
-if [ "$current_branch" != "development" ]; then
-    print_warning "You're not on the development branch (current: $current_branch)"
-    read -p "Switch to development branch? (y/N): " switch_branch
-    if [[ $switch_branch =~ ^[Yy]$ ]]; then
-        git checkout development
-        print_status "Switched to development branch"
-    else
-        echo "❌ Deployment cancelled"
-        exit 1
-    fi
-fi
+echo "✅ Confirmed: Currently on development branch"
 
-# Check for uncommitted changes
-if [ -n "$(git status --porcelain)" ]; then
-    print_info "You have uncommitted changes:"
-    git status --short
-    echo ""
-    read -p "Commit changes before deploying? (y/N): " commit_changes
-    
-    if [[ $commit_changes =~ ^[Yy]$ ]]; then
-        git add .
-        git commit -m "feat: development deployment - $(date '+%Y-%m-%d %H:%M:%S')"
-        print_status "Changes committed"
-    else
-        print_warning "Deploying with uncommitted changes"
-    fi
-fi
-
-# Pull latest changes
-print_info "Pulling latest changes from remote..."
+# Pull latest changes from remote development branch
+echo "📥 Pulling latest changes from development branch..."
 git pull origin development
 
-# Push to trigger deployment
-print_info "Pushing to development branch to trigger deployment..."
-git push origin development
+# Check for any uncommitted changes
+if [ -n "$(git status --porcelain)" ]; then
+    echo "⚠️  WARNING: You have uncommitted changes!"
+    echo "Please commit or stash your changes before deploying."
+    git status --short
+    exit 1
+fi
 
-print_status "Development deployment triggered!"
-echo ""
-print_info "Your app will be available at:"
-echo "  🌐 https://dev.fanclubz.app (if custom domain configured)"
-echo "  🔗 https://fan-club-z.vercel.app (current Vercel URL)"
-echo ""
-print_info "Deployment typically takes 2-3 minutes to complete"
-print_info "Check Vercel dashboard for deployment status"
+echo "✅ No uncommitted changes found"
+
+# Deploy to development environment
+echo "🚀 Deploying to development environment..."
+vercel --yes
+
+echo "✅ Development deployment completed!"
+echo "🌐 Your development deployment should be available shortly."
+echo "📋 Check the Vercel dashboard for the deployment URL."
