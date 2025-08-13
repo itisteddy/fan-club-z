@@ -1,13 +1,25 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import BottomNavigation from './BottomNavigation';
+import { NotificationCenter } from './notifications/NotificationCenter';
+import { NotificationBell } from './notifications/NotificationComponents';
+import { ToastContainer } from './notifications/ToastNotification';
+import { useNotificationStore } from '../store/notificationStore';
 
 interface MainLayoutProps {
   children: React.ReactNode;
   hideNavigation?: boolean;
+  showNotificationBell?: boolean;
 }
 
-const MainLayout: React.FC<MainLayoutProps> = ({ children, hideNavigation = false }) => {
+const MainLayout: React.FC<MainLayoutProps> = ({ 
+  children, 
+  hideNavigation = false, 
+  showNotificationBell = true 
+}) => {
+  const [isNotificationCenterOpen, setIsNotificationCenterOpen] = useState(false);
+  const { toasts, removeToast } = useNotificationStore();
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-100">
       {/* Sophisticated background pattern */}
@@ -16,6 +28,15 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, hideNavigation = fals
         <div className="absolute top-0 left-1/4 w-96 h-96 bg-green-400/10 rounded-full blur-3xl" />
         <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-blue-400/10 rounded-full blur-3xl" />
       </div>
+
+      {/* Notification Bell - Top Right */}
+      {showNotificationBell && (
+        <div className="fixed top-4 right-4 z-[9000]">
+          <NotificationBell
+            onClick={() => setIsNotificationCenterOpen(true)}
+          />
+        </div>
+      )}
 
       {/* Main content */}
       <motion.main
@@ -38,6 +59,18 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, hideNavigation = fals
           <BottomNavigation />
         </motion.div>
       )}
+
+      {/* Notification Center */}
+      <NotificationCenter
+        isOpen={isNotificationCenterOpen}
+        onClose={() => setIsNotificationCenterOpen(false)}
+      />
+
+      {/* Toast Notifications */}
+      <ToastContainer
+        toasts={toasts}
+        onRemoveToast={removeToast}
+      />
     </div>
   );
 };
