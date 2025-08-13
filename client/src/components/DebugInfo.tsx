@@ -19,6 +19,16 @@ const DebugInfo: React.FC = () => {
         <div>User: {user?.email || 'None'}</div>
         <div>Predictions: {predictions?.length || 0} items</div>
         <div>Predictions Loading: {predictionsLoading ? '⏳ Loading' : '✅ Ready'}</div>
+        <button 
+          onClick={async () => {
+            console.log('🔄 Manual refresh triggered from debug panel');
+            const store = usePredictionStore.getState();
+            await store.refreshPredictions(true);
+          }}
+          className="mt-2 px-2 py-1 bg-green-600 text-white rounded text-xs hover:bg-green-700"
+        >
+          Force Refresh
+        </button>
       </div>
     </div>
   );

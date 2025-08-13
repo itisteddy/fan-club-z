@@ -143,11 +143,6 @@ MainLayout.displayName = 'MainLayout';
 
 // Page Wrapper Components with proper props
 const DiscoverPageWrapper: React.FC = () => {
-  return <SimpleTestPage />;
-};
-
-// Original DiscoverPageWrapper - temporarily disabled
-const OriginalDiscoverPageWrapper: React.FC = () => {
   const [, navigate] = useLocation();
   
   const handleNavigateToProfile = useCallback(() => {
@@ -166,6 +161,11 @@ const OriginalDiscoverPageWrapper: React.FC = () => {
       />
     </PageWrapper>
   );
+};
+
+// Test page wrapper for debugging
+const TestPageWrapper: React.FC = () => {
+  return <SimpleTestPage />;
 };
 
 const PredictionsPageWrapper: React.FC = () => {
