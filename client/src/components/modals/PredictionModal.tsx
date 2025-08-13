@@ -125,7 +125,8 @@ const PredictionModal: React.FC<PredictionModalProps> = ({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={onClose}
-            className="fixed inset-0 bg-black bg-opacity-50 z-50"
+            className="modal-overlay fixed inset-0 bg-black bg-opacity-50"
+            style={{ zIndex: 8000 }}
           />
           
           {/* Modal */}
@@ -133,7 +134,8 @@ const PredictionModal: React.FC<PredictionModalProps> = ({
             initial={{ opacity: 0, scale: 0.9, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.9, y: 20 }}
-            className="fixed inset-x-4 top-20 bottom-20 bg-white rounded-2xl z-50 overflow-hidden flex flex-col max-w-md mx-auto"
+            className="prediction-modal modal-container fixed inset-x-4 top-20 bottom-20 bg-white rounded-2xl overflow-hidden flex flex-col max-w-md mx-auto"
+            style={{ zIndex: 8500 }}
           >
             {/* Header */}
             <div className="p-4 border-b border-gray-100">

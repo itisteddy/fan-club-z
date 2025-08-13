@@ -11,6 +11,7 @@ import type { Prediction } from '../../../shared/schema';
 
 interface DiscoverPageProps {
   onNavigateToProfile?: () => void;
+  onNavigateToPrediction?: (predictionId: string) => void;
 }
 
 // Enhanced Category Filter Component
@@ -29,18 +30,18 @@ const CategoryFilters: React.FC<{
   ];
 
   return (
-    <div className="bg-white border-b border-gray-100 px-4 py-3">
-      <div className="overflow-x-auto -mx-2 px-2">
-        <div className="flex gap-2 pb-1">
+    <div className="category-filters bg-white border-b border-gray-100 px-4 py-3">
+      <div className="category-filters-container overflow-x-auto -mx-2 px-2">
+        <div className="category-filters-flex flex gap-2 pb-1">
           {categories.map((category) => (
             <motion.button
               key={category.id}
               onClick={() => onSelect(category.id)}
               className={`
-                flex-shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium
+                category-pill flex-shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium
                 transition-all duration-200 whitespace-nowrap
                 ${selectedCategory === category.id
-                  ? 'bg-green-500 text-white shadow-sm'
+                  ? 'active bg-green-500 text-white shadow-sm'
                   : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                 }
               `}
@@ -141,7 +142,7 @@ const MobileHeader: React.FC<{
 MobileHeader.displayName = 'MobileHeader';
 
 // Main DiscoverPage Component
-const DiscoverPage: React.FC<DiscoverPageProps> = memo(({ onNavigateToProfile }) => {
+const DiscoverPage: React.FC<DiscoverPageProps> = memo(({ onNavigateToProfile, onNavigateToPrediction }) => {
   const { user } = useAuthStore();
   const { predictions, loading, refreshPredictions } = usePredictionStore();
   
@@ -193,9 +194,14 @@ const DiscoverPage: React.FC<DiscoverPageProps> = memo(({ onNavigateToProfile })
 
   const handleNavigateToPrediction = useCallback((predictionId: string) => {
     console.log('🔗 Navigating to prediction details:', predictionId);
-    // Use wouter navigation instead of manually setting location
-    window.location.href = `/prediction/${predictionId}`;
-  }, []);
+    // Use proper wouter navigation
+    if (onNavigateToPrediction) {
+      onNavigateToPrediction(predictionId);
+    } else {
+      // Fallback to window.location if navigation prop not provided
+      window.location.href = `/prediction/${predictionId}`;
+    }
+  }, [onNavigateToPrediction]);
 
   const handleLike = useCallback((predictionId: string) => {
     console.log('❤️ Liked prediction:', predictionId);
@@ -301,7 +307,7 @@ const DiscoverPage: React.FC<DiscoverPageProps> = memo(({ onNavigateToProfile })
   }
 
   return (
-    <div className="discover-page content-with-bottom-nav">
+    <div className="discover-page content-with-bottom-nav" style={{ position: 'relative', zIndex: 1 }}>
       {/* Header with proper z-index */}
       <div className="discover-header">
         <div className="header-content">
@@ -315,8 +321,8 @@ const DiscoverPage: React.FC<DiscoverPageProps> = memo(({ onNavigateToProfile })
         </div>
       </div>
 
-      {/* Category filters with proper z-index */}
-      <div className="category-filters">
+      {/* Category filters with explicit positioning */}
+      <div className="category-filters-wrapper" style={{ position: 'relative', zIndex: 45 }}>
         <CategoryFilters 
           selectedCategory={selectedCategory} 
           onSelect={handleCategorySelect} 

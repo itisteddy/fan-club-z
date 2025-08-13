@@ -11,9 +11,9 @@ import PageWrapper from './components/PageWrapper';
 // Import all page components
 import DiscoverPage from './pages/DiscoverPage';
 import CreatePredictionPage from './pages/CreatePredictionPage';
-import BetsTab from './pages/BetsTab';
-import ProfilePage from './pages/ProfilePage';
-import WalletPage from './pages/WalletPage';
+import { PredictionsPage } from './pages/PredictionsPage';
+import SimpleProfilePage from './pages/SimpleProfilePage';
+import SimpleWalletPage from './pages/SimpleWalletPage';
 import AuthPage from './pages/auth/AuthPage';
 import AuthCallbackPage from './pages/auth/AuthCallbackPage';
 import PredictionDetailsPage from './pages/PredictionDetailsPage';
@@ -59,7 +59,7 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = memo(({ children }) 
   const getCurrentTab = useCallback(() => {
     const path = location.toLowerCase();
     if (path === '/' || path === '/discover') return 'discover';
-    if (path === '/bets') return 'bets';
+    if (path === '/bets' || path === '/predictions') return 'bets';
     if (path === '/profile') return 'profile';
     if (path === '/wallet') return 'wallet';
     return 'discover';
@@ -77,7 +77,7 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = memo(({ children }) 
         navigate('/');
         break;
       case 'bets':
-        navigate('/bets');
+        navigate('/predictions');
         break;
       case 'profile':
         navigate('/profile');
@@ -147,14 +147,21 @@ const DiscoverPageWrapper: React.FC = () => {
     navigate('/profile');
   }, [navigate]);
 
+  const handleNavigateToPrediction = useCallback((predictionId: string) => {
+    navigate(`/prediction/${predictionId}`);
+  }, [navigate]);
+
   return (
     <PageWrapper title="Discover">
-      <DiscoverPage onNavigateToProfile={handleNavigateToProfile} />
+      <DiscoverPage 
+        onNavigateToProfile={handleNavigateToProfile}
+        onNavigateToPrediction={handleNavigateToPrediction}
+      />
     </PageWrapper>
   );
 };
 
-const BetsPageWrapper: React.FC = () => {
+const PredictionsPageWrapper: React.FC = () => {
   const [, navigate] = useLocation();
   
   const handleNavigateToDiscover = useCallback(() => {
@@ -163,7 +170,7 @@ const BetsPageWrapper: React.FC = () => {
 
   return (
     <PageWrapper title="My Predictions">
-      <BetsTab onNavigateToDiscover={handleNavigateToDiscover} />
+      <PredictionsPage />
     </PageWrapper>
   );
 };
@@ -198,7 +205,7 @@ const ProfilePageWrapper: React.FC = () => {
 
   return (
     <PageWrapper title="Profile">
-      <ProfilePage onNavigateBack={handleNavigateBack} />
+      <SimpleProfilePage onNavigateBack={handleNavigateBack} />
     </PageWrapper>
   );
 };
@@ -206,7 +213,7 @@ const ProfilePageWrapper: React.FC = () => {
 const WalletPageWrapper: React.FC = () => {
   return (
     <PageWrapper title="Wallet">
-      <WalletPage />
+      <SimpleWalletPage />
     </PageWrapper>
   );
 };
@@ -283,7 +290,8 @@ function App() {
               <Switch>
                 <Route path="/" component={DiscoverPageWrapper} />
                 <Route path="/discover" component={DiscoverPageWrapper} />
-                <Route path="/bets" component={BetsPageWrapper} />
+                <Route path="/predictions" component={PredictionsPageWrapper} />
+                <Route path="/bets" component={PredictionsPageWrapper} />
                 <Route path="/create" component={CreatePredictionPageWrapper} />
                 <Route path="/profile" component={ProfilePageWrapper} />
                 <Route path="/wallet" component={WalletPageWrapper} />

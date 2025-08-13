@@ -18,11 +18,23 @@ Z-Index Hierarchy (from lowest to highest):
   z-index: 100 !important;
 }
 
-/* Search and Filter UI */
+/* Search and Filter UI - CRITICAL FIX: Lower z-index than modals */
 .search-container,
 .filter-dropdown,
 .category-filters {
-  z-index: 200 !important;
+  z-index: 45 !important;
+  position: relative !important;
+}
+
+/* Fix for category filters specifically */
+.category-filters-container {
+  z-index: 45 !important;
+  position: relative !important;
+}
+
+.category-pill {
+  z-index: 46 !important;
+  position: relative !important;
 }
 
 /* Tooltips and Dropdowns */
@@ -34,10 +46,18 @@ Z-Index Hierarchy (from lowest to highest):
 /* Modal Base Layer - All modals should be above regular UI but below critical notifications */
 .modal-overlay {
   z-index: 8000 !important;
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  background: rgba(0, 0, 0, 0.5) !important;
+  backdrop-filter: blur(4px) !important;
 }
 
 .modal-content {
   z-index: 8001 !important;
+  position: relative !important;
 }
 
 /* Prediction and Comment Modals */
@@ -206,10 +226,17 @@ Z-Index Hierarchy (from lowest to highest):
 @supports (-webkit-touch-callout: none) {
   .modal-overlay {
     transform: translateZ(0) !important;
+    -webkit-transform: translateZ(0) !important;
   }
   
   .modal-container {
     transform: translateZ(0) !important;
+    -webkit-transform: translateZ(0) !important;
+  }
+  
+  .category-filters {
+    transform: translateZ(0) !important;
+    -webkit-transform: translateZ(0) !important;
   }
 }
 
@@ -221,4 +248,54 @@ Z-Index Hierarchy (from lowest to highest):
   left: 0 !important;
   right: 0 !important;
   bottom: 0 !important;
+}
+
+/* Additional fixes for category filters appearing over modals */
+.category-filters-wrapper,
+.category-filters,
+.category-filters-container,
+.category-filters-flex {
+  z-index: 45 !important;
+  position: relative !important;
+}
+
+/* Ensure all category pills stay below modals */
+.category-pill,
+.category-pill.active,
+.category-pill:hover,
+.category-pill:focus {
+  z-index: 46 !important;
+  position: relative !important;
+}
+
+/* Make sure modal overlays create proper stacking context */
+.modal-overlay {
+  position: fixed !important;
+  isolation: isolate !important;
+}
+
+.prediction-modal {
+  position: fixed !important;
+  isolation: isolate !important;
+}
+
+/* Force proper stacking context for discover page elements */
+.discover-page {
+  position: relative !important;
+  z-index: 1 !important;
+}
+
+.discover-header {
+  position: sticky !important;
+  z-index: 50 !important;
+}
+
+.category-filters {
+  position: sticky !important;
+  z-index: 45 !important;
+}
+
+.prediction-cards-container {
+  position: relative !important;
+  z-index: 10 !important;
 }

@@ -17,9 +17,9 @@ const BottomNavigation: React.FC<BottomNavigationProps> = ({
 }) => {
   const tabs = [
     { id: 'discover', label: 'Discover', icon: Home },
-    { id: 'bets', label: 'Bets', icon: TrendingUp },
-    { id: 'profile', label: 'Profile', icon: User },
+    { id: 'bets', label: 'My Bets', icon: TrendingUp },
     { id: 'wallet', label: 'Wallet', icon: Wallet },
+    { id: 'profile', label: 'Profile', icon: User },
   ];
 
   const handleTabClick = (tabId: string) => {
