@@ -12,9 +12,9 @@ import DebugInfo from './components/DebugInfo';
 // Import all page components
 import DiscoverPage from './pages/DiscoverPage';
 import CreatePredictionPage from './pages/CreatePredictionPage';
-import { PredictionsPage } from './pages/PredictionsPage';
-import SimpleProfilePage from './pages/SimpleProfilePage';
-import SimpleWalletPage from './pages/SimpleWalletPage';
+import BetsTab from './pages/BetsTab';
+import ProfilePage from './pages/ProfilePage';
+import WalletPage from './pages/WalletPage';
 import AuthPage from './pages/auth/AuthPage';
 import AuthCallbackPage from './pages/auth/AuthCallbackPage';
 import PredictionDetailsPage from './pages/PredictionDetailsPage';
@@ -178,7 +178,7 @@ const PredictionsPageWrapper: React.FC = () => {
 
   return (
     <PageWrapper title="My Predictions">
-      <PredictionsPage />
+      <BetsTab onNavigateToDiscover={handleNavigateToDiscover} />
     </PageWrapper>
   );
 };
@@ -213,15 +213,21 @@ const ProfilePageWrapper: React.FC = () => {
 
   return (
     <PageWrapper title="Profile">
-      <SimpleProfilePage onNavigateBack={handleNavigateBack} />
+      <ProfilePage onNavigateBack={handleNavigateBack} />
     </PageWrapper>
   );
 };
 
 const WalletPageWrapper: React.FC = () => {
+  const [, navigate] = useLocation();
+  
+  const handleNavigateBack = useCallback(() => {
+    navigate('/');
+  }, [navigate]);
+
   return (
     <PageWrapper title="Wallet">
-      <SimpleWalletPage />
+      <WalletPage onNavigateBack={handleNavigateBack} />
     </PageWrapper>
   );
 };
