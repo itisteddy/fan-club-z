@@ -36,18 +36,38 @@ app.use(helmet({
 
 // CORS configuration
 const allowedOrigins = process.env.NODE_ENV === 'production' 
-  ? [config.frontend.url]
+  ? [
+      config.frontend.url,
+      'https://app.fanclubz.app',
+      'https://fan-club-z-pw49foj6y-teddys-projects-d67ab22a.vercel.app',
+      'https://fanclubz.app',
+      'https://www.fanclubz.app'
+    ]
   : [config.frontend.url, 'http://localhost:3000', 'http://localhost:5173'];
 
 app.use(cors({
   origin: function (origin, callback) {
     // Allow requests with no origin (like mobile apps or curl requests)
-    if (!origin) return callback(null, true);
+    if (!origin) {
+      console.log('🌐 CORS: Allowing request with no origin');
+      return callback(null, true);
+    }
+    
+    console.log('🌐 CORS: Checking origin:', origin);
+    console.log('🌐 CORS: Allowed origins:', allowedOrigins);
     
     if (allowedOrigins.indexOf(origin) !== -1) {
+      console.log('✅ CORS: Origin allowed');
       callback(null, true);
     } else {
-      callback(new Error('Not allowed by CORS'));
+      console.log('❌ CORS: Origin blocked');
+      // In development, be more permissive
+      if (process.env.NODE_ENV !== 'production') {
+        console.log('🚧 CORS: Development mode - allowing anyway');
+        callback(null, true);
+      } else {
+        callback(new Error('Not allowed by CORS'));
+      }
     }
   },
   credentials: true,
@@ -110,11 +130,19 @@ app.get('/api/health', (req, res) => {
 // API ROUTES
 // ============================================================================
 
+// v2 routes (current)
 app.use('/api/v2/auth', authRoutes);
 app.use('/api/v2/predictions', predictionRoutes);
 app.use('/api/v2/wallet', walletRoutes);
 app.use('/api/v2/social', socialRoutes);
 app.use('/api/v2/clubs', clubRoutes);
+
+// Legacy routes (for backward compatibility)
+app.use('/api/auth', authRoutes);
+app.use('/api/predictions', predictionRoutes);
+app.use('/api/wallet', walletRoutes);
+app.use('/api/social', socialRoutes);
+app.use('/api/clubs', clubRoutes);
 
 // ============================================================================
 // ERROR HANDLING
