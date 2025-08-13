@@ -1,5 +1,5 @@
 import React from 'react';
-import useNotificationStore from '../../store/notificationStore';
+import { useNotificationStore } from '../../store/notificationStore';
 import Notification from './Notification';
 
 const NotificationContainer: React.FC = () => {
