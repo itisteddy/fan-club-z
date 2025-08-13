@@ -6,7 +6,7 @@
 echo "🚀 Starting Development Deployment..."
 
 # Check if we're on the development branch
-CURRENT_BRANCH=$(git branch --show-current)
+CURRENT_BRANCH=$(git branch | grep '*' | cut -d' ' -f2)
 if [ "$CURRENT_BRANCH" != "development" ]; then
     echo "❌ ERROR: You must be on the development branch to deploy to dev!"
     echo "Current branch: $CURRENT_BRANCH"

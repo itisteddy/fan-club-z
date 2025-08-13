@@ -6,7 +6,7 @@
 echo "🚀 Starting Production Deployment..."
 
 # Check if we're on the main branch
-CURRENT_BRANCH=$(git branch --show-current)
+CURRENT_BRANCH=$(git branch | grep '*' | cut -d' ' -f2)
 if [ "$CURRENT_BRANCH" != "main" ]; then
     echo "❌ ERROR: You must be on the main branch to deploy to production!"
     echo "Current branch: $CURRENT_BRANCH"
