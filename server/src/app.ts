@@ -39,11 +39,17 @@ const allowedOrigins = process.env.NODE_ENV === 'production'
   ? [
       config.frontend.url,
       'https://app.fanclubz.app',
+      'https://dev.fanclubz.app',
       'https://fan-club-z-pw49foj6y-teddys-projects-d67ab22a.vercel.app',
       'https://fanclubz.app',
       'https://www.fanclubz.app'
     ]
-  : [config.frontend.url, 'http://localhost:3000', 'http://localhost:5173'];
+  : [
+      config.frontend.url, 
+      'http://localhost:3000', 
+      'http://localhost:5173',
+      'https://dev.fanclubz.app'
+    ];
 
 app.use(cors({
   origin: function (origin, callback) {
@@ -56,8 +62,14 @@ app.use(cors({
     console.log('🌐 CORS: Checking origin:', origin);
     console.log('🌐 CORS: Allowed origins:', allowedOrigins);
     
-    if (allowedOrigins.indexOf(origin) !== -1) {
-      console.log('✅ CORS: Origin allowed');
+    // Check if origin is in allowed list
+    const isAllowed = allowedOrigins.indexOf(origin) !== -1;
+    
+    // Also allow any Vercel deployment (for development)
+    const isVercelDeployment = origin.includes('.vercel.app');
+    
+    if (isAllowed || isVercelDeployment) {
+      console.log('✅ CORS: Origin allowed', isVercelDeployment ? '(Vercel deployment)' : '(explicit allow)');
       callback(null, true);
     } else {
       console.log('❌ CORS: Origin blocked');
