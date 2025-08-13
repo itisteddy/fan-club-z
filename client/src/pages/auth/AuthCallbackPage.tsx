@@ -15,10 +15,20 @@ const AuthCallbackPage: React.FC = () => {
       if (callbackProcessed) return;
       
       try {
+        console.log('🔄 Processing OAuth callback...');
         setCallbackProcessed(true);
         await handleOAuthCallback();
+        
+        // Small delay to ensure auth state is updated
+        setTimeout(() => {
+          if (isMounted) {
+            console.log('✅ OAuth callback processed, redirecting to app...');
+            navigate('/');
+          }
+        }, 1000);
+        
       } catch (error: any) {
-        console.error('OAuth callback processing failed:', error);
+        console.error('❌ OAuth callback processing failed:', error);
         if (isMounted) {
           setError(error.message || 'Authentication failed');
           // Redirect to auth page on error after a delay
@@ -36,13 +46,15 @@ const AuthCallbackPage: React.FC = () => {
       isMounted = false;
       clearTimeout(timer);
     };
-  }, [handleOAuthCallback, callbackProcessed]);
+  }, [handleOAuthCallback, callbackProcessed, navigate]);
 
-  // Redirect to app if authenticated
-  if (isAuthenticated) {
-    navigate('/');
-    return null;
-  }
+  // Auto-redirect if already authenticated
+  useEffect(() => {
+    if (isAuthenticated && !loading) {
+      console.log('✅ User already authenticated, redirecting...');
+      navigate('/');
+    }
+  }, [isAuthenticated, loading, navigate]);
 
   // Show error state
   if (error) {
@@ -174,6 +186,16 @@ const AuthCallbackPage: React.FC = () => {
               }}
             />
           ))}
+        </div>
+        
+        <div style={{
+          marginTop: '20px',
+          fontSize: '12px',
+          color: '#9ca3af'
+        }}>
+          Processed: {callbackProcessed ? 'Yes' : 'No'} | 
+          Authenticated: {isAuthenticated ? 'Yes' : 'No'} | 
+          Loading: {loading ? 'Yes' : 'No'}
         </div>
       </div>
       

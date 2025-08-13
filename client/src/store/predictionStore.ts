@@ -674,7 +674,12 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
       // Use the server API endpoint instead of direct Supabase calls
       // In development, this will be proxied by Vite to the server on port 3001
       const apiUrl = getApiUrl();
-      const response = await fetch(`${apiUrl}/api/predictions`, {
+      const requestUrl = `${apiUrl}/api/predictions`;
+      
+      console.log('🌐 Making request to:', requestUrl);
+      console.log('📦 Request payload:', JSON.stringify(predictionPayload, null, 2));
+      
+      const response = await fetch(requestUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -683,7 +688,20 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
         body: JSON.stringify(predictionPayload)
       });
 
-      const result = await response.json();
+      console.log('📡 Response status:', response.status, response.statusText);
+      console.log('📡 Response headers:', Object.fromEntries(response.headers.entries()));
+      
+      let result;
+      const responseText = await response.text();
+      console.log('📄 Raw response:', responseText.substring(0, 500));
+      
+      try {
+        result = JSON.parse(responseText);
+      } catch (parseError) {
+        console.error('❌ Failed to parse response as JSON:', parseError);
+        console.error('📄 Raw response text:', responseText);
+        throw new Error(`Invalid response from server: ${responseText.substring(0, 200)}`);
+      }
 
       if (!response.ok) {
         console.error('❌ API error creating prediction:', result);

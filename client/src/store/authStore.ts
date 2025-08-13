@@ -394,6 +394,8 @@ export const useAuthStore = create<AuthState>()(
             
             const providerName = convertedUser?.provider?.charAt(0).toUpperCase() + convertedUser?.provider?.slice(1);
             showSuccess(`Welcome ${convertedUser?.firstName}! Signed in with ${providerName}.`);
+            
+            return convertedUser;
           } else {
             throw new Error('No user session found after OAuth callback');
           }
