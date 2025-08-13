@@ -22,8 +22,9 @@ const CategoryFilters: React.FC<{
   const categories = [
     { id: 'all', label: 'All', icon: '🌟' },
     { id: 'sports', label: 'Sports', icon: '⚽' },
+    { id: 'pop_culture', label: 'Pop Culture', icon: '🎬' },
+    { id: 'custom', label: 'Custom', icon: '✨' },
     { id: 'politics', label: 'Politics', icon: '🗳️' },
-    { id: 'entertainment', label: 'Entertainment', icon: '🎬' },
     { id: 'crypto', label: 'Crypto', icon: '₿' },
     { id: 'tech', label: 'Tech', icon: '💻' },
     { id: 'finance', label: 'Finance', icon: '📈' }
@@ -168,21 +169,34 @@ const DiscoverPage: React.FC<DiscoverPageProps> = memo(({ onNavigateToProfile, o
   const filteredPredictions = useMemo(() => {
     if (!predictions) return [];
     
-    return predictions.filter(prediction => {
+    console.log('🔍 Filtering predictions:', {
+      totalPredictions: predictions.length,
+      selectedCategory,
+      searchQuery,
+      availableCategories: [...new Set(predictions.map(p => p.category))]
+    });
+    
+    const filtered = predictions.filter(prediction => {
       // Category filter
       if (selectedCategory !== 'all' && prediction.category !== selectedCategory) {
+        console.log('❌ Filtered out by category:', prediction.title, 'has category:', prediction.category, 'selected:', selectedCategory);
         return false;
       }
       
       // Search filter
       if (searchQuery.trim() && 
           !prediction.title.toLowerCase().includes(searchQuery.toLowerCase()) &&
-          !prediction.description.toLowerCase().includes(searchQuery.toLowerCase())) {
+          !prediction.description?.toLowerCase().includes(searchQuery.toLowerCase())) {
+        console.log('❌ Filtered out by search:', prediction.title, 'search:', searchQuery);
         return false;
       }
       
+      console.log('✅ Prediction passed filter:', prediction.title);
       return true;
     });
+    
+    console.log('✅ Final filtered predictions:', filtered.length);
+    return filtered;
   }, [predictions, selectedCategory, searchQuery]);
 
   // Event handlers
