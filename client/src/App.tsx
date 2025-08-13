@@ -7,8 +7,6 @@ import { scrollToTop } from './utils/scroll';
 import NotificationContainer from './components/ui/NotificationContainer';
 import PWAInstallManager from './components/PWAInstallManager';
 import PageWrapper from './components/PageWrapper';
-import DebugInfo from './components/DebugInfo';
-
 // Import all page components
 import DiscoverPage from './pages/DiscoverPage';
 import CreatePredictionPage from './pages/CreatePredictionPage';
@@ -19,8 +17,6 @@ import AuthPage from './pages/auth/AuthPage';
 import AuthCallbackPage from './pages/auth/AuthCallbackPage';
 import PredictionDetailsPage from './pages/PredictionDetailsPage';
 import BottomNavigation from './components/BottomNavigation';
-import SimpleTestPage from './components/SimpleTestPage';
-import PredictionStoreTest from './components/PredictionStoreTest';
 
 // Simple Loading Component
 const LoadingSpinner: React.FC<{ message?: string }> = ({ message = "Loading..." }) => (
@@ -69,7 +65,7 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = memo(({ children }) 
   }, [location]);
 
   const handleTabChange = useCallback((tab: string) => {
-    console.log('🔄 Navigating to tab:', tab);
+    // Navigate to tab
     
     // Scroll to top
     scrollToTop();
@@ -94,13 +90,13 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = memo(({ children }) 
   }, [navigate]);
 
   const handleFABClick = useCallback(() => {
-    console.log('➕ FAB clicked - navigating to create');
+    // FAB clicked - navigating to create
     navigate('/create');
   }, [navigate]);
 
   const showFAB = getCurrentTab() === 'discover';
 
-  console.log('🏗️ MainLayout render - activeTab:', getCurrentTab(), 'showFAB:', showFAB, 'location:', location);
+  // MainLayout render state
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
@@ -164,10 +160,7 @@ const DiscoverPageWrapper: React.FC = () => {
   );
 };
 
-// Test page wrapper for debugging
-const TestPageWrapper: React.FC = () => {
-  return <SimpleTestPage />;
-};
+
 
 const PredictionsPageWrapper: React.FC = () => {
   const [, navigate] = useLocation();
@@ -256,36 +249,25 @@ function App() {
 
   // Initialize auth once on app start
   useEffect(() => {
-    console.log('🚀 Initializing Fan Club Z v2.0...');
-    
     try {
       if (!initialized && !loading) {
-        console.log('🔐 Starting auth initialization...');
         initializeAuth();
       }
     } catch (error) {
-      console.error('❌ Auth initialization failed:', error);
+      console.error('Auth initialization failed:', error);
     }
   }, [initializeAuth, initialized, loading]);
 
   // Initialize wallet after auth is ready
   useEffect(() => {
     if (isAuthenticated && !loading && initialized) {
-      console.log('💰 Initializing wallet...');
       try {
         initializeWallet();
       } catch (error) {
-        console.error('❌ Wallet initialization failed:', error);
+        console.error('Wallet initialization failed:', error);
       }
     }
   }, [isAuthenticated, loading, initialized, initializeWallet]);
-
-  // Log auth state changes (less verbose)
-  useEffect(() => {
-    if (!loading) {
-      console.log('🔐 Auth state settled:', { isAuthenticated, initialized });
-    }
-  }, [isAuthenticated, loading, initialized]);
 
   return (
     <Router>
@@ -309,7 +291,7 @@ function App() {
               <Route path="/profile" component={ProfilePageWrapper} />
               <Route path="/wallet" component={WalletPageWrapper} />
               <Route path="/prediction/:id" component={PredictionDetailsWrapper} />
-              <Route path="/test" component={SimpleTestPage} />
+
               
               {/* Fallback */}
               <Route component={DiscoverPageWrapper} />
@@ -317,10 +299,7 @@ function App() {
           </MainLayout>
         </AuthGuard>
       </Switch>
-      
-      {/* Debug Info - Remove in production */}
-      <DebugInfo />
-      <PredictionStoreTest />
+
     </Router>
   );
 }
