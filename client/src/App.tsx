@@ -298,26 +298,24 @@ function App() {
         </Route>
         
         {/* Protected app routes */}
-        <Route path="/">
-          <AuthGuard>
-            <MainLayout>
-              <Switch>
-                <Route path="/" component={DiscoverPageWrapper} />
-                <Route path="/discover" component={DiscoverPageWrapper} />
-                <Route path="/predictions" component={PredictionsPageWrapper} />
-                <Route path="/bets" component={PredictionsPageWrapper} />
-                <Route path="/create" component={CreatePredictionPageWrapper} />
-                <Route path="/profile" component={ProfilePageWrapper} />
-                <Route path="/wallet" component={WalletPageWrapper} />
-                <Route path="/prediction/:id" component={PredictionDetailsWrapper} />
-                <Route path="/test" component={SimpleTestPage} />
-                
-                {/* Fallback */}
-                <Route component={DiscoverPageWrapper} />
-              </Switch>
-            </MainLayout>
-          </AuthGuard>
-        </Route>
+        <AuthGuard>
+          <MainLayout>
+            <Switch>
+              <Route path="/" component={DiscoverPageWrapper} />
+              <Route path="/discover" component={DiscoverPageWrapper} />
+              <Route path="/predictions" component={PredictionsPageWrapper} />
+              <Route path="/bets" component={PredictionsPageWrapper} />
+              <Route path="/create" component={CreatePredictionPageWrapper} />
+              <Route path="/profile" component={ProfilePageWrapper} />
+              <Route path="/wallet" component={WalletPageWrapper} />
+              <Route path="/prediction/:id" component={PredictionDetailsWrapper} />
+              <Route path="/test" component={SimpleTestPage} />
+              
+              {/* Fallback */}
+              <Route component={DiscoverPageWrapper} />
+            </Switch>
+          </MainLayout>
+        </AuthGuard>
       </Switch>
       
       {/* Debug Info - Remove in production */}
