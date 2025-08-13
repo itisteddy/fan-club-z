@@ -667,6 +667,7 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
       console.log('📡 Sending prediction to API:', predictionPayload);
 
       // Use the server API endpoint instead of direct Supabase calls
+      // In development, this will be proxied by Vite to the server on port 3001
       const response = await fetch('/api/predictions', {
         method: 'POST',
         headers: {
@@ -722,6 +723,7 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
       console.log('🎲 Placing prediction:', data);
 
       // Use the API endpoint instead of direct database insert
+      // In development, this will be proxied by Vite to the server on port 3001
       const response = await fetch(`/api/predictions/${data.predictionId}/entries`, {
         method: 'POST',
         headers: {

@@ -220,6 +220,94 @@ app.get('/api/predictions', mockAuth, (req, res) => {
   });
 });
 
+app.post('/api/predictions', mockAuth, (req, res) => {
+  try {
+    const {
+      title,
+      description,
+      category,
+      type,
+      options,
+      stake_min,
+      stake_max,
+      entry_deadline,
+      settlement_method,
+      is_private
+    } = req.body;
+
+    // Basic validation
+    if (!title || !category || !type || !options || !entry_deadline) {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing required fields'
+      });
+    }
+
+    if (options.length < 2) {
+      return res.status(400).json({
+        success: false,
+        error: 'At least 2 options are required'
+      });
+    }
+
+    // Validate deadline is in future
+    const deadline = new Date(entry_deadline);
+    if (deadline <= new Date()) {
+      return res.status(400).json({
+        success: false,
+        error: 'Entry deadline must be in the future'
+      });
+    }
+
+    // Create new prediction
+    const newPrediction = {
+      id: (mockPredictions.length + 1).toString(),
+      creator_id: req.user.id,
+      title: title.trim(),
+      description: description?.trim() || null,
+      category,
+      type: type === 'binary' ? 'binary' : 'multi_outcome',
+      status: 'open',
+      stake_min: Math.max(1, Number(stake_min) || 1),
+      stake_max: stake_max ? Number(stake_max) : null,
+      pool_total: 0,
+      entry_deadline: deadline.toISOString(),
+      settlement_method: settlement_method || 'manual',
+      is_private: Boolean(is_private),
+      creator_fee_percentage: 1,
+      platform_fee_percentage: 2.5,
+      tags: [],
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      options: options.map((option, index) => ({
+        id: `opt${mockPredictions.length + 1}_${index + 1}`,
+        prediction_id: (mockPredictions.length + 1).toString(),
+        label: option.label.trim(),
+        total_staked: 0,
+        current_odds: 2.0,
+        percentage: 0
+      }))
+    };
+
+    // Add to mock data
+    mockPredictions.unshift(newPrediction);
+
+    console.log(`🎯 New prediction created: ${newPrediction.title}`);
+
+    res.status(201).json({
+      success: true,
+      data: newPrediction,
+      message: 'Prediction created successfully'
+    });
+  } catch (error) {
+    console.error('❌ Error creating prediction:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error'
+    });
+  }
+});
+
 app.get('/api/predictions/:id', mockAuth, (req, res) => {
   const prediction = mockPredictions.find(p => p.id === req.params.id);
   if (!prediction) {
@@ -296,6 +384,103 @@ app.get('/api/v2/clubs/:id', (req, res) => {
     success: true,
     data: club
   });
+});
+
+app.post('/api/predictions/:id/entries', mockAuth, (req, res) => {
+  try {
+    const { id: predictionId } = req.params;
+    const { option_id, amount } = req.body;
+
+    // Find prediction
+    const prediction = mockPredictions.find(p => p.id === predictionId);
+    if (!prediction) {
+      return res.status(404).json({
+        success: false,
+        error: 'Prediction not found'
+      });
+    }
+
+    // Validate prediction is open
+    if (prediction.status !== 'open') {
+      return res.status(400).json({
+        success: false,
+        error: 'Prediction is not open for entries'
+      });
+    }
+
+    // Validate deadline
+    if (new Date(prediction.entry_deadline) <= new Date()) {
+      return res.status(400).json({
+        success: false,
+        error: 'Entry deadline has passed'
+      });
+    }
+
+    // Validate amount
+    const stakeAmount = Number(amount);
+    if (stakeAmount < prediction.stake_min) {
+      return res.status(400).json({
+        success: false,
+        error: `Minimum stake is ${prediction.stake_min}`
+      });
+    }
+
+    if (prediction.stake_max && stakeAmount > prediction.stake_max) {
+      return res.status(400).json({
+        success: false,
+        error: `Maximum stake is ${prediction.stake_max}`
+      });
+    }
+
+    // Find option
+    const option = prediction.options.find(opt => opt.id === option_id);
+    if (!option) {
+      return res.status(404).json({
+        success: false,
+        error: 'Prediction option not found'
+      });
+    }
+
+    // Update prediction and option with new stake
+    option.total_staked += stakeAmount;
+    prediction.pool_total += stakeAmount;
+    
+    // Recalculate percentages and odds
+    prediction.options.forEach(opt => {
+      opt.percentage = prediction.pool_total > 0 ? (opt.total_staked / prediction.pool_total) * 100 : 0;
+      opt.current_odds = prediction.pool_total > 0 ? prediction.pool_total / (opt.total_staked || 1) : 2.0;
+    });
+
+    // Create entry record
+    const entry = {
+      id: `entry_${Date.now()}`,
+      prediction_id: predictionId,
+      user_id: req.user.id,
+      option_id: option_id,
+      amount: stakeAmount,
+      potential_payout: stakeAmount * option.current_odds,
+      status: 'active',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    };
+
+    console.log(`🎲 New prediction entry: ${stakeAmount} on "${option.label}"`);
+
+    res.status(201).json({
+      success: true,
+      data: {
+        entry,
+        prediction
+      },
+      message: 'Prediction entry created successfully'
+    });
+  } catch (error) {
+    console.error('❌ Error creating prediction entry:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error'
+    });
+  }
 });
 
 app.post('/api/v2/clubs/:id/join', mockAuth, (req, res) => {
@@ -522,7 +707,9 @@ app.get('*', (req, res) => {
     available_endpoints: [
       'GET /health',
       'GET /api/predictions',
+      'POST /api/predictions',
       'GET /api/predictions/:id',
+      'POST /api/predictions/:id/entries',
       'GET /api/clubs',
       'GET /api/clubs/:id',
       'GET /api/v2/clubs',
