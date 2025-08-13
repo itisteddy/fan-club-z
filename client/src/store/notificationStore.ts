@@ -301,6 +301,14 @@ export const notificationHelpers = {
       message,
       duration: 5000,
     }),
+
+  showInfoToast: (message: string) =>
+    useNotificationStore.getState().addToast({
+      type: 'info',
+      title: 'Info',
+      message,
+      duration: 4000,
+    }),
 };
 
 // Export the missing functions
@@ -320,13 +328,4 @@ export const showError = (message: string, title?: string) => {
     message,
     duration: 5000,
   });
-};
-
-  showInfoToast: (message: string) =>
-    useNotificationStore.getState().addToast({
-      type: 'info',
-      title: 'Info',
-      message,
-      duration: 4000,
-    }),
 };
