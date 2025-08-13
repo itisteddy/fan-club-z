@@ -53,11 +53,25 @@ Z-Index Hierarchy (from lowest to highest):
   bottom: 0 !important;
   background: rgba(0, 0, 0, 0.5) !important;
   backdrop-filter: blur(4px) !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 1rem !important;
 }
 
 .modal-content {
   z-index: 8001 !important;
   position: relative !important;
+}
+
+/* Ensure modals are properly centered */
+.prediction-modal {
+  z-index: 8501 !important;
+  position: relative !important;
+  max-width: 28rem !important;
+  width: 100% !important;
+  max-height: 90vh !important;
+  margin: 0 auto !important;
 }
 
 /* Prediction and Comment Modals */

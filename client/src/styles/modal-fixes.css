@@ -58,12 +58,13 @@
   background: white !important;
   border-radius: 1rem !important;
   box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04) !important;
-  max-width: calc(100vw - 2rem) !important;
-  max-height: calc(100vh - 4rem) !important;
+  max-width: 28rem !important;
+  width: 100% !important;
+  max-height: 90vh !important;
   overflow: hidden !important;
   display: flex !important;
   flex-direction: column !important;
-  width: 100% !important;
+  margin: 0 auto !important;
 }
 
 /* Ensure modal sections are properly structured */

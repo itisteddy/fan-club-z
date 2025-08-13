@@ -7,6 +7,7 @@ import { scrollToTop } from './utils/scroll';
 import NotificationContainer from './components/ui/NotificationContainer';
 import PWAInstallManager from './components/PWAInstallManager';
 import PageWrapper from './components/PageWrapper';
+import DebugInfo from './components/DebugInfo';
 
 // Import all page components
 import DiscoverPage from './pages/DiscoverPage';
@@ -18,6 +19,7 @@ import AuthPage from './pages/auth/AuthPage';
 import AuthCallbackPage from './pages/auth/AuthCallbackPage';
 import PredictionDetailsPage from './pages/PredictionDetailsPage';
 import BottomNavigation from './components/BottomNavigation';
+import SimpleTestPage from './components/SimpleTestPage';
 
 // Simple Loading Component
 const LoadingSpinner: React.FC<{ message?: string }> = ({ message = "Loading..." }) => (
@@ -141,6 +143,11 @@ MainLayout.displayName = 'MainLayout';
 
 // Page Wrapper Components with proper props
 const DiscoverPageWrapper: React.FC = () => {
+  return <SimpleTestPage />;
+};
+
+// Original DiscoverPageWrapper - temporarily disabled
+const OriginalDiscoverPageWrapper: React.FC = () => {
   const [, navigate] = useLocation();
   
   const handleNavigateToProfile = useCallback(() => {
@@ -296,6 +303,7 @@ function App() {
                 <Route path="/profile" component={ProfilePageWrapper} />
                 <Route path="/wallet" component={WalletPageWrapper} />
                 <Route path="/prediction/:id" component={PredictionDetailsWrapper} />
+                <Route path="/test" component={SimpleTestPage} />
                 
                 {/* Fallback */}
                 <Route component={DiscoverPageWrapper} />
@@ -304,6 +312,9 @@ function App() {
           </AuthGuard>
         </Route>
       </Switch>
+      
+      {/* Debug Info - Remove in production */}
+      <DebugInfo />
     </Router>
   );
 }

@@ -125,18 +125,18 @@ const PredictionModal: React.FC<PredictionModalProps> = ({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={onClose}
-            className="modal-overlay fixed inset-0 bg-black bg-opacity-50"
+            className="modal-overlay fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4"
             style={{ zIndex: 8000 }}
-          />
-          
-          {/* Modal */}
-          <motion.div
-            initial={{ opacity: 0, scale: 0.9, y: 20 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.9, y: 20 }}
-            className="prediction-modal modal-container fixed inset-x-4 top-20 bottom-20 bg-white rounded-2xl overflow-hidden flex flex-col max-w-md mx-auto"
-            style={{ zIndex: 8500 }}
           >
+            {/* Modal */}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              onClick={(e) => e.stopPropagation()}
+              className="prediction-modal modal-container bg-white rounded-2xl overflow-hidden flex flex-col w-full max-w-md max-h-[90vh]"
+              style={{ zIndex: 8501 }}
+            >
             {/* Header */}
             <div className="p-4 border-b border-gray-100">
               <div className="flex items-center justify-between">
@@ -300,6 +300,7 @@ const PredictionModal: React.FC<PredictionModalProps> = ({
                 {loading ? 'Placing Prediction...' : 'Place Prediction'}
               </button>
             </div>
+            </motion.div>
           </motion.div>
         </>
       )}
