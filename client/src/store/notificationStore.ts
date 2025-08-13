@@ -52,6 +52,10 @@ interface NotificationStore {
   requestPermission: () => Promise<boolean>;
   subscribeToPush: () => Promise<void>;
   unsubscribeFromPush: () => Promise<void>;
+  
+  // Utility functions
+  showSuccess: (message: string, title?: string) => void;
+  showError: (message: string, title?: string) => void;
 }
 
 export const useNotificationStore = create<NotificationStore>()(
@@ -297,6 +301,26 @@ export const notificationHelpers = {
       message,
       duration: 5000,
     }),
+};
+
+// Export the missing functions
+export const showSuccess = (message: string, title?: string) => {
+  useNotificationStore.getState().addToast({
+    type: 'success',
+    title: title || 'Success',
+    message,
+    duration: 3000,
+  });
+};
+
+export const showError = (message: string, title?: string) => {
+  useNotificationStore.getState().addToast({
+    type: 'error',
+    title: title || 'Error',
+    message,
+    duration: 5000,
+  });
+};
 
   showInfoToast: (message: string) =>
     useNotificationStore.getState().addToast({
