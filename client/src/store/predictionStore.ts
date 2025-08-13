@@ -278,7 +278,15 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
 
   // Added refreshPredictions method
   refreshPredictions: async (force = false) => {
+    console.log('🔄 refreshPredictions called with force:', force);
     const state = get();
+    console.log('📊 Current state before refresh:', {
+      predictionsCount: state.predictions?.length || 0,
+      loading: state.loading,
+      initialized: state.initialized,
+      lastFetch: state.lastFetch,
+      selectedCategory: state.selectedCategory
+    });
     return await get().fetchPredictions(state.selectedCategory || undefined, force);
   },
 
@@ -338,6 +346,8 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
           fallbackPredictions = mockPredictions.filter(p => p.category === category);
         }
         
+        console.log('📋 Using mock fallback predictions:', fallbackPredictions.length);
+        
         set({ 
           predictions: fallbackPredictions, 
           loading: false,
@@ -345,6 +355,15 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
           initialized: true,
           error: null
         });
+        
+        // Verify mock state was set correctly
+        const mockState = get();
+        console.log('📊 State after setting mock predictions:', {
+          predictionsCount: mockState.predictions?.length || 0,
+          loading: mockState.loading,
+          initialized: mockState.initialized
+        });
+        
         return;
       }
 
@@ -378,12 +397,22 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
         comments_count: pred.comments_count || 0
       }));
 
+      console.log('✅ Successfully transformed and set predictions:', transformedPredictions.length);
+      
       set({ 
         predictions: transformedPredictions, 
         loading: false,
         lastFetch: now,
         initialized: true,
         error: null
+      });
+      
+      // Verify state was set correctly
+      const newState = get();
+      console.log('📊 State after setting predictions:', {
+        predictionsCount: newState.predictions?.length || 0,
+        loading: newState.loading,
+        initialized: newState.initialized
       });
 
     } catch (error) {

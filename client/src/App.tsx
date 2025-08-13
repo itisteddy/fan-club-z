@@ -20,6 +20,7 @@ import AuthCallbackPage from './pages/auth/AuthCallbackPage';
 import PredictionDetailsPage from './pages/PredictionDetailsPage';
 import BottomNavigation from './components/BottomNavigation';
 import SimpleTestPage from './components/SimpleTestPage';
+import PredictionStoreTest from './components/PredictionStoreTest';
 
 // Simple Loading Component
 const LoadingSpinner: React.FC<{ message?: string }> = ({ message = "Loading..." }) => (
@@ -315,6 +316,7 @@ function App() {
       
       {/* Debug Info - Remove in production */}
       <DebugInfo />
+      <PredictionStoreTest />
     </Router>
   );
 }
