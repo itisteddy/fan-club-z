@@ -436,11 +436,6 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
     }
   },
 
-  refreshPredictions: async (force = false) => {
-    console.log('🔄 Refreshing predictions...', { force });
-    await get().fetchPredictions(undefined, force);
-  },
-
   fetchTrendingPredictions: async () => {
     try {
       console.log('📡 Fetching trending predictions...');
