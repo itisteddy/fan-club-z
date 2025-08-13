@@ -1,6 +1,11 @@
 import { create } from 'zustand';
-import { supabase } from '../lib/api';
+import { supabase } from '../lib/supabase';
 import { useAuthStore } from './authStore';
+
+// Utility function to get API URL
+const getApiUrl = () => {
+  return import.meta.env.VITE_API_URL || 'https://fan-club-z.onrender.com';
+};
 
 export interface Prediction {
   id: string;
@@ -668,7 +673,8 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
 
       // Use the server API endpoint instead of direct Supabase calls
       // In development, this will be proxied by Vite to the server on port 3001
-      const response = await fetch('/api/predictions', {
+      const apiUrl = getApiUrl();
+      const response = await fetch(`${apiUrl}/api/predictions`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -724,7 +730,8 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
 
       // Use the API endpoint instead of direct database insert
       // In development, this will be proxied by Vite to the server on port 3001
-      const response = await fetch(`/api/predictions/${data.predictionId}/entries`, {
+      const apiUrl = getApiUrl();
+      const response = await fetch(`${apiUrl}/api/predictions/${data.predictionId}/entries`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
