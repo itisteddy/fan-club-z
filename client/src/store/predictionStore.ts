@@ -772,9 +772,4 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
   clearError: () => {
     set({ error: null });
   },
-
-  getPredictionById: (id: string) => {
-    const state = get();
-    return state.predictions.find(p => p.id === id) || null;
-  },
 }));
