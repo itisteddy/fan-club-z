@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo, memo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'react-hot-toast';
-import { TrendingUp, Search, Filter, Clock, Users, DollarSign } from 'lucide-react';
+import { TrendingUp, Search } from 'lucide-react';
 import { usePredictionStore } from '../store/predictionStore';
 import { useAuthStore } from '../store/authStore';
 import CompactPredictionCard from '../components/CompactPredictionCard';
@@ -68,8 +68,6 @@ const MobileHeader: React.FC<{
   onSearchChange: (query: string) => void;
   onNavigateToProfile: () => void;
 }> = memo(({ user, stats, searchQuery, onSearchChange, onNavigateToProfile }) => {
-  const [showSearch, setShowSearch] = useState(false);
-
   return (
     <div className="bg-white border-b border-gray-100 sticky top-0 z-50">
       {/* Status bar spacer */}
@@ -154,11 +152,10 @@ const DiscoverPage: React.FC<DiscoverPageProps> = memo(({ onNavigateToProfile, o
 
   // Initialize data on mount
   useEffect(() => {
-    console.log('🔄 DiscoverPage: Refreshing predictions...');
     refreshPredictions();
   }, [refreshPredictions]);
 
-  // Mock stats (replace with real data later)
+  // Calculate stats
   const stats = useMemo(() => ({
     totalVolume: '127.5K',
     activePredictions: predictions?.filter(p => p.status === 'open').length || 0,
@@ -169,17 +166,9 @@ const DiscoverPage: React.FC<DiscoverPageProps> = memo(({ onNavigateToProfile, o
   const filteredPredictions = useMemo(() => {
     if (!predictions) return [];
     
-    console.log('🔍 Filtering predictions:', {
-      totalPredictions: predictions.length,
-      selectedCategory,
-      searchQuery,
-      availableCategories: [...new Set(predictions.map(p => p.category))]
-    });
-    
-    const filtered = predictions.filter(prediction => {
+    return predictions.filter(prediction => {
       // Category filter
       if (selectedCategory !== 'all' && prediction.category !== selectedCategory) {
-        console.log('❌ Filtered out by category:', prediction.title, 'has category:', prediction.category, 'selected:', selectedCategory);
         return false;
       }
       
@@ -187,45 +176,35 @@ const DiscoverPage: React.FC<DiscoverPageProps> = memo(({ onNavigateToProfile, o
       if (searchQuery.trim() && 
           !prediction.title.toLowerCase().includes(searchQuery.toLowerCase()) &&
           !prediction.description?.toLowerCase().includes(searchQuery.toLowerCase())) {
-        console.log('❌ Filtered out by search:', prediction.title, 'search:', searchQuery);
         return false;
       }
       
-      console.log('✅ Prediction passed filter:', prediction.title);
       return true;
     });
-    
-    console.log('✅ Final filtered predictions:', filtered.length);
-    return filtered;
   }, [predictions, selectedCategory, searchQuery]);
 
   // Event handlers
   const handlePredict = useCallback((prediction: Prediction) => {
-    console.log('🎯 Opening prediction modal for:', prediction.id);
     setSelectedPrediction(prediction);
     setIsPredictionModalOpen(true);
   }, []);
 
   const handleNavigateToPrediction = useCallback((predictionId: string) => {
-    console.log('🔗 Navigating to prediction details:', predictionId);
-    // Use proper wouter navigation
     if (onNavigateToPrediction) {
       onNavigateToPrediction(predictionId);
     } else {
-      // Fallback to window.location if navigation prop not provided
       window.location.href = `/prediction/${predictionId}`;
     }
   }, [onNavigateToPrediction]);
 
   const handleLike = useCallback((predictionId: string) => {
-    console.log('❤️ Liked prediction:', predictionId);
     toast.success('Prediction liked!');
   }, []);
 
   const handleComment = useCallback((predictionId: string) => {
-    console.log('💬 Comment on prediction:', predictionId);
     // Navigate to prediction detail page with comments
-  }, []);
+    handleNavigateToPrediction(predictionId);
+  }, [handleNavigateToPrediction]);
 
   const handleShare = useCallback((prediction: Prediction) => {
     const shareText = `Check out this prediction: ${prediction.title}`;
@@ -330,7 +309,7 @@ const DiscoverPage: React.FC<DiscoverPageProps> = memo(({ onNavigateToProfile, o
             stats={stats} 
             searchQuery={searchQuery}
             onSearchChange={handleSearchChange}
-            onNavigateToProfile={onNavigateToProfile || (() => console.log('No navigation handler provided'))}
+            onNavigateToProfile={onNavigateToProfile || (() => {})}
           />
         </div>
       </div>
