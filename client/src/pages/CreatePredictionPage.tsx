@@ -299,7 +299,7 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
             
             <div>
               <h1 className="text-3xl font-bold text-white">Create Prediction</h1>
-              <p className="text-green-100">Step {step} of 3</p>
+              <p className="text-green-100">Step {step} of 4</p>
             </div>
           </div>
 
@@ -307,7 +307,7 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
           <div className="bg-white/20 rounded-full h-2 mb-6">
             <motion.div
               initial={{ width: 0 }}
-              animate={{ width: `${(step / 3) * 100}%` }}
+              animate={{ width: `${(step / 4) * 100}%` }}
               transition={{ duration: 0.5 }}
               className="h-full bg-white rounded-full"
             />

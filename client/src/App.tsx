@@ -7,6 +7,7 @@ import { scrollToTop } from './utils/scroll';
 import NotificationContainer from './components/ui/NotificationContainer';
 import PWAInstallManager from './components/PWAInstallManager';
 import PageWrapper from './components/PageWrapper';
+
 // Import all page components
 import DiscoverPage from './pages/DiscoverPage';
 import CreatePredictionPage from './pages/CreatePredictionPage';
@@ -51,7 +52,7 @@ const AuthGuard: React.FC<{ children: React.ReactNode }> = memo(({ children }) =
 
 AuthGuard.displayName = 'AuthGuard';
 
-// Main Layout Component with proper navigation
+// Main Layout Component with fixed navigation
 const MainLayout: React.FC<{ children: React.ReactNode }> = memo(({ children }) => {
   const [location, navigate] = useLocation();
   
@@ -65,10 +66,9 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = memo(({ children }) 
   }, [location]);
 
   const handleTabChange = useCallback((tab: string) => {
-    // Navigate to tab
-    
-    // Scroll to top
-    scrollToTop();
+    // Prevent infinite loops by checking if we're already on the target route
+    const currentTab = getCurrentTab();
+    if (currentTab === tab) return;
     
     // Navigate to the appropriate route
     switch (tab) {
@@ -87,16 +87,18 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = memo(({ children }) 
       default:
         navigate('/');
     }
-  }, [navigate]);
+    
+    // Scroll to top after navigation
+    setTimeout(() => {
+      scrollToTop();
+    }, 50);
+  }, [navigate, getCurrentTab]);
 
   const handleFABClick = useCallback(() => {
-    // FAB clicked - navigating to create
     navigate('/create');
   }, [navigate]);
 
   const showFAB = getCurrentTab() === 'discover';
-
-  // MainLayout render state
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
@@ -138,7 +140,7 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = memo(({ children }) 
 
 MainLayout.displayName = 'MainLayout';
 
-// Page Wrapper Components with proper props
+// Page Wrapper Components with proper props and error handling
 const DiscoverPageWrapper: React.FC = () => {
   const [, navigate] = useLocation();
   
@@ -159,8 +161,6 @@ const DiscoverPageWrapper: React.FC = () => {
     </PageWrapper>
   );
 };
-
-
 
 const PredictionsPageWrapper: React.FC = () => {
   const [, navigate] = useLocation();
@@ -232,6 +232,25 @@ const PredictionDetailsWrapper: React.FC<{ params: { id: string } }> = ({ params
     navigate('/');
   }, [navigate]);
 
+  if (!params?.id) {
+    return (
+      <PageWrapper title="Error">
+        <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+          <div className="text-center">
+            <h2 className="text-xl font-semibold text-gray-900 mb-2">Prediction Not Found</h2>
+            <p className="text-gray-600 mb-4">The prediction you're looking for doesn't exist.</p>
+            <button
+              onClick={handleNavigateBack}
+              className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600"
+            >
+              Go Back
+            </button>
+          </div>
+        </div>
+      </PageWrapper>
+    );
+  }
+
   return (
     <PageWrapper title="Prediction Details">
       <PredictionDetailsPage 
@@ -242,19 +261,20 @@ const PredictionDetailsWrapper: React.FC<{ params: { id: string } }> = ({ params
   );
 };
 
-// Main App Component with simplified routing
+// Main App Component with improved error handling
 function App() {
   const { initializeWallet } = useWalletStore();
   const { initializeAuth, isAuthenticated, loading, initialized } = useAuthStore();
 
   // Initialize auth once on app start
   useEffect(() => {
-    try {
-      if (!initialized && !loading) {
+    if (!initialized && !loading) {
+      try {
+        console.log('App: Initializing auth...');
         initializeAuth();
+      } catch (error) {
+        console.error('Auth initialization failed:', error);
       }
-    } catch (error) {
-      console.error('Auth initialization failed:', error);
     }
   }, [initializeAuth, initialized, loading]);
 
@@ -262,6 +282,7 @@ function App() {
   useEffect(() => {
     if (isAuthenticated && !loading && initialized) {
       try {
+        console.log('App: Initializing wallet...');
         initializeWallet();
       } catch (error) {
         console.error('Wallet initialization failed:', error);
@@ -292,14 +313,12 @@ function App() {
               <Route path="/wallet" component={WalletPageWrapper} />
               <Route path="/prediction/:id" component={PredictionDetailsWrapper} />
 
-              
               {/* Fallback */}
               <Route component={DiscoverPageWrapper} />
             </Switch>
           </MainLayout>
         </AuthGuard>
       </Switch>
-
     </Router>
   );
 }

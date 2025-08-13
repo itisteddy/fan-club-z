@@ -436,6 +436,11 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
     }
   },
 
+  refreshPredictions: async (force = false) => {
+    console.log('🔄 Refreshing predictions...', { force });
+    await get().fetchPredictions(undefined, force);
+  },
+
   fetchTrendingPredictions: async () => {
     try {
       console.log('📡 Fetching trending predictions...');
@@ -536,6 +541,8 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
   },
 
   fetchUserCreatedPredictions: async (userId: string) => {
+    set({ loading: true, error: null });
+    
     try {
       console.log('📡 Fetching user created predictions for:', userId);
 
@@ -555,14 +562,48 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
         throw error;
       }
 
-      set((state) => ({
-        ...state,
-        userCreatedPredictions: userCreatedPredictions || []
+      // Transform data to match our interface
+      const transformedPredictions = (userCreatedPredictions || []).map((pred: any) => ({
+        ...pred,
+        poolTotal: pred.pool_total,
+        entryDeadline: pred.entry_deadline,
+        entries: [],
+        likes: pred.likes_count || 0,
+        comments: pred.comments_count || 0,
+        
+        creator: pred.creator ? {
+          id: pred.creator.id,
+          username: pred.creator.username || pred.creator.full_name || 'Unknown',
+          avatar_url: pred.creator.avatar_url,
+          is_verified: false
+        } : {
+          id: pred.creator_id,
+          username: 'Fan Club Z',
+          avatar_url: null,
+          is_verified: true
+        },
+        options: (pred.options || []).map((opt: any) => ({
+          ...opt,
+          totalStaked: opt.total_staked,
+          percentage: pred.pool_total > 0 ? (opt.total_staked / pred.pool_total) * 100 : 0
+        }))
       }));
+
+      set({
+        userCreatedPredictions: transformedPredictions,
+        loading: false,
+        error: null
+      });
+
+      console.log('✅ Successfully fetched user created predictions:', transformedPredictions.length);
 
     } catch (error) {
       console.error('❌ Error fetching user created predictions:', error);
-      set({ error: 'Failed to fetch user created predictions' });
+      set({ 
+        loading: false,
+        error: 'Failed to fetch user created predictions',
+        userCreatedPredictions: [] // Set empty array on error
+      });
     }
   },
 
@@ -590,7 +631,7 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
         throw new Error('Entry deadline must be in the future');
       }
 
-      console.log('Creating prediction with validated data:', data);
+      console.log('🎯 Creating prediction with validated data:', data);
 
       // Ensure stake values are properly converted to USD
       const stakeMin = Number(data.stakeMin) || 1;
@@ -604,67 +645,50 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
         throw new Error('Maximum stake must be greater than minimum stake');
       }
 
-      // Create prediction in Supabase
+      // Get the auth session for API calls
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        throw new Error('No valid session found');
+      }
+
+      // Prepare prediction payload for API
       const predictionPayload = {
-        creator_id: user.id,
         title: data.title,
         description: data.description || null,
         category: data.category,
-        type: data.type === 'multiple' ? 'multi_outcome' : data.type,
+        type: data.type === 'multiple' ? 'multi_outcome' : 'binary',
         stake_min: stakeMin,
         stake_max: stakeMax,
         entry_deadline: deadline.toISOString(),
         settlement_method: data.settlementMethod,
         is_private: data.isPrivate || false,
-        status: 'open',
-        pool_total: 0,
-        participant_count: 0,
-        creator_fee_percentage: 3.5,
-        platform_fee_percentage: 1.5
-      };
-
-      console.log('Final prediction payload:', predictionPayload);
-
-      const { data: prediction, error } = await supabase
-        .from('predictions')
-        .insert(predictionPayload)
-        .select()
-        .single();
-
-      if (error) {
-        console.error('Supabase error creating prediction:', error);
-        throw new Error(error.message || 'Failed to create prediction');
-      }
-
-      console.log('Prediction created successfully:', prediction);
-
-      // Create prediction options
-      if (data.options && data.options.length > 0) {
-        const optionsData = data.options
+        options: data.options
           .filter((opt: any) => opt.label && opt.label.trim())
           .map((option: any) => ({
-            prediction_id: prediction.id,
-            label: option.label.trim(),
-            total_staked: 0,
-            current_odds: 1.0,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
-          }));
+            label: option.label.trim()
+          }))
+      };
 
-        if (optionsData.length < 2) {
-          throw new Error('At least 2 valid prediction options are required');
-        }
+      console.log('📡 Sending prediction to API:', predictionPayload);
 
-        const { error: optionsError } = await supabase
-          .from('prediction_options')
-          .insert(optionsData);
+      // Use the server API endpoint instead of direct Supabase calls
+      const response = await fetch('/api/predictions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`
+        },
+        body: JSON.stringify(predictionPayload)
+      });
 
-        if (optionsError) {
-          console.error('Error creating prediction options:', optionsError);
-        } else {
-          console.log('Prediction options created successfully');
-        }
+      const result = await response.json();
+
+      if (!response.ok) {
+        console.error('❌ API error creating prediction:', result);
+        throw new Error(result.error || result.message || 'Failed to create prediction');
       }
+
+      console.log('✅ Prediction created successfully via API:', result);
 
       // Force refresh predictions
       await get().fetchPredictions(undefined, true);
@@ -672,10 +696,10 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
       await get().fetchUserCreatedPredictions(user.id);
 
       set({ loading: false });
-      return prediction;
+      return result.data || result;
       
     } catch (error) {
-      console.error('Failed to create prediction:', error);
+      console.error('❌ Failed to create prediction:', error);
       const errorMessage = error instanceof Error ? error.message : 'Failed to create prediction';
       set({ error: errorMessage, loading: false });
       throw new Error(errorMessage);
@@ -747,5 +771,10 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
 
   clearError: () => {
     set({ error: null });
+  },
+
+  getPredictionById: (id: string) => {
+    const state = get();
+    return state.predictions.find(p => p.id === id) || null;
   },
 }));
