@@ -1,16 +1,8 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { X, Send, Smile, Paperclip, MoreVertical } from 'lucide-react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { X, Send, Smile, Paperclip, MoreVertical, Edit3, Trash2, Heart, AlertCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-
-interface Message {
-  id: string;
-  userId: string;
-  username: string;
-  avatar: string;
-  content: string;
-  timestamp: Date;
-  isOwn: boolean;
-}
+import { useChatStore, ChatMessage } from '../../store/chatStore';
+import { useAuthStore } from '../../store/authStore';
 
 interface ChatModalProps {
   isOpen: boolean;
@@ -26,111 +18,199 @@ export const ChatModal: React.FC<ChatModalProps> = ({
   predictionTitle
 }) => {
   const [message, setMessage] = useState('');
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: '1',
-      userId: 'user1',
-      username: 'Alex Chen',
-      avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=40&h=40&fit=crop&crop=face',
-      content: 'What do you all think about this prediction? The economic indicators seem pretty strong.',
-      timestamp: new Date(Date.now() - 300000),
-      isOwn: false
-    },
-    {
-      id: '2',
-      userId: 'user2',
-      username: 'Sarah Kim',
-      avatar: 'https://images.unsplash.com/photo-1494790108755-2616b612b786?w=40&h=40&fit=crop&crop=face',
-      content: 'I agree! The recent policy changes definitely support a drop in inflation.',
-      timestamp: new Date(Date.now() - 240000),
-      isOwn: false
-    },
-    {
-      id: '3',
-      userId: 'current',
-      username: 'You',
-      avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=40&h=40&fit=crop&crop=face',
-      content: 'The data from the last quarter looks promising too',
-      timestamp: new Date(Date.now() - 180000),
-      isOwn: true
-    },
-    {
-      id: '4',
-      userId: 'user3',
-      username: 'Mike Johnson',
-      avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=40&h=40&fit=crop&crop=face',
-      content: 'Has anyone considered the global supply chain factors though?',
-      timestamp: new Date(Date.now() - 120000),
-      isOwn: false
-    }
-  ]);
-  const [isTyping, setIsTyping] = useState(false);
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+  const [editingContent, setEditingContent] = useState('');
+  const [typingTimer, setTypingTimer] = useState<NodeJS.Timeout | null>(null);
+  const [showScrollToBottom, setShowScrollToBottom] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
+  const { user } = useAuthStore();
+  const {
+    initializeSocket,
+    disconnectSocket,
+    joinPrediction,
+    leavePrediction,
+    sendMessage,
+    editMessage,
+    deleteMessage,
+    addReaction,
+    startTyping,
+    stopTyping,
+    getMessagesForPrediction,
+    getTypingUsersForPrediction,
+    isConnected,
+    isConnecting,
+    connectionError
+  } = useChatStore();
+
+  // Get real-time data from store
+  const messages = getMessagesForPrediction(predictionId);
+  const typingUsers = getTypingUsersForPrediction(predictionId);
+
+  const scrollToBottom = useCallback((smooth: boolean = true) => {
+    messagesEndRef.current?.scrollIntoView({ 
+      behavior: smooth ? 'smooth' : 'auto' 
+    });
+  }, []);
+
+  const handleScroll = useCallback(() => {
+    if (!messagesContainerRef.current) return;
+    
+    const { scrollTop, scrollHeight, clientHeight } = messagesContainerRef.current;
+    const isNearBottom = scrollHeight - scrollTop - clientHeight < 100;
+    
+    setShowScrollToBottom(!isNearBottom);
+  }, []);
 
   useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
-
-  useEffect(() => {
-    if (isOpen && inputRef.current) {
-      inputRef.current.focus();
+    if (messages.length > 0) {
+      // Auto-scroll to bottom when new messages arrive
+      const lastMessage = messages[messages.length - 1];
+      const isOwnMessage = user && lastMessage.user_id === user.id;
+      
+      if (isOwnMessage || !showScrollToBottom) {
+        scrollToBottom();
+      }
     }
-  }, [isOpen]);
+  }, [messages, scrollToBottom, showScrollToBottom, user]);
 
-  const handleSendMessage = () => {
-    if (!message.trim()) return;
+  useEffect(() => {
+    if (isOpen) {
+      // Initialize socket connection when modal opens
+      if (!isConnected && !isConnecting) {
+        initializeSocket();
+      }
+      
+      // Small delay to ensure socket is ready
+      const timer = setTimeout(() => {
+        joinPrediction(predictionId);
+      }, 100);
+      
+      if (inputRef.current) {
+        inputRef.current.focus();
+      }
 
-    const newMessage: Message = {
-      id: Date.now().toString(),
-      userId: 'current',
-      username: 'You',
-      avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=40&h=40&fit=crop&crop=face',
-      content: message,
-      timestamp: new Date(),
-      isOwn: true
+      return () => clearTimeout(timer);
+    }
+  }, [isOpen, predictionId, isConnected, isConnecting]);
+
+  useEffect(() => {
+    // Cleanup on unmount
+    return () => {
+      if (typingTimer) {
+        clearTimeout(typingTimer);
+      }
+      if (isOpen) {
+        leavePrediction(predictionId);
+      }
     };
+  }, []);
 
-    setMessages(prev => [...prev, newMessage]);
+  const handleSendMessage = useCallback(() => {
+    if (!message.trim() || !user || !isConnected) return;
+
+    sendMessage(predictionId, message);
     setMessage('');
+    
+    // Stop typing indicator
+    if (typingTimer) {
+      clearTimeout(typingTimer);
+      setTypingTimer(null);
+    }
+    stopTyping(predictionId);
+  }, [message, user, isConnected, predictionId, typingTimer]);
 
-    // Simulate someone typing
-    setIsTyping(true);
-    setTimeout(() => {
-      setIsTyping(false);
-      const responses = [
-        "Interesting perspective!",
-        "I hadn't thought about that angle",
-        "Good point, thanks for sharing",
-        "That's a solid analysis"
-      ];
-      const response: Message = {
-        id: (Date.now() + 1).toString(),
-        userId: 'user4',
-        username: 'Emma Davis',
-        avatar: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=40&h=40&fit=crop&crop=face',
-        content: responses[Math.floor(Math.random() * responses.length)],
-        timestamp: new Date(),
-        isOwn: false
-      };
-      setMessages(prev => [...prev, response]);
+  const handleInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setMessage(value);
+
+    if (!user || !isConnected) return;
+
+    // Handle typing indicators
+    if (value.trim() && !typingTimer) {
+      startTyping(predictionId);
+    }
+
+    // Clear existing timer
+    if (typingTimer) {
+      clearTimeout(typingTimer);
+    }
+
+    // Set new timer to stop typing after 2 seconds of inactivity
+    const newTimer = setTimeout(() => {
+      stopTyping(predictionId);
+      setTypingTimer(null);
     }, 2000);
-  };
 
-  const handleKeyPress = (e: React.KeyboardEvent) => {
+    setTypingTimer(newTimer);
+  }, [user, isConnected, predictionId, typingTimer]);
+
+  const handleKeyPress = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      handleSendMessage();
+      if (editingMessageId) {
+        handleSaveEdit();
+      } else {
+        handleSendMessage();
+      }
+    } else if (e.key === 'Escape') {
+      handleCancelEdit();
     }
-  };
+  }, [editingMessageId, handleSendMessage]);
 
-  const formatTime = (timestamp: Date) => {
-    return timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  };
+  const handleEditMessage = useCallback((msg: ChatMessage) => {
+    setEditingMessageId(msg.id);
+    setEditingContent(msg.content);
+    setMessage(msg.content);
+    inputRef.current?.focus();
+  }, []);
+
+  const handleSaveEdit = useCallback(() => {
+    if (!editingMessageId || !message.trim()) return;
+    
+    editMessage(editingMessageId, message.trim());
+    setEditingMessageId(null);
+    setEditingContent('');
+    setMessage('');
+  }, [editingMessageId, message]);
+
+  const handleCancelEdit = useCallback(() => {
+    setEditingMessageId(null);
+    setEditingContent('');
+    setMessage('');
+    inputRef.current?.focus();
+  }, []);
+
+  const handleDeleteMessage = useCallback((messageId: string) => {
+    if (window.confirm('Are you sure you want to delete this message?')) {
+      deleteMessage(messageId);
+    }
+  }, []);
+
+  const handleReaction = useCallback((messageId: string, reactionType: string) => {
+    addReaction(messageId, reactionType);
+  }, []);
+
+  const formatTime = useCallback((timestamp: string) => {
+    return new Date(timestamp).toLocaleTimeString([], { 
+      hour: '2-digit', 
+      minute: '2-digit' 
+    });
+  }, []);
+
+  const isOwnMessage = useCallback((msg: ChatMessage) => {
+    return user && msg.user_id === user.id;
+  }, [user]);
+
+  const handleClose = useCallback(() => {
+    leavePrediction(predictionId);
+    setMessage('');
+    setEditingMessageId(null);
+    setEditingContent('');
+    onClose();
+  }, [predictionId, onClose]);
 
   if (!isOpen) return null;
 
@@ -142,7 +222,7 @@ export const ChatModal: React.FC<ChatModalProps> = ({
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
         className="absolute inset-0 bg-black/50 backdrop-blur-sm"
-        onClick={onClose}
+        onClick={handleClose}
       />
 
       {/* Modal */}
@@ -163,14 +243,39 @@ export const ChatModal: React.FC<ChatModalProps> = ({
             <p className="text-sm text-gray-500 truncate">
               {predictionTitle}
             </p>
+            {/* Connection status */}
+            <div className="flex items-center gap-2 mt-1">
+              {isConnecting && (
+                <div className="flex items-center gap-1 text-xs text-yellow-600">
+                  <div className="w-2 h-2 bg-yellow-500 rounded-full animate-pulse"></div>
+                  Connecting...
+                </div>
+              )}
+              {isConnected && !isConnecting && (
+                <div className="flex items-center gap-1 text-xs text-green-600">
+                  <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                  Connected
+                </div>
+              )}
+              {connectionError && (
+                <div className="flex items-center gap-1 text-xs text-red-600">
+                  <AlertCircle className="w-3 h-3" />
+                  Connection error
+                </div>
+              )}
+            </div>
           </div>
           <div className="flex items-center gap-2 ml-3">
-            <button className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-colors">
+            <button 
+              className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-colors"
+              title="More options"
+            >
               <MoreVertical className="w-4 h-4" />
             </button>
             <button
-              onClick={onClose}
+              onClick={handleClose}
               className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-colors"
+              title="Close chat"
             >
               <X className="w-4 h-4" />
             </button>
@@ -178,68 +283,147 @@ export const ChatModal: React.FC<ChatModalProps> = ({
         </div>
 
         {/* Messages */}
-        <div className="flex-1 overflow-y-auto px-4 py-2" style={{ height: 'calc(600px - 140px)' }}>
+        <div 
+          ref={messagesContainerRef}
+          className="flex-1 overflow-y-auto px-4 py-2 relative" 
+          style={{ height: 'calc(600px - 140px)' }}
+          onScroll={handleScroll}
+        >
+          {/* Empty state */}
+          {messages.length === 0 && isConnected && (
+            <div className="flex items-center justify-center h-full">
+              <div className="text-center text-gray-500">
+                <p className="text-sm">No messages yet</p>
+                <p className="text-xs">Be the first to start the discussion!</p>
+              </div>
+            </div>
+          )}
+
+          {/* Connection error state */}
+          {connectionError && !isConnected && (
+            <div className="flex items-center justify-center h-full">
+              <div className="text-center text-red-500">
+                <AlertCircle className="w-8 h-8 mx-auto mb-2" />
+                <p className="text-sm font-medium">Connection failed</p>
+                <p className="text-xs">{connectionError}</p>
+                <button 
+                  onClick={initializeSocket}
+                  className="mt-2 px-3 py-1 text-xs bg-red-100 text-red-700 rounded-full hover:bg-red-200 transition-colors"
+                >
+                  Retry connection
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Messages list */}
           <AnimatePresence>
             {messages.map((msg) => (
               <motion.div
                 key={msg.id}
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
-                className={`flex gap-3 mb-4 ${msg.isOwn ? 'flex-row-reverse' : ''}`}
+                className={`flex gap-3 mb-4 group ${isOwnMessage(msg) ? 'flex-row-reverse' : ''}`}
               >
-                {!msg.isOwn && (
+                {!isOwnMessage(msg) && (
                   <div className="flex-shrink-0">
                     <img
-                      src={msg.avatar}
-                      alt={msg.username}
+                      src={
+                        msg.user.avatar_url || 
+                        `https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=40&h=40&fit=crop&crop=face`
+                      }
+                      alt={msg.user.username}
                       className="w-8 h-8 rounded-full object-cover"
                     />
                   </div>
                 )}
                 
-                <div className={`flex-1 min-w-0 ${msg.isOwn ? 'items-end' : 'items-start'} flex flex-col`}>
-                  {!msg.isOwn && (
+                <div className={`flex-1 min-w-0 ${isOwnMessage(msg) ? 'items-end' : 'items-start'} flex flex-col`}>
+                  {!isOwnMessage(msg) && (
                     <div className="flex items-center gap-2 mb-1">
-                      <span className="text-sm font-medium text-gray-900">{msg.username}</span>
-                      <span className="text-xs text-gray-500">{formatTime(msg.timestamp)}</span>
+                      <span className="text-sm font-medium text-gray-900">{msg.user.username}</span>
+                      <span className="text-xs text-gray-500">{formatTime(msg.created_at)}</span>
                     </div>
                   )}
                   
-                  <div
-                    className={`max-w-xs lg:max-w-md px-4 py-2 rounded-2xl ${
-                      msg.isOwn
-                        ? 'bg-blue-500 text-white rounded-br-md'
-                        : 'bg-gray-100 text-gray-900 rounded-bl-md'
-                    }`}
-                  >
-                    <p className="text-sm whitespace-pre-wrap break-words">{msg.content}</p>
+                  <div className="relative">
+                    <div
+                      className={`max-w-xs lg:max-w-md px-4 py-2 rounded-2xl ${
+                        msg.message_type === 'system' 
+                          ? 'bg-gray-100 text-gray-600 text-center text-sm italic'
+                          : isOwnMessage(msg)
+                          ? 'bg-blue-500 text-white rounded-br-md'
+                          : 'bg-gray-100 text-gray-900 rounded-bl-md'
+                      }`}
+                    >
+                      <p className="text-sm whitespace-pre-wrap break-words">{msg.content}</p>
+                      {msg.edited_at && (
+                        <span className="text-xs opacity-75 block mt-1">(edited)</span>
+                      )}
+                    </div>
+                    
+                    {/* Message actions for own messages */}
+                    {isOwnMessage(msg) && msg.message_type !== 'system' && (
+                      <div className="absolute top-0 right-full mr-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <div className="flex gap-1">
+                          <button
+                            onClick={() => handleEditMessage(msg)}
+                            className="p-1 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded"
+                            title="Edit message"
+                          >
+                            <Edit3 className="w-3 h-3" />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteMessage(msg.id)}
+                            className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded"
+                            title="Delete message"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Reaction button for other messages */}
+                    {!isOwnMessage(msg) && msg.message_type !== 'system' && (
+                      <div className="absolute top-0 left-full ml-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button
+                          onClick={() => handleReaction(msg.id, 'like')}
+                          className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded"
+                          title="Like message"
+                        >
+                          <Heart className="w-3 h-3" />
+                        </button>
+                      </div>
+                    )}
                   </div>
                   
-                  {msg.isOwn && (
-                    <span className="text-xs text-gray-500 mt-1">{formatTime(msg.timestamp)}</span>
+                  {isOwnMessage(msg) && (
+                    <span className="text-xs text-gray-500 mt-1">{formatTime(msg.created_at)}</span>
                   )}
                 </div>
               </motion.div>
             ))}
           </AnimatePresence>
 
-          {/* Typing indicator */}
-          {isTyping && (
+          {/* Typing indicators */}
+          {typingUsers.length > 0 && (
             <motion.div
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
               className="flex gap-3 mb-4"
             >
               <div className="flex-shrink-0">
-                <img
-                  src="https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=40&h=40&fit=crop&crop=face"
-                  alt="Emma Davis"
-                  className="w-8 h-8 rounded-full object-cover"
-                />
+                <div className="w-8 h-8 bg-gray-300 rounded-full flex items-center justify-center">
+                  <span className="text-xs">💬</span>
+                </div>
               </div>
               <div className="flex-1">
                 <div className="flex items-center gap-2 mb-1">
-                  <span className="text-sm font-medium text-gray-900">Emma Davis</span>
+                  <span className="text-sm font-medium text-gray-900">
+                    {typingUsers.map(t => t.username).join(', ')}
+                  </span>
                   <span className="text-xs text-gray-500">typing...</span>
                 </div>
                 <div className="bg-gray-100 px-4 py-2 rounded-2xl rounded-bl-md max-w-xs">
@@ -256,10 +440,37 @@ export const ChatModal: React.FC<ChatModalProps> = ({
           <div ref={messagesEndRef} />
         </div>
 
+        {/* Scroll to bottom button */}
+        {showScrollToBottom && (
+          <button
+            onClick={() => scrollToBottom()}
+            className="absolute bottom-20 right-4 w-8 h-8 bg-blue-500 text-white rounded-full shadow-lg hover:bg-blue-600 transition-colors flex items-center justify-center text-sm"
+            title="Scroll to bottom"
+          >
+            ↓
+          </button>
+        )}
+
         {/* Input */}
         <div className="p-4 border-t border-gray-100 bg-white">
+          {editingMessageId && (
+            <div className="mb-2 p-2 bg-blue-50 rounded-lg flex items-center justify-between">
+              <span className="text-sm text-blue-700">Editing message...</span>
+              <button
+                onClick={handleCancelEdit}
+                className="text-blue-600 hover:text-blue-800"
+                title="Cancel edit"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          )}
+          
           <div className="flex items-end gap-3">
-            <button className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-colors flex-shrink-0">
+            <button 
+              className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-colors flex-shrink-0"
+              title="Attach file"
+            >
               <Paperclip className="w-4 h-4" />
             </button>
             
@@ -268,20 +479,30 @@ export const ChatModal: React.FC<ChatModalProps> = ({
                 ref={inputRef}
                 type="text"
                 value={message}
-                onChange={(e) => setMessage(e.target.value)}
+                onChange={handleInputChange}
                 onKeyPress={handleKeyPress}
-                placeholder="Type a message..."
-                className="w-full px-4 py-2 pr-10 border border-gray-200 rounded-full focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+                placeholder={
+                  editingMessageId ? "Edit your message..." :
+                  isConnected ? "Type a message..." : 
+                  isConnecting ? "Connecting..." : 
+                  "Chat unavailable"
+                }
+                disabled={!isConnected || !user}
+                className="w-full px-4 py-2 pr-10 border border-gray-200 rounded-full focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none disabled:opacity-50 disabled:cursor-not-allowed"
               />
-              <button className="absolute right-2 top-1/2 transform -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600 rounded-full transition-colors">
+              <button 
+                className="absolute right-2 top-1/2 transform -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600 rounded-full transition-colors"
+                title="Add emoji"
+              >
                 <Smile className="w-4 h-4" />
               </button>
             </div>
             
             <button
-              onClick={handleSendMessage}
-              disabled={!message.trim()}
+              onClick={editingMessageId ? handleSaveEdit : handleSendMessage}
+              disabled={!message.trim() || !isConnected || !user}
               className="p-2 bg-blue-500 text-white rounded-full hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex-shrink-0"
+              title={editingMessageId ? "Save changes" : "Send message"}
             >
               <Send className="w-4 h-4" />
             </button>

@@ -9,6 +9,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import dotenv from 'dotenv';
 import path from 'path';
+import { ChatService } from './services/ChatService.js';
 
 // Extend Express namespace to add user property
 declare global {
@@ -30,9 +31,28 @@ declare global {
   }
 }
 
-// Load environment variables
-dotenv.config({ path: path.join(__dirname, '../../.env.local') });
-dotenv.config({ path: path.join(__dirname, '../../.env') });
+// Load environment variables - try multiple paths
+const envPaths = [
+  path.join(__dirname, '../../.env'),
+  path.join(__dirname, '../../.env.local'),
+  path.join(process.cwd(), '.env'),
+  path.join(process.cwd(), '.env.local')
+];
+
+envPaths.forEach(envPath => {
+  try {
+    dotenv.config({ path: envPath });
+    console.log(`✅ Loaded environment from: ${envPath}`);
+  } catch (error) {
+    console.log(`⚠️ Could not load environment from: ${envPath}`);
+  }
+});
+
+// Debug environment variables
+console.log('🔍 Environment Debug:');
+console.log('NODE_ENV:', process.env.NODE_ENV);
+console.log('PORT:', process.env.PORT);
+console.log('Available SUPABASE vars:', Object.keys(process.env).filter(key => key.includes('SUPABASE')));
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -1030,6 +1050,26 @@ app.use((error: any, req: any, res: any, next: any) => {
   });
 });
 
+// Initialize ChatService for WebSocket functionality
+let chatService: ChatService | undefined;
+try {
+  // Only initialize if Supabase is properly configured
+  if (process.env.SUPABASE_URL && process.env.SUPABASE_ANON_KEY) {
+    chatService = new ChatService(app);
+    console.log('✅ ChatService initialized successfully');
+  } else {
+    console.log('⚠️ Skipping ChatService - Supabase not configured');
+  }
+} catch (error) {
+  console.error('❌ Failed to initialize ChatService:', error);
+  console.log('⚠️ Continuing without WebSocket functionality');
+  // Log more details about the error
+  if (error instanceof Error) {
+    console.error('Error details:', error.message);
+    console.error('Stack trace:', error.stack);
+  }
+}
+
 const server = app.listen(PORT, () => {
   console.log(`🚀 Fan Club Z Server started on port ${PORT}`);
   console.log(`📋 Environment: ${process.env.NODE_ENV || 'development'}`);
@@ -1043,6 +1083,7 @@ const server = app.listen(PORT, () => {
   console.log(`   POST /api/v2/clubs/:id/leave - Leave a club`);
   console.log(`   GET /api/v2/clubs/:id/members - Get club members`);
   console.log(`   POST /api/v2/clubs - Create new club`);
+  console.log(`💬 WebSocket Chat: ${chatService ? 'Enabled' : 'Disabled'}`);
 });
 
 // Graceful shutdown

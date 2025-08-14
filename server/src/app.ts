@@ -7,6 +7,7 @@ import { config } from './config';
 import logger from './utils/logger';
 import { errorHandler } from './middleware/error';
 import { defaultRateLimit } from './middleware/rate-limit';
+import { ChatService } from './services/ChatService';
 
 // Route imports
 import authRoutes from './routes/auth';
@@ -29,6 +30,7 @@ app.use(helmet({
       styleSrc: ["'self'", "'unsafe-inline'"],
       scriptSrc: ["'self'"],
       imgSrc: ["'self'", "data:", "https:"],
+      connectSrc: ["'self'", "ws:", "wss:"], // Allow WebSocket connections
     },
   },
   crossOriginEmbedderPolicy: false,
@@ -134,6 +136,7 @@ app.get('/api/health', (req, res) => {
     services: {
       database: 'connected', // This would check actual database connection in production
       redis: 'connected',     // This would check actual Redis connection in production
+      websocket: 'enabled',   // WebSocket support enabled
     },
   });
 });
@@ -174,15 +177,20 @@ app.use('*', (req, res) => {
 app.use(errorHandler);
 
 // ============================================================================
-// SERVER STARTUP
+// WEBSOCKET & SERVER STARTUP
 // ============================================================================
 
 const PORT = config.server.port;
 
-const server = app.listen(PORT, () => {
+// Initialize WebSocket chat service
+const chatService = new ChatService(app);
+const server = chatService.getHttpServer();
+
+server.listen(PORT, () => {
   logger.info(`🚀 Fan Club Z Server started on port ${PORT}`);
   logger.info(`📋 Environment: ${process.env.NODE_ENV || 'development'}`);
   logger.info(`🌐 API URL: http://localhost:${PORT}/api/v2`);
+  logger.info(`💬 WebSocket Chat: Enabled`);
   logger.info(`🏥 Health Check: http://localhost:${PORT}/health`);
 });
 
