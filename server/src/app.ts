@@ -67,12 +67,15 @@ const allowedOrigins = process.env.NODE_ENV === 'production'
   ? [
       // Render deployment URLs (without port numbers)
       'https://fan-club-z.onrender.com',
+      'https://fan-club-z-dev.onrender.com',
+      // Custom domains
       'https://fanclubz.app',
-      'https://www.fanclubz.app',
+      'https://www.fanclubz.app', 
       'https://app.fanclubz.app',
       'https://dev.fanclubz.app',
-      // Vercel URLs
+      // Vercel URLs (current deployments)
       'https://fan-club-z-pw49foj6y-teddys-projects-d67ab22a.vercel.app',
+      'https://fan-club-z-lu5ywnjr0-teddys-projects-d67ab22a.vercel.app',
       'https://fanclubz-version2-0.vercel.app',
       ...(process.env.CORS_ORIGINS?.split(',') || [])
     ]
@@ -83,6 +86,7 @@ const allowedOrigins = process.env.NODE_ENV === 'production'
       'https://localhost:3000',
       'https://localhost:5173',
       'https://dev.fanclubz.app',
+      'https://app.fanclubz.app',
       config.frontend.url,
       ...(process.env.CORS_ORIGINS?.split(',') || [])
     ];
@@ -96,25 +100,35 @@ app.use(cors({
     }
     
     console.log('🌐 CORS: Checking origin:', origin);
-    console.log('🌐 CORS: Allowed origins:', allowedOrigins);
+    console.log('🌐 CORS: NODE_ENV:', process.env.NODE_ENV);
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('🌐 CORS: Allowed origins:', allowedOrigins);
+    }
     
     // Check if origin is in allowed list
     const isAllowed = allowedOrigins.indexOf(origin) !== -1;
     
-    // Also allow any Vercel deployment (for development)
+    // Also allow any Vercel deployment and Render deployments
     const isVercelDeployment = origin.includes('.vercel.app');
+    const isRenderDeployment = origin.includes('.onrender.com');
+    const isLocalDevelopment = origin.includes('localhost') || origin.includes('127.0.0.1');
+    const isCustomDomain = origin.includes('fanclubz.app');
     
-    if (isAllowed || isVercelDeployment) {
-      console.log('✅ CORS: Origin allowed', isVercelDeployment ? '(Vercel deployment)' : '(explicit allow)');
+    if (isAllowed || isVercelDeployment || isRenderDeployment || isCustomDomain) {
+      const reason = isAllowed ? '(explicit allow)' : 
+                    isVercelDeployment ? '(Vercel deployment)' : 
+                    isRenderDeployment ? '(Render deployment)' :
+                    '(Custom domain)';
+      console.log('✅ CORS: Origin allowed', reason);
       callback(null, true);
     } else {
-      console.log('❌ CORS: Origin blocked');
+      console.log('❌ CORS: Origin blocked:', origin);
       // In development, be more permissive
-      if (process.env.NODE_ENV !== 'production') {
-        console.log('🚧 CORS: Development mode - allowing anyway');
+      if (process.env.NODE_ENV !== 'production' || isLocalDevelopment) {
+        console.log('🚧 CORS: Development mode or localhost - allowing anyway');
         callback(null, true);
       } else {
-        callback(new Error('Not allowed by CORS'));
+        callback(new Error(`Origin ${origin} not allowed by CORS`));
       }
     }
   },

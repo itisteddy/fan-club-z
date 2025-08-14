@@ -50,10 +50,15 @@ export class ChatService {
           // Also allow any Vercel deployment in development
           const isVercelDeployment = origin.includes('.vercel.app');
           const isRenderDeployment = origin.includes('.onrender.com');
+          const isCustomDomain = origin.includes('fanclubz.app');
           const isDevelopment = process.env.NODE_ENV !== 'production';
           
-          if (isAllowed || isRenderDeployment || (isVercelDeployment && isDevelopment)) {
-            logger.info(`✅ Socket.IO CORS: Origin allowed - ${origin}`);
+          if (isAllowed || isRenderDeployment || isVercelDeployment || isCustomDomain) {
+            const reason = isAllowed ? '(explicit allow)' : 
+                          isVercelDeployment ? '(Vercel deployment)' : 
+                          isRenderDeployment ? '(Render deployment)' :
+                          '(Custom domain)';
+            logger.info(`✅ Socket.IO CORS: Origin allowed - ${origin} ${reason}`);
             callback(null, true);
           } else {
             logger.warn(`❌ Socket.IO CORS: Origin blocked - ${origin}`);
@@ -94,12 +99,15 @@ export class ChatService {
       ? [
           // Production origins (NO PORT NUMBERS for Render)
           'https://fan-club-z.onrender.com',
+          'https://fan-club-z-dev.onrender.com',
+          // Custom domains
           'https://fanclubz.app',
           'https://www.fanclubz.app',
           'https://app.fanclubz.app',
           'https://dev.fanclubz.app',
-          // Vercel URLs
+          // Vercel URLs (current deployments)
           'https://fan-club-z-pw49foj6y-teddys-projects-d67ab22a.vercel.app',
+          'https://fan-club-z-lu5ywnjr0-teddys-projects-d67ab22a.vercel.app',
           'https://fanclubz-version2-0.vercel.app',
           // Environment-specific
           config.frontend.url,
@@ -115,6 +123,7 @@ export class ChatService {
           'https://localhost:3000',
           'https://localhost:5173',
           'https://dev.fanclubz.app',
+          'https://app.fanclubz.app',
           config.frontend.url,
           process.env.FRONTEND_URL || 'http://localhost:5173',
           process.env.CLIENT_URL || 'http://localhost:5173',
@@ -152,6 +161,14 @@ export class ChatService {
       // Handle user authentication/identification
       socket.on('authenticate', (userData: { userId: string; username: string; avatar?: string }) => {
         try {
+          logger.info(`🔐 Authentication attempt: ${userData.username || 'unknown'} (${socket.id})`);
+          
+          if (!userData.userId || !userData.username) {
+            logger.warn('⚠️ Authentication failed: Invalid user data');
+            socket.emit('auth_error', { message: 'Invalid user data' });
+            return;
+          }
+
           const connectedUser: ConnectedUser = {
             socketId: socket.id,
             userId: userData.userId,
@@ -160,12 +177,14 @@ export class ChatService {
           };
           
           this.connectedUsers.set(socket.id, connectedUser);
-          logger.info(`👤 User authenticated: ${userData.username} (${socket.id})`);
+          logger.info(`✅ User authenticated: ${userData.username} (${socket.id})`);
           
-          // Send authentication confirmation
+          // Send authentication confirmation IMMEDIATELY
           socket.emit('authenticated', { 
             success: true, 
             socketId: socket.id,
+            userId: userData.userId,
+            username: userData.username,
             timestamp: new Date().toISOString(),
             serverInfo: {
               environment: process.env.NODE_ENV,
@@ -173,8 +192,11 @@ export class ChatService {
             }
           });
         } catch (error) {
-          logger.error('Authentication error:', error);
-          socket.emit('auth_error', { message: 'Authentication failed' });
+          logger.error('❌ Authentication error:', error);
+          socket.emit('auth_error', { 
+            message: 'Authentication failed',
+            details: error instanceof Error ? error.message : 'Unknown error'
+          });
         }
       });
 
@@ -182,14 +204,22 @@ export class ChatService {
       socket.on('join_prediction', async (data) => {
         try {
           const { predictionId, userId } = data;
-          logger.info(`👥 User ${userId} joining prediction room: ${predictionId}`);
+          const user = this.connectedUsers.get(socket.id);
+          
+          if (!user) {
+            logger.warn('⚠️ Join prediction failed: User not authenticated');
+            socket.emit('error', { 
+              message: 'Cannot join prediction: socket not connected or user not authenticated',
+              code: 'NOT_AUTHENTICATED'
+            });
+            return;
+          }
+          
+          logger.info(`👥 User ${user.username} joining prediction room: ${predictionId}`);
           
           // Update user's current prediction
-          const user = this.connectedUsers.get(socket.id);
-          if (user) {
-            user.predictionId = predictionId;
-            this.connectedUsers.set(socket.id, user);
-          }
+          user.predictionId = predictionId;
+          this.connectedUsers.set(socket.id, user);
           
           socket.join(`prediction_${predictionId}`);
           
@@ -224,8 +254,11 @@ export class ChatService {
           socket.emit('joined_prediction', { 
             predictionId, 
             messageCount: messages.length,
-            participantCount: participants.length 
+            participantCount: participants.length,
+            username: user.username
           });
+          
+          logger.info(`✅ User ${user.username} successfully joined prediction ${predictionId}`);
           
         } catch (error) {
           logger.error('Error joining prediction room:', error);

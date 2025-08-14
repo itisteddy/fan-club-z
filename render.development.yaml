@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: fanclubz-backend
+    name: fanclubz-dev
     env: node
     plan: free
     branch: development
@@ -12,7 +12,13 @@ services:
       - key: PORT
         value: 10000
       - key: CLIENT_URL
-        value: https://fan-club-z.vercel.app
+        value: https://dev.fanclubz.app
+      - key: FRONTEND_URL
+        value: https://dev.fanclubz.app
+      - key: CORS_ORIGINS
+        value: https://dev.fanclubz.app,https://app.fanclubz.app,https://fanclubz.app
+      - key: WEBSOCKET_ORIGINS
+        value: https://dev.fanclubz.app,https://app.fanclubz.app
       - key: JWT_SECRET
         generateValue: true
       - key: SUPABASE_URL
@@ -25,3 +31,7 @@ services:
         sync: false
       - key: VITE_SUPABASE_ANON_KEY
         sync: false
+      - key: ENABLE_WEBSOCKET
+        value: true
+      - key: ENABLE_REAL_TIME
+        value: true

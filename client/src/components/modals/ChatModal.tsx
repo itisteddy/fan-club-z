@@ -77,36 +77,65 @@ export const ChatModal: React.FC<ChatModalProps> = ({
   }, [messages, scrollToBottom, showScrollToBottom, user]);
 
   useEffect(() => {
-    if (isOpen) {
-      // Initialize socket connection when modal opens
+    if (isOpen && user) {
+      console.log('🎦 Chat modal opened for user:', user.username || user.email);
+      
+      // Initialize socket if not connected
       if (!isConnected && !isConnecting) {
+        console.log('🔗 Initializing socket connection...');
         initializeSocket();
       }
       
-      // Small delay to ensure socket is ready
-      const timer = setTimeout(() => {
+      // Wait for connection before joining prediction
+      if (isConnected) {
+        console.log('✅ Socket connected, joining prediction:', predictionId);
         joinPrediction(predictionId);
-      }, 100);
+      } else {
+        console.log('⏳ Waiting for socket connection...');
+        // Set up a listener for when connection is established
+        const checkConnection = setInterval(() => {
+          const currentState = useChatStore.getState();
+          if (currentState.isConnected && !currentState.isConnecting) {
+            console.log('✅ Socket connected (delayed), joining prediction:', predictionId);
+            joinPrediction(predictionId);
+            clearInterval(checkConnection);
+          } else if (currentState.connectionError) {
+            console.error('❌ Connection failed:', currentState.connectionError);
+            clearInterval(checkConnection);
+          }
+        }, 500);
+        
+        // Clean up interval after 10 seconds
+        const timeout = setTimeout(() => {
+          clearInterval(checkConnection);
+          console.warn('⏱️ Connection timeout - stopping connection attempts');
+        }, 10000);
+        
+        return () => {
+          clearInterval(checkConnection);
+          clearTimeout(timeout);
+        };
+      }
       
       if (inputRef.current) {
         inputRef.current.focus();
       }
-
-      return () => clearTimeout(timer);
     }
-  }, [isOpen, predictionId, isConnected, isConnecting]);
+  }, [isOpen, user, isConnected, isConnecting, predictionId, connectionError]);
 
   useEffect(() => {
-    // Cleanup on unmount
+    // Cleanup on unmount or when modal closes
     return () => {
       if (typingTimer) {
         clearTimeout(typingTimer);
+        setTypingTimer(null);
       }
-      if (isOpen) {
+      if (isOpen && isConnected) {
+        console.log('👋 Leaving prediction on cleanup:', predictionId);
         leavePrediction(predictionId);
       }
     };
-  }, []);
+  }, [isOpen, isConnected, predictionId, typingTimer]);
 
   const handleSendMessage = useCallback(() => {
     if (!message.trim() || !user || !isConnected) return;
@@ -266,6 +295,12 @@ export const ChatModal: React.FC<ChatModalProps> = ({
             </div>
           </div>
           <div className="flex items-center gap-2 ml-3">
+            {/* Debug info (only in development) */}
+            {import.meta.env.DEV && (
+              <div className="text-xs text-gray-400 mr-2">
+                {isConnecting ? 'Connecting...' : isConnected ? 'Online' : 'Offline'}
+              </div>
+            )}
             <button 
               className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-colors"
               title="More options"
@@ -305,13 +340,32 @@ export const ChatModal: React.FC<ChatModalProps> = ({
               <div className="text-center text-red-500">
                 <AlertCircle className="w-8 h-8 mx-auto mb-2" />
                 <p className="text-sm font-medium">Connection failed</p>
-                <p className="text-xs">{connectionError}</p>
-                <button 
-                  onClick={initializeSocket}
-                  className="mt-2 px-3 py-1 text-xs bg-red-100 text-red-700 rounded-full hover:bg-red-200 transition-colors"
-                >
-                  Retry connection
-                </button>
+                <p className="text-xs mb-2">{connectionError}</p>
+                {!user ? (
+                  <p className="text-xs text-gray-500">Please sign in to use chat</p>
+                ) : (
+                  <button 
+                    onClick={() => {
+                      console.log('🔄 Manual retry connection clicked');
+                      initializeSocket();
+                    }}
+                    className="px-3 py-1 text-xs bg-red-100 text-red-700 rounded-full hover:bg-red-200 transition-colors"
+                    disabled={isConnecting}
+                  >
+                    {isConnecting ? 'Connecting...' : 'Retry connection'}
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Connecting state */}
+          {isConnecting && !isConnected && !connectionError && (
+            <div className="flex items-center justify-center h-full">
+              <div className="text-center text-gray-500">
+                <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
+                <p className="text-sm">Connecting to chat...</p>
+                <p className="text-xs">This may take a moment</p>
               </div>
             </div>
           )}
