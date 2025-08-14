@@ -21,8 +21,7 @@
     "exactOptionalPropertyTypes": false
   },
   "include": [
-    "src/**/*",
-    "../shared/src/**/*"
+    "src/**/*"
   ],
   "exclude": ["node_modules", "dist", "**/*.test.ts"]
 }
