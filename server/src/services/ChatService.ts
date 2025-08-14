@@ -97,9 +97,8 @@ export class ChatService {
   private getAllowedOrigins(): string[] {
     const baseOrigins = process.env.NODE_ENV === 'production' 
       ? [
-          // Production origins (NO PORT NUMBERS for Render)
+          // Production origins (single service for free tier)
           'https://fan-club-z.onrender.com',
-          'https://fan-club-z-dev.onrender.com',
           // Custom domains
           'https://fanclubz.app',
           'https://www.fanclubz.app',

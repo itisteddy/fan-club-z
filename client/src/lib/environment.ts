@@ -30,7 +30,7 @@ export function getEnvironmentConfig(): EnvironmentConfig {
       isDevelopment: false,
       isProduction: true
     };
-    console.log('🚀 Production environment detected:', config);
+    console.log('🚀 Production environment detected (single service):', config);
     return config;
   }
   
@@ -43,7 +43,7 @@ export function getEnvironmentConfig(): EnvironmentConfig {
       isDevelopment: false,
       isProduction: false
     };
-    console.log('🧪 Development environment detected:', config);
+    console.log('🧪 Development environment detected (single service):', config);
     return config;
   }
   
@@ -56,7 +56,7 @@ export function getEnvironmentConfig(): EnvironmentConfig {
       isDevelopment: false,
       isProduction: true
     };
-    console.log('🚀 Vercel deployment detected, using production:', config);
+    console.log('🚀 Vercel deployment detected, using single service:', config);
     return config;
   }
   
@@ -94,7 +94,7 @@ export function getEnvironmentConfig(): EnvironmentConfig {
     isDevelopment: false,
     isProduction: true
   };
-  console.log('🔄 Unknown hostname, falling back to production:', config);
+  console.log('🔄 Unknown hostname, falling back to single service:', config);
   return config;
 }
 

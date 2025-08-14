@@ -65,9 +65,8 @@ app.use(helmet({
 // CORS configuration with production-specific origins
 const allowedOrigins = process.env.NODE_ENV === 'production' 
   ? [
-      // Render deployment URLs (without port numbers)
+      // Render deployment URLs (single service for free tier)
       'https://fan-club-z.onrender.com',
-      'https://fan-club-z-dev.onrender.com',
       // Custom domains
       'https://fanclubz.app',
       'https://www.fanclubz.app', 
@@ -277,11 +276,23 @@ try {
 server.listen(PORT, '0.0.0.0', () => {
   logger.info('🚀 Fan Club Z Server started successfully');
   logger.info(`📋 Environment: ${process.env.NODE_ENV || 'development'}`);
-  logger.info(`🌐 Server URL: ${process.env.NODE_ENV === 'production' ? 'https://fan-club-z.onrender.com' : `http://localhost:${PORT}`}`);
-  logger.info(`🔗 API Base: ${process.env.NODE_ENV === 'production' ? 'https://fan-club-z.onrender.com' : `http://localhost:${PORT}`}/api/v2`);
+  
+  // Determine the correct public URL (single service)
+  const getPublicUrl = () => {
+    if (process.env.NODE_ENV === 'production') {
+      return 'https://fan-club-z.onrender.com';
+    }
+    return `http://localhost:${PORT}`;
+  };
+  
+  const publicUrl = getPublicUrl();
+  logger.info(`🌐 Server URL: ${publicUrl}`);
+  logger.info(`🔗 API Base: ${publicUrl}/api/v2`);
   logger.info(`💬 WebSocket: ${chatService ? 'Enabled' : 'Disabled (Check Supabase config)'}`);
-  logger.info(`🏥 Health Check: ${process.env.NODE_ENV === 'production' ? 'https://fan-club-z.onrender.com' : `http://localhost:${PORT}`}/health`);
+  logger.info(`🏥 Health Check: ${publicUrl}/health`);
   logger.info(`🔧 Binding: 0.0.0.0:${PORT} (Render compatible)`);
+  logger.info(`🏢 Service: Single service (free tier)`);
+  logger.info(`🌍 Frontend URLs: dev.fanclubz.app, app.fanclubz.app`);
 });
 
 // ============================================================================
