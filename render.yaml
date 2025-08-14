@@ -3,6 +3,7 @@ services:
     name: fanclubz-backend
     env: node
     plan: free
+    branch: development
     buildCommand: cd server && npm install
     startCommand: cd server && npm start
     envVars:
