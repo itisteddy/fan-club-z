@@ -1,181 +1,123 @@
 /**
- * Environment Detection System
- * Intelligently detects the current environment and maps to correct backend URLs
+ * Environment detection and configuration for Fan Club Z
+ * Handles dev, staging, and production environments
  */
 
 export interface EnvironmentConfig {
-  name: string;
   apiUrl: string;
-  wsUrl: string;
-  corsOrigins: string[];
-  isProduction: boolean;
+  socketUrl: string;
+  environment: 'development' | 'staging' | 'production';
   isDevelopment: boolean;
-  isLocal: boolean;
+  isProduction: boolean;
 }
 
-/**
- * Get the current environment configuration based on hostname
- */
 export function getEnvironmentConfig(): EnvironmentConfig {
   const hostname = window.location.hostname;
   const protocol = window.location.protocol;
   
-  console.log('🌍 Environment Detection:', {
-    hostname,
-    protocol,
-    userAgent: navigator.userAgent
-  });
-
+  console.log('🌍 Environment Detection:');
+  console.log('  - Hostname:', hostname);
+  console.log('  - Protocol:', protocol);
+  console.log('  - VITE_API_URL:', import.meta.env.VITE_API_URL);
+  console.log('  - MODE:', import.meta.env.MODE);
+  
   // Production environment
-  if (hostname === 'app.fanclubz.app' || hostname === 'fanclubz.app') {
-    return {
-      name: 'production',
-      apiUrl: 'https://fanclubz-prod.onrender.com',
-      wsUrl: 'wss://fanclubz-prod.onrender.com',
-      corsOrigins: [
-        'https://app.fanclubz.app',
-        'https://fanclubz.app',
-        'https://www.fanclubz.app'
-      ],
-      isProduction: true,
+  if (hostname === 'app.fanclubz.app' || hostname === 'fanclubz.app' || hostname === 'www.fanclubz.app') {
+    const config: EnvironmentConfig = {
+      apiUrl: 'https://fan-club-z.onrender.com',
+      socketUrl: 'https://fan-club-z.onrender.com',
+      environment: 'production',
       isDevelopment: false,
-      isLocal: false
+      isProduction: true
     };
+    console.log('🚀 Production environment detected:', config);
+    return config;
   }
-
+  
   // Development environment
   if (hostname === 'dev.fanclubz.app') {
-    return {
-      name: 'development',
-      apiUrl: 'https://fanclubz-dev.onrender.com',
-      wsUrl: 'wss://fanclubz-dev.onrender.com',
-      corsOrigins: [
-        'https://dev.fanclubz.app',
-        'https://fanclubz-dev.vercel.app'
-      ],
-      isProduction: false,
-      isDevelopment: true,
-      isLocal: false
-    };
-  }
-
-  // Vercel preview deployments (development)
-  if (hostname.includes('vercel.app') && hostname.includes('fan-club-z-dev')) {
-    return {
-      name: 'development-preview',
-      apiUrl: 'https://fanclubz-dev.onrender.com',
-      wsUrl: 'wss://fanclubz-dev.onrender.com',
-      corsOrigins: [
-        `https://${hostname}`,
-        'https://dev.fanclubz.app'
-      ],
-      isProduction: false,
-      isDevelopment: true,
-      isLocal: false
-    };
-  }
-
-  // Vercel preview deployments (production)
-  if (hostname.includes('vercel.app') && hostname.includes('fan-club-z')) {
-    return {
-      name: 'production-preview',
-      apiUrl: 'https://fanclubz-prod.onrender.com',
-      wsUrl: 'wss://fanclubz-prod.onrender.com',
-      corsOrigins: [
-        `https://${hostname}`,
-        'https://app.fanclubz.app'
-      ],
-      isProduction: true,
+    const config: EnvironmentConfig = {
+      apiUrl: 'https://fan-club-z.onrender.com',
+      socketUrl: 'https://fan-club-z.onrender.com',
+      environment: 'staging',
       isDevelopment: false,
-      isLocal: false
+      isProduction: false
     };
+    console.log('🧪 Development environment detected:', config);
+    return config;
   }
-
+  
+  // Vercel deployments (default to production)
+  if (hostname.includes('vercel.app')) {
+    const config: EnvironmentConfig = {
+      apiUrl: 'https://fan-club-z.onrender.com',
+      socketUrl: 'https://fan-club-z.onrender.com',
+      environment: 'production',
+      isDevelopment: false,
+      isProduction: true
+    };
+    console.log('🚀 Vercel deployment detected, using production:', config);
+    return config;
+  }
+  
+  // Check environment variable first
+  if (import.meta.env.VITE_API_URL) {
+    const config: EnvironmentConfig = {
+      apiUrl: import.meta.env.VITE_API_URL,
+      socketUrl: import.meta.env.VITE_API_URL,
+      environment: import.meta.env.PROD ? 'production' : 'development',
+      isDevelopment: !import.meta.env.PROD,
+      isProduction: import.meta.env.PROD
+    };
+    console.log('🔧 Using VITE_API_URL:', config);
+    return config;
+  }
+  
   // Local development
   if (hostname === 'localhost' || hostname.startsWith('127.0.0.1') || hostname.startsWith('192.168.')) {
-    return {
-      name: 'local',
+    const config: EnvironmentConfig = {
       apiUrl: 'http://localhost:3001',
-      wsUrl: 'ws://localhost:3001',
-      corsOrigins: [
-        'http://localhost:5173',
-        'http://localhost:3000',
-        'http://127.0.0.1:5173',
-        'http://127.0.0.1:3000'
-      ],
-      isProduction: false,
-      isDevelopment: false,
-      isLocal: true
+      socketUrl: 'http://localhost:3001',
+      environment: 'development',
+      isDevelopment: true,
+      isProduction: false
     };
+    console.log('🏠 Local development detected:', config);
+    return config;
   }
-
-  // Fallback to production (unknown hostname)
-  console.warn('⚠️ Unknown hostname, falling back to production:', hostname);
-  return {
-    name: 'fallback-production',
-    apiUrl: 'https://fanclubz-prod.onrender.com',
-    wsUrl: 'wss://fanclubz-prod.onrender.com',
-    corsOrigins: [
-      `https://${hostname}`,
-      'https://app.fanclubz.app'
-    ],
-    isProduction: true,
+  
+  // Fallback to production
+  const config: EnvironmentConfig = {
+    apiUrl: 'https://fan-club-z.onrender.com',
+    socketUrl: 'https://fan-club-z.onrender.com',
+    environment: 'production',
     isDevelopment: false,
-    isLocal: false
+    isProduction: true
   };
+  console.log('🔄 Unknown hostname, falling back to production:', config);
+  return config;
 }
 
-/**
- * Get the API URL for the current environment
- */
 export function getApiUrl(): string {
+  return getEnvironmentConfig().apiUrl;
+}
+
+export function getSocketUrl(): string {
   const config = getEnvironmentConfig();
-  console.log('🔧 API URL for environment:', config.name, config.apiUrl);
-  return config.apiUrl;
+  console.log('🔧 Socket URL configuration:', {
+    hostname: window.location.hostname,
+    configuredUrl: config.socketUrl,
+    environment: config.environment,
+    isDevelopment: config.isDevelopment,
+    isProduction: config.isProduction
+  });
+  return config.socketUrl;
 }
 
-/**
- * Get the WebSocket URL for the current environment
- */
-export function getWsUrl(): string {
-  const config = getEnvironmentConfig();
-  console.log('🔧 WebSocket URL for environment:', config.name, config.wsUrl);
-  return config.wsUrl;
-}
-
-/**
- * Check if we're in production environment
- */
-export function isProduction(): boolean {
-  return getEnvironmentConfig().isProduction;
-}
-
-/**
- * Check if we're in development environment
- */
 export function isDevelopment(): boolean {
   return getEnvironmentConfig().isDevelopment;
 }
 
-/**
- * Check if we're in local development
- */
-export function isLocal(): boolean {
-  return getEnvironmentConfig().isLocal;
+export function isProduction(): boolean {
+  return getEnvironmentConfig().isProduction;
 }
-
-/**
- * Get environment-specific configuration for debugging
- */
-export function getEnvironmentInfo() {
-  const config = getEnvironmentConfig();
-  return {
-    ...config,
-    userAgent: navigator.userAgent,
-    timestamp: new Date().toISOString(),
-    url: window.location.href
-  };
-}
-
-// Export the current environment config for easy access
-export const currentEnvironment = getEnvironmentConfig();

@@ -1,7 +1,7 @@
 import { io, Socket } from 'socket.io-client';
 import { create } from 'zustand';
 import { useAuthStore } from './authStore';
-import { getApiUrl, getWsUrl, getEnvironmentConfig } from '../lib/environment';
+import { getSocketUrl } from '../lib/environment';
 
 export interface ChatMessage {
   id: string;
@@ -112,6 +112,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     const { user } = useAuthStore.getState();
     if (!user) {
       console.warn('⚠️ Cannot initialize socket without authenticated user');
+      set({ connectionError: 'User not authenticated' });
       return;
     }
 
@@ -121,22 +122,21 @@ export const useChatStore = create<ChatState>((set, get) => ({
     console.log('🔗 Connecting to chat server:', serverUrl);
     console.log('🌍 Environment:', import.meta.env.MODE);
     console.log('🌍 Is Production:', import.meta.env.PROD);
+    console.log('👤 User:', user.username || user.email);
     
     const newSocket = io(serverUrl, {
       withCredentials: true,
       transports: ['websocket', 'polling'],
-      timeout: 30000, // Increased timeout for Render
+      timeout: 30000,
       reconnection: true,
-      reconnectionAttempts: 10, // More attempts
-      reconnectionDelay: 2000, // Longer delay
-      reconnectionDelayMax: 10000,
-      maxReconnectionAttempts: 10,
-      // Additional options for Render compatibility
-      upgrade: true,
-      rememberUpgrade: true,
-      forceNew: true,
-      // Add query parameters for debugging
+      reconnectionAttempts: 5, // Reduced for faster feedback
+      reconnectionDelay: 1000, // Shorter delay
+      reconnectionDelayMax: 5000,
+      forceNew: false, // Allow connection reuse
+      autoConnect: true,
       query: {
+        userId: user.id,
+        username: user.username || user.email?.split('@')[0] || 'Anonymous',
         clientType: 'web',
         version: '2.0.0',
         environment: import.meta.env.MODE
@@ -149,14 +149,15 @@ export const useChatStore = create<ChatState>((set, get) => ({
       console.log('🆔 Socket ID:', newSocket.id);
       console.log('🔧 Transport:', newSocket.io.engine.transport.name);
       
+      // Don't mark as connected until authenticated
       set({ 
-        isConnected: true, 
-        isConnecting: false, 
+        isConnecting: true, // Still connecting until authenticated
         connectionError: null,
         reconnectAttempts: 0 
       });
       
-      // Authenticate with the server
+      // Authenticate immediately with the server
+      console.log('🔐 Sending authentication...');
       newSocket.emit('authenticate', {
         userId: user.id,
         username: user.username || user.email?.split('@')[0] || 'Anonymous',
@@ -204,11 +205,18 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
     newSocket.on('reconnect', (attemptNumber) => {
       console.log('🔄 Reconnected after', attemptNumber, 'attempts');
+      // Don't mark as connected until re-authenticated
       set({ 
-        isConnected: true, 
-        isConnecting: false, 
+        isConnecting: true, 
         connectionError: null,
         reconnectAttempts: 0 
+      });
+      
+      // Re-authenticate after reconnection
+      newSocket.emit('authenticate', {
+        userId: user.id,
+        username: user.username || user.email?.split('@')[0] || 'Anonymous',
+        avatar: user.avatar_url
       });
     });
 
@@ -229,11 +237,22 @@ export const useChatStore = create<ChatState>((set, get) => ({
     // Authentication events
     newSocket.on('authenticated', (data) => {
       console.log('✅ Authenticated with server:', data);
+      // NOW mark as connected
+      set({ 
+        isConnected: true, 
+        isConnecting: false, 
+        connectionError: null,
+        reconnectAttempts: 0 
+      });
     });
 
     newSocket.on('auth_error', (data) => {
       console.error('❌ Authentication error:', data);
-      set({ connectionError: 'Authentication failed' });
+      set({ 
+        isConnected: false,
+        isConnecting: false,
+        connectionError: 'Authentication failed' 
+      });
     });
 
     // Chat events
@@ -583,18 +602,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
 // Helper function to get the correct server URL using environment detection
 function getServerUrl(): string {
-  // First check environment variables
-  if (import.meta.env.VITE_API_URL) {
-    console.log('🔧 Using VITE_API_URL:', import.meta.env.VITE_API_URL);
-    return import.meta.env.VITE_API_URL;
-  }
-
-  // Use the new environment detection system
-  const config = getEnvironmentConfig();
-  console.log('🌍 Environment detected:', config.name);
-  console.log('🔧 Using API URL:', config.apiUrl);
-  
-  return config.apiUrl;
+  const serverUrl = getSocketUrl();
+  console.log('🔧 Using detected server URL:', serverUrl);
+  return serverUrl;
 }
 
 // Helper function to get user-friendly connection error messages
