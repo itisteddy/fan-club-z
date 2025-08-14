@@ -507,7 +507,7 @@ app.post('/api/v2/clubs', mockAuth, (req, res) => {
   mockClubs.unshift(newClub);
   console.log(`🎉 New club created: ${newClub.name}`);
   
-  res.status(201).json({
+  return res.status(201).json({
     success: true,
     data: newClub,
     message: 'Club created successfully'
@@ -813,7 +813,7 @@ app.get('/api/v2/social/comments', mockAuth, (req, res) => {
     }
   ];
   
-  res.json({
+  return res.json({
     success: true,
     data: mockComments,
     message: 'Comments retrieved successfully'
