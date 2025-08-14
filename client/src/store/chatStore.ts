@@ -597,21 +597,21 @@ function getServerUrl(): string {
   
   // Production domain
   if (hostname === 'app.fanclubz.app' || hostname === 'fanclubz.app') {
-    const serverUrl = 'https://fan-club-z.onrender.com';
-    console.log('🚀 Production domain detected, using Render server:', serverUrl);
+    const serverUrl = 'https://fanclubz-prod.onrender.com';
+    console.log('🚀 Production domain detected, using Render prod server:', serverUrl);
     return serverUrl;
   }
   
   // Development domain
   if (hostname === 'dev.fanclubz.app') {
-    const serverUrl = 'https://fan-club-z.onrender.com';
-    console.log('🧪 Development domain detected, using Render server:', serverUrl);
+    const serverUrl = 'https://fanclubz-dev.onrender.com';
+    console.log('🧪 Development domain detected, using Render dev server:', serverUrl);
     return serverUrl;
   }
   
   // Vercel deployments (fallback to production)
   if (hostname.includes('vercel.app')) {
-    const serverUrl = 'https://fan-club-z.onrender.com';
+    const serverUrl = 'https://fanclubz-prod.onrender.com';
     console.log('🚀 Vercel deployment detected, using Render production server:', serverUrl);
     return serverUrl;
   }
@@ -624,7 +624,7 @@ function getServerUrl(): string {
   }
   
   // Fallback to production server
-  const fallbackUrl = 'https://fan-club-z.onrender.com';
+  const fallbackUrl = 'https://fanclubz-prod.onrender.com';
   console.log('🔄 Unknown hostname, falling back to production:', fallbackUrl);
   return fallbackUrl;
 }
