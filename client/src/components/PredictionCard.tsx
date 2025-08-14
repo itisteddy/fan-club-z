@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Heart, MessageCircle, Share, TrendingUp, Clock, Users } from 'lucide-react';
+import { Heart, MessageCircle, Share, TrendingUp, Clock, Users, X } from 'lucide-react';
 import { Prediction, PredictionEntry } from '../store/predictionStore';
 import { useLikeStore } from '../store/likeStore';
 import { useCommentStore } from '../store/commentStore';
 import CommentModal from './modals/CommentModal';
 import { ChatModal } from './modals/ChatModal';
+import { CommentSystem } from './CommentSystem';
 import toast from 'react-hot-toast';
 
 interface PredictionCardProps {
@@ -33,6 +34,7 @@ const PredictionCard: React.FC<PredictionCardProps> = ({
   const { getCommentCount } = useCommentStore();
   const [commentModalOpen, setCommentModalOpen] = useState(false);
   const [chatModalOpen, setChatModalOpen] = useState(false);
+  const [commentSystemOpen, setCommentSystemOpen] = useState(false);
   const [isLiking, setIsLiking] = useState(false);
 
   // Get real-time data from stores
@@ -68,7 +70,7 @@ const PredictionCard: React.FC<PredictionCardProps> = ({
     if (customOnComment) {
       customOnComment();
     } else {
-      setChatModalOpen(true);
+      setCommentSystemOpen(true);
     }
   };
 
@@ -152,12 +154,33 @@ const PredictionCard: React.FC<PredictionCardProps> = ({
           </div>
         </motion.div>
 
-        <ChatModal
-          isOpen={chatModalOpen}
-          onClose={() => setChatModalOpen(false)}
-          predictionId={prediction.id}
-          predictionTitle={prediction.title}
-        />
+        {/* Comment System Modal */}
+        {commentSystemOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9 }}
+              className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[80vh] overflow-hidden"
+            >
+              <div className="flex items-center justify-between p-4 border-b border-gray-200">
+                <h3 className="text-lg font-bold text-gray-900">Comments</h3>
+                <button
+                  onClick={() => setCommentSystemOpen(false)}
+                  className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+                >
+                  <X size={20} className="text-gray-500" />
+                </button>
+              </div>
+              <div className="max-h-[calc(80vh-80px)] overflow-y-auto">
+                <CommentSystem 
+                  predictionId={prediction.id} 
+                  className="p-4"
+                />
+              </div>
+            </motion.div>
+          </div>
+        )}
       </>
     );
   }
@@ -329,12 +352,33 @@ const PredictionCard: React.FC<PredictionCardProps> = ({
         </div>
       </motion.div>
 
-      <ChatModal
-        isOpen={chatModalOpen}
-        onClose={() => setChatModalOpen(false)}
-        predictionId={prediction.id}
-        predictionTitle={prediction.title}
-      />
+      {/* Comment System Modal */}
+      {commentSystemOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.9 }}
+            className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[80vh] overflow-hidden"
+          >
+            <div className="flex items-center justify-between p-4 border-b border-gray-200">
+              <h3 className="text-lg font-bold text-gray-900">Comments</h3>
+              <button
+                onClick={() => setCommentSystemOpen(false)}
+                className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+              >
+                <X size={20} className="text-gray-500" />
+              </button>
+            </div>
+            <div className="max-h-[calc(80vh-80px)] overflow-y-auto">
+              <CommentSystem 
+                predictionId={prediction.id} 
+                className="p-4"
+              />
+            </div>
+          </motion.div>
+        </div>
+      )}
     </>
   );
 };
