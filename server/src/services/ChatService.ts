@@ -1,6 +1,5 @@
 import { Server } from 'socket.io';
-import { createServer } from 'http';
-import express from 'express';
+import { Server as HttpServer } from 'http';
 import { supabase } from '../config/supabase.js';
 import logger from '../utils/logger';
 import { config } from '../config';
@@ -22,12 +21,12 @@ interface ConnectedUser {
 
 export class ChatService {
   private io: Server;
-  private httpServer: any;
+  private httpServer: HttpServer;
   private connectedUsers: Map<string, ConnectedUser> = new Map();
   private typingUsers: Map<string, Set<string>> = new Map(); // predictionId -> Set of usernames
 
-  constructor(app: express.Application) {
-    this.httpServer = createServer(app);
+  constructor(httpServer: HttpServer) {
+    this.httpServer = httpServer;
     
     // Configure comprehensive CORS for Socket.IO
     const allowedOrigins = this.getAllowedOrigins();

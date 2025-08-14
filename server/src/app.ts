@@ -3,6 +3,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import compression from 'compression';
 import morgan from 'morgan';
+import { createServer } from 'http';
 import { config } from './config';
 import logger from './utils/logger';
 import { errorHandler } from './middleware/error';
@@ -177,14 +178,16 @@ app.use('*', (req, res) => {
 app.use(errorHandler);
 
 // ============================================================================
-// WEBSOCKET & SERVER STARTUP
+// HTTP SERVER & WEBSOCKET SETUP
 // ============================================================================
 
 const PORT = config.server.port;
 
-// Initialize WebSocket chat service
-const chatService = new ChatService(app);
-const server = chatService.getHttpServer();
+// Create HTTP server from Express app
+const server = createServer(app);
+
+// Initialize WebSocket chat service with the HTTP server
+const chatService = new ChatService(server);
 
 server.listen(PORT, () => {
   logger.info(`🚀 Fan Club Z Server started on port ${PORT}`);
