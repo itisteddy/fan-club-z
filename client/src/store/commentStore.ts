@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { supabase } from '../lib/api';
+import { supabase } from '../lib/supabase';
 
 export interface Comment {
   id: string;
@@ -19,22 +19,49 @@ export interface Comment {
 
 interface CommentState {
   comments: Comment[];
+  commentCounts: Record<string, number>;
   loading: boolean;
   error: string | null;
 }
 
 interface CommentActions {
+  initializeCommentCounts: () => Promise<void>;
   fetchComments: (predictionId: string) => Promise<void>;
   addComment: (predictionId: string, content: string) => Promise<void>;
   likeComment: (commentId: string) => Promise<void>;
   unlikeComment: (commentId: string) => Promise<void>;
+  getCommentCount: (predictionId: string) => number;
   clearError: () => void;
 }
 
 export const useCommentStore = create<CommentState & CommentActions>((set, get) => ({
   comments: [],
+  commentCounts: {},
   loading: false,
   error: null,
+
+  initializeCommentCounts: async () => {
+    try {
+      // Fetch comment counts for all predictions
+      const { data: commentCounts, error } = await supabase
+        .from('predictions')
+        .select('id, comments_count');
+
+      if (error) {
+        console.error('Error fetching comment counts:', error);
+        return;
+      }
+
+      const countsMap = Object.fromEntries(
+        commentCounts?.map(pred => [pred.id, pred.comments_count || 0]) || []
+      );
+
+      set({ commentCounts: countsMap });
+
+    } catch (error) {
+      console.error('Error initializing comment counts:', error);
+    }
+  },
 
   fetchComments: async (predictionId: string) => {
     set({ loading: true, error: null });
@@ -43,7 +70,7 @@ export const useCommentStore = create<CommentState & CommentActions>((set, get) 
         .from('comments')
         .select(`
           *,
-          user:users(id, username, avatar_url)
+          user:users!user_id(id, username, full_name, avatar_url)
         `)
         .eq('prediction_id', predictionId)
         .order('created_at', { ascending: true });
@@ -57,6 +84,12 @@ export const useCommentStore = create<CommentState & CommentActions>((set, get) 
       
       const commentsWithLikes = comments?.map(comment => ({
         ...comment,
+        user: {
+          id: comment.user.id,
+          username: comment.user.username || comment.user.full_name || 'Anonymous',
+          avatar_url: comment.user.avatar_url
+        },
+        likes_count: 0, // TODO: Implement comment likes count
         is_liked_by_user: false // TODO: Implement user likes check
       })) || [];
 
@@ -75,32 +108,59 @@ export const useCommentStore = create<CommentState & CommentActions>((set, get) 
         throw new Error('User not authenticated');
       }
 
-      const { data: comment, error } = await supabase
+      // Add comment to database
+      const { data: comment, error: commentError } = await supabase
         .from('comments')
         .insert({
           prediction_id: predictionId,
           user_id: user.id,
-          content: content.trim()
+          content: content.trim(),
+          created_at: new Date().toISOString()
         })
         .select(`
           *,
-          user:users(id, username, avatar_url)
+          user:users!user_id(id, username, full_name, avatar_url)
         `)
         .single();
 
-      if (error) {
-        throw error;
+      if (commentError) {
+        throw commentError;
+      }
+
+      // Update prediction comments count
+      const currentCount = get().commentCounts[predictionId] || 0;
+      const { error: updateError } = await supabase
+        .from('predictions')
+        .update({ 
+          comments_count: currentCount + 1,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', predictionId);
+
+      if (updateError) {
+        console.error('Error updating prediction comments count:', updateError);
       }
 
       const newComment: Comment = {
         ...comment,
+        user: {
+          id: comment.user.id,
+          username: comment.user.username || comment.user.full_name || 'Anonymous',
+          avatar_url: comment.user.avatar_url
+        },
         likes_count: 0,
         is_liked_by_user: false
       };
 
+      // Update local state
       set(state => ({
-        comments: [...state.comments, newComment]
+        comments: [...state.comments, newComment],
+        commentCounts: {
+          ...state.commentCounts,
+          [predictionId]: currentCount + 1
+        }
       }));
+
     } catch (error) {
       console.error('Error adding comment:', error);
       set({ error: 'Failed to add comment' });
@@ -121,7 +181,8 @@ export const useCommentStore = create<CommentState & CommentActions>((set, get) 
         .from('comment_likes')
         .insert({
           comment_id: commentId,
-          user_id: user.id
+          user_id: user.id,
+          created_at: new Date().toISOString()
         });
 
       if (error && !error.message.includes('duplicate')) {
@@ -173,6 +234,10 @@ export const useCommentStore = create<CommentState & CommentActions>((set, get) 
       console.error('Error unliking comment:', error);
       set({ error: 'Failed to unlike comment' });
     }
+  },
+
+  getCommentCount: (predictionId: string) => {
+    return get().commentCounts[predictionId] || 0;
   },
 
   clearError: () => {

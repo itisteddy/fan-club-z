@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase';
 
 export interface Transaction {
   id: string;
-  type: 'deposit' | 'withdraw' | 'prediction' | 'win' | 'loss' | 'refund' | 'transfer_in' | 'transfer_out';
+  type: 'deposit' | 'withdraw' | 'prediction' | 'prediction_lock' | 'prediction_release' | 'win' | 'loss' | 'refund' | 'transfer_in' | 'transfer_out';
   amount: number;
   description: string;
   date: Date;
@@ -20,7 +20,7 @@ interface WalletBalance {
   currency: 'USD';
   available: number;
   reserved: number;
-  total: number; // This will be calculated as available + reserved
+  total: number;
 }
 
 interface WalletState {
@@ -29,6 +29,11 @@ interface WalletState {
   isDemoMode: boolean;
   isLoading: boolean;
   error: string | null;
+  
+  // Computed properties for easy access
+  balance: number; // Available USD balance
+  totalBalance: number; // Total USD balance (available + reserved)
+  reservedBalance: number; // Reserved USD balance
   
   // Actions
   initializeWallet: () => Promise<void>;
@@ -53,9 +58,6 @@ const generateDemoReference = (type: string): string => {
   return `DEMO_${type.toUpperCase()}_${timestamp}_${random}`;
 };
 
-// Removed showDemoNotification function to prevent duplicate notifications
-// All notifications now handled by react-hot-toast for consistency
-
 export const useWalletStore = create<WalletState>()(
     (set, get) => ({
       balances: [
@@ -65,16 +67,36 @@ export const useWalletStore = create<WalletState>()(
       isDemoMode: true,
       isLoading: false,
       error: null,
+      
+      // Computed properties
+      get balance() {
+        const state = get();
+        const usdBalance = state.balances.find(b => b.currency === 'USD');
+        return usdBalance?.available || 0;
+      },
+      
+      get totalBalance() {
+        const state = get();
+        const usdBalance = state.balances.find(b => b.currency === 'USD');
+        return usdBalance?.total || 0;
+      },
+      
+      get reservedBalance() {
+        const state = get();
+        const usdBalance = state.balances.find(b => b.currency === 'USD');
+        return usdBalance?.reserved || 0;
+      },
 
       initializeWallet: async () => {
-        const state = get();
         console.log('🔄 Initializing wallet with real database data...');
+        set({ isLoading: true, error: null });
         
         try {
           // Get current user
           const { data: { user } } = await supabase.auth.getUser();
           if (!user) {
             console.log('⚠️ No authenticated user found for wallet initialization');
+            set({ isLoading: false });
             return;
           }
 
@@ -89,7 +111,7 @@ export const useWalletStore = create<WalletState>()(
               .select('*')
               .eq('user_id', user.id)
               .order('created_at', { ascending: false })
-              .limit(20) // Reduced limit for faster loading
+              .limit(20)
           ]);
 
           const { data: walletData, error: walletError } = walletResult;
@@ -97,6 +119,7 @@ export const useWalletStore = create<WalletState>()(
 
           if (walletError) {
             console.error('❌ Error fetching wallet data:', walletError);
+            set({ isLoading: false, error: 'Failed to load wallet data' });
             return;
           }
 
@@ -109,41 +132,46 @@ export const useWalletStore = create<WalletState>()(
           let balances: WalletBalance[];
           
           if (walletData && walletData.length > 0) {
-          // User has existing wallet data - filter to only USD
-          const usdWallet = walletData.find(w => w.currency === 'USD');
-          balances = usdWallet ? [{
-              currency: 'USD',
-              available: usdWallet.available_balance || 0,
-              reserved: usdWallet.reserved_balance || 0,
-              total: (usdWallet.available_balance || 0) + (usdWallet.reserved_balance || 0),
-            }] : [{ currency: 'USD', available: 0, reserved: 0, total: 0 }];
+            // User has existing wallet data - filter to only USD
+            const usdWallet = walletData.find(w => w.currency === 'USD');
+            if (usdWallet) {
+              const available = Number(usdWallet.available_balance) || 0;
+              const reserved = Number(usdWallet.reserved_balance) || 0;
+              balances = [{
+                currency: 'USD',
+                available,
+                reserved,
+                total: available + reserved,
+              }];
+            } else {
+              balances = [{ currency: 'USD', available: 0, reserved: 0, total: 0 }];
+            }
           } else {
-            // New user - create default wallet with $0 balance
-            console.log('🆕 Creating default wallet for new user with $0 balance');
+            // New user - create default wallet with $1000 demo balance
+            console.log('🆕 Creating default wallet for new user with $1000 demo balance');
             balances = [
-              { currency: 'USD', available: 0, reserved: 0, total: 0 },
+              { currency: 'USD', available: 1000, reserved: 0, total: 1000 },
             ];
             
-            // Create wallet records in database for new user - optimized for performance
+            // Create wallet records in database for new user
             try {
-              // Create only USD wallet record for MVP
               const walletRecord = {
                 user_id: user.id,
                 currency: 'USD',
-                available_balance: 0,
+                available_balance: 1000, // Start with demo balance
                 reserved_balance: 0,
-                total_deposited: 0,
+                total_deposited: 1000,
                 total_withdrawn: 0,
                 created_at: new Date().toISOString(),
                 updated_at: new Date().toISOString()
               };
               
-              const { error: bulkError } = await supabase
+              const { error: insertError } = await supabase
                 .from('wallets')
                 .insert([walletRecord]);
               
-              if (bulkError) {
-                console.error('❌ Error creating default wallet records:', bulkError);
+              if (insertError) {
+                console.error('❌ Error creating default wallet records:', insertError);
               } else {
                 console.log('✅ Default wallet records created for new user');
               }
@@ -155,15 +183,16 @@ export const useWalletStore = create<WalletState>()(
           const transactions: Transaction[] = transactionData?.map(tx => ({
             id: tx.id,
             type: tx.type as any,
-            amount: tx.amount || 0,
+            amount: Number(tx.amount) || 0,
             description: tx.description || '',
             date: new Date(tx.created_at),
             status: tx.status as any,
             reference: tx.reference,
             currency: tx.currency as any,
-            fee: tx.fee,
+            fee: Number(tx.fee) || 0,
             fromUser: tx.from_user,
             toUser: tx.to_user,
+            predictionId: tx.prediction_id,
           })) || [];
 
           set({ 
@@ -175,7 +204,8 @@ export const useWalletStore = create<WalletState>()(
 
           console.log('✅ Wallet initialized with real database data:', {
             balances: balances.length,
-            transactions: transactions.length
+            transactions: transactions.length,
+            usdBalance: balances.find(b => b.currency === 'USD')
           });
 
         } catch (error) {
@@ -190,11 +220,9 @@ export const useWalletStore = create<WalletState>()(
 
       setDemoMode: (isDemoMode: boolean) => {
         set({ isDemoMode });
-        // Demo mode notification handled by UI component if needed
       },
 
       simulateNetworkDelay: async () => {
-        // Reduced delay for better performance - only 100-300ms
         const delay = Math.random() * 200 + 100; // 100-300ms delay
         await new Promise(resolve => setTimeout(resolve, delay));
       },
@@ -225,17 +253,36 @@ export const useWalletStore = create<WalletState>()(
             throw new Error('User not authenticated');
           }
 
+          // Get current wallet balance
+          const { data: currentWallet, error: fetchError } = await supabase
+            .from('wallets')
+            .select('*')
+            .eq('user_id', user.id)
+            .eq('currency', currency)
+            .single();
+
+          if (fetchError && fetchError.code !== 'PGRST116') {
+            throw new Error(`Failed to fetch current balance: ${fetchError.message}`);
+          }
+
+          // Calculate new balance
+          const currentAvailable = Number(currentWallet?.available_balance) || 0;
+          const currentReserved = Number(currentWallet?.reserved_balance) || 0;
+          const currentTotalDeposited = Number(currentWallet?.total_deposited) || 0;
+          const newAvailable = currentAvailable + amount;
+          const newTotalDeposited = currentTotalDeposited + amount;
+
           // Create transaction record in database
           const { data: transaction, error: transactionError } = await supabase
             .from('wallet_transactions')
             .insert({
               user_id: user.id,
-            type: 'deposit',
+              type: 'deposit',
               amount: amount,
-            description: `${method} Deposit${isDemoMode ? ' (Demo)' : ''}`,
+              description: `${method} Deposit${isDemoMode ? ' (Demo)' : ''}`,
               currency: currency,
               status: 'completed',
-            reference: generateDemoReference('deposit'),
+              reference: generateDemoReference('deposit'),
               fee: 0
             })
             .select()
@@ -251,10 +298,10 @@ export const useWalletStore = create<WalletState>()(
             .upsert({
               user_id: user.id,
               currency: currency,
-              available_balance: amount,
-              reserved_balance: 0,
-              total_deposited: amount,
-              total_withdrawn: 0,
+              available_balance: newAvailable,
+              reserved_balance: currentReserved,
+              total_deposited: newTotalDeposited,
+              total_withdrawn: currentWallet?.total_withdrawn || 0,
               updated_at: new Date().toISOString()
             }, {
               onConflict: 'user_id,currency'
@@ -266,8 +313,6 @@ export const useWalletStore = create<WalletState>()(
 
           // Refresh wallet data
           await get().refreshWalletData();
-
-          // Success notification handled by UI component
 
           return {
             id: transaction.id,
@@ -284,12 +329,12 @@ export const useWalletStore = create<WalletState>()(
         } catch (error) {
           const errorMessage = error instanceof Error ? error.message : 'Deposit failed';
           set({ error: errorMessage, isLoading: false });
-          // Error notification handled by UI component
           throw error;
+        } finally {
+          set({ isLoading: false });
         }
       },
 
-      // ... rest of the methods remain similar but use database operations
       withdraw: async (amount: number, currency: 'USD' = 'USD', destination: string = 'Bank Account') => {
         const { isDemoMode, simulateNetworkDelay, getBalance } = get();
         
@@ -301,11 +346,6 @@ export const useWalletStore = create<WalletState>()(
           // Prevent negative balances
           if (amount > currentBalance) {
             throw new Error('Insufficient funds for withdrawal');
-          }
-
-          // For demo mode, prevent withdrawals that would result in negative balance
-          if (isDemoMode && amount >= currentBalance) {
-            throw new Error('Demo mode: Cannot withdraw all funds. Please keep some balance for testing.');
           }
 
           if (isDemoMode) {
@@ -331,10 +371,8 @@ export const useWalletStore = create<WalletState>()(
           }
 
           // Calculate new balance
-          const newAvailableBalance = currentWallet ? 
-            Math.max(0, currentWallet.available_balance - amount) : 0;
-          const newTotalWithdrawn = currentWallet ? 
-            currentWallet.total_withdrawn + amount : amount;
+          const newAvailableBalance = Math.max(0, (Number(currentWallet?.available_balance) || 0) - amount);
+          const newTotalWithdrawn = (Number(currentWallet?.total_withdrawn) || 0) + amount;
 
           // Create transaction record
           const { data: transaction, error: transactionError } = await supabase
@@ -378,8 +416,6 @@ export const useWalletStore = create<WalletState>()(
           // Refresh wallet data
           await get().refreshWalletData();
 
-          // Success notification handled by UI component
-
           return {
             id: transaction.id,
             type: 'withdraw',
@@ -395,12 +431,13 @@ export const useWalletStore = create<WalletState>()(
         } catch (error) {
           const errorMessage = error instanceof Error ? error.message : 'Withdrawal failed';
           set({ error: errorMessage, isLoading: false });
-          // Error notification handled by UI component
           throw error;
+        } finally {
+          set({ isLoading: false });
         }
       },
 
-      // Add reset demo balance function
+      // Reset demo balance function
       resetDemoBalance: async () => {
         const { isDemoMode } = get();
         
@@ -418,36 +455,33 @@ export const useWalletStore = create<WalletState>()(
           }
 
           // Reset balance to demo amount - USD only
-          const demoBalance = {
-            currency: 'USD', 
-            available_balance: 1000, 
-            total_deposited: 1000 
-          };
-
-          await supabase
+          const { error: walletError } = await supabase
             .from('wallets')
             .upsert({
               user_id: user.id,
-              currency: demoBalance.currency,
-              available_balance: demoBalance.available_balance,
+              currency: 'USD',
+              available_balance: 1000,
               reserved_balance: 0,
-              total_deposited: demoBalance.total_deposited,
+              total_deposited: 1000,
               total_withdrawn: 0,
               updated_at: new Date().toISOString()
             }, {
               onConflict: 'user_id,currency'
             });
 
+          if (walletError) {
+            throw new Error(`Failed to reset wallet: ${walletError.message}`);
+          }
+
           // Refresh wallet data
           await get().refreshWalletData();
-
-          // Success notification handled by UI component
 
         } catch (error) {
           const errorMessage = error instanceof Error ? error.message : 'Failed to reset demo balance';
           set({ error: errorMessage, isLoading: false });
-          // Error notification handled by UI component
           throw error;
+        } finally {
+          set({ isLoading: false });
         }
       },
 
@@ -460,7 +494,7 @@ export const useWalletStore = create<WalletState>()(
           throw new Error('Insufficient funds for prediction');
         }
 
-        set({ isLoading: true });
+        set({ isLoading: true, error: null });
 
         try {
           // Get current user
@@ -468,6 +502,24 @@ export const useWalletStore = create<WalletState>()(
           if (!user) {
             throw new Error('User not authenticated');
           }
+
+          // Get current wallet data
+          const { data: currentWallet, error: walletFetchError } = await supabase
+            .from('wallets')
+            .select('*')
+            .eq('user_id', user.id)
+            .eq('currency', currency)
+            .single();
+
+          if (walletFetchError && walletFetchError.code !== 'PGRST116') {
+            throw new Error(`Failed to fetch wallet: ${walletFetchError.message}`);
+          }
+
+          // Calculate new balances
+          const currentAvailable = Number(currentWallet?.available_balance) || 0;
+          const currentReserved = Number(currentWallet?.reserved_balance) || 0;
+          const newAvailable = currentAvailable - amount;
+          const newReserved = currentReserved + amount;
 
           // Create transaction record
           const { data: transaction, error: transactionError } = await supabase
@@ -480,6 +532,7 @@ export const useWalletStore = create<WalletState>()(
               currency: currency,
               status: 'completed',
               reference: generateDemoReference('prediction'),
+              prediction_id: predictionId,
             })
             .select()
             .single();
@@ -494,10 +547,10 @@ export const useWalletStore = create<WalletState>()(
             .upsert({
               user_id: user.id,
               currency: currency,
-              available_balance: -amount,
-              reserved_balance: amount, // Reserve the amount
-              total_deposited: 0,
-              total_withdrawn: 0,
+              available_balance: newAvailable,
+              reserved_balance: newReserved,
+              total_deposited: currentWallet?.total_deposited || 0,
+              total_withdrawn: currentWallet?.total_withdrawn || 0,
               updated_at: new Date().toISOString()
             }, {
               onConflict: 'user_id,currency'
@@ -512,24 +565,26 @@ export const useWalletStore = create<WalletState>()(
 
           return {
             id: transaction.id,
-          type: 'prediction',
-          amount,
-          description,
+            type: 'prediction',
+            amount,
+            description,
             date: new Date(transaction.created_at),
-          status: 'completed',
+            status: 'completed',
             reference: transaction.reference,
-          currency,
-          predictionId
-        };
+            currency,
+            predictionId
+          };
 
         } catch (error) {
           set({ isLoading: false });
           throw error;
+        } finally {
+          set({ isLoading: false });
         }
       },
 
       recordWin: async (amount: number, description: string, predictionId: string, currency: 'USD' = 'USD') => {
-        set({ isLoading: true });
+        set({ isLoading: true, error: null });
 
         try {
           // Get current user
@@ -537,6 +592,24 @@ export const useWalletStore = create<WalletState>()(
           if (!user) {
             throw new Error('User not authenticated');
           }
+
+          // Get current wallet data
+          const { data: currentWallet, error: walletFetchError } = await supabase
+            .from('wallets')
+            .select('*')
+            .eq('user_id', user.id)
+            .eq('currency', currency)
+            .single();
+
+          if (walletFetchError && walletFetchError.code !== 'PGRST116') {
+            throw new Error(`Failed to fetch wallet: ${walletFetchError.message}`);
+          }
+
+          // Calculate new balances (release reserved funds + add winnings)
+          const currentAvailable = Number(currentWallet?.available_balance) || 0;
+          const currentReserved = Number(currentWallet?.reserved_balance) || 0;
+          const newAvailable = currentAvailable + amount;
+          const newReserved = Math.max(0, currentReserved - amount); // Reduce reserved by original stake
 
           // Create transaction record
           const { data: transaction, error: transactionError } = await supabase
@@ -549,6 +622,7 @@ export const useWalletStore = create<WalletState>()(
               currency: currency,
               status: 'completed',
               reference: generateDemoReference('win'),
+              prediction_id: predictionId,
             })
             .select()
             .single();
@@ -563,10 +637,10 @@ export const useWalletStore = create<WalletState>()(
             .upsert({
               user_id: user.id,
               currency: currency,
-              available_balance: amount,
-              reserved_balance: 0,
-              total_deposited: amount,
-              total_withdrawn: 0,
+              available_balance: newAvailable,
+              reserved_balance: newReserved,
+              total_deposited: currentWallet?.total_deposited || 0,
+              total_withdrawn: currentWallet?.total_withdrawn || 0,
               updated_at: new Date().toISOString()
             }, {
               onConflict: 'user_id,currency'
@@ -581,24 +655,26 @@ export const useWalletStore = create<WalletState>()(
 
           return {
             id: transaction.id,
-          type: 'win',
-          amount,
-          description,
+            type: 'win',
+            amount,
+            description,
             date: new Date(transaction.created_at),
-          status: 'completed',
+            status: 'completed',
             reference: transaction.reference,
-          currency,
-          predictionId
-        };
+            currency,
+            predictionId
+          };
 
         } catch (error) {
           set({ isLoading: false });
           throw error;
+        } finally {
+          set({ isLoading: false });
         }
       },
 
       recordLoss: async (amount: number, description: string, predictionId: string, currency: 'USD' = 'USD') => {
-        set({ isLoading: true });
+        set({ isLoading: true, error: null });
 
         try {
           // Get current user
@@ -606,6 +682,22 @@ export const useWalletStore = create<WalletState>()(
           if (!user) {
             throw new Error('User not authenticated');
           }
+
+          // Get current wallet data
+          const { data: currentWallet, error: walletFetchError } = await supabase
+            .from('wallets')
+            .select('*')
+            .eq('user_id', user.id)
+            .eq('currency', currency)
+            .single();
+
+          if (walletFetchError && walletFetchError.code !== 'PGRST116') {
+            throw new Error(`Failed to fetch wallet: ${walletFetchError.message}`);
+          }
+
+          // Calculate new balances (release reserved funds, no winnings)
+          const currentReserved = Number(currentWallet?.reserved_balance) || 0;
+          const newReserved = Math.max(0, currentReserved - amount); // Release the lost amount
 
           // Create transaction record
           const { data: transaction, error: transactionError } = await supabase
@@ -616,8 +708,9 @@ export const useWalletStore = create<WalletState>()(
               amount: 0, // No winnings
               description: description,
               currency: currency,
-          status: 'completed',
-          reference: generateDemoReference('loss'),
+              status: 'completed',
+              reference: generateDemoReference('loss'),
+              prediction_id: predictionId,
             })
             .select()
             .single();
@@ -632,10 +725,10 @@ export const useWalletStore = create<WalletState>()(
             .upsert({
               user_id: user.id,
               currency: currency,
-              available_balance: 0,
-              reserved_balance: 0,
-              total_deposited: 0,
-              total_withdrawn: 0,
+              available_balance: currentWallet?.available_balance || 0,
+              reserved_balance: newReserved,
+              total_deposited: currentWallet?.total_deposited || 0,
+              total_withdrawn: currentWallet?.total_withdrawn || 0,
               updated_at: new Date().toISOString()
             }, {
               onConflict: 'user_id,currency'
@@ -656,13 +749,15 @@ export const useWalletStore = create<WalletState>()(
             date: new Date(transaction.created_at),
             status: 'completed',
             reference: transaction.reference,
-          currency,
-          predictionId
-        };
+            currency,
+            predictionId
+          };
 
         } catch (error) {
           set({ isLoading: false });
           throw error;
+        } finally {
+          set({ isLoading: false });
         }
       },
 
@@ -675,7 +770,7 @@ export const useWalletStore = create<WalletState>()(
           throw new Error('Insufficient funds for transfer');
         }
 
-        set({ isLoading: true });
+        set({ isLoading: true, error: null });
 
         try {
           if (isDemoMode) {
@@ -687,6 +782,24 @@ export const useWalletStore = create<WalletState>()(
           if (!user) {
             throw new Error('User not authenticated');
           }
+
+          // Get current wallet data
+          const { data: currentWallet, error: walletFetchError } = await supabase
+            .from('wallets')
+            .select('*')
+            .eq('user_id', user.id)
+            .eq('currency', currency)
+            .single();
+
+          if (walletFetchError && walletFetchError.code !== 'PGRST116') {
+            throw new Error(`Failed to fetch wallet: ${walletFetchError.message}`);
+          }
+
+          // Calculate new balance
+          const transferFee = amount * 0.005; // 0.5% transfer fee
+          const totalDeducted = amount + transferFee;
+          const newAvailableBalance = (Number(currentWallet?.available_balance) || 0) - totalDeducted;
+          const newTotalWithdrawn = (Number(currentWallet?.total_withdrawn) || 0) + totalDeducted;
 
           // Create transaction record
           const { data: transaction, error: transactionError } = await supabase
@@ -700,7 +813,7 @@ export const useWalletStore = create<WalletState>()(
               status: 'completed',
               reference: generateDemoReference('transfer_out'),
               to_user: toUser,
-              fee: amount * 0.005 // 0.5% transfer fee
+              fee: transferFee
             })
             .select()
             .single();
@@ -715,10 +828,10 @@ export const useWalletStore = create<WalletState>()(
             .upsert({
               user_id: user.id,
               currency: currency,
-              available_balance: -amount,
-              reserved_balance: 0,
-              total_deposited: 0,
-              total_withdrawn: amount,
+              available_balance: newAvailableBalance,
+              reserved_balance: currentWallet?.reserved_balance || 0,
+              total_deposited: currentWallet?.total_deposited || 0,
+              total_withdrawn: newTotalWithdrawn,
               updated_at: new Date().toISOString()
             }, {
               onConflict: 'user_id,currency'
@@ -730,8 +843,6 @@ export const useWalletStore = create<WalletState>()(
 
           // Refresh wallet data
           await get().refreshWalletData();
-
-          // Success notification handled by UI component
           
           return {
             id: transaction.id,
@@ -743,12 +854,15 @@ export const useWalletStore = create<WalletState>()(
             reference: transaction.reference,
             currency,
             toUser,
-            fee: amount * 0.005
+            fee: transferFee
           };
 
         } catch (error) {
-          set({ isLoading: false });
+          const errorMessage = error instanceof Error ? error.message : 'Transfer failed';
+          set({ error: errorMessage, isLoading: false });
           throw error;
+        } finally {
+          set({ isLoading: false });
         }
       },
 

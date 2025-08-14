@@ -93,7 +93,7 @@ const mockPredictions = [
     id: '1',
     creator_id: 'user1',
     title: 'Will Manchester United win against Chelsea?',
-    description: 'Premier League match this weekend',
+    description: 'Premier League match this weekend at Old Trafford. Both teams are in good form, but United has home advantage.',
     category: 'sports',
     type: 'binary',
     status: 'open',
@@ -108,6 +108,9 @@ const mockPredictions = [
     tags: ['football', 'premier-league'],
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
+    participant_count: 45,
+    likes_count: 23,
+    comments_count: 8,
     options: [
       {
         id: 'opt1',
@@ -125,13 +128,18 @@ const mockPredictions = [
         current_odds: 2.5,
         percentage: 40
       }
-    ]
+    ],
+    creator: {
+      username: 'sportsexpert',
+      avatar_url: null,
+      is_verified: true
+    }
   },
   {
     id: '2',
     creator_id: 'user2',
     title: 'Will Apple release a new iPhone this year?',
-    description: 'Tech prediction for Apple\'s product lineup',
+    description: 'Tech prediction for Apple\'s product lineup. Will they surprise us with a new iPhone model?',
     category: 'technology',
     type: 'binary',
     status: 'open',
@@ -146,6 +154,9 @@ const mockPredictions = [
     tags: ['apple', 'iphone', 'tech'],
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
+    participant_count: 28,
+    likes_count: 15,
+    comments_count: 5,
     options: [
       {
         id: 'opt3',
@@ -163,7 +174,58 @@ const mockPredictions = [
         current_odds: 3.0,
         percentage: 33
       }
-    ]
+    ],
+    creator: {
+      username: 'techguru',
+      avatar_url: null,
+      is_verified: false
+    }
+  },
+  {
+    id: '3',
+    creator_id: 'user3',
+    title: 'Will Bitcoin reach $100,000 by end of 2025?',
+    description: 'Crypto prediction based on current market trends and institutional adoption.',
+    category: 'finance',
+    type: 'binary',
+    status: 'open',
+    stake_min: 5,
+    stake_max: 2000,
+    pool_total: 3500,
+    entry_deadline: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000).toISOString(),
+    settlement_method: 'auto',
+    is_private: false,
+    creator_fee_percentage: 1,
+    platform_fee_percentage: 2,
+    tags: ['bitcoin', 'crypto', 'finance'],
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+    participant_count: 67,
+    likes_count: 34,
+    comments_count: 12,
+    options: [
+      {
+        id: 'opt5',
+        prediction_id: '3',
+        label: 'Yes - Bitcoin reaches $100k+',
+        total_staked: 2100,
+        current_odds: 1.67,
+        percentage: 60
+      },
+      {
+        id: 'opt6',
+        prediction_id: '3',
+        label: 'No - Bitcoin stays below $100k',
+        total_staked: 1400,
+        current_odds: 2.5,
+        percentage: 40
+      }
+    ],
+    creator: {
+      username: 'cryptotrader',
+      avatar_url: null,
+      is_verified: true
+    }
   }
 ];
 
@@ -228,12 +290,134 @@ const mockClubs = [
 ];
 
 // Health check endpoint
-app.get('/health', (req, res) => {
+app.get('/api/v2/health', (req, res) => {
   res.json({
-    status: 'ok',
-    timestamp: new Date().toISOString(),
-    environment: process.env.NODE_ENV || 'development',
-    version: '2.0.0'
+    success: true,
+    message: 'Server is healthy',
+    data: {
+      timestamp: new Date().toISOString(),
+      environment: process.env.NODE_ENV || 'development',
+      version: '2.0.0'
+    }
+  });
+});
+
+// User profile endpoint
+app.get('/api/user/profile', mockAuth, (req, res) => {
+  res.json({
+    success: true,
+    data: {
+      id: req.user.id,
+      email: req.user.email,
+      username: req.user.username,
+      full_name: `${req.user.first_name} ${req.user.last_name}`,
+      avatar_url: null,
+      reputation_score: 85.5,
+      is_verified: req.user.is_verified,
+      kyc_level: req.user.kyc_level,
+      created_at: req.user.created_at,
+      updated_at: req.user.updated_at,
+      stats: {
+        predictions_created: 12,
+        predictions_participated: 45,
+        total_wins: 28,
+        total_losses: 17,
+        win_rate: 62.2,
+        total_profit: 1250.50
+      }
+    },
+    message: 'User profile retrieved successfully'
+  });
+});
+
+// Social endpoints
+app.get('/api/v2/social/comments', mockAuth, (req, res) => {
+  const { prediction_id } = req.query;
+  
+  // Mock comments data
+  const mockComments = [
+    {
+      id: '1',
+      prediction_id: prediction_id || '1',
+      user_id: req.user.id,
+      content: 'This is going to be interesting!',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      user: {
+        id: req.user.id,
+        username: req.user.username,
+        avatar_url: null
+      },
+      likes_count: 3,
+      is_liked_by_user: false
+    },
+    {
+      id: '2',
+      prediction_id: prediction_id || '1',
+      user_id: 'user2',
+      content: 'I think the odds are in favor of this outcome.',
+      created_at: new Date(Date.now() - 3600000).toISOString(),
+      updated_at: new Date(Date.now() - 3600000).toISOString(),
+      user: {
+        id: 'user2',
+        username: 'prediction_expert',
+        avatar_url: null
+      },
+      likes_count: 1,
+      is_liked_by_user: true
+    }
+  ];
+  
+  res.json({
+    success: true,
+    data: mockComments,
+    message: 'Comments retrieved successfully'
+  });
+});
+
+app.post('/api/v2/social/comments', mockAuth, (req, res) => {
+  const { prediction_id, content } = req.body;
+  
+  if (!content || !content.trim()) {
+    return res.status(400).json({
+      success: false,
+      message: 'Comment content is required'
+    });
+  }
+  
+  const newComment = {
+    id: `comment_${Date.now()}`,
+    prediction_id,
+    user_id: req.user.id,
+    content: content.trim(),
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+    user: {
+      id: req.user.id,
+      username: req.user.username,
+      avatar_url: null
+    },
+    likes_count: 0,
+    is_liked_by_user: false
+  };
+  
+  res.status(201).json({
+    success: true,
+    data: newComment,
+    message: 'Comment created successfully'
+  });
+});
+
+// WebSocket test endpoint
+app.get('/api/v2/websocket-test', (req, res) => {
+  res.json({
+    success: true,
+    data: {
+      websocket_available: true,
+      endpoint: 'ws://localhost:3001/ws',
+      status: 'ready'
+    },
+    message: 'WebSocket connectivity available'
   });
 });
 
@@ -413,100 +597,43 @@ app.get('/api/v2/clubs/:id', (req, res) => {
 });
 
 app.post('/api/predictions/:id/entries', mockAuth, (req, res) => {
-  try {
-    const { id: predictionId } = req.params;
-    const { option_id, amount } = req.body;
-
-    // Find prediction
-    const prediction = mockPredictions.find(p => p.id === predictionId);
-    if (!prediction) {
-      return res.status(404).json({
-        success: false,
-        error: 'Prediction not found'
-      });
-    }
-
-    // Validate prediction is open
-    if (prediction.status !== 'open') {
-      return res.status(400).json({
-        success: false,
-        error: 'Prediction is not open for entries'
-      });
-    }
-
-    // Validate deadline
-    if (new Date(prediction.entry_deadline) <= new Date()) {
-      return res.status(400).json({
-        success: false,
-        error: 'Entry deadline has passed'
-      });
-    }
-
-    // Validate amount
-    const stakeAmount = Number(amount);
-    if (stakeAmount < prediction.stake_min) {
-      return res.status(400).json({
-        success: false,
-        error: `Minimum stake is ${prediction.stake_min}`
-      });
-    }
-
-    if (prediction.stake_max && stakeAmount > prediction.stake_max) {
-      return res.status(400).json({
-        success: false,
-        error: `Maximum stake is ${prediction.stake_max}`
-      });
-    }
-
-    // Find option
-    const option = prediction.options.find(opt => opt.id === option_id);
-    if (!option) {
-      return res.status(404).json({
-        success: false,
-        error: 'Prediction option not found'
-      });
-    }
-
-    // Update prediction and option with new stake
-    option.total_staked += stakeAmount;
-    prediction.pool_total += stakeAmount;
-    
-    // Recalculate percentages and odds
-    prediction.options.forEach(opt => {
-      opt.percentage = prediction.pool_total > 0 ? (opt.total_staked / prediction.pool_total) * 100 : 0;
-      opt.current_odds = prediction.pool_total > 0 ? prediction.pool_total / (opt.total_staked || 1) : 2.0;
-    });
-
-    // Create entry record
-    const entry = {
-      id: `entry_${Date.now()}`,
-      prediction_id: predictionId,
-      user_id: req.user.id,
-      option_id: option_id,
-      amount: stakeAmount,
-      potential_payout: stakeAmount * option.current_odds,
-      status: 'active',
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
-    };
-
-    console.log(`🎲 New prediction entry: ${stakeAmount} on "${option.label}"`);
-
-    res.status(201).json({
-      success: true,
-      data: {
-        entry,
-        prediction
-      },
-      message: 'Prediction entry created successfully'
-    });
-  } catch (error) {
-    console.error('❌ Error creating prediction entry:', error);
-    res.status(500).json({
+  const { id: predictionId } = req.params;
+  const { option_id, amount } = req.body;
+  
+  if (!option_id || !amount) {
+    return res.status(400).json({
       success: false,
-      error: 'Internal server error'
+      message: 'Option ID and amount are required'
     });
   }
+  
+  if (amount <= 0) {
+    return res.status(400).json({
+      success: false,
+      message: 'Amount must be greater than 0'
+    });
+  }
+  
+  // Mock successful stake placement
+  const stakeEntry = {
+    id: `entry_${Date.now()}`,
+    prediction_id: predictionId,
+    user_id: req.user.id,
+    option_id: option_id,
+    amount: parseFloat(amount),
+    potential_payout: parseFloat(amount) * 2.5, // Mock odds
+    status: 'active',
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString()
+  };
+  
+  console.log(`💰 Stake placed: ${amount} on prediction ${predictionId}`);
+  
+  res.status(201).json({
+    success: true,
+    data: stakeEntry,
+    message: 'Stake placed successfully'
+  });
 });
 
 app.post('/api/v2/clubs/:id/join', mockAuth, (req, res) => {
@@ -610,23 +737,17 @@ app.post('/api/v2/clubs', mockAuth, (req, res) => {
   });
 });
 
-// User profile endpoint
-app.get('/api/user/profile', mockAuth, (req, res) => {
-  res.json({
-    success: true,
-    data: req.user,
-    message: 'User profile retrieved successfully'
-  });
-});
-
 // Wallet endpoints
 app.get('/api/wallet/balance', mockAuth, (req, res) => {
   res.json({
     success: true,
     data: {
-      balance: 1250.50,
+      balance: 1000.00,
       currency: 'USD',
-      user_id: req.user.id
+      user_id: req.user.id,
+      available_balance: 1000.00,
+      reserved_balance: 0.00,
+      total_balance: 1000.00
     },
     message: 'Wallet balance retrieved successfully'
   });
@@ -640,9 +761,10 @@ app.get('/api/wallet/transactions', mockAuth, (req, res) => {
         id: '1',
         user_id: req.user.id,
         type: 'deposit',
-        amount: 100,
+        amount: 1000,
         currency: 'USD',
         status: 'completed',
+        description: 'Demo balance initialization',
         created_at: new Date().toISOString()
       },
       {
@@ -652,7 +774,8 @@ app.get('/api/wallet/transactions', mockAuth, (req, res) => {
         amount: -25,
         currency: 'USD',
         status: 'completed',
-        created_at: new Date().toISOString()
+        description: 'Prediction stake',
+        created_at: new Date(Date.now() - 3600000).toISOString()
       }
     ],
     message: 'Transactions retrieved successfully'

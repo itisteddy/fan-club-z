@@ -2,6 +2,8 @@ import React, { useEffect, useCallback, memo, Suspense } from 'react';
 import { Router, Route, Switch, useLocation } from 'wouter';
 import { useWalletStore } from './store/walletStore';
 import { useAuthStore } from './store/authStore';
+import { useLikeStore } from './store/likeStore';
+import { useCommentStore } from './store/commentStore';
 import { Toaster } from 'react-hot-toast';
 import { scrollToTop } from './utils/scroll';
 import NotificationContainer from './components/ui/NotificationContainer';
@@ -265,6 +267,8 @@ const PredictionDetailsWrapper: React.FC<{ params: { id: string } }> = ({ params
 function App() {
   const { initializeWallet } = useWalletStore();
   const { initializeAuth, isAuthenticated, loading, initialized } = useAuthStore();
+  const { initializeLikes } = useLikeStore();
+  const { initializeCommentCounts } = useCommentStore();
 
   // Initialize auth once on app start
   useEffect(() => {
@@ -278,17 +282,25 @@ function App() {
     }
   }, [initializeAuth, initialized, loading]);
 
-  // Initialize wallet after auth is ready
+  // Initialize wallet and social features after auth is ready
   useEffect(() => {
     if (isAuthenticated && !loading && initialized) {
       try {
-        console.log('App: Initializing wallet...');
+        console.log('App: Initializing wallet and social features...');
+        
+        // Initialize wallet
         initializeWallet();
+        
+        // Initialize social engagement features
+        initializeLikes();
+        initializeCommentCounts();
+        
+        console.log('✅ All stores initialized successfully');
       } catch (error) {
-        console.error('Wallet initialization failed:', error);
+        console.error('Store initialization failed:', error);
       }
     }
-  }, [isAuthenticated, loading, initialized, initializeWallet]);
+  }, [isAuthenticated, loading, initialized, initializeWallet, initializeLikes, initializeCommentCounts]);
 
   return (
     <Router>
