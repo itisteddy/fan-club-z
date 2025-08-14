@@ -37,6 +37,57 @@ export interface DatabaseUser {
   updated_at: string;
 }
 
+// Wallet-related types (required by server)
+export interface Wallet {
+  id: string;
+  user_id: string;
+  currency: string;
+  available_balance: number;
+  reserved_balance: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface WalletTransaction {
+  id: string;
+  user_id: string;
+  type: 'deposit' | 'withdraw' | 'bet_lock' | 'bet_release' | 'transfer';
+  currency: string;
+  amount: number;
+  status: 'pending' | 'completed' | 'failed';
+  reference?: string;
+  created_at: string;
+}
+
+export interface Deposit {
+  amount: number;
+  currency: string;
+  method: 'fiat' | 'crypto';
+}
+
+export interface Withdraw {
+  amount: number;
+  currency: string;
+  destination: string;
+}
+
+// Pagination types (required by server)
+export interface PaginationQuery {
+  page?: number;
+  limit?: number;
+  offset?: number;
+}
+
+export interface PaginatedResponse<T> {
+  data: T[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+}
+
 export interface DatabasePrediction {
   id: string;
   creator_id: string;
@@ -68,7 +119,14 @@ export interface DatabasePrediction {
 // API TYPES
 // ============================================================================
 
-// ApiResponse is now exported from schemas.ts to avoid duplication
+// API Response interface (required by server)
+export interface ApiResponse<T = any> {
+  success: boolean;
+  data?: T;
+  error?: string;
+  message?: string;
+  errors?: Record<string, string[]>;
+}
 
 export interface AuthTokens {
   access_token: string;
