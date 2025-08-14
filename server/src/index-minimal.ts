@@ -4,11 +4,31 @@
  * Fan Club Z Server Entry Point - Minimal Version with Mock Data
  */
 
-import express from 'express';
+import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import dotenv from 'dotenv';
 import path from 'path';
+
+// Extend Express namespace to add user property
+declare global {
+  namespace Express {
+    interface Request {
+      user?: {
+        id: string;
+        email: string;
+        username: string;
+        first_name: string;
+        last_name: string;
+        is_active: boolean;
+        is_verified: boolean;
+        kyc_level: string;
+        created_at: string;
+        updated_at: string;
+      };
+    }
+  }
+}
 
 // Load environment variables
 dotenv.config({ path: path.join(__dirname, '../../.env.local') });
@@ -76,7 +96,7 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Mock authentication middleware
-const mockAuth = (req: any, res: any, next: any) => {
+const mockAuth = (req: Request, res: Response, next: NextFunction) => {
   // Mock user for development
   req.user = {
     id: '1',
@@ -413,7 +433,7 @@ app.post('/api/v2/clubs/:id/join', mockAuth, (req, res) => {
   res.json({
     success: true,
     message: 'Successfully joined club',
-    data: { club_id: id, user_id: req.user.id, role: 'member' }
+    data: { club_id: id, user_id: req.user?.id || 'unknown', role: 'member' }
   });
 });
 
@@ -455,6 +475,13 @@ app.get('/api/v2/clubs/:id/members', mockAuth, (req, res) => {
 
 // Create club
 app.post('/api/v2/clubs', mockAuth, (req, res) => {
+  if (!req.user) {
+    return res.status(401).json({
+      success: false,
+      message: 'User not authenticated'
+    });
+  }
+  
   const newClub = {
     id: Date.now().toString(),
     owner_id: req.user.id,
@@ -643,6 +670,13 @@ app.get('/api/v2/health', (req, res) => {
 // ============================================================================
 
 app.get('/api/user/profile', mockAuth, (req, res) => {
+  if (!req.user) {
+    return res.status(401).json({
+      success: false,
+      message: 'User not authenticated'
+    });
+  }
+  
   res.json({
     success: true,
     data: {
@@ -674,6 +708,13 @@ app.get('/api/user/profile', mockAuth, (req, res) => {
 // ============================================================================
 
 app.get('/api/wallet/balance', mockAuth, (req, res) => {
+  if (!req.user) {
+    return res.status(401).json({
+      success: false,
+      message: 'User not authenticated'
+    });
+  }
+  
   res.json({
     success: true,
     data: {
@@ -689,6 +730,13 @@ app.get('/api/wallet/balance', mockAuth, (req, res) => {
 });
 
 app.get('/api/wallet/transactions', mockAuth, (req, res) => {
+  if (!req.user) {
+    return res.status(401).json({
+      success: false,
+      message: 'User not authenticated'
+    });
+  }
+  
   res.json({
     success: true,
     data: [
@@ -722,6 +770,13 @@ app.get('/api/wallet/transactions', mockAuth, (req, res) => {
 // ============================================================================
 
 app.get('/api/v2/social/comments', mockAuth, (req, res) => {
+  if (!req.user) {
+    return res.status(401).json({
+      success: false,
+      message: 'User not authenticated'
+    });
+  }
+  
   const { prediction_id } = req.query;
   
   // Mock comments data
@@ -766,6 +821,13 @@ app.get('/api/v2/social/comments', mockAuth, (req, res) => {
 });
 
 app.post('/api/v2/social/comments', mockAuth, (req, res) => {
+  if (!req.user) {
+    return res.status(401).json({
+      success: false,
+      message: 'User not authenticated'
+    });
+  }
+  
   const { prediction_id, content } = req.body;
   
   if (!content || !content.trim()) {
