@@ -1,6 +1,7 @@
 import { io, Socket } from 'socket.io-client';
 import { create } from 'zustand';
 import { useAuthStore } from './authStore';
+import { getApiUrl, getWsUrl, getEnvironmentConfig } from '../lib/environment';
 
 export interface ChatMessage {
   id: string;
@@ -580,7 +581,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   }
 }));
 
-// Helper function to get the correct server URL
+// Helper function to get the correct server URL using environment detection
 function getServerUrl(): string {
   // First check environment variables
   if (import.meta.env.VITE_API_URL) {
@@ -588,45 +589,12 @@ function getServerUrl(): string {
     return import.meta.env.VITE_API_URL;
   }
 
-  // Check the current hostname to determine environment
-  const hostname = window.location.hostname;
-  const protocol = window.location.protocol;
+  // Use the new environment detection system
+  const config = getEnvironmentConfig();
+  console.log('🌍 Environment detected:', config.name);
+  console.log('🔧 Using API URL:', config.apiUrl);
   
-  console.log('🌍 Current hostname:', hostname);
-  console.log('🌍 Current protocol:', protocol);
-  
-  // Production domain
-  if (hostname === 'app.fanclubz.app' || hostname === 'fanclubz.app') {
-    const serverUrl = 'https://fanclubz-prod.onrender.com';
-    console.log('🚀 Production domain detected, using Render prod server:', serverUrl);
-    return serverUrl;
-  }
-  
-  // Development domain
-  if (hostname === 'dev.fanclubz.app') {
-    const serverUrl = 'https://fanclubz-dev.onrender.com';
-    console.log('🧪 Development domain detected, using Render dev server:', serverUrl);
-    return serverUrl;
-  }
-  
-  // Vercel deployments (fallback to production)
-  if (hostname.includes('vercel.app')) {
-    const serverUrl = 'https://fanclubz-prod.onrender.com';
-    console.log('🚀 Vercel deployment detected, using Render production server:', serverUrl);
-    return serverUrl;
-  }
-  
-  // Development/local
-  if (hostname === 'localhost' || hostname.startsWith('127.0.0.1') || hostname.startsWith('192.168.')) {
-    const serverUrl = 'http://localhost:3001';
-    console.log('🏠 Local development detected, using:', serverUrl);
-    return serverUrl;
-  }
-  
-  // Fallback to production server
-  const fallbackUrl = 'https://fanclubz-prod.onrender.com';
-  console.log('🔄 Unknown hostname, falling back to production:', fallbackUrl);
-  return fallbackUrl;
+  return config.apiUrl;
 }
 
 // Helper function to get user-friendly connection error messages
