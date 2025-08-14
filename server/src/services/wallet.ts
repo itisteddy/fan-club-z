@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { config } from '../config';
-import { logger } from '../utils/logger';
+import logger from '../utils/logger';
 import type { 
   Wallet, 
   WalletTransaction, 
@@ -8,13 +8,13 @@ import type {
   Withdraw,
   PaginationQuery,
   PaginatedResponse
-} from '../../../shared/src/types';
+} from '@fanclubz/shared';
 
 export class WalletService {
   private supabase;
 
   constructor() {
-    this.supabase = createClient(config.supabase.url, config.supabase.serviceKey);
+    this.supabase = createClient(config.supabase.url, config.supabase.serviceRoleKey);
   }
 
   // ============================================================================

@@ -4,7 +4,7 @@ import jwt from 'jsonwebtoken';
 import { config } from '../config';
 import { logger } from '../utils/logger';
 import type { AuthenticatedRequest, JWTPayload } from '../types/auth';
-import type { ApiResponse } from '../../../shared/src/types';
+import type { ApiResponse } from '@fanclubz/shared';
 
 const supabase = createClient(config.supabase.url, config.supabase.serviceKey);
 

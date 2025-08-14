@@ -10,7 +10,7 @@ import {
 import { SocialService } from '../services/social';
 import { logger } from '../utils/logger';
 import type { AuthenticatedRequest } from '../types/auth';
-import type { ApiResponse, PaginatedResponse, Club, Comment, Reaction } from '../../../shared/src/types';
+import type { ApiResponse, PaginatedResponse, Club, Comment, Reaction } from '@fanclubz/shared';
 
 const router = Router();
 const socialService = new SocialService();

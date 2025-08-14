@@ -331,15 +331,16 @@ export type UpdatePrediction = z.infer<typeof UpdatePredictionSchema>;
 export type PredictionEntry = z.infer<typeof PredictionEntrySchema>;
 export type CreatePredictionEntry = z.infer<typeof CreatePredictionEntrySchema>;
 
-export type Wallet = z.infer<typeof WalletSchema>;
-export type WalletTransaction = z.infer<typeof WalletTransactionSchema>;
-export type Deposit = z.infer<typeof DepositSchema>;
-export type Withdraw = z.infer<typeof WithdrawSchema>;
+// Types moved to types.ts to avoid conflicts
+// export type Wallet = z.infer<typeof WalletSchema>;
+// export type WalletTransaction = z.infer<typeof WalletTransactionSchema>;
+// export type Deposit = z.infer<typeof DepositSchema>;
+// export type Withdraw = z.infer<typeof WithdrawSchema>;
 
-export type Comment = z.infer<typeof CommentSchema>;
-export type CreateComment = z.infer<typeof CreateCommentSchema>;
-export type Reaction = z.infer<typeof ReactionSchema>;
-export type CreateReaction = z.infer<typeof CreateReactionSchema>;
+// export type Comment = z.infer<typeof CommentSchema>;
+// export type CreateComment = z.infer<typeof CreateCommentSchema>;
+// export type Reaction = z.infer<typeof ReactionSchema>;
+// export type CreateReaction = z.infer<typeof CreateReactionSchema>;
 
 export type Club = z.infer<typeof ClubSchema>;
 export type CreateClub = z.infer<typeof CreateClubSchema>;
@@ -347,28 +348,29 @@ export type ClubMember = z.infer<typeof ClubMemberSchema>;
 
 export type Notification = z.infer<typeof NotificationSchema>;
 
-export type ApiResponse<T = any> = {
-  success: boolean;
-  message?: string;
-  data?: T;
-  error?: string;
-  errors?: Record<string, string[]>;
-};
+// Types moved to types.ts to avoid conflicts
+// export type ApiResponse<T = any> = {
+//   success: boolean;
+//   message?: string;
+//   data?: T;
+//   error?: string;
+//   errors?: Record<string, string[]>;
+// };
 
-export type PaginatedResponse<T = any> = {
-  success: boolean;
-  data: T[];
-  pagination: {
-    page: number;
-    limit: number;
-    total: number;
-    totalPages: number;
-    hasNext: boolean;
-    hasPrev: boolean;
-  };
-};
+// export type PaginatedResponse<T = any> = {
+//   success: boolean;
+//   data: T[];
+//   pagination: {
+//     page: number;
+//     limit: number;
+//     total: number;
+//     totalPages: number;
+//     hasNext: boolean;
+//     hasPrev: boolean;
+//   };
+// };
 
-export type PaginationQuery = z.infer<typeof PaginationQuerySchema>;
+// export type PaginationQuery = z.infer<typeof PaginationQuerySchema>;
 export type PredictionQuery = z.infer<typeof PredictionQuerySchema>;
 
 // ============================================================================

@@ -1,5 +1,5 @@
 import { Request } from 'express';
-import type { DatabaseUser } from '../../../shared/src/types';
+import type { DatabaseUser } from '@fanclubz/shared';
 
 export interface AuthenticatedRequest extends Request {
   user?: DatabaseUser;

@@ -5,7 +5,7 @@ import { DepositSchema, WithdrawSchema, PaginationQuerySchema } from '../../../s
 import { WalletService } from '../services/wallet';
 import { logger } from '../utils/logger';
 import type { AuthenticatedRequest } from '../types/auth';
-import type { ApiResponse, PaginatedResponse, WalletTransaction, Wallet } from '../../../shared/src/types';
+import type { ApiResponse, PaginatedResponse, WalletTransaction, Wallet } from '@fanclubz/shared';
 
 const router = Router();
 const walletService = new WalletService();

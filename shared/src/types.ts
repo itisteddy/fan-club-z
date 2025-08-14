@@ -15,6 +15,111 @@ export type Prettify<T> = {
 export type KeysOfUnion<T> = T extends T ? keyof T : never;
 
 // ============================================================================
+// PAGINATION TYPES
+// ============================================================================
+
+export interface PaginationQuery {
+  page?: number;
+  limit?: number;
+  sortBy?: string;
+  sortOrder?: 'asc' | 'desc';
+}
+
+export interface PaginatedResponse<T> {
+  data: T[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+    hasNext: boolean;
+    hasPrev: boolean;
+  };
+}
+
+// ============================================================================
+// API RESPONSE TYPES
+// ============================================================================
+
+export interface ApiResponse<T = any> {
+  success: boolean;
+  data?: T;
+  message?: string;
+  error?: string;
+  errors?: Record<string, string[]>;
+}
+
+// ============================================================================
+// WALLET TYPES
+// ============================================================================
+
+export interface Wallet {
+  id: string;
+  user_id: string;
+  balance: number;
+  currency: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface WalletTransaction {
+  id: string;
+  wallet_id: string;
+  type: 'deposit' | 'withdrawal' | 'stake' | 'payout' | 'refund' | 'fee';
+  amount: number;
+  currency: string;
+  status: 'pending' | 'completed' | 'failed' | 'cancelled';
+  description?: string;
+  reference_id?: string;
+  metadata?: Record<string, any>;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Deposit {
+  id: string;
+  user_id: string;
+  amount: number;
+  currency: string;
+  method: 'card' | 'bank_transfer' | 'crypto' | 'wallet';
+  status: 'pending' | 'completed' | 'failed' | 'cancelled';
+  transaction_id?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Withdraw {
+  id: string;
+  user_id: string;
+  amount: number;
+  currency: string;
+  method: 'bank_transfer' | 'crypto' | 'wallet';
+  status: 'pending' | 'completed' | 'failed' | 'cancelled';
+  destination_address?: string;
+  transaction_id?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+// ============================================================================
+// SOCIAL TYPES
+// ============================================================================
+
+export interface Reaction {
+  id: string;
+  user_id: string;
+  prediction_id: string;
+  type: 'like' | 'dislike' | 'love' | 'laugh' | 'wow' | 'sad' | 'angry';
+  created_at: string;
+}
+
+export interface CreateReaction {
+  prediction_id: string;
+  type: 'like' | 'dislike' | 'love' | 'laugh' | 'wow' | 'sad' | 'angry';
+}
+
+// ============================================================================
 // DATABASE TYPES (Unique to types.ts)
 // ============================================================================
 
@@ -170,14 +275,14 @@ export const formatCurrency = (amount: number, currency: string = 'NGN'): string
   const formatter = formatters[currency] || formatters.NGN;
   
   if (currency === 'USDT') {
-    return `${formatter.format(amount)} USDT`;
+    return `${formatter?.format(amount)} USDT`;
   }
   
   if (currency === 'ETH') {
-    return `${formatter.format(amount)} ETH`;
+    return `${formatter?.format(amount)} ETH`;
   }
   
-  return formatter.format(amount);
+  return formatter?.format(amount) || `${amount} ${currency}`;
 };
 
 export const formatDate = (dateString: string): string => {

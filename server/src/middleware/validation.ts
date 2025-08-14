@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
-import type { ApiResponse } from '../../../shared/src/types';
+import type { ApiResponse } from '@fanclubz/shared';
 
 export const validateRequest = (schema: z.ZodSchema, location: 'body' | 'query' | 'params' = 'body') => {
   return (req: Request, res: Response, next: NextFunction) => {

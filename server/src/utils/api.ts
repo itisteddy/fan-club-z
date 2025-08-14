@@ -53,7 +53,7 @@ export class ApiUtils {
     return schema.parse(data);
   }
 
-  static asyncHandler(fn: Function) {
+  static asyncHandler(fn: (req: Request, res: Response, next: Function) => Promise<any>) {
     return (req: Request, res: Response, next: Function) => {
       Promise.resolve(fn(req, res, next)).catch(next);
     };
@@ -132,14 +132,14 @@ export const formatCurrency = (amount: number, currency: string = 'NGN'): string
   const formatter = formatters[currency] || formatters.NGN;
   
   if (currency === 'USDT') {
-    return `${formatter.format(amount)} USDT`;
+    return `${formatter?.format(amount)} USDT`;
   }
   
   if (currency === 'ETH') {
-    return `${formatter.format(amount)} ETH`;
+    return `${formatter?.format(amount)} ETH`;
   }
   
-  return formatter.format(amount);
+  return formatter?.format(amount) || `${amount} ${currency}`;
 };
 
 export const slugify = (text: string): string => {

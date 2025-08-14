@@ -11,13 +11,13 @@ import type {
   CreateReaction,
   PaginationQuery,
   PaginatedResponse
-} from '../../../shared/src/types';
+} from '@fanclubz/shared';
 
 export class SocialService {
   private supabase;
 
   constructor() {
-    this.supabase = createClient(config.supabase.url, config.supabase.serviceKey);
+    this.supabase = createClient(config.supabase.url, config.supabase.serviceRoleKey);
   }
 
   // ============================================================================
@@ -626,7 +626,7 @@ export class SocialService {
 
       // Calculate counts
       const reactionCounts = Object.keys(reactionGroups).reduce((acc, type) => {
-        acc[type] = reactionGroups[type].length;
+        acc[type] = reactionGroups[type]?.length || 0;
         return acc;
       }, {} as Record<string, number>);
 
