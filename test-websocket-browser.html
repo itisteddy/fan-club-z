@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebSocket Test</title>
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+        .success { background-color: #d4edda; color: #155724; }
+        .error { background-color: #f8d7da; color: #721c24; }
+        .info { background-color: #d1ecf1; color: #0c5460; }
+        .log {
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 10px;
+            margin: 10px 0;
+            max-height: 300px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover { background-color: #0056b3; }
+        button:disabled { background-color: #6c757d; cursor: not-allowed; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧪 WebSocket Connection Test</h1>
+        
+        <div id="status" class="status info">Initializing...</div>
+        
+        <div>
+            <button id="connectBtn" onclick="connect()">Connect</button>
+            <button id="disconnectBtn" onclick="disconnect()" disabled>Disconnect</button>
+            <button id="testBtn" onclick="sendTestMessage()" disabled>Send Test Message</button>
+        </div>
+        
+        <div class="log" id="log"></div>
+    </div>
+
+    <script>
+        let socket = null;
+        const SERVER_URL = 'http://localhost:3001';
+        
+        function log(message, type = 'info') {
+            const logDiv = document.getElementById('log');
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = document.createElement('div');
+            logEntry.innerHTML = `<span style="color: #666;">[${timestamp}]</span> ${message}`;
+            logDiv.appendChild(logEntry);
+            logDiv.scrollTop = logDiv.scrollHeight;
+            console.log(`[${timestamp}] ${message}`);
+        }
+        
+        function updateStatus(message, type = 'info') {
+            const statusDiv = document.getElementById('status');
+            statusDiv.textContent = message;
+            statusDiv.className = `status ${type}`;
+        }
+        
+        function connect() {
+            log('🔗 Attempting to connect to WebSocket server...');
+            updateStatus('Connecting...', 'info');
+            
+            try {
+                socket = io(SERVER_URL, {
+                    withCredentials: true,
+                    transports: ['websocket', 'polling'],
+                    timeout: 10000,
+                    reconnection: true,
+                    reconnectionAttempts: 5,
+                    reconnectionDelay: 1000,
+                    reconnectionDelayMax: 5000,
+                    maxReconnectionAttempts: 5
+                });
+                
+                // Connection events
+                socket.on('connect', () => {
+                    log('✅ Connected to chat server successfully!');
+                    log(`🆔 Socket ID: ${socket.id}`);
+                    updateStatus('Connected', 'success');
+                    
+                    document.getElementById('connectBtn').disabled = true;
+                    document.getElementById('disconnectBtn').disabled = false;
+                    document.getElementById('testBtn').disabled = false;
+                    
+                    // Authenticate
+                    log('🔐 Authenticating user...');
+                    socket.emit('authenticate', {
+                        userId: 'test-user-123',
+                        username: 'testuser',
+                        avatar: null
+                    });
+                });
+                
+                socket.on('disconnect', (reason) => {
+                    log(`🔌 Disconnected: ${reason}`);
+                    updateStatus('Disconnected', 'error');
+                    
+                    document.getElementById('connectBtn').disabled = false;
+                    document.getElementById('disconnectBtn').disabled = true;
+                    document.getElementById('testBtn').disabled = true;
+                });
+                
+                socket.on('connect_error', (error) => {
+                    log(`❌ Connection error: ${error.message}`, 'error');
+                    updateStatus('Connection failed', 'error');
+                });
+                
+                socket.on('reconnect', (attemptNumber) => {
+                    log(`🔄 Reconnected after ${attemptNumber} attempts`);
+                    updateStatus('Reconnected', 'success');
+                });
+                
+                socket.on('reconnect_error', (error) => {
+                    log(`❌ Reconnection error: ${error.message}`, 'error');
+                });
+                
+                // Chat events
+                socket.on('message_history', (messages) => {
+                    log(`📚 Received message history: ${messages.length} messages`);
+                    messages.forEach(msg => {
+                        log(`  - ${msg.username}: ${msg.content}`);
+                    });
+                });
+                
+                socket.on('new_message', (message) => {
+                    log(`📨 New message: ${message.username}: ${message.content}`);
+                });
+                
+                socket.on('user_joined', ({ userId, username }) => {
+                    log(`👋 User joined: ${username}`);
+                });
+                
+                socket.on('user_left', ({ userId, username }) => {
+                    log(`👋 User left: ${username}`);
+                });
+                
+                socket.on('user_typing', ({ username }) => {
+                    log(`⌨️ User typing: ${username}`);
+                });
+                
+                socket.on('user_stop_typing', ({ username }) => {
+                    log(`⌨️ User stopped typing: ${username}`);
+                });
+                
+                socket.on('error', ({ message }) => {
+                    log(`❌ Chat error: ${message}`, 'error');
+                });
+                
+                socket.on('message_error', ({ error }) => {
+                    log(`❌ Message error: ${error}`, 'error');
+                });
+                
+            } catch (error) {
+                log(`❌ Failed to create socket connection: ${error.message}`, 'error');
+                updateStatus('Connection failed', 'error');
+            }
+        }
+        
+        function disconnect() {
+            if (socket) {
+                log('🔌 Disconnecting...');
+                socket.disconnect();
+                socket = null;
+                
+                document.getElementById('connectBtn').disabled = false;
+                document.getElementById('disconnectBtn').disabled = true;
+                document.getElementById('testBtn').disabled = true;
+            }
+        }
+        
+        function sendTestMessage() {
+            if (!socket || !socket.connected) {
+                log('❌ Not connected to server', 'error');
+                return;
+            }
+            
+            log('👥 Joining test prediction...');
+            socket.emit('join_prediction', {
+                predictionId: 'test-prediction-1',
+                userId: 'test-user-123'
+            });
+            
+            setTimeout(() => {
+                log('📤 Sending test message...');
+                socket.emit('send_message', {
+                    predictionId: 'test-prediction-1',
+                    userId: 'test-user-123',
+                    content: 'Hello from browser WebSocket test!',
+                    username: 'testuser',
+                    avatar: null
+                });
+            }, 1000);
+        }
+        
+        // Auto-connect on page load
+        window.onload = () => {
+            log('🚀 WebSocket test page loaded');
+            log(`🎯 Target server: ${SERVER_URL}`);
+            updateStatus('Ready to connect', 'info');
+        };
+    </script>
+</body>
+</html>

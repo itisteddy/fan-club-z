@@ -61,6 +61,7 @@
     "@supabase/auth-ui-react": "^0.4.7",
     "@supabase/auth-ui-shared": "^0.1.8",
     "jose": "^6.0.12",
-    "jsonwebtoken": "^9.0.2"
+    "jsonwebtoken": "^9.0.2",
+    "socket.io-client": "^4.8.1"
   }
 }

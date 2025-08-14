@@ -214,6 +214,23 @@
 
 ---
 
+### WebSocket Chat Connection Fix (Current Session)
+- **Date**: January 2025
+- **Focus**: Diagnosed and fixed WebSocket connection issues
+- **Problem**: Client was trying to connect to wrong URL, causing chat functionality to fail
+- **Key Fixes**:
+  - Fixed chatStore.ts default URL from `http://localhost:5000` to `http://localhost:3001`
+  - Verified environment variables in both client and server
+  - Created troubleshooting scripts and documentation
+  - Server correctly configured on port 3001 with proper CORS
+- **Files Modified**:
+  - `client/src/store/chatStore.ts` - Fixed default connection URL
+  - Created `WEBSOCKET_FIX_SUMMARY.md` - Complete troubleshooting guide
+  - Created `restart-with-fix.sh` - Quick restart script
+  - Created `test-websocket-connection.sh` - Connection testing script
+- **Testing**: User needs to restart both server and client, then test chat on any prediction page
+- **Expected Result**: No more connection errors, successful WebSocket connections, working chat functionality
+
 ## Next Session Reminders
 - Default to working within Fan Club Z v2.0 directory
 - Check this log for recent context and decisions

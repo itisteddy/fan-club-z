@@ -97,7 +97,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
     set({ isConnecting: true, connectionError: null });
 
-    const serverUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+    const serverUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001';
     console.log('🔗 Connecting to chat server:', serverUrl);
     
     const newSocket = io(serverUrl, {
