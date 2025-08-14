@@ -124,17 +124,22 @@ export const useChatStore = create<ChatState>((set, get) => ({
     const newSocket = io(serverUrl, {
       withCredentials: true,
       transports: ['websocket', 'polling'],
-      timeout: 20000,
+      timeout: 30000, // Increased timeout for Render
       reconnection: true,
-      reconnectionAttempts: 5,
-      reconnectionDelay: 1000,
-      reconnectionDelayMax: 5000,
-      maxReconnectionAttempts: 5,
+      reconnectionAttempts: 10, // More attempts
+      reconnectionDelay: 2000, // Longer delay
+      reconnectionDelayMax: 10000,
+      maxReconnectionAttempts: 10,
       // Additional options for Render compatibility
       upgrade: true,
       rememberUpgrade: true,
-      // Force polling for initial connection on Render
-      forceNew: true
+      forceNew: true,
+      // Add query parameters for debugging
+      query: {
+        clientType: 'web',
+        version: '2.0.0',
+        environment: import.meta.env.MODE
+      }
     });
 
     // Connection events
@@ -577,19 +582,51 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
 // Helper function to get the correct server URL
 function getServerUrl(): string {
-  // Check if we're in production (deployed)
-  const isProduction = import.meta.env.PROD || 
-                      window.location.hostname.includes('vercel.app') ||
-                      window.location.hostname.includes('.app') ||
-                      window.location.hostname === 'fanclubz.app';
-
-  if (isProduction) {
-    // Production URLs (NO PORT NUMBERS for Render)
-    return 'https://fan-club-z.onrender.com';
-  } else {
-    // Development URLs
-    return import.meta.env.VITE_API_URL || 'http://localhost:3001';
+  // First check environment variables
+  if (import.meta.env.VITE_API_URL) {
+    console.log('🔧 Using VITE_API_URL:', import.meta.env.VITE_API_URL);
+    return import.meta.env.VITE_API_URL;
   }
+
+  // Check the current hostname to determine environment
+  const hostname = window.location.hostname;
+  const protocol = window.location.protocol;
+  
+  console.log('🌍 Current hostname:', hostname);
+  console.log('🌍 Current protocol:', protocol);
+  
+  // Production domain
+  if (hostname === 'app.fanclubz.app' || hostname === 'fanclubz.app') {
+    const serverUrl = 'https://fan-club-z.onrender.com';
+    console.log('🚀 Production domain detected, using Render server:', serverUrl);
+    return serverUrl;
+  }
+  
+  // Development domain
+  if (hostname === 'dev.fanclubz.app') {
+    const serverUrl = 'https://fan-club-z.onrender.com';
+    console.log('🧪 Development domain detected, using Render server:', serverUrl);
+    return serverUrl;
+  }
+  
+  // Vercel deployments (fallback to production)
+  if (hostname.includes('vercel.app')) {
+    const serverUrl = 'https://fan-club-z.onrender.com';
+    console.log('🚀 Vercel deployment detected, using Render production server:', serverUrl);
+    return serverUrl;
+  }
+  
+  // Development/local
+  if (hostname === 'localhost' || hostname.startsWith('127.0.0.1') || hostname.startsWith('192.168.')) {
+    const serverUrl = 'http://localhost:3001';
+    console.log('🏠 Local development detected, using:', serverUrl);
+    return serverUrl;
+  }
+  
+  // Fallback to production server
+  const fallbackUrl = 'https://fan-club-z.onrender.com';
+  console.log('🔄 Unknown hostname, falling back to production:', fallbackUrl);
+  return fallbackUrl;
 }
 
 // Helper function to get user-friendly connection error messages
