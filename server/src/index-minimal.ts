@@ -405,7 +405,7 @@ app.get('/api/v2/clubs/:id', (req, res) => {
     });
   }
   
-  res.json({
+  return res.json({
     success: true,
     data: club
   });
@@ -430,7 +430,7 @@ app.post('/api/v2/clubs/:id/join', mockAuth, (req, res) => {
   
   console.log(`✅ User joined club: ${club.name}`);
   
-  res.json({
+  return res.json({
     success: true,
     message: 'Successfully joined club',
     data: { club_id: id, user_id: req.user?.id || 'unknown', role: 'member' }
@@ -456,7 +456,7 @@ app.post('/api/v2/clubs/:id/leave', mockAuth, (req, res) => {
   
   console.log(`👋 User left club: ${club.name}`);
   
-  res.json({
+  return res.json({
     success: true,
     message: 'Successfully left club'
   });
@@ -467,7 +467,7 @@ app.get('/api/v2/clubs/:id/members', mockAuth, (req, res) => {
   const { id } = req.params;
   const members = mockClubMembers.filter(m => m.club_id === id);
   
-  res.json({
+  return res.json({
     success: true,
     data: members
   });
@@ -677,7 +677,7 @@ app.get('/api/user/profile', mockAuth, (req, res) => {
     });
   }
   
-  res.json({
+  return res.json({
     success: true,
     data: {
       id: req.user.id,
@@ -715,7 +715,7 @@ app.get('/api/wallet/balance', mockAuth, (req, res) => {
     });
   }
   
-  res.json({
+  return res.json({
     success: true,
     data: {
       balance: 1000.00,
@@ -737,7 +737,7 @@ app.get('/api/wallet/transactions', mockAuth, (req, res) => {
     });
   }
   
-  res.json({
+  return res.json({
     success: true,
     data: [
       {
@@ -853,7 +853,7 @@ app.post('/api/v2/social/comments', mockAuth, (req, res) => {
     is_liked_by_user: false
   };
   
-  res.status(201).json({
+  return res.status(201).json({
     success: true,
     data: newComment,
     message: 'Comment created successfully'
@@ -865,7 +865,7 @@ app.post('/api/v2/social/comments', mockAuth, (req, res) => {
 // ============================================================================
 
 app.get('/api/v2/websocket-test', (req, res) => {
-  res.json({
+  return res.json({
     success: true,
     data: {
       websocket_available: true,
@@ -881,7 +881,7 @@ app.get('/api/v2/websocket-test', (req, res) => {
 // ============================================================================
 
 app.get('/api/v2/test', (req, res) => {
-  res.json({
+  return res.json({
     success: true,
     message: 'Server is working!',
     data: {
@@ -900,7 +900,7 @@ app.get('/api/v2/test', (req, res) => {
 // 404 handler
 app.use('*', (req, res) => {
   console.log(`❌ 404 - Not Found: ${req.method} ${req.originalUrl}`);
-  res.status(404).json({
+  return res.status(404).json({
     success: false,
     error: 'Endpoint not found',
     path: req.originalUrl,
@@ -911,7 +911,7 @@ app.use('*', (req, res) => {
 // Error handler
 app.use((error: any, req: any, res: any, next: any) => {
   console.error('Server error:', error);
-  res.status(500).json({
+  return res.status(500).json({
     success: false,
     error: 'Internal server error',
     message: process.env.NODE_ENV === 'development' ? error.message : 'Something went wrong',
