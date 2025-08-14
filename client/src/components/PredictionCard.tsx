@@ -5,6 +5,7 @@ import { Prediction, PredictionEntry } from '../store/predictionStore';
 import { useLikeStore } from '../store/likeStore';
 import { useCommentStore } from '../store/commentStore';
 import CommentModal from './modals/CommentModal';
+import { ChatModal } from './modals/ChatModal';
 import toast from 'react-hot-toast';
 
 interface PredictionCardProps {
@@ -31,6 +32,7 @@ const PredictionCard: React.FC<PredictionCardProps> = ({
   const { toggleLike, checkIfLiked, getLikeCount } = useLikeStore();
   const { getCommentCount } = useCommentStore();
   const [commentModalOpen, setCommentModalOpen] = useState(false);
+  const [chatModalOpen, setChatModalOpen] = useState(false);
   const [isLiking, setIsLiking] = useState(false);
 
   // Get real-time data from stores
@@ -66,7 +68,7 @@ const PredictionCard: React.FC<PredictionCardProps> = ({
     if (customOnComment) {
       customOnComment();
     } else {
-      setCommentModalOpen(true);
+      setChatModalOpen(true);
     }
   };
 
@@ -150,10 +152,11 @@ const PredictionCard: React.FC<PredictionCardProps> = ({
           </div>
         </motion.div>
 
-        <CommentModal
-          prediction={prediction}
-          isOpen={commentModalOpen}
-          onClose={() => setCommentModalOpen(false)}
+        <ChatModal
+          isOpen={chatModalOpen}
+          onClose={() => setChatModalOpen(false)}
+          predictionId={prediction.id}
+          predictionTitle={prediction.title}
         />
       </>
     );
@@ -326,10 +329,11 @@ const PredictionCard: React.FC<PredictionCardProps> = ({
         </div>
       </motion.div>
 
-      <CommentModal
-        prediction={prediction}
-        isOpen={commentModalOpen}
-        onClose={() => setCommentModalOpen(false)}
+      <ChatModal
+        isOpen={chatModalOpen}
+        onClose={() => setChatModalOpen(false)}
+        predictionId={prediction.id}
+        predictionTitle={prediction.title}
       />
     </>
   );

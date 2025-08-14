@@ -527,20 +527,39 @@ app.get('/api/v2/predictions', (req, res) => {
     predictions = predictions.filter(p => p.category === category);
   }
   
-  res.json(predictions);
+  return res.json(predictions);
+});
+
+// Get prediction by ID (v2)
+app.get('/api/v2/predictions/:id', (req, res) => {
+  const { id } = req.params;
+  const prediction = mockPredictions.find(p => p.id === id);
+  
+  if (!prediction) {
+    return res.status(404).json({
+      success: false,
+      error: 'Prediction not found'
+    });
+  }
+  
+  return res.json({
+    success: true,
+    data: prediction,
+    message: 'Prediction retrieved successfully'
+  });
 });
 
 // Get trending predictions (v2)
 app.get('/api/v2/predictions/trending', (req, res) => {
   // Return predictions sorted by pool total
   const trending = [...mockPredictions].sort((a, b) => b.pool_total - a.pool_total);
-  res.json(trending);
+  return res.json(trending);
 });
 
 // Get user predictions (v2)
 app.get('/api/v2/predictions/user', (req, res) => {
   // Return empty array for now (user not logged in)
-  res.json([]);
+  return res.json([]);
 });
 
 // Create prediction (v2)
@@ -565,7 +584,7 @@ app.post('/api/v2/predictions', (req, res) => {
   
   mockPredictions.unshift(newPrediction);
   console.log('✅ Prediction created successfully:', newPrediction.id);
-  res.status(201).json(newPrediction);
+  return res.status(201).json(newPrediction);
 });
 
 // Create prediction entry (v2)
@@ -573,13 +592,106 @@ app.post('/api/v2/prediction-entries', (req, res) => {
   // Mock prediction entry
   const { prediction_id, option_id, amount } = req.body;
   
-  res.json({
+  return res.json({
     id: Date.now().toString(),
     prediction_id,
     option_id,
     amount,
     potential_payout: amount * 2, // Mock 2x payout
     created_at: new Date().toISOString()
+  });
+});
+
+// ============================================================================
+// CHAT ENDPOINTS (for Chat Modal functionality)
+// ============================================================================
+
+// Get chat messages for a prediction
+app.get('/api/v2/chat/:predictionId/messages', mockAuth, (req, res) => {
+  if (!req.user) {
+    return res.status(401).json({
+      success: false,
+      message: 'User not authenticated'
+    });
+  }
+  
+  const { predictionId } = req.params;
+  
+  // Mock chat messages
+  const mockMessages = [
+    {
+      id: '1',
+      predictionId,
+      userId: req.user.id,
+      username: req.user.username,
+      avatar_url: null,
+      content: 'This prediction looks interesting! What do you think?',
+      timestamp: new Date(Date.now() - 3600000).toISOString(),
+      type: 'message'
+    },
+    {
+      id: '2',
+      predictionId,
+      userId: 'user2',
+      username: 'prediction_expert',
+      avatar_url: null,
+      content: 'I think the odds are in favor of this outcome. The market trends support it.',
+      timestamp: new Date(Date.now() - 1800000).toISOString(),
+      type: 'message'
+    },
+    {
+      id: '3',
+      predictionId,
+      userId: req.user.id,
+      username: req.user.username,
+      avatar_url: null,
+      content: 'Thanks for the insight! I might place a bet on this one.',
+      timestamp: new Date().toISOString(),
+      type: 'message'
+    }
+  ];
+  
+  return res.json({
+    success: true,
+    data: mockMessages,
+    message: 'Chat messages retrieved successfully'
+  });
+});
+
+// Send a new chat message
+app.post('/api/v2/chat/:predictionId/messages', mockAuth, (req, res) => {
+  if (!req.user) {
+    return res.status(401).json({
+      success: false,
+      message: 'User not authenticated'
+    });
+  }
+  
+  const { predictionId } = req.params;
+  const { content } = req.body;
+  
+  if (!content || !content.trim()) {
+    return res.status(400).json({
+      success: false,
+      message: 'Message content is required'
+    });
+  }
+  
+  const newMessage = {
+    id: `msg_${Date.now()}`,
+    predictionId,
+    userId: req.user.id,
+    username: req.user.username,
+    avatar_url: null,
+    content: content.trim(),
+    timestamp: new Date().toISOString(),
+    type: 'message'
+  };
+  
+  return res.status(201).json({
+    success: true,
+    data: newMessage,
+    message: 'Message sent successfully'
   });
 });
 
