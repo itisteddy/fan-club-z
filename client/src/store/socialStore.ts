@@ -1,336 +1,480 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { supabase } from '../lib/supabase';
 
-export interface Comment {
+interface User {
   id: string;
-  predictionId: string;
-  userId: string;
   username: string;
-  avatar?: string;
+  avatar_url?: string;
+  is_verified?: boolean;
+}
+
+interface Comment {
+  id: string;
   content: string;
-  createdAt: string;
-  updatedAt?: string;
-  likes: number;
-  liked: boolean;
-  replies: Comment[];
-  parentId?: string;
-  isEdited: boolean;
+  user_id: string;
+  prediction_id: string;
+  parent_comment_id?: string;
+  created_at: string;
+  updated_at?: string;
+  edited_at?: string;
+  likes_count: number;
+  replies_count: number;
+  user: User;
+  is_liked?: boolean;
+  is_own?: boolean;
+  replies?: Comment[];
 }
 
-export interface Like {
+interface Club {
   id: string;
-  predictionId: string;
-  userId: string;
-  createdAt: string;
-}
-
-export interface Share {
-  id: string;
-  predictionId: string;
-  userId: string;
-  platform: 'twitter' | 'whatsapp' | 'telegram' | 'copy_link' | 'native_share' | 'download_image';
-  createdAt: string;
+  name: string;
+  description?: string;
+  owner_id: string;
+  visibility: 'public' | 'private' | 'invite_only';
+  member_count: number;
+  created_at: string;
+  updated_at: string;
 }
 
 interface SocialStore {
-  comments: Comment[];
-  likes: Like[];
-  shares: Share[];
+  // Comments
+  comments: Record<string, Comment[]>;
+  loadingComments: Record<string, boolean>;
   
-  // Comment actions
-  addComment: (data: { predictionId: string; content: string; parentId?: string }) => Promise<void>;
-  editComment: (commentId: string, content: string) => Promise<void>;
+  // Clubs
+  clubs: Club[];
+  userClubs: Club[];
+  loadingClubs: boolean;
+  
+  // Methods
+  getPredictionComments: (predictionId: string) => Promise<Comment[]>;
+  createComment: (data: {
+    prediction_id: string;
+    content: string;
+    parent_comment_id?: string;
+  }) => Promise<Comment>;
+  updateComment: (commentId: string, content: string) => Promise<Comment>;
   deleteComment: (commentId: string) => Promise<void>;
-  toggleLike: (commentId: string) => Promise<void>;
+  likeComment: (commentId: string) => Promise<void>;
   
-  // Prediction actions
-  togglePredictionLike: (predictionId: string) => Promise<void>;
-  sharePrediction: (predictionId: string, platform: Share['platform']) => Promise<void>;
-  
-  // Get functions
-  getComments: (predictionId: string) => Comment[];
-  getCommentCount: (predictionId: string) => number;
-  getLikeCount: (predictionId: string) => number;
-  getShareCount: (predictionId: string) => number;
-  isPredictionLiked: (predictionId: string) => boolean;
+  // Club methods
+  getClubs: () => Promise<Club[]>;
+  getUserClubs: () => Promise<Club[]>;
+  createClub: (data: {
+    name: string;
+    description?: string;
+    visibility: 'public' | 'private' | 'invite_only';
+  }) => Promise<Club>;
+  joinClub: (clubId: string) => Promise<void>;
+  leaveClub: (clubId: string) => Promise<void>;
 }
 
-export const useSocialStore = create<SocialStore>()(
-  persist(
-    (set, get) => ({
-      comments: [],
-      likes: [],
-      shares: [],
+export const useSocialStore = create<SocialStore>((set, get) => ({
+  // Initial state
+  comments: {},
+  loadingComments: {},
+  clubs: [],
+  userClubs: [],
+  loadingClubs: false,
 
-      addComment: async (data) => {
-        const newComment: Comment = {
-          id: crypto.randomUUID(),
-          predictionId: data.predictionId,
-          userId: 'current-user', // Replace with actual user ID
-          username: 'Current User', // Replace with actual username
-          content: data.content,
-          createdAt: new Date().toISOString(),
-          likes: 0,
-          liked: false,
-          replies: [],
-          parentId: data.parentId,
-          isEdited: false,
-        };
-
-        set((state) => ({
-          comments: [...state.comments, newComment],
-        }));
-
-        // TODO: Send to API
-        try {
-          // const response = await fetch('/api/comments', {
-          //   method: 'POST',
-          //   headers: { 'Content-Type': 'application/json' },
-          //   body: JSON.stringify(data),
-          // });
-          // const savedComment = await response.json();
-          // Update local state with server response if needed
-        } catch (error) {
-          console.error('Failed to save comment:', error);
-          // Optionally revert optimistic update
-        }
-      },
-
-      editComment: async (commentId, content) => {
-        set((state) => ({
-          comments: state.comments.map((comment) =>
-            comment.id === commentId
-              ? {
-                  ...comment,
-                  content,
-                  updatedAt: new Date().toISOString(),
-                  isEdited: true,
-                }
-              : comment
-          ),
-        }));
-
-        // TODO: Send to API
-        try {
-          // await fetch(`/api/comments/${commentId}`, {
-          //   method: 'PUT',
-          //   headers: { 'Content-Type': 'application/json' },
-          //   body: JSON.stringify({ content }),
-          // });
-        } catch (error) {
-          console.error('Failed to edit comment:', error);
-        }
-      },
-
-      deleteComment: async (commentId) => {
-        set((state) => ({
-          comments: state.comments.filter((comment) => comment.id !== commentId),
-        }));
-
-        // TODO: Send to API
-        try {
-          // await fetch(`/api/comments/${commentId}`, {
-          //   method: 'DELETE',
-          // });
-        } catch (error) {
-          console.error('Failed to delete comment:', error);
-        }
-      },
-
-      toggleLike: async (commentId) => {
-        set((state) => ({
-          comments: state.comments.map((comment) =>
-            comment.id === commentId
-              ? {
-                  ...comment,
-                  liked: !comment.liked,
-                  likes: comment.liked ? comment.likes - 1 : comment.likes + 1,
-                }
-              : comment
-          ),
-        }));
-
-        // TODO: Send to API
-        try {
-          // await fetch(`/api/comments/${commentId}/toggle-like`, {
-          //   method: 'POST',
-          // });
-        } catch (error) {
-          console.error('Failed to toggle like:', error);
-        }
-      },
-
-      togglePredictionLike: async (predictionId) => {
-        const currentUserId = 'current-user'; // Replace with actual user ID
-        const existingLike = get().likes.find(
-          (like) => like.predictionId === predictionId && like.userId === currentUserId
-        );
-
-        if (existingLike) {
-          // Remove like
-          set((state) => ({
-            likes: state.likes.filter((like) => like.id !== existingLike.id),
-          }));
-        } else {
-          // Add like
-          const newLike: Like = {
-            id: crypto.randomUUID(),
-            predictionId,
-            userId: currentUserId,
-            createdAt: new Date().toISOString(),
-          };
-
-          set((state) => ({
-            likes: [...state.likes, newLike],
-          }));
-        }
-
-        // TODO: Send to API
-        try {
-          // await fetch(`/api/predictions/${predictionId}/toggle-like`, {
-          //   method: 'POST',
-          // });
-        } catch (error) {
-          console.error('Failed to toggle prediction like:', error);
-        }
-      },
-
-      sharePrediction: async (predictionId, platform) => {
-        const newShare: Share = {
-          id: crypto.randomUUID(),
-          predictionId,
-          userId: 'current-user', // Replace with actual user ID
-          platform,
-          createdAt: new Date().toISOString(),
-        };
-
-        set((state) => ({
-          shares: [...state.shares, newShare],
-        }));
-
-        // TODO: Send to API for analytics
-        try {
-          // await fetch('/api/shares', {
-          //   method: 'POST',
-          //   headers: { 'Content-Type': 'application/json' },
-          //   body: JSON.stringify({ predictionId, platform }),
-          // });
-        } catch (error) {
-          console.error('Failed to track share:', error);
-        }
-      },
-
-      getComments: (predictionId) => {
-        return get().comments.filter((comment) => comment.predictionId === predictionId);
-      },
-
-      getCommentCount: (predictionId) => {
-        return get().comments.filter((comment) => comment.predictionId === predictionId).length;
-      },
-
-      getLikeCount: (predictionId) => {
-        return get().likes.filter((like) => like.predictionId === predictionId).length;
-      },
-
-      getShareCount: (predictionId) => {
-        return get().shares.filter((share) => share.predictionId === predictionId).length;
-      },
-
-      isPredictionLiked: (predictionId) => {
-        const currentUserId = 'current-user'; // Replace with actual user ID
-        return get().likes.some(
-          (like) => like.predictionId === predictionId && like.userId === currentUserId
-        );
-      },
-    }),
-    {
-      name: 'fanclubz-social',
-      partialize: (state) => ({
-        comments: state.comments,
-        likes: state.likes,
-        shares: state.shares,
-      }),
-    }
-  )
-);
-
-// Helper functions for easy access
-export const socialHelpers = {
-  getEngagementData: (predictionId: string) => {
-    const store = useSocialStore.getState();
-    return {
-      comments: store.getCommentCount(predictionId),
-      likes: store.getLikeCount(predictionId),
-      shares: store.getShareCount(predictionId),
-      isLiked: store.isPredictionLiked(predictionId),
-    };
-  },
-
-  // Seed some initial data for development
-  seedSocialData: () => {
-    const store = useSocialStore.getState();
+  // Comment methods
+  getPredictionComments: async (predictionId: string) => {
+    const state = get();
     
-    // Add some sample comments
-    const sampleComments: Comment[] = [
-      {
-        id: '1',
-        predictionId: 'pred-1',
-        userId: 'user-1',
-        username: 'SportsFan123',
-        content: 'This is going to be an exciting match! I think Team A has a strong chance.',
-        createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(), // 2 hours ago
-        likes: 5,
-        liked: false,
-        replies: [],
-        isEdited: false,
-      },
-      {
-        id: '2',
-        predictionId: 'pred-1',
-        userId: 'user-2',
-        username: 'AnalystPro',
-        content: 'Based on recent performance stats, I disagree. Team B has been more consistent.',
-        createdAt: new Date(Date.now() - 1 * 60 * 60 * 1000).toISOString(), // 1 hour ago
-        likes: 3,
-        liked: true,
-        replies: [],
-        isEdited: false,
-      },
-      {
-        id: '3',
-        predictionId: 'pred-1',
-        userId: 'user-3',
-        username: 'CasualBettor',
-        content: 'Great analysis! What do you think about the weather conditions?',
-        createdAt: new Date(Date.now() - 30 * 60 * 1000).toISOString(), // 30 minutes ago
-        likes: 1,
-        liked: false,
-        replies: [],
-        parentId: '2', // Reply to AnalystPro
-        isEdited: false,
-      },
-    ];
+    // Return cached comments if available
+    if (state.comments[predictionId] && !state.loadingComments[predictionId]) {
+      return state.comments[predictionId];
+    }
 
-    // Add sample likes
-    const sampleLikes: Like[] = [
-      {
-        id: 'like-1',
-        predictionId: 'pred-1',
-        userId: 'user-1',
-        createdAt: new Date().toISOString(),
-      },
-      {
-        id: 'like-2',
-        predictionId: 'pred-1',
-        userId: 'user-4',
-        createdAt: new Date().toISOString(),
-      },
-    ];
+    // Set loading state
+    set(state => ({
+      loadingComments: { ...state.loadingComments, [predictionId]: true }
+    }));
 
-    useSocialStore.setState({
-      comments: sampleComments,
-      likes: sampleLikes,
-      shares: [],
-    });
+    try {
+      const { data, error } = await supabase
+        .from('comments')
+        .select(`
+          *,
+          user:users!user_id (
+            id,
+            username,
+            avatar_url,
+            is_verified
+          ),
+          likes:comment_likes (count),
+          user_like:comment_likes!left (user_id)
+        `)
+        .eq('prediction_id', predictionId)
+        .is('parent_comment_id', null)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+
+      // Process comments and get replies
+      const processedComments = await Promise.all(
+        (data || []).map(async (comment: any) => {
+          // Get replies for this comment
+          const { data: repliesData } = await supabase
+            .from('comments')
+            .select(`
+              *,
+              user:users!user_id (
+                id,
+                username,
+                avatar_url,
+                is_verified
+              ),
+              likes:comment_likes (count),
+              user_like:comment_likes!left (user_id)
+            `)
+            .eq('parent_comment_id', comment.id)
+            .order('created_at', { ascending: true });
+
+          const replies = (repliesData || []).map((reply: any) => ({
+            ...reply,
+            likes_count: reply.likes?.[0]?.count || 0,
+            is_liked: !!reply.user_like?.length,
+            is_own: reply.user_id === (await supabase.auth.getUser()).data.user?.id,
+            replies_count: 0 // No nested replies for now
+          }));
+
+          return {
+            ...comment,
+            likes_count: comment.likes?.[0]?.count || 0,
+            is_liked: !!comment.user_like?.length,
+            is_own: comment.user_id === (await supabase.auth.getUser()).data.user?.id,
+            replies_count: replies.length,
+            replies
+          };
+        })
+      );
+
+      // Update store
+      set(state => ({
+        comments: { ...state.comments, [predictionId]: processedComments },
+        loadingComments: { ...state.loadingComments, [predictionId]: false }
+      }));
+
+      return processedComments;
+    } catch (error) {
+      console.error('Failed to get comments:', error);
+      set(state => ({
+        loadingComments: { ...state.loadingComments, [predictionId]: false }
+      }));
+      throw error;
+    }
   },
-};
+
+  createComment: async (data) => {
+    try {
+      const { data: user } = await supabase.auth.getUser();
+      if (!user.user) throw new Error('Not authenticated');
+
+      // Insert comment
+      const { data: comment, error } = await supabase
+        .from('comments')
+        .insert({
+          content: data.content,
+          user_id: user.user.id,
+          prediction_id: data.prediction_id,
+          parent_comment_id: data.parent_comment_id
+        })
+        .select(`
+          *,
+          user:users!user_id (
+            id,
+            username,
+            avatar_url,
+            is_verified
+          )
+        `)
+        .single();
+
+      if (error) throw error;
+
+      const processedComment = {
+        ...comment,
+        likes_count: 0,
+        replies_count: 0,
+        is_liked: false,
+        is_own: true,
+        replies: []
+      };
+
+      // Update comment count in prediction
+      await supabase
+        .from('predictions')
+        .update({ 
+          comments_count: supabase.sql`comments_count + 1`
+        })
+        .eq('id', data.prediction_id);
+
+      return processedComment;
+    } catch (error) {
+      console.error('Failed to create comment:', error);
+      throw error;
+    }
+  },
+
+  updateComment: async (commentId: string, content: string) => {
+    try {
+      const { data: user } = await supabase.auth.getUser();
+      if (!user.user) throw new Error('Not authenticated');
+
+      const { data: comment, error } = await supabase
+        .from('comments')
+        .update({ 
+          content,
+          edited_at: new Date().toISOString()
+        })
+        .eq('id', commentId)
+        .eq('user_id', user.user.id) // Ensure user can only edit their own comments
+        .select(`
+          *,
+          user:users!user_id (
+            id,
+            username,
+            avatar_url,
+            is_verified
+          )
+        `)
+        .single();
+
+      if (error) throw error;
+
+      return {
+        ...comment,
+        likes_count: 0, // Will be updated by the component
+        replies_count: 0,
+        is_liked: false,
+        is_own: true
+      };
+    } catch (error) {
+      console.error('Failed to update comment:', error);
+      throw error;
+    }
+  },
+
+  deleteComment: async (commentId: string) => {
+    try {
+      const { data: user } = await supabase.auth.getUser();
+      if (!user.user) throw new Error('Not authenticated');
+
+      // Get comment details first to update prediction count
+      const { data: comment } = await supabase
+        .from('comments')
+        .select('prediction_id, parent_comment_id')
+        .eq('id', commentId)
+        .single();
+
+      // Delete comment (this will cascade to delete replies and likes)
+      const { error } = await supabase
+        .from('comments')
+        .delete()
+        .eq('id', commentId)
+        .eq('user_id', user.user.id);
+
+      if (error) throw error;
+
+      // Update comment count if it's a top-level comment
+      if (comment && !comment.parent_comment_id) {
+        await supabase
+          .from('predictions')
+          .update({ 
+            comments_count: supabase.sql`GREATEST(comments_count - 1, 0)`
+          })
+          .eq('id', comment.prediction_id);
+      }
+    } catch (error) {
+      console.error('Failed to delete comment:', error);
+      throw error;
+    }
+  },
+
+  likeComment: async (commentId: string) => {
+    try {
+      const { data: user } = await supabase.auth.getUser();
+      if (!user.user) throw new Error('Not authenticated');
+
+      // Check if already liked
+      const { data: existingLike } = await supabase
+        .from('comment_likes')
+        .select('id')
+        .eq('comment_id', commentId)
+        .eq('user_id', user.user.id)
+        .single();
+
+      if (existingLike) {
+        // Unlike - remove the like
+        await supabase
+          .from('comment_likes')
+          .delete()
+          .eq('comment_id', commentId)
+          .eq('user_id', user.user.id);
+
+        // Decrement likes count
+        await supabase
+          .from('comments')
+          .update({ 
+            likes_count: supabase.sql`GREATEST(likes_count - 1, 0)`
+          })
+          .eq('id', commentId);
+      } else {
+        // Like - add the like
+        await supabase
+          .from('comment_likes')
+          .insert({
+            comment_id: commentId,
+            user_id: user.user.id
+          });
+
+        // Increment likes count
+        await supabase
+          .from('comments')
+          .update({ 
+            likes_count: supabase.sql`likes_count + 1`
+          })
+          .eq('id', commentId);
+      }
+    } catch (error) {
+      console.error('Failed to like/unlike comment:', error);
+      throw error;
+    }
+  },
+
+  // Club methods (placeholder for future implementation)
+  getClubs: async () => {
+    set({ loadingClubs: true });
+    try {
+      const { data, error } = await supabase
+        .from('clubs')
+        .select('*')
+        .eq('visibility', 'public')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+
+      set({ clubs: data || [], loadingClubs: false });
+      return data || [];
+    } catch (error) {
+      console.error('Failed to get clubs:', error);
+      set({ loadingClubs: false });
+      throw error;
+    }
+  },
+
+  getUserClubs: async () => {
+    try {
+      const { data: user } = await supabase.auth.getUser();
+      if (!user.user) throw new Error('Not authenticated');
+
+      const { data, error } = await supabase
+        .from('club_members')
+        .select(`
+          club:clubs (*)
+        `)
+        .eq('user_id', user.user.id);
+
+      if (error) throw error;
+
+      const clubs = (data || []).map(item => item.club).filter(Boolean);
+      set({ userClubs: clubs });
+      return clubs;
+    } catch (error) {
+      console.error('Failed to get user clubs:', error);
+      throw error;
+    }
+  },
+
+  createClub: async (data) => {
+    try {
+      const { data: user } = await supabase.auth.getUser();
+      if (!user.user) throw new Error('Not authenticated');
+
+      const { data: club, error } = await supabase
+        .from('clubs')
+        .insert({
+          ...data,
+          owner_id: user.user.id
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      // Add creator as admin member
+      await supabase
+        .from('club_members')
+        .insert({
+          club_id: club.id,
+          user_id: user.user.id,
+          role: 'admin'
+        });
+
+      set(state => ({
+        clubs: [club, ...state.clubs],
+        userClubs: [club, ...state.userClubs]
+      }));
+
+      return club;
+    } catch (error) {
+      console.error('Failed to create club:', error);
+      throw error;
+    }
+  },
+
+  joinClub: async (clubId: string) => {
+    try {
+      const { data: user } = await supabase.auth.getUser();
+      if (!user.user) throw new Error('Not authenticated');
+
+      const { error } = await supabase
+        .from('club_members')
+        .insert({
+          club_id: clubId,
+          user_id: user.user.id,
+          role: 'member'
+        });
+
+      if (error) throw error;
+
+      // Update member count
+      await supabase
+        .from('clubs')
+        .update({ 
+          member_count: supabase.sql`member_count + 1`
+        })
+        .eq('id', clubId);
+    } catch (error) {
+      console.error('Failed to join club:', error);
+      throw error;
+    }
+  },
+
+  leaveClub: async (clubId: string) => {
+    try {
+      const { data: user } = await supabase.auth.getUser();
+      if (!user.user) throw new Error('Not authenticated');
+
+      const { error } = await supabase
+        .from('club_members')
+        .delete()
+        .eq('club_id', clubId)
+        .eq('user_id', user.user.id);
+
+      if (error) throw error;
+
+      // Update member count
+      await supabase
+        .from('clubs')
+        .update({ 
+          member_count: supabase.sql`GREATEST(member_count - 1, 0)`
+        })
+        .eq('id', clubId);
+    } catch (error) {
+      console.error('Failed to leave club:', error);
+      throw error;
+    }
+  }
+}));

@@ -6,7 +6,7 @@ import { usePredictionStore } from '../store/predictionStore';
 import { useAuthStore } from '../store/authStore';
 import { useWalletStore } from '../store/walletStore';
 import { formatTimeRemaining } from '../lib/utils';
-import { ChatModal } from '../components/modals/ChatModal';
+import { CommentSystem } from '../components/CommentSystem';
 import toast from 'react-hot-toast';
 
 interface PredictionDetailsPageProps {
@@ -21,7 +21,7 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
   const [isPlacingBet, setIsPlacingBet] = useState(false);
   const [prediction, setPrediction] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [chatModalOpen, setChatModalOpen] = useState(false);
+  const [showComments, setShowComments] = useState(false);
   
   const { predictions, fetchPredictions, placePrediction } = usePredictionStore();
   const { isAuthenticated } = useAuthStore();
@@ -191,8 +191,8 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
     }
   };
 
-  const handleChatOpen = () => {
-    setChatModalOpen(true);
+  const handleCommentsToggle = () => {
+    setShowComments(!showComments);
   };
 
   // Loading state
@@ -475,8 +475,10 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
                 <span>{prediction.likes_count || 0} likes</span>
               </div>
               <button
-                onClick={handleChatOpen}
-                className="flex items-center gap-2 text-gray-600 hover:text-blue-500 transition-colors"
+                onClick={handleCommentsToggle}
+                className={`flex items-center gap-2 text-gray-600 hover:text-blue-500 transition-colors ${
+                  showComments ? 'text-blue-500' : ''
+                }`}
               >
                 <MessageCircle size={20} />
                 <span>{prediction.comments_count || 0} comments</span>
@@ -487,16 +489,29 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
               </div>
             </div>
           </motion.div>
+
+          {/* Comments Section */}
+          {showComments && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              transition={{ duration: 0.3 }}
+              className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden"
+            >
+              <div className="p-4 border-b border-gray-100">
+                <h3 className="text-lg font-bold text-gray-900">Comments</h3>
+              </div>
+              <div className="max-h-96 overflow-y-auto">
+                <CommentSystem 
+                  predictionId={prediction?.id || ''} 
+                  className="p-4"
+                />
+              </div>
+            </motion.div>
+          )}
         </div>
       </div>
-
-      {/* Chat Modal */}
-      <ChatModal
-        isOpen={chatModalOpen}
-        onClose={() => setChatModalOpen(false)}
-        predictionId={prediction?.id || ''}
-        predictionTitle={prediction?.title || ''}
-      />
     </>
   );
 };

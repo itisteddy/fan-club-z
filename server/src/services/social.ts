@@ -541,6 +541,52 @@ export class SocialService {
     }
   }
 
+  async toggleCommentLike(userId: string, commentId: string): Promise<void> {
+    try {
+      // Check if like already exists
+      const { data: existingLike, error: fetchError } = await this.supabase
+        .from('comment_likes')
+        .select('*')
+        .eq('comment_id', commentId)
+        .eq('user_id', userId)
+        .single();
+
+      if (fetchError && fetchError.code !== 'PGRST116') {
+        logger.error('Error checking existing comment like:', fetchError);
+        throw new Error('Failed to check existing like');
+      }
+
+      if (existingLike) {
+        // Remove existing like
+        const { error: deleteError } = await this.supabase
+          .from('comment_likes')
+          .delete()
+          .eq('id', existingLike.id);
+
+        if (deleteError) {
+          logger.error('Error removing comment like:', deleteError);
+          throw new Error('Failed to remove like');
+        }
+      } else {
+        // Add new like
+        const { error: insertError } = await this.supabase
+          .from('comment_likes')
+          .insert({
+            comment_id: commentId,
+            user_id: userId,
+          });
+
+        if (insertError) {
+          logger.error('Error creating comment like:', insertError);
+          throw new Error('Failed to create like');
+        }
+      }
+    } catch (error) {
+      logger.error('Error in toggleCommentLike:', error);
+      throw error;
+    }
+  }
+
   // ============================================================================
   // REACTIONS METHODS
   // ============================================================================

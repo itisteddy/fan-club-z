@@ -253,14 +253,36 @@ router.get('/predictions/:id/comments', validateRequest(PaginationQuerySchema, '
 
 /**
  * POST /api/v2/social/comments
- * Create a new comment
+ * Create a new comment (Twitter-style persistent comments)
  */
-router.post('/comments', authenticateToken, validateRequest(CreateCommentSchema), async (req: AuthenticatedRequest, res) => {
+router.post('/comments', authenticateToken, async (req: AuthenticatedRequest, res) => {
   try {
     const userId = req.user!.id;
-    const commentData = req.body;
+    const { prediction_id, content, parent_comment_id } = req.body;
     
-    const comment = await socialService.createComment(userId, commentData);
+    // Validate required fields
+    if (!prediction_id || !content) {
+      const response: ApiResponse = {
+        success: false,
+        error: 'prediction_id and content are required',
+      };
+      return res.status(400).json(response);
+    }
+
+    // Validate content length
+    if (content.length > 280) {
+      const response: ApiResponse = {
+        success: false,
+        error: 'Comment must be 280 characters or less',
+      };
+      return res.status(400).json(response);
+    }
+    
+    const comment = await socialService.createComment(userId, {
+      prediction_id,
+      content: content.trim(),
+      parent_comment_id
+    });
     
     const response: ApiResponse<Comment> = {
       success: true,
@@ -346,6 +368,33 @@ router.delete('/comments/:id', authenticateToken, async (req: AuthenticatedReque
 // ============================================================================
 // REACTIONS ENDPOINTS
 // ============================================================================
+
+/**
+ * POST /api/v2/social/comments/:id/like
+ * Like or unlike a comment
+ */
+router.post('/comments/:id/like', authenticateToken, async (req: AuthenticatedRequest, res) => {
+  try {
+    const userId = req.user!.id;
+    const { id: commentId } = req.params;
+    
+    await socialService.toggleCommentLike(userId, commentId);
+    
+    const response: ApiResponse = {
+      success: true,
+      message: 'Comment like toggled successfully',
+    };
+    
+    res.json(response);
+  } catch (error) {
+    logger.error('Error toggling comment like:', error);
+    const response: ApiResponse = {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to toggle comment like',
+    };
+    res.status(500).json(response);
+  }
+});
 
 /**
  * POST /api/v2/social/reactions
