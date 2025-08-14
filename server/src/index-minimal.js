@@ -875,10 +875,45 @@ app.get('*', (req, res) => {
   });
 });
 
+// Health check endpoint
+app.get('/health', (req, res) => {
+  res.json({
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+    websocket: 'enabled'
+  });
+});
+
+// WebSocket test endpoint
+app.get('/api/v2/websocket-test', (req, res) => {
+  res.json({
+    success: true,
+    message: 'WebSocket test endpoint',
+    websocket_url: `ws://localhost:${PORT}/ws`,
+    socket_io_url: `http://localhost:${PORT}/socket.io/`
+  });
+});
+
 // Start server
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log(`🚀 Fan Club Z Server running on port ${PORT}`);
   console.log(`📊 Health check: http://localhost:${PORT}/health`);
   console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
   console.log(`🔗 CORS Origins: ${allowedOrigins.join(', ')}`);
-}); 
+});
+
+// Initialize ChatService for WebSocket functionality
+let chatService;
+try {
+  if (process.env.VITE_SUPABASE_URL && process.env.VITE_SUPABASE_ANON_KEY) {
+    const { ChatService } = require('./services/ChatService.js');
+    chatService = new ChatService(server);
+    console.log('✅ ChatService initialized successfully');
+  } else {
+    console.log('⚠️ Skipping ChatService - Supabase not configured');
+  }
+} catch (error) {
+  console.error('❌ Failed to initialize ChatService:', error);
+  console.log('⚠️ Continuing without WebSocket functionality');
+}
+console.log(`💬 WebSocket Chat: ${chatService ? 'Enabled' : 'Disabled'}`); 
