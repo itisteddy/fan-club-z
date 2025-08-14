@@ -50,6 +50,7 @@ interface ChatState {
   currentPredictionId: string | null;
   connectionError: string | null;
   messageHistory: Record<string, boolean>; // Track which predictions have loaded history
+  reconnectAttempts: number;
   
   // Actions
   initializeSocket: () => void;
@@ -63,6 +64,7 @@ interface ChatState {
   startTyping: (predictionId: string) => void;
   stopTyping: (predictionId: string) => void;
   clearMessages: (predictionId: string) => void;
+  testConnection: () => Promise<boolean>;
   
   // Getters
   getMessagesForPrediction: (predictionId: string) => ChatMessage[];
@@ -81,11 +83,28 @@ export const useChatStore = create<ChatState>((set, get) => ({
   currentPredictionId: null,
   connectionError: null,
   messageHistory: {},
+  reconnectAttempts: 0,
+
+  testConnection: async () => {
+    const serverUrl = getServerUrl();
+    console.log('🔗 Testing connection to:', serverUrl);
+    
+    try {
+      const response = await fetch(`${serverUrl}/health`);
+      const data = await response.json();
+      console.log('✅ Server health check passed:', data);
+      return true;
+    } catch (error) {
+      console.error('❌ Server health check failed:', error);
+      return false;
+    }
+  },
 
   initializeSocket: () => {
-    const { socket } = get();
-    if (socket?.connected) {
-      console.log('🔗 Socket already connected');
+    const { socket, isConnected, isConnecting } = get();
+    
+    if (socket?.connected || isConnecting) {
+      console.log('🔗 Socket already connected or connecting');
       return;
     }
 
@@ -95,26 +114,41 @@ export const useChatStore = create<ChatState>((set, get) => ({
       return;
     }
 
-    set({ isConnecting: true, connectionError: null });
+    set({ isConnecting: true, connectionError: null, reconnectAttempts: 0 });
 
-    const serverUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+    const serverUrl = getServerUrl();
     console.log('🔗 Connecting to chat server:', serverUrl);
+    console.log('🌍 Environment:', import.meta.env.MODE);
+    console.log('🌍 Is Production:', import.meta.env.PROD);
     
     const newSocket = io(serverUrl, {
       withCredentials: true,
       transports: ['websocket', 'polling'],
-      timeout: 10000,
+      timeout: 20000,
       reconnection: true,
       reconnectionAttempts: 5,
       reconnectionDelay: 1000,
       reconnectionDelayMax: 5000,
-      maxReconnectionAttempts: 5
+      maxReconnectionAttempts: 5,
+      // Additional options for Render compatibility
+      upgrade: true,
+      rememberUpgrade: true,
+      // Force polling for initial connection on Render
+      forceNew: true
     });
 
     // Connection events
     newSocket.on('connect', () => {
       console.log('🔗 Connected to chat server');
-      set({ isConnected: true, isConnecting: false, connectionError: null });
+      console.log('🆔 Socket ID:', newSocket.id);
+      console.log('🔧 Transport:', newSocket.io.engine.transport.name);
+      
+      set({ 
+        isConnected: true, 
+        isConnecting: false, 
+        connectionError: null,
+        reconnectAttempts: 0 
+      });
       
       // Authenticate with the server
       newSocket.emit('authenticate', {
@@ -131,25 +165,69 @@ export const useChatStore = create<ChatState>((set, get) => ({
       if (reason === 'io server disconnect') {
         // Server disconnected, try to reconnect
         console.log('🔄 Server disconnected, attempting to reconnect...');
+      } else if (reason === 'transport close') {
+        // Render free tier timeout
+        console.log('🔄 Connection timeout (possibly Render free tier), reconnecting...');
       }
     });
 
     newSocket.on('connect_error', (error) => {
       console.error('❌ Connection error:', error);
+      
+      const attempts = get().reconnectAttempts + 1;
       set({ 
         isConnected: false, 
         isConnecting: false, 
-        connectionError: 'Failed to connect to chat server'
+        connectionError: getConnectionErrorMessage(error),
+        reconnectAttempts: attempts
       });
+
+      // If polling fails, try WebSocket only
+      if (error.message && error.message.includes('xhr poll error')) {
+        console.log('🔄 Polling failed, switching to WebSocket only');
+        newSocket.io.opts.transports = ['websocket'];
+      }
+      
+      // If too many failures, suggest checking server status
+      if (attempts >= 3) {
+        set({ 
+          connectionError: 'Unable to connect to chat server. Please check your internet connection and try again.' 
+        });
+      }
     });
 
     newSocket.on('reconnect', (attemptNumber) => {
       console.log('🔄 Reconnected after', attemptNumber, 'attempts');
-      set({ isConnected: true, isConnecting: false, connectionError: null });
+      set({ 
+        isConnected: true, 
+        isConnecting: false, 
+        connectionError: null,
+        reconnectAttempts: 0 
+      });
     });
 
     newSocket.on('reconnect_error', (error) => {
       console.error('❌ Reconnection error:', error);
+      const attempts = get().reconnectAttempts + 1;
+      set({ reconnectAttempts: attempts });
+    });
+
+    newSocket.on('reconnect_failed', () => {
+      console.error('❌ Reconnection failed after all attempts');
+      set({ 
+        connectionError: 'Failed to reconnect to chat server. Please refresh the page.',
+        isConnecting: false 
+      });
+    });
+
+    // Authentication events
+    newSocket.on('authenticated', (data) => {
+      console.log('✅ Authenticated with server:', data);
+    });
+
+    newSocket.on('auth_error', (data) => {
+      console.error('❌ Authentication error:', data);
+      set({ connectionError: 'Authentication failed' });
     });
 
     // Chat events
@@ -315,6 +393,20 @@ export const useChatStore = create<ChatState>((set, get) => ({
       // Could show toast notification here
     });
 
+    newSocket.on('reaction_error', ({ error }: { error: string }) => {
+      console.error('❌ Reaction error:', error);
+    });
+
+    // Connection confirmation
+    newSocket.on('connected', (data) => {
+      console.log('🎉 Connection confirmed:', data);
+    });
+
+    // Ping/pong for connection testing
+    newSocket.on('pong', (data) => {
+      console.log('🏓 Pong received:', data);
+    });
+
     set({ socket: newSocket });
   },
 
@@ -327,7 +419,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
         socket: null, 
         isConnected: false, 
         isConnecting: false,
-        currentPredictionId: null 
+        currentPredictionId: null,
+        connectionError: null,
+        reconnectAttempts: 0
       });
     }
   },
@@ -480,3 +574,37 @@ export const useChatStore = create<ChatState>((set, get) => ({
     return 0;
   }
 }));
+
+// Helper function to get the correct server URL
+function getServerUrl(): string {
+  // Check if we're in production (deployed)
+  const isProduction = import.meta.env.PROD || 
+                      window.location.hostname.includes('vercel.app') ||
+                      window.location.hostname.includes('.app') ||
+                      window.location.hostname === 'fanclubz.app';
+
+  if (isProduction) {
+    // Production URLs (NO PORT NUMBERS for Render)
+    return 'https://fan-club-z.onrender.com';
+  } else {
+    // Development URLs
+    return import.meta.env.VITE_API_URL || 'http://localhost:3001';
+  }
+}
+
+// Helper function to get user-friendly connection error messages
+function getConnectionErrorMessage(error: any): string {
+  if (error.message) {
+    if (error.message.includes('CORS')) {
+      return 'Connection blocked by CORS policy. Please check server configuration.';
+    } else if (error.message.includes('xhr poll error')) {
+      return 'Polling connection failed. Trying WebSocket...';
+    } else if (error.message.includes('websocket error')) {
+      return 'WebSocket connection failed. Check URL configuration.';
+    } else if (error.message.includes('timeout')) {
+      return 'Connection timeout. Server may be slow to respond.';
+    }
+  }
+  
+  return `Failed to connect to chat server: ${error.message || 'Unknown error'}`;
+}

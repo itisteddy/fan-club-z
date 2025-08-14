@@ -17,6 +17,31 @@ import walletRoutes from './routes/wallet';
 import socialRoutes from './routes/social';
 import clubRoutes from './routes/clubs';
 
+// ============================================================================
+// ENVIRONMENT VALIDATION (Critical for Render)
+// ============================================================================
+
+function validateEnvironment() {
+  const required = ['VITE_SUPABASE_URL', 'VITE_SUPABASE_ANON_KEY', 'SUPABASE_SERVICE_ROLE_KEY'];
+  const missing = required.filter(key => !process.env[key]);
+  
+  if (missing.length > 0) {
+    logger.error(`❌ Missing required environment variables: ${missing.join(', ')}`);
+    logger.error('Please configure these variables in your Render dashboard');
+    process.exit(1);
+  }
+  
+  // Render automatically provides PORT
+  if (!process.env.PORT) {
+    logger.warn('⚠️ PORT environment variable not set, using default 3001');
+  }
+  
+  logger.info('✅ All required environment variables validated');
+}
+
+// Run validation before starting
+validateEnvironment();
+
 const app = express();
 
 // ============================================================================
@@ -37,21 +62,29 @@ app.use(helmet({
   crossOriginEmbedderPolicy: false,
 }));
 
-// CORS configuration
+// CORS configuration with production-specific origins
 const allowedOrigins = process.env.NODE_ENV === 'production' 
   ? [
-      config.frontend.url,
+      // Render deployment URLs (without port numbers)
+      'https://fan-club-z.onrender.com',
+      'https://fanclubz.app',
+      'https://www.fanclubz.app',
       'https://app.fanclubz.app',
       'https://dev.fanclubz.app',
+      // Vercel URLs
       'https://fan-club-z-pw49foj6y-teddys-projects-d67ab22a.vercel.app',
-      'https://fanclubz.app',
-      'https://www.fanclubz.app'
+      'https://fanclubz-version2-0.vercel.app',
+      ...(process.env.CORS_ORIGINS?.split(',') || [])
     ]
   : [
-      config.frontend.url, 
       'http://localhost:3000', 
       'http://localhost:5173',
-      'https://dev.fanclubz.app'
+      'http://localhost:3001',
+      'https://localhost:3000',
+      'https://localhost:5173',
+      'https://dev.fanclubz.app',
+      config.frontend.url,
+      ...(process.env.CORS_ORIGINS?.split(',') || [])
     ];
 
 app.use(cors({
@@ -125,7 +158,9 @@ app.get('/health', (req, res) => {
     timestamp: new Date().toISOString(),
     uptime: process.uptime(),
     environment: process.env.NODE_ENV || 'development',
-    version: process.env.npm_package_version || '1.0.0',
+    version: process.env.npm_package_version || '2.0.0',
+    port: config.server.port,
+    websocket: 'enabled'
   });
 });
 
@@ -138,7 +173,33 @@ app.get('/api/health', (req, res) => {
       database: 'connected', // This would check actual database connection in production
       redis: 'connected',     // This would check actual Redis connection in production
       websocket: 'enabled',   // WebSocket support enabled
+      supabase: process.env.VITE_SUPABASE_URL ? 'configured' : 'missing'
     },
+  });
+});
+
+// Socket.IO health check endpoint
+app.get('/socket.io/health', (req, res) => {
+  res.json({
+    status: 'Socket.IO server is running',
+    environment: process.env.NODE_ENV,
+    port: config.server.port,
+    timestamp: new Date().toISOString()
+  });
+});
+
+// WebSocket test endpoint
+app.get('/ws', (req, res) => {
+  res.json({
+    status: 'WebSocket endpoint available',
+    protocol: req.secure ? 'wss' : 'ws',
+    url: req.secure 
+      ? `wss://${req.get('host')}`
+      : `ws://${req.get('host')}`,
+    socketio_url: req.secure 
+      ? `https://${req.get('host')}`
+      : `http://${req.get('host')}`,
+    timestamp: new Date().toISOString()
   });
 });
 
@@ -181,21 +242,37 @@ app.use(errorHandler);
 // HTTP SERVER & WEBSOCKET SETUP
 // ============================================================================
 
-const PORT = config.server.port;
+// Use Render's PORT or default to 3001
+const PORT = parseInt(process.env.PORT || '3001', 10);
 
 // Create HTTP server from Express app
 const server = createServer(app);
 
 // Initialize WebSocket chat service with the HTTP server
-const chatService = new ChatService(server);
+let chatService: ChatService | null = null;
 
-server.listen(PORT, () => {
-  logger.info(`🚀 Fan Club Z Server started on port ${PORT}`);
+try {
+  chatService = new ChatService(server);
+  logger.info('💬 WebSocket Chat Service initialized successfully');
+} catch (error) {
+  logger.error('❌ Failed to initialize WebSocket Chat Service:', error);
+  // Continue without WebSocket if Supabase is not available
+}
+
+// CRITICAL: Bind to 0.0.0.0 for Render deployment
+server.listen(PORT, '0.0.0.0', () => {
+  logger.info('🚀 Fan Club Z Server started successfully');
   logger.info(`📋 Environment: ${process.env.NODE_ENV || 'development'}`);
-  logger.info(`🌐 API URL: http://localhost:${PORT}/api/v2`);
-  logger.info(`💬 WebSocket Chat: Enabled`);
-  logger.info(`🏥 Health Check: http://localhost:${PORT}/health`);
+  logger.info(`🌐 Server URL: ${process.env.NODE_ENV === 'production' ? 'https://fan-club-z.onrender.com' : `http://localhost:${PORT}`}`);
+  logger.info(`🔗 API Base: ${process.env.NODE_ENV === 'production' ? 'https://fan-club-z.onrender.com' : `http://localhost:${PORT}`}/api/v2`);
+  logger.info(`💬 WebSocket: ${chatService ? 'Enabled' : 'Disabled (Check Supabase config)'}`);
+  logger.info(`🏥 Health Check: ${process.env.NODE_ENV === 'production' ? 'https://fan-club-z.onrender.com' : `http://localhost:${PORT}`}/health`);
+  logger.info(`🔧 Binding: 0.0.0.0:${PORT} (Render compatible)`);
 });
+
+// ============================================================================
+// GRACEFUL SHUTDOWN
+// ============================================================================
 
 // Graceful shutdown
 process.on('SIGTERM', () => {

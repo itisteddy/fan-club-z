@@ -28,7 +28,7 @@ export class ChatService {
   constructor(httpServer: HttpServer) {
     this.httpServer = httpServer;
     
-    // Configure comprehensive CORS for Socket.IO
+    // Configure comprehensive CORS for Socket.IO with Render URLs
     const allowedOrigins = this.getAllowedOrigins();
     
     logger.info('🔧 Configuring Socket.IO with CORS origins:', allowedOrigins);
@@ -49,9 +49,10 @@ export class ChatService {
           
           // Also allow any Vercel deployment in development
           const isVercelDeployment = origin.includes('.vercel.app');
+          const isRenderDeployment = origin.includes('.onrender.com');
           const isDevelopment = process.env.NODE_ENV !== 'production';
           
-          if (isAllowed || (isVercelDeployment && isDevelopment)) {
+          if (isAllowed || isRenderDeployment || (isVercelDeployment && isDevelopment)) {
             logger.info(`✅ Socket.IO CORS: Origin allowed - ${origin}`);
             callback(null, true);
           } else {
@@ -69,16 +70,18 @@ export class ChatService {
         credentials: true,
         allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
       },
-      // Connection settings
+      // Connection settings optimized for Render
       pingTimeout: 60000,
       pingInterval: 25000,
       connectTimeout: 45000,
       transports: ['websocket', 'polling'],
-      // Allow all namespaces
       serveClient: false,
-      // Additional options for better reliability
       allowUpgrades: true,
-      cookie: false
+      cookie: false,
+      // Additional Render-specific optimizations
+      maxHttpBufferSize: 1e6, // 1MB
+      httpCompression: true,
+      perMessageDeflate: true
     });
 
     this.setupSocketHandlers();
@@ -89,16 +92,20 @@ export class ChatService {
   private getAllowedOrigins(): string[] {
     const baseOrigins = process.env.NODE_ENV === 'production' 
       ? [
-          // Production origins
-          config.frontend.url,
-          process.env.FRONTEND_URL || 'https://fanclubz.app',
-          process.env.CLIENT_URL || 'https://fanclubz.app', 
-          process.env.VITE_APP_URL || 'https://fanclubz.app',
-          'https://app.fanclubz.app',
-          'https://dev.fanclubz.app',
+          // Production origins (NO PORT NUMBERS for Render)
+          'https://fan-club-z.onrender.com',
           'https://fanclubz.app',
           'https://www.fanclubz.app',
-          'https://fan-club-z-pw49foj6y-teddys-projects-d67ab22a.vercel.app'
+          'https://app.fanclubz.app',
+          'https://dev.fanclubz.app',
+          // Vercel URLs
+          'https://fan-club-z-pw49foj6y-teddys-projects-d67ab22a.vercel.app',
+          'https://fanclubz-version2-0.vercel.app',
+          // Environment-specific
+          config.frontend.url,
+          process.env.FRONTEND_URL,
+          process.env.CLIENT_URL,
+          process.env.VITE_APP_URL
         ]
       : [
           // Development origins
@@ -128,35 +135,47 @@ export class ChatService {
     logger.info(`🌐 Allowed CORS origins: ${allowedOrigins.join(', ')}`);
     logger.info(`🔧 Transports: websocket, polling`);
     logger.info(`⏱️  Ping timeout: 60s, interval: 25s`);
+    logger.info(`🏗️  Platform: ${process.env.RENDER ? 'Render' : 'Local'}`);
   }
 
   private setupSocketHandlers() {
     this.io.on('connection', (socket) => {
       const clientOrigin = socket.handshake.headers.origin;
       const userAgent = socket.handshake.headers['user-agent'];
+      const forwardedFor = socket.handshake.headers['x-forwarded-for'];
       
       logger.info(`🔗 New socket connection: ${socket.id}`);
       logger.info(`📍 Origin: ${clientOrigin || 'unknown'}`);
+      logger.info(`🌍 IP: ${forwardedFor || socket.handshake.address}`);
       logger.info(`🖥️  User Agent: ${userAgent ? userAgent.substring(0, 100) + '...' : 'unknown'}`);
 
       // Handle user authentication/identification
       socket.on('authenticate', (userData: { userId: string; username: string; avatar?: string }) => {
-        const connectedUser: ConnectedUser = {
-          socketId: socket.id,
-          userId: userData.userId,
-          username: userData.username,
-          joinedAt: new Date()
-        };
-        
-        this.connectedUsers.set(socket.id, connectedUser);
-        logger.info(`👤 User authenticated: ${userData.username} (${socket.id})`);
-        
-        // Send authentication confirmation
-        socket.emit('authenticated', { 
-          success: true, 
-          socketId: socket.id,
-          timestamp: new Date().toISOString() 
-        });
+        try {
+          const connectedUser: ConnectedUser = {
+            socketId: socket.id,
+            userId: userData.userId,
+            username: userData.username,
+            joinedAt: new Date()
+          };
+          
+          this.connectedUsers.set(socket.id, connectedUser);
+          logger.info(`👤 User authenticated: ${userData.username} (${socket.id})`);
+          
+          // Send authentication confirmation
+          socket.emit('authenticated', { 
+            success: true, 
+            socketId: socket.id,
+            timestamp: new Date().toISOString(),
+            serverInfo: {
+              environment: process.env.NODE_ENV,
+              version: '2.0.0'
+            }
+          });
+        } catch (error) {
+          logger.error('Authentication error:', error);
+          socket.emit('auth_error', { message: 'Authentication failed' });
+        }
       });
 
       // Join prediction room
@@ -174,15 +193,25 @@ export class ChatService {
           
           socket.join(`prediction_${predictionId}`);
           
-          // Update participant status in database
-          await this.updateParticipantStatus(predictionId, userId, true);
+          // Update participant status in database (with error handling)
+          try {
+            await this.updateParticipantStatus(predictionId, userId, true);
+          } catch (dbError) {
+            logger.warn('Database operation failed, continuing without participant update:', dbError);
+          }
           
-          // Load recent messages for this prediction
-          const messages = await this.loadMessageHistory(predictionId);
+          // Load recent messages for this prediction (with error handling)
+          let messages: any[] = [];
+          let participants: any[] = [];
+          
+          try {
+            messages = await this.loadMessageHistory(predictionId);
+            participants = await this.getParticipants(predictionId);
+          } catch (dbError) {
+            logger.warn('Database queries failed, continuing with empty data:', dbError);
+          }
+          
           socket.emit('message_history', messages);
-          
-          // Get current participants
-          const participants = await this.getParticipants(predictionId);
           socket.emit('participants_updated', participants);
           
           // Notify others in the room
@@ -223,29 +252,45 @@ export class ChatService {
 
           logger.info(`📨 New message from ${username} in prediction ${predictionId}: ${content.substring(0, 50)}...`);
           
-          // Save message to database
-          const { data: message, error } = await supabase
-            .from('chat_messages')
-            .insert({
+          // Save message to database (with error handling)
+          let message: any = null;
+          
+          try {
+            const { data: savedMessage, error } = await supabase
+              .from('chat_messages')
+              .insert({
+                prediction_id: predictionId,
+                user_id: userId,
+                content: content.trim(),
+                message_type: 'text'
+              })
+              .select(`
+                *,
+                user:users(id, username, avatar_url)
+              `)
+              .single();
+
+            if (error) {
+              throw error;
+            }
+            
+            message = savedMessage;
+          } catch (dbError) {
+            logger.warn('Database save failed, broadcasting message anyway:', dbError);
+            // Create a temporary message object for broadcasting
+            message = {
+              id: `temp_${Date.now()}`,
               prediction_id: predictionId,
               user_id: userId,
               content: content.trim(),
-              message_type: 'text'
-            })
-            .select(`
-              *,
-              user:users(id, username, avatar_url)
-            `)
-            .single();
-
-          if (error) {
-            logger.error('Error saving message:', error);
-            socket.emit('message_error', { 
-              error: 'Failed to save message',
-              code: 'DATABASE_ERROR',
-              details: error.message
-            });
-            return;
+              message_type: 'text',
+              created_at: new Date().toISOString(),
+              user: {
+                id: userId,
+                username: username,
+                avatar_url: avatar
+              }
+            };
           }
 
           // Format message for broadcast
@@ -300,111 +345,49 @@ export class ChatService {
         try {
           const { messageId, userId, reactionType } = data;
           
-          const { data: reaction, error } = await supabase
-            .from('chat_reactions')
-            .upsert({
-              message_id: messageId,
-              user_id: userId,
-              reaction_type: reactionType
-            })
-            .select('*')
-            .single();
-
-          if (!error && reaction) {
-            // Get the message's prediction ID to broadcast to the right room
-            const { data: message } = await supabase
-              .from('chat_messages')
-              .select('prediction_id')
-              .eq('id', messageId)
+          let reaction: any = null;
+          
+          try {
+            const { data: savedReaction, error } = await supabase
+              .from('chat_reactions')
+              .upsert({
+                message_id: messageId,
+                user_id: userId,
+                reaction_type: reactionType
+              })
+              .select('*')
               .single();
 
-            if (message) {
-              this.io.to(`prediction_${message.prediction_id}`).emit('reaction_added', {
-                messageId,
-                userId,
-                reactionType
-              });
+            if (!error && savedReaction) {
+              reaction = savedReaction;
+              
+              // Get the message's prediction ID to broadcast to the right room
+              const { data: message } = await supabase
+                .from('chat_messages')
+                .select('prediction_id')
+                .eq('id', messageId)
+                .single();
+
+              if (message) {
+                this.io.to(`prediction_${message.prediction_id}`).emit('reaction_added', {
+                  messageId,
+                  userId,
+                  reactionType
+                });
+              }
             }
+          } catch (dbError) {
+            logger.warn('Database reaction save failed:', dbError);
+            // Still emit the reaction for real-time feedback
+            socket.emit('reaction_error', { 
+              error: 'Failed to save reaction to database',
+              details: dbError instanceof Error ? dbError.message : 'Unknown error'
+            });
           }
         } catch (error) {
           logger.error('Error adding reaction:', error);
           socket.emit('reaction_error', { 
             error: 'Failed to add reaction',
-            details: error instanceof Error ? error.message : 'Unknown error'
-          });
-        }
-      });
-
-      // Handle message editing
-      socket.on('edit_message', async (data) => {
-        try {
-          const { messageId, userId, newContent } = data;
-          
-          if (!newContent || !newContent.trim()) {
-            socket.emit('message_error', { 
-              error: 'Message content cannot be empty',
-              code: 'EMPTY_EDIT_CONTENT'
-            });
-            return;
-          }
-          
-          const { data: message, error } = await supabase
-            .from('chat_messages')
-            .update({
-              content: newContent.trim(),
-              edited_at: new Date().toISOString()
-            })
-            .eq('id', messageId)
-            .eq('user_id', userId) // Ensure user can only edit their own messages
-            .select('*, user:users(id, username, avatar_url)')
-            .single();
-
-          if (!error && message) {
-            this.io.to(`prediction_${message.prediction_id}`).emit('message_edited', message);
-            logger.info(`✏️ Message edited by user ${userId}: ${messageId}`);
-          } else {
-            socket.emit('message_error', { 
-              error: 'Failed to edit message - you can only edit your own messages',
-              code: 'EDIT_PERMISSION_DENIED'
-            });
-          }
-        } catch (error) {
-          logger.error('Error editing message:', error);
-          socket.emit('message_error', { 
-            error: 'Failed to edit message',
-            details: error instanceof Error ? error.message : 'Unknown error'
-          });
-        }
-      });
-
-      // Handle message deletion
-      socket.on('delete_message', async (data) => {
-        try {
-          const { messageId, userId } = data;
-          
-          const { data: message, error } = await supabase
-            .from('chat_messages')
-            .update({
-              deleted_at: new Date().toISOString()
-            })
-            .eq('id', messageId)
-            .eq('user_id', userId) // Ensure user can only delete their own messages
-            .select('prediction_id')
-            .single();
-
-          if (!error && message) {
-            this.io.to(`prediction_${message.prediction_id}`).emit('message_deleted', { messageId });
-            logger.info(`🗑️ Message deleted by user ${userId}: ${messageId}`);
-          } else {
-            socket.emit('message_error', { 
-              error: 'Failed to delete message - you can only delete your own messages',
-              code: 'DELETE_PERMISSION_DENIED'
-            });
-          }
-        } catch (error) {
-          logger.error('Error deleting message:', error);
-          socket.emit('message_error', { 
-            error: 'Failed to delete message',
             details: error instanceof Error ? error.message : 'Unknown error'
           });
         }
@@ -419,8 +402,12 @@ export class ChatService {
           if (user) {
             logger.info(`👋 User ${user.username} leaving prediction room: ${predictionId}`);
             
-            // Update participant status
-            await this.updateParticipantStatus(predictionId, user.userId, false);
+            // Update participant status (with error handling)
+            try {
+              await this.updateParticipantStatus(predictionId, user.userId, false);
+            } catch (dbError) {
+              logger.warn('Database participant update failed:', dbError);
+            }
             
             // Remove from typing users
             this.removeTypingUser(predictionId, user.username);
@@ -449,7 +436,10 @@ export class ChatService {
 
       // Handle ping/pong for connection testing
       socket.on('ping', () => {
-        socket.emit('pong', { timestamp: Date.now() });
+        socket.emit('pong', { 
+          timestamp: Date.now(),
+          server: process.env.NODE_ENV === 'production' ? 'render' : 'local'
+        });
       });
 
       // Handle disconnect
@@ -461,7 +451,11 @@ export class ChatService {
           
           // Update participant status if they were in a prediction room
           if (user.predictionId) {
-            await this.updateParticipantStatus(user.predictionId, user.userId, false);
+            try {
+              await this.updateParticipantStatus(user.predictionId, user.userId, false);
+            } catch (dbError) {
+              logger.warn('Database cleanup failed on disconnect:', dbError);
+            }
             
             // Remove from typing users
             this.removeTypingUser(user.predictionId, user.username);
@@ -488,7 +482,9 @@ export class ChatService {
       socket.emit('connected', { 
         socketId: socket.id, 
         timestamp: new Date().toISOString(),
-        serverVersion: '2.0.0'
+        serverVersion: '2.0.0',
+        environment: process.env.NODE_ENV,
+        platform: process.env.RENDER ? 'render' : 'local'
       });
     });
 
@@ -628,25 +624,46 @@ export class ChatService {
       totalConnections: this.io.engine.clientsCount,
       authenticatedUsers: this.connectedUsers.size,
       activeRooms: Array.from(this.typingUsers.keys()).length,
-      typingUsers: this.typingUsers.size
+      typingUsers: this.typingUsers.size,
+      platform: process.env.RENDER ? 'render' : 'local',
+      environment: process.env.NODE_ENV
     };
   }
 
   // Method to send system messages
   public async sendSystemMessage(predictionId: string, content: string): Promise<void> {
     try {
-      const { data: message, error } = await supabase
-        .from('chat_messages')
-        .insert({
-          prediction_id: predictionId,
-          user_id: '00000000-0000-0000-0000-000000000000', // System user ID
-          content,
-          message_type: 'system'
-        })
-        .select('*')
-        .single();
+      let message: any = null;
+      
+      try {
+        const { data: savedMessage, error } = await supabase
+          .from('chat_messages')
+          .insert({
+            prediction_id: predictionId,
+            user_id: '00000000-0000-0000-0000-000000000000', // System user ID
+            content,
+            message_type: 'system'
+          })
+          .select('*')
+          .single();
 
-      if (!error && message) {
+        if (!error && savedMessage) {
+          message = savedMessage;
+        }
+      } catch (dbError) {
+        logger.warn('Database system message save failed:', dbError);
+        // Create temporary message for broadcasting
+        message = {
+          id: `system_${Date.now()}`,
+          prediction_id: predictionId,
+          user_id: '00000000-0000-0000-0000-000000000000',
+          content,
+          message_type: 'system',
+          created_at: new Date().toISOString()
+        };
+      }
+
+      if (message) {
         const systemMessage = {
           ...message,
           user: {
