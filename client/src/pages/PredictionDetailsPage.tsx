@@ -581,15 +581,10 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
                   <p className="text-sm text-gray-600">Join the conversation about this prediction</p>
                 </div>
                 <div className="min-h-[300px] max-h-[600px] overflow-y-auto">
-                  <div className="p-6">
-                    <div className="text-center py-8">
-                      <MessageCircle size={48} className="text-gray-300 mx-auto mb-4" />
-                      <p className="text-gray-500 font-medium">Comments coming soon!</p>
-                      <p className="text-sm text-gray-400 mt-1">
-                        We're working on the comment system. Check back soon!
-                      </p>
-                    </div>
-                  </div>
+                  <CommentSystem 
+                    predictionId={prediction?.id || ''} 
+                    className="p-6"
+                  />
                 </div>
               </motion.div>
             )}
