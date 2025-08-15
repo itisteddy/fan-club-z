@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Heart, 
@@ -41,11 +41,13 @@ interface Comment {
 interface CommentSystemProps {
   predictionId: string;
   className?: string;
+  onCommentCountChange?: (newCount: number) => void; // Add callback prop
 }
 
 export const CommentSystem: React.FC<CommentSystemProps> = ({
   predictionId,
-  className = ''
+  className = '',
+  onCommentCountChange
 }) => {
   const [comments, setComments] = useState<Comment[]>([]);
   const [loading, setLoading] = useState(true);
@@ -70,6 +72,20 @@ export const CommentSystem: React.FC<CommentSystemProps> = ({
   const replyInputRef = useRef<HTMLTextAreaElement>(null);
   const editInputRef = useRef<HTMLTextAreaElement>(null);
 
+  // Helper function to update comment count
+  const updateCommentCount = useCallback(() => {
+    const topLevelComments = comments.filter(comment => !comment.parent_comment_id);
+    const newCount = topLevelComments.length;
+    if (onCommentCountChange) {
+      onCommentCountChange(newCount);
+    }
+  }, [comments, onCommentCountChange]);
+
+  // Update count whenever comments change
+  useEffect(() => {
+    updateCommentCount();
+  }, [updateCommentCount]);
+
   // Load comments on mount
   useEffect(() => {
     loadComments();
@@ -78,7 +94,9 @@ export const CommentSystem: React.FC<CommentSystemProps> = ({
   const loadComments = async () => {
     try {
       setLoading(true);
+      console.log('Loading comments for prediction:', predictionId);
       const data = await getPredictionComments(predictionId);
+      console.log('Loaded comments:', data?.length || 0);
       setComments(data || []);
     } catch (error) {
       console.error('Failed to load comments:', error);
@@ -93,16 +111,33 @@ export const CommentSystem: React.FC<CommentSystemProps> = ({
 
     setPosting(true);
     try {
+      console.log('Creating comment:', { predictionId, content: newComment.trim() });
       const comment = await createComment({
         prediction_id: predictionId,
         content: newComment.trim(),
         parent_comment_id: null
       });
 
+      console.log('Comment created successfully:', comment);
+
       // Add new comment to the top of the list
-      setComments(prev => [comment, ...prev]);
+      setComments(prev => {
+        const newComments = [comment, ...prev];
+        console.log('Updated comments count:', newComments.length);
+        return newComments;
+      });
+      
       setNewComment('');
       toast.success('Comment posted!');
+
+      // Manually trigger count update
+      setTimeout(() => {
+        const topLevelComments = [comment, ...comments.filter(c => !c.parent_comment_id)];
+        if (onCommentCountChange) {
+          onCommentCountChange(topLevelComments.length);
+        }
+      }, 100);
+
     } catch (error) {
       console.error('Failed to post comment:', error);
       toast.error('Failed to post comment');
@@ -186,15 +221,29 @@ export const CommentSystem: React.FC<CommentSystemProps> = ({
     try {
       await deleteComment(commentId);
       
+      // Find if this is a top-level comment to update count properly
+      const deletedComment = comments.find(c => c.id === commentId);
+      const isTopLevel = deletedComment && !deletedComment.parent_comment_id;
+      
       // Remove comment from the list
-      setComments(prev => prev.filter(comment => {
-        if (comment.id === commentId) return false;
-        // Also remove from nested replies
-        if (comment.replies) {
-          comment.replies = comment.replies.filter(reply => reply.id !== commentId);
+      setComments(prev => {
+        const newComments = prev.filter(comment => {
+          if (comment.id === commentId) return false;
+          // Also remove from nested replies
+          if (comment.replies) {
+            comment.replies = comment.replies.filter(reply => reply.id !== commentId);
+          }
+          return true;
+        });
+
+        // Update count if top-level comment was deleted
+        if (isTopLevel && onCommentCountChange) {
+          const topLevelCount = newComments.filter(c => !c.parent_comment_id).length;
+          onCommentCountChange(topLevelCount);
         }
-        return true;
-      }));
+
+        return newComments;
+      });
 
       toast.success('Comment deleted');
     } catch (error) {
@@ -490,6 +539,7 @@ export const CommentSystem: React.FC<CommentSystemProps> = ({
                 className="w-full p-3 border border-gray-200 rounded-lg resize-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 placeholder="What do you think about this prediction?"
                 rows={3}
+                maxLength={280}
               />
               <div className="flex justify-between items-center mt-3">
                 <div className="text-sm text-gray-500">

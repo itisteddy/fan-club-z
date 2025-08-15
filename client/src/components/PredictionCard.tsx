@@ -52,14 +52,12 @@ const PredictionCard: React.FC<PredictionCardProps> = ({
   const handleLike = async () => {
     if (isLiking) return;
     
-    setIsLiking(true);
     try {
+      setIsLiking(true);
       await toggleLike(prediction.id);
-      if (customOnLike) {
-        customOnLike();
-      }
-    } catch (error: any) {
-      console.error('Failed to toggle like:', error);
+      if (customOnLike) customOnLike();
+    } catch (error) {
+      console.error('Error toggling like:', error);
       toast.error('Failed to update like');
     } finally {
       setIsLiking(false);
@@ -67,120 +65,208 @@ const PredictionCard: React.FC<PredictionCardProps> = ({
   };
 
   const handleComment = () => {
-    if (customOnComment) {
-      customOnComment();
-    } else {
-      setCommentSystemOpen(true);
-    }
+    setCommentModalOpen(true);
+    if (customOnComment) customOnComment();
   };
 
   const handleShare = async () => {
-    if (customOnShare) {
-      customOnShare();
-    } else {
-      try {
-        const url = `${window.location.origin}/prediction/${prediction.id}`;
-        await navigator.clipboard.writeText(url);
+    try {
+      const shareData = {
+        title: prediction.title,
+        text: `Check out this prediction: ${prediction.title}`,
+        url: `${window.location.origin}/prediction/${prediction.id}`
+      };
+
+      if (navigator.share && navigator.canShare && navigator.canShare(shareData)) {
+        await navigator.share(shareData);
+      } else if (navigator.clipboard) {
+        await navigator.clipboard.writeText(shareData.url);
         toast.success('Link copied to clipboard!');
-      } catch (error) {
-        console.error('Failed to copy link:', error);
-        toast.error('Failed to copy link');
+      } else {
+        // Fallback for older browsers
+        const textArea = document.createElement('textarea');
+        textArea.value = shareData.url;
+        document.body.appendChild(textArea);
+        textArea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textArea);
+        toast.success('Link copied to clipboard!');
       }
+      
+      if (customOnShare) customOnShare();
+    } catch (error) {
+      console.error('Error sharing:', error);
+      toast.error('Failed to share');
     }
+  };
+
+  const formatTimeRemaining = () => {
+    if (timeRemaining <= 0) return 'Ended';
+    if (hoursRemaining >= 24) {
+      const days = Math.floor(hoursRemaining / 24);
+      return `${days}d left`;
+    }
+    return `${hoursRemaining}h left`;
   };
 
   if (variant === 'compact') {
     return (
       <>
         <motion.div
+          className={`bg-white rounded-xl shadow-sm border border-gray-100 p-4 cursor-pointer ${className}`}
           whileHover={{ scale: 1.02, y: -2 }}
           whileTap={{ scale: 0.98 }}
-          className={`relative overflow-hidden rounded-2xl bg-gradient-to-br from-white via-white to-gray-50/50 backdrop-blur-sm border border-gray-200/50 shadow-lg shadow-gray-900/5 ${className}`}
+          onClick={onPredict}
         >
-          {/* Category badge */}
-          <div className="absolute top-4 left-4 z-10">
-            <span className="px-3 py-1 text-xs font-semibold bg-white/90 backdrop-blur-sm text-gray-700 rounded-full border border-gray-200/50">
-              {prediction.category}
+          {/* Header */}
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-full bg-gradient-to-r from-purple-400 to-purple-600 flex items-center justify-center text-white text-sm font-bold">
+                {prediction.creator?.slice(0, 2).toUpperCase() || 'FC'}
+              </div>
+              <div>
+                <div className="font-medium text-gray-900 text-sm">@{prediction.creator || 'anonymous'}</div>
+                <div className="text-xs text-gray-500">{formatTimeRemaining()}</div>
+              </div>
+            </div>
+            <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+              prediction.category === 'sports' ? 'bg-red-100 text-red-700' :
+              prediction.category === 'pop_culture' ? 'bg-purple-100 text-purple-700' :
+              'bg-green-100 text-green-700'
+            }`}>
+              {prediction.category || 'General'}
             </span>
           </div>
 
-          {/* Content */}
-          <div className="p-6">
-            <h3 className="font-bold text-gray-900 mb-2 pr-12">
-              {prediction.title}
-            </h3>
-            
-            <div className="flex items-center gap-4 text-sm text-gray-600 mb-4">
-              <div className="flex items-center gap-1">
-                <Users size={14} />
-                <span>{prediction.participant_count || 0}</span>
-              </div>
-              <div className="flex items-center gap-1">
-                <Clock size={14} />
-                <span>{hoursRemaining}h left</span>
-              </div>
-            </div>
+          {/* Title */}
+          <h3 className="font-semibold text-gray-900 mb-2 line-clamp-2">
+            {prediction.title}
+          </h3>
 
-            {/* Quick stats */}
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="text-2xl font-bold text-gray-900">
-                  ${totalPool.toLocaleString()}
-                </div>
-                <div className="text-sm text-gray-600">Total Pool</div>
+          {/* Pool Info */}
+          <div className="flex items-center justify-between text-sm">
+            <div className="flex items-center gap-2 text-gray-600">
+              <span className="font-medium">${totalPool.toLocaleString()}</span>
+              <span>•</span>
+              <span>{prediction.options?.length || 2} options</span>
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-1">
+                <Heart className={`w-4 h-4 ${isLiked ? 'text-red-500 fill-current' : 'text-gray-400'}`} />
+                <span className="text-gray-600">{likeCount}</span>
               </div>
-              
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={handleLike}
-                  disabled={isLiking}
-                  className={`flex items-center gap-1 transition-colors ${
-                    isLiked ? 'text-red-500' : 'text-gray-500 hover:text-red-500'
-                  }`}
-                >
-                  <Heart size={16} fill={isLiked ? 'currentColor' : 'none'} />
-                  <span className="text-sm">{likeCount}</span>
-                </button>
-                
-                <button
-                  onClick={handleComment}
-                  className="flex items-center gap-1 text-gray-500 hover:text-blue-500 transition-colors"
-                >
-                  <MessageCircle size={16} />
-                  <span className="text-sm">{commentCount}</span>
-                </button>
+              <div className="flex items-center gap-1">
+                <MessageCircle className="w-4 h-4 text-gray-400" />
+                <span className="text-gray-600">{commentCount}</span>
               </div>
             </div>
           </div>
         </motion.div>
 
-        {/* Comment System Modal */}
-        {commentSystemOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.9 }}
-              className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[80vh] overflow-hidden"
-            >
-              <div className="flex items-center justify-between p-4 border-b border-gray-200">
-                <h3 className="text-lg font-bold text-gray-900">Comments</h3>
-                <button
-                  onClick={() => setCommentSystemOpen(false)}
-                  className="p-2 hover:bg-gray-100 rounded-full transition-colors"
-                >
-                  <X size={20} className="text-gray-500" />
-                </button>
+        <CommentModal
+          prediction={prediction}
+          isOpen={commentModalOpen}
+          onClose={() => setCommentModalOpen(false)}
+        />
+      </>
+    );
+  }
+
+  if (variant === 'user-entry') {
+    const hasEntry = !!entry;
+    const userChoice = entry?.option_id;
+    const potentialPayout = entry?.potential_payout || 0;
+    const actualPayout = entry?.actual_payout || 0;
+    const status = entry?.status || prediction.status;
+
+    return (
+      <>
+        <motion.div
+          className={`bg-white rounded-xl shadow-sm border-l-4 ${
+            status === 'won' ? 'border-green-500' :
+            status === 'lost' ? 'border-red-500' :
+            status === 'settled' ? 'border-gray-500' :
+            'border-blue-500'
+          } p-4 ${className}`}
+          whileHover={{ scale: 1.01, y: -2 }}
+        >
+          {/* Header */}
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <h3 className="font-semibold text-gray-900 text-base line-clamp-1">
+                {prediction.title}
+              </h3>
+              <div className="flex items-center gap-2 mt-1">
+                <span className={`px-2 py-0.5 rounded text-xs font-medium ${
+                  status === 'won' ? 'bg-green-100 text-green-700' :
+                  status === 'lost' ? 'bg-red-100 text-red-700' :
+                  status === 'settled' ? 'bg-gray-100 text-gray-700' :
+                  'bg-blue-100 text-blue-700'
+                }`}>
+                  {status?.toUpperCase()}
+                </span>
+                <Clock className="w-3 h-3 text-gray-400" />
+                <span className="text-xs text-gray-500">{formatTimeRemaining()}</span>
               </div>
-              <div className="max-h-[calc(80vh-80px)] overflow-y-auto">
-                <CommentSystem 
-                  predictionId={prediction.id} 
-                  className="p-4"
-                />
-              </div>
-            </motion.div>
+            </div>
           </div>
-        )}
+
+          {/* User's Position */}
+          {hasEntry && (
+            <div className="bg-gray-50 rounded-lg p-3 mb-3">
+              <div className="text-xs text-gray-600 mb-1">Your Position</div>
+              <div className="font-semibold text-gray-900">
+                {prediction.options?.find(o => o.id === userChoice)?.label || 'Option selected'}
+              </div>
+              <div className="text-sm text-gray-600 mt-1">
+                Stake: ${entry?.amount?.toLocaleString()} • 
+                {status === 'won' ? ` Won: $${actualPayout.toLocaleString()}` :
+                 status === 'lost' ? ' Lost' :
+                 ` Potential: $${potentialPayout.toLocaleString()}`}
+              </div>
+            </div>
+          )}
+
+          {/* Social Actions */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <button
+                onClick={handleLike}
+                disabled={isLiking}
+                className={`flex items-center gap-1 ${isLiked ? 'text-red-500' : 'text-gray-500'} hover:text-red-500 transition-colors`}
+              >
+                <Heart className={`w-4 h-4 ${isLiked ? 'fill-current' : ''}`} />
+                <span className="text-sm">{likeCount}</span>
+              </button>
+              <button
+                onClick={handleComment}
+                className="flex items-center gap-1 text-gray-500 hover:text-blue-500 transition-colors"
+              >
+                <MessageCircle className="w-4 h-4" />
+                <span className="text-sm">{commentCount}</span>
+              </button>
+              <button
+                onClick={handleShare}
+                className="flex items-center gap-1 text-gray-500 hover:text-green-500 transition-colors"
+              >
+                <Share className="w-4 h-4" />
+                <span className="text-sm">Share</span>
+              </button>
+            </div>
+            <button
+              onClick={onPredict}
+              className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 text-sm font-medium transition-colors"
+            >
+              View Details
+            </button>
+          </div>
+        </motion.div>
+
+        <CommentModal
+          prediction={prediction}
+          isOpen={commentModalOpen}
+          onClose={() => setCommentModalOpen(false)}
+        />
       </>
     );
   }
@@ -189,196 +275,182 @@ const PredictionCard: React.FC<PredictionCardProps> = ({
   return (
     <>
       <motion.div
-        whileHover={{ scale: 1.01, y: -4 }}
-        whileTap={{ scale: 0.99 }}
-        className={`bg-white rounded-3xl shadow-lg shadow-gray-900/5 border border-gray-200/50 overflow-hidden hover:shadow-xl hover:shadow-gray-900/10 transition-all duration-300 ${className}`}
+        className={`bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden ${className}`}
+        whileHover={{ scale: 1.01, y: -2 }}
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3 }}
       >
-        <div className="p-6">
-          {/* Header */}
-          <div className="flex items-start justify-between mb-4">
+        {/* Header */}
+        <div className="p-4 pb-0">
+          <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-gradient-to-r from-green-400 to-green-500 flex items-center justify-center text-white font-semibold">
-                {prediction.creator?.username?.[0]?.toUpperCase() || 'F'}
+              <div className="w-10 h-10 rounded-full bg-gradient-to-r from-purple-400 to-purple-600 flex items-center justify-center text-white font-bold">
+                {prediction.creator?.slice(0, 2).toUpperCase() || 'FC'}
               </div>
               <div>
-                <div className="font-semibold text-gray-900">
-                  {prediction.creator?.username || 'Fan Club Z'}
-                </div>
-                <div className="text-sm text-gray-600">
-                  {new Date(prediction.created_at).toLocaleDateString()}
+                <div className="font-medium text-gray-900">@{prediction.creator || 'anonymous'}</div>
+                <div className="text-sm text-gray-500">
+                  {new Date(prediction.created_at || prediction.createdAt).toLocaleDateString()}
                 </div>
               </div>
             </div>
-            
-            <span className="px-3 py-1 text-xs font-semibold bg-gray-100 text-gray-700 rounded-full">
-              {prediction.category}
-            </span>
+            <div className="flex items-center gap-2">
+              <span className={`px-3 py-1 rounded-full text-xs font-medium ${
+                prediction.category === 'sports' ? 'bg-red-100 text-red-700' :
+                prediction.category === 'pop_culture' ? 'bg-purple-100 text-purple-700' :
+                prediction.category === 'politics' ? 'bg-blue-100 text-blue-700' :
+                'bg-green-100 text-green-700'
+              }`}>
+                {prediction.category?.replace('_', ' ') || 'General'}
+              </span>
+              {isClosingSoon && (
+                <span className="px-2 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-700">
+                  Closing Soon
+                </span>
+              )}
+            </div>
           </div>
 
-          {/* Title and Description */}
-          <h2 className="text-xl font-bold text-gray-900 mb-3 leading-tight">
+          <h3 className="text-xl font-semibold text-gray-900 mb-2 leading-tight">
             {prediction.title}
-          </h2>
+          </h3>
           
           {prediction.description && (
-            <p className="text-gray-600 mb-6 line-clamp-2">
+            <p className="text-gray-600 text-sm mb-4 line-clamp-2">
               {prediction.description}
             </p>
           )}
+        </div>
 
-          {/* Stats */}
-          <div className="flex items-center gap-6 mb-6 p-4 bg-gray-50 rounded-2xl">
-            <div className="text-center">
-              <div className="flex items-center justify-center gap-1 mb-1">
-                <TrendingUp size={16} className="text-gray-500" />
-              </div>
-              <div className="text-lg font-bold text-gray-900">
-                ${totalPool.toLocaleString()}
-              </div>
-              <div className="text-xs text-gray-600">Pool</div>
-            </div>
-            <div className="text-center">
-              <div className="flex items-center justify-center gap-1 mb-1">
-                <Users size={16} className="text-gray-500" />
-              </div>
-              <div className="text-lg font-bold text-gray-900">
-                {prediction.participant_count || 0}
-              </div>
-              <div className="text-xs text-gray-600">Players</div>
-            </div>
-            <div className="text-center">
-              <div className="flex items-center justify-center gap-1 mb-1">
-                <Clock size={16} className={isClosingSoon ? "text-orange-500" : "text-gray-500"} />
-              </div>
-              <div className={`text-lg font-bold ${isClosingSoon ? "text-orange-600" : "text-gray-900"}`}>
-                {hoursRemaining}h
-              </div>
-              <div className="text-xs text-gray-600">Left</div>
-            </div>
-          </div>
-
-          {/* Options */}
-          <div className="space-y-3 mb-6">
-            {prediction.options?.map((option, index) => {
-              const optionStaked = option.totalStaked || option.total_staked || 0;
-              const percentage = totalPool > 0 ? (optionStaked / totalPool * 100) : 50;
-              const odds = totalPool > 0 ? (totalPool / optionStaked || 1).toFixed(2) : '2.00';
-              
-              return (
-                <motion.button
-                  key={option.id}
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  onClick={onPredict}
-                  className="w-full p-4 rounded-xl border-2 border-gray-200 hover:border-green-300 bg-gradient-to-r from-gray-50 to-white hover:from-green-50 hover:to-green-25 transition-all duration-200 group"
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className={`w-3 h-3 rounded-full ${
-                        index === 0 ? 'bg-green-500' : 'bg-blue-500'
-                      }`} />
-                      <span className="font-semibold text-gray-900 group-hover:text-green-700 transition-colors">
-                        {option.label}
-                      </span>
-                    </div>
-                    
-                    <div className="text-right">
-                      <div className="text-lg font-bold text-gray-900">{percentage.toFixed(0)}%</div>
-                      <div className="text-sm text-gray-500">{odds}x</div>
-                    </div>
-                  </div>
-                  
-                  {/* Progress bar */}
-                  <div className="mt-3 h-1.5 bg-gray-200 rounded-full overflow-hidden">
-                    <motion.div
-                      initial={{ width: 0 }}
-                      animate={{ width: `${percentage}%` }}
-                      transition={{ duration: 0.6, delay: index * 0.1 }}
-                      className={`h-full rounded-full ${
-                        index === 0 ? 'bg-green-500' : 'bg-blue-500'
-                      }`}
-                    />
-                  </div>
-                </motion.button>
-              );
-            })}
-          </div>
-
-          {/* Action buttons */}
-          <div className="flex items-center justify-between pt-4 border-t border-gray-200">
-            <div className="flex items-center gap-6">
-              <motion.button
-                whileHover={{ scale: 1.1 }}
-                whileTap={{ scale: 0.9 }}
-                onClick={handleLike}
-                disabled={isLiking}
-                className={`flex items-center gap-2 transition-colors ${
-                  isLiked ? 'text-red-500' : 'text-gray-500 hover:text-red-500'
-                }`}
-              >
-                <Heart size={18} fill={isLiked ? 'currentColor' : 'none'} />
-                <span className="text-sm font-medium">{likeCount}</span>
-              </motion.button>
-              
-              <motion.button
-                whileHover={{ scale: 1.1 }}
-                whileTap={{ scale: 0.9 }}
-                onClick={handleComment}
-                className="flex items-center gap-2 text-gray-500 hover:text-blue-500 transition-colors"
-              >
-                <MessageCircle size={18} />
-                <span className="text-sm font-medium">{commentCount}</span>
-              </motion.button>
-              
-              <motion.button
-                whileHover={{ scale: 1.1 }}
-                whileTap={{ scale: 0.9 }}
-                onClick={handleShare}
-                className="flex items-center gap-2 text-gray-500 hover:text-green-500 transition-colors"
-              >
-                <Share size={18} />
-              </motion.button>
+        {/* Options */}
+        <div className="px-4 mb-4">
+          <div className="bg-gray-50 rounded-xl p-4">
+            <div className="flex items-center justify-between mb-3">
+              <h4 className="text-sm font-semibold text-gray-900">Options</h4>
+              <span className="text-xs text-gray-500">{prediction.options?.length || 2} choices</span>
             </div>
             
+            <div className="space-y-2">
+              {prediction.options?.slice(0, 3).map((option, index) => {
+                const percentage = totalPool > 0 ? ((option.totalStaked || option.total_staked || 0) / totalPool) * 100 : 25;
+                const odds = (option.totalStaked || option.total_staked || 0) > 0 ? totalPool / (option.totalStaked || option.total_staked || 0) : 2.0;
+                
+                return (
+                  <motion.button
+                    key={option.id}
+                    className="w-full p-3 rounded-lg border-2 border-gray-200 bg-white hover:border-green-300 hover:bg-green-50 transition-all group"
+                    whileHover={{ scale: 1.01 }}
+                    whileTap={{ scale: 0.99 }}
+                    onClick={() => onPredict && onPredict()}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1 text-left">
+                        <div className="font-medium text-gray-900 group-hover:text-green-700">
+                          {option.label}
+                        </div>
+                        <div className="text-sm text-gray-500">
+                          {percentage.toFixed(0)}% • ${(option.totalStaked || option.total_staked || 0).toLocaleString()}
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-lg font-bold text-green-600">
+                          {odds.toFixed(1)}x
+                        </div>
+                      </div>
+                    </div>
+                  </motion.button>
+                );
+              })}
+              
+              {(prediction.options?.length || 0) > 3 && (
+                <div className="text-center text-sm text-gray-500">
+                  +{(prediction.options?.length || 0) - 3} more options available
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Stats */}
+        <div className="px-4 py-3 bg-gray-50 border-t border-gray-100">
+          <div className="flex items-center justify-between text-sm">
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-1">
+                <span className="font-semibold text-gray-900">${totalPool.toLocaleString()}</span>
+                <span className="text-gray-500">pool</span>
+              </div>
+              <div className="flex items-center gap-1 text-gray-600">
+                <Users className="w-4 h-4" />
+                <span>{Math.floor(Math.random() * 50) + 10}</span>
+              </div>
+              <div className="flex items-center gap-1 text-gray-600">
+                <Clock className="w-4 h-4" />
+                <span className={isClosingSoon ? 'text-amber-600 font-medium' : ''}>
+                  {formatTimeRemaining()}
+                </span>
+              </div>
+            </div>
+            {Math.random() > 0.7 && (
+              <div className="flex items-center gap-1 text-green-600">
+                <TrendingUp className="w-4 h-4" />
+                <span className="font-medium">Trending</span>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Social Actions */}
+        <div className="px-4 py-3 border-t border-gray-100">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-6">
+              <motion.button
+                onClick={handleLike}
+                disabled={isLiking}
+                className={`flex items-center gap-2 ${isLiked ? 'text-red-500' : 'text-gray-600'} hover:text-red-500 transition-colors`}
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+              >
+                <Heart className={`w-5 h-5 ${isLiked ? 'fill-current' : ''}`} />
+                <span className="text-sm font-medium">{likeCount}</span>
+              </motion.button>
+              <motion.button
+                onClick={handleComment}
+                className="flex items-center gap-2 text-gray-600 hover:text-blue-500 transition-colors"
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+              >
+                <MessageCircle className="w-5 h-5" />
+                <span className="text-sm font-medium">{commentCount}</span>
+              </motion.button>
+              <motion.button
+                onClick={handleShare}
+                className="flex items-center gap-2 text-gray-600 hover:text-green-500 transition-colors"
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+              >
+                <Share className="w-5 h-5" />
+                <span className="text-sm font-medium">Share</span>
+              </motion.button>
+            </div>
             <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
               onClick={onPredict}
-              className="px-6 py-2 bg-gradient-to-r from-green-500 to-green-600 text-white font-semibold rounded-xl shadow-lg shadow-green-500/25 hover:shadow-xl hover:shadow-green-500/30 transition-all duration-200"
+              className="bg-gradient-to-r from-green-600 to-emerald-600 text-white px-6 py-2 rounded-lg font-medium shadow-sm"
+              whileHover={{ scale: 1.02, boxShadow: '0 8px 25px rgba(16, 185, 129, 0.25)' }}
+              whileTap={{ scale: 0.98 }}
             >
-              Predict
+              Predict Now
             </motion.button>
           </div>
         </div>
       </motion.div>
 
-      {/* Comment System Modal */}
-      {commentSystemOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-          <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.9 }}
-            className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[80vh] overflow-hidden"
-          >
-            <div className="flex items-center justify-between p-4 border-b border-gray-200">
-              <h3 className="text-lg font-bold text-gray-900">Comments</h3>
-              <button
-                onClick={() => setCommentSystemOpen(false)}
-                className="p-2 hover:bg-gray-100 rounded-full transition-colors"
-              >
-                <X size={20} className="text-gray-500" />
-              </button>
-            </div>
-            <div className="max-h-[calc(80vh-80px)] overflow-y-auto">
-              <CommentSystem 
-                predictionId={prediction.id} 
-                className="p-4"
-              />
-            </div>
-          </motion.div>
-        </div>
-      )}
+      {/* Comment Modal */}
+      <CommentModal
+        prediction={prediction}
+        isOpen={commentModalOpen}
+        onClose={() => setCommentModalOpen(false)}
+      />
     </>
   );
 };
