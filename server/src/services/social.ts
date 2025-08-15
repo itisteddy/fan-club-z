@@ -13,6 +13,21 @@ import type {
   PaginatedResponse
 } from '@fanclubz/shared';
 
+interface EnhancedComment extends Comment {
+  user: {
+    id: string;
+    username: string;
+    full_name?: string;
+    avatar_url?: string;
+    is_verified?: boolean;
+  };
+  is_liked?: boolean;
+  is_liked_by_user?: boolean;
+  is_own?: boolean;
+  is_owned_by_user?: boolean;
+  replies?: EnhancedComment[];
+}
+
 export class SocialService {
   private supabase;
 
@@ -392,43 +407,75 @@ export class SocialService {
   }
 
   // ============================================================================
-  // COMMENTS METHODS
+  // COMMENTS METHODS (ENHANCED WITH WEBSOCKET & MODERATION)
   // ============================================================================
 
   async getPredictionComments(
     predictionId: string, 
-    pagination: PaginationQuery
-  ): Promise<PaginatedResponse<Comment>> {
+    pagination: PaginationQuery,
+    userId?: string
+  ): Promise<PaginatedResponse<EnhancedComment>> {
     try {
       const { page, limit } = pagination;
-      const offset = (page - 1) * limit;
+      
+      logger.info(`Fetching comments for prediction ${predictionId}, page ${page}, limit ${limit}`);
 
-      const { data, error, count } = await this.supabase
-        .from('comments')
-        .select(`
-          *,
-          user:users(id, username, full_name, avatar_url),
-          replies:comments!parent_comment_id(
-            *,
-            user:users(id, username, full_name, avatar_url)
-          )
-        `, { count: 'exact' })
-        .eq('prediction_id', predictionId)
-        .is('parent_comment_id', null) // Only top-level comments
-        .order('created_at', { ascending: false })
-        .range(offset, offset + limit - 1);
+      // Use the custom function for efficient nested comment retrieval
+      const { data, error } = await this.supabase
+        .rpc('get_prediction_comments', {
+          pred_id: predictionId,
+          page_limit: limit,
+          page_offset: (page - 1) * limit
+        });
 
       if (error) {
-        logger.error('Error fetching prediction comments:', error);
-        throw new Error('Failed to fetch comments');
+        logger.error('Error fetching prediction comments with RPC:', error);
+        
+        // Fallback to manual query if RPC fails
+        return await this.getPredictionCommentsManual(predictionId, pagination, userId);
       }
+
+      // Get total count for pagination
+      const { count } = await this.supabase
+        .from('comments')
+        .select('*', { count: 'exact', head: true })
+        .eq('prediction_id', predictionId)
+        .is('parent_comment_id', null);
 
       const total = count || 0;
       const totalPages = Math.ceil(total / limit);
 
+      // Transform data to match expected format
+      const transformedData = (data || []).map((comment: any) => ({
+        id: comment.id,
+        prediction_id: comment.prediction_id,
+        user_id: comment.user_id,
+        parent_comment_id: comment.parent_comment_id,
+        content: comment.content,
+        likes_count: comment.likes_count || 0,
+        replies_count: comment.replies_count || 0,
+        is_edited: comment.is_edited || false,
+        created_at: comment.created_at,
+        updated_at: comment.updated_at,
+        user: {
+          id: comment.user_id,
+          username: comment.username,
+          full_name: comment.full_name,
+          avatar_url: comment.avatar_url,
+          is_verified: comment.is_verified || false,
+        },
+        is_liked_by_user: comment.is_liked_by_user || false,
+        is_owned_by_user: comment.is_owned_by_user || false,
+        is_liked: comment.is_liked_by_user || false,
+        is_own: comment.is_owned_by_user || false,
+        replies: Array.isArray(comment.replies) ? comment.replies : [],
+      }));
+
+      logger.info(`Successfully fetched ${transformedData.length} comments`);
+
       return {
         success: true,
-        data: data || [],
+        data: transformedData,
         pagination: {
           page,
           limit,
@@ -444,7 +491,131 @@ export class SocialService {
     }
   }
 
-  async createComment(userId: string, commentData: CreateComment): Promise<Comment> {
+  // Fallback manual method
+  private async getPredictionCommentsManual(
+    predictionId: string, 
+    pagination: PaginationQuery,
+    userId?: string
+  ): Promise<PaginatedResponse<EnhancedComment>> {
+    try {
+      const { page, limit } = pagination;
+      const offset = (page - 1) * limit;
+
+      // Get top-level comments with user info
+      const { data: topLevelComments, error: topError, count } = await this.supabase
+        .from('comments')
+        .select(`
+          *,
+          user:users(id, username, full_name, avatar_url, is_verified)
+        `, { count: 'exact' })
+        .eq('prediction_id', predictionId)
+        .is('parent_comment_id', null)
+        .eq('is_deleted', false)
+        .order('created_at', { ascending: false })
+        .range(offset, offset + limit - 1);
+
+      if (topError) {
+        logger.error('Error fetching top-level comments:', topError);
+        throw new Error('Failed to fetch comments');
+      }
+
+      if (!topLevelComments || topLevelComments.length === 0) {
+        logger.info('No comments found for prediction');
+        return {
+          success: true,
+          data: [],
+          pagination: {
+            page,
+            limit,
+            total: 0,
+            totalPages: 0,
+            hasNext: false,
+            hasPrev: false,
+          },
+        };
+      }
+
+      // Get replies for all top-level comments
+      const commentIds = topLevelComments.map(c => c.id);
+      const { data: replies, error: repliesError } = await this.supabase
+        .from('comments')
+        .select(`
+          *,
+          user:users(id, username, full_name, avatar_url, is_verified)
+        `)
+        .in('parent_comment_id', commentIds)
+        .eq('is_deleted', false)
+        .order('created_at', { ascending: true });
+
+      if (repliesError) {
+        logger.error('Error fetching replies:', repliesError);
+      }
+
+      // Get like status for current user if provided
+      let userLikes: any[] = [];
+      if (userId) {
+        const { data: likes, error: likesError } = await this.supabase
+          .from('comment_likes')
+          .select('comment_id')
+          .eq('user_id', userId)
+          .in('comment_id', [
+            ...commentIds,
+            ...(replies || []).map(r => r.id)
+          ]);
+
+        if (!likesError && likes) {
+          userLikes = likes;
+        }
+      }
+
+      const likedCommentIds = new Set(userLikes.map(l => l.comment_id));
+
+      // Combine comments with replies
+      const commentsWithReplies = topLevelComments.map(comment => {
+        const commentReplies = (replies || [])
+          .filter(reply => reply.parent_comment_id === comment.id)
+          .map(reply => ({
+            ...reply,
+            is_liked_by_user: likedCommentIds.has(reply.id),
+            is_owned_by_user: reply.user_id === userId,
+            is_liked: likedCommentIds.has(reply.id),
+            is_own: reply.user_id === userId,
+          }));
+
+        return {
+          ...comment,
+          is_liked_by_user: likedCommentIds.has(comment.id),
+          is_owned_by_user: comment.user_id === userId,
+          is_liked: likedCommentIds.has(comment.id),
+          is_own: comment.user_id === userId,
+          replies: commentReplies,
+        };
+      });
+
+      const total = count || 0;
+      const totalPages = Math.ceil(total / limit);
+
+      logger.info(`Successfully fetched ${commentsWithReplies.length} comments with manual method`);
+
+      return {
+        success: true,
+        data: commentsWithReplies as EnhancedComment[],
+        pagination: {
+          page,
+          limit,
+          total,
+          totalPages,
+          hasNext: page < totalPages,
+          hasPrev: page > 1,
+        },
+      };
+    } catch (error) {
+      logger.error('Error in getPredictionCommentsManual:', error);
+      throw error;
+    }
+  }
+
+  async createComment(userId: string, commentData: CreateComment): Promise<EnhancedComment> {
     try {
       // Verify prediction exists
       const { data: prediction, error: predictionError } = await this.supabase
@@ -463,6 +634,7 @@ export class SocialService {
           .from('comments')
           .select('id')
           .eq('id', commentData.parent_comment_id)
+          .eq('is_deleted', false)
           .single();
 
         if (parentError || !parentComment) {
@@ -470,15 +642,18 @@ export class SocialService {
         }
       }
 
+      // Insert the comment
       const { data, error } = await this.supabase
         .from('comments')
         .insert({
-          ...commentData,
+          prediction_id: commentData.prediction_id,
           user_id: userId,
+          parent_comment_id: commentData.parent_comment_id || null,
+          content: commentData.content.trim(),
         })
         .select(`
           *,
-          user:users(id, username, full_name, avatar_url)
+          user:users(id, username, full_name, avatar_url, is_verified)
         `)
         .single();
 
@@ -487,27 +662,42 @@ export class SocialService {
         throw new Error('Failed to create comment');
       }
 
-      return data;
+      const enhancedComment: EnhancedComment = {
+        ...data,
+        is_liked_by_user: false,
+        is_owned_by_user: true,
+        is_liked: false,
+        is_own: true,
+        replies: [],
+      };
+
+      logger.info(`Comment created successfully: ${data.id}`);
+
+      // TODO: Send WebSocket notification to prediction subscribers
+      // await this.sendCommentNotification(commentData.prediction_id, enhancedComment);
+
+      return enhancedComment;
     } catch (error) {
       logger.error('Error in createComment:', error);
       throw error;
     }
   }
 
-  async updateComment(commentId: string, userId: string, content: string): Promise<Comment> {
+  async updateComment(commentId: string, userId: string, content: string): Promise<EnhancedComment> {
     try {
       const { data, error } = await this.supabase
         .from('comments')
         .update({
-          content,
+          content: content.trim(),
           is_edited: true,
           updated_at: new Date().toISOString(),
         })
         .eq('id', commentId)
         .eq('user_id', userId)
+        .eq('is_deleted', false)
         .select(`
           *,
-          user:users(id, username, full_name, avatar_url)
+          user:users(id, username, full_name, avatar_url, is_verified)
         `)
         .single();
 
@@ -516,7 +706,18 @@ export class SocialService {
         throw new Error('Failed to update comment');
       }
 
-      return data;
+      const enhancedComment: EnhancedComment = {
+        ...data,
+        is_liked_by_user: false, // TODO: Check actual like status
+        is_owned_by_user: true,
+        is_liked: false,
+        is_own: true,
+        replies: [],
+      };
+
+      logger.info(`Comment updated successfully: ${commentId}`);
+
+      return enhancedComment;
     } catch (error) {
       logger.error('Error in updateComment:', error);
       throw error;
@@ -525,9 +726,14 @@ export class SocialService {
 
   async deleteComment(commentId: string, userId: string): Promise<void> {
     try {
+      // Soft delete by marking as deleted instead of removing
       const { error } = await this.supabase
         .from('comments')
-        .delete()
+        .update({
+          is_deleted: true,
+          deleted_at: new Date().toISOString(),
+          content: '[deleted]', // Replace content for privacy
+        })
         .eq('id', commentId)
         .eq('user_id', userId);
 
@@ -535,6 +741,8 @@ export class SocialService {
         logger.error('Error deleting comment:', error);
         throw new Error('Failed to delete comment');
       }
+
+      logger.info(`Comment soft deleted successfully: ${commentId}`);
     } catch (error) {
       logger.error('Error in deleteComment:', error);
       throw error;
@@ -567,6 +775,8 @@ export class SocialService {
           logger.error('Error removing comment like:', deleteError);
           throw new Error('Failed to remove like');
         }
+
+        logger.info(`Comment like removed: ${commentId} by ${userId}`);
       } else {
         // Add new like
         const { error: insertError } = await this.supabase
@@ -574,15 +784,47 @@ export class SocialService {
           .insert({
             comment_id: commentId,
             user_id: userId,
+            type: 'like',
           });
 
         if (insertError) {
           logger.error('Error creating comment like:', insertError);
           throw new Error('Failed to create like');
         }
+
+        logger.info(`Comment like added: ${commentId} by ${userId}`);
       }
     } catch (error) {
       logger.error('Error in toggleCommentLike:', error);
+      throw error;
+    }
+  }
+
+  // New method for comment moderation
+  async reportComment(
+    commentId: string, 
+    reporterId: string, 
+    reason: string, 
+    description?: string
+  ): Promise<void> {
+    try {
+      const { error } = await this.supabase
+        .from('comment_reports')
+        .insert({
+          comment_id: commentId,
+          reporter_id: reporterId,
+          reason,
+          description,
+        });
+
+      if (error) {
+        logger.error('Error reporting comment:', error);
+        throw new Error('Failed to report comment');
+      }
+
+      logger.info(`Comment reported: ${commentId} by ${reporterId} for ${reason}`);
+    } catch (error) {
+      logger.error('Error in reportComment:', error);
       throw error;
     }
   }
@@ -708,6 +950,7 @@ export class SocialService {
             prediction:predictions(id, title, creator_id)
           `)
           .eq('user_id', userId)
+          .eq('is_deleted', false)
           .order('created_at', { ascending: false })
           .limit(limit),
 

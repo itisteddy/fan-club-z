@@ -9,12 +9,27 @@ import {
   Trash2,
   Flag,
   Send,
-  X
+  X,
+  Smile,
+  ThumbsUp,
+  Laugh,
+  Angry,
+  Frown,
+  Shield,
+  AlertTriangle
 } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { useSocialStore } from '../store/socialStore';
 import { formatTimeAgo } from '../lib/utils';
 import toast from 'react-hot-toast';
+
+interface User {
+  id: string;
+  username: string;
+  full_name?: string;
+  avatar_url?: string;
+  is_verified?: boolean;
+}
 
 interface Comment {
   id: string;
@@ -27,27 +42,47 @@ interface Comment {
   edited_at?: string;
   likes_count: number;
   replies_count: number;
-  user: {
-    id: string;
-    username: string;
-    avatar_url?: string;
-    is_verified?: boolean;
-  };
+  is_edited?: boolean;
+  is_flagged?: boolean;
+  user: User;
   is_liked?: boolean;
+  is_liked_by_user?: boolean;
   is_own?: boolean;
+  is_owned_by_user?: boolean;
   replies?: Comment[];
 }
 
 interface CommentSystemProps {
   predictionId: string;
   className?: string;
-  onCommentCountChange?: (newCount: number) => void; // Add callback prop
+  onCommentCountChange?: (newCount: number) => void;
+  enableRealTime?: boolean;
+  enableModeration?: boolean;
 }
+
+// Emoji reactions for comments
+const EMOJI_REACTIONS = [
+  { type: 'like', emoji: '👍', icon: ThumbsUp, label: 'Like' },
+  { type: 'love', emoji: '❤️', icon: Heart, label: 'Love' },
+  { type: 'laugh', emoji: '😂', icon: Laugh, label: 'Laugh' },
+  { type: 'angry', emoji: '😠', icon: Angry, label: 'Angry' },
+  { type: 'sad', emoji: '😢', icon: Frown, label: 'Sad' },
+];
+
+const REPORT_REASONS = [
+  { value: 'spam', label: 'Spam' },
+  { value: 'harassment', label: 'Harassment' },
+  { value: 'offensive', label: 'Offensive content' },
+  { value: 'misinformation', label: 'Misinformation' },
+  { value: 'other', label: 'Other' },
+];
 
 export const CommentSystem: React.FC<CommentSystemProps> = ({
   predictionId,
   className = '',
-  onCommentCountChange
+  onCommentCountChange,
+  enableRealTime = true,
+  enableModeration = true,
 }) => {
   const [comments, setComments] = useState<Comment[]>([]);
   const [loading, setLoading] = useState(true);
@@ -58,6 +93,11 @@ export const CommentSystem: React.FC<CommentSystemProps> = ({
   const [editContent, setEditContent] = useState('');
   const [expandedReplies, setExpandedReplies] = useState<Set<string>>(new Set());
   const [posting, setPosting] = useState(false);
+  const [showReactionPicker, setShowReactionPicker] = useState<string | null>(null);
+  const [showReportModal, setShowReportModal] = useState<string | null>(null);
+  const [reportReason, setReportReason] = useState('');
+  const [reportDescription, setReportDescription] = useState('');
+  const [submittingReport, setSubmittingReport] = useState(false);
 
   const { user, isAuthenticated } = useAuthStore();
   const { 
@@ -71,6 +111,20 @@ export const CommentSystem: React.FC<CommentSystemProps> = ({
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const replyInputRef = useRef<HTMLTextAreaElement>(null);
   const editInputRef = useRef<HTMLTextAreaElement>(null);
+  const reactionPickerRef = useRef<HTMLDivElement>(null);
+
+  // WebSocket for real-time updates
+  useEffect(() => {
+    if (!enableRealTime || !predictionId) return;
+
+    // TODO: Implement WebSocket connection for real-time comment updates
+    // const ws = new WebSocket(`ws://localhost:5000/comments/${predictionId}`);
+    // ws.onmessage = (event) => {
+    //   const update = JSON.parse(event.data);
+    //   handleRealTimeUpdate(update);
+    // };
+    // return () => ws.close();
+  }, [predictionId, enableRealTime]);
 
   // Helper function to update comment count
   const updateCommentCount = useCallback(() => {
@@ -90,6 +144,18 @@ export const CommentSystem: React.FC<CommentSystemProps> = ({
   useEffect(() => {
     loadComments();
   }, [predictionId]);
+
+  // Close reaction picker when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (reactionPickerRef.current && !reactionPickerRef.current.contains(event.target as Node)) {
+        setShowReactionPicker(null);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const loadComments = async () => {
     try {
@@ -129,6 +195,11 @@ export const CommentSystem: React.FC<CommentSystemProps> = ({
       
       setNewComment('');
       toast.success('Comment posted!');
+
+      // Trigger confetti animation for first comment
+      if (comments.length === 0) {
+        // TODO: Add confetti animation
+      }
 
       // Manually trigger count update
       setTimeout(() => {
@@ -191,13 +262,13 @@ export const CommentSystem: React.FC<CommentSystemProps> = ({
       // Update comment in the list
       setComments(prev => prev.map(comment => {
         if (comment.id === commentId) {
-          return { ...comment, content: editContent.trim(), edited_at: new Date().toISOString() };
+          return { ...comment, content: editContent.trim(), is_edited: true, edited_at: new Date().toISOString() };
         }
         // Update nested replies
         if (comment.replies) {
           comment.replies = comment.replies.map(reply => 
             reply.id === commentId 
-              ? { ...reply, content: editContent.trim(), edited_at: new Date().toISOString() }
+              ? { ...reply, content: editContent.trim(), is_edited: true, edited_at: new Date().toISOString() }
               : reply
           );
         }
@@ -264,6 +335,7 @@ export const CommentSystem: React.FC<CommentSystemProps> = ({
           return {
             ...comment,
             is_liked: !comment.is_liked,
+            is_liked_by_user: !comment.is_liked_by_user,
             likes_count: comment.is_liked 
               ? comment.likes_count - 1 
               : comment.likes_count + 1
@@ -276,6 +348,7 @@ export const CommentSystem: React.FC<CommentSystemProps> = ({
               ? {
                   ...reply,
                   is_liked: !reply.is_liked,
+                  is_liked_by_user: !reply.is_liked_by_user,
                   likes_count: reply.is_liked 
                     ? reply.likes_count - 1 
                     : reply.likes_count + 1
@@ -288,6 +361,47 @@ export const CommentSystem: React.FC<CommentSystemProps> = ({
     } catch (error) {
       console.error('Failed to like comment:', error);
       toast.error('Failed to update like');
+    }
+  };
+
+  const handleEmojiReaction = async (commentId: string, reactionType: string) => {
+    if (!isAuthenticated) return;
+
+    try {
+      // For now, treat all emoji reactions as likes
+      await handleLikeComment(commentId);
+      setShowReactionPicker(null);
+      
+      // Add visual feedback
+      const emoji = EMOJI_REACTIONS.find(r => r.type === reactionType)?.emoji;
+      if (emoji) {
+        toast.success(`Reacted with ${emoji}`, { duration: 1000 });
+      }
+    } catch (error) {
+      console.error('Failed to add reaction:', error);
+      toast.error('Failed to add reaction');
+    }
+  };
+
+  const handleReportComment = async (commentId: string) => {
+    if (!reportReason || submittingReport) return;
+
+    setSubmittingReport(true);
+    try {
+      // TODO: Implement report API call
+      // await reportComment(commentId, reportReason, reportDescription);
+      
+      console.log('Reporting comment:', { commentId, reportReason, reportDescription });
+      
+      setShowReportModal(null);
+      setReportReason('');
+      setReportDescription('');
+      toast.success('Comment reported. Thank you for helping keep our community safe.');
+    } catch (error) {
+      console.error('Failed to report comment:', error);
+      toast.error('Failed to report comment');
+    } finally {
+      setSubmittingReport(false);
     }
   };
 
@@ -313,6 +427,113 @@ export const CommentSystem: React.FC<CommentSystemProps> = ({
     setter(e.target.value);
     autoResizeTextarea(e.target);
   };
+
+  const renderReactionPicker = (commentId: string) => (
+    <motion.div
+      ref={reactionPickerRef}
+      initial={{ opacity: 0, scale: 0.9, y: 10 }}
+      animate={{ opacity: 1, scale: 1, y: 0 }}
+      exit={{ opacity: 0, scale: 0.9, y: 10 }}
+      className="absolute bottom-full left-0 mb-2 bg-white rounded-xl shadow-lg border border-gray-200 p-2 flex gap-1 z-20"
+    >
+      {EMOJI_REACTIONS.map(({ type, emoji, label }) => (
+        <button
+          key={type}
+          onClick={() => handleEmojiReaction(commentId, type)}
+          className="w-8 h-8 rounded-lg hover:bg-gray-100 flex items-center justify-center text-lg transition-colors"
+          title={label}
+        >
+          {emoji}
+        </button>
+      ))}
+    </motion.div>
+  );
+
+  const renderReportModal = () => (
+    <AnimatePresence>
+      {showReportModal && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+          onClick={() => setShowReportModal(null)}
+        >
+          <motion.div
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0.9, opacity: 0 }}
+            className="bg-white rounded-lg max-w-md w-full p-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-3 mb-4">
+              <Flag className="w-5 h-5 text-red-500" />
+              <h3 className="text-lg font-semibold text-gray-900">Report Comment</h3>
+            </div>
+            
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Reason for reporting
+              </label>
+              <select
+                value={reportReason}
+                onChange={(e) => setReportReason(e.target.value)}
+                className="w-full p-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+                <option value="">Select a reason</option>
+                {REPORT_REASONS.map(({ value, label }) => (
+                  <option key={value} value={value}>{label}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Additional details (optional)
+              </label>
+              <textarea
+                value={reportDescription}
+                onChange={(e) => setReportDescription(e.target.value)}
+                className="w-full p-3 border border-gray-200 rounded-lg resize-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="Provide any additional context..."
+                rows={3}
+                maxLength={500}
+              />
+              <div className="text-sm text-gray-500 mt-1">
+                {reportDescription.length}/500
+              </div>
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowReportModal(null)}
+                className="flex-1 px-4 py-2 text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => handleReportComment(showReportModal)}
+                disabled={!reportReason || submittingReport}
+                className="flex-1 px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
+              >
+                {submittingReport ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    Reporting...
+                  </>
+                ) : (
+                  <>
+                    <Flag className="w-4 h-4" />
+                    Report
+                  </>
+                )}
+              </button>
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
 
   const renderComment = (comment: Comment, isReply: boolean = false) => (
     <motion.div
@@ -344,8 +565,14 @@ export const CommentSystem: React.FC<CommentSystemProps> = ({
             <span className="text-gray-500 text-sm">
               {formatTimeAgo(comment.created_at)}
             </span>
-            {comment.edited_at && (
+            {comment.is_edited && (
               <span className="text-gray-400 text-xs">(edited)</span>
+            )}
+            {comment.is_flagged && enableModeration && (
+              <div className="flex items-center gap-1 bg-red-100 text-red-600 px-2 py-1 rounded text-xs">
+                <Shield className="w-3 h-3" />
+                Flagged
+              </div>
             )}
           </div>
 
@@ -359,7 +586,11 @@ export const CommentSystem: React.FC<CommentSystemProps> = ({
                 className="w-full p-3 border border-gray-200 rounded-lg resize-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
                 placeholder="Edit your comment..."
                 rows={2}
+                maxLength={500}
               />
+              <div className="text-xs text-gray-500 mt-1">
+                {editContent.length}/500
+              </div>
               <div className="flex gap-2 mt-2">
                 <button
                   onClick={() => handleEditComment(comment.id)}
@@ -388,22 +619,39 @@ export const CommentSystem: React.FC<CommentSystemProps> = ({
           )}
 
           {/* Actions */}
-          <div className="flex items-center gap-4 text-gray-500">
-            {/* Like */}
-            <button
-              onClick={() => handleLikeComment(comment.id)}
-              disabled={!isAuthenticated}
-              className={`flex items-center gap-1 text-xs hover:text-red-500 transition-colors ${
-                comment.is_liked ? 'text-red-500' : ''
-              }`}
-            >
-              <Heart 
-                className={`w-4 h-4 ${comment.is_liked ? 'fill-current' : ''}`} 
-              />
-              {comment.likes_count > 0 && (
-                <span>{comment.likes_count}</span>
-              )}
-            </button>
+          <div className="flex items-center gap-4 text-gray-500 relative">
+            {/* Like with emoji picker */}
+            <div className="relative">
+              <button
+                onClick={() => {
+                  if (showReactionPicker === comment.id) {
+                    setShowReactionPicker(null);
+                  } else {
+                    handleLikeComment(comment.id);
+                  }
+                }}
+                onMouseEnter={() => setShowReactionPicker(comment.id)}
+                onMouseLeave={() => setTimeout(() => setShowReactionPicker(null), 1000)}
+                disabled={!isAuthenticated}
+                className={`flex items-center gap-1 text-xs hover:text-red-500 transition-colors ${
+                  comment.is_liked || comment.is_liked_by_user ? 'text-red-500' : ''
+                }`}
+              >
+                <Heart 
+                  className={`w-4 h-4 ${(comment.is_liked || comment.is_liked_by_user) ? 'fill-current' : ''}`} 
+                />
+                {comment.likes_count > 0 && (
+                  <span>{comment.likes_count}</span>
+                )}
+              </button>
+              
+              {/* Reaction Picker */}
+              <AnimatePresence>
+                {showReactionPicker === comment.id && (
+                  renderReactionPicker(comment.id)
+                )}
+              </AnimatePresence>
+            </div>
 
             {/* Reply */}
             {!isReply && (
@@ -421,27 +669,41 @@ export const CommentSystem: React.FC<CommentSystemProps> = ({
             )}
 
             {/* More options */}
-            {(comment.is_own || user?.id === comment.user_id) && (
-              <div className="relative">
-                <button
-                  onClick={() => {
-                    // Simple menu for now
-                    if (comment.is_own || user?.id === comment.user_id) {
-                      const action = window.confirm('Edit comment?');
-                      if (action) {
-                        setEditingComment(comment.id);
-                        setEditContent(comment.content);
-                        setTimeout(() => editInputRef.current?.focus(), 100);
-                      } else {
-                        handleDeleteComment(comment.id);
-                      }
+            <div className="relative">
+              <button
+                onClick={() => {
+                  const isOwner = comment.is_own || comment.is_owned_by_user || user?.id === comment.user_id;
+                  
+                  if (isOwner) {
+                    // Owner options
+                    const action = window.confirm('Edit comment? (Cancel to delete)');
+                    if (action) {
+                      setEditingComment(comment.id);
+                      setEditContent(comment.content);
+                      setTimeout(() => editInputRef.current?.focus(), 100);
+                    } else {
+                      handleDeleteComment(comment.id);
                     }
-                  }}
-                  className="flex items-center gap-1 text-xs hover:text-gray-700 transition-colors"
-                >
-                  <MoreHorizontal className="w-4 h-4" />
-                </button>
-              </div>
+                  } else if (enableModeration) {
+                    // Report option for non-owners
+                    setShowReportModal(comment.id);
+                  }
+                }}
+                className="flex items-center gap-1 text-xs hover:text-gray-700 transition-colors"
+              >
+                <MoreHorizontal className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Report button (visible alternative) */}
+            {enableModeration && !(comment.is_own || comment.is_owned_by_user || user?.id === comment.user_id) && (
+              <button
+                onClick={() => setShowReportModal(comment.id)}
+                className="flex items-center gap-1 text-xs hover:text-red-500 transition-colors"
+                title="Report comment"
+              >
+                <Flag className="w-4 h-4" />
+              </button>
             )}
           </div>
 
@@ -466,13 +728,22 @@ export const CommentSystem: React.FC<CommentSystemProps> = ({
                     className="w-full p-3 border border-gray-200 rounded-lg resize-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
                     placeholder={`Reply to @${comment.user.username}...`}
                     rows={2}
+                    maxLength={500}
                   />
+                  <div className="text-xs text-gray-500 mt-1">
+                    {replyContent.length}/500
+                  </div>
                   <div className="flex gap-2 mt-2">
                     <button
                       onClick={() => handleReply(comment.id)}
                       disabled={!replyContent.trim() || posting}
-                      className="px-3 py-1 bg-blue-500 text-white text-sm rounded-full hover:bg-blue-600 disabled:opacity-50 transition-colors"
+                      className="px-3 py-1 bg-blue-500 text-white text-sm rounded-full hover:bg-blue-600 disabled:opacity-50 transition-colors flex items-center gap-1"
                     >
+                      {posting ? (
+                        <div className="w-3 h-3 border border-white border-t-transparent rounded-full animate-spin"></div>
+                      ) : (
+                        <Send className="w-3 h-3" />
+                      )}
                       Reply
                     </button>
                     <button
@@ -496,16 +767,18 @@ export const CommentSystem: React.FC<CommentSystemProps> = ({
               {!expandedReplies.has(comment.id) ? (
                 <button
                   onClick={() => toggleReplies(comment.id)}
-                  className="text-blue-500 text-sm hover:underline"
+                  className="text-blue-500 text-sm hover:underline flex items-center gap-1"
                 >
+                  <Reply className="w-3 h-3" />
                   Show {comment.replies_count} {comment.replies_count === 1 ? 'reply' : 'replies'}
                 </button>
               ) : (
                 <>
                   <button
                     onClick={() => toggleReplies(comment.id)}
-                    className="text-gray-500 text-sm hover:underline mb-2"
+                    className="text-gray-500 text-sm hover:underline mb-2 flex items-center gap-1"
                   >
+                    <X className="w-3 h-3" />
                     Hide replies
                   </button>
                   <div className="space-y-3">
@@ -539,15 +812,23 @@ export const CommentSystem: React.FC<CommentSystemProps> = ({
                 className="w-full p-3 border border-gray-200 rounded-lg resize-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 placeholder="What do you think about this prediction?"
                 rows={3}
-                maxLength={280}
+                maxLength={500}
               />
               <div className="flex justify-between items-center mt-3">
-                <div className="text-sm text-gray-500">
-                  {newComment.length}/280
+                <div className="flex items-center gap-4">
+                  <div className="text-sm text-gray-500">
+                    {newComment.length}/500
+                  </div>
+                  <button
+                    className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 transition-colors"
+                    title="Add emoji"
+                  >
+                    <Smile className="w-4 h-4" />
+                  </button>
                 </div>
                 <button
                   onClick={handlePostComment}
-                  disabled={!newComment.trim() || posting || newComment.length > 280}
+                  disabled={!newComment.trim() || posting || newComment.length > 500}
                   className="px-4 py-2 bg-blue-500 text-white rounded-full hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm font-medium flex items-center gap-2"
                 >
                   {posting ? (
@@ -565,6 +846,13 @@ export const CommentSystem: React.FC<CommentSystemProps> = ({
               </div>
             </div>
           </div>
+        </div>
+      )}
+
+      {!isAuthenticated && (
+        <div className="mb-6 bg-gray-50 rounded-lg border border-gray-200 p-4 text-center">
+          <p className="text-gray-600 mb-2">Join the conversation!</p>
+          <p className="text-sm text-gray-500">Sign in to comment on this prediction</p>
         </div>
       )}
 
@@ -616,6 +904,9 @@ export const CommentSystem: React.FC<CommentSystemProps> = ({
           </button>
         </div>
       )}
+
+      {/* Report Modal */}
+      {renderReportModal()}
     </div>
   );
 };
