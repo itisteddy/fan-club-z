@@ -23,7 +23,7 @@ app.get('/health', (req, res) => {
 });
 
 // User-created predictions endpoint - fetches real data from database
-app.get('/api/predictions/created/me', (req, res) => {
+app.get('/api/predictions/created/me', (req, res): void => {
   console.log('📋 Fetching user created predictions from database');
   
   // Get the user ID from the authorization header
@@ -44,10 +44,11 @@ app.get('/api/predictions/created/me', (req, res) => {
   }
   
   if (!userId) {
-    return res.status(401).json({
+    res.status(401).json({
       success: false,
       message: 'User ID not found in token'
     });
+    return;
   }
   
   console.log('🔐 Using user ID:', userId);
@@ -141,7 +142,7 @@ app.get('/api/predictions/created/me', (req, res) => {
 });
 
 // v2 version for compatibility
-app.get('/api/v2/predictions/created/me', (req, res) => {
+app.get('/api/v2/predictions/created/me', (req, res): void => {
   console.log('📋 Fetching user created predictions (v2) from database');
   
   const authHeader = req.headers.authorization;
@@ -161,10 +162,11 @@ app.get('/api/v2/predictions/created/me', (req, res) => {
   }
   
   if (!userId) {
-    return res.status(401).json({
+    res.status(401).json({
       success: false,
       message: 'User ID not found in token'
     });
+    return;
   }
   
   // Return same real data

@@ -43,10 +43,11 @@ app.get('/api/predictions/created/me', (req, res) => {
         }
     }
     if (!userId) {
-        return res.status(401).json({
+        res.status(401).json({
             success: false,
             message: 'User ID not found in token'
         });
+        return;
     }
     console.log('🔐 Using user ID:', userId);
     // Return real predictions from database for this user
@@ -156,10 +157,11 @@ app.get('/api/v2/predictions/created/me', (req, res) => {
         }
     }
     if (!userId) {
-        return res.status(401).json({
+        res.status(401).json({
             success: false,
             message: 'User ID not found in token'
         });
+        return;
     }
     // Return same real data
     res.json({
