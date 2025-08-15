@@ -5,7 +5,7 @@ import {
   Plus, 
   Minus, 
   RefreshCw, 
-  TrendingUp, 
+  TrendingUp,
   TrendingDown, 
   DollarSign,
   Clock,
@@ -32,9 +32,9 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
   const [selectedAmount, setSelectedAmount] = useState<number | null>(null);
   const [customAmount, setCustomAmount] = useState('');
   
-  const { 
-    getBalance, 
-    getTransactionHistory, 
+  const {
+    getBalance,
+    getTransactionHistory,
     addFunds, 
     resetDemoBalance,
     isDemoMode 
@@ -184,30 +184,30 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
               </p>
             </div>
           </div>
-        </motion.div>
+          </motion.div>
       )}
 
-      {/* Balance Card */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
+          {/* Balance Card */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.1 }}
         className="mx-4 mt-4 bg-gradient-to-br from-green-500 to-green-600 rounded-2xl p-6 text-white"
-      >
-        <div className="flex items-center justify-between mb-4">
-          <div>
+          >
+            <div className="flex items-center justify-between mb-4">
+                <div>
             <h2 className="text-sm font-medium text-green-100 uppercase tracking-wide">
               Available Balance
-            </h2>
+                      </h2>
             <div className="text-3xl font-bold mt-1">
               {formatCurrency(usdBalance)}
-            </div>
-          </div>
+                  </div>
+                </div>
           <div className="w-12 h-12 bg-white bg-opacity-20 rounded-full flex items-center justify-center">
             <DollarSign size={24} className="text-white" />
           </div>
-        </div>
-
+              </div>
+              
         {/* Quick Actions */}
         <div className="flex gap-2">
           <button
@@ -232,8 +232,8 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
               )}
             </button>
           )}
-        </div>
-      </motion.div>
+            </div>
+          </motion.div>
 
       {/* Tab Navigation */}
       <div className="mx-4 mt-6">
@@ -273,7 +273,7 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
               className="space-y-4"
             >
               {/* Stats Cards */}
-              <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-2 gap-4">
                 <div className="bg-white rounded-xl p-4 border border-gray-100">
                   <div className="flex items-center gap-2 mb-2">
                     <TrendingUp size={16} className="text-green-500" />
@@ -306,8 +306,8 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
                       {transactions.slice(0, 3).map((transaction, index) => (
                         <div key={index} className="flex items-center gap-3">
                           <div className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center">
-                            {getTransactionIcon(transaction.type)}
-                          </div>
+                          {getTransactionIcon(transaction.type)}
+                        </div>
                           <div className="flex-1">
                             <div className="text-sm font-medium text-gray-900">
                               {transaction.description}
@@ -321,7 +321,7 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
                           </div>
                         </div>
                       ))}
-                    </div>
+                      </div>
                   ) : (
                     <div className="text-center py-6">
                       <Clock size={24} className="text-gray-400 mx-auto mb-2" />
@@ -348,10 +348,10 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
                   {transactions.length > 0 ? (
                     transactions.map((transaction, index) => (
                       <div key={index} className="p-4">
-                        <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-3">
                           <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center">
-                            {getTransactionIcon(transaction.type)}
-                          </div>
+                          {getTransactionIcon(transaction.type)}
+                        </div>
                           <div className="flex-1">
                             <div className="text-sm font-medium text-gray-900">
                               {transaction.description}
@@ -371,7 +371,7 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
                       <Clock size={32} className="text-gray-400 mx-auto mb-3" />
                       <p className="text-gray-500">No transactions yet</p>
                       <p className="text-gray-400 text-sm mt-1">Start making predictions to see your activity</p>
-                    </div>
+                      </div>
                   )}
                 </div>
               </div>
@@ -402,8 +402,8 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
               {/* Quick amounts */}
               <div className="grid grid-cols-2 gap-3 mb-4">
                 {quickAmounts.map((amount) => (
-                  <button
-                    key={amount}
+                      <button
+                        key={amount}
                     onClick={() => setCustomAmount(amount.toString())}
                     className={`py-3 px-4 rounded-lg border-2 text-sm font-medium transition-all ${
                       customAmount === amount.toString()
@@ -412,16 +412,16 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
                     }`}
                   >
                     ${amount}
-                  </button>
-                ))}
+                      </button>
+                    ))}
               </div>
-
+              
               {/* Custom amount */}
               <div className="mb-6">
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Custom Amount
-                </label>
-                <div className="relative">
+                  </label>
+                  <div className="relative">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
                   <input
                     type="number"
@@ -434,7 +434,7 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
                   />
                 </div>
               </div>
-
+              
               {/* Action buttons */}
               <div className="flex gap-3">
                 <button
