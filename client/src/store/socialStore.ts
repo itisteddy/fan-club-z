@@ -92,6 +92,10 @@ export const useSocialStore = create<SocialStore>((set, get) => ({
     }));
 
     try {
+      // Get current user once
+      const { data: { user } } = await supabase.auth.getUser();
+      const currentUserId = user?.id;
+
       const { data, error } = await supabase
         .from('comments')
         .select(`
@@ -135,7 +139,7 @@ export const useSocialStore = create<SocialStore>((set, get) => ({
             ...reply,
             likes_count: reply.likes?.[0]?.count || 0,
             is_liked: !!reply.user_like?.length,
-            is_own: reply.user_id === (await supabase.auth.getUser()).data.user?.id,
+            is_own: reply.user_id === currentUserId,
             replies_count: 0 // No nested replies for now
           }));
 
@@ -143,7 +147,7 @@ export const useSocialStore = create<SocialStore>((set, get) => ({
             ...comment,
             likes_count: comment.likes?.[0]?.count || 0,
             is_liked: !!comment.user_like?.length,
-            is_own: comment.user_id === (await supabase.auth.getUser()).data.user?.id,
+            is_own: comment.user_id === currentUserId,
             replies_count: replies.length,
             replies
           };
