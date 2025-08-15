@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { supabase, auth } from '../lib/supabase';
 import toast from 'react-hot-toast';
-import { showSuccess, showError } from './notificationStore';
+import { useNotificationStore } from './notificationStore';
 import type { Provider } from '@supabase/supabase-js';
 
 interface User {
@@ -226,7 +226,7 @@ export const useAuthStore = create<AuthState>()(
             }
             
             set({ loading: false });
-            showError(userMessage);
+            useNotificationStore.getState().error('Login Failed', userMessage);
             throw new Error(userMessage);
           }
 
@@ -243,7 +243,7 @@ export const useAuthStore = create<AuthState>()(
               lastAuthCheck: Date.now()
             });
             
-            showSuccess(`Welcome back, ${convertedUser?.firstName}!`);
+            useNotificationStore.getState().success('Welcome Back', `Welcome back, ${convertedUser?.firstName}!`);
           }
 
         } catch (error: any) {
@@ -286,7 +286,7 @@ export const useAuthStore = create<AuthState>()(
             }
             
             set({ loading: false });
-            showError(userMessage);
+            useNotificationStore.getState().error('Registration Failed', userMessage);
             throw new Error(userMessage);
           }
 
@@ -304,7 +304,7 @@ export const useAuthStore = create<AuthState>()(
                 initialized: true,
                 lastAuthCheck: Date.now()
               });
-              showSuccess(`Welcome to Fan Club Z, ${convertedUser?.firstName}!`);
+              useNotificationStore.getState().success('Welcome', `Welcome to Fan Club Z, ${convertedUser?.firstName}!`);
             } else {
               // No immediate session, but allow app access
               set({ 
@@ -315,7 +315,7 @@ export const useAuthStore = create<AuthState>()(
                 initialized: true,
                 lastAuthCheck: Date.now()
               });
-              showSuccess(`Welcome to Fan Club Z, ${convertedUser?.firstName}! Please check your email to verify your account.`);
+              useNotificationStore.getState().success('Welcome', `Welcome to Fan Club Z, ${convertedUser?.firstName}! Please check your email to verify your account.`);
             }
           }
 
@@ -353,7 +353,7 @@ export const useAuthStore = create<AuthState>()(
           if (error) {
             console.error(`❌ ${provider} OAuth error:`, error.message);
             set({ loading: false });
-            showError(`${provider} sign-in failed. Please try again.`);
+            useNotificationStore.getState().error(`${provider} Sign-in Failed`, 'Please try again.');
             throw new Error(error.message);
           }
 
@@ -375,7 +375,7 @@ export const useAuthStore = create<AuthState>()(
           
           if (error) {
             console.error('❌ OAuth callback error:', error.message);
-            showError('Authentication failed. Please try again.');
+            useNotificationStore.getState().error('Authentication Failed', 'Please try again.');
             throw new Error(error.message);
           }
 
@@ -393,9 +393,7 @@ export const useAuthStore = create<AuthState>()(
             });
             
             const providerName = convertedUser?.provider?.charAt(0).toUpperCase() + convertedUser?.provider?.slice(1);
-            showSuccess(`Welcome ${convertedUser?.firstName}! Signed in with ${providerName}.`);
-            
-            return convertedUser;
+            useNotificationStore.getState().success(`Welcome ${convertedUser?.firstName}!`, `Signed in with ${providerName}.`);
           } else {
             throw new Error('No user session found after OAuth callback');
           }
@@ -428,7 +426,7 @@ export const useAuthStore = create<AuthState>()(
             lastAuthCheck: 0
           });
           
-          showSuccess('Signed out successfully');
+          useNotificationStore.getState().success('Signed Out', 'Signed out successfully');
           
         } catch (error: any) {
           console.error('❌ Logout exception:', error.message);
@@ -475,13 +473,13 @@ export const useAuthStore = create<AuthState>()(
               loading: false,
               lastAuthCheck: Date.now()
             });
-            showSuccess('Profile updated successfully!');
+            useNotificationStore.getState().success('Profile Updated', 'Profile updated successfully!');
           }
 
         } catch (error: any) {
           console.error('❌ Profile update error:', error.message);
           set({ loading: false });
-          showError(error.message || 'Failed to update profile');
+          useNotificationStore.getState().error('Profile Update Failed', error.message || 'Failed to update profile');
           throw error;
         }
       },
