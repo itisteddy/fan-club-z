@@ -1,15 +1,14 @@
 -- =====================================================
--- Fan Club Z: Fixed Comment System Schema
+-- Fan Club Z: Complete Comment System Fix (FIXED VERSION)
 -- =====================================================
 
 -- Drop existing tables to start fresh
-DROP TABLE IF EXISTS comment_reactions CASCADE;
-DROP TABLE IF EXISTS comment_likes CASCADE;
 DROP TABLE IF EXISTS comment_reports CASCADE;
+DROP TABLE IF EXISTS comment_likes CASCADE;
 DROP TABLE IF EXISTS comments CASCADE;
 
 -- =====================================================
--- 1. COMMENTS TABLE (Fixed syntax)
+-- 1. COMMENTS TABLE
 -- =====================================================
 CREATE TABLE comments (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -28,7 +27,7 @@ CREATE TABLE comments (
   deleted_at TIMESTAMPTZ
 );
 
--- Create indexes separately (this fixes the syntax error)
+-- Create indexes separately (PostgreSQL syntax)
 CREATE INDEX idx_comments_prediction_id ON comments(prediction_id);
 CREATE INDEX idx_comments_user_id ON comments(user_id);
 CREATE INDEX idx_comments_parent_id ON comments(parent_comment_id);
@@ -49,7 +48,7 @@ CREATE TABLE comment_likes (
   UNIQUE(comment_id, user_id, type)
 );
 
--- Create indexes for comment_likes
+-- Create indexes separately
 CREATE INDEX idx_comment_likes_comment_id ON comment_likes(comment_id);
 CREATE INDEX idx_comment_likes_user_id ON comment_likes(user_id);
 
@@ -71,7 +70,7 @@ CREATE TABLE comment_reports (
   UNIQUE(comment_id, reporter_id)
 );
 
--- Create indexes for comment_reports
+-- Create indexes separately
 CREATE INDEX idx_comment_reports_comment_id ON comment_reports(comment_id);
 CREATE INDEX idx_comment_reports_status ON comment_reports(status);
 CREATE INDEX idx_comment_reports_created_at ON comment_reports(created_at DESC);
@@ -128,20 +127,25 @@ RETURNS TRIGGER AS $$
 BEGIN
   IF TG_OP = 'INSERT' THEN
     UPDATE comments 
-    SET 
-      flag_count = flag_count + 1,
-      is_flagged = (flag_count + 1) >= 5  -- Auto-flag after 5 reports
+    SET flag_count = flag_count + 1 
     WHERE id = NEW.comment_id;
     RETURN NEW;
   ELSIF TG_OP = 'DELETE' THEN
     UPDATE comments 
-    SET 
-      flag_count = GREATEST(0, flag_count - 1),
-      is_flagged = (flag_count - 1) >= 5
+    SET flag_count = GREATEST(0, flag_count - 1) 
     WHERE id = OLD.comment_id;
     RETURN OLD;
   END IF;
   RETURN NULL;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Function to update updated_at timestamp
+CREATE OR REPLACE FUNCTION update_updated_at_column()
+RETURNS TRIGGER AS $$
+BEGIN
+  NEW.updated_at = NOW();
+  RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
 
@@ -161,248 +165,122 @@ CREATE TRIGGER trigger_update_comment_flag_count
   AFTER INSERT OR DELETE ON comment_reports
   FOR EACH ROW EXECUTE FUNCTION update_comment_flag_count();
 
+DROP TRIGGER IF EXISTS trigger_update_comments_updated_at ON comments;
+CREATE TRIGGER trigger_update_comments_updated_at
+  BEFORE UPDATE ON comments
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
 -- =====================================================
--- 5. RLS POLICIES
+-- 5. ROW LEVEL SECURITY (RLS) POLICIES
 -- =====================================================
 
--- Enable RLS
+-- Enable RLS on all tables
 ALTER TABLE comments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE comment_likes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE comment_reports ENABLE ROW LEVEL SECURITY;
 
 -- Comments policies
-CREATE POLICY "Comments are publicly readable" ON comments FOR SELECT USING (NOT is_deleted);
-CREATE POLICY "Users can insert their own comments" ON comments FOR INSERT WITH CHECK (auth.uid() = user_id);
-CREATE POLICY "Users can update their own comments" ON comments FOR UPDATE USING (auth.uid() = user_id);
-CREATE POLICY "Users can delete their own comments" ON comments FOR DELETE USING (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Users can view all comments" ON comments;
+CREATE POLICY "Users can view all comments" ON comments
+  FOR SELECT USING (is_deleted = FALSE);
+
+DROP POLICY IF EXISTS "Users can insert their own comments" ON comments;
+CREATE POLICY "Users can insert their own comments" ON comments
+  FOR INSERT WITH CHECK (auth.uid() = user_id);
+
+DROP POLICY IF EXISTS "Users can update their own comments" ON comments;
+CREATE POLICY "Users can update their own comments" ON comments
+  FOR UPDATE USING (auth.uid() = user_id);
+
+DROP POLICY IF EXISTS "Users can delete their own comments" ON comments;
+CREATE POLICY "Users can delete their own comments" ON comments
+  FOR DELETE USING (auth.uid() = user_id);
 
 -- Comment likes policies
-CREATE POLICY "Comment likes are publicly readable" ON comment_likes FOR SELECT USING (true);
-CREATE POLICY "Users can manage their own comment likes" ON comment_likes FOR ALL USING (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Users can view all comment likes" ON comment_likes;
+CREATE POLICY "Users can view all comment likes" ON comment_likes
+  FOR SELECT USING (true);
+
+DROP POLICY IF EXISTS "Users can insert their own comment likes" ON comment_likes;
+CREATE POLICY "Users can insert their own comment likes" ON comment_likes
+  FOR INSERT WITH CHECK (auth.uid() = user_id);
+
+DROP POLICY IF EXISTS "Users can delete their own comment likes" ON comment_likes;
+CREATE POLICY "Users can delete their own comment likes" ON comment_likes
+  FOR DELETE USING (auth.uid() = user_id);
 
 -- Comment reports policies
-CREATE POLICY "Users can create reports" ON comment_reports FOR INSERT WITH CHECK (auth.uid() = reporter_id);
-CREATE POLICY "Users can view their own reports" ON comment_reports FOR SELECT USING (auth.uid() = reporter_id);
+DROP POLICY IF EXISTS "Users can view their own reports" ON comment_reports;
+CREATE POLICY "Users can view their own reports" ON comment_reports
+  FOR SELECT USING (auth.uid() = reporter_id);
+
+DROP POLICY IF EXISTS "Users can insert their own reports" ON comment_reports;
+CREATE POLICY "Users can insert their own reports" ON comment_reports
+  FOR INSERT WITH CHECK (auth.uid() = reporter_id);
 
 -- =====================================================
--- 6. USEFUL VIEWS
+-- 6. GRANT PERMISSIONS
 -- =====================================================
 
--- View for comments with user info and like status
-CREATE OR REPLACE VIEW comments_with_details AS
-SELECT 
-  c.*,
-  u.username,
-  u.full_name,
-  u.avatar_url,
-  u.is_verified,
-  -- Check if current user liked this comment
-  CASE 
-    WHEN auth.uid() IS NOT NULL THEN 
-      EXISTS(SELECT 1 FROM comment_likes cl WHERE cl.comment_id = c.id AND cl.user_id = auth.uid())
-    ELSE FALSE 
-  END as is_liked_by_user,
-  -- Check if current user owns this comment
-  CASE 
-    WHEN auth.uid() IS NOT NULL THEN c.user_id = auth.uid()
-    ELSE FALSE 
-  END as is_owned_by_user
-FROM comments c
-JOIN users u ON c.user_id = u.id
-WHERE NOT c.is_deleted;
+GRANT ALL ON comments TO authenticated;
+GRANT ALL ON comment_likes TO authenticated;
+GRANT ALL ON comment_reports TO authenticated;
 
 -- =====================================================
--- 7. USEFUL FUNCTIONS
+-- 7. ADD COMMENTS_COUNT TO PREDICTIONS TABLE
 -- =====================================================
 
--- Function to get comments for a prediction with proper nesting
-CREATE OR REPLACE FUNCTION get_prediction_comments(pred_id UUID, page_limit INTEGER DEFAULT 20, page_offset INTEGER DEFAULT 0)
-RETURNS TABLE (
-  id UUID,
-  prediction_id UUID,
-  user_id UUID,
-  parent_comment_id UUID,
-  content TEXT,
-  likes_count INTEGER,
-  replies_count INTEGER,
-  is_edited BOOLEAN,
-  created_at TIMESTAMPTZ,
-  updated_at TIMESTAMPTZ,
-  username VARCHAR,
-  full_name VARCHAR,
-  avatar_url TEXT,
-  is_verified BOOLEAN,
-  is_liked_by_user BOOLEAN,
-  is_owned_by_user BOOLEAN,
-  replies JSONB
-) AS $$
+-- Add comments_count column to predictions if it doesn't exist
+DO $$ 
 BEGIN
-  RETURN QUERY
-  WITH top_level_comments AS (
-    SELECT 
-      c.*,
-      cvd.username,
-      cvd.full_name,
-      cvd.avatar_url,
-      cvd.is_verified,
-      cvd.is_liked_by_user,
-      cvd.is_owned_by_user
-    FROM comments_with_details cvd
-    JOIN comments c ON cvd.id = c.id
-    WHERE c.prediction_id = pred_id 
-      AND c.parent_comment_id IS NULL
-    ORDER BY c.created_at DESC
-    LIMIT page_limit OFFSET page_offset
-  ),
-  comment_replies AS (
-    SELECT 
-      r.*,
-      rvd.username,
-      rvd.full_name,
-      rvd.avatar_url,
-      rvd.is_verified,
-      rvd.is_liked_by_user,
-      rvd.is_owned_by_user,
-      r.parent_comment_id
-    FROM comments_with_details rvd
-    JOIN comments r ON rvd.id = r.id
-    WHERE r.parent_comment_id IN (SELECT tlc.id FROM top_level_comments tlc)
-    ORDER BY r.created_at ASC
-  )
-  SELECT 
-    tlc.id,
-    tlc.prediction_id,
-    tlc.user_id,
-    tlc.parent_comment_id,
-    tlc.content,
-    tlc.likes_count,
-    tlc.replies_count,
-    tlc.is_edited,
-    tlc.created_at,
-    tlc.updated_at,
-    tlc.username,
-    tlc.full_name,
-    tlc.avatar_url,
-    tlc.is_verified,
-    tlc.is_liked_by_user,
-    tlc.is_owned_by_user,
-    COALESCE(
-      jsonb_agg(
-        jsonb_build_object(
-          'id', cr.id,
-          'user_id', cr.user_id,
-          'content', cr.content,
-          'likes_count', cr.likes_count,
-          'is_edited', cr.is_edited,
-          'created_at', cr.created_at,
-          'updated_at', cr.updated_at,
-          'user', jsonb_build_object(
-            'id', cr.user_id,
-            'username', cr.username,
-            'full_name', cr.full_name,
-            'avatar_url', cr.avatar_url,
-            'is_verified', cr.is_verified
-          ),
-          'is_liked_by_user', cr.is_liked_by_user,
-          'is_owned_by_user', cr.is_owned_by_user
-        ) ORDER BY cr.created_at ASC
-      ) FILTER (WHERE cr.id IS NOT NULL),
-      '[]'::jsonb
-    ) as replies
-  FROM top_level_comments tlc
-  LEFT JOIN comment_replies cr ON cr.parent_comment_id = tlc.id
-  GROUP BY 
-    tlc.id, tlc.prediction_id, tlc.user_id, tlc.parent_comment_id,
-    tlc.content, tlc.likes_count, tlc.replies_count, tlc.is_edited,
-    tlc.created_at, tlc.updated_at, tlc.username, tlc.full_name,
-    tlc.avatar_url, tlc.is_verified, tlc.is_liked_by_user, tlc.is_owned_by_user
-  ORDER BY tlc.created_at DESC;
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-
--- =====================================================
--- 8. SAMPLE DATA FOR TESTING
--- =====================================================
-
--- Insert some test comments (only if users and predictions exist)
-DO $$
-DECLARE
-  sample_user_id UUID;
-  sample_prediction_id UUID;
-  comment1_id UUID;
-BEGIN
-  -- Get a sample user and prediction for testing
-  SELECT id INTO sample_user_id FROM users LIMIT 1;
-  SELECT id INTO sample_prediction_id FROM predictions LIMIT 1;
-  
-  IF sample_user_id IS NOT NULL AND sample_prediction_id IS NOT NULL THEN
-    -- Insert a top-level comment
-    INSERT INTO comments (prediction_id, user_id, content)
-    VALUES (sample_prediction_id, sample_user_id, 'This is a test comment for the new comment system!')
-    RETURNING id INTO comment1_id;
-    
-    -- Insert a reply
-    INSERT INTO comments (prediction_id, user_id, parent_comment_id, content)
-    VALUES (sample_prediction_id, sample_user_id, comment1_id, 'This is a reply to the test comment!');
-    
-    RAISE NOTICE 'Sample comments inserted successfully';
-  ELSE
-    RAISE NOTICE 'No users or predictions found - skipping sample data';
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_name = 'predictions' AND column_name = 'comments_count'
+  ) THEN
+    ALTER TABLE predictions ADD COLUMN comments_count INTEGER DEFAULT 0 CHECK (comments_count >= 0);
   END IF;
 END $$;
 
+-- Function to update prediction comment count
+CREATE OR REPLACE FUNCTION update_prediction_comment_count()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF TG_OP = 'INSERT' AND NEW.parent_comment_id IS NULL THEN
+    -- Only count top-level comments
+    UPDATE predictions 
+    SET comments_count = comments_count + 1 
+    WHERE id = NEW.prediction_id;
+  ELSIF TG_OP = 'DELETE' AND OLD.parent_comment_id IS NULL THEN
+    -- Only count top-level comments
+    UPDATE predictions 
+    SET comments_count = GREATEST(0, comments_count - 1) 
+    WHERE id = OLD.prediction_id;
+  END IF;
+  
+  RETURN COALESCE(NEW, OLD);
+END;
+$$ LANGUAGE plpgsql;
+
+-- Create trigger for prediction comment count
+DROP TRIGGER IF EXISTS trigger_update_prediction_comment_count ON comments;
+CREATE TRIGGER trigger_update_prediction_comment_count
+  AFTER INSERT OR DELETE ON comments
+  FOR EACH ROW EXECUTE FUNCTION update_prediction_comment_count();
+
 -- =====================================================
--- 9. VERIFICATION QUERIES
+-- 8. INSERT SAMPLE DATA (OPTIONAL)
 -- =====================================================
 
--- Verify tables were created successfully
+-- Insert a sample comment if users and predictions exist
+INSERT INTO comments (content, user_id, prediction_id) 
 SELECT 
-  table_name,
-  column_name,
-  data_type,
-  is_nullable
-FROM information_schema.columns 
-WHERE table_schema = 'public' 
-  AND table_name IN ('comments', 'comment_likes', 'comment_reports')
-ORDER BY table_name, ordinal_position;
+  'This is a great prediction! I think the odds are in favor of option A.',
+  u.id,
+  p.id
+FROM users u, predictions p 
+WHERE u.email = 'test@example.com' 
+  AND p.title LIKE '%Nigeria%'
+LIMIT 1
+ON CONFLICT DO NOTHING;
 
--- Verify indexes were created
-SELECT 
-  schemaname,
-  tablename,
-  indexname,
-  indexdef
-FROM pg_indexes 
-WHERE schemaname = 'public' 
-  AND tablename IN ('comments', 'comment_likes', 'comment_reports')
-ORDER BY tablename, indexname;
-
--- Verify triggers were created
-SELECT 
-  trigger_name,
-  event_manipulation,
-  event_object_table,
-  action_statement
-FROM information_schema.triggers 
-WHERE event_object_schema = 'public' 
-  AND event_object_table IN ('comments', 'comment_likes', 'comment_reports')
-ORDER BY event_object_table, trigger_name;
-
--- Check if RLS is enabled
-SELECT 
-  schemaname,
-  tablename,
-  rowsecurity
-FROM pg_tables 
-WHERE schemaname = 'public' 
-  AND tablename IN ('comments', 'comment_likes', 'comment_reports');
-
--- Test the custom function if data exists
-SELECT * FROM get_prediction_comments(
-  (SELECT id FROM predictions LIMIT 1),
-  5,
-  0
-) LIMIT 3;
-
--- Final success message
-SELECT 'Comment system schema deployed successfully! ✅' as status;
+COMMIT;
