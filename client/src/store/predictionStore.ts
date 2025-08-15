@@ -651,12 +651,71 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
       console.log('✅ Successfully fetched user created predictions:', transformedPredictions.length);
 
     } catch (error) {
-      console.error('❌ Error fetching user created predictions:', error);
-      set({ 
-        loading: false,
-        error: 'Failed to fetch user created predictions',
-        userCreatedPredictions: [] // Set empty array on error
-      });
+      console.error('❌ Error fetching user created predictions from API:', error);
+      
+      // Fallback to Supabase query if API fails
+      try {
+        console.log('🔄 Falling back to Supabase query...');
+        
+        const { data: userCreatedPredictions, error: supabaseError } = await supabase
+          .from('predictions')
+          .select(`
+            *,
+            creator:users!creator_id(id, username, full_name, avatar_url),
+            options:prediction_options(*),
+            club:clubs(id, name, avatar_url)
+          `)
+          .eq('creator_id', userId)
+          .order('created_at', { ascending: false })
+          .limit(20);
+
+        if (supabaseError) {
+          throw supabaseError;
+        }
+
+        // Transform data to match our interface
+        const transformedPredictions = (userCreatedPredictions || []).map((pred: any) => ({
+          ...pred,
+          poolTotal: pred.pool_total,
+          entryDeadline: pred.entry_deadline,
+          entries: [],
+          likes: pred.likes_count || 0,
+          comments: pred.comments_count || 0,
+          
+          creator: pred.creator ? {
+            id: pred.creator.id,
+            username: pred.creator.username || pred.creator.full_name || 'Unknown',
+            avatar_url: pred.creator.avatar_url,
+            is_verified: false
+          } : {
+            id: pred.creator_id,
+            username: 'Fan Club Z',
+            avatar_url: null,
+            is_verified: true
+          },
+          options: (pred.options || []).map((opt: any) => ({
+            ...opt,
+            totalStaked: opt.total_staked,
+            percentage: pred.pool_total > 0 ? (opt.total_staked / pred.pool_total) * 100 : 0
+          }))
+        }));
+
+        set({
+          userCreatedPredictions: transformedPredictions,
+          loading: false,
+          error: null
+        });
+
+        console.log('✅ Successfully fetched user created predictions from Supabase fallback:', transformedPredictions.length);
+        
+      } catch (fallbackError) {
+        console.error('❌ Error in Supabase fallback:', fallbackError);
+        set({ 
+          loading: false,
+          error: 'Failed to fetch user created predictions',
+          userCreatedPredictions: [] // Set empty array on error
+        });
+      }
     }
   },
 
