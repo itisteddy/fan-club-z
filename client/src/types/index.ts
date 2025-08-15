@@ -46,4 +46,7 @@ export interface User {
   lastName: string;
   phone?: string;
   avatar?: string;
+  username?: string;
+  avatar_url?: string;
+  is_verified?: boolean;
 }
