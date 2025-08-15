@@ -29,62 +29,111 @@ interface CommentSystemProps {
   initialComments?: Comment[];
 }
 
-// Fixed textarea component with proper state management
-const CommentTextarea: React.FC<{
-  value: string;
-  onChange: (value: string) => void;
+// Completely isolated textarea component that manages its own state internally
+const IsolatedTextarea: React.FC<{
+  initialValue?: string;
+  onValueChange?: (value: string) => void;
   placeholder: string;
   rows?: number;
   maxLength?: number;
   autoFocus?: boolean;
   className?: string;
-  id: string;
-}> = ({ value, onChange, placeholder, rows = 3, maxLength = 500, autoFocus = false, className = '', id }) => {
+  disabled?: boolean;
+}> = ({ 
+  initialValue = '', 
+  onValueChange, 
+  placeholder, 
+  rows = 3, 
+  maxLength = 500, 
+  autoFocus = false, 
+  className = '',
+  disabled = false 
+}) => {
+  // Internal state - completely isolated from parent
+  const [internalValue, setInternalValue] = useState(initialValue);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  
+  const lastValueRef = useRef(initialValue);
+
+  // Only update internal state if initialValue changes from outside
+  useEffect(() => {
+    if (initialValue !== lastValueRef.current) {
+      setInternalValue(initialValue);
+      lastValueRef.current = initialValue;
+    }
+  }, [initialValue]);
+
+  // Handle changes internally first, then notify parent
   const handleChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const newValue = e.target.value;
-    onChange(newValue);
-  }, [onChange]);
+    
+    // Update internal state immediately
+    setInternalValue(newValue);
+    lastValueRef.current = newValue;
+    
+    // Notify parent of change
+    if (onValueChange) {
+      onValueChange(newValue);
+    }
+  }, [onValueChange]);
 
+  // Handle key events
   const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    // Allow Enter to create new line, Cmd/Ctrl+Enter to submit
+    // Prevent event bubbling that might interfere with other textareas
+    e.stopPropagation();
+    
     if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
       e.preventDefault();
-      // Could trigger submit here
+      // Could trigger submit here if needed
     }
   }, []);
 
+  // Auto-focus effect
+  useEffect(() => {
+    if (autoFocus && textareaRef.current) {
+      const textarea = textareaRef.current;
+      // Small delay to ensure proper focus
+      setTimeout(() => {
+        textarea.focus();
+        // Put cursor at end
+        textarea.setSelectionRange(textarea.value.length, textarea.value.length);
+      }, 100);
+    }
+  }, [autoFocus]);
+
   return (
-    <textarea
-      id={id}
-      ref={textareaRef}
-      value={value}
-      onChange={handleChange}
-      onKeyDown={handleKeyDown}
-      className={`w-full p-3 border border-gray-300 rounded-lg resize-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-colors ${className}`}
-      rows={rows}
-      placeholder={placeholder}
-      maxLength={maxLength}
-      autoFocus={autoFocus}
-      spellCheck={false}
-      autoComplete="off"
-      autoCorrect="off"
-      autoCapitalize="off"
-      style={{ 
-        minHeight: `${rows * 1.5}rem`,
-        fontFamily: 'inherit'
-      }}
-    />
+    <div className="isolated-textarea-wrapper">
+      <textarea
+        ref={textareaRef}
+        value={internalValue}
+        onChange={handleChange}
+        onKeyDown={handleKeyDown}
+        className={`w-full p-3 border border-gray-300 rounded-lg resize-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-colors ${className}`}
+        rows={rows}
+        placeholder={placeholder}
+        maxLength={maxLength}
+        disabled={disabled}
+        spellCheck={false}
+        autoComplete="off"
+        autoCorrect="off"
+        autoCapitalize="off"
+        style={{ 
+          minHeight: `${rows * 1.5}rem`,
+          fontFamily: 'inherit'
+        }}
+      />
+    </div>
   );
 };
 
 const CommentSystem: React.FC<CommentSystemProps> = ({ predictionId, initialComments = [] }) => {
   const { user } = useAuthStore();
   const [comments, setComments] = useState<Comment[]>([]);
-  const [newComment, setNewComment] = useState('');
+  
+  // Separate state for each text input - completely isolated
+  const [mainCommentText, setMainCommentText] = useState('');
   const [replyTexts, setReplyTexts] = useState<Record<string, string>>({});
   const [editTexts, setEditTexts] = useState<Record<string, string>>({});
+  
   const [replyTo, setReplyTo] = useState<string | null>(null);
   const [editingComment, setEditingComment] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -167,15 +216,19 @@ const CommentSystem: React.FC<CommentSystemProps> = ({ predictionId, initialComm
     }
   }, [predictionId, mockComments]);
 
-  // Text management helpers
-  const getReplyText = useCallback((commentId: string) => replyTexts[commentId] || '', [replyTexts]);
-  const setReplyText = useCallback((commentId: string, text: string) => {
-    setReplyTexts(prev => ({ ...prev, [commentId]: text }));
+  // Text management helpers with proper isolation
+  const updateReplyText = useCallback((commentId: string, text: string) => {
+    setReplyTexts(prev => ({
+      ...prev,
+      [commentId]: text
+    }));
   }, []);
-  
-  const getEditText = useCallback((commentId: string) => editTexts[commentId] || '', [editTexts]);
-  const setEditText = useCallback((commentId: string, text: string) => {
-    setEditTexts(prev => ({ ...prev, [commentId]: text }));
+
+  const updateEditText = useCallback((commentId: string, text: string) => {
+    setEditTexts(prev => ({
+      ...prev,
+      [commentId]: text
+    }));
   }, []);
 
   const clearReplyText = useCallback((commentId: string) => {
@@ -196,7 +249,8 @@ const CommentSystem: React.FC<CommentSystemProps> = ({ predictionId, initialComm
 
   // Submit comment function
   const submitComment = useCallback(async (parentId?: string) => {
-    const content = parentId ? getReplyText(parentId) : newComment;
+    const content = parentId ? (replyTexts[parentId] || '') : mainCommentText;
+    
     if (!content.trim()) {
       console.log('❌ Cannot submit empty comment');
       return;
@@ -249,7 +303,7 @@ const CommentSystem: React.FC<CommentSystemProps> = ({ predictionId, initialComm
           setReplyTo(null);
         } else {
           setComments(prev => [newCommentObj, ...prev]);
-          setNewComment('');
+          setMainCommentText(''); // Clear main comment
         }
       } else {
         throw new Error(`API responded with ${response.status}`);
@@ -293,7 +347,7 @@ const CommentSystem: React.FC<CommentSystemProps> = ({ predictionId, initialComm
         setReplyTo(null);
       } else {
         setComments(prev => [newCommentObj, ...prev]);
-        setNewComment('');
+        setMainCommentText(''); // Clear main comment
       }
       
       console.log('✅ Local comment added successfully');
@@ -304,7 +358,7 @@ const CommentSystem: React.FC<CommentSystemProps> = ({ predictionId, initialComm
         setSubmitLoading(false);
       }
     }
-  }, [user, predictionId, newComment, getReplyText, clearReplyText]);
+  }, [user, predictionId, mainCommentText, replyTexts, clearReplyText]);
 
   // Toggle like
   const toggleLike = useCallback(async (commentId: string) => {
@@ -350,11 +404,11 @@ const CommentSystem: React.FC<CommentSystemProps> = ({ predictionId, initialComm
     }
   }, [user]);
 
-  // Edit and delete functions
+  // Edit and reply management
   const startEdit = useCallback((commentId: string, currentContent: string) => {
     setEditingComment(commentId);
-    setEditText(commentId, currentContent);
-  }, [setEditText]);
+    setEditTexts(prev => ({ ...prev, [commentId]: currentContent }));
+  }, []);
 
   const cancelEdit = useCallback((commentId: string) => {
     setEditingComment(null);
@@ -363,8 +417,8 @@ const CommentSystem: React.FC<CommentSystemProps> = ({ predictionId, initialComm
 
   const startReply = useCallback((commentId: string) => {
     setReplyTo(commentId);
-    setReplyText(commentId, '');
-  }, [setReplyText]);
+    setReplyTexts(prev => ({ ...prev, [commentId]: '' }));
+  }, []);
 
   const cancelReply = useCallback((commentId: string) => {
     setReplyTo(null);
@@ -418,10 +472,9 @@ const CommentSystem: React.FC<CommentSystemProps> = ({ predictionId, initialComm
             <div className="mb-2">
               {isCurrentlyEditing ? (
                 <div className="space-y-2">
-                  <CommentTextarea
-                    id={`edit-textarea-${comment.id}`}
-                    value={getEditText(comment.id)}
-                    onChange={(value) => setEditText(comment.id, value)}
+                  <IsolatedTextarea
+                    initialValue={editTexts[comment.id] || comment.content}
+                    onValueChange={(value) => updateEditText(comment.id, value)}
                     placeholder="Edit your comment..."
                     rows={2}
                     maxLength={500}
@@ -429,7 +482,7 @@ const CommentSystem: React.FC<CommentSystemProps> = ({ predictionId, initialComm
                   />
                   <div className="flex justify-between items-center">
                     <span className="text-xs text-gray-500">
-                      {getEditText(comment.id).length}/500
+                      {(editTexts[comment.id] || '').length}/500
                     </span>
                     <div className="flex space-x-2">
                       <button
@@ -437,7 +490,7 @@ const CommentSystem: React.FC<CommentSystemProps> = ({ predictionId, initialComm
                           setEditingComment(null);
                           clearEditText(comment.id);
                         }}
-                        disabled={!getEditText(comment.id).trim()}
+                        disabled={!(editTexts[comment.id] || '').trim()}
                         className="px-3 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         Save
@@ -538,10 +591,9 @@ const CommentSystem: React.FC<CommentSystemProps> = ({ predictionId, initialComm
             {/* Reply input */}
             {isCurrentlyReplying && (
               <div className="mt-3 space-y-2">
-                <CommentTextarea
-                  id={`reply-textarea-${comment.id}`}
-                  value={getReplyText(comment.id)}
-                  onChange={(value) => setReplyText(comment.id, value)}
+                <IsolatedTextarea
+                  initialValue={replyTexts[comment.id] || ''}
+                  onValueChange={(value) => updateReplyText(comment.id, value)}
                   placeholder={`Reply to ${comment.username}...`}
                   rows={2}
                   maxLength={500}
@@ -549,12 +601,12 @@ const CommentSystem: React.FC<CommentSystemProps> = ({ predictionId, initialComm
                 />
                 <div className="flex justify-between items-center">
                   <span className="text-xs text-gray-500">
-                    {getReplyText(comment.id).length}/500
+                    {(replyTexts[comment.id] || '').length}/500
                   </span>
                   <div className="flex space-x-2">
                     <button
                       onClick={() => submitComment(comment.id)}
-                      disabled={!getReplyText(comment.id).trim() || replyLoading[comment.id]}
+                      disabled={!(replyTexts[comment.id] || '').trim() || replyLoading[comment.id]}
                       className="px-3 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       {replyLoading[comment.id] ? 'Replying...' : 'Reply'}
@@ -621,21 +673,20 @@ const CommentSystem: React.FC<CommentSystemProps> = ({ predictionId, initialComm
               )}
             </div>
             <div className="flex-1">
-              <CommentTextarea
-                id="main-comment-textarea"
-                value={newComment}
-                onChange={setNewComment}
+              <IsolatedTextarea
+                initialValue={mainCommentText}
+                onValueChange={setMainCommentText}
                 placeholder="Share your thoughts..."
                 rows={3}
                 maxLength={500}
               />
               <div className="flex justify-between items-center mt-2">
                 <span className="text-xs text-gray-500">
-                  {newComment.length}/500
+                  {mainCommentText.length}/500
                 </span>
                 <button
                   onClick={() => submitComment()}
-                  disabled={!newComment.trim() || submitLoading}
+                  disabled={!mainCommentText.trim() || submitLoading}
                   className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm font-medium"
                 >
                   {submitLoading ? 'Posting...' : 'Comment'}
