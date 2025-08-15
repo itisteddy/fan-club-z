@@ -174,6 +174,190 @@ app.get('/api/v2/predictions', (req, res) => {
   });
 });
 
+// User-created predictions endpoint
+app.get('/api/predictions/created/me', (req, res) => {
+  console.log('📋 Fetching user created predictions');
+  
+  // Mock response with the actual predictions from the database
+  res.json({
+    success: true,
+    data: [
+      {
+        id: '6',
+        creator_id: '1',
+        title: 'Liverpool or Bournemouth',
+        description: null,
+        category: 'custom',
+        type: 'binary',
+        status: 'open',
+        stake_min: 1,
+        stake_max: 1000,
+        pool_total: 0,
+        entry_deadline: '2025-08-15T21:30:00.000Z',
+        settlement_method: 'manual',
+        is_private: false,
+        creator_fee_percentage: 1,
+        platform_fee_percentage: 2.5,
+        tags: [],
+        created_at: '2025-08-15T18:25:45.137Z',
+        updated_at: '2025-08-15T18:25:45.137Z',
+        options: [
+          { id: 'opt6_1', prediction_id: '6', label: 'Liverpool', total_staked: 0, current_odds: 2, percentage: 0 },
+          { id: 'opt6_2', prediction_id: '6', label: 'Bournemouth', total_staked: 0, current_odds: 2, percentage: 0 }
+        ]
+      },
+      {
+        id: '5',
+        creator_id: '1',
+        title: 'Yes or No',
+        description: null,
+        category: 'custom',
+        type: 'binary',
+        status: 'open',
+        stake_min: 1,
+        stake_max: 1000,
+        pool_total: 0,
+        entry_deadline: '2025-08-15T18:20:00.000Z',
+        settlement_method: 'manual',
+        is_private: false,
+        creator_fee_percentage: 1,
+        platform_fee_percentage: 2.5,
+        tags: [],
+        created_at: '2025-08-15T18:14:13.334Z',
+        updated_at: '2025-08-15T18:14:13.334Z',
+        options: [
+          { id: 'opt5_1', prediction_id: '5', label: 'Yes', total_staked: 0, current_odds: 2, percentage: 0 },
+          { id: 'opt5_2', prediction_id: '5', label: 'No', total_staked: 0, current_odds: 2, percentage: 0 }
+        ]
+      },
+      {
+        id: '4',
+        creator_id: '1',
+        title: 'Test Prediction',
+        description: 'Test',
+        category: 'custom',
+        type: 'binary',
+        status: 'open',
+        stake_min: 1,
+        stake_max: 100,
+        pool_total: 0,
+        entry_deadline: '2025-12-31T23:59:59.000Z',
+        settlement_method: 'manual',
+        is_private: false,
+        creator_fee_percentage: 1,
+        platform_fee_percentage: 2.5,
+        tags: [],
+        created_at: '2025-08-15T18:10:49.333Z',
+        updated_at: '2025-08-15T18:10:49.333Z',
+        options: [
+          { id: 'opt4_1', prediction_id: '4', label: 'Yes', total_staked: 0, current_odds: 2, percentage: 0 },
+          { id: 'opt4_2', prediction_id: '4', label: 'No', total_staked: 0, current_odds: 2, percentage: 0 }
+        ]
+      }
+    ],
+    pagination: {
+      page: 1,
+      limit: 20,
+      total: 3,
+      totalPages: 1,
+      hasNext: false,
+      hasPrev: false
+    }
+  });
+});
+
+// v2 version of user-created predictions endpoint
+app.get('/api/v2/predictions/created/me', (req, res) => {
+  console.log('📋 Fetching user created predictions (v2)');
+  
+  // Same response as above
+  res.json({
+    success: true,
+    data: [
+      {
+        id: '6',
+        creator_id: '1',
+        title: 'Liverpool or Bournemouth',
+        description: null,
+        category: 'custom',
+        type: 'binary',
+        status: 'open',
+        stake_min: 1,
+        stake_max: 1000,
+        pool_total: 0,
+        entry_deadline: '2025-08-15T21:30:00.000Z',
+        settlement_method: 'manual',
+        is_private: false,
+        creator_fee_percentage: 1,
+        platform_fee_percentage: 2.5,
+        tags: [],
+        created_at: '2025-08-15T18:25:45.137Z',
+        updated_at: '2025-08-15T18:25:45.137Z',
+        options: [
+          { id: 'opt6_1', prediction_id: '6', label: 'Liverpool', total_staked: 0, current_odds: 2, percentage: 0 },
+          { id: 'opt6_2', prediction_id: '6', label: 'Bournemouth', total_staked: 0, current_odds: 2, percentage: 0 }
+        ]
+      },
+      {
+        id: '5',
+        creator_id: '1',
+        title: 'Yes or No',
+        description: null,
+        category: 'custom',
+        type: 'binary',
+        status: 'open',
+        stake_min: 1,
+        stake_max: 1000,
+        pool_total: 0,
+        entry_deadline: '2025-08-15T18:20:00.000Z',
+        settlement_method: 'manual',
+        is_private: false,
+        creator_fee_percentage: 1,
+        platform_fee_percentage: 2.5,
+        tags: [],
+        created_at: '2025-08-15T18:14:13.334Z',
+        updated_at: '2025-08-15T18:14:13.334Z',
+        options: [
+          { id: 'opt5_1', prediction_id: '5', label: 'Yes', total_staked: 0, current_odds: 2, percentage: 0 },
+          { id: 'opt5_2', prediction_id: '5', label: 'No', total_staked: 0, current_odds: 2, percentage: 0 }
+        ]
+      },
+      {
+        id: '4',
+        creator_id: '1',
+        title: 'Test Prediction',
+        description: 'Test',
+        category: 'custom',
+        type: 'binary',
+        status: 'open',
+        stake_min: 1,
+        stake_max: 100,
+        pool_total: 0,
+        entry_deadline: '2025-12-31T23:59:59.000Z',
+        settlement_method: 'manual',
+        is_private: false,
+        creator_fee_percentage: 1,
+        platform_fee_percentage: 2.5,
+        tags: [],
+        created_at: '2025-08-15T18:10:49.333Z',
+        updated_at: '2025-08-15T18:10:49.333Z',
+        options: [
+          { id: 'opt4_1', prediction_id: '4', label: 'Yes', total_staked: 0, current_odds: 2, percentage: 0 },
+          { id: 'opt4_2', prediction_id: '4', label: 'No', total_staked: 0, current_odds: 2, percentage: 0 }
+        ]
+      }
+    ],
+    pagination: {
+      page: 1,
+      limit: 20,
+      total: 3,
+      totalPages: 1,
+      hasNext: false,
+      hasPrev: false
+    }
+  });
+});
+
 // Create HTTP server
 const server = createServer(app);
 
