@@ -31,6 +31,7 @@ interface CommentSystemProps {
 
 // Completely isolated textarea component that manages its own state internally
 const IsolatedTextarea: React.FC<{
+  id: string; // Unique ID for each textarea
   initialValue?: string;
   onValueChange?: (value: string) => void;
   placeholder: string;
@@ -40,6 +41,7 @@ const IsolatedTextarea: React.FC<{
   className?: string;
   disabled?: boolean;
 }> = ({ 
+  id,
   initialValue = '', 
   onValueChange, 
   placeholder, 
@@ -53,10 +55,11 @@ const IsolatedTextarea: React.FC<{
   const [internalValue, setInternalValue] = useState(initialValue);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const lastValueRef = useRef(initialValue);
+  const isUpdatingRef = useRef(false);
 
-  // Only update internal state if initialValue changes from outside
+  // Only update internal state if initialValue changes from outside (and we're not currently updating)
   useEffect(() => {
-    if (initialValue !== lastValueRef.current) {
+    if (!isUpdatingRef.current && initialValue !== lastValueRef.current) {
       setInternalValue(initialValue);
       lastValueRef.current = initialValue;
     }
@@ -66,13 +69,22 @@ const IsolatedTextarea: React.FC<{
   const handleChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const newValue = e.target.value;
     
+    // Mark that we're updating to prevent external interference
+    isUpdatingRef.current = true;
+    
     // Update internal state immediately
     setInternalValue(newValue);
     lastValueRef.current = newValue;
     
-    // Notify parent of change
+    // Notify parent of change (but don't wait for it)
     if (onValueChange) {
-      onValueChange(newValue);
+      // Use setTimeout to break the synchronous update cycle
+      setTimeout(() => {
+        onValueChange(newValue);
+        isUpdatingRef.current = false;
+      }, 0);
+    } else {
+      isUpdatingRef.current = false;
     }
   }, [onValueChange]);
 
@@ -85,6 +97,16 @@ const IsolatedTextarea: React.FC<{
       e.preventDefault();
       // Could trigger submit here if needed
     }
+  }, []);
+
+  // Handle focus events
+  const handleFocus = useCallback((e: React.FocusEvent<HTMLTextAreaElement>) => {
+    e.stopPropagation();
+  }, []);
+
+  // Handle blur events
+  const handleBlur = useCallback((e: React.FocusEvent<HTMLTextAreaElement>) => {
+    e.stopPropagation();
   }, []);
 
   // Auto-focus effect
@@ -101,12 +123,14 @@ const IsolatedTextarea: React.FC<{
   }, [autoFocus]);
 
   return (
-    <div className="isolated-textarea-wrapper">
+    <div className="isolated-textarea-wrapper" data-textarea-id={id}>
       <textarea
         ref={textareaRef}
         value={internalValue}
         onChange={handleChange}
         onKeyDown={handleKeyDown}
+        onFocus={handleFocus}
+        onBlur={handleBlur}
         className={`w-full p-3 border border-gray-300 rounded-lg resize-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-colors ${className}`}
         rows={rows}
         placeholder={placeholder}
@@ -116,6 +140,7 @@ const IsolatedTextarea: React.FC<{
         autoComplete="off"
         autoCorrect="off"
         autoCapitalize="off"
+        data-textarea-id={id}
         style={{ 
           minHeight: `${rows * 1.5}rem`,
           fontFamily: 'inherit'
@@ -473,6 +498,7 @@ const CommentSystem: React.FC<CommentSystemProps> = ({ predictionId, initialComm
               {isCurrentlyEditing ? (
                 <div className="space-y-2">
                   <IsolatedTextarea
+                    id={`edit-textarea-${comment.id}`}
                     initialValue={editTexts[comment.id] || comment.content}
                     onValueChange={(value) => updateEditText(comment.id, value)}
                     placeholder="Edit your comment..."
@@ -592,6 +618,7 @@ const CommentSystem: React.FC<CommentSystemProps> = ({ predictionId, initialComm
             {isCurrentlyReplying && (
               <div className="mt-3 space-y-2">
                 <IsolatedTextarea
+                  id={`reply-textarea-${comment.id}`}
                   initialValue={replyTexts[comment.id] || ''}
                   onValueChange={(value) => updateReplyText(comment.id, value)}
                   placeholder={`Reply to ${comment.username}...`}
@@ -674,6 +701,7 @@ const CommentSystem: React.FC<CommentSystemProps> = ({ predictionId, initialComm
             </div>
             <div className="flex-1">
               <IsolatedTextarea
+                id="main-textarea"
                 initialValue={mainCommentText}
                 onValueChange={setMainCommentText}
                 placeholder="Share your thoughts..."
