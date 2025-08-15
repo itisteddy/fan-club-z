@@ -5,6 +5,7 @@
 @import './styles/category-filters.css';
 @import './styles/layout-fixes.css';
 @import './styles/z-index-fixes.css';
+@import './styles/comments.css';
 
 @tailwind base;
 @tailwind components;

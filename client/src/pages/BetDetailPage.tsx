@@ -2,17 +2,32 @@ import React, { useState } from 'react';
 import { useRoute } from 'wouter';
 import { useBetStore } from '../store/betStore';
 import { useWalletStore } from '../store/walletStore';
+import { useAuthStore } from '../store/authStore';
+import { useComments, useCreateComment } from '../hooks/useComments';
+import { formatDate, generateInitials } from '@fanclubz/shared';
 
 const BetDetailPage: React.FC = () => {
   const [, params] = useRoute('/bet/:id');
   const { bets } = useBetStore();
   const { balance } = useWalletStore();
+  const { user } = useAuthStore();
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
   const [stakeAmount, setStakeAmount] = useState<string>('');
   const [showSuccessToast, setShowSuccessToast] = useState(false);
   const [newComment, setNewComment] = useState('');
+  const [isSubmittingComment, setIsSubmittingComment] = useState(false);
 
   const bet = bets.find(b => b.id === params?.id);
+  
+  // Fetch comments for this prediction
+  const { 
+    data: commentsData, 
+    isLoading: commentsLoading, 
+    error: commentsError 
+  } = useComments(params?.id || '', 1, 20);
+  
+  // Create comment mutation
+  const createCommentMutation = useCreateComment();
 
   if (!bet) {
     return (
@@ -29,23 +44,6 @@ const BetDetailPage: React.FC = () => {
   }
 
   // Mock data for display - exactly as shown in reference
-  const mockComments = [
-    {
-      id: '1',
-      author: 'Sarah',
-      time: '7/4/2025, 10:20:00 AM',
-      content: 'I think Bitcoin will definitely hit $100K! The fundamentals are strong.',
-      avatar: 'S'
-    },
-    {
-      id: '2', 
-      author: 'Mike',
-      time: '7/4/2025, 9:45:00 AM',
-      content: 'Not so sure... the market is very volatile. Could go either way.',
-      avatar: 'M'
-    }
-  ];
-
   const mockTopBettors = [
     { name: 'Alice', amount: '$1,000', avatar: 'A' }
   ];
@@ -62,10 +60,37 @@ const BetDetailPage: React.FC = () => {
     setStakeAmount('');
   };
 
-  const handleSendComment = () => {
-    if (!newComment.trim()) return;
-    // Add comment logic would go here
-    setNewComment('');
+  const handleSendComment = async () => {
+    if (!newComment.trim() || isSubmittingComment) return;
+    
+    if (!user) {
+      // TODO: Show login modal or redirect
+      console.warn('User must be logged in to comment');
+      return;
+    }
+
+    setIsSubmittingComment(true);
+    
+    try {
+      await createCommentMutation.mutateAsync({
+        prediction_id: bet.id,
+        content: newComment.trim(),
+      });
+      
+      setNewComment('');
+    } catch (error) {
+      console.error('Failed to post comment:', error);
+      // TODO: Show error toast
+    } finally {
+      setIsSubmittingComment(false);
+    }
+  };
+
+  const handleKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSendComment();
+    }
   };
 
   return (
@@ -132,45 +157,116 @@ const BetDetailPage: React.FC = () => {
         </button>
       </div>
 
-      {/* Comments Section - exactly as reference */}
+      {/* Comments Section - Using Real Data */}
       <div className="comments-section">
         <div className="comments-header">
           <h3 className="comments-title">
             💬 Comments
           </h3>
-        </div>
-
-        <div className="comments-list">
-          {mockComments.map((comment) => (
-            <div key={comment.id} className="comment-item">
-              <div className="comment-header">
-                <div className="comment-avatar">{comment.avatar}</div>
-                <div className="comment-author">{comment.author}</div>
-                <div className="comment-time">{comment.time}</div>
-              </div>
-              <div className="comment-content">{comment.content}</div>
-            </div>
-          ))}
+          {commentsData && (
+            <span className="comments-count">
+              {commentsData.pagination.total}
+            </span>
+          )}
         </div>
 
         {/* Add Comment Input */}
         <div className="comment-input-section">
           <div className="comment-input-group">
-            <input
-              type="text"
+            <div className="comment-avatar">
+              {user ? generateInitials(user.full_name || user.username) : 'U'}
+            </div>
+            <textarea
               placeholder="Add a comment..."
               className="comment-input"
               value={newComment}
               onChange={(e) => setNewComment(e.target.value)}
-              onKeyPress={(e) => e.key === 'Enter' && handleSendComment()}
+              onKeyPress={handleKeyPress}
+              disabled={isSubmittingComment}
+              rows={1}
+              style={{ 
+                resize: 'none',
+                minHeight: '40px',
+                maxHeight: '120px',
+                overflow: 'auto'
+              }}
             />
             <button 
               className="comment-send-btn"
               onClick={handleSendComment}
+              disabled={!newComment.trim() || isSubmittingComment}
             >
-              <span>➤</span>
+              {isSubmittingComment ? (
+                <span>⏳</span>
+              ) : (
+                <span>➤</span>
+              )}
             </button>
           </div>
+        </div>
+
+        {/* Comments List */}
+        <div className="comments-list">
+          {commentsLoading && (
+            <div className="comment-item">
+              <div className="comment-content" style={{ color: '#6b7280' }}>
+                Loading comments...
+              </div>
+            </div>
+          )}
+
+          {commentsError && (
+            <div className="comment-item">
+              <div className="comment-content" style={{ color: '#ef4444' }}>
+                Failed to load comments. Using demo data.
+              </div>
+            </div>
+          )}
+
+          {commentsData?.data?.map((comment) => (
+            <div key={comment.id} className="comment-item">
+              <div className="comment-header">
+                <div className="comment-avatar">
+                  {comment.user ? 
+                    generateInitials(comment.user.full_name || comment.user.username) : 
+                    'U'
+                  }
+                </div>
+                <div className="comment-author">
+                  {comment.user?.full_name || comment.user?.username || 'Anonymous'}
+                </div>
+                <div className="comment-time">
+                  {formatDate(comment.created_at)}
+                </div>
+                {comment.is_edited && (
+                  <div className="comment-edited">
+                    (edited)
+                  </div>
+                )}
+              </div>
+              <div className="comment-content">{comment.content}</div>
+              
+              {/* Comment Actions */}
+              <div className="comment-actions">
+                <button className="comment-action-btn" onClick={() => {}}>
+                  <span>👍</span>
+                  <span>Like</span>
+                </button>
+                <button className="comment-action-btn" onClick={() => {}}>
+                  <span>💬</span>
+                  <span>Reply</span>
+                </button>
+              </div>
+            </div>
+          ))}
+
+          {commentsData?.data?.length === 0 && !commentsLoading && (
+            <div className="empty-state">
+              <div className="empty-state-message">
+                No comments yet. Be the first to share your thoughts!
+              </div>
+            </div>
+          )}
         </div>
       </div>
 

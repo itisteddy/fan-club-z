@@ -106,8 +106,8 @@ export const useSocialStore = create<SocialStore>((set, get) => ({
             avatar_url,
             is_verified
           ),
-          likes:comment_likes (count),
-          user_like:comment_likes!left (user_id)
+          likes:comment_likes(count),
+          user_like:comment_likes!user_id(count)
         `)
         .eq('prediction_id', predictionId)
         .is('parent_comment_id', null)
@@ -129,8 +129,8 @@ export const useSocialStore = create<SocialStore>((set, get) => ({
                 avatar_url,
                 is_verified
               ),
-              likes:comment_likes (count),
-              user_like:comment_likes!left (user_id)
+              likes:comment_likes(count),
+              user_like:comment_likes!user_id(count)
             `)
             .eq('parent_comment_id', comment.id)
             .order('created_at', { ascending: true });

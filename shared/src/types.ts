@@ -106,6 +106,30 @@ export interface Withdraw {
 // SOCIAL TYPES
 // ============================================================================
 
+export interface Comment {
+  id: string;
+  prediction_id: string;
+  user_id: string;
+  content: string;
+  parent_comment_id?: string;
+  is_edited: boolean;
+  created_at: string;
+  updated_at: string;
+  user?: {
+    id: string;
+    username?: string;
+    full_name?: string;
+    avatar_url?: string;
+  };
+  replies?: Comment[];
+}
+
+export interface CreateComment {
+  prediction_id: string;
+  content: string;
+  parent_comment_id?: string;
+}
+
 export interface Reaction {
   id: string;
   user_id: string;
@@ -216,16 +240,7 @@ export interface CommentMessage extends WebSocketMessage {
   type: 'new_comment';
   payload: {
     prediction_id: string;
-    comment: {
-      id: string;
-      user_id: string;
-      content: string;
-      created_at: string;
-      user: {
-        username: string;
-        avatar_url?: string;
-      };
-    };
+    comment: Comment;
   };
 }
 
