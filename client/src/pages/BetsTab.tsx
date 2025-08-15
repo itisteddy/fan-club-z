@@ -64,17 +64,11 @@ const BetsTab: React.FC<BetsTabProps> = ({ onNavigateToDiscover }) => {
     }
 
     const userCreatedPredictions = getUserCreatedPredictions(user.id);
-    const predictionEntries = getUserPredictionEntries(user.id);
-    
-    const activePredictionEntries = predictionEntries.filter(entry => entry.status === 'active');
-    const completedPredictionEntries = predictionEntries.filter(entry => 
-      entry.status === 'won' || entry.status === 'lost'
-    );
     
     return {
-      active: activePredictionEntries.length,
+      active: 0, // TODO: Implement when user entries are available
       created: userCreatedPredictions.length,
-      completed: completedPredictionEntries.length
+      completed: 0 // TODO: Implement when user entries are available
     };
   };
 
@@ -92,37 +86,9 @@ const BetsTab: React.FC<BetsTabProps> = ({ onNavigateToDiscover }) => {
       return { Active: [], Created: [], Completed: [] };
     }
 
-    const userEntries = getUserPredictionEntries(user.id);
     const userCreated = getUserCreatedPredictions(user.id);
     
-    const activePredictions = userEntries
-      .filter(entry => entry.status === 'active')
-      .map(entry => {
-        // Find the prediction data
-        const prediction = predictions.find(p => p.id === entry.prediction_id);
-        
-        if (!prediction) {
-          return null;
-        }
-
-        const option = prediction.options?.find(o => o.id === entry.option_id);
-        const timeRemaining = getTimeRemaining(prediction.entry_deadline);
-        
-        return {
-          id: entry.id,
-          title: prediction.title,
-          category: prediction.category,
-          position: option?.label || 'Unknown',
-          stake: entry.amount,
-          potentialReturn: entry.potential_payout || 0,
-          odds: entry.potential_payout ? `${(entry.potential_payout / entry.amount).toFixed(2)}x` : '1.00x',
-          timeRemaining,
-          status: 'active',
-          participants: prediction.participant_count || 0,
-          confidence: calculateConfidence(prediction)
-        };
-      })
-      .filter(Boolean);
+    const activePredictions: any[] = []; // TODO: Implement when user entries are available
 
     const createdPredictions = userCreated.map(prediction => {
       const timeRemaining = getTimeRemaining(prediction.entry_deadline);
@@ -144,32 +110,7 @@ const BetsTab: React.FC<BetsTabProps> = ({ onNavigateToDiscover }) => {
       };
     });
 
-    const completedPredictions = userEntries
-      .filter(entry => entry.status === 'won' || entry.status === 'lost')
-      .map(entry => {
-        const prediction = predictions.find(p => p.id === entry.prediction_id);
-        
-        if (!prediction) {
-          return null;
-        }
-
-        const option = prediction.options?.find(o => o.id === entry.option_id);
-        const profit = (entry.actual_payout || 0) - entry.amount;
-        
-        return {
-          id: entry.id,
-          title: prediction.title,
-          category: prediction.category,
-          position: option?.label || 'Unknown',
-          stake: entry.amount,
-          actualReturn: entry.actual_payout || 0,
-          profit,
-          status: entry.status,
-          participants: prediction.participant_count || 0,
-          settledAt: new Date(entry.updated_at).toLocaleDateString()
-        };
-      })
-      .filter(Boolean);
+    const completedPredictions: any[] = []; // TODO: Implement when user entries are available
 
     return {
       Active: activePredictions,
