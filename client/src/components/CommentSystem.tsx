@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useAuthStore } from '../store/authStore';
 import { MessageCircle, Heart, Reply, MoreHorizontal, Flag, Edit, Trash2 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
@@ -29,8 +29,8 @@ interface CommentSystemProps {
   initialComments?: Comment[];
 }
 
-// Fixed textarea component with proper cursor handling
-const FixedTextarea: React.FC<{
+// Fixed textarea component with proper state management
+const CommentTextarea: React.FC<{
   value: string;
   onChange: (value: string) => void;
   placeholder: string;
@@ -38,34 +38,28 @@ const FixedTextarea: React.FC<{
   maxLength?: number;
   autoFocus?: boolean;
   className?: string;
-}> = ({ value, onChange, placeholder, rows = 3, maxLength = 500, autoFocus = false, className = '' }) => {
+  id: string;
+}> = ({ value, onChange, placeholder, rows = 3, maxLength = 500, autoFocus = false, className = '', id }) => {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const [internalValue, setInternalValue] = useState(value);
-
-  // Sync with external value changes
-  useEffect(() => {
-    if (value !== internalValue) {
-      setInternalValue(value);
-    }
-  }, [value]);
-
-  const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+  
+  const handleChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const newValue = e.target.value;
-    setInternalValue(newValue); // Update internal state immediately
-    onChange(newValue); // Notify parent
-  };
+    onChange(newValue);
+  }, [onChange]);
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    // Allow Enter to submit when Cmd/Ctrl is pressed
+  const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    // Allow Enter to create new line, Cmd/Ctrl+Enter to submit
     if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
       e.preventDefault();
+      // Could trigger submit here
     }
-  };
+  }, []);
 
   return (
     <textarea
+      id={id}
       ref={textareaRef}
-      value={internalValue}
+      value={value}
       onChange={handleChange}
       onKeyDown={handleKeyDown}
       className={`w-full p-3 border border-gray-300 rounded-lg resize-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-colors ${className}`}
@@ -73,6 +67,10 @@ const FixedTextarea: React.FC<{
       placeholder={placeholder}
       maxLength={maxLength}
       autoFocus={autoFocus}
+      spellCheck={false}
+      autoComplete="off"
+      autoCorrect="off"
+      autoCapitalize="off"
       style={{ 
         minHeight: `${rows * 1.5}rem`,
         fontFamily: 'inherit'
@@ -83,7 +81,7 @@ const FixedTextarea: React.FC<{
 
 const CommentSystem: React.FC<CommentSystemProps> = ({ predictionId, initialComments = [] }) => {
   const { user } = useAuthStore();
-  const [comments, setComments] = useState<Comment[]>(initialComments);
+  const [comments, setComments] = useState<Comment[]>([]);
   const [newComment, setNewComment] = useState('');
   const [replyTexts, setReplyTexts] = useState<Record<string, string>>({});
   const [editTexts, setEditTexts] = useState<Record<string, string>>({});
@@ -92,59 +90,12 @@ const CommentSystem: React.FC<CommentSystemProps> = ({ predictionId, initialComm
   const [loading, setLoading] = useState(false);
   const [submitLoading, setSubmitLoading] = useState(false);
   const [replyLoading, setReplyLoading] = useState<Record<string, boolean>>({});
-  const [page, setPage] = useState(1);
-  const [hasMore, setHasMore] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Get the API base URL with improved logic
-  const getApiUrl = () => {
-    const protocol = window.location.protocol;
-    const hostname = window.location.hostname;
-    
-    console.log('🌐 Current hostname:', hostname);
-    console.log('🌐 Current protocol:', protocol);
-    
-    // Development
-    if (hostname === 'localhost' || hostname === '127.0.0.1') {
-      const apiUrl = `${protocol}//${hostname}:3001/api`;
-      console.log('🔧 Development API URL:', apiUrl);
-      return apiUrl;
-    }
-    
-    // Production
-    const apiUrl = `${protocol}//${hostname}/api`;
-    console.log('🚀 Production API URL:', apiUrl);
-    return apiUrl;
-  };
-
-  // Helper functions for text management
-  const getReplyText = useCallback((commentId: string) => replyTexts[commentId] || '', [replyTexts]);
-  const setReplyText = useCallback((commentId: string, text: string) => {
-    setReplyTexts(prev => ({ ...prev, [commentId]: text }));
-  }, []);
-  const getEditText = useCallback((commentId: string) => editTexts[commentId] || '', [editTexts]);
-  const setEditText = useCallback((commentId: string, text: string) => {
-    setEditTexts(prev => ({ ...prev, [commentId]: text }));
-  }, []);
-  const clearReplyText = useCallback((commentId: string) => {
-    setReplyTexts(prev => {
-      const updated = { ...prev };
-      delete updated[commentId];
-      return updated;
-    });
-  }, []);
-  const clearEditText = useCallback((commentId: string) => {
-    setEditTexts(prev => {
-      const updated = { ...prev };
-      delete updated[commentId];
-      return updated;
-    });
-  }, []);
-
-  // Create better mock data immediately to show working comments
-  const createMockComments = () => [
+  // Mock data with unique keys
+  const mockComments = useMemo(() => [
     {
-      id: '1',
+      id: `mock-comment-1-${predictionId}`,
       content: 'This is a great prediction! I think it will definitely happen.',
       user_id: 'user1',
       prediction_id: predictionId,
@@ -160,7 +111,7 @@ const CommentSystem: React.FC<CommentSystemProps> = ({ predictionId, initialComm
       depth: 0,
       replies: [
         {
-          id: '1-1',
+          id: `mock-reply-1-1-${predictionId}`,
           content: 'I completely agree with this analysis.',
           user_id: 'user2',
           prediction_id: predictionId,
@@ -178,70 +129,73 @@ const CommentSystem: React.FC<CommentSystemProps> = ({ predictionId, initialComm
         }
       ]
     }
-  ];
+  ], [predictionId]);
 
-  // Fetch comments with simpler logic
-  const fetchComments = async (pageNum = 1, append = false) => {
-    console.log('🔍 Fetching comments for prediction:', predictionId);
-    
-    try {
+  // Load comments
+  useEffect(() => {
+    const loadComments = async () => {
       setLoading(true);
       setError(null);
       
-      const baseUrl = getApiUrl();
-      const endpoint = `${baseUrl}/v2/predictions/${predictionId}/comments?page=${pageNum}&limit=20`;
-      
-      console.log('🔗 Trying endpoint:', endpoint);
-      
-      const response = await fetch(endpoint, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(user?.token && { 'Authorization': `Bearer ${user.token}` }),
-        },
-      });
-      
-      console.log('📡 Response status:', response.status);
-      
-      if (response.ok) {
-        const data = await response.json();
-        console.log('✅ Comments fetched successfully:', data);
-        
-        if (append) {
-          setComments(prev => [...prev, ...(data.comments || [])]);
-        } else {
-          setComments(data.comments || []);
-        }
-        
-        setHasMore(data.hasMore || false);
-        setError(null);
-        return;
-      }
-      
-      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      
-    } catch (error) {
-      console.error('❌ Comment fetch failed:', error);
-      
-      // Use mock data immediately
-      const mockComments = createMockComments();
-      
-      if (append) {
-        setComments(prev => [...prev, ...mockComments]);
-      } else {
-        setComments(mockComments);
-      }
-      
-      setHasMore(false);
-      setError('Demo mode - Using local comments. API will be available in production.');
-      
-    } finally {
-      setLoading(false);
-    }
-  };
+      try {
+        // Try to fetch from API first
+        const response = await fetch(`/api/v2/predictions/${predictionId}/comments`, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        });
 
-  // Submit new comment with simpler logic
-  const submitComment = async (parentId?: string) => {
+        if (response.ok) {
+          const data = await response.json();
+          console.log('✅ Comments loaded from API:', data);
+          setComments(data.comments || []);
+        } else {
+          throw new Error(`API responded with ${response.status}`);
+        }
+      } catch (error) {
+        console.log('📝 API not available, using mock comments:', error);
+        setComments(mockComments);
+        setError('Demo mode - Using local comments. API will be available in production.');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (predictionId) {
+      loadComments();
+    }
+  }, [predictionId, mockComments]);
+
+  // Text management helpers
+  const getReplyText = useCallback((commentId: string) => replyTexts[commentId] || '', [replyTexts]);
+  const setReplyText = useCallback((commentId: string, text: string) => {
+    setReplyTexts(prev => ({ ...prev, [commentId]: text }));
+  }, []);
+  
+  const getEditText = useCallback((commentId: string) => editTexts[commentId] || '', [editTexts]);
+  const setEditText = useCallback((commentId: string, text: string) => {
+    setEditTexts(prev => ({ ...prev, [commentId]: text }));
+  }, []);
+
+  const clearReplyText = useCallback((commentId: string) => {
+    setReplyTexts(prev => {
+      const updated = { ...prev };
+      delete updated[commentId];
+      return updated;
+    });
+  }, []);
+
+  const clearEditText = useCallback((commentId: string) => {
+    setEditTexts(prev => {
+      const updated = { ...prev };
+      delete updated[commentId];
+      return updated;
+    });
+  }, []);
+
+  // Submit comment function
+  const submitComment = useCallback(async (parentId?: string) => {
     const content = parentId ? getReplyText(parentId) : newComment;
     if (!content.trim()) {
       console.log('❌ Cannot submit empty comment');
@@ -253,7 +207,7 @@ const CommentSystem: React.FC<CommentSystemProps> = ({ predictionId, initialComm
       return;
     }
 
-    console.log('💬 Submitting comment:', content);
+    console.log('💬 Submitting comment:', { content, parentId });
 
     try {
       if (parentId) {
@@ -263,28 +217,21 @@ const CommentSystem: React.FC<CommentSystemProps> = ({ predictionId, initialComm
       }
       setError(null);
       
-      const baseUrl = getApiUrl();
-      const endpoint = `${baseUrl}/v2/predictions/${predictionId}/comments`;
-      
-      console.log('🔗 Submitting to:', endpoint);
-      
-      const response = await fetch(endpoint, {
+      // API call
+      const response = await fetch(`/api/v2/predictions/${predictionId}/comments`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          ...(user.token && { 'Authorization': `Bearer ${user.token}` }),
         },
         body: JSON.stringify({
           content: content.trim(),
-          parent_comment_id: parentId,
+          parent_comment_id: parentId || null,
         }),
       });
 
-      console.log('📡 Submit response status:', response.status);
-
       if (response.ok) {
-        const comment = await response.json();
-        console.log('✅ Comment created successfully:', comment);
+        const newCommentObj = await response.json();
+        console.log('✅ Comment created via API:', newCommentObj);
         
         if (parentId) {
           setComments(prev =>
@@ -292,31 +239,28 @@ const CommentSystem: React.FC<CommentSystemProps> = ({ predictionId, initialComm
               c.id === parentId
                 ? { 
                     ...c, 
-                    replies: [...(c.replies || []), comment],
+                    replies: [...(c.replies || []), newCommentObj],
                     replies_count: c.replies_count + 1 
                   }
                 : c
             )
           );
           clearReplyText(parentId);
+          setReplyTo(null);
         } else {
-          setComments(prev => [comment, ...prev]);
+          setComments(prev => [newCommentObj, ...prev]);
           setNewComment('');
         }
-        
-        setReplyTo(null);
-        setError(null);
-        return;
+      } else {
+        throw new Error(`API responded with ${response.status}`);
       }
       
-      throw new Error(`HTTP ${response.status}`);
-      
     } catch (error) {
-      console.error('❌ Comment submit failed:', error);
+      console.log('📝 API not available, creating local comment:', error);
       
-      // Add comment locally
+      // Fallback to local creation
       const newCommentObj = {
-        id: `local-${Date.now()}`,
+        id: `local-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
         content: content.trim(),
         user_id: user.id,
         prediction_id: predictionId,
@@ -346,14 +290,13 @@ const CommentSystem: React.FC<CommentSystemProps> = ({ predictionId, initialComm
           )
         );
         clearReplyText(parentId);
+        setReplyTo(null);
       } else {
         setComments(prev => [newCommentObj, ...prev]);
         setNewComment('');
       }
       
-      setReplyTo(null);
-      setError('Demo mode - Comment added locally. API will sync in production.');
-      
+      console.log('✅ Local comment added successfully');
     } finally {
       if (parentId) {
         setReplyLoading(prev => ({ ...prev, [parentId]: false }));
@@ -361,10 +304,10 @@ const CommentSystem: React.FC<CommentSystemProps> = ({ predictionId, initialComm
         setSubmitLoading(false);
       }
     }
-  };
+  }, [user, predictionId, newComment, getReplyText, clearReplyText]);
 
   // Toggle like
-  const toggleLike = async (commentId: string) => {
+  const toggleLike = useCallback(async (commentId: string) => {
     if (!user) return;
 
     // Optimistically update the UI
@@ -394,42 +337,41 @@ const CommentSystem: React.FC<CommentSystemProps> = ({ predictionId, initialComm
         return comment;
       })
     );
-  };
+
+    try {
+      await fetch(`/api/v2/comments/${commentId}/like`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+    } catch (error) {
+      console.log('❤️ Like API not available, using optimistic update');
+    }
+  }, [user]);
 
   // Edit and delete functions
-  const startEdit = (commentId: string, currentContent: string) => {
+  const startEdit = useCallback((commentId: string, currentContent: string) => {
     setEditingComment(commentId);
     setEditText(commentId, currentContent);
-  };
+  }, [setEditText]);
 
-  const cancelEdit = (commentId: string) => {
+  const cancelEdit = useCallback((commentId: string) => {
     setEditingComment(null);
     clearEditText(commentId);
-  };
+  }, [clearEditText]);
 
-  const startReply = (commentId: string) => {
+  const startReply = useCallback((commentId: string) => {
     setReplyTo(commentId);
     setReplyText(commentId, '');
-  };
+  }, [setReplyText]);
 
-  const cancelReply = (commentId: string) => {
+  const cancelReply = useCallback((commentId: string) => {
     setReplyTo(null);
     clearReplyText(commentId);
-  };
+  }, [clearReplyText]);
 
-  // Load initial comments
-  useEffect(() => {
-    if (!initialComments.length) {
-      // Load mock data immediately for better UX
-      const mockComments = createMockComments();
-      setComments(mockComments);
-      
-      // Then try to fetch real data
-      fetchComments();
-    }
-  }, [predictionId]);
-
-  const CommentItem: React.FC<{ comment: Comment; isReply?: boolean }> = ({ comment, isReply = false }) => {
+  const CommentItem: React.FC<{ comment: Comment; isReply?: boolean }> = React.memo(({ comment, isReply = false }) => {
     const [showOptions, setShowOptions] = useState(false);
     const isCurrentlyEditing = editingComment === comment.id;
     const isCurrentlyReplying = replyTo === comment.id;
@@ -476,7 +418,8 @@ const CommentSystem: React.FC<CommentSystemProps> = ({ predictionId, initialComm
             <div className="mb-2">
               {isCurrentlyEditing ? (
                 <div className="space-y-2">
-                  <FixedTextarea
+                  <CommentTextarea
+                    id={`edit-textarea-${comment.id}`}
                     value={getEditText(comment.id)}
                     onChange={(value) => setEditText(comment.id, value)}
                     placeholder="Edit your comment..."
@@ -595,7 +538,8 @@ const CommentSystem: React.FC<CommentSystemProps> = ({ predictionId, initialComm
             {/* Reply input */}
             {isCurrentlyReplying && (
               <div className="mt-3 space-y-2">
-                <FixedTextarea
+                <CommentTextarea
+                  id={`reply-textarea-${comment.id}`}
                   value={getReplyText(comment.id)}
                   onChange={(value) => setReplyText(comment.id, value)}
                   placeholder={`Reply to ${comment.username}...`}
@@ -638,7 +582,7 @@ const CommentSystem: React.FC<CommentSystemProps> = ({ predictionId, initialComm
         </div>
       </div>
     );
-  };
+  });
 
   return (
     <div className="comment-system bg-white">
@@ -655,15 +599,6 @@ const CommentSystem: React.FC<CommentSystemProps> = ({ predictionId, initialComm
         <div className="p-4 bg-blue-50 border-b border-blue-200">
           <div className="flex items-center">
             <div className="text-blue-800 text-sm">{error}</div>
-            <button
-              onClick={() => {
-                setError(null);
-                fetchComments();
-              }}
-              className="ml-auto text-blue-600 hover:text-blue-800 text-xs underline"
-            >
-              Retry API
-            </button>
           </div>
         </div>
       )}
@@ -686,7 +621,8 @@ const CommentSystem: React.FC<CommentSystemProps> = ({ predictionId, initialComm
               )}
             </div>
             <div className="flex-1">
-              <FixedTextarea
+              <CommentTextarea
+                id="main-comment-textarea"
                 value={newComment}
                 onChange={setNewComment}
                 placeholder="Share your thoughts..."
@@ -710,41 +646,25 @@ const CommentSystem: React.FC<CommentSystemProps> = ({ predictionId, initialComm
         </div>
       )}
 
-      {/* Comments list */}
-      <div className="divide-y divide-gray-100">
-        {comments.map((comment) => (
-          <CommentItem key={comment.id} comment={comment} />
-        ))}
-      </div>
-
-      {/* Load more */}
-      {hasMore && !loading && (
-        <div className="p-4 text-center">
-          <button
-            onClick={() => {
-              const nextPage = page + 1;
-              setPage(nextPage);
-              fetchComments(nextPage, true);
-            }}
-            className="px-4 py-2 text-green-600 border border-green-600 rounded-lg hover:bg-green-50 transition-colors"
-          >
-            Load More Comments
-          </button>
-        </div>
-      )}
-
       {/* Loading state */}
       {loading && (
         <div className="p-8 text-center">
-          <div className="inline-flex items-center">
-            <div className="w-4 h-4 border-2 border-green-500 border-t-transparent rounded-full animate-spin mr-2"></div>
-            <span className="text-gray-600">Loading comments...</span>
-          </div>
+          <div className="w-8 h-8 border-2 border-green-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading comments...</p>
+        </div>
+      )}
+
+      {/* Comments list */}
+      {!loading && (
+        <div className="divide-y divide-gray-100">
+          {comments.map((comment) => (
+            <CommentItem key={comment.id} comment={comment} />
+          ))}
         </div>
       )}
 
       {/* Empty state */}
-      {comments.length === 0 && !loading && !error && (
+      {!loading && comments.length === 0 && (
         <div className="p-8 text-center text-gray-500">
           <MessageCircle size={48} className="mx-auto mb-4 text-gray-300" />
           <h4 className="text-lg font-medium mb-2">No comments yet</h4>
