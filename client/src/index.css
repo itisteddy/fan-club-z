@@ -6,6 +6,7 @@
 @import './styles/layout-fixes.css';
 @import './styles/z-index-fixes.css';
 @import './styles/comments.css';
+@import './styles/enhanced-comments.css';
 
 @tailwind base;
 @tailwind components;

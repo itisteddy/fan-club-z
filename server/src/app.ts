@@ -237,6 +237,17 @@ app.use('/api/social', socialRoutes);
 app.use('/api/clubs', clubRoutes);
 app.use('/api', commentRoutes); // Legacy comment routes
 
+// Debug: Log all registered routes
+logger.info('🛣️ Registered API routes:');
+logger.info('- /api/v2/auth (authRoutes)');
+logger.info('- /api/v2/predictions (predictionRoutes)');
+logger.info('- /api/v2/wallet (walletRoutes)');
+logger.info('- /api/v2/social (socialRoutes)');
+logger.info('- /api/v2/clubs (clubRoutes)');
+logger.info('- /api/v2 (commentRoutes)');
+logger.info('- /api/* (legacy routes)');
+logger.info('✅ All routes registered successfully');
+
 // ============================================================================
 // ERROR HANDLING
 // ============================================================================

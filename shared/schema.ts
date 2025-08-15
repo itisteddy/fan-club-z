@@ -2,10 +2,14 @@
 export interface User {
   id: string;
   email: string;
-  firstName: string;
-  lastName: string;
+  firstName?: string;
+  lastName?: string;
+  username?: string;
+  full_name?: string;
   phone?: string;
   walletAddress?: string;
+  avatar_url?: string;
+  is_verified?: boolean;
   kycLevel: 'none' | 'basic' | 'enhanced';
   reputationScore: number;
   createdAt: Date;
@@ -118,6 +122,14 @@ export interface ClubMember {
   joined_at?: string; // Database compatibility
 }
 
+export interface CommentReaction {
+  id: string;
+  comment_id: string;
+  user_id: string;
+  emoji: string;
+  created_at: string;
+}
+
 export interface Comment {
   id: string;
   predictionId?: string;
@@ -125,8 +137,29 @@ export interface Comment {
   userId?: string;
   user_id?: string; // Database compatibility
   content: string;
+  parent_comment_id?: string; // For nested replies
+  depth?: number; // How deep in the thread (0 = top level, 1 = reply, 2 = reply to reply, etc.)
+  thread_id?: string; // Root comment ID for the entire thread
+  is_edited?: boolean;
+  edited_at?: string;
+  likes_count?: number;
+  replies_count?: number;
+  is_liked?: boolean; // User's like status
+  is_own?: boolean; // Whether this comment belongs to current user
+  reactions?: CommentReaction[]; // Array of emoji reactions
+  user_reaction?: string; // Current user's reaction emoji
+  replies?: Comment[]; // Nested replies
+  user?: {
+    id: string;
+    username: string;
+    full_name?: string;
+    avatar_url?: string;
+    is_verified?: boolean;
+  };
   createdAt?: Date | string;
   created_at?: string; // Database compatibility
+  updatedAt?: Date | string;
+  updated_at?: string; // Database compatibility
 }
 
 export interface Reaction {
@@ -151,6 +184,85 @@ export interface WalletTransaction {
   reference: string;
   createdAt?: Date | string;
   created_at?: string; // Database compatibility
+}
+
+// Create interfaces for mutations
+export interface CreateComment {
+  prediction_id: string;
+  content: string;
+  parent_comment_id?: string;
+}
+
+export interface CreatePrediction {
+  title: string;
+  description?: string;
+  category: string;
+  type: 'binary' | 'multi' | 'pool';
+  options: { label: string }[];
+  stake_min: number;
+  stake_max?: number;
+  entry_deadline: string;
+  settlement_method: 'auto' | 'manual';
+  is_private?: boolean;
+}
+
+export interface CreatePredictionEntry {
+  prediction_id: string;
+  option_id: string;
+  amount: number;
+}
+
+// API Response types
+export interface ApiResponse<T = any> {
+  success: boolean;
+  data?: T;
+  error?: string;
+  message?: string;
+}
+
+export interface PaginatedResponse<T> {
+  data: T[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+    hasNext: boolean;
+    hasPrev: boolean;
+  };
+}
+
+// Utility functions
+export function formatDate(date: string | Date): string {
+  const d = new Date(date);
+  const now = new Date();
+  const diffMs = now.getTime() - d.getTime();
+  const diffMins = Math.floor(diffMs / (1000 * 60));
+  const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+  if (diffMins < 1) {
+    return 'Just now';
+  } else if (diffMins < 60) {
+    return `${diffMins}m ago`;
+  } else if (diffHours < 24) {
+    return `${diffHours}h ago`;
+  } else if (diffDays < 7) {
+    return `${diffDays}d ago`;
+  } else {
+    return d.toLocaleDateString();
+  }
+}
+
+export function generateInitials(name: string): string {
+  if (!name) return 'U';
+  
+  const words = name.trim().split(' ');
+  if (words.length >= 2) {
+    return (words[0][0] + words[1][0]).toUpperCase();
+  }
+  
+  return words[0][0].toUpperCase();
 }
 
 // Legacy support for transition period
