@@ -17,6 +17,7 @@ import walletRoutes from './routes/wallet';
 import socialRoutes from './routes/social';
 import clubRoutes from './routes/clubs';
 import commentRoutes from './routes/comments';
+import settlementRoutes from './routes/settlement';
 
 // ============================================================================
 // ENVIRONMENT VALIDATION (Critical for Render)
@@ -227,6 +228,7 @@ app.use('/api/v2/predictions', predictionRoutes);
 app.use('/api/v2/wallet', walletRoutes);
 app.use('/api/v2/social', socialRoutes);
 app.use('/api/v2/clubs', clubRoutes);
+app.use('/api/v2/settlement', settlementRoutes);
 app.use('/api/v2', commentRoutes); // Comment routes handle their own sub-paths
 
 // Legacy routes (for backward compatibility)
@@ -235,6 +237,7 @@ app.use('/api/predictions', predictionRoutes);
 app.use('/api/wallet', walletRoutes);
 app.use('/api/social', socialRoutes);
 app.use('/api/clubs', clubRoutes);
+app.use('/api/settlement', settlementRoutes);
 app.use('/api', commentRoutes); // Legacy comment routes
 
 // Debug: Log all registered routes
