@@ -6,10 +6,8 @@ import { usePredictionStore } from '../store/predictionStore';
 import { useAuthStore } from '../store/authStore';
 import { scrollToTop } from '../utils/scroll';
 import { formatTimeRemaining } from '../lib/utils';
-import { Prediction } from '../types/index';
 import BetCard from '../components/BetCard';
 import ManagePredictionModal from '../components/modals/ManagePredictionModal';
-
 
 interface BetsTabProps {
   onNavigateToDiscover?: () => void;
@@ -17,7 +15,14 @@ interface BetsTabProps {
 
 const BetsTab: React.FC<BetsTabProps> = ({ onNavigateToDiscover }) => {
   const [, setLocation] = useLocation();
-  const { predictions, getUserCreatedPredictions, fetchUserCreatedPredictions, loading } = usePredictionStore();
+  const { 
+    predictions, 
+    getUserCreatedPredictions, 
+    fetchUserCreatedPredictions, 
+    fetchUserPredictionEntries,
+    getUserPredictionEntries,
+    loading 
+  } = usePredictionStore();
   const { user, isAuthenticated } = useAuthStore();
   
   // Scroll to top when component mounts
@@ -25,44 +30,22 @@ const BetsTab: React.FC<BetsTabProps> = ({ onNavigateToDiscover }) => {
     scrollToTop({ behavior: 'instant' });
   }, []);
 
-  // Fetch user's created predictions when component mounts or user changes - optimized
+  // Fetch user's data when component mounts or user changes - optimized
   useEffect(() => {
     if (user?.id && isAuthenticated) {
       // Add a small delay to prevent excessive fetching during rapid navigation
       const timeoutId = setTimeout(() => {
         fetchUserCreatedPredictions(user.id);
+        fetchUserPredictionEntries(user.id);
       }, 100);
       
       return () => clearTimeout(timeoutId);
     }
-  }, [user?.id, isAuthenticated, fetchUserCreatedPredictions]);
+  }, [user?.id, isAuthenticated, fetchUserCreatedPredictions, fetchUserPredictionEntries]);
   
-  // Get real prediction entries from the database
-  const getPredictionEntries = () => {
-    if (!isAuthenticated || !user) return [];
-    
-    // For now, return empty array since we haven't created prediction entries yet
-    // This will be populated when users actually place bets
-    return [];
-  };
-
   const [activeTab, setActiveTab] = useState('Active');
   const [isManageModalOpen, setIsManageModalOpen] = useState(false);
   const [selectedPrediction, setSelectedPrediction] = useState(null);
-
-  // Get completed predictions (only if user has any activity)
-  const getCompletedPredictions = () => {
-    if (!isAuthenticated || !user) return [];
-
-    // Only show completed predictions if user has some activity (created predictions or active bets)
-    const hasActivity = getUserCreatedPredictions(user.id).length > 0 || getPredictionEntries().length > 0;
-    
-    if (!hasActivity) return [];
-
-    // For now, return empty array since we haven't completed any predictions yet
-    // This will be populated when predictions are settled
-    return [];
-  };
 
   // Get dynamic counts based on actual data
   const getUserPredictionCounts = () => {
@@ -71,13 +54,17 @@ const BetsTab: React.FC<BetsTabProps> = ({ onNavigateToDiscover }) => {
     }
 
     const userCreatedPredictions = getUserCreatedPredictions(user.id);
-    const predictionEntries = getPredictionEntries();
-    const completedPredictions = getCompletedPredictions();
+    const predictionEntries = getUserPredictionEntries(user.id);
+    
+    const activePredictionEntries = predictionEntries.filter(entry => entry.status === 'active');
+    const completedPredictionEntries = predictionEntries.filter(entry => 
+      entry.status === 'won' || entry.status === 'lost'
+    );
     
     return {
-      active: predictionEntries.filter(entry => entry.status === 'active').length,
+      active: activePredictionEntries.length,
       created: userCreatedPredictions.length,
-      completed: completedPredictions.length
+      completed: completedPredictionEntries.length
     };
   };
 
@@ -95,106 +82,84 @@ const BetsTab: React.FC<BetsTabProps> = ({ onNavigateToDiscover }) => {
       return { Active: [], Created: [], Completed: [] };
     }
 
-    const userEntries = getPredictionEntries();
+    const userEntries = getUserPredictionEntries(user.id);
+    const userCreated = getUserCreatedPredictions(user.id);
     
     const activePredictions = userEntries
       .filter(entry => entry.status === 'active')
       .map(entry => {
-        const prediction = predictions.find(p => p.id === entry.predictionId);
-        const option = prediction?.options.find(o => o.id === entry.optionId);
+        // Find the prediction data
+        const prediction = predictions.find(p => p.id === entry.prediction_id);
+        
+        if (!prediction) {
+          return null;
+        }
+
+        const option = prediction.options?.find(o => o.id === entry.option_id);
+        const timeRemaining = getTimeRemaining(prediction.entry_deadline);
+        
         return {
           id: entry.id,
-          title: prediction?.title || 'Unknown Prediction',
-          category: prediction?.category || 'General',
-          position: option?.label || 'Unknown',
-          stake: entry.amount,
-          potentialReturn: entry.potentialPayout || 0,
-          odds: `${((entry.potentialPayout || 0) / entry.amount).toFixed(2)}x`,
-          timeRemaining: getTimeRemaining(prediction?.entry_deadline),
-          status: 'active',
-          participants: prediction?.participant_count || 0,
-          confidence: calculateConfidence(prediction)
-        };
-      });
-
-    const createdPredictions = getUserCreatedPredictions(user.id)
-      .map(prediction => {
-        // Generate realistic activity data based on prediction
-        const recentActivity = [
-          {
-            id: '1',
-            type: 'participant_joined' as const,
-            description: 'New participant joined',
-            amount: 75,
-            timestamp: new Date(Date.now() - 2 * 60 * 1000).toISOString(),
-            timeAgo: '2 minutes ago'
-          },
-          {
-            id: '2',
-            type: 'prediction_placed' as const,
-            description: 'Large prediction placed',
-            amount: 200,
-            timestamp: new Date(Date.now() - 15 * 60 * 1000).toISOString(),
-            timeAgo: '15 minutes ago'
-          },
-          {
-            id: '3',
-            type: 'multiple_participants' as const,
-            description: '3 new participants',
-            participantCount: 3,
-            amount: 150,
-            timestamp: new Date(Date.now() - 60 * 60 * 1000).toISOString(),
-            timeAgo: '1 hour ago'
-          }
-        ];
-
-        // Generate realistic participant data
-        const participantList = [
-          {
-            id: '1',
-            username: 'alice_trader',
-            avatar_url: undefined,
-            amount: 150,
-            option: 'Yes',
-            joinedAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
-            timeAgo: '2 hours ago'
-          },
-          {
-            id: '2',
-            username: 'bet_master',
-            avatar_url: undefined,
-            amount: 200,
-            option: 'No',
-            joinedAt: new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString(),
-            timeAgo: '4 hours ago'
-          },
-          {
-            id: '3',
-            username: 'crypto_fan',
-            avatar_url: undefined,
-            amount: 75,
-            option: 'Yes',
-            joinedAt: new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString(),
-            timeAgo: '6 hours ago'
-          }
-        ];
-
-        return {
-          id: prediction.id,
           title: prediction.title,
           category: prediction.category,
-          totalPool: prediction.pool_total || 0,
+          position: option?.label || 'Unknown',
+          stake: entry.amount,
+          potentialReturn: entry.potential_payout || 0,
+          odds: entry.potential_payout ? `${(entry.potential_payout / entry.amount).toFixed(2)}x` : '1.00x',
+          timeRemaining,
+          status: 'active',
           participants: prediction.participant_count || 0,
-          timeRemaining: getTimeRemaining(prediction.entry_deadline),
-          status: prediction.status,
-          yourCut: 3.5,
-          description: prediction.description,
-          recentActivity,
-          participantList
+          confidence: calculateConfidence(prediction)
         };
-      });
+      })
+      .filter(Boolean);
 
-    const completedPredictions = getCompletedPredictions();
+    const createdPredictions = userCreated.map(prediction => {
+      const timeRemaining = getTimeRemaining(prediction.entry_deadline);
+      
+      return {
+        id: prediction.id,
+        title: prediction.title,
+        category: prediction.category,
+        totalPool: prediction.pool_total || 0,
+        participants: prediction.participant_count || 0,
+        timeRemaining,
+        status: prediction.status,
+        yourCut: prediction.creator_fee_percentage || 3.5,
+        description: prediction.description,
+        pool_total: prediction.pool_total,
+        participant_count: prediction.participant_count,
+        creator_fee_percentage: prediction.creator_fee_percentage,
+        entry_deadline: prediction.entry_deadline
+      };
+    });
+
+    const completedPredictions = userEntries
+      .filter(entry => entry.status === 'won' || entry.status === 'lost')
+      .map(entry => {
+        const prediction = predictions.find(p => p.id === entry.prediction_id);
+        
+        if (!prediction) {
+          return null;
+        }
+
+        const option = prediction.options?.find(o => o.id === entry.option_id);
+        const profit = (entry.actual_payout || 0) - entry.amount;
+        
+        return {
+          id: entry.id,
+          title: prediction.title,
+          category: prediction.category,
+          position: option?.label || 'Unknown',
+          stake: entry.amount,
+          actualReturn: entry.actual_payout || 0,
+          profit,
+          status: entry.status,
+          participants: prediction.participant_count || 0,
+          settledAt: new Date(entry.updated_at).toLocaleDateString()
+        };
+      })
+      .filter(Boolean);
 
     return {
       Active: activePredictions,
@@ -218,11 +183,11 @@ const BetsTab: React.FC<BetsTabProps> = ({ onNavigateToDiscover }) => {
     return `${hours}h`;
   };
 
-  const calculateConfidence = (prediction: Prediction | undefined) => {
+  const calculateConfidence = (prediction: any) => {
     if (!prediction || !prediction.options) return 68;
-    const totalStaked = prediction.options.reduce((sum, option) => sum + option.totalStaked, 0);
+    const totalStaked = prediction.options.reduce((sum: number, option: any) => sum + (option.total_staked || 0), 0);
     if (totalStaked === 0) return 68;
-    const maxStaked = Math.max(...prediction.options.map(option => option.totalStaked));
+    const maxStaked = Math.max(...prediction.options.map((option: any) => option.total_staked || 0));
     return Math.round((maxStaked / totalStaked) * 100);
   };
 
@@ -241,12 +206,12 @@ const BetsTab: React.FC<BetsTabProps> = ({ onNavigateToDiscover }) => {
 
   const getCategoryColor = (category: string) => {
     const colors = {
-      'Crypto': 'bg-orange-100 text-orange-700',
-      'Sports': 'bg-blue-100 text-blue-700',
-      'Tech': 'bg-purple-100 text-purple-700',
-      'Entertainment': 'bg-pink-100 text-pink-700',
-      'Politics': 'bg-red-100 text-red-700',
-      'Finance': 'bg-green-100 text-green-700'
+      'custom': 'bg-orange-100 text-orange-700',
+      'sports': 'bg-blue-100 text-blue-700',
+      'esports': 'bg-purple-100 text-purple-700',
+      'pop_culture': 'bg-pink-100 text-pink-700',
+      'politics': 'bg-red-100 text-red-700',
+      'celebrity_gossip': 'bg-green-100 text-green-700'
     };
     return colors[category] || 'bg-gray-100 text-gray-700';
   };
@@ -341,7 +306,7 @@ const BetsTab: React.FC<BetsTabProps> = ({ onNavigateToDiscover }) => {
         <div className="flex-1">
           <div className="flex items-center gap-2 mb-2">
             <span className={`px-2 py-1 rounded-lg text-xs font-medium ${getCategoryColor(prediction.category)}`}>
-              {prediction.category}
+              {prediction.category.replace('_', ' ')}
             </span>
             <span className={`px-2 py-1 rounded-lg text-xs font-medium border ${getStatusColor(prediction.status)}`}>
               Active
@@ -405,10 +370,10 @@ const BetsTab: React.FC<BetsTabProps> = ({ onNavigateToDiscover }) => {
         <div className="flex-1">
           <div className="flex items-center gap-2 mb-2">
             <span className={`px-2 py-1 rounded-lg text-xs font-medium ${getCategoryColor(prediction.category)}`}>
-              {prediction.category}
+              {prediction.category.replace('_', ' ')}
             </span>
             <span className="px-2 py-1 rounded-lg text-xs font-medium border bg-blue-50 text-blue-700 border-blue-200">
-              Open
+              {prediction.status === 'open' ? 'Open' : prediction.status}
             </span>
           </div>
           <h3 className="font-semibold text-gray-900 text-lg leading-tight">
@@ -437,7 +402,7 @@ const BetsTab: React.FC<BetsTabProps> = ({ onNavigateToDiscover }) => {
 
       {/* Footer */}
       <div className="flex items-center justify-between">
-        <span className="text-sm text-gray-500">Closes in {formatTimeRemaining(prediction.entry_deadline || prediction.timeRemaining)}</span>
+        <span className="text-sm text-gray-500">Closes in {prediction.timeRemaining}</span>
         <motion.button
           onClick={() => {
             // Open manage modal
@@ -461,7 +426,7 @@ const BetsTab: React.FC<BetsTabProps> = ({ onNavigateToDiscover }) => {
         <div className="flex-1">
           <div className="flex items-center gap-2 mb-2">
             <span className={`px-2 py-1 rounded-lg text-xs font-medium ${getCategoryColor(prediction.category)}`}>
-              {prediction.category}
+              {prediction.category.replace('_', ' ')}
             </span>
             <span className={`px-2 py-1 rounded-lg text-xs font-medium border ${
               prediction.status === 'won' 

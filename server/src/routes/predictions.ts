@@ -195,7 +195,10 @@ router.put(
     }
 
     // Update prediction
-    const updatedPrediction = await db.predictions.update(id, updates);
+    const updatedPrediction = await db.predictions.update(id, {
+      ...updates,
+      updated_at: new Date().toISOString()
+    });
 
     logger.info('Prediction updated', { 
       predictionId: id, 
@@ -204,6 +207,104 @@ router.put(
     });
 
     return ApiUtils.success(res, updatedPrediction, 'Prediction updated successfully');
+  })
+);
+
+// Close prediction early
+router.patch(
+  '/:id/close',
+  authenticate,
+  authenticatedRateLimit,
+  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    const { id } = req.params;
+    const userId = req.user!.id;
+
+    // Get existing prediction
+    const prediction = await db.predictions.findById(id);
+    
+    if (!prediction) {
+      return ApiUtils.error(res, 'Prediction not found', 404);
+    }
+
+    // Check if user is the creator
+    if (prediction.creator_id !== userId) {
+      return ApiUtils.error(res, 'Only the creator can close this prediction', 403);
+    }
+
+    // Check if prediction can be closed (only open predictions)
+    if (prediction.status !== 'open') {
+      return ApiUtils.error(res, 'Prediction is not open for closing', 400);
+    }
+
+    // Update prediction status to closed
+    const updatedPrediction = await db.predictions.update(id, {
+      status: 'closed',
+      updated_at: new Date().toISOString()
+    });
+
+    logger.info('Prediction closed early', { 
+      predictionId: id, 
+      creatorId: userId
+    });
+
+    return ApiUtils.success(res, updatedPrediction, 'Prediction closed successfully');
+  })
+);
+
+// Delete prediction
+router.delete(
+  '/:id',
+  authenticate,
+  authenticatedRateLimit,
+  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    const { id } = req.params;
+    const userId = req.user!.id;
+
+    // Get existing prediction
+    const prediction = await db.predictions.findById(id);
+    
+    if (!prediction) {
+      return ApiUtils.error(res, 'Prediction not found', 404);
+    }
+
+    // Check if user is the creator
+    if (prediction.creator_id !== userId) {
+      return ApiUtils.error(res, 'Only the creator can delete this prediction', 403);
+    }
+
+    // Check if prediction can be deleted (only pending predictions with no participants)
+    if (prediction.status !== 'pending' && prediction.participant_count > 0) {
+      return ApiUtils.error(res, 'Cannot delete prediction with participants or after it has started', 400);
+    }
+
+    // Check if there are any entries
+    const { data: entries } = await db.supabase
+      .from('prediction_entries')
+      .select('id')
+      .eq('prediction_id', id);
+
+    if (entries && entries.length > 0) {
+      return ApiUtils.error(res, 'Cannot delete prediction with existing entries', 400);
+    }
+
+    // Delete prediction options first
+    await db.supabase
+      .from('prediction_options')
+      .delete()
+      .eq('prediction_id', id);
+
+    // Delete the prediction
+    await db.supabase
+      .from('predictions')
+      .delete()
+      .eq('id', id);
+
+    logger.info('Prediction deleted', { 
+      predictionId: id, 
+      creatorId: userId
+    });
+
+    return ApiUtils.success(res, null, 'Prediction deleted successfully');
   })
 );
 
@@ -376,6 +477,96 @@ router.post(
   })
 );
 
+// Get prediction entries (participants)
+router.get(
+  '/:id/entries',
+  optionalAuth,
+  validationMiddleware(PaginationQuerySchema, 'query'),
+  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    const { id: predictionId } = req.params;
+    const { page = 1, limit = 20 } = req.query as any;
+    const offset = (page - 1) * limit;
+
+    // Get prediction entries with user details
+    const { data: entries, error, count } = await db.supabase
+      .from('prediction_entries')
+      .select(`
+        *,
+        user:users!user_id(id, username, full_name, avatar_url),
+        option:prediction_options(id, label)
+      `, { count: 'exact' })
+      .eq('prediction_id', predictionId)
+      .order('created_at', { ascending: false })
+      .range(offset, offset + limit - 1);
+
+    if (error) {
+      throw error;
+    }
+
+    const transformedEntries = (entries || []).map((entry: any) => ({
+      id: entry.id,
+      username: entry.user?.username || entry.user?.full_name || 'Anonymous',
+      avatar_url: entry.user?.avatar_url,
+      amount: entry.amount,
+      option: entry.option?.label || 'Unknown',
+      joinedAt: entry.created_at,
+      timeAgo: getTimeAgo(entry.created_at)
+    }));
+
+    const pagination = ApiUtils.generatePaginationResponse(transformedEntries, count || 0, page, limit);
+
+    return ApiUtils.success(res, pagination);
+  })
+);
+
+// Get prediction activity
+router.get(
+  '/:id/activity',
+  optionalAuth,
+  validationMiddleware(PaginationQuerySchema, 'query'),
+  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    const { id: predictionId } = req.params;
+    const { page = 1, limit = 10 } = req.query as any;
+    const offset = (page - 1) * limit;
+
+    // Get recent entries as activity
+    const { data: entries, error, count } = await db.supabase
+      .from('prediction_entries')
+      .select(`
+        id,
+        amount,
+        created_at,
+        user:users!user_id(username, full_name),
+        option:prediction_options(label)
+      `, { count: 'exact' })
+      .eq('prediction_id', predictionId)
+      .order('created_at', { ascending: false })
+      .range(offset, offset + limit - 1);
+
+    if (error) {
+      throw error;
+    }
+
+    const transformedActivity = (entries || []).map((entry: any) => {
+      const username = entry.user?.username || entry.user?.full_name || 'Anonymous';
+      return {
+        id: entry.id,
+        type: entry.amount >= 200 ? 'prediction_placed' : 'participant_joined',
+        description: entry.amount >= 200 
+          ? `${username} placed a large prediction` 
+          : `${username} joined the prediction`,
+        amount: entry.amount,
+        timestamp: entry.created_at,
+        timeAgo: getTimeAgo(entry.created_at)
+      };
+    });
+
+    const pagination = ApiUtils.generatePaginationResponse(transformedActivity, count || 0, page, limit);
+
+    return ApiUtils.success(res, pagination);
+  })
+);
+
 // Get user's prediction entries
 router.get(
   '/entries/me',
@@ -430,5 +621,24 @@ router.get(
     return ApiUtils.success(res, result);
   })
 );
+
+// Helper function to calculate time ago
+function getTimeAgo(dateString: string): string {
+  const now = new Date();
+  const date = new Date(dateString);
+  const diffInMs = now.getTime() - date.getTime();
+  
+  const minutes = Math.floor(diffInMs / (1000 * 60));
+  const hours = Math.floor(diffInMs / (1000 * 60 * 60));
+  const days = Math.floor(diffInMs / (1000 * 60 * 60 * 24));
+  
+  if (minutes < 60) {
+    return `${minutes} ${minutes === 1 ? 'minute' : 'minutes'} ago`;
+  } else if (hours < 24) {
+    return `${hours} ${hours === 1 ? 'hour' : 'hours'} ago`;
+  } else {
+    return `${days} ${days === 1 ? 'day' : 'days'} ago`;
+  }
+}
 
 export default router;

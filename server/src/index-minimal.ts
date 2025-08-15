@@ -7,7 +7,7 @@ const app = express();
 
 // Simple CORS setup
 app.use(cors({
-  origin: ["http://localhost:3000", "http://localhost:5173"],
+  origin: ["http://localhost:3000", "http://localhost:5173", "https://dev.fanclubz.app"],
   credentials: true
 }));
 
@@ -22,13 +22,165 @@ app.get('/health', (req, res) => {
   });
 });
 
+// API health endpoint
+app.get('/api/health', (req, res) => {
+  res.json({
+    status: 'ok',
+    message: 'Fan Club Z API is running',
+    timestamp: new Date().toISOString(),
+    services: {
+      database: 'connected',
+      websocket: 'enabled',
+      supabase: 'configured'
+    },
+  });
+});
+
+// Simple prediction endpoints for testing
+app.post('/api/predictions', (req, res) => {
+  console.log('📝 Creating prediction:', req.body);
+  
+  // Mock response for now
+  res.status(201).json({
+    success: true,
+    data: {
+      id: 'mock-prediction-' + Date.now(),
+      title: req.body.title,
+      description: req.body.description,
+      category: req.body.category,
+      type: req.body.type,
+      status: 'open',
+      stake_min: req.body.stake_min,
+      stake_max: req.body.stake_max,
+      entry_deadline: req.body.entry_deadline,
+      settlement_method: req.body.settlement_method,
+      is_private: req.body.is_private || false,
+      creator_id: 'mock-user-id',
+      pool_total: 0,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      options: req.body.options || []
+    },
+    message: 'Prediction created successfully'
+  });
+});
+
+app.get('/api/predictions', (req, res) => {
+  console.log('📋 Fetching predictions');
+  
+  // Mock response
+  res.json({
+    success: true,
+    data: [
+      {
+        id: 'mock-prediction-1',
+        title: 'Will Bitcoin reach $100k by end of 2025?',
+        description: 'Bitcoin price prediction',
+        category: 'custom',
+        type: 'binary',
+        status: 'open',
+        stake_min: 1,
+        stake_max: 1000,
+        entry_deadline: '2025-12-31T23:59:59Z',
+        settlement_method: 'manual',
+        is_private: false,
+        creator_id: 'mock-user-id',
+        pool_total: 0,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        options: [
+          { id: 'option-1', label: 'Yes', total_staked: 0 },
+          { id: 'option-2', label: 'No', total_staked: 0 }
+        ]
+      }
+    ],
+    pagination: {
+      page: 1,
+      limit: 10,
+      total: 1,
+      totalPages: 1,
+      hasNext: false,
+      hasPrev: false
+    }
+  });
+});
+
+// v2 endpoints for compatibility
+app.post('/api/v2/predictions', (req, res) => {
+  console.log('📝 Creating prediction (v2):', req.body);
+  
+  // Mock response for now
+  res.status(201).json({
+    success: true,
+    data: {
+      id: 'mock-prediction-v2-' + Date.now(),
+      title: req.body.title,
+      description: req.body.description,
+      category: req.body.category,
+      type: req.body.type,
+      status: 'open',
+      stake_min: req.body.stake_min,
+      stake_max: req.body.stake_max,
+      entry_deadline: req.body.entry_deadline,
+      settlement_method: req.body.settlement_method,
+      is_private: req.body.is_private || false,
+      creator_id: 'mock-user-id',
+      pool_total: 0,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      options: req.body.options || []
+    },
+    message: 'Prediction created successfully'
+  });
+});
+
+app.get('/api/v2/predictions', (req, res) => {
+  console.log('📋 Fetching predictions (v2)');
+  
+  // Mock response
+  res.json({
+    success: true,
+    data: [
+      {
+        id: 'mock-prediction-v2-1',
+        title: 'Will Bitcoin reach $100k by end of 2025?',
+        description: 'Bitcoin price prediction',
+        category: 'custom',
+        type: 'binary',
+        status: 'open',
+        stake_min: 1,
+        stake_max: 1000,
+        entry_deadline: '2025-12-31T23:59:59Z',
+        settlement_method: 'manual',
+        is_private: false,
+        creator_id: 'mock-user-id',
+        pool_total: 0,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        options: [
+          { id: 'option-1', label: 'Yes', total_staked: 0 },
+          { id: 'option-2', label: 'No', total_staked: 0 }
+        ]
+      }
+    ],
+    pagination: {
+      page: 1,
+      limit: 10,
+      total: 1,
+      totalPages: 1,
+      hasNext: false,
+      hasPrev: false
+    }
+  });
+});
+
 // Create HTTP server
 const server = createServer(app);
 
 // Setup Socket.IO
 const io = new Server(server, {
   cors: {
-    origin: ["http://localhost:3000", "http://localhost:5173"],
+    origin: ["http://localhost:3000", "http://localhost:5173", "https://dev.fanclubz.app"],
     methods: ["GET", "POST"],
     credentials: true
   }
@@ -90,6 +242,7 @@ server.listen(PORT, () => {
   console.log(`🚀 Simple WebSocket Server running on port ${PORT}`);
   console.log(`🏥 Health check: http://localhost:${PORT}/health`);
   console.log(`💬 WebSocket enabled for testing`);
+  console.log(`📡 API endpoints: /api/predictions, /api/v2/predictions`);
 });
 
 export default app;
