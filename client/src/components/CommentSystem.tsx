@@ -33,11 +33,13 @@ const CommentSystem: React.FC<CommentSystemProps> = ({ predictionId, initialComm
   const { user } = useAuthStore();
   const [comments, setComments] = useState<Comment[]>(initialComments);
   const [newComment, setNewComment] = useState('');
+  const [replyTexts, setReplyTexts] = useState<Record<string, string>>({});
+  const [editTexts, setEditTexts] = useState<Record<string, string>>({});
   const [replyTo, setReplyTo] = useState<string | null>(null);
   const [editingComment, setEditingComment] = useState<string | null>(null);
-  const [editContent, setEditContent] = useState('');
   const [loading, setLoading] = useState(false);
   const [submitLoading, setSubmitLoading] = useState(false);
+  const [replyLoading, setReplyLoading] = useState<Record<string, boolean>>({});
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -49,6 +51,40 @@ const CommentSystem: React.FC<CommentSystemProps> = ({ predictionId, initialComm
     const hostname = window.location.hostname;
     const port = hostname === 'localhost' ? ':3001' : '';
     return `${protocol}//${hostname}${port}/api`;
+  };
+
+  // Helper function to get reply text for a specific comment
+  const getReplyText = (commentId: string) => replyTexts[commentId] || '';
+  
+  // Helper function to set reply text for a specific comment
+  const setReplyText = (commentId: string, text: string) => {
+    setReplyTexts(prev => ({ ...prev, [commentId]: text }));
+  };
+
+  // Helper function to get edit text for a specific comment
+  const getEditText = (commentId: string) => editTexts[commentId] || '';
+  
+  // Helper function to set edit text for a specific comment
+  const setEditText = (commentId: string, text: string) => {
+    setEditTexts(prev => ({ ...prev, [commentId]: text }));
+  };
+
+  // Helper function to clear reply text
+  const clearReplyText = (commentId: string) => {
+    setReplyTexts(prev => {
+      const updated = { ...prev };
+      delete updated[commentId];
+      return updated;
+    });
+  };
+
+  // Helper function to clear edit text
+  const clearEditText = (commentId: string) => {
+    setEditTexts(prev => {
+      const updated = { ...prev };
+      delete updated[commentId];
+      return updated;
+    });
   };
 
   // Fetch comments
@@ -188,10 +224,15 @@ const CommentSystem: React.FC<CommentSystemProps> = ({ predictionId, initialComm
 
   // Submit new comment
   const submitComment = async (parentId?: string) => {
-    if (!newComment.trim() || !user) return;
+    const content = parentId ? getReplyText(parentId) : newComment;
+    if (!content.trim() || !user) return;
 
     try {
-      setSubmitLoading(true);
+      if (parentId) {
+        setReplyLoading(prev => ({ ...prev, [parentId]: true }));
+      } else {
+        setSubmitLoading(true);
+      }
       setError(null);
       
       const apiUrl = getApiUrl();
@@ -202,7 +243,7 @@ const CommentSystem: React.FC<CommentSystemProps> = ({ predictionId, initialComm
           'Authorization': `Bearer ${user.token}`,
         },
         body: JSON.stringify({
-          content: newComment.trim(),
+          content: content.trim(),
           parent_comment_id: parentId,
         }),
       });
@@ -227,12 +268,13 @@ const CommentSystem: React.FC<CommentSystemProps> = ({ predictionId, initialComm
               : c
           )
         );
+        clearReplyText(parentId);
       } else {
         // Add as top-level comment
         setComments(prev => [comment, ...prev]);
+        setNewComment('');
       }
       
-      setNewComment('');
       setReplyTo(null);
       
     } catch (error) {
@@ -241,7 +283,7 @@ const CommentSystem: React.FC<CommentSystemProps> = ({ predictionId, initialComm
       // Add comment locally when API fails
       const newCommentObj = {
         id: `local-${Date.now()}`,
-        content: newComment.trim(),
+        content: content.trim(),
         user_id: user.id,
         prediction_id: predictionId,
         username: user.username || 'You',
@@ -270,23 +312,29 @@ const CommentSystem: React.FC<CommentSystemProps> = ({ predictionId, initialComm
               : c
           )
         );
+        clearReplyText(parentId);
       } else {
         // Add as top-level comment
         setComments(prev => [newCommentObj, ...prev]);
+        setNewComment('');
       }
       
-      setNewComment('');
       setReplyTo(null);
       setError('Comment added locally - API not available');
       
     } finally {
-      setSubmitLoading(false);
+      if (parentId) {
+        setReplyLoading(prev => ({ ...prev, [parentId]: false }));
+      } else {
+        setSubmitLoading(false);
+      }
     }
   };
 
   // Edit comment
   const editComment = async (commentId: string) => {
-    if (!editContent.trim()) return;
+    const content = getEditText(commentId);
+    if (!content.trim()) return;
 
     try {
       const apiUrl = getApiUrl();
@@ -297,7 +345,7 @@ const CommentSystem: React.FC<CommentSystemProps> = ({ predictionId, initialComm
           'Authorization': `Bearer ${user?.token}`,
         },
         body: JSON.stringify({
-          content: editContent.trim(),
+          content: content.trim(),
         }),
       });
 
@@ -326,7 +374,7 @@ const CommentSystem: React.FC<CommentSystemProps> = ({ predictionId, initialComm
       );
       
       setEditingComment(null);
-      setEditContent('');
+      clearEditText(commentId);
       
     } catch (error) {
       console.error('Error editing comment:', error);
@@ -404,6 +452,30 @@ const CommentSystem: React.FC<CommentSystemProps> = ({ predictionId, initialComm
     }
   };
 
+  // Start editing a comment
+  const startEdit = (commentId: string, currentContent: string) => {
+    setEditingComment(commentId);
+    setEditText(commentId, currentContent);
+  };
+
+  // Cancel editing
+  const cancelEdit = (commentId: string) => {
+    setEditingComment(null);
+    clearEditText(commentId);
+  };
+
+  // Start replying to a comment
+  const startReply = (commentId: string) => {
+    setReplyTo(commentId);
+    setReplyText(commentId, '');
+  };
+
+  // Cancel reply
+  const cancelReply = (commentId: string) => {
+    setReplyTo(null);
+    clearReplyText(commentId);
+  };
+
   // Load initial comments
   useEffect(() => {
     if (!initialComments.length) {
@@ -413,6 +485,8 @@ const CommentSystem: React.FC<CommentSystemProps> = ({ predictionId, initialComm
 
   const CommentItem: React.FC<{ comment: Comment; isReply?: boolean }> = ({ comment, isReply = false }) => {
     const [showOptions, setShowOptions] = useState(false);
+    const isCurrentlyEditing = editingComment === comment.id;
+    const isCurrentlyReplying = replyTo === comment.id;
 
     return (
       <div className={`comment-item ${isReply ? 'ml-8 pl-4 border-l-2 border-gray-100' : ''} py-4`}>
@@ -454,33 +528,31 @@ const CommentSystem: React.FC<CommentSystemProps> = ({ predictionId, initialComm
 
             {/* Content */}
             <div className="mb-2">
-              {editingComment === comment.id ? (
+              {isCurrentlyEditing ? (
                 <div className="space-y-2">
                   <textarea
-                    value={editContent}
-                    onChange={(e) => setEditContent(e.target.value)}
+                    value={getEditText(comment.id)}
+                    onChange={(e) => setEditText(comment.id, e.target.value)}
                     className="w-full p-2 border border-gray-300 rounded-lg text-sm resize-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
                     rows={2}
                     placeholder="Edit your comment..."
                     maxLength={500}
+                    autoFocus
                   />
                   <div className="flex justify-between items-center">
                     <span className="text-xs text-gray-500">
-                      {editContent.length}/500
+                      {getEditText(comment.id).length}/500
                     </span>
                     <div className="flex space-x-2">
                       <button
                         onClick={() => editComment(comment.id)}
-                        disabled={!editContent.trim()}
+                        disabled={!getEditText(comment.id).trim()}
                         className="px-3 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         Save
                       </button>
                       <button
-                        onClick={() => {
-                          setEditingComment(null);
-                          setEditContent('');
-                        }}
+                        onClick={() => cancelEdit(comment.id)}
                         className="px-3 py-1 bg-gray-300 text-gray-700 text-xs rounded hover:bg-gray-400"
                       >
                         Cancel
@@ -509,11 +581,11 @@ const CommentSystem: React.FC<CommentSystemProps> = ({ predictionId, initialComm
 
               {!isReply && (
                 <button
-                  onClick={() => setReplyTo(replyTo === comment.id ? null : comment.id)}
+                  onClick={() => isCurrentlyReplying ? cancelReply(comment.id) : startReply(comment.id)}
                   className="flex items-center space-x-1 text-gray-500 hover:text-blue-500 transition-colors"
                 >
                   <Reply size={14} />
-                  <span>Reply</span>
+                  <span>{isCurrentlyReplying ? 'Cancel' : 'Reply'}</span>
                 </button>
               )}
 
@@ -537,8 +609,7 @@ const CommentSystem: React.FC<CommentSystemProps> = ({ predictionId, initialComm
                         <>
                           <button
                             onClick={() => {
-                              setEditingComment(comment.id);
-                              setEditContent(comment.content);
+                              startEdit(comment.id, comment.content);
                               setShowOptions(false);
                             }}
                             className="flex items-center w-full px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
@@ -576,33 +647,31 @@ const CommentSystem: React.FC<CommentSystemProps> = ({ predictionId, initialComm
             </div>
 
             {/* Reply input */}
-            {replyTo === comment.id && (
+            {isCurrentlyReplying && (
               <div className="mt-3 space-y-2">
                 <textarea
-                  value={newComment}
-                  onChange={(e) => setNewComment(e.target.value)}
+                  value={getReplyText(comment.id)}
+                  onChange={(e) => setReplyText(comment.id, e.target.value)}
                   className="w-full p-2 border border-gray-300 rounded-lg text-sm resize-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
                   rows={2}
                   placeholder={`Reply to ${comment.username}...`}
                   maxLength={500}
+                  autoFocus
                 />
                 <div className="flex justify-between items-center">
                   <span className="text-xs text-gray-500">
-                    {newComment.length}/500
+                    {getReplyText(comment.id).length}/500
                   </span>
                   <div className="flex space-x-2">
                     <button
                       onClick={() => submitComment(comment.id)}
-                      disabled={!newComment.trim() || submitLoading}
+                      disabled={!getReplyText(comment.id).trim() || replyLoading[comment.id]}
                       className="px-3 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      {submitLoading ? 'Replying...' : 'Reply'}
+                      {replyLoading[comment.id] ? 'Replying...' : 'Reply'}
                     </button>
                     <button
-                      onClick={() => {
-                        setReplyTo(null);
-                        setNewComment('');
-                      }}
+                      onClick={() => cancelReply(comment.id)}
                       className="px-3 py-1 bg-gray-300 text-gray-700 text-xs rounded hover:bg-gray-400"
                     >
                       Cancel

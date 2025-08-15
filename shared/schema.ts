@@ -25,13 +25,87 @@ export interface PredictionOption {
   percentage?: number;
 }
 
+export interface SettlementSource {
+  name: string;
+  url: string;
+  trust_level?: 'high' | 'medium' | 'low';
+}
+
+export interface SettlementConfig {
+  method: 'api' | 'web' | 'oracle' | 'manual';
+  primary_source: SettlementSource;
+  backup_source?: SettlementSource;
+  rule_text: string;
+  timezone: string;
+  contingencies: {
+    postponed: 'auto_void' | 'extend_lock' | 'keep_open';
+    source_down: 'use_backup' | 'pause_and_escalate';
+  };
+  badges: Array<'Manual-Checked' | 'Auto-Settled' | 'Oracle'>;
+}
+
+export interface SettlementProof {
+  fetched_at: string;
+  source_url: string;
+  screenshot_url?: string;
+  content_hash: string;
+  parser_note?: string;
+}
+
+export interface SettlementAcceptance {
+  window_hours: number;
+  stats: {
+    accepted: number;
+    auto_accepted: number;
+    disputed: number;
+  };
+}
+
+export interface Settlement {
+  prediction_id: string;
+  state: 'settling' | 'settled' | 'voided' | 'disputed' | 'resolved';
+  outcome?: 'YES' | 'NO' | string | null;
+  settled_at?: string;
+  proof?: SettlementProof;
+  audit_log: Array<{
+    ts: string;
+    actor: 'system' | 'oracle' | 'admin' | 'user';
+    event: string;
+    data?: any;
+  }>;
+  acceptance: SettlementAcceptance;
+}
+
+export interface Dispute {
+  id: string;
+  prediction_id: string;
+  user_id: string;
+  reason: 'wrong_source' | 'timing' | 'source_updated' | 'other';
+  evidence: Array<{
+    type: 'link' | 'upload';
+    value: string;
+  }>;
+  state: 'open' | 'under_review' | 'upheld' | 'overturned';
+  resolution_note?: string;
+  created_at: string;
+  updated_at?: string;
+}
+
+export interface PlayerAcceptance {
+  prediction_id: string;
+  user_id: string;
+  action: 'accepted' | 'auto_accepted' | 'disputed';
+  timestamp: string;
+  dispute?: Dispute;
+}
+
 export interface Prediction {
   id: string;
   title: string;
   description?: string;
   category: string;
   type: 'binary' | 'multi' | 'multi_outcome' | 'pool';
-  status: 'pending' | 'open' | 'closed' | 'settled' | 'disputed' | 'cancelled';
+  status: 'pending' | 'open' | 'locked' | 'settling' | 'settled' | 'voided' | 'disputed' | 'resolved';
   creatorId?: string;
   creator_id?: string; // Database compatibility
   creatorName?: string;
@@ -50,8 +124,12 @@ export interface Prediction {
   pool_total?: number; // Database compatibility
   entryDeadline?: Date | string;
   entry_deadline?: string; // Database compatibility
+  lock_time?: Date | string; // When betting closes
   settlementMethod?: 'auto' | 'manual';
   settlement_method?: string; // Database compatibility
+  settlement?: SettlementConfig; // Settlement configuration
+  settlement_outcome?: string; // Final outcome
+  settlement_data?: Settlement; // Settlement state and proof
   createdAt?: Date | string;
   created_at?: string; // Database compatibility
   updatedAt?: Date | string;
