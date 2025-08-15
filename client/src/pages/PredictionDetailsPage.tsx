@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, Clock, Heart, MessageCircle, Share2, TrendingUp } from 'lucide-react';
+import { ArrowLeft, Clock, Heart, MessageCircle, Share2, TrendingUp, ChevronDown } from 'lucide-react';
 import { useLocation } from 'wouter';
 import { usePredictionStore } from '../store/predictionStore';
 import { useAuthStore } from '../store/authStore';
@@ -22,6 +22,11 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
   const [prediction, setPrediction] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [showComments, setShowComments] = useState(false);
+  const [isLiked, setIsLiked] = useState(false);
+  
+  // Refs for smooth scrolling
+  const commentsRef = useRef<HTMLDivElement>(null);
+  const engagementRef = useRef<HTMLDivElement>(null);
   
   const { predictions, fetchPredictions, placePrediction } = usePredictionStore();
   const { isAuthenticated } = useAuthStore();
@@ -191,9 +196,50 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
     }
   };
 
+  const handleLike = async () => {
+    if (!isAuthenticated) {
+      toast.error('Please sign in to like this prediction');
+      return;
+    }
+    
+    // Optimistic update
+    setIsLiked(!isLiked);
+    
+    try {
+      // TODO: Implement actual like functionality
+      toast.success(isLiked ? 'Removed like' : 'Liked prediction!');
+    } catch (error) {
+      // Revert on error
+      setIsLiked(isLiked);
+      toast.error('Failed to update like');
+    }
+  };
+
   const handleCommentsToggle = () => {
     console.log('💬 Toggling comments from:', showComments, 'to:', !showComments);
-    setShowComments(!showComments);
+    const newShowComments = !showComments;
+    setShowComments(newShowComments);
+    
+    // Smooth scroll to comments section when opening
+    if (newShowComments) {
+      setTimeout(() => {
+        if (commentsRef.current) {
+          commentsRef.current.scrollIntoView({ 
+            behavior: 'smooth', 
+            block: 'start',
+            inline: 'nearest'
+          });
+        }
+      }, 300); // Wait for animation to start
+    } else {
+      // Scroll back to engagement section when closing
+      if (engagementRef.current) {
+        engagementRef.current.scrollIntoView({ 
+          behavior: 'smooth', 
+          block: 'center'
+        });
+      }
+    }
   };
 
   // Loading state
@@ -266,7 +312,7 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
     <>
       <div className="min-h-screen bg-gray-50">
         {/* Header */}
-        <div className="bg-white border-b border-gray-200 sticky top-0 z-10">
+        <div className="bg-white border-b border-gray-200 sticky top-0 z-50">
           <div className="px-4 py-4">
             <div className="flex items-center justify-between">
               <button
@@ -279,7 +325,7 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
               
               <button
                 onClick={handleShare}
-                className="p-2 text-gray-600 hover:text-gray-900 transition-colors"
+                className="p-2 text-gray-600 hover:text-gray-900 transition-colors rounded-lg hover:bg-gray-100"
               >
                 <Share2 size={20} />
               </button>
@@ -288,7 +334,7 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
         </div>
 
         {/* Content */}
-        <div className="px-4 py-6">
+        <div className="px-4 py-6 max-w-2xl mx-auto">
           {/* Prediction Header */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -297,63 +343,70 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
           >
             {/* Creator Info */}
             <div className="flex items-center gap-3 mb-4">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-gradient-to-br from-green-400 to-green-600 rounded-full flex items-center justify-center">
-                  <span className="text-white font-bold text-sm">
-                    {prediction.creator?.username?.charAt(0)?.toUpperCase() || 'FC'}
-                  </span>
+              <div className="w-12 h-12 bg-gradient-to-br from-green-400 to-green-600 rounded-full flex items-center justify-center">
+                <span className="text-white font-bold text-lg">
+                  {prediction.creator?.username?.charAt(0)?.toUpperCase() || 'FC'}
+                </span>
+              </div>
+              <div>
+                <div className="font-semibold text-gray-900 text-lg">
+                  {prediction.creator?.username || 'Fan Club Z'}
                 </div>
-                <div>
-                  <div className="font-semibold text-gray-900">
-                    {prediction.creator?.username || 'Fan Club Z'}
-                  </div>
-                  <div className="text-sm text-gray-500">
-                    {new Date(prediction.created_at).toLocaleDateString()}
-                  </div>
+                <div className="text-sm text-gray-500">
+                  {new Date(prediction.created_at).toLocaleDateString('en-US', {
+                    month: 'short',
+                    day: 'numeric',
+                    year: 'numeric'
+                  })}
                 </div>
               </div>
             </div>
 
             {/* Title */}
-            <h1 className="text-2xl font-bold text-gray-900 mb-3">
+            <h1 className="text-2xl font-bold text-gray-900 mb-4 leading-tight">
               {prediction.title}
             </h1>
 
             {/* Description */}
             {prediction.description && (
-              <p className="text-gray-600 mb-4 leading-relaxed">
+              <p className="text-gray-600 mb-6 leading-relaxed text-base">
                 {prediction.description}
               </p>
             )}
 
-            {/* Stats - All in USD */}
-            <div className="grid grid-cols-3 gap-4 mb-4">
-              <div className="text-center">
+            {/* Stats Grid */}
+            <div className="grid grid-cols-3 gap-4 mb-6">
+              <div className="text-center p-4 bg-green-50 rounded-xl">
                 <div className="text-2xl font-bold text-green-600">
                   ${(prediction.pool_total || 0).toLocaleString()}
                 </div>
-                <div className="text-sm text-gray-500">Total Pool</div>
+                <div className="text-sm text-gray-600 font-medium">Total Pool</div>
               </div>
-              <div className="text-center">
+              <div className="text-center p-4 bg-blue-50 rounded-xl">
                 <div className="text-2xl font-bold text-blue-600">
                   {prediction.participant_count || 0}
                 </div>
-                <div className="text-sm text-gray-500">Participants</div>
+                <div className="text-sm text-gray-600 font-medium">Participants</div>
               </div>
-              <div className="text-center">
+              <div className="text-center p-4 bg-purple-50 rounded-xl">
                 <div className="text-2xl font-bold text-purple-600">
                   {prediction.options?.length || 0}
                 </div>
-                <div className="text-sm text-gray-500">Options</div>
+                <div className="text-sm text-gray-600 font-medium">Options</div>
               </div>
             </div>
 
             {/* Time Remaining */}
-            <div className="flex items-center gap-2 text-orange-600 bg-orange-50 px-4 py-2 rounded-lg">
-              <Clock size={16} />
-              <span className="font-medium">
-                {formatTimeRemaining(prediction.entry_deadline)} left
-              </span>
+            <div className="flex items-center gap-3 text-orange-600 bg-orange-50 px-4 py-3 rounded-xl">
+              <Clock size={20} />
+              <div>
+                <div className="font-semibold">
+                  {formatTimeRemaining(prediction.entry_deadline)} remaining
+                </div>
+                <div className="text-sm text-orange-500">
+                  Ends {new Date(prediction.entry_deadline).toLocaleDateString()}
+                </div>
+              </div>
             </div>
           </motion.div>
 
@@ -364,106 +417,112 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
             transition={{ delay: 0.1 }}
             className="bg-white rounded-2xl p-6 mb-6 shadow-sm border border-gray-100"
           >
-            <h2 className="text-xl font-bold text-gray-900 mb-4">Place Your Prediction</h2>
+            <h2 className="text-xl font-bold text-gray-900 mb-6">Place Your Prediction</h2>
 
             {/* Options */}
             <div className="space-y-3 mb-6">
-              {prediction.options?.map((option: any) => (
-                <button
+              {prediction.options?.map((option: any, index: number) => (
+                <motion.button
                   key={option.id}
                   onClick={() => handleOptionSelect(option.id)}
                   className={`w-full p-4 rounded-xl border-2 transition-all ${
                     selectedOption === option.id
-                      ? 'border-green-500 bg-green-50'
-                      : 'border-gray-200 hover:border-gray-300'
+                      ? 'border-green-500 bg-green-50 shadow-lg'
+                      : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
                   }`}
+                  whileHover={{ scale: 1.01 }}
+                  whileTap={{ scale: 0.99 }}
                 >
                   <div className="flex items-center justify-between">
-                    <div className="text-left">
-                      <div className="font-semibold text-gray-900">{option.label}</div>
+                    <div className="text-left flex-1">
+                      <div className="font-semibold text-gray-900 text-lg mb-1">{option.label}</div>
                       <div className="text-sm text-gray-500">
                         {prediction.pool_total > 0 ? 
                           `${((option.total_staked / prediction.pool_total) * 100).toFixed(1)}% of pool` : 
                           '0% of pool'
-                        }
+                        } • ${(option.total_staked || 0).toLocaleString()} staked
                       </div>
                     </div>
-                    <div className="text-right">
-                      <div className="text-lg font-bold text-green-600">
+                    <div className="text-right ml-4">
+                      <div className="text-2xl font-bold text-green-600">
                         {(option.current_odds || 1.0).toFixed(2)}x
                       </div>
-                      <div className="text-sm text-gray-500">
-                        ${(option.total_staked || 0).toLocaleString()} staked
-                      </div>
+                      <div className="text-xs text-gray-500">odds</div>
                     </div>
                   </div>
-                </button>
+                </motion.button>
               ))}
             </div>
 
             {/* Stake Input */}
             <div className="mb-6">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-semibold text-gray-700 mb-3">
                 Stake Amount (USD)
               </label>
               <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
+                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 text-lg">$</span>
                 <input
                   type="text"
                   value={stakeAmount}
                   onChange={handleStakeChange}
                   placeholder="0.00"
-                  className="w-full pl-8 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:border-green-500 focus:outline-none transition-colors"
+                  className="w-full pl-10 pr-4 py-4 border-2 border-gray-200 rounded-xl focus:border-green-500 focus:outline-none transition-colors text-lg"
                 />
               </div>
-              <div className="flex justify-between text-sm text-gray-500 mt-1">
+              <div className="flex justify-between text-sm text-gray-500 mt-2">
                 <span>Min: ${prediction.stake_min}</span>
                 <span>Max: ${prediction.stake_max || 'No limit'}</span>
               </div>
             </div>
 
             {/* Potential Payout */}
-            {selectedOption && stakeAmount && (
-              <motion.div
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                className="bg-green-50 border border-green-200 rounded-xl p-4 mb-6"
-              >
-                <div className="flex items-center justify-between">
-                  <span className="text-green-800 font-medium">Potential Payout:</span>
-                  <span className="text-green-800 font-bold text-lg">
-                    ${potentialPayout.toFixed(2)}
-                  </span>
-                </div>
-                <div className="text-green-700 text-sm mt-1">
-                  Profit: ${Math.max(0, potentialPayout - parseFloat(stakeAmount)).toFixed(2)}
-                </div>
-              </motion.div>
-            )}
+            <AnimatePresence>
+              {selectedOption && stakeAmount && (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.95 }}
+                  className="bg-green-50 border-2 border-green-200 rounded-xl p-4 mb-6"
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-green-800 font-semibold">Potential Payout:</span>
+                    <span className="text-green-800 font-bold text-xl">
+                      ${potentialPayout.toFixed(2)}
+                    </span>
+                  </div>
+                  <div className="text-green-700 text-sm">
+                    Profit: ${Math.max(0, potentialPayout - parseFloat(stakeAmount)).toFixed(2)}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
 
             {/* Place Bet Button */}
-            <button
+            <motion.button
               onClick={handlePlaceBet}
               disabled={!selectedOption || !stakeAmount || isPlacingBet}
-              className={`w-full py-4 rounded-xl font-semibold text-white transition-all ${
+              className={`w-full py-4 rounded-xl font-semibold text-white transition-all text-lg ${
                 selectedOption && stakeAmount && !isPlacingBet
-                  ? 'bg-green-500 hover:bg-green-600 active:bg-green-700'
+                  ? 'bg-green-500 hover:bg-green-600 active:bg-green-700 shadow-lg'
                   : 'bg-gray-300 cursor-not-allowed'
               }`}
+              whileHover={selectedOption && stakeAmount && !isPlacingBet ? { scale: 1.02 } : {}}
+              whileTap={selectedOption && stakeAmount && !isPlacingBet ? { scale: 0.98 } : {}}
             >
               {isPlacingBet ? (
                 <div className="flex items-center justify-center gap-2">
-                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
                   Placing Prediction...
                 </div>
               ) : (
                 'Place Prediction'
               )}
-            </button>
+            </motion.button>
           </motion.div>
 
           {/* Engagement Section */}
           <motion.div
+            ref={engagementRef}
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2 }}
@@ -471,45 +530,66 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
           >
             <h3 className="text-lg font-bold text-gray-900 mb-4">Community Engagement</h3>
             <div className="flex items-center gap-6">
-              <div className="flex items-center gap-2 text-gray-600">
-                <Heart size={20} />
-                <span>{prediction.likes_count || 0} likes</span>
-              </div>
-              <button
+              <motion.button
+                onClick={handleLike}
+                className={`flex items-center gap-2 transition-colors ${
+                  isLiked ? 'text-red-500' : 'text-gray-600 hover:text-red-500'
+                }`}
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+              >
+                <Heart size={20} fill={isLiked ? 'currentColor' : 'none'} />
+                <span className="font-medium">{(prediction.likes_count || 0) + (isLiked ? 1 : 0)} likes</span>
+              </motion.button>
+              
+              <motion.button
                 onClick={handleCommentsToggle}
                 className={`flex items-center gap-2 transition-colors ${
                   showComments ? 'text-blue-500' : 'text-gray-600 hover:text-blue-500'
                 }`}
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
               >
                 <MessageCircle size={20} />
-                <span>{prediction.comments_count || 0} comments</span>
-              </button>
+                <span className="font-medium">{prediction.comments_count || 0} comments</span>
+                <ChevronDown 
+                  size={16} 
+                  className={`transition-transform ml-1 ${showComments ? 'rotate-180' : ''}`}
+                />
+              </motion.button>
+              
               <div className="flex items-center gap-2 text-gray-600">
                 <TrendingUp size={20} />
-                <span>{prediction.participant_count || 0} participants</span>
+                <span className="font-medium">{prediction.participant_count || 0} participants</span>
               </div>
             </div>
           </motion.div>
 
-          {/* Comments Section - Updated with better visibility */}
+          {/* Comments Section */}
           <AnimatePresence>
             {showComments && (
               <motion.div
-                initial={{ opacity: 0, y: -20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -20 }}
-                transition={{ duration: 0.3 }}
+                ref={commentsRef}
+                initial={{ opacity: 0, y: -20, height: 0 }}
+                animate={{ opacity: 1, y: 0, height: 'auto' }}
+                exit={{ opacity: 0, y: -20, height: 0 }}
+                transition={{ duration: 0.4, ease: 'easeInOut' }}
                 className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden mb-6"
               >
-                <div className="p-4 border-b border-gray-100 bg-blue-50">
+                <div className="px-6 py-4 border-b border-gray-100 bg-gradient-to-r from-blue-50 to-indigo-50">
                   <h3 className="text-lg font-bold text-gray-900">Comments</h3>
                   <p className="text-sm text-gray-600">Join the conversation about this prediction</p>
                 </div>
-                <div className="min-h-[200px]">
-                  <CommentSystem 
-                    predictionId={prediction?.id || ''} 
-                    className="p-4"
-                  />
+                <div className="min-h-[300px] max-h-[600px] overflow-y-auto">
+                  <div className="p-6">
+                    <div className="text-center py-8">
+                      <MessageCircle size={48} className="text-gray-300 mx-auto mb-4" />
+                      <p className="text-gray-500 font-medium">Comments coming soon!</p>
+                      <p className="text-sm text-gray-400 mt-1">
+                        We're working on the comment system. Check back soon!
+                      </p>
+                    </div>
+                  </div>
                 </div>
               </motion.div>
             )}
