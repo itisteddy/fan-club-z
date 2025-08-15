@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useAuthStore } from '../store/authStore';
 import { MessageCircle, Heart, Reply, MoreHorizontal, Flag, Edit, Trash2 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
@@ -44,13 +44,38 @@ const CommentSystem: React.FC<CommentSystemProps> = ({ predictionId, initialComm
   const [hasMore, setHasMore] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Refs to maintain cursor position
+  const textareaRefs = useRef<Record<string, HTMLTextAreaElement | null>>({});
+
   // Get the API base URL
   const getApiUrl = () => {
     // Use the current domain for API calls
     const protocol = window.location.protocol;
     const hostname = window.location.hostname;
     const port = hostname === 'localhost' ? ':3001' : '';
-    return `${protocol}//${hostname}${port}/api`;
+    return `${protocol}//${hostname}${port}/api/v2`;
+  };
+
+  // Helper function to preserve cursor position
+  const updateTextWithCursor = (
+    textareaRef: HTMLTextAreaElement | null,
+    newValue: string,
+    setter: (value: string) => void
+  ) => {
+    if (!textareaRef) {
+      setter(newValue);
+      return;
+    }
+
+    const cursorPosition = textareaRef.selectionStart;
+    setter(newValue);
+    
+    // Restore cursor position after React updates
+    setTimeout(() => {
+      if (textareaRef && document.activeElement === textareaRef) {
+        textareaRef.setSelectionRange(cursorPosition, cursorPosition);
+      }
+    }, 0);
   };
 
   // Helper function to get reply text for a specific comment
@@ -94,17 +119,27 @@ const CommentSystem: React.FC<CommentSystemProps> = ({ predictionId, initialComm
       setError(null);
       
       const apiUrl = getApiUrl();
+      console.log('🔗 Fetching comments from:', `${apiUrl}/predictions/${predictionId}/comments?page=${pageNum}&limit=20`);
+      
       const response = await fetch(`${apiUrl}/predictions/${predictionId}/comments?page=${pageNum}&limit=20`, {
         headers: user?.token ? {
           'Authorization': `Bearer ${user.token}`,
-        } : {},
+          'Content-Type': 'application/json',
+        } : {
+          'Content-Type': 'application/json',
+        },
       });
       
+      console.log('📡 Comment fetch response status:', response.status);
+      
       if (!response.ok) {
+        const errorText = await response.text();
+        console.error('❌ Comment fetch failed:', response.status, errorText);
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
       
       const data = await response.json();
+      console.log('✅ Comments fetched successfully:', data);
       
       if (append) {
         setComments(prev => [...prev, ...(data.comments || [])]);
@@ -115,7 +150,7 @@ const CommentSystem: React.FC<CommentSystemProps> = ({ predictionId, initialComm
       setHasMore(data.hasMore || false);
       
     } catch (error) {
-      console.error('Error fetching comments:', error);
+      console.error('💥 Error fetching comments:', error);
       
       // Use mock data when API fails
       const mockComments = [
@@ -215,7 +250,7 @@ const CommentSystem: React.FC<CommentSystemProps> = ({ predictionId, initialComm
       }
       
       setHasMore(false);
-      setError('Using demo data - API not available');
+      setError('Using demo data - API connection failed');
       
     } finally {
       setLoading(false);
@@ -236,11 +271,14 @@ const CommentSystem: React.FC<CommentSystemProps> = ({ predictionId, initialComm
       setError(null);
       
       const apiUrl = getApiUrl();
+      console.log('💬 Submitting comment to:', `${apiUrl}/predictions/${predictionId}/comments`);
+      console.log('📝 Comment content:', content.trim());
+      
       const response = await fetch(`${apiUrl}/predictions/${predictionId}/comments`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${user.token}`,
+          ...(user.token && { 'Authorization': `Bearer ${user.token}` }),
         },
         body: JSON.stringify({
           content: content.trim(),
@@ -248,12 +286,16 @@ const CommentSystem: React.FC<CommentSystemProps> = ({ predictionId, initialComm
         }),
       });
 
+      console.log('📡 Comment submit response status:', response.status);
+
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to post comment');
+        const errorData = await response.text();
+        console.error('❌ Comment submit failed:', response.status, errorData);
+        throw new Error(`Failed to post comment: ${response.status}`);
       }
 
       const comment = await response.json();
+      console.log('✅ Comment created successfully:', comment);
       
       if (parentId) {
         // Add to replies (if nested system is implemented)
@@ -278,7 +320,7 @@ const CommentSystem: React.FC<CommentSystemProps> = ({ predictionId, initialComm
       setReplyTo(null);
       
     } catch (error) {
-      console.error('Error submitting comment:', error);
+      console.error('💥 Error submitting comment:', error);
       
       // Add comment locally when API fails
       const newCommentObj = {
@@ -320,7 +362,7 @@ const CommentSystem: React.FC<CommentSystemProps> = ({ predictionId, initialComm
       }
       
       setReplyTo(null);
-      setError('Comment added locally - API not available');
+      setError('Comment added locally - API connection failed');
       
     } finally {
       if (parentId) {
@@ -531,8 +573,12 @@ const CommentSystem: React.FC<CommentSystemProps> = ({ predictionId, initialComm
               {isCurrentlyEditing ? (
                 <div className="space-y-2">
                   <textarea
+                    ref={(el) => textareaRefs.current[`edit-${comment.id}`] = el}
                     value={getEditText(comment.id)}
-                    onChange={(e) => setEditText(comment.id, e.target.value)}
+                    onChange={(e) => {
+                      const textarea = textareaRefs.current[`edit-${comment.id}`];
+                      updateTextWithCursor(textarea, e.target.value, (value) => setEditText(comment.id, value));
+                    }}
                     className="w-full p-2 border border-gray-300 rounded-lg text-sm resize-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
                     rows={2}
                     placeholder="Edit your comment..."
@@ -650,8 +696,12 @@ const CommentSystem: React.FC<CommentSystemProps> = ({ predictionId, initialComm
             {isCurrentlyReplying && (
               <div className="mt-3 space-y-2">
                 <textarea
+                  ref={(el) => textareaRefs.current[`reply-${comment.id}`] = el}
                   value={getReplyText(comment.id)}
-                  onChange={(e) => setReplyText(comment.id, e.target.value)}
+                  onChange={(e) => {
+                    const textarea = textareaRefs.current[`reply-${comment.id}`];
+                    updateTextWithCursor(textarea, e.target.value, (value) => setReplyText(comment.id, value));
+                  }}
                   className="w-full p-2 border border-gray-300 rounded-lg text-sm resize-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
                   rows={2}
                   placeholder={`Reply to ${comment.username}...`}
@@ -707,17 +757,17 @@ const CommentSystem: React.FC<CommentSystemProps> = ({ predictionId, initialComm
 
       {/* Error banner */}
       {error && (
-        <div className="p-4 bg-red-50 border-b border-red-200">
+        <div className="p-4 bg-yellow-50 border-b border-yellow-200">
           <div className="flex items-center">
-            <div className="text-red-800 text-sm">{error}</div>
+            <div className="text-yellow-800 text-sm">{error}</div>
             <button
               onClick={() => {
                 setError(null);
                 fetchComments();
               }}
-              className="ml-auto text-red-600 hover:text-red-800 text-xs underline"
+              className="ml-auto text-yellow-600 hover:text-yellow-800 text-xs underline"
             >
-              Retry
+              Retry API
             </button>
           </div>
         </div>
@@ -742,8 +792,12 @@ const CommentSystem: React.FC<CommentSystemProps> = ({ predictionId, initialComm
             </div>
             <div className="flex-1">
               <textarea
+                ref={(el) => textareaRefs.current['main'] = el}
                 value={newComment}
-                onChange={(e) => setNewComment(e.target.value)}
+                onChange={(e) => {
+                  const textarea = textareaRefs.current['main'];
+                  updateTextWithCursor(textarea, e.target.value, setNewComment);
+                }}
                 className="w-full p-3 border border-gray-300 rounded-lg resize-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
                 rows={3}
                 placeholder="Share your thoughts..."
