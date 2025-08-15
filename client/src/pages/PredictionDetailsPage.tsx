@@ -6,7 +6,7 @@ import { usePredictionStore } from '../store/predictionStore';
 import { useAuthStore } from '../store/authStore';
 import { useWalletStore } from '../store/walletStore';
 import { formatTimeRemaining } from '../lib/utils';
-import { CommentSystem } from '../components/CommentSystem';
+import CommentSystem from '../components/CommentSystem';
 import toast from 'react-hot-toast';
 
 interface PredictionDetailsPageProps {
@@ -582,8 +582,7 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
                 </div>
                 <div className="min-h-[300px] max-h-[600px] overflow-y-auto">
                   <CommentSystem 
-                    predictionId={prediction?.id || ''} 
-                    className="p-6"
+                    predictionId={prediction?.id || ''}
                   />
                 </div>
               </motion.div>
