@@ -2,7 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import { createClient } from '@supabase/supabase-js';
 import jwt from 'jsonwebtoken';
 import { config } from '../config';
-import { logger } from '../utils/logger';
+import logger from '../utils/logger';
 import type { AuthenticatedRequest, JWTPayload } from '../types/auth';
 import type { ApiResponse } from '@fanclubz/shared';
 
@@ -47,7 +47,58 @@ export const authenticateToken = async (
     }
     
     try {
-      // Verify JWT token
+      // First try to verify as Supabase token
+      const { data: { user: supabaseUser }, error: supabaseError } = await supabase.auth.getUser(token);
+      
+      if (supabaseUser && !supabaseError) {
+        // Fetch additional user data from our users table
+        const { data: dbUser, error: dbError } = await supabase
+          .from('users')
+          .select('*')
+          .eq('id', supabaseUser.id)
+          .eq('is_active', true)
+          .single();
+        
+        if (dbError || !dbUser) {
+          // If user doesn't exist in our database yet, create a basic record
+          console.log('👤 Creating user record for authenticated Supabase user:', supabaseUser.id);
+          
+          const newUser = {
+            id: supabaseUser.id,
+            email: supabaseUser.email || '',
+            username: supabaseUser.user_metadata?.username || supabaseUser.email?.split('@')[0] || 'user',
+            full_name: supabaseUser.user_metadata?.full_name || '',
+            first_name: supabaseUser.user_metadata?.first_name || '',
+            last_name: supabaseUser.user_metadata?.last_name || '',
+            avatar_url: supabaseUser.user_metadata?.avatar_url || null,
+            is_active: true,
+            is_verified: !!supabaseUser.email_confirmed_at,
+            kyc_level: 'none',
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          };
+          
+          const { data: createdUser, error: createError } = await supabase
+            .from('users')
+            .upsert(newUser)
+            .select()
+            .single();
+          
+          if (createError) {
+            console.error('❌ Failed to create user record:', createError);
+            req.user = newUser; // Use the constructed user object as fallback
+          } else {
+            req.user = createdUser;
+          }
+        } else {
+          req.user = dbUser;
+        }
+        
+        next();
+        return;
+      }
+      
+      // If Supabase token verification failed, try as regular JWT
       const decoded = jwt.verify(token, config.jwt.secret) as JWTPayload;
       
       // Fetch user from database
@@ -128,6 +179,43 @@ export const optionalAuth = async (
     }
     
     try {
+      // First try to verify as Supabase token
+      const { data: { user: supabaseUser }, error: supabaseError } = await supabase.auth.getUser(token);
+      
+      if (supabaseUser && !supabaseError) {
+        // Fetch additional user data from our users table
+        const { data: dbUser, error: dbError } = await supabase
+          .from('users')
+          .select('*')
+          .eq('id', supabaseUser.id)
+          .eq('is_active', true)
+          .single();
+        
+        if (!dbError && dbUser) {
+          req.user = dbUser;
+        } else {
+          // Create minimal user object for optional auth
+          req.user = {
+            id: supabaseUser.id,
+            email: supabaseUser.email || '',
+            username: supabaseUser.user_metadata?.username || supabaseUser.email?.split('@')[0] || 'user',
+            full_name: supabaseUser.user_metadata?.full_name || '',
+            first_name: supabaseUser.user_metadata?.first_name || '',
+            last_name: supabaseUser.user_metadata?.last_name || '',
+            avatar_url: supabaseUser.user_metadata?.avatar_url || null,
+            is_active: true,
+            is_verified: !!supabaseUser.email_confirmed_at,
+            kyc_level: 'none',
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          };
+        }
+        
+        next();
+        return;
+      }
+      
+      // If Supabase token verification failed, try as regular JWT
       const decoded = jwt.verify(token, config.jwt.secret) as JWTPayload;
       
       const { data: user, error } = await supabase
@@ -248,3 +336,6 @@ export const checkPermission = (permission: string) => {
     }
   };
 };
+
+// Export authenticateToken as authenticate for compatibility
+export const authenticate = authenticateToken;
