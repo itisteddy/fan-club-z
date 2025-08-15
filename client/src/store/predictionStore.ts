@@ -588,24 +588,35 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
     try {
       console.log('📡 Fetching user created predictions for:', userId);
 
-      const { data: userCreatedPredictions, error } = await supabase
-        .from('predictions')
-        .select(`
-          *,
-          creator:users!creator_id(id, username, full_name, avatar_url),
-          options:prediction_options(*),
-          club:clubs(id, name, avatar_url)
-        `)
-        .eq('creator_id', userId)
-        .order('created_at', { ascending: false })
-        .limit(20);
-
-      if (error) {
-        throw error;
+      // Get the auth session for API calls
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        throw new Error('No valid session found');
       }
 
+      // Use the server API endpoint instead of direct Supabase calls
+      const apiUrl = getApiUrl();
+      const requestUrl = `${apiUrl}/api/predictions/created/me`;
+      
+      console.log('🌐 Making request to:', requestUrl);
+      
+      const response = await fetch(requestUrl, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const result = await response.json();
+      const userCreatedPredictions = result.data || [];
+
       // Transform data to match our interface
-      const transformedPredictions = (userCreatedPredictions || []).map((pred: any) => ({
+      const transformedPredictions = userCreatedPredictions.map((pred: any) => ({
         ...pred,
         poolTotal: pred.pool_total,
         entryDeadline: pred.entry_deadline,
@@ -767,6 +778,9 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
 
   getUserCreatedPredictions: (userId: string) => {
     const state = get();
+    console.log('📋 getUserCreatedPredictions called for userId:', userId);
+    console.log('📋 Current userCreatedPredictions state:', state.userCreatedPredictions?.length || 0, 'predictions');
+    console.log('📋 Sample prediction IDs:', state.userCreatedPredictions?.slice(0, 3).map(p => p.id) || []);
     return state.userCreatedPredictions || [];
   },
 
@@ -873,10 +887,15 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
 
       console.log('✅ Prediction created successfully via API:', result);
 
-      // Force refresh predictions
+      // Force refresh all prediction data to ensure new prediction appears
+      console.log('🔄 Refreshing all prediction data after creation...');
       await get().fetchPredictions(undefined, true);
       await get().fetchUserPredictions();
       await get().fetchUserCreatedPredictions(user.id);
+      
+      // Also trigger a refresh in the prediction store to ensure counts are updated
+      const currentState = get();
+      console.log('📊 Current user created predictions count after refresh:', currentState.userCreatedPredictions.length);
 
       set({ loading: false });
       return result.data || result;

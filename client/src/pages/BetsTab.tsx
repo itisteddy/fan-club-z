@@ -17,10 +17,12 @@ const BetsTab: React.FC<BetsTabProps> = ({ onNavigateToDiscover }) => {
   const [, setLocation] = useLocation();
   const { 
     predictions, 
+    userCreatedPredictions,
     getUserCreatedPredictions, 
     fetchUserCreatedPredictions, 
     fetchUserPredictionEntries,
     getUserPredictionEntries,
+    refreshPredictions,
     loading 
   } = usePredictionStore();
   const { user, isAuthenticated } = useAuthStore();
@@ -35,6 +37,7 @@ const BetsTab: React.FC<BetsTabProps> = ({ onNavigateToDiscover }) => {
     if (user?.id && isAuthenticated) {
       // Add a small delay to prevent excessive fetching during rapid navigation
       const timeoutId = setTimeout(() => {
+        console.log('📊 BetsTab: Fetching user data for:', user.id);
         fetchUserCreatedPredictions(user.id);
         fetchUserPredictionEntries(user.id);
       }, 100);
@@ -42,6 +45,13 @@ const BetsTab: React.FC<BetsTabProps> = ({ onNavigateToDiscover }) => {
       return () => clearTimeout(timeoutId);
     }
   }, [user?.id, isAuthenticated, fetchUserCreatedPredictions, fetchUserPredictionEntries]);
+  
+  // Add a separate effect to handle predictions changes
+  useEffect(() => {
+    if (user?.id && isAuthenticated) {
+      console.log('📊 BetsTab: User created predictions updated, count:', getUserCreatedPredictions(user.id).length);
+    }
+  }, [userCreatedPredictions, user?.id, getUserCreatedPredictions]);
   
   const [activeTab, setActiveTab] = useState('Active');
   const [isManageModalOpen, setIsManageModalOpen] = useState(false);
@@ -515,7 +525,8 @@ const BetsTab: React.FC<BetsTabProps> = ({ onNavigateToDiscover }) => {
           <h1 className="text-3xl font-bold text-gray-900 mb-6">My Predictions</h1>
           
           {/* Tab Navigation */}
-          <div className="flex space-x-1 bg-gray-100 p-1 rounded-xl">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex space-x-1 bg-gray-100 p-1 rounded-xl flex-1 mr-3">
             {tabs.map((tab) => {
               const Icon = tab.icon;
               return (
@@ -538,10 +549,29 @@ const BetsTab: React.FC<BetsTabProps> = ({ onNavigateToDiscover }) => {
                     }`}>
                       {tab.count}
                     </span>
-                  )}
-                </button>
-              );
-            })}
+                  )}          
+                  </button>
+                  );
+                  })}
+                    </div>
+            
+            {/* Debug Refresh Button */}
+            <motion.button
+              onClick={async () => {
+                console.log('🔄 Manual refresh triggered');
+                if (user?.id) {
+                  await fetchUserCreatedPredictions(user.id);
+                  await fetchUserPredictionEntries(user.id);
+                  await refreshPredictions(true);
+                  console.log('🔄 Manual refresh completed');
+                }
+              }}
+              className="p-2 bg-emerald-100 text-emerald-600 rounded-lg hover:bg-emerald-200 transition-colors"
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+            >
+              🔄
+            </motion.button>
           </div>
         </div>
       </div>
