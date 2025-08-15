@@ -66,6 +66,7 @@ interface PredictionState {
   trendingPredictions: Prediction[];
   userPredictions: Prediction[];
   userCreatedPredictions: Prediction[];
+  userPredictionEntries: any[];
   loading: boolean;
   error: string | null;
   selectedCategory: string | null;
@@ -79,7 +80,9 @@ interface PredictionActions {
   fetchTrendingPredictions: () => Promise<void>;
   fetchUserPredictions: () => Promise<void>;
   fetchUserCreatedPredictions: (userId: string) => Promise<void>;
+  fetchUserPredictionEntries: (userId: string) => Promise<void>;
   getUserCreatedPredictions: (userId: string) => Prediction[];
+  getUserPredictionEntries: (userId: string) => any[];
   createPrediction: (data: any) => Promise<Prediction>;
   placePrediction: (data: { predictionId: string; optionId: string; amount: number; userId: string }) => Promise<void>;
   setSelectedCategory: (category: string | null) => void;
@@ -262,6 +265,7 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
   trendingPredictions: [],
   userPredictions: [],
   userCreatedPredictions: [],
+  userPredictionEntries: [],
   loading: false,
   error: null,
   selectedCategory: null,
@@ -682,6 +686,60 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
     return state.userCreatedPredictions || [];
   },
 
+  getUserPredictionEntries: (userId: string) => {
+    const state = get();
+    return state.userPredictionEntries || [];
+  },
+
+  fetchUserPredictionEntries: async (userId: string) => {
+    try {
+      console.log('📡 Fetching user prediction entries for:', userId);
+
+      // Get the auth session for API calls
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        throw new Error('No valid session found');
+      }
+
+      // Use the server API endpoint to get real data
+      const apiUrl = getApiUrl();
+      const requestUrl = `${apiUrl}/api/predictions/entries/me`;
+      
+      console.log('🌐 Making request to:', requestUrl);
+      
+      const response = await fetch(requestUrl, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const result = await response.json();
+      const userPredictionEntries = result.data || [];
+
+      set({
+        userPredictionEntries,
+        error: null
+      });
+
+      console.log('✅ Successfully fetched user prediction entries from API:', userPredictionEntries.length);
+
+    } catch (error) {
+      console.error('❌ Error fetching user prediction entries:', error);
+      
+      // Fallback to empty array on error
+      set({ 
+        userPredictionEntries: [],
+        error: 'Failed to fetch user prediction entries'
+      });
+    }
+  },
+
   createPrediction: async (data: any) => {
     set({ loading: true, error: null });
     
@@ -780,10 +838,10 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
 
       console.log('✅ Prediction created successfully via API:', result);
 
-      // Force refresh predictions
+      // Force refresh predictions - important: fetch user created predictions first
+      await get().fetchUserCreatedPredictions(user.id);
       await get().fetchPredictions(undefined, true);
       await get().fetchUserPredictions();
-      await get().fetchUserCreatedPredictions(user.id);
 
       set({ loading: false });
       return result.data || result;
