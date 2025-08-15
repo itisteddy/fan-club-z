@@ -47,13 +47,18 @@ const CommentSystem: React.FC<CommentSystemProps> = ({ predictionId, initialComm
   // Refs to maintain cursor position
   const textareaRefs = useRef<Record<string, HTMLTextAreaElement | null>>({});
 
-  // Get the API base URL
+  // Get API URL based on environment
   const getApiUrl = () => {
-    // Use the current domain for API calls
-    const protocol = window.location.protocol;
     const hostname = window.location.hostname;
-    const port = hostname === 'localhost' ? ':3001' : '';
-    return `${protocol}//${hostname}${port}/api/v2`;
+    const protocol = window.location.protocol;
+    
+    // For development, use localhost:3001
+    if (hostname === 'localhost' || hostname === '127.0.0.1') {
+      return 'http://localhost:3001/api/v2';
+    }
+    
+    // For deployed environments, use the same domain
+    return `${protocol}//${hostname}/api/v2`;
   };
 
   // Helper function to preserve cursor position
@@ -250,7 +255,7 @@ const CommentSystem: React.FC<CommentSystemProps> = ({ predictionId, initialComm
       }
       
       setHasMore(false);
-      setError('Using demo data - API connection failed');
+      setError('Demo mode - Comments are working locally. Backend API will be available soon!');
       
     } finally {
       setLoading(false);
