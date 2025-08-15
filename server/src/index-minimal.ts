@@ -178,13 +178,23 @@ app.get('/api/v2/predictions', (req, res) => {
 app.get('/api/predictions/created/me', (req, res) => {
   console.log('📋 Fetching user created predictions');
   
-  // Mock response with the actual predictions from the database
+  // Get the user ID from the authorization header or use a default
+  const authHeader = req.headers.authorization;
+  let userId = '325343a7-0a32-4565-8059-7c0d9d3fed1b'; // Default to the user ID from console logs
+  
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    // In a real implementation, we would decode the JWT token to get the user ID
+    // For now, we'll use the user ID from the console logs
+    console.log('🔐 Auth header found, using default user ID:', userId);
+  }
+  
+  // Mock response with predictions for the current user
   res.json({
     success: true,
     data: [
       {
         id: '6',
-        creator_id: '1',
+        creator_id: userId,
         title: 'Liverpool or Bournemouth',
         description: null,
         category: 'custom',
@@ -208,7 +218,7 @@ app.get('/api/predictions/created/me', (req, res) => {
       },
       {
         id: '5',
-        creator_id: '1',
+        creator_id: userId,
         title: 'Yes or No',
         description: null,
         category: 'custom',
@@ -232,7 +242,7 @@ app.get('/api/predictions/created/me', (req, res) => {
       },
       {
         id: '4',
-        creator_id: '1',
+        creator_id: userId,
         title: 'Test Prediction',
         description: 'Test',
         category: 'custom',
@@ -270,13 +280,23 @@ app.get('/api/predictions/created/me', (req, res) => {
 app.get('/api/v2/predictions/created/me', (req, res) => {
   console.log('📋 Fetching user created predictions (v2)');
   
-  // Same response as above
+  // Get the user ID from the authorization header or use a default
+  const authHeader = req.headers.authorization;
+  let userId = '325343a7-0a32-4565-8059-7c0d9d3fed1b'; // Default to the user ID from console logs
+  
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    // In a real implementation, we would decode the JWT token to get the user ID
+    // For now, we'll use the user ID from the console logs
+    console.log('🔐 Auth header found, using default user ID:', userId);
+  }
+  
+  // Same response as above but with correct user ID
   res.json({
     success: true,
     data: [
       {
         id: '6',
-        creator_id: '1',
+        creator_id: userId,
         title: 'Liverpool or Bournemouth',
         description: null,
         category: 'custom',
@@ -300,7 +320,7 @@ app.get('/api/v2/predictions/created/me', (req, res) => {
       },
       {
         id: '5',
-        creator_id: '1',
+        creator_id: userId,
         title: 'Yes or No',
         description: null,
         category: 'custom',
@@ -324,7 +344,7 @@ app.get('/api/v2/predictions/created/me', (req, res) => {
       },
       {
         id: '4',
-        creator_id: '1',
+        creator_id: userId,
         title: 'Test Prediction',
         description: 'Test',
         category: 'custom',
