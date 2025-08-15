@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, Clock, Heart, MessageCircle, Share2, TrendingUp } from 'lucide-react';
 import { useLocation } from 'wouter';
 import { usePredictionStore } from '../store/predictionStore';
@@ -192,6 +192,7 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
   };
 
   const handleCommentsToggle = () => {
+    console.log('💬 Toggling comments from:', showComments, 'to:', !showComments);
     setShowComments(!showComments);
   };
 
@@ -466,7 +467,7 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2 }}
-            className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100"
+            className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 mb-6"
           >
             <h3 className="text-lg font-bold text-gray-900 mb-4">Community Engagement</h3>
             <div className="flex items-center gap-6">
@@ -476,8 +477,8 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
               </div>
               <button
                 onClick={handleCommentsToggle}
-                className={`flex items-center gap-2 text-gray-600 hover:text-blue-500 transition-colors ${
-                  showComments ? 'text-blue-500' : ''
+                className={`flex items-center gap-2 transition-colors ${
+                  showComments ? 'text-blue-500' : 'text-gray-600 hover:text-blue-500'
                 }`}
               >
                 <MessageCircle size={20} />
@@ -490,26 +491,29 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
             </div>
           </motion.div>
 
-          {/* Comments Section */}
-          {showComments && (
-            <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: 'auto' }}
-              exit={{ opacity: 0, height: 0 }}
-              transition={{ duration: 0.3 }}
-              className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden"
-            >
-              <div className="p-4 border-b border-gray-100">
-                <h3 className="text-lg font-bold text-gray-900">Comments</h3>
-              </div>
-              <div className="max-h-96 overflow-y-auto">
-                <CommentSystem 
-                  predictionId={prediction?.id || ''} 
-                  className="p-4"
-                />
-              </div>
-            </motion.div>
-          )}
+          {/* Comments Section - Updated with better visibility */}
+          <AnimatePresence>
+            {showComments && (
+              <motion.div
+                initial={{ opacity: 0, y: -20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                transition={{ duration: 0.3 }}
+                className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden mb-6"
+              >
+                <div className="p-4 border-b border-gray-100 bg-blue-50">
+                  <h3 className="text-lg font-bold text-gray-900">Comments</h3>
+                  <p className="text-sm text-gray-600">Join the conversation about this prediction</p>
+                </div>
+                <div className="min-h-[200px]">
+                  <CommentSystem 
+                    predictionId={prediction?.id || ''} 
+                    className="p-4"
+                  />
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
       </div>
     </>
