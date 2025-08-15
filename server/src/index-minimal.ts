@@ -429,4 +429,4 @@ server.listen(PORT, () => {
   console.log(`📡 API endpoints: /api/predictions, /api/v2/predictions`);
 });
 
-export default app;
+export default app;// Force rebuild Fri Aug 15 14:41:17 EDT 2025
