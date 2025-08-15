@@ -80,12 +80,107 @@ const CommentSystem: React.FC<CommentSystemProps> = ({ predictionId, initialComm
       
     } catch (error) {
       console.error('Error fetching comments:', error);
-      setError('Failed to load comments. Please try again.');
       
-      // If this is the first load, set empty state
-      if (!append) {
-        setComments([]);
+      // Use mock data when API fails
+      const mockComments = [
+        {
+          id: '1',
+          content: 'This is a great prediction! I think it will definitely happen.',
+          user_id: 'user1',
+          prediction_id: predictionId,
+          username: 'CryptoFan',
+          avatar_url: null,
+          is_verified: true,
+          created_at: new Date(Date.now() - 3600000).toISOString(),
+          updated_at: new Date(Date.now() - 3600000).toISOString(),
+          is_liked: false,
+          is_own: false,
+          likes_count: 5,
+          replies_count: 2,
+          depth: 0,
+          replies: [
+            {
+              id: '1-1',
+              content: 'I agree! The market is showing strong signals.',
+              user_id: 'user2',
+              prediction_id: predictionId,
+              username: 'MarketAnalyst',
+              avatar_url: null,
+              is_verified: true,
+              created_at: new Date(Date.now() - 1800000).toISOString(),
+              updated_at: new Date(Date.now() - 1800000).toISOString(),
+              is_liked: true,
+              is_own: false,
+              likes_count: 3,
+              replies_count: 0,
+              depth: 1,
+              replies: []
+            },
+            {
+              id: '1-2',
+              content: 'What indicators are you looking at?',
+              user_id: 'user3',
+              prediction_id: predictionId,
+              username: 'NewTrader',
+              avatar_url: null,
+              is_verified: false,
+              created_at: new Date(Date.now() - 900000).toISOString(),
+              updated_at: new Date(Date.now() - 900000).toISOString(),
+              is_liked: false,
+              is_own: false,
+              likes_count: 1,
+              replies_count: 0,
+              depth: 1,
+              replies: []
+            }
+          ]
+        },
+        {
+          id: '2',
+          content: 'I\'m not so sure about this one. The data seems conflicting.',
+          user_id: 'user4',
+          prediction_id: predictionId,
+          username: 'Skeptic',
+          avatar_url: null,
+          is_verified: false,
+          created_at: new Date(Date.now() - 7200000).toISOString(),
+          updated_at: new Date(Date.now() - 7200000).toISOString(),
+          is_liked: false,
+          is_own: false,
+          likes_count: 2,
+          replies_count: 1,
+          depth: 0,
+          replies: [
+            {
+              id: '2-1',
+              content: 'Can you share what data you\'re looking at?',
+              user_id: 'user1',
+              prediction_id: predictionId,
+              username: 'CryptoFan',
+              avatar_url: null,
+              is_verified: true,
+              created_at: new Date(Date.now() - 3600000).toISOString(),
+              updated_at: new Date(Date.now() - 3600000).toISOString(),
+              is_liked: false,
+              is_own: false,
+              likes_count: 1,
+              replies_count: 0,
+              depth: 1,
+              replies: []
+            }
+          ]
+        }
+      ];
+      
+      if (append) {
+        setComments(prev => [...prev, ...mockComments]);
+      } else {
+        setComments(mockComments);
       }
+      
+      setHasMore(false);
+      setError('Using demo data - API not available');
+      
     } finally {
       setLoading(false);
     }
@@ -142,7 +237,48 @@ const CommentSystem: React.FC<CommentSystemProps> = ({ predictionId, initialComm
       
     } catch (error) {
       console.error('Error submitting comment:', error);
-      setError(error instanceof Error ? error.message : 'Failed to post comment');
+      
+      // Add comment locally when API fails
+      const newCommentObj = {
+        id: `local-${Date.now()}`,
+        content: newComment.trim(),
+        user_id: user.id,
+        prediction_id: predictionId,
+        username: user.username || 'You',
+        avatar_url: user.avatar_url || null,
+        is_verified: user.is_verified || false,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        is_liked: false,
+        is_own: true,
+        likes_count: 0,
+        replies_count: 0,
+        depth: parentId ? 1 : 0,
+        replies: []
+      };
+      
+      if (parentId) {
+        // Add to replies
+        setComments(prev =>
+          prev.map(c => 
+            c.id === parentId
+              ? { 
+                  ...c, 
+                  replies: [...(c.replies || []), newCommentObj],
+                  replies_count: c.replies_count + 1 
+                }
+              : c
+          )
+        );
+      } else {
+        // Add as top-level comment
+        setComments(prev => [newCommentObj, ...prev]);
+      }
+      
+      setNewComment('');
+      setReplyTo(null);
+      setError('Comment added locally - API not available');
+      
     } finally {
       setSubmitLoading(false);
     }
