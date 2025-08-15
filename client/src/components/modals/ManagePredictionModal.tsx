@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Users, Clock, DollarSign, BarChart3, Settings, Trash2, Eye, Share2, Edit3, CheckCircle } from 'lucide-react';
 import { usePredictionStore, ActivityItem, Participant } from '../../store/predictionStore';
-import { useToast } from '../../hooks/use-toast';
+import { useNotificationStore } from '../../store/notificationStore';
 
 interface ManagePredictionModalProps {
   isOpen: boolean;
@@ -45,7 +45,8 @@ const ManagePredictionModal: React.FC<ManagePredictionModalProps> = ({
     fetchPredictionActivity, 
     fetchPredictionParticipants 
   } = usePredictionStore();
-  const { toast } = useToast();
+  
+  const { success, error: showError, info } = useNotificationStore();
 
   const tabs = [
     { id: 'overview', label: 'Overview', icon: BarChart3 },
@@ -72,11 +73,10 @@ const ManagePredictionModal: React.FC<ManagePredictionModalProps> = ({
       setParticipantData(participants);
     } catch (error) {
       console.error('Failed to load prediction data:', error);
-      toast({
-        title: "Error",
-        description: "Failed to load prediction data. Using cached information.",
-        variant: "destructive"
-      });
+      showError(
+        "Error",
+        "Failed to load prediction data. Using cached information."
+      );
     } finally {
       setLoading(false);
     }
@@ -93,20 +93,18 @@ const ManagePredictionModal: React.FC<ManagePredictionModalProps> = ({
       if (newTitle && newTitle !== prediction.title) {
         setLoading(true);
         await updatePrediction(String(prediction.id), { title: newTitle });
-        toast({
-          title: "Success",
-          description: "Prediction updated successfully!",
-          variant: "default"
-        });
+        success(
+          "Success",
+          "Prediction updated successfully!"
+        );
         onClose();
       }
     } catch (error) {
       console.error('Failed to update prediction:', error);
-      toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to update prediction",
-        variant: "destructive"
-      });
+      showError(
+        "Error",
+        error instanceof Error ? error.message : "Failed to update prediction"
+      );
     } finally {
       setLoading(false);
     }
@@ -117,19 +115,17 @@ const ManagePredictionModal: React.FC<ManagePredictionModalProps> = ({
       try {
         setLoading(true);
         await deletePrediction(String(prediction.id));
-        toast({
-          title: "Success",
-          description: "Prediction deleted successfully!",
-          variant: "default"
-        });
+        success(
+          "Success",
+          "Prediction deleted successfully!"
+        );
         onClose();
       } catch (error) {
         console.error('Failed to delete prediction:', error);
-        toast({
-          title: "Error",
-          description: error instanceof Error ? error.message : "Failed to delete prediction",
-          variant: "destructive"
-        });
+        showError(
+          "Error",
+          error instanceof Error ? error.message : "Failed to delete prediction"
+        );
       } finally {
         setLoading(false);
       }
@@ -141,19 +137,17 @@ const ManagePredictionModal: React.FC<ManagePredictionModalProps> = ({
       try {
         setLoading(true);
         await closePrediction(String(prediction.id));
-        toast({
-          title: "Success",
-          description: "Prediction closed successfully!",
-          variant: "default"
-        });
+        success(
+          "Success",
+          "Prediction closed successfully!"
+        );
         onClose();
       } catch (error) {
         console.error('Failed to close prediction:', error);
-        toast({
-          title: "Error",
-          description: error instanceof Error ? error.message : "Failed to close prediction",
-          variant: "destructive"
-        });
+        showError(
+          "Error",
+          error instanceof Error ? error.message : "Failed to close prediction"
+        );
       } finally {
         setLoading(false);
       }
@@ -163,11 +157,10 @@ const ManagePredictionModal: React.FC<ManagePredictionModalProps> = ({
   const handleSharePrediction = () => {
     const predictionUrl = `${window.location.origin}/predictions/${prediction.id}`;
     navigator.clipboard.writeText(predictionUrl);
-    toast({
-      title: "Link Copied",
-      description: "Prediction link copied to clipboard!",
-      variant: "default"
-    });
+    info(
+      "Link Copied",
+      "Prediction link copied to clipboard!"
+    );
   };
 
   const handleSaveSettings = async () => {
@@ -180,18 +173,16 @@ const ManagePredictionModal: React.FC<ManagePredictionModalProps> = ({
         // Add other settings as needed
       });
       
-      toast({
-        title: "Settings Saved",
-        description: "Your prediction settings have been updated.",
-        variant: "default"
-      });
+      success(
+        "Settings Saved",
+        "Your prediction settings have been updated."
+      );
     } catch (error) {
       console.error('Failed to save settings:', error);
-      toast({
-        title: "Error",
-        description: "Failed to save settings. Please try again.",
-        variant: "destructive"
-      });
+      showError(
+        "Error",
+        "Failed to save settings. Please try again."
+      );
     } finally {
       setSavingSettings(false);
     }
