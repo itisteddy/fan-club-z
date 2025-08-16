@@ -230,7 +230,7 @@ const CommentSystem: React.FC<CommentSystemProps> = ({ predictionId, initialComm
       } catch (error) {
         console.log('📝 API not available, using mock comments:', error);
         setComments(mockComments);
-        setError('Demo mode - Using local comments. API will be available in production.');
+        setError('Unable to load comments. Please try again later.');
       } finally {
         setLoading(false);
       }
@@ -343,8 +343,8 @@ const CommentSystem: React.FC<CommentSystemProps> = ({ predictionId, initialComm
         content: content.trim(),
         user_id: user.id,
         prediction_id: predictionId,
-        username: user.username || 'You',
-        avatar_url: user.avatar_url || null,
+        username: user.username || user.firstName || 'You',
+        avatar_url: user.avatar_url || user.avatar || null,
         is_verified: user.is_verified || false,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
@@ -690,12 +690,12 @@ const CommentSystem: React.FC<CommentSystemProps> = ({ predictionId, initialComm
               {user.avatar_url ? (
                 <img
                   src={user.avatar_url}
-                  alt={user.username}
+                  alt={user.username || user.firstName || 'User'}
                   className="w-8 h-8 rounded-full object-cover"
                 />
               ) : (
                 <span className="text-green-600 font-semibold text-sm">
-                  {user.username?.charAt(0)?.toUpperCase() || 'U'}
+                  {(user.username || user.firstName || 'U').charAt(0).toUpperCase()}
                 </span>
               )}
             </div>
