@@ -281,6 +281,90 @@ const mockPredictions: Prediction[] = [
   }
 ];
 
+// Mock activity data
+const mockActivityData: ActivityItem[] = [
+  {
+    id: 'activity-1',
+    type: 'prediction_placed',
+    description: 'Large prediction placed by @crypto_trader',
+    amount: 500,
+    timestamp: new Date(Date.now() - 2 * 60 * 1000).toISOString(),
+    timeAgo: '2 minutes ago'
+  },
+  {
+    id: 'activity-2',
+    type: 'multiple_participants',
+    description: '3 new participants joined',
+    timestamp: new Date(Date.now() - 10 * 60 * 1000).toISOString(),
+    timeAgo: '10 minutes ago'
+  },
+  {
+    id: 'activity-3',
+    type: 'participant_joined',
+    description: '@sports_fan placed their first prediction',
+    amount: 25,
+    timestamp: new Date(Date.now() - 30 * 60 * 1000).toISOString(),
+    timeAgo: '30 minutes ago'
+  },
+  {
+    id: 'activity-4',
+    type: 'prediction_placed',
+    description: 'Medium prediction placed by @taylor_superfan',
+    amount: 150,
+    timestamp: new Date(Date.now() - 1 * 60 * 60 * 1000).toISOString(),
+    timeAgo: '1 hour ago'
+  }
+];
+
+// Mock participant data
+const mockParticipantData: Participant[] = [
+  {
+    id: 'participant-1',
+    username: 'alice_crypto',
+    avatar_url: undefined,
+    amount: 250,
+    option: 'Yes',
+    joinedAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
+    timeAgo: '2 hours ago'
+  },
+  {
+    id: 'participant-2',
+    username: 'bob_trader',
+    avatar_url: undefined,
+    amount: 100,
+    option: 'No',
+    joinedAt: new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString(),
+    timeAgo: '4 hours ago'
+  },
+  {
+    id: 'participant-3',
+    username: 'charlie_bet',
+    avatar_url: undefined,
+    amount: 75,
+    option: 'Yes',
+    joinedAt: new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString(),
+    timeAgo: '6 hours ago'
+  },
+  {
+    id: 'participant-4',
+    username: 'diana_sports',
+    avatar_url: undefined,
+    amount: 200,
+    option: 'No',
+    joinedAt: new Date(Date.now() - 8 * 60 * 60 * 1000).toISOString(),
+    timeAgo: '8 hours ago'
+  },
+  {
+    id: 'participant-5',
+    username: 'eve_predictor',
+    avatar_url: undefined,
+    amount: 50,
+    option: 'Yes',
+    joinedAt: new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString(),
+    timeAgo: '12 hours ago'
+  }
+];
+
 // Cache duration: 2 minutes for better performance
 const CACHE_DURATION = 2 * 60 * 1000;
 
@@ -571,11 +655,14 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
       // Get the auth session for API calls
       const { data: { session } } = await supabase.auth.getSession();
       if (!session?.access_token) {
-        throw new Error('No valid session found');
+        console.log('⚠️ No auth session, using mock activity data');
+        return mockActivityData;
       }
 
       const apiUrl = getApiUrl();
       const requestUrl = `${apiUrl}/api/predictions/${predictionId}/activity`;
+      
+      console.log('🌐 Making request to:', requestUrl);
       
       const response = await fetch(requestUrl, {
         method: 'GET',
@@ -586,36 +673,20 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
       });
 
       if (!response.ok) {
-        const result = await response.json();
-        throw new Error(result.error || 'Failed to fetch activity');
+        console.log(`⚠️ API request failed with status ${response.status}, using mock data`);
+        return mockActivityData;
       }
 
       const result = await response.json();
-      const activities = result.data?.data || [];
+      const activities = result.data?.data || result.data || [];
       
-      console.log('✅ Fetched prediction activity:', activities.length);
-      return activities;
+      console.log('✅ Fetched prediction activity from API:', activities.length);
+      return activities.length > 0 ? activities : mockActivityData;
       
     } catch (error) {
       console.error('❌ Error fetching prediction activity:', error);
-      // Return mock data on error
-      return [
-        {
-          id: 'activity-1',
-          type: 'participant_joined',
-          description: '3 new participants joined',
-          timestamp: new Date().toISOString(),
-          timeAgo: '2 minutes ago'
-        },
-        {
-          id: 'activity-2', 
-          type: 'prediction_placed',
-          description: 'Large prediction placed',
-          amount: 500,
-          timestamp: new Date(Date.now() - 10 * 60 * 1000).toISOString(),
-          timeAgo: '10 minutes ago'
-        }
-      ];
+      console.log('📝 Returning mock activity data as fallback');
+      return mockActivityData;
     }
   },
 
@@ -626,11 +697,14 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
       // Get the auth session for API calls
       const { data: { session } } = await supabase.auth.getSession();
       if (!session?.access_token) {
-        throw new Error('No valid session found');
+        console.log('⚠️ No auth session, using mock participant data');
+        return mockParticipantData;
       }
 
       const apiUrl = getApiUrl();
       const requestUrl = `${apiUrl}/api/predictions/${predictionId}/entries`;
+      
+      console.log('🌐 Making request to:', requestUrl);
       
       const response = await fetch(requestUrl, {
         method: 'GET',
@@ -641,45 +715,20 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
       });
 
       if (!response.ok) {
-        const result = await response.json();
-        throw new Error(result.error || 'Failed to fetch participants');
+        console.log(`⚠️ API request failed with status ${response.status}, using mock data`);
+        return mockParticipantData;
       }
 
       const result = await response.json();
-      const participants = result.data?.data || [];
+      const participants = result.data?.data || result.data || [];
       
-      console.log('✅ Fetched prediction participants:', participants.length);
-      return participants;
+      console.log('✅ Fetched prediction participants from API:', participants.length);
+      return participants.length > 0 ? participants : mockParticipantData;
       
     } catch (error) {
       console.error('❌ Error fetching prediction participants:', error);
-      // Return mock data on error
-      return [
-        {
-          id: 'participant-1',
-          username: 'alice_crypto',
-          amount: 250,
-          option: 'Yes',
-          joinedAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
-          timeAgo: '2 hours ago'
-        },
-        {
-          id: 'participant-2',
-          username: 'bob_trader', 
-          amount: 100,
-          option: 'No',
-          joinedAt: new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString(),
-          timeAgo: '4 hours ago'
-        },
-        {
-          id: 'participant-3',
-          username: 'charlie_bet',
-          amount: 75,
-          option: 'Yes',
-          joinedAt: new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString(),
-          timeAgo: '6 hours ago'
-        }
-      ];
+      console.log('📝 Returning mock participant data as fallback');
+      return mockParticipantData;
     }
   },
 
