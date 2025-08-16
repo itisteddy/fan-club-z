@@ -10,12 +10,14 @@ interface CommentModalProps {
   prediction: Prediction | null;
   isOpen: boolean;
   onClose: () => void;
+  onCommentAdded?: () => void;
 }
 
 const CommentModal: React.FC<CommentModalProps> = ({
   prediction,
   isOpen,
   onClose,
+  onCommentAdded,
 }) => {
   const { user } = useAuthStore();
   const { 
@@ -53,6 +55,11 @@ const CommentModal: React.FC<CommentModalProps> = ({
       await addComment(prediction.id, newComment.trim());
       setNewComment('');
       toast.success('Comment added successfully!');
+      
+      // Call the callback to update parent component
+      if (onCommentAdded) {
+        onCommentAdded();
+      }
     } catch (error: any) {
       console.error('Failed to add comment:', error);
       toast.error(error.message || 'Failed to add comment');

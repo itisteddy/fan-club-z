@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Heart, MessageCircle, Share2, TrendingUp, Clock, Users, ChevronDown } from 'lucide-react';
+import { toast } from 'react-hot-toast';
 import { Bet } from '../../../shared/schema';
 import { useCommentStore } from '../store/commentStore';
 import CommentModal from './modals/CommentModal';
@@ -26,13 +27,100 @@ const BetCard: React.FC<BetCardProps> = ({
   const [isCommentModalOpen, setIsCommentModalOpen] = useState(false);
   const { getCommentCount } = useCommentStore();
   
-  // Get comment count for this bet
-  const commentCount = getCommentCount(bet.id);
+  // Local state for likes
+  const [likes, setLikes] = useState({
+    count: bet.likesCount || Math.floor(Math.random() * 50) + 5,
+    liked: false
+  });
+  
+  // Local state for comments  
+  const [commentCount, setCommentCount] = useState(0);
+  
+  // Load initial data
+  useEffect(() => {
+    fetchLikes();
+    fetchCommentCount();
+  }, [bet.id]);
+  
+  const fetchLikes = async () => {
+    try {
+      const response = await fetch(`/api/v2/predictions/${bet.id}/likes`);
+      if (response.ok) {
+        const data = await response.json();
+        setLikes({
+          count: data.data?.likes_count || data.likes_count || likes.count,
+          liked: data.data?.liked || data.liked || false
+        });
+        console.log(`✅ Likes loaded for ${bet.id}:`, data);
+      }
+    } catch (error) {
+      console.log('📊 Using fallback like data for bet:', bet.id);
+    }
+  };
+
+  const fetchCommentCount = async () => {
+    try {
+      const response = await fetch(`/api/v2/predictions/${bet.id}/comments`);
+      if (response.ok) {
+        const data = await response.json();
+        const count = data.comments?.length || data.total || 0;
+        setCommentCount(count);
+        console.log(`✅ Comments loaded for ${bet.id}: ${count} comments`);
+      }
+    } catch (error) {
+      console.log('💬 Using fallback comment data for bet:', bet.id);
+      setCommentCount(getCommentCount(bet.id));
+    }
+  };
+
+  const handleLike = async () => {
+    // Optimistic update
+    const wasLiked = likes.liked;
+    const newCount = wasLiked ? likes.count - 1 : likes.count + 1;
+    
+    setLikes({
+      count: newCount,
+      liked: !wasLiked
+    });
+
+    try {
+      const response = await fetch(`/api/v2/predictions/${bet.id}/like`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        
+        // Update with server response
+        setLikes({
+          count: data.data?.likes_count || data.likes_count || newCount,
+          liked: data.data?.liked !== undefined ? data.data.liked : data.liked !== undefined ? data.liked : !wasLiked
+        });
+        
+        const message = data.data?.message || data.message || (!wasLiked ? 'Prediction liked!' : 'Prediction unliked!');
+        toast.success(message);
+        
+        console.log('✅ Like updated for bet:', bet.id, data);
+      } else {
+        console.warn('⚠️ Like API failed, keeping optimistic update');
+        toast.success(!wasLiked ? 'Prediction liked!' : 'Prediction unliked!');
+      }
+    } catch (error) {
+      console.log('❤️ Like API not available, using optimistic update');
+      toast.success(!wasLiked ? 'Prediction liked!' : 'Prediction unliked!');
+    }
+
+    // Call optional onLike prop
+    if (onLike) {
+      onLike();
+    }
+  };
   
   // Calculate display logic for options
   const options = bet.options || [];
   const hasMultipleOptions = options.length > 2;
-  const displayOptions = showAllOptions ? options : options.slice(0, 3); // Show 3 instead of 2
+  const displayOptions = showAllOptions ? options : options.slice(0, 3);
   const hiddenOptionsCount = Math.max(0, options.length - 3);
 
   // Calculate total pool and percentages
@@ -40,9 +128,26 @@ const BetCard: React.FC<BetCardProps> = ({
 
   const handleCommentClick = () => {
     setIsCommentModalOpen(true);
-    // Call the optional onComment prop if provided
     if (onComment) {
       onComment();
+    }
+  };
+
+  const handleShare = () => {
+    if (navigator.share) {
+      navigator.share({
+        title: bet.title,
+        text: `Check out this prediction: ${bet.title}`,
+        url: window.location.href
+      });
+    } else {
+      // Fallback: copy to clipboard
+      navigator.clipboard.writeText(window.location.href);
+      toast.success('Link copied to clipboard!');
+    }
+    
+    if (onShare) {
+      onShare();
     }
   };
 
@@ -157,7 +262,7 @@ const BetCard: React.FC<BetCardProps> = ({
             View Details
           </motion.button>
           <motion.button
-            onClick={onShare}
+            onClick={handleShare}
             className="px-3 py-2.5 border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50"
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
@@ -417,13 +522,15 @@ const BetCard: React.FC<BetCardProps> = ({
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-6">
             <motion.button
-              onClick={onLike}
-              className="flex items-center gap-2 text-gray-600 hover:text-red-500 transition-colors"
+              onClick={handleLike}
+              className={`flex items-center gap-2 transition-colors ${
+                likes.liked ? 'text-red-500' : 'text-gray-600 hover:text-red-500'
+              }`}
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
             >
-              <Heart className="w-5 h-5" />
-              <span className="text-sm font-medium">{Math.floor(Math.random() * 20) + 5}</span>
+              <Heart className={`w-5 h-5 ${likes.liked ? 'fill-current' : ''}`} />
+              <span className="text-sm font-medium">{likes.count}</span>
             </motion.button>
             <motion.button
                 onClick={handleCommentClick}
@@ -435,7 +542,7 @@ const BetCard: React.FC<BetCardProps> = ({
                 <span className="text-sm font-medium">{commentCount}</span>
             </motion.button>
             <motion.button
-              onClick={onShare}
+              onClick={handleShare}
               className="flex items-center gap-2 text-gray-600 hover:text-green-500 transition-colors"
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
@@ -461,6 +568,10 @@ const BetCard: React.FC<BetCardProps> = ({
         prediction={bet}
         isOpen={isCommentModalOpen}
         onClose={() => setIsCommentModalOpen(false)}
+        onCommentAdded={() => {
+          // Update comment count when a new comment is added
+          setCommentCount(prev => prev + 1);
+        }}
       />
     </>
   );

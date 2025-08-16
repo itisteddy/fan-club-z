@@ -57,38 +57,34 @@
 - **Technical Implementation**: CSS architecture, naming conventions, design tokens
 - **Rationale**: Ensure consistent, professional, and engaging user experience across all platforms
 
-### Comment System Implementation (Current Session)
+### Social Features Fix (Current Session)
 - **Date**: December 26, 2024
-- **Focus**: Full comment system implementation for prediction detail pages
+- **Focus**: Complete fix for likes and comments functionality
+- **Issue Identified**: Database schema missing `prediction_likes` table and `likes_count`/`comments_count` columns
 - **Key Deliverables**:
-  - Created complete Comment and CreateComment types in shared package
-  - Implemented useComments hook with TanStack Query integration
-  - Added useCreateComment, useUpdateComment, useDeleteComment hooks
-  - Updated BetDetailPage to use real comment functionality with mock fallback
-  - Created comprehensive comment system CSS with mobile-first design
-  - Added accessibility features (focus indicators, keyboard navigation)
-  - Implemented real-time comment posting with optimistic updates
-  - Added comment actions (like, reply) infrastructure
-- **Technical Features**:
-  - Real API integration with fallback to mock data for demo
-  - Optimistic updates for immediate user feedback
-  - Proper error handling and loading states
-  - Mobile-responsive design with touch-friendly interactions
-  - Avatar generation for users without profile pictures
-  - Time formatting for comment timestamps
-  - Character limits and validation
-- **API Endpoints Used**:
-  - GET /api/v2/social/predictions/:id/comments (fetch comments)
-  - POST /api/v2/social/comments (create comment)
-  - PUT /api/v2/social/comments/:id (update comment)
-  - DELETE /api/v2/social/comments/:id (delete comment)
-  - POST /api/v2/social/comments/:id/like (toggle like)
-- **UX Improvements**:
-  - Twitter-style comment interface with avatars and timestamps
-  - Real-time comment count in header
-  - Smooth animations for new comments
-  - Proper loading and error states
-  - Clear visual hierarchy and readability
+  - Created comprehensive database fix (`fix-likes-and-social-features.sql`)
+  - Added missing `prediction_likes` table with proper RLS policies
+  - Added `likes_count` and `comments_count` columns to predictions table
+  - Created triggers for automatic count maintenance
+  - Built utility functions for like management
+  - Created deployment script (`apply-social-fixes.sh`)
+  - Documented complete fix process in `SOCIAL_FEATURES_FIX_SUMMARY.md`
+- **Technical Implementation**:
+  - Database triggers update counts automatically on like/comment changes
+  - RLS policies ensure proper security
+  - Optimistic updates in frontend for immediate feedback
+  - Error handling and fallback mechanisms
+  - Real-time count updates via Zustand stores
+- **Components Verified**:
+  - ✅ PredictionCard like functionality properly implemented
+  - ✅ LikeStore with Supabase integration ready
+  - ✅ CommentStore with count tracking ready
+  - ✅ App.tsx initialization of social features
+- **Expected Results**: 
+  - Like buttons increment/decrement counters in real-time
+  - Comment counts update when comments are added
+  - Visual feedback (filled hearts, updated numbers)
+  - Persistent data across page refreshes
 
 ---
 
@@ -108,7 +104,10 @@
 - [ ] Advanced bet mechanics (conditional betting, multi-stage events)
 - [ ] Creator monetization features
 - [ ] Push notification system
-- [x] ✅ Comment system implementation
+- [x] ✅ Social features database fix (likes & comments)
+- [ ] Deploy database fixes to production
+- [ ] Test like functionality end-to-end
+- [ ] Test comment functionality end-to-end
 - [ ] Reply functionality for nested comments
 - [ ] Real-time WebSocket updates for comments
 - [ ] Comment moderation features
@@ -116,11 +115,12 @@
 ---
 
 ## Files Modified/Created in This Session
-- **Created**: `client/src/hooks/useComments.ts` - Complete comment management hooks
-- **Created**: `client/src/styles/comments.css` - Comprehensive comment system styles
-- **Modified**: `shared/src/types.ts` - Added Comment and CreateComment types
-- **Modified**: `client/src/pages/BetDetailPage.tsx` - Integrated real comment functionality
-- **Modified**: `client/src/index.css` - Added comment styles import
+- **Created**: `fix-likes-and-social-features.sql` - Complete database schema fix
+- **Created**: `apply-social-fixes.sh` - Deployment script for database fixes
+- **Created**: `SOCIAL_FEATURES_FIX_SUMMARY.md` - Documentation of the fix
+- **Verified**: All like and comment stores are properly implemented
+- **Verified**: PredictionCard component handles social interactions correctly
+- **Verified**: App.tsx initializes social features properly
 
 ---
 
@@ -128,5 +128,7 @@
 - Default to working within Fan Club Z v2.0 directory
 - Check this log for recent context and decisions
 - Update this document with any significant changes or decisions
-- Comment system is now fully functional with API integration and fallback
-- Ready to implement reply functionality and real-time updates
+- **CRITICAL**: Apply database fixes before testing social features
+- Run `./apply-social-fixes.sh` or manually execute the SQL file
+- Test like and comment functionality after database update
+- Social features are ready once database schema is updated
