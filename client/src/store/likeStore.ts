@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { supabase } from '../lib/supabase';
+import { apiClient } from '../lib/api';
 
 interface LikeState {
   likedPredictions: Set<string>;
@@ -13,6 +13,7 @@ interface LikeActions {
   toggleLike: (predictionId: string) => Promise<void>;
   checkIfLiked: (predictionId: string) => boolean;
   getLikeCount: (predictionId: string) => number;
+  setLikeData: (predictionId: string, liked: boolean, count: number) => void;
   clearError: () => void;
 }
 
@@ -24,43 +25,11 @@ export const useLikeStore = create<LikeState & LikeActions>((set, get) => ({
 
   initializeLikes: async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      
-      if (!user) {
-        return;
-      }
-
-      // Fetch user's likes
-      const { data: userLikes, error: likesError } = await supabase
-        .from('prediction_likes')
-        .select('prediction_id')
-        .eq('user_id', user.id);
-
-      if (likesError) {
-        console.error('Error fetching user likes:', likesError);
-        return;
-      }
-
-      // Fetch like counts for all predictions
-      const { data: likeCounts, error: countsError } = await supabase
-        .from('predictions')
-        .select('id, likes_count');
-
-      if (countsError) {
-        console.error('Error fetching like counts:', countsError);
-        return;
-      }
-
-      const likedSet = new Set(userLikes?.map(like => like.prediction_id) || []);
-      const countsMap = Object.fromEntries(
-        likeCounts?.map(pred => [pred.id, pred.likes_count || 0]) || []
-      );
-
+      // Initialize with empty state - likes will be loaded per prediction as needed
       set({
-        likedPredictions: likedSet,
-        likeCounts: countsMap
+        likedPredictions: new Set(),
+        likeCounts: {}
       });
-
     } catch (error) {
       console.error('Error initializing likes:', error);
     }
@@ -90,66 +59,33 @@ export const useLikeStore = create<LikeState & LikeActions>((set, get) => ({
     });
 
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      // Use API endpoint instead of direct Supabase
+      const response = await apiClient.post(`/v2/predictions/${predictionId}/like`);
       
-      if (!user) {
-        throw new Error('User not authenticated');
+      if (response.success === false) {
+        throw new Error(response.error || 'Failed to toggle like');
       }
 
-      if (wasLiked) {
-        // Unlike - remove from prediction_likes table
-        const { error: deleteError } = await supabase
-          .from('prediction_likes')
-          .delete()
-          .eq('prediction_id', predictionId)
-          .eq('user_id', user.id);
+      // Update state with server response
+      const serverLiked = response.data?.liked || response.liked || false;
+      const serverCount = response.data?.likes_count || response.likes_count || 0;
 
-        if (deleteError) {
-          throw deleteError;
-        }
+      const finalLikedPredictions = new Set(likedPredictions);
+      const finalLikeCounts = { ...likeCounts };
 
-        // Update prediction likes count
-        const { error: updateError } = await supabase
-          .from('predictions')
-          .update({ 
-            likes_count: Math.max(0, currentCount - 1),
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', predictionId);
-
-        if (updateError) {
-          console.error('Error updating prediction likes count:', updateError);
-        }
-
+      if (serverLiked) {
+        finalLikedPredictions.add(predictionId);
       } else {
-        // Like - add to prediction_likes table
-        const { error: insertError } = await supabase
-          .from('prediction_likes')
-          .insert({
-            prediction_id: predictionId,
-            user_id: user.id,
-            created_at: new Date().toISOString()
-          });
-
-        if (insertError && !insertError.message.includes('duplicate')) {
-          throw insertError;
-        }
-
-        // Update prediction likes count
-        const { error: updateError } = await supabase
-          .from('predictions')
-          .update({ 
-            likes_count: currentCount + 1,
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', predictionId);
-
-        if (updateError) {
-          console.error('Error updating prediction likes count:', updateError);
-        }
+        finalLikedPredictions.delete(predictionId);
       }
+      finalLikeCounts[predictionId] = serverCount;
 
-      set({ loading: false, error: null });
+      set({
+        likedPredictions: finalLikedPredictions,
+        likeCounts: finalLikeCounts,
+        loading: false,
+        error: null
+      });
 
     } catch (error) {
       console.error('Error toggling like:', error);
@@ -172,6 +108,24 @@ export const useLikeStore = create<LikeState & LikeActions>((set, get) => ({
 
   getLikeCount: (predictionId: string) => {
     return get().likeCounts[predictionId] || 0;
+  },
+
+  setLikeData: (predictionId: string, liked: boolean, count: number) => {
+    const { likedPredictions, likeCounts } = get();
+    const newLikedPredictions = new Set(likedPredictions);
+    const newLikeCounts = { ...likeCounts };
+
+    if (liked) {
+      newLikedPredictions.add(predictionId);
+    } else {
+      newLikedPredictions.delete(predictionId);
+    }
+    newLikeCounts[predictionId] = count;
+
+    set({
+      likedPredictions: newLikedPredictions,
+      likeCounts: newLikeCounts
+    });
   },
 
   clearError: () => {

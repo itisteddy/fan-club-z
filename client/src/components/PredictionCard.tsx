@@ -4,6 +4,8 @@ import { Heart, MessageCircle, Share, TrendingUp, Clock, Users, X } from 'lucide
 import { Prediction, PredictionEntry } from '../store/predictionStore';
 import { useLikeStore } from '../store/likeStore';
 import { useCommentStore } from '../store/commentStore';
+import { useComments } from '../hooks/useComments';
+import { apiClient } from '../lib/api';
 import CommentModal from './modals/CommentModal';
 import { ChatModal } from './modals/ChatModal';
 import { CommentSystem } from './CommentSystem';
@@ -30,14 +32,57 @@ const PredictionCard: React.FC<PredictionCardProps> = ({
   onPredict,
   className = ''
 }) => {
-  const { toggleLike, checkIfLiked, getLikeCount } = useLikeStore();
-  const { getCommentCount } = useCommentStore();
+  const { toggleLike, checkIfLiked, getLikeCount, setLikeData } = useLikeStore();
+  const { getCommentCount, setCommentCount } = useCommentStore();
   const [commentModalOpen, setCommentModalOpen] = useState(false);
   const [chatModalOpen, setChatModalOpen] = useState(false);
   const [commentSystemOpen, setCommentSystemOpen] = useState(false);
   const [isLiking, setIsLiking] = useState(false);
+  const [dataInitialized, setDataInitialized] = useState(false);
 
-  // Get real-time data from stores
+  // Get comment data using the API hook to get accurate count
+  const { data: commentsData, isLoading: commentsLoading } = useComments(prediction.id, 1, 1);
+
+  // Initialize like and comment data from API on component mount
+  useEffect(() => {
+    const initializeData = async () => {
+      if (dataInitialized) return;
+
+      try {
+        // Fetch current like status and count from API
+        const likeResponse = await apiClient.get(`/v2/predictions/${prediction.id}/likes`);
+        if (likeResponse.success !== false) {
+          const liked = likeResponse.data?.user_has_liked || likeResponse.user_has_liked || false;
+          const count = likeResponse.data?.likes_count || likeResponse.likes_count || 0;
+          setLikeData(prediction.id, liked, count);
+        }
+
+        // Set comment count from API data when available
+        if (commentsData?.pagination?.total !== undefined) {
+          setCommentCount(prediction.id, commentsData.pagination.total);
+        }
+
+        setDataInitialized(true);
+      } catch (error) {
+        console.warn('Could not initialize social data from API:', error);
+        // Use fallback data from prediction object
+        setLikeData(prediction.id, false, prediction.likes_count || 0);
+        setCommentCount(prediction.id, prediction.comments_count || 0);
+        setDataInitialized(true);
+      }
+    };
+
+    initializeData();
+  }, [prediction.id, commentsData, setLikeData, setCommentCount, dataInitialized]);
+
+  // Update comment count when commentsData changes
+  useEffect(() => {
+    if (commentsData?.pagination?.total !== undefined) {
+      setCommentCount(prediction.id, commentsData.pagination.total);
+    }
+  }, [commentsData, prediction.id, setCommentCount]);
+
+  // Get real-time data from stores (now API-backed)
   const isLiked = checkIfLiked(prediction.id);
   const likeCount = getLikeCount(prediction.id);
   const commentCount = getCommentCount(prediction.id);

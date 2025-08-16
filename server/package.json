@@ -5,10 +5,10 @@
   "main": "dist/index.js",
   "scripts": {
     "preinstall": "cd ../shared && npm install && npm run build",
-    "dev": "tsx watch src/index-minimal.ts",
+    "dev": "tsx watch src/app.ts",
     "dev:full": "tsx watch src/index.ts",
-    "build": "cd ../shared && npm run build && cd ../server && echo 'Shared package built successfully'",
-    "start": "node src/index-minimal.js",
+    "build": "cd ../shared && npm install && npm run build && cd ../server && echo 'Shared package built successfully'",
+    "start": "tsx src/app.ts",
     "start:minimal": "node src/index-minimal.js",
     "start:full": "tsx src/index.ts",
     "db:migrate": "tsx src/scripts/migrate-database.ts",

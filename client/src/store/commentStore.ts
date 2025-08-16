@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { supabase } from '../lib/supabase';
+import { apiClient } from '../lib/api';
 
 export interface Comment {
   id: string;
@@ -31,6 +31,7 @@ interface CommentActions {
   likeComment: (commentId: string) => Promise<void>;
   unlikeComment: (commentId: string) => Promise<void>;
   getCommentCount: (predictionId: string) => number;
+  setCommentCount: (predictionId: string, count: number) => void;
   clearError: () => void;
 }
 
@@ -42,202 +43,152 @@ export const useCommentStore = create<CommentState & CommentActions>((set, get) 
 
   initializeCommentCounts: async () => {
     try {
-      // Fetch comment counts for all predictions
-      const { data: commentCounts, error } = await supabase
-        .from('predictions')
-        .select('id, comments_count');
-
-      if (error) {
-        console.error('Error fetching comment counts:', error);
-        return;
-      }
-
-      const countsMap = Object.fromEntries(
-        commentCounts?.map(pred => [pred.id, pred.comments_count || 0]) || []
-      );
-
-      set({ commentCounts: countsMap });
-
+      // Initialize with empty state - counts will be loaded per prediction as needed
+      set({
+        commentCounts: {}
+      });
     } catch (error) {
       console.error('Error initializing comment counts:', error);
     }
   },
 
   fetchComments: async (predictionId: string) => {
-    set({ loading: true, error: null });
     try {
-      const { data: comments, error } = await supabase
-        .from('comments')
-        .select(`
-          *,
-          user:users!user_id(id, username, full_name, avatar_url)
-        `)
-        .eq('prediction_id', predictionId)
-        .order('created_at', { ascending: true });
+      set({ loading: true, error: null });
 
-      if (error) {
-        throw error;
+      // Use API endpoint instead of direct Supabase
+      const response = await apiClient.get(`/v2/predictions/${predictionId}/comments`);
+      
+      if (response.success === false) {
+        throw new Error(response.error || 'Failed to fetch comments');
       }
 
-      // Get current user to check if they liked comments
-      const { data: { user } } = await supabase.auth.getUser();
-      
-      const commentsWithLikes = comments?.map(comment => ({
-        ...comment,
-        user: {
-          id: comment.user.id,
-          username: comment.user.username || comment.user.full_name || 'Anonymous',
-          avatar_url: comment.user.avatar_url
-        },
-        likes_count: 0, // TODO: Implement comment likes count
-        is_liked_by_user: false // TODO: Implement user likes check
-      })) || [];
+      // Handle different response formats
+      const comments = response.comments || response.data || [];
+      const total = response.total || comments.length;
 
-      set({ comments: commentsWithLikes, loading: false });
+      set(state => ({
+        comments: comments,
+        commentCounts: {
+          ...state.commentCounts,
+          [predictionId]: total
+        },
+        loading: false,
+        error: null
+      }));
+
     } catch (error) {
       console.error('Error fetching comments:', error);
-      set({ error: 'Failed to fetch comments', loading: false });
+      set({ 
+        loading: false, 
+        error: 'Failed to fetch comments',
+        commentCounts: {
+          ...get().commentCounts,
+          [predictionId]: 0
+        }
+      });
     }
   },
 
   addComment: async (predictionId: string, content: string) => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      set({ loading: true, error: null });
+
+      // Use API endpoint instead of direct Supabase
+      const response = await apiClient.post(`/v2/predictions/${predictionId}/comments`, {
+        content
+      });
       
-      if (!user) {
-        throw new Error('User not authenticated');
+      if (response.success === false) {
+        throw new Error(response.error || 'Failed to add comment');
       }
 
-      // Add comment to database
-      const { data: comment, error: commentError } = await supabase
-        .from('comments')
-        .insert({
-          prediction_id: predictionId,
-          user_id: user.id,
-          content: content.trim(),
-          created_at: new Date().toISOString()
-        })
-        .select(`
-          *,
-          user:users!user_id(id, username, full_name, avatar_url)
-        `)
-        .single();
+      const newComment = response.data || response;
 
-      if (commentError) {
-        throw commentError;
-      }
-
-      // Update prediction comments count
-      const currentCount = get().commentCounts[predictionId] || 0;
-      const { error: updateError } = await supabase
-        .from('predictions')
-        .update({ 
-          comments_count: currentCount + 1,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', predictionId);
-
-      if (updateError) {
-        console.error('Error updating prediction comments count:', updateError);
-      }
-
-      const newComment: Comment = {
-        ...comment,
-        user: {
-          id: comment.user.id,
-          username: comment.user.username || comment.user.full_name || 'Anonymous',
-          avatar_url: comment.user.avatar_url
-        },
-        likes_count: 0,
-        is_liked_by_user: false
-      };
-
-      // Update local state
       set(state => ({
-        comments: [...state.comments, newComment],
+        comments: [newComment, ...state.comments],
         commentCounts: {
           ...state.commentCounts,
-          [predictionId]: currentCount + 1
-        }
+          [predictionId]: (state.commentCounts[predictionId] || 0) + 1
+        },
+        loading: false,
+        error: null
       }));
 
     } catch (error) {
       console.error('Error adding comment:', error);
-      set({ error: 'Failed to add comment' });
+      set({ loading: false, error: 'Failed to add comment' });
       throw error;
     }
   },
 
   likeComment: async (commentId: string) => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      // Use API endpoint instead of direct Supabase
+      const response = await apiClient.post(`/v2/comments/${commentId}/like`);
       
-      if (!user) {
-        throw new Error('User not authenticated');
+      if (response.success === false) {
+        throw new Error(response.error || 'Failed to like comment');
       }
 
-      // Add like to comment_likes table
-      const { error } = await supabase
-        .from('comment_likes')
-        .insert({
-          comment_id: commentId,
-          user_id: user.id,
-          created_at: new Date().toISOString()
-        });
-
-      if (error && !error.message.includes('duplicate')) {
-        throw error;
-      }
-
-      // Update local state
+      // Update comment in local state
       set(state => ({
         comments: state.comments.map(comment =>
           comment.id === commentId
-            ? { ...comment, likes_count: comment.likes_count + 1, is_liked_by_user: true }
+            ? { 
+                ...comment, 
+                is_liked_by_user: true,
+                likes_count: (response.data?.likes_count || response.likes_count || comment.likes_count + 1)
+              }
             : comment
         )
       }));
+
     } catch (error) {
       console.error('Error liking comment:', error);
-      set({ error: 'Failed to like comment' });
+      throw error;
     }
   },
 
   unlikeComment: async (commentId: string) => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      // Use API endpoint instead of direct Supabase
+      const response = await apiClient.post(`/v2/comments/${commentId}/like`);
       
-      if (!user) {
-        throw new Error('User not authenticated');
+      if (response.success === false) {
+        throw new Error(response.error || 'Failed to unlike comment');
       }
 
-      // Remove like from comment_likes table
-      const { error } = await supabase
-        .from('comment_likes')
-        .delete()
-        .eq('comment_id', commentId)
-        .eq('user_id', user.id);
-
-      if (error) {
-        throw error;
-      }
-
-      // Update local state
+      // Update comment in local state
       set(state => ({
         comments: state.comments.map(comment =>
           comment.id === commentId
-            ? { ...comment, likes_count: Math.max(0, comment.likes_count - 1), is_liked_by_user: false }
+            ? { 
+                ...comment, 
+                is_liked_by_user: false,
+                likes_count: Math.max(0, (response.data?.likes_count || response.likes_count || comment.likes_count - 1))
+              }
             : comment
         )
       }));
+
     } catch (error) {
       console.error('Error unliking comment:', error);
-      set({ error: 'Failed to unlike comment' });
+      throw error;
     }
   },
 
   getCommentCount: (predictionId: string) => {
     return get().commentCounts[predictionId] || 0;
+  },
+
+  setCommentCount: (predictionId: string, count: number) => {
+    set(state => ({
+      commentCounts: {
+        ...state.commentCounts,
+        [predictionId]: count
+      }
+    }));
   },
 
   clearError: () => {
