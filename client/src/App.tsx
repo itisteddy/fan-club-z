@@ -19,6 +19,7 @@ import WalletPage from './pages/WalletPage';
 import AuthPage from './pages/auth/AuthPage';
 import AuthCallbackPage from './pages/auth/AuthCallbackPage';
 import PredictionDetailsPage from './pages/PredictionDetailsPage';
+import TestLikesCommentsPage from './pages/TestLikesCommentsPage';
 import BottomNavigation from './components/BottomNavigation';
 
 // Simple Loading Component
@@ -323,6 +324,11 @@ function App() {
               <Route path="/create" component={CreatePredictionPageWrapper} />
               <Route path="/profile" component={ProfilePageWrapper} />
               <Route path="/wallet" component={WalletPageWrapper} />
+              <Route path="/test-likes">
+                <PageWrapper title="Test Likes & Comments">
+                  <TestLikesCommentsPage />
+                </PageWrapper>
+              </Route>
               <Route path="/prediction/:id" component={PredictionDetailsWrapper} />
 
               {/* Fallback */}
