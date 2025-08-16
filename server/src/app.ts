@@ -347,4 +347,3 @@ process.on('uncaughtException', (error) => {
   process.exit(1);
 });
 
-export default app;// Force Render deployment - Sat Aug 16 02:29:49 EDT 2025

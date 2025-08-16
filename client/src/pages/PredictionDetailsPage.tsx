@@ -70,7 +70,14 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
 
       if (response.ok) {
         const data = await response.json();
-        setIsLiked(data.user_has_liked || false);
+        console.log('✅ Like status loaded:', data);
+        setIsLiked(data.liked || false);
+        
+        // Update prediction with actual likes count from server
+        setPrediction(prev => ({
+          ...prev,
+          likes_count: data.likes_count || prev.likes_count || 0
+        }));
       }
     } catch (err) {
       console.log('Failed to load like status:', err);
@@ -267,34 +274,59 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
     
     // Optimistic update
     const wasLiked = isLiked;
+    const currentLikesCount = prediction.likes_count || 0;
     setIsLiked(!isLiked);
     
+    // Optimistically update the prediction
+    setPrediction(prev => ({
+      ...prev,
+      likes_count: wasLiked ? currentLikesCount - 1 : currentLikesCount + 1,
+      is_liked: !wasLiked
+    }));
+    
     try {
+      const token = await getAuthToken();
       const response = await fetch(`/api/v2/predictions/${prediction.id}/like`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
+          ...(token && { 'Authorization': `Bearer ${token}` })
         },
       });
 
       if (response.ok) {
         const data = await response.json();
-        // Update prediction data with new like count
+        console.log('✅ Like response:', data);
+        
+        // Update with actual server response
         setPrediction(prev => ({
           ...prev,
-          likes_count: data.likes_count || (prev.likes_count || 0) + (wasLiked ? -1 : 1),
+          likes_count: data.likes_count,
           is_liked: data.liked
         }));
-        success('Like Updated', data.liked ? 'Liked prediction!' : 'Removed like');
+        
+        setIsLiked(data.liked);
+        
+        // Show success message
+        const message = data.liked ? 'Prediction liked!' : 'Like removed!';
+        success('Like Updated', message);
       } else {
-        throw new Error('Failed to update like');
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `HTTP ${response.status}: Failed to update like`);
       }
     } catch (err) {
+      console.error('❌ Like error:', err);
+      
       // Revert optimistic update on error
       setIsLiked(wasLiked);
-      console.error('Like error:', err);
-      error('Like Failed', 'Failed to update like. Please try again.');
+      setPrediction(prev => ({
+        ...prev,
+        likes_count: currentLikesCount,
+        is_liked: wasLiked
+      }));
+      
+      const errorMessage = err instanceof Error ? err.message : 'Failed to update like';
+      error('Like Failed', errorMessage);
     }
   };
 
@@ -660,7 +692,7 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
             >
               <Heart size={20} fill={isLiked ? 'currentColor' : 'none'} />
               <span className="font-medium">
-                {(prediction.likes_count || 0)} likes
+                {prediction.likes_count || 0} likes
               </span>
             </motion.button>
             
@@ -709,6 +741,10 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
               <div className="min-h-[300px] max-h-[600px] overflow-y-auto">
                 <CommentSystem 
                   predictionId={prediction?.id || ''}
+                  onCommentCountChange={(count) => {
+                    console.log('💬 Comment count updated to:', count);
+                    setRealCommentsCount(count);
+                  }}
                 />
               </div>
             </motion.div>
