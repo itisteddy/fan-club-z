@@ -27,6 +27,7 @@ interface Comment {
 interface CommentSystemProps {
   predictionId: string;
   initialComments?: Comment[];
+  onCommentCountChange?: (count: number) => void;
 }
 
 // Completely isolated textarea component that manages its own state internally
@@ -150,7 +151,7 @@ const IsolatedTextarea: React.FC<{
   );
 };
 
-const CommentSystem: React.FC<CommentSystemProps> = ({ predictionId, initialComments = [] }) => {
+const CommentSystem: React.FC<CommentSystemProps> = ({ predictionId, initialComments = [], onCommentCountChange }) => {
   const { user } = useAuthStore();
   const [comments, setComments] = useState<Comment[]>([]);
   
@@ -223,13 +224,24 @@ const CommentSystem: React.FC<CommentSystemProps> = ({ predictionId, initialComm
         if (response.ok) {
           const data = await response.json();
           console.log('✅ Comments loaded from API:', data);
-          setComments(data.comments || []);
+          const loadedComments = data.comments || [];
+          setComments(loadedComments);
+          
+          // Notify parent of the comment count
+          if (onCommentCountChange) {
+            onCommentCountChange(loadedComments.length);
+          }
         } else {
           throw new Error(`API responded with ${response.status}`);
         }
       } catch (error) {
         console.log('📝 API not available, using mock comments:', error);
         setComments(mockComments);
+        
+        // Notify parent of the comment count
+        if (onCommentCountChange) {
+          onCommentCountChange(mockComments.length);
+        }
         setError('Unable to load comments. Please try again later.');
       } finally {
         setLoading(false);
@@ -327,8 +339,14 @@ const CommentSystem: React.FC<CommentSystemProps> = ({ predictionId, initialComm
           clearReplyText(parentId);
           setReplyTo(null);
         } else {
-          setComments(prev => [newCommentObj, ...prev]);
+          const updatedComments = [newCommentObj, ...comments];
+          setComments(updatedComments);
           setMainCommentText(''); // Clear main comment
+          
+          // Notify parent of the updated comment count (increment by 1 for new comment)
+          if (onCommentCountChange) {
+            onCommentCountChange(comments.length + 1);
+          }
         }
       } else {
         throw new Error(`API responded with ${response.status}`);
@@ -371,8 +389,14 @@ const CommentSystem: React.FC<CommentSystemProps> = ({ predictionId, initialComm
         clearReplyText(parentId);
         setReplyTo(null);
       } else {
-        setComments(prev => [newCommentObj, ...prev]);
+        const updatedComments = [newCommentObj, ...comments];
+        setComments(updatedComments);
         setMainCommentText(''); // Clear main comment
+        
+        // Notify parent of the updated comment count
+        if (onCommentCountChange) {
+          onCommentCountChange(updatedComments.length);
+        }
       }
       
       console.log('✅ Local comment added successfully');

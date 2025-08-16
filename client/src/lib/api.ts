@@ -23,11 +23,26 @@ export const API_URL = `${API_BASE_URL}/api/${API_VERSION}`;
 
 // Auth helpers
 export const getAuthToken = async () => {
+  console.log('🔐 Getting auth token...');
+  console.log('🔐 Supabase client:', supabase ? 'initialized' : 'not initialized');
+  console.log('🔐 Supabase URL:', supabaseUrl);
+  console.log('🔐 Supabase Key:', supabaseAnonKey ? 'present' : 'missing');
+  
   if (supabase) {
-    const { data: { session } } = await supabase.auth.getSession();
-    return session?.access_token || null;
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      console.log('🔐 Session:', session ? 'found' : 'not found');
+      console.log('🔐 Access token:', session?.access_token ? 'present' : 'missing');
+      return session?.access_token || null;
+    } catch (error) {
+      console.error('🔐 Error getting session:', error);
+      return null;
+    }
   }
-  return localStorage.getItem('fanclubz_token');
+  
+  const fallbackToken = localStorage.getItem('fanclubz_token');
+  console.log('🔐 Fallback token:', fallbackToken ? 'present' : 'missing');
+  return fallbackToken;
 };
 
 export const setAuthToken = (token: string) => localStorage.setItem('fanclubz_token', token);
