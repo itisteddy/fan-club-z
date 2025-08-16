@@ -16,82 +16,44 @@ router.get('/predictions/:predictionId/comments', async (req, res) => {
     
     logger.info(`📥 Fetching comments for prediction ${predictionId}`);
     
-    // Try Supabase first
-    let comments = [];
-    try {
-      const { data: supabaseComments, error } = await supabase
-        .from('comments')
-        .select(`
-          *,
-          user:users(username, avatar_url, is_verified)
-        `)
-        .eq('prediction_id', predictionId)
-        .order('created_at', { ascending: false });
+    // Only use real data from Supabase
+    const { data: supabaseComments, error } = await supabase
+      .from('comments')
+      .select(`
+        *,
+        user:users(username, avatar_url, is_verified)
+      `)
+      .eq('prediction_id', predictionId)
+      .order('created_at', { ascending: false });
 
-      if (!error && supabaseComments) {
-        comments = supabaseComments.map(comment => ({
-          id: comment.id,
-          content: comment.content,
-          user_id: comment.user_id,
-          prediction_id: comment.prediction_id,
-          username: comment.user?.username || 'Anonymous',
-          avatar_url: comment.user?.avatar_url,
-          is_verified: comment.user?.is_verified || false,
-          created_at: comment.created_at,
-          updated_at: comment.updated_at,
-          is_liked: false,
-          is_own: false,
-          likes_count: Math.floor(Math.random() * 5),
-          replies_count: 0,
-          depth: 0,
-          replies: []
-        }));
-        logger.info(`✅ Fetched ${comments.length} comments from Supabase`);
-      }
-    } catch (dbError) {
-      logger.warn('Supabase not available for comments, using mock data');
+    if (error) {
+      logger.error('Error fetching comments from Supabase:', error);
+      return res.status(500).json({ 
+        success: false,
+        error: 'Failed to fetch comments from database',
+        details: error.message
+      });
     }
 
-    // Fallback to mock data if no real comments
-    if (comments.length === 0) {
-      comments = [
-        {
-          id: `${predictionId}-comment-1`,
-          content: 'This is a great prediction! I think it will definitely happen.',
-          user_id: 'mock-user-1',
-          prediction_id: predictionId,
-          username: 'CryptoFan',
-          avatar_url: null,
-          is_verified: true,
-          created_at: new Date(Date.now() - 3600000).toISOString(),
-          updated_at: new Date(Date.now() - 3600000).toISOString(),
-          is_liked: false,
-          is_own: false,
-          likes_count: 5,
-          replies_count: 0,
-          depth: 0,
-          replies: []
-        },
-        {
-          id: `${predictionId}-comment-2`,
-          content: 'Interesting perspective. I need to think about this more.',
-          user_id: 'mock-user-2',
-          prediction_id: predictionId,
-          username: 'MarketAnalyst',
-          avatar_url: null,
-          is_verified: false,
-          created_at: new Date(Date.now() - 1800000).toISOString(),
-          updated_at: new Date(Date.now() - 1800000).toISOString(),
-          is_liked: false,
-          is_own: false,
-          likes_count: 2,
-          replies_count: 0,
-          depth: 0,
-          replies: []
-        }
-      ];
-      logger.info(`📝 Using ${comments.length} mock comments`);
-    }
+    const comments = (supabaseComments || []).map(comment => ({
+      id: comment.id,
+      content: comment.content,
+      user_id: comment.user_id,
+      prediction_id: comment.prediction_id,
+      username: comment.user?.username || 'Anonymous',
+      avatar_url: comment.user?.avatar_url,
+      is_verified: comment.user?.is_verified || false,
+      created_at: comment.created_at,
+      updated_at: comment.updated_at,
+      is_liked: false,
+      is_own: false,
+      likes_count: 0, // Real likes count from database
+      replies_count: 0,
+      depth: 0,
+      replies: []
+    }));
+
+    logger.info(`✅ Fetched ${comments.length} real comments from Supabase`);
 
     res.json({
       success: true,
@@ -153,27 +115,32 @@ router.post('/predictions/:predictionId/comments', async (req, res) => {
       replies: []
     };
 
-    // Try to save to Supabase
-    try {
-      const { data: insertedComment, error } = await supabase
-        .from('comments')
-        .insert({
-          id: newComment.id,
-          content: newComment.content,
-          user_id: newComment.user_id,
-          prediction_id: predictionId
-        })
-        .select()
-        .single();
+    // Save to Supabase - no fallback to memory
+    const { data: insertedComment, error } = await supabase
+      .from('comments')
+      .insert({
+        id: newComment.id,
+        content: newComment.content,
+        user_id: newComment.user_id,
+        prediction_id: predictionId
+      })
+      .select()
+      .single();
 
-      if (!error && insertedComment) {
-        logger.info(`✅ Comment saved to Supabase: ${insertedComment.id}`);
-        newComment.id = insertedComment.id;
-        newComment.created_at = insertedComment.created_at;
-        newComment.updated_at = insertedComment.updated_at;
-      }
-    } catch (dbError) {
-      logger.warn('Supabase not available, comment created in memory only');
+    if (error) {
+      logger.error('Error saving comment to Supabase:', error);
+      return res.status(500).json({ 
+        success: false,
+        error: 'Failed to save comment to database',
+        details: error.message
+      });
+    }
+
+    if (insertedComment) {
+      logger.info(`✅ Comment saved to Supabase: ${insertedComment.id}`);
+      newComment.id = insertedComment.id;
+      newComment.created_at = insertedComment.created_at;
+      newComment.updated_at = insertedComment.updated_at;
     }
 
     res.status(201).json({
@@ -239,14 +206,12 @@ router.post('/comments/:commentId/like', async (req, res) => {
       result.likes_count = count || 0;
       logger.info(`✅ Comment like toggled in Supabase: ${result.liked ? 'liked' : 'unliked'}`);
     } catch (dbError) {
-      logger.warn('Supabase not available for comment likes, using mock response');
-      // Mock response
-      const liked = Math.random() > 0.5;
-      result = {
-        liked,
-        likes_count: Math.floor(Math.random() * 10) + 1,
-        message: liked ? 'Comment liked!' : 'Like removed!'
-      };
+      logger.error('Error toggling comment like in Supabase:', dbError);
+      return res.status(500).json({ 
+        success: false,
+        error: 'Failed to toggle comment like in database',
+        details: dbError instanceof Error ? dbError.message : 'Unknown error'
+      });
     }
 
     res.json({ 
@@ -324,14 +289,12 @@ router.post('/predictions/:predictionId/like', async (req, res) => {
       result.likes_count = count || 0;
       logger.info(`✅ Prediction like toggled in Supabase: ${result.liked ? 'liked' : 'unliked'}`);
     } catch (dbError) {
-      logger.warn('Supabase not available for prediction likes, using mock response');
-      // Mock response
-      const liked = Math.random() > 0.5;
-      result = {
-        liked,
-        likes_count: Math.floor(Math.random() * 20) + 5,
-        message: liked ? 'Prediction liked!' : 'Like removed!'
-      };
+      logger.error('Error toggling prediction like in Supabase:', dbError);
+      return res.status(500).json({ 
+        success: false,
+        error: 'Failed to toggle prediction like in database',
+        details: dbError instanceof Error ? dbError.message : 'Unknown error'
+      });
     }
 
     res.json({ 
@@ -378,12 +341,12 @@ router.get('/predictions/:predictionId/likes', async (req, res) => {
       
       logger.info(`✅ Like status fetched from Supabase: ${result.liked ? 'liked' : 'not liked'}`);
     } catch (dbError) {
-      logger.warn('Supabase not available for prediction like status, using mock response');
-      // Mock response
-      result = {
-        liked: Math.random() > 0.7,
-        likes_count: Math.floor(Math.random() * 20) + 5
-      };
+      logger.error('Error fetching prediction like status from Supabase:', dbError);
+      return res.status(500).json({ 
+        success: false,
+        error: 'Failed to fetch like status from database',
+        details: dbError instanceof Error ? dbError.message : 'Unknown error'
+      });
     }
 
     res.json({ 
