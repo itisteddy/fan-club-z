@@ -33,6 +33,26 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
   const { getBalance } = useWalletStore();
   const { success, error, info } = useNotificationStore();
 
+  // Load like status for the current user
+  const loadLikeStatus = async (predictionId: string) => {
+    try {
+      const response = await fetch(`/api/v2/predictions/${predictionId}/likes`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
+        },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setIsLiked(data.user_has_liked || false);
+      }
+    } catch (err) {
+      console.log('Failed to load like status:', err);
+    }
+  };
+
   // Get prediction ID from URL or prop
   const getCurrentPredictionId = (): string | null => {
     if (predictionId) return predictionId;
@@ -62,6 +82,11 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
         if (foundPrediction) {
           console.log('✅ Found prediction:', foundPrediction.title);
           setPrediction(foundPrediction);
+          
+          // Load like status for authenticated users
+          if (isAuthenticated) {
+            loadLikeStatus(id);
+          }
         } else {
           console.log('📡 Prediction not in store, fetching from API...');
           
@@ -73,6 +98,11 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
           if (refetchedPrediction) {
             console.log('✅ Found prediction after fetch:', refetchedPrediction.title);
             setPrediction(refetchedPrediction);
+            
+            // Load like status for authenticated users
+            if (isAuthenticated) {
+              loadLikeStatus(id);
+            }
           } else {
             console.log('❌ Prediction not found after fetch');
             setPrediction(null);
@@ -88,7 +118,7 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
     };
 
     loadPrediction();
-  }, [predictionId, getPredictionById, fetchPredictions, setLocation, error]);
+  }, [predictionId, getPredictionById, fetchPredictions, setLocation, error, isAuthenticated]);
 
   const handleBack = () => {
     console.log('🔙 Navigating back');
@@ -209,15 +239,35 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
     }
     
     // Optimistic update
+    const wasLiked = isLiked;
     setIsLiked(!isLiked);
     
     try {
-      // TODO: Implement actual like functionality with API
-      success('Like Updated', isLiked ? 'Removed like' : 'Liked prediction!');
+      const response = await fetch(`/api/v2/predictions/${prediction.id}/like`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
+        },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        // Update prediction data with new like count
+        setPrediction(prev => ({
+          ...prev,
+          likes_count: data.likes_count || (prev.likes_count || 0) + (wasLiked ? -1 : 1),
+          is_liked: data.liked
+        }));
+        success('Like Updated', data.liked ? 'Liked prediction!' : 'Removed like');
+      } else {
+        throw new Error('Failed to update like');
+      }
     } catch (err) {
-      // Revert on error
-      setIsLiked(isLiked);
-      error('Like Failed', 'Failed to update like');
+      // Revert optimistic update on error
+      setIsLiked(wasLiked);
+      console.error('Like error:', err);
+      error('Like Failed', 'Failed to update like. Please try again.');
     }
   };
 
@@ -583,7 +633,7 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
             >
               <Heart size={20} fill={isLiked ? 'currentColor' : 'none'} />
               <span className="font-medium">
-                {(prediction.likes_count || prediction.likes || 0) + (isLiked ? 1 : 0)} likes
+                {(prediction.likes_count || 0)} likes
               </span>
             </motion.button>
             
@@ -597,7 +647,7 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
             >
               <MessageCircle size={20} />
               <span className="font-medium">
-                {prediction.comments_count || prediction.comments || 0} comments
+                {prediction.comments_count || 0} comments
               </span>
               <ChevronDown 
                 size={16} 

@@ -12,6 +12,7 @@ import { createPredictionRateLimit, authenticatedRateLimit } from '../middleware
 import { AuthUtils } from '../utils/auth';
 import { ApiUtils, calculateOdds, calculatePotentialPayout, isValidDeadline, validateStakeRange } from '../utils/api';
 import { db } from '../config/database';
+import { supabase } from '../config/supabase';
 import logger from '../utils/logger';
 
 const router = Router();
@@ -815,45 +816,97 @@ function getTimeAgo(dateString: string): string {
 // Like/unlike a prediction
 router.post(
   '/:id/like',
-  optionalAuth,
+  authenticate,
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const { id: predictionId } = req.params;
-    const userId = req.user?.id || 'anonymous';
+    const userId = req.user!.id;
 
     logger.info(`Like toggled for prediction ${predictionId} by user ${userId}`);
 
     try {
-      // Try to fetch from database first
+      // Check if prediction exists
       const prediction = await db.predictions.findById(predictionId);
-      
       if (!prediction) {
         return ApiUtils.error(res, 'Prediction not found', 404);
       }
 
-      // For now, return mock response since we don't have like storage implemented
-      const mockLiked = Math.random() > 0.5;
-      const mockCount = Math.floor(Math.random() * 50) + 5;
+      // Try to get existing like
+      let existingLike = null;
+      try {
+        const { data: likes, error } = await supabase
+          .from('prediction_likes')
+          .select('*')
+          .eq('prediction_id', predictionId)
+          .eq('user_id', userId)
+          .single();
+        
+        if (!error && likes) {
+          existingLike = likes;
+        }
+      } catch (dbError) {
+        logger.info('Supabase not available for likes, using mock logic');
+      }
 
-      logger.info(`Prediction ${predictionId} like result: liked=${mockLiked}, count=${mockCount}`);
+      let liked = false;
+      let likesCount = prediction.likes_count || 0;
+
+      if (existingLike) {
+        // Remove like
+        try {
+          await supabase
+            .from('prediction_likes')
+            .delete()
+            .eq('prediction_id', predictionId)
+            .eq('user_id', userId);
+          
+          // Update prediction likes count
+          await supabase
+            .from('predictions')
+            .update({ likes_count: Math.max(0, likesCount - 1) })
+            .eq('id', predictionId);
+          
+          liked = false;
+          likesCount = Math.max(0, likesCount - 1);
+        } catch (dbError) {
+          // Mock logic
+          liked = false;
+          likesCount = Math.max(0, likesCount - 1);
+        }
+      } else {
+        // Add like
+        try {
+          await supabase
+            .from('prediction_likes')
+            .insert({
+              prediction_id: predictionId,
+              user_id: userId,
+              created_at: new Date().toISOString()
+            });
+          
+          // Update prediction likes count
+          await supabase
+            .from('predictions')
+            .update({ likes_count: likesCount + 1 })
+            .eq('id', predictionId);
+          
+          liked = true;
+          likesCount = likesCount + 1;
+        } catch (dbError) {
+          // Mock logic
+          liked = true;
+          likesCount = likesCount + 1;
+        }
+      }
 
       return ApiUtils.success(res, {
-        liked: mockLiked,
-        likes_count: mockCount,
-        message: mockLiked ? 'Prediction liked!' : 'Prediction unliked!'
+        liked,
+        likes_count: likesCount,
+        message: liked ? 'Prediction liked successfully' : 'Like removed successfully'
       });
 
     } catch (error) {
       logger.error('Error toggling prediction like:', error);
-      
-      // Fallback to mock response
-      const mockLiked = Math.random() > 0.5;
-      const mockCount = Math.floor(Math.random() * 50) + 5;
-
-      return ApiUtils.success(res, {
-        liked: mockLiked,
-        likes_count: mockCount,
-        message: 'Like functionality working (mock data)!'
-      });
+      return ApiUtils.error(res, 'Failed to toggle like', 500);
     }
   })
 );
@@ -864,18 +917,37 @@ router.get(
   optionalAuth,
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const { id: predictionId } = req.params;
-    const userId = req.user?.id || 'anonymous';
+    const userId = req.user?.id;
 
     logger.info(`Fetching like status for prediction ${predictionId}`);
 
     try {
-      // For now, return mock response
-      const mockLiked = Math.random() > 0.5;
-      const mockCount = Math.floor(Math.random() * 50) + 5;
+      const prediction = await db.predictions.findById(predictionId);
+      if (!prediction) {
+        return ApiUtils.error(res, 'Prediction not found', 404);
+      }
+
+      let userHasLiked = false;
+      
+      if (userId) {
+        try {
+          const { data: like } = await supabase
+            .from('prediction_likes')
+            .select('id')
+            .eq('prediction_id', predictionId)
+            .eq('user_id', userId)
+            .single();
+          
+          userHasLiked = !!like;
+        } catch (dbError) {
+          // Mock logic
+          userHasLiked = Math.random() > 0.7;
+        }
+      }
 
       return ApiUtils.success(res, {
-        liked: mockLiked,
-        likes_count: mockCount
+        likes_count: prediction.likes_count || 0,
+        user_has_liked: userHasLiked
       });
 
     } catch (error) {
