@@ -145,26 +145,26 @@ const LikeAndCommentTest: React.FC<LikeAndCommentTestProps> = ({ predictionId, t
 
   return (
     <motion.div
-      className=\"bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-6\"
+      className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-6"
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3 }}
     >
       {/* Header */}
-      <div className=\"flex items-center justify-between mb-4\">
-        <h3 className=\"text-xl font-semibold text-gray-900\">{title}</h3>
-        <span className=\"px-3 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700\">
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-xl font-semibold text-gray-900">{title}</h3>
+        <span className="px-3 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">
           Live Test
         </span>
       </div>
 
       {/* Prediction ID */}
-      <p className=\"text-sm text-gray-600 mb-4\">
+      <p className="text-sm text-gray-600 mb-4">
         Testing likes and comments for prediction: {predictionId}
       </p>
 
       {/* Social Actions */}
-      <div className=\"flex items-center gap-6 mb-6\">
+      <div className="flex items-center gap-6 mb-6">
         <motion.button
           onClick={handleLike}
           className={`flex items-center gap-2 transition-colors ${
@@ -174,48 +174,48 @@ const LikeAndCommentTest: React.FC<LikeAndCommentTestProps> = ({ predictionId, t
           whileTap={{ scale: 0.95 }}
         >
           <Heart className={`w-5 h-5 ${likes.liked ? 'fill-current' : ''}`} />
-          <span className=\"font-medium\">{likes.count}</span>
+          <span className="font-medium">{likes.count}</span>
         </motion.button>
 
-        <button className=\"flex items-center gap-2 text-gray-600 hover:text-blue-500 transition-colors\">
-          <MessageCircle className=\"w-5 h-5\" />
-          <span className=\"font-medium\">{comments.length}</span>
+        <button className="flex items-center gap-2 text-gray-600 hover:text-blue-500 transition-colors">
+          <MessageCircle className="w-5 h-5" />
+          <span className="font-medium">{comments.length}</span>
         </button>
 
-        <button className=\"flex items-center gap-2 text-gray-600 hover:text-green-500 transition-colors\">
-          <Share2 className=\"w-5 h-5\" />
-          <span className=\"font-medium\">Share</span>
+        <button className="flex items-center gap-2 text-gray-600 hover:text-green-500 transition-colors">
+          <Share2 className="w-5 h-5" />
+          <span className="font-medium">Share</span>
         </button>
 
-        <div className=\"flex items-center gap-2 text-green-600 ml-auto\">
-          <TrendingUp className=\"w-4 h-4\" />
-          <span className=\"font-medium text-sm\">Testing</span>
+        <div className="flex items-center gap-2 text-green-600 ml-auto">
+          <TrendingUp className="w-4 h-4" />
+          <span className="font-medium text-sm">Testing</span>
         </div>
       </div>
 
       {/* Comment Input */}
-      <div className=\"mb-6\">
-        <div className=\"flex gap-3\">
-          <div className=\"w-8 h-8 rounded-full bg-green-100 flex items-center justify-center flex-shrink-0\">
-            <span className=\"text-green-600 font-semibold text-sm\">T</span>
+      <div className="mb-6">
+        <div className="flex gap-3">
+          <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center flex-shrink-0">
+            <span className="text-green-600 font-semibold text-sm">T</span>
           </div>
-          <div className=\"flex-1\">
+          <div className="flex-1">
             <textarea
               value={newComment}
               onChange={(e) => setNewComment(e.target.value)}
-              placeholder=\"Test the comment functionality...\"
-              className=\"w-full p-3 border border-gray-300 rounded-lg resize-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-colors\"
+              placeholder="Test the comment functionality..."
+              className="w-full p-3 border border-gray-300 rounded-lg resize-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-colors"
               rows={3}
               maxLength={500}
             />
-            <div className=\"flex justify-between items-center mt-2\">
-              <span className=\"text-xs text-gray-500\">
+            <div className="flex justify-between items-center mt-2">
+              <span className="text-xs text-gray-500">
                 {newComment.length}/500
               </span>
               <button
                 onClick={handleComment}
                 disabled={!newComment.trim() || loading}
-                className=\"px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm font-medium\"
+                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm font-medium"
               >
                 {loading ? 'Adding...' : 'Comment'}
               </button>
@@ -225,24 +225,24 @@ const LikeAndCommentTest: React.FC<LikeAndCommentTestProps> = ({ predictionId, t
       </div>
 
       {/* Comments List */}
-      <div className=\"space-y-4\">
+      <div className="space-y-4">
         {comments.map((comment) => (
-          <div key={comment.id} className=\"flex gap-3 p-4 bg-gray-50 rounded-lg\">
-            <div className=\"w-8 h-8 rounded-full bg-green-100 flex items-center justify-center flex-shrink-0\">
-              <span className=\"text-green-600 font-semibold text-sm\">
+          <div key={comment.id} className="flex gap-3 p-4 bg-gray-50 rounded-lg">
+            <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center flex-shrink-0">
+              <span className="text-green-600 font-semibold text-sm">
                 {comment.username?.charAt(0)?.toUpperCase() || 'U'}
               </span>
             </div>
-            <div className=\"flex-1\">
-              <div className=\"flex items-center gap-2 mb-1\">
-                <span className=\"font-semibold text-sm text-gray-900\">
+            <div className="flex-1">
+              <div className="flex items-center gap-2 mb-1">
+                <span className="font-semibold text-sm text-gray-900">
                   {comment.username || 'Anonymous'}
                 </span>
-                <span className=\"text-xs text-gray-500\">
+                <span className="text-xs text-gray-500">
                   {new Date(comment.created_at).toLocaleTimeString()}
                 </span>
               </div>
-              <p className=\"text-sm text-gray-900 mb-2\">{comment.content}</p>
+              <p className="text-sm text-gray-900 mb-2">{comment.content}</p>
               <button
                 onClick={() => handleCommentLike(comment.id)}
                 className={`flex items-center gap-1 text-xs transition-colors ${
@@ -257,8 +257,8 @@ const LikeAndCommentTest: React.FC<LikeAndCommentTestProps> = ({ predictionId, t
         ))}
         
         {comments.length === 0 && (
-          <div className=\"text-center py-8 text-gray-500\">
-            <MessageCircle className=\"w-12 h-12 mx-auto mb-3 text-gray-300\" />
+          <div className="text-center py-8 text-gray-500">
+            <MessageCircle className="w-12 h-12 mx-auto mb-3 text-gray-300" />
             <p>No comments yet. Be the first to comment!</p>
           </div>
         )}
