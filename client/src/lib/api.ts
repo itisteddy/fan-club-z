@@ -22,14 +22,21 @@ export const API_VERSION = 'v2';
 export const API_URL = `${API_BASE_URL}/api/${API_VERSION}`;
 
 // Auth helpers
-export const getAuthToken = () => localStorage.getItem('fanclubz_token');
+export const getAuthToken = async () => {
+  if (supabase) {
+    const { data: { session } } = await supabase.auth.getSession();
+    return session?.access_token || null;
+  }
+  return localStorage.getItem('fanclubz_token');
+};
+
 export const setAuthToken = (token: string) => localStorage.setItem('fanclubz_token', token);
 export const removeAuthToken = () => localStorage.removeItem('fanclubz_token');
 
 // API client with auth
 export const apiClient = {
   get: async (endpoint: string, options?: RequestInit) => {
-    const token = getAuthToken();
+    const token = await getAuthToken();
     
     try {
       const response = await fetch(`${API_URL}${endpoint}`, {
@@ -54,7 +61,7 @@ export const apiClient = {
   },
   
   post: async (endpoint: string, data?: any, options?: RequestInit) => {
-    const token = getAuthToken();
+    const token = await getAuthToken();
     
     try {
       const response = await fetch(`${API_URL}${endpoint}`, {

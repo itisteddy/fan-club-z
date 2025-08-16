@@ -8,6 +8,7 @@ import { useWalletStore } from '../store/walletStore';
 import { useNotificationStore } from '../store/notificationStore';
 import { formatTimeRemaining } from '../lib/utils';
 import CommentSystem from '../components/CommentSystem';
+import { getAuthToken } from '../lib/api';
 
 interface PredictionDetailsPageProps {
   predictionId?: string;
@@ -58,11 +59,12 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
   // Load like status for the current user
   const loadLikeStatus = async (predictionId: string) => {
     try {
+      const token = await getAuthToken();
       const response = await fetch(`/api/v2/predictions/${predictionId}/likes`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
+          ...(token && { 'Authorization': `Bearer ${token}` })
         },
       });
 
