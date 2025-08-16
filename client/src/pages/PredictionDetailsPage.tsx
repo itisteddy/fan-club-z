@@ -23,6 +23,7 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
   const [loading, setLoading] = useState(true);
   const [showComments, setShowComments] = useState(false);
   const [isLiked, setIsLiked] = useState(false);
+  const [realCommentsCount, setRealCommentsCount] = useState<number>(0);
   
   // Refs for smooth scrolling
   const commentsRef = useRef<HTMLDivElement>(null);
@@ -32,6 +33,27 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
   const { isAuthenticated, user } = useAuthStore();
   const { getBalance } = useWalletStore();
   const { success, error, info } = useNotificationStore();
+
+  // Load comments count from API
+  const loadCommentsCount = async (predictionId: string) => {
+    try {
+      const response = await fetch(`/api/v2/predictions/${predictionId}/comments`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        const count = data.total || data.comments?.length || 0;
+        setRealCommentsCount(count);
+        console.log('✅ Comments count loaded:', count);
+      }
+    } catch (err) {
+      console.log('Failed to load comments count:', err);
+    }
+  };
 
   // Load like status for the current user
   const loadLikeStatus = async (predictionId: string) => {
@@ -87,6 +109,9 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
           if (isAuthenticated) {
             loadLikeStatus(id);
           }
+          
+          // Load comments count
+          loadCommentsCount(id);
         } else {
           console.log('📡 Prediction not in store, fetching from API...');
           
@@ -647,7 +672,7 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
             >
               <MessageCircle size={20} />
               <span className="font-medium">
-                {prediction.comments_count || 0} comments
+                {realCommentsCount || prediction.comments_count || 0} comments
               </span>
               <ChevronDown 
                 size={16} 
