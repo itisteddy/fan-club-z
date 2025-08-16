@@ -227,9 +227,9 @@ const CommentSystem: React.FC<CommentSystemProps> = ({ predictionId, initialComm
           const loadedComments = data.comments || [];
           setComments(loadedComments);
           
-          // Notify parent of the comment count
+          // Notify parent of the comment count (use API total, not local array length)
           if (onCommentCountChange) {
-            onCommentCountChange(loadedComments.length);
+            onCommentCountChange(data.total || loadedComments.length);
           }
         } else {
           throw new Error(`API responded with ${response.status}`);
@@ -510,7 +510,7 @@ const CommentSystem: React.FC<CommentSystemProps> = ({ predictionId, initialComm
                 <span className="text-blue-500 text-xs">✓</span>
               )}
               <span className="text-xs text-gray-500">
-                {formatDistanceToNow(new Date(comment.created_at), { addSuffix: true })}
+                {comment.created_at ? formatDistanceToNow(new Date(comment.created_at), { addSuffix: true }) : 'just now'}
               </span>
               {comment.is_edited && (
                 <span className="text-xs text-gray-400">(edited)</span>
