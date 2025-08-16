@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { X, Users, Clock, DollarSign, BarChart3, Settings, Trash2, Eye, Share2, Edit3, CheckCircle } from 'lucide-react';
 import { usePredictionStore, ActivityItem, Participant } from '../../store/predictionStore';
 import { useNotificationStore } from '../../store/notificationStore';
+import { formatTimeRemaining } from '../../lib/utils';
 
 interface ManagePredictionModalProps {
   isOpen: boolean;
@@ -193,6 +194,24 @@ const ManagePredictionModal: React.FC<ManagePredictionModalProps> = ({
     const participantCount = prediction.participant_count || prediction.participants || 0;
     const creatorFee = prediction.creator_fee_percentage || prediction.yourCut || 3.5;
     const projectedEarnings = (totalPool * creatorFee) / 100;
+    
+    // Calculate time remaining from deadline
+    const timeRemaining = prediction.entry_deadline 
+      ? formatTimeRemaining(prediction.entry_deadline)
+      : prediction.timeRemaining || 'Unknown';
+    
+    // Debug logging to see what data we have
+    console.log('📊 ManagePredictionModal - Prediction data:', {
+      id: prediction.id,
+      title: prediction.title,
+      status: prediction.status,
+      totalPool,
+      participantCount,
+      creatorFee,
+      projectedEarnings,
+      timeRemaining,
+      fullPrediction: prediction
+    });
 
     return (
       <div className="space-y-6">
@@ -221,7 +240,7 @@ const ManagePredictionModal: React.FC<ManagePredictionModalProps> = ({
               <Clock className="w-5 h-5 text-amber-600" />
               <span className="text-sm font-medium text-amber-800">Time Remaining</span>
             </div>
-            <div className="text-xl font-bold text-amber-900">{prediction.timeRemaining}</div>
+            <div className="text-xl font-bold text-amber-900">{timeRemaining}</div>
             <div className="text-sm text-amber-600">Until prediction closes</div>
           </div>
           
@@ -384,7 +403,7 @@ const ManagePredictionModal: React.FC<ManagePredictionModalProps> = ({
           
           <motion.button
             onClick={handleClosePrediction}
-            disabled={loading || prediction.status !== 'open'}
+            disabled={loading || prediction.status === 'closed' || prediction.status === 'settled'}
             className="w-full flex items-center justify-between p-3 text-left hover:bg-gray-50 rounded-lg transition-colors disabled:opacity-50"
             whileHover={{ scale: 1.01 }}
             whileTap={{ scale: 0.99 }}
@@ -421,6 +440,13 @@ const ManagePredictionModal: React.FC<ManagePredictionModalProps> = ({
   const ParticipantsTab = () => {
     const participantCount = prediction.participant_count || prediction.participants || 0;
     const totalPool = prediction.pool_total || prediction.totalPool || 0;
+    
+    console.log('👥 ParticipantsTab - Data:', {
+      participantCount,
+      totalPool,
+      participantData: participantData.length,
+      loading
+    });
 
     return (
       <div className="space-y-4">
@@ -511,6 +537,19 @@ const ManagePredictionModal: React.FC<ManagePredictionModalProps> = ({
                   <p className="text-sm text-gray-600 mt-1 truncate">
                     {prediction.title}
                   </p>
+                  <div className="flex items-center gap-2 mt-2">
+                    <span className={`px-2 py-1 rounded-lg text-xs font-medium ${
+                      prediction.status === 'open' ? 'bg-green-100 text-green-700' :
+                      prediction.status === 'closed' ? 'bg-amber-100 text-amber-700' :
+                      prediction.status === 'settled' ? 'bg-blue-100 text-blue-700' :
+                      'bg-gray-100 text-gray-700'
+                    }`}>
+                      {prediction.status?.charAt(0).toUpperCase() + prediction.status?.slice(1) || 'Unknown'}
+                    </span>
+                    <span className="text-xs text-gray-500">
+                      ID: {prediction.id}
+                    </span>
+                  </div>
                 </div>
                 <div className="flex items-center gap-2 ml-4">
                   <motion.button
