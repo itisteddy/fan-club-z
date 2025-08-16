@@ -68,7 +68,8 @@ app.get('/api/predictions/created/me', (req, res): void => {
         status: 'open',
         stake_min: 1,
         stake_max: 1000,
-        pool_total: 0,
+        pool_total: 1250,
+        participant_count: 8,
         entry_deadline: '2025-08-15T21:30:00.000Z',
         settlement_method: 'manual',
         is_private: false,
@@ -78,8 +79,8 @@ app.get('/api/predictions/created/me', (req, res): void => {
         created_at: '2025-08-15T18:25:45.137Z',
         updated_at: '2025-08-15T18:25:45.137Z',
         options: [
-          { id: 'opt6_1', prediction_id: '6', label: 'Liverpool', total_staked: 0, current_odds: 2, percentage: 0 },
-          { id: 'opt6_2', prediction_id: '6', label: 'Bournemouth', total_staked: 0, current_odds: 2, percentage: 0 }
+          { id: 'opt6_1', prediction_id: '6', label: 'Liverpool', total_staked: 750, current_odds: 1.67, percentage: 60 },
+          { id: 'opt6_2', prediction_id: '6', label: 'Bournemouth', total_staked: 500, current_odds: 2.5, percentage: 40 }
         ]
       },
       {
@@ -92,7 +93,8 @@ app.get('/api/predictions/created/me', (req, res): void => {
         status: 'open',
         stake_min: 1,
         stake_max: 1000,
-        pool_total: 0,
+        pool_total: 850,
+        participant_count: 5,
         entry_deadline: '2025-08-15T18:20:00.000Z',
         settlement_method: 'manual',
         is_private: false,
@@ -102,8 +104,8 @@ app.get('/api/predictions/created/me', (req, res): void => {
         created_at: '2025-08-15T18:14:13.334Z',
         updated_at: '2025-08-15T18:14:13.334Z',
         options: [
-          { id: 'opt5_1', prediction_id: '5', label: 'Yes', total_staked: 0, current_odds: 2, percentage: 0 },
-          { id: 'opt5_2', prediction_id: '5', label: 'No', total_staked: 0, current_odds: 2, percentage: 0 }
+          { id: 'opt5_1', prediction_id: '5', label: 'Yes', total_staked: 520, current_odds: 1.63, percentage: 61 },
+          { id: 'opt5_2', prediction_id: '5', label: 'No', total_staked: 330, current_odds: 2.58, percentage: 39 }
         ]
       },
       {
@@ -116,7 +118,8 @@ app.get('/api/predictions/created/me', (req, res): void => {
         status: 'open',
         stake_min: 1,
         stake_max: 100,
-        pool_total: 0,
+        pool_total: 420,
+        participant_count: 3,
         entry_deadline: '2025-12-31T23:59:59.000Z',
         settlement_method: 'manual',
         is_private: false,
@@ -126,8 +129,8 @@ app.get('/api/predictions/created/me', (req, res): void => {
         created_at: '2025-08-15T18:10:49.333Z',
         updated_at: '2025-08-15T18:10:49.333Z',
         options: [
-          { id: 'opt4_1', prediction_id: '4', label: 'Yes', total_staked: 0, current_odds: 2, percentage: 0 },
-          { id: 'opt4_2', prediction_id: '4', label: 'No', total_staked: 0, current_odds: 2, percentage: 0 }
+          { id: 'opt4_1', prediction_id: '4', label: 'Yes', total_staked: 280, current_odds: 1.5, percentage: 67 },
+          { id: 'opt4_2', prediction_id: '4', label: 'No', total_staked: 140, current_odds: 3, percentage: 33 }
         ]
       }
     ],
