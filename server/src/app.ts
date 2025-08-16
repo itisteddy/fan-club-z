@@ -17,6 +17,7 @@ import walletRoutes from './routes/wallet';
 import socialRoutes from './routes/social';
 import clubRoutes from './routes/clubs';
 import commentRoutes from './routes/comments';
+import commentsFixed from './routes/comments-fixed';
 import settlementRoutes from './routes/settlement';
 
 // ============================================================================
@@ -229,7 +230,8 @@ app.use('/api/v2/wallet', walletRoutes);
 app.use('/api/v2/social', socialRoutes);
 app.use('/api/v2/clubs', clubRoutes);
 app.use('/api/v2/settlement', settlementRoutes);
-app.use('/api/v2', commentRoutes); // Comment routes handle their own sub-paths
+app.use('/api/v2', commentsFixed); // Fixed comment routes
+// app.use('/api/v2', commentRoutes); // Original routes (commented out)
 
 // Legacy routes (for backward compatibility)
 app.use('/api/auth', authRoutes);

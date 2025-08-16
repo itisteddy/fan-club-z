@@ -133,16 +133,20 @@ ALTER TABLE prediction_likes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE comment_likes ENABLE ROW LEVEL SECURITY;
 
 -- RLS Policies for prediction_likes
+DROP POLICY IF EXISTS "Users can view all prediction likes" ON prediction_likes;
 CREATE POLICY "Users can view all prediction likes" ON prediction_likes
   FOR SELECT USING (true);
 
+DROP POLICY IF EXISTS "Users can manage their own prediction likes" ON prediction_likes;
 CREATE POLICY "Users can manage their own prediction likes" ON prediction_likes
   FOR ALL USING (auth.uid() = user_id);
 
 -- RLS Policies for comment_likes
+DROP POLICY IF EXISTS "Users can view all comment likes" ON comment_likes;
 CREATE POLICY "Users can view all comment likes" ON comment_likes
   FOR SELECT USING (true);
 
+DROP POLICY IF EXISTS "Users can manage their own comment likes" ON comment_likes;
 CREATE POLICY "Users can manage their own comment likes" ON comment_likes
   FOR ALL USING (auth.uid() = user_id);
 
