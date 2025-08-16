@@ -207,6 +207,92 @@ app.get('/api/predictions/entries/me', (req, res) => {
         }
     });
 });
+// Prediction like endpoints
+app.post('/api/v2/predictions/:id/like', (req, res) => {
+    const { id: predictionId } = req.params;
+    console.log('❤️ Like toggled for prediction:', predictionId);
+    // Mock response for now
+    const mockLiked = Math.random() > 0.5;
+    const mockCount = Math.floor(Math.random() * 50) + 5;
+    res.json({
+        success: true,
+        data: {
+            liked: mockLiked,
+            likes_count: mockCount,
+            message: mockLiked ? 'Prediction liked!' : 'Prediction unliked!'
+        }
+    });
+});
+app.get('/api/v2/predictions/:id/likes', (req, res) => {
+    const { id: predictionId } = req.params;
+    console.log('❤️ Fetching like status for prediction:', predictionId);
+    // Mock response for now
+    const mockLiked = Math.random() > 0.5;
+    const mockCount = Math.floor(Math.random() * 50) + 5;
+    res.json({
+        success: true,
+        data: {
+            liked: mockLiked,
+            likes_count: mockCount
+        }
+    });
+});
+// Comment endpoints
+app.get('/api/v2/predictions/:id/comments', (req, res) => {
+    const { id: predictionId } = req.params;
+    console.log('💬 Fetching comments for prediction:', predictionId);
+    // Mock comments for now
+    res.json({
+        success: true,
+        comments: [
+            {
+                id: 'comment1',
+                prediction_id: predictionId,
+                user_id: 'user1',
+                username: 'TestUser',
+                content: 'This is a test comment!',
+                likes_count: 3,
+                is_liked: false,
+                created_at: new Date().toISOString()
+            }
+        ]
+    });
+});
+app.post('/api/v2/predictions/:id/comments', (req, res) => {
+    const { id: predictionId } = req.params;
+    const { content } = req.body;
+    console.log('💬 Adding comment to prediction:', predictionId, content);
+    // Mock response for now
+    const newComment = {
+        id: `comment_${Date.now()}`,
+        prediction_id: predictionId,
+        user_id: 'user1',
+        username: 'TestUser',
+        content: content,
+        likes_count: 0,
+        is_liked: false,
+        created_at: new Date().toISOString()
+    };
+    res.json({
+        success: true,
+        data: newComment
+    });
+});
+app.post('/api/v2/comments/:id/like', (req, res) => {
+    const { id: commentId } = req.params;
+    console.log('❤️ Like toggled for comment:', commentId);
+    // Mock response for now
+    const mockLiked = Math.random() > 0.5;
+    const mockCount = Math.floor(Math.random() * 10) + 1;
+    res.json({
+        success: true,
+        data: {
+            liked: mockLiked,
+            likes_count: mockCount,
+            message: mockLiked ? 'Comment liked!' : 'Comment unliked!'
+        }
+    });
+});
 // v2 version for compatibility
 app.get('/api/v2/predictions/created/me', (req, res) => {
     console.log('📋 Fetching user created predictions (v2) from database');
