@@ -1,11 +1,44 @@
 #!/usr/bin/env node
 
+/**
+ * Automated Version Synchronization Script
+ * Ensures all package.json files and cache busters are in sync
+ */
+
 const fs = require('fs');
 const path = require('path');
 
-// Function to increment version
-function incrementVersion(version, type = 'patch') {
+// Files to update
+const FILES_TO_UPDATE = [
+  'package.json',
+  'client/package.json',
+  'server/package.json',
+  'shared/package.json',
+  'client/index.html'
+];
+
+// Get command line arguments
+const args = process.argv.slice(2);
+const versionType = args[0] || 'patch'; // patch, minor, major
+
+console.log(`🔄 Starting version synchronization...`);
+console.log(`📦 Version type: ${versionType}`);
+
+// Read current version from root package.json
+function getCurrentVersion() {
+  const rootPackage = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+  return rootPackage.version;
+}
+
+// Parse version string
+function parseVersion(version) {
   const [major, minor, patch] = version.split('.').map(Number);
+  return { major, minor, patch };
+}
+
+// Generate new version
+function generateNewVersion(currentVersion, type) {
+  const { major, minor, patch } = parseVersion(currentVersion);
   
   switch (type) {
     case 'major':
@@ -18,67 +51,70 @@ function incrementVersion(version, type = 'patch') {
   }
 }
 
-// Function to update package.json
+// Update package.json file
 function updatePackageJson(filePath, newVersion) {
-  try {
-    const packageJson = JSON.parse(fs.readFileSync(filePath, 'utf8'));
-    packageJson.version = newVersion;
-    fs.writeFileSync(filePath, JSON.stringify(packageJson, null, 2) + '\n');
-    console.log(`✅ Updated ${filePath} to version ${newVersion}`);
-  } catch (error) {
-    console.error(`❌ Error updating ${filePath}:`, error.message);
-  }
+  console.log(`📝 Updating ${filePath} to version ${newVersion}`);
+  
+  const packagePath = path.resolve(filePath);
+  const packageJson = JSON.parse(fs.readFileSync(packagePath, 'utf8'));
+  
+  packageJson.version = newVersion;
+  
+  // Write back with proper formatting
+  fs.writeFileSync(packagePath, JSON.stringify(packageJson, null, 2) + '\n');
 }
 
-// Function to update cache buster in index.html
-function updateCacheBuster(newVersion) {
-  const htmlPath = path.join(__dirname, '../client/index.html');
-  try {
-    let html = fs.readFileSync(htmlPath, 'utf8');
-    const today = new Date().toISOString().split('T')[0].replace(/-/g, '');
-    const newCacheBuster = `v${newVersion}-${today}-auto`;
-    
-    html = html.replace(
-      /<meta name="cache-buster" content="[^"]*" \/>/,
-      `<meta name="cache-buster" content="${newCacheBuster}" />`
-    );
-    
-    fs.writeFileSync(htmlPath, html);
-    console.log(`✅ Updated cache buster to ${newCacheBuster}`);
-  } catch (error) {
-    console.error(`❌ Error updating cache buster:`, error.message);
-  }
+// Update cache buster in index.html
+function updateCacheBuster(filePath, newVersion) {
+  console.log(`📝 Updating cache buster in ${filePath}`);
+  
+  const htmlPath = path.resolve(filePath);
+  let htmlContent = fs.readFileSync(htmlPath, 'utf8');
+  
+  const today = new Date().toISOString().split('T')[0];
+  const newCacheBuster = `v${newVersion}-${today}-auto`;
+  
+  // Replace cache buster meta tag
+  htmlContent = htmlContent.replace(
+    /<meta name="cache-buster" content="[^"]*" \/>/,
+    `<meta name="cache-buster" content="${newCacheBuster}" />`
+  );
+  
+  fs.writeFileSync(htmlPath, htmlContent);
 }
 
-// Main function
+// Main execution
 function main() {
-  const type = process.argv[2] || 'patch'; // patch, minor, or major
-  const currentVersion = require('../package.json').version;
-  const newVersion = incrementVersion(currentVersion, type);
-  
-  console.log(`🔄 Bumping version from ${currentVersion} to ${newVersion} (${type})`);
-  
-  // Update all package.json files
-  const packageFiles = [
-    '../package.json',
-    '../client/package.json',
-    '../server/package.json',
-    '../shared/package.json'
-  ];
-  
-  packageFiles.forEach(file => {
-    const filePath = path.join(__dirname, file);
-    if (fs.existsSync(filePath)) {
-      updatePackageJson(filePath, newVersion);
-    }
-  });
-  
-  // Update cache buster
-  updateCacheBuster(newVersion);
-  
-  console.log(`\n🎉 Version bump complete! New version: ${newVersion}`);
-  console.log(`📝 Don't forget to commit these changes:`);
-  console.log(`   git add . && git commit -m "BUMP: Version ${newVersion}" && git push origin main`);
+  try {
+    const currentVersion = getCurrentVersion();
+    console.log(`📋 Current version: ${currentVersion}`);
+    
+    const newVersion = generateNewVersion(currentVersion, versionType);
+    console.log(`🆕 New version: ${newVersion}`);
+    
+    // Update all package.json files
+    FILES_TO_UPDATE.forEach(file => {
+      if (file.endsWith('package.json')) {
+        updatePackageJson(file, newVersion);
+      } else if (file.endsWith('index.html')) {
+        updateCacheBuster(file, newVersion);
+      }
+    });
+    
+    console.log(`✅ Version synchronization complete!`);
+    console.log(`📊 Updated ${FILES_TO_UPDATE.length} files to version ${newVersion}`);
+    console.log(`🚀 Ready for deployment`);
+    
+  } catch (error) {
+    console.error(`❌ Error during version synchronization:`, error.message);
+    process.exit(1);
+  }
 }
 
-main();
+// Run if called directly
+if (require.main === module) {
+  main();
+}
+
+module.exports = { getCurrentVersion, generateNewVersion, updatePackageJson, updateCacheBuster };
+
