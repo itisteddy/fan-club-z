@@ -11,22 +11,42 @@
 
 ## Key Conversations & Updates
 
-### Comment Count Inconsistencies Fix (Current Session)
+### Critical Prediction Rendering Fixes (Current Session)
+- **Date**: August 20, 2025
+- **Focus**: Fixed critical issues preventing prediction cards from rendering with real data
+- **Issues Identified**:
+  - Duplicate supabase import in server/src/index.ts causing module conflicts
+  - Empty database with no sample predictions to display
+  - Version inconsistency (showing 2.0.46 instead of current 2.0.47)
+  - CORS configuration missing production domains
+  - API returning empty arrays due to missing database records
+- **Solutions Implemented**:
+  - **Fixed duplicate import**: Removed duplicate supabase import, added db import
+  - **Database seeding script**: Created comprehensive seeding script with 6 sample predictions
+  - **Version consistency**: Updated all version references to 2.0.47
+  - **Enhanced CORS**: Added Vercel/Render domain patterns, proper headers
+  - **Admin seeding endpoint**: Added POST /api/v2/admin/seed-database for easy testing
+  - **Sample data**: Created realistic predictions across sports, crypto, pop culture categories
+- **Files Modified**:
+  - `/server/src/index.ts` - Fixed imports, version, CORS, added seeding endpoint
+  - `/server/src/scripts/seedDatabase.ts` - New comprehensive seeding script
+  - `/deploy-prediction-fixes.sh` - Deployment script
+  - `/seed-database.sh` - Quick database seeding script
+- **Expected Results**:
+  - Prediction cards render with real data (6 predictions)
+  - Platform stats show actual counts (6 predictions, 4 users)
+  - Version 2.0.47 displayed consistently
+  - No CORS errors in browser console
+- **Sample Data Created**:
+  - 4 verified sample users (sports_guru, crypto_prophet, etc.)
+  - 6 diverse predictions with realistic pool totals ($420-$3400)
+  - 17 prediction options with calculated odds
+  - Categories: sports, crypto, pop_culture with proper metadata
+
+### Comment Count Inconsistencies Fix (Previous Session)
 - **Date**: August 19, 2025
 - **Focus**: Fixed comment count inconsistencies between BetCard and CommentModal
-- **Issue Identified**:
-  - BetCard was using the new `unifiedCommentStore.ts` (API-based)
-  - CommentModal was using the old `commentStore.ts` (Supabase-based)
-  - This caused comment counts to display incorrectly (often showing 0)
-  - Two different stores weren't syncing properly
-- **Solution Implemented**:
-  - Updated CommentModal to use `useCommentsForPrediction` hook from unified store
-  - Replaced all references to old comment store methods
-  - Fixed comment count display to use `commentCount` from unified store
-  - Updated like functionality to use `toggleCommentLike` method
-  - Ensured proper loading and submission states
-- **Files Modified**:
-  - `/client/src/components/modals/CommentModal.tsx` - Updated to use unified store
+- **Solution**: Updated CommentModal to use unified comment store
 - **Result**: Comment counts now display consistently across all components
 
 ### Tappable Username Navigation Feature (Previous Session)

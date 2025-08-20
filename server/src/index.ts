@@ -9,21 +9,29 @@ import express from 'express';
 import cors from 'cors';
 import { config } from './config';
 import { supabase } from './config/database';
-import { supabase } from './config/database';
+import { db } from './config/database';
 
 const app = express();
 const PORT = config.server.port || 3001;
+const VERSION = '2.0.47';
 
-// Basic middleware
+// Enhanced CORS middleware
 app.use(cors({
   origin: [
     'https://fanclubz.com',
     'https://app.fanclubz.app',
     'https://fan-club-z.onrender.com',
     'http://localhost:5173',
-    'http://localhost:3000'
+    'http://localhost:3000',
+    // Vercel preview domains
+    /https:\/\/.*\.vercel\.app$/,
+    // Render preview domains
+    /https:\/\/.*\.onrender\.com$/
   ],
-  credentials: true
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
+  exposedHeaders: ['Content-Range', 'X-Content-Range']
 }));
 
 app.use(express.json());
@@ -42,7 +50,7 @@ app.get('/health', (req, res) => {
   res.status(200).json({
     status: 'OK',
     timestamp: new Date().toISOString(),
-    version: process.env.npm_package_version || '2.0.46',
+    version: VERSION,
     environment: config.server.nodeEnv || 'production',
     uptime: process.uptime()
   });
@@ -52,10 +60,40 @@ app.get('/health', (req, res) => {
 app.get('/', (req, res) => {
   res.json({
     message: 'Fan Club Z API Server',
-    version: process.env.npm_package_version || '2.0.46',
+    version: VERSION,
     environment: config.server.nodeEnv || 'production',
     status: 'running'
   });
+});
+
+// Database seeding endpoint (for development/testing)
+app.post('/api/v2/admin/seed-database', async (req, res) => {
+  // Set CORS headers explicitly
+  res.header('Access-Control-Allow-Origin', 'https://app.fanclubz.app');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  
+  try {
+    // Import and run seeding function
+    const { seedDatabase } = await import('./scripts/seedDatabase');
+    const result = await seedDatabase();
+    
+    res.json({
+      success: true,
+      message: 'Database seeded successfully',
+      data: result,
+      version: VERSION
+    });
+  } catch (error) {
+    console.error('Error seeding database:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Database seeding failed',
+      message: error instanceof Error ? error.message : 'Unknown error',
+      version: VERSION
+    });
+  }
 });
 
 // API routes placeholder
@@ -84,14 +122,14 @@ app.get('/api/v2/predictions', async (req, res) => {
       return res.status(500).json({
         error: 'Database error',
         message: 'Failed to fetch predictions',
-        version: process.env.npm_package_version || '2.0.46'
+        version: VERSION
       });
     }
 
-    res.json({
+    return res.json({
       data: predictions || [],
-      message: 'Predictions fetched from database',
-      version: process.env.npm_package_version || '2.0.46',
+      message: 'Predictions endpoint - working',
+      version: VERSION,
       pagination: {
         page: 1,
         limit: 20,
@@ -103,10 +141,10 @@ app.get('/api/v2/predictions', async (req, res) => {
     });
   } catch (error) {
     console.error('Error in predictions endpoint:', error);
-    res.status(500).json({
+    return res.status(500).json({
       error: 'Internal server error',
       message: 'Failed to fetch predictions',
-      version: process.env.npm_package_version || '2.0.46'
+      version: VERSION
     });
   }
 });
@@ -127,22 +165,22 @@ app.get('/api/v2/predictions/stats/platform', async (req, res) => {
       supabase.from('predictions').select('*', { count: 'exact', head: true }).eq('status', 'active')
     ]);
 
-    res.json({
+    return res.json({
       data: {
         totalPredictions: predictionsCount.count || 0,
         totalUsers: usersCount.count || 0,
         totalVolume: 0, // Will be calculated from prediction entries
         activePredictions: activePredictionsCount.count || 0
       },
-      message: 'Platform stats fetched from database',
-      version: process.env.npm_package_version || '2.0.46'
+      message: 'Platform stats endpoint - working',
+      version: VERSION
     });
   } catch (error) {
     console.error('Error fetching platform stats:', error);
-    res.status(500).json({
+    return res.status(500).json({
       error: 'Internal server error',
       message: 'Failed to fetch platform statistics',
-      version: process.env.npm_package_version || '2.0.46'
+      version: VERSION
     });
   }
 });
@@ -159,7 +197,7 @@ app.get('/api/v2/predictions/:id', (req, res) => {
   res.json({
     data: null,
     message: `Prediction ${id} not found`,
-    version: process.env.npm_package_version || '2.0.46'
+    version: VERSION
   });
 });
 
@@ -177,7 +215,7 @@ app.listen(PORT, () => {
   console.log(`🚀 Fan Club Z Server started successfully!`);
   console.log(`📡 Environment: ${config.server.nodeEnv || 'production'}`);
   console.log(`🌐 Server running on port ${PORT}`);
-  console.log(`📊 Version: ${process.env.npm_package_version || '2.0.46'}`);
+  console.log(`📊 Version: ${VERSION}`);
   console.log(`🔗 API URL: ${config.api.url || `https://fan-club-z.onrender.com`}`);
   console.log(`🎯 Frontend URL: ${config.frontend.url || 'https://app.fanclubz.app'}`);
 });
