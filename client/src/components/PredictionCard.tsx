@@ -6,6 +6,7 @@ import { useLikeStore } from '../store/likeStore';
 import { useUnifiedCommentStore } from '../store/unifiedCommentStore';
 import CommentModal from './modals/CommentModal';
 import TappableUsername from './TappableUsername';
+import ErrorBoundary from './ErrorBoundary';
 import toast from 'react-hot-toast';
 
 interface PredictionCardProps {
@@ -19,7 +20,17 @@ interface PredictionCardProps {
   className?: string;
 }
 
-const PredictionCard: React.FC<PredictionCardProps> = ({
+// Safe error fallback for individual prediction cards
+const PredictionCardErrorFallback: React.FC<{ error?: string }> = ({ error }) => (
+  <div className="bg-white rounded-xl shadow-sm border border-red-200 p-4 m-2">
+    <div className="text-red-600 text-sm">
+      ⚠️ Error loading prediction
+      {error && <div className="text-xs mt-1 text-gray-500">{error}</div>}
+    </div>
+  </div>
+);
+
+const PredictionCardContent: React.FC<PredictionCardProps> = ({
   prediction,
   entry,
   variant = 'default',
@@ -32,19 +43,62 @@ const PredictionCard: React.FC<PredictionCardProps> = ({
   // Early return with error boundary if prediction is invalid
   if (!prediction || !prediction.id) {
     console.warn('⚠️ PredictionCard: Invalid prediction data received:', prediction);
+    return <PredictionCardErrorFallback error="Invalid prediction data" />;
+  }
+
+  const [mounted, setMounted] = useState(false);
+  const [commentModalOpen, setCommentModalOpen] = useState(false);
+  const [isLiking, setIsLiking] = useState(false);
+
+  // Initialize mounting state
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  // Safe store access with error handling
+  const getLikeData = () => {
+    try {
+      const { toggleLike, checkIfLiked, getLikeCount } = useLikeStore();
+      return { toggleLike, checkIfLiked, getLikeCount };
+    } catch (error) {
+      console.warn('Error accessing like store:', error);
+      return {
+        toggleLike: async () => {},
+        checkIfLiked: () => false,
+        getLikeCount: () => 0
+      };
+    }
+  };
+
+  const getCommentData = () => {
+    try {
+      const { getCommentCount } = useUnifiedCommentStore();
+      return { getCommentCount };
+    } catch (error) {
+      console.warn('Error accessing comment store:', error);
+      return { getCommentCount: () => 0 };
+    }
+  };
+
+  const { toggleLike, checkIfLiked, getLikeCount } = getLikeData();
+  const { getCommentCount } = getCommentData();
+
+  // Don't render until mounted to prevent hydration issues
+  if (!mounted) {
     return (
-      <div className="bg-white rounded-xl shadow-sm border border-red-200 p-4 m-2">
-        <div className="text-red-600 text-sm">
-          ⚠️ Error: Invalid prediction data
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 animate-pulse">
+        <div className="flex items-center gap-3 mb-3">
+          <div className="w-10 h-10 bg-gray-200 rounded-full"></div>
+          <div className="flex-1">
+            <div className="h-4 bg-gray-200 rounded w-1/3 mb-1"></div>
+            <div className="h-3 bg-gray-200 rounded w-1/4"></div>
+          </div>
         </div>
+        <div className="h-6 bg-gray-200 rounded mb-2"></div>
+        <div className="h-4 bg-gray-200 rounded w-3/4"></div>
       </div>
     );
   }
-
-  const { toggleLike, checkIfLiked, getLikeCount } = useLikeStore();
-  const { getCommentCount } = useUnifiedCommentStore();
-  const [commentModalOpen, setCommentModalOpen] = useState(false);
-  const [isLiking, setIsLiking] = useState(false);
 
   // Get real-time data from stores with safe fallbacks
   const isLiked = checkIfLiked(prediction.id) || false;
@@ -66,16 +120,6 @@ const PredictionCard: React.FC<PredictionCardProps> = ({
     return sum + staked;
   }, 0) || prediction.pool_total || prediction.poolTotal || 0;
 
-  // Debug: Log the actual prediction data being used
-  // console.log('🔍 PredictionCard Debug:', {
-  //   id: prediction.id,
-  //   title: prediction.title,
-  //   participant_count: prediction.participant_count,
-  //   options: prediction.options,
-  //   totalPool,
-  //   participantCount
-  // });
-
   // Format currency consistently
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-US', {
@@ -89,13 +133,9 @@ const PredictionCard: React.FC<PredictionCardProps> = ({
   const handleLike = async () => {
     if (isLiking) return;
     
-    console.log('🔍 Like button clicked for prediction:', prediction.id);
-    console.log('🔍 Current like state:', { isLiked, likeCount });
-    
     try {
       setIsLiking(true);
       await toggleLike(prediction.id);
-      console.log('✅ Like toggled successfully');
       if (customOnLike) customOnLike();
     } catch (error) {
       console.error('❌ Error toggling like:', error);
@@ -153,10 +193,10 @@ const PredictionCard: React.FC<PredictionCardProps> = ({
   if (variant === 'compact') {
     return (
       <>
-      <motion.div
+        <motion.div
           className={`bg-white rounded-xl shadow-sm border border-gray-100 p-4 ${className}`}
-        whileHover={{ scale: 1.02, y: -2 }}
-        whileTap={{ scale: 0.98 }}
+          whileHover={{ scale: 1.02, y: -2 }}
+          whileTap={{ scale: 0.98 }}
         >
           {/* Header */}
           <div className="flex items-center justify-between mb-3">
@@ -182,8 +222,8 @@ const PredictionCard: React.FC<PredictionCardProps> = ({
               'bg-green-100 text-green-700'
             }`}>
               {prediction.category?.replace('_', ' ') || 'General'}
-          </span>
-        </div>
+            </span>
+          </div>
 
           {/* Title */}
           <h3 
@@ -225,8 +265,8 @@ const PredictionCard: React.FC<PredictionCardProps> = ({
                 <span className="text-gray-600">{commentCount}</span>
               </button>
             </div>
-        </div>
-      </motion.div>
+          </div>
+        </motion.div>
 
         <CommentModal
           prediction={prediction}
@@ -246,7 +286,7 @@ const PredictionCard: React.FC<PredictionCardProps> = ({
     
     return (
       <>
-      <motion.div
+        <motion.div
           className={`bg-white rounded-xl shadow-sm border-l-4 ${
             status === 'won' ? 'border-green-500' :
             status === 'lost' ? 'border-red-500' :
@@ -269,10 +309,10 @@ const PredictionCard: React.FC<PredictionCardProps> = ({
                   'bg-blue-100 text-blue-700'
                 }`}>
                   {status?.toUpperCase()}
-              </span>
+                </span>
                 <Clock className="w-3 h-3 text-gray-400" />
                 <span className="text-xs text-gray-500">{formatTimeRemaining()}</span>
-            </div>
+              </div>
             </div>
           </div>
 
@@ -324,8 +364,8 @@ const PredictionCard: React.FC<PredictionCardProps> = ({
             >
               View Details
             </button>
-        </div>
-      </motion.div>
+          </div>
+        </motion.div>
 
         <CommentModal
           prediction={prediction}
@@ -339,14 +379,14 @@ const PredictionCard: React.FC<PredictionCardProps> = ({
   // Default variant
   return (
     <>
-    <motion.div
+      <motion.div
         className={`bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden ${className}`}
         whileHover={{ scale: 1.01, y: -2 }}
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3 }}
-    >
-      {/* Header */}
+      >
+        {/* Header */}
         <div className="p-4 pb-0">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-3">
@@ -380,20 +420,20 @@ const PredictionCard: React.FC<PredictionCardProps> = ({
                   Closing Soon
                 </span>
               )}
-              </div>
             </div>
-            
-          <h3 className="text-xl font-semibold text-gray-900 mb-2 leading-tight">
-              {prediction.title}
-            </h3>
-            
-            {prediction.description && (
-            <p className="text-gray-600 text-sm mb-4 line-clamp-2">
-                {prediction.description}
-              </p>
-            )}
           </div>
           
+          <h3 className="text-xl font-semibold text-gray-900 mb-2 leading-tight">
+            {prediction.title}
+          </h3>
+          
+          {prediction.description && (
+            <p className="text-gray-600 text-sm mb-4 line-clamp-2">
+              {prediction.description}
+            </p>
+          )}
+        </div>
+        
         {/* Options */}
         <div className="px-4 mb-4">
           <div className="bg-gray-50 rounded-xl p-4">
@@ -447,8 +487,8 @@ const PredictionCard: React.FC<PredictionCardProps> = ({
         {/* Stats */}
         <div className="px-4 py-3 bg-gray-50 border-t border-gray-100">
           <div className="flex items-center justify-between text-sm">
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-1">
                 <span className="font-semibold text-gray-900">{formatCurrency(totalPool)}</span>
                 <span className="text-gray-500">pool</span>
               </div>
@@ -461,14 +501,14 @@ const PredictionCard: React.FC<PredictionCardProps> = ({
                 <span className={isClosingSoon ? 'text-amber-600 font-medium' : ''}>
                   {formatTimeRemaining()}
                 </span>
-            </div>
+              </div>
             </div>
             {/* Only show trending if there are actual participants */}
             {participantCount > 5 && (
               <div className="flex items-center gap-1 text-green-600">
                 <TrendingUp className="w-4 h-4" />
                 <span className="font-medium">Trending</span>
-          </div>
+              </div>
             )}
           </div>
         </div>
@@ -487,7 +527,7 @@ const PredictionCard: React.FC<PredictionCardProps> = ({
                 <Heart className={`w-5 h-5 ${isLiked ? 'fill-current' : ''}`} />
                 <span className="text-sm font-medium">{likeCount}</span>
               </motion.button>
-            <motion.button
+              <motion.button
                 onClick={handleComment}
                 className="flex items-center gap-2 text-gray-600 hover:text-blue-500 transition-colors"
                 whileHover={{ scale: 1.05 }}
@@ -495,8 +535,8 @@ const PredictionCard: React.FC<PredictionCardProps> = ({
               >
                 <MessageCircle className="w-5 h-5" />
                 <span className="text-sm font-medium">{commentCount}</span>
-            </motion.button>
-            <motion.button
+              </motion.button>
+              <motion.button
                 onClick={handleShare}
                 className="flex items-center gap-2 text-gray-600 hover:text-green-500 transition-colors"
                 whileHover={{ scale: 1.05 }}
@@ -504,7 +544,7 @@ const PredictionCard: React.FC<PredictionCardProps> = ({
               >
                 <Share className="w-5 h-5" />
                 <span className="text-sm font-medium">Share</span>
-            </motion.button>
+              </motion.button>
             </div>
             <motion.button
               onClick={onPredict}
@@ -513,10 +553,10 @@ const PredictionCard: React.FC<PredictionCardProps> = ({
               whileTap={{ scale: 0.98 }}
             >
               Predict Now
-          </motion.button>
+            </motion.button>
+          </div>
         </div>
-      </div>
-    </motion.div>
+      </motion.div>
 
       {/* Comment Modal */}
       <CommentModal
@@ -525,6 +565,15 @@ const PredictionCard: React.FC<PredictionCardProps> = ({
         onClose={() => setCommentModalOpen(false)}
       />
     </>
+  );
+};
+
+// Main component wrapped in error boundary
+const PredictionCard: React.FC<PredictionCardProps> = (props) => {
+  return (
+    <ErrorBoundary fallback={<PredictionCardErrorFallback />}>
+      <PredictionCardContent {...props} />
+    </ErrorBoundary>
   );
 };
 

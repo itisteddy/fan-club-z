@@ -1,4 +1,3 @@
-import React from 'react';
 import { create } from 'zustand';
 import { devtools } from 'zustand/middleware';
 
@@ -74,9 +73,6 @@ interface CommentActions {
   // Update comment count for a prediction
   updateCommentCount: (predictionId: string, count: number) => void;
   
-  // Sync comment counts with prediction store
-  syncWithPredictionStore: () => void;
-  
   // Initialize the store
   initialize: () => void;
 }
@@ -100,52 +96,6 @@ export const useUnifiedCommentStore = create<CommentState & CommentActions>()(
         if (!state.initialized) {
           console.log('🔧 Initializing unified comment store');
           set({ initialized: true });
-          // Sync with prediction store if available
-          state.syncWithPredictionStore();
-        }
-      },
-
-      // Sync comment counts with prediction store
-      syncWithPredictionStore: () => {
-        try {
-          // Avoid circular dependency by using setTimeout to defer import
-          setTimeout(async () => {
-            try {
-              // Dynamic import to avoid circular dependencies
-              const { usePredictionStore } = await import('./predictionStore');
-              const predictionStore = usePredictionStore.getState();
-              const predictionCommentCounts: CommentCounts = {};
-              
-              // Extract comment counts from predictions with safe access
-              if (predictionStore.predictions && Array.isArray(predictionStore.predictions)) {
-                predictionStore.predictions.forEach(prediction => {
-                  if (prediction && prediction.id && prediction.comments_count !== undefined) {
-                    predictionCommentCounts[prediction.id] = prediction.comments_count;
-                  }
-                });
-              }
-              
-              // Sync trending predictions too
-              if (predictionStore.trendingPredictions && Array.isArray(predictionStore.trendingPredictions)) {
-                predictionStore.trendingPredictions.forEach(prediction => {
-                  if (prediction && prediction.id && prediction.comments_count !== undefined) {
-                    predictionCommentCounts[prediction.id] = prediction.comments_count;
-                  }
-                });
-              }
-              
-              if (Object.keys(predictionCommentCounts).length > 0) {
-                console.log('🔄 Syncing comment counts from prediction store:', predictionCommentCounts);
-                set((state) => ({
-                  commentCounts: { ...state.commentCounts, ...predictionCommentCounts }
-                }));
-              }
-            } catch (error) {
-              console.warn('⚠️ Could not import prediction store (expected during initialization):', error);
-            }
-          }, 100);
-        } catch (error) {
-          console.warn('⚠️ Could not sync with prediction store:', error);
         }
       },
 
@@ -159,6 +109,11 @@ export const useUnifiedCommentStore = create<CommentState & CommentActions>()(
 
       // Update comment count for a prediction
       updateCommentCount: (predictionId: string, count: number) => {
+        if (!predictionId?.trim()) {
+          console.warn('⚠️ Cannot update comment count: invalid predictionId');
+          return;
+        }
+        
         console.log(`📊 Updating comment count for ${predictionId}: ${count}`);
         set((state) => ({
           commentCounts: {
@@ -166,34 +121,19 @@ export const useUnifiedCommentStore = create<CommentState & CommentActions>()(
             [predictionId]: count
           }
         }));
-        
-        // Also sync back to prediction store (optional, non-blocking)
-        setTimeout(async () => {
-          try {
-            const { usePredictionStore } = await import('./predictionStore');
-            const predictionStore = usePredictionStore.getState();
-            if (predictionStore.predictions && Array.isArray(predictionStore.predictions)) {
-              const predictions = predictionStore.predictions.map(p => 
-                (p && p.id === predictionId) ? { ...p, comments_count: count } : p
-              );
-              // Only update if we have a valid update function
-              if (typeof predictionStore.setCommentCount === 'function') {
-                predictionStore.setCommentCount(predictionId, count);
-              }
-            }
-          } catch (error) {
-            console.warn('⚠️ Could not sync comment count back to prediction store (non-critical):', error);
-          }
-        }, 50);
       },
 
       // Get comment count for a prediction (with fallbacks)
       getCommentCount: (predictionId: string) => {
+        if (!predictionId?.trim()) {
+          return 0;
+        }
+
         const state = get();
         
         // 1. Check actual loaded comments first (most accurate)
         const actualComments = state.commentsByPrediction[predictionId];
-        if (actualComments) {
+        if (actualComments && Array.isArray(actualComments)) {
           return actualComments.length;
         }
         
@@ -202,35 +142,26 @@ export const useUnifiedCommentStore = create<CommentState & CommentActions>()(
           return state.commentCounts[predictionId];
         }
         
-        // 3. Try to get from prediction store as last resort (safe access)
-        try {
-          // Use window global to avoid require() issues
-          if (typeof window !== 'undefined' && (window as any).__predictionStore) {
-            const predictionStore = (window as any).__predictionStore;
-            const prediction = predictionStore.predictions?.find((p: any) => p && p.id === predictionId) ||
-                              predictionStore.trendingPredictions?.find((p: any) => p && p.id === predictionId);
-            if (prediction?.comments_count !== undefined) {
-              // Cache it for next time
-              state.updateCommentCount(predictionId, prediction.comments_count);
-              return prediction.comments_count;
-            }
-          }
-        } catch (error) {
-          // Ignore - prediction store might not be available yet
-        }
-        
-        // 4. Default to 0
+        // 3. Default to 0
         return 0;
       },
 
       // Get comments for a prediction
       getComments: (predictionId: string) => {
+        if (!predictionId?.trim()) {
+          return [];
+        }
+
         const state = get();
         return state.commentsByPrediction[predictionId] || [];
       },
 
       // Clear error for a prediction
       clearError: (predictionId: string) => {
+        if (!predictionId?.trim()) {
+          return;
+        }
+
         set((state) => ({
           errors: {
             ...state.errors,
@@ -241,6 +172,11 @@ export const useUnifiedCommentStore = create<CommentState & CommentActions>()(
 
       // Fetch comments for a prediction
       fetchComments: async (predictionId: string) => {
+        if (!predictionId?.trim()) {
+          console.warn('⚠️ Cannot fetch comments: invalid predictionId');
+          return;
+        }
+
         console.log(`🔍 Fetching comments for prediction ${predictionId}`);
         
         set((state) => ({
@@ -280,9 +216,6 @@ export const useUnifiedCommentStore = create<CommentState & CommentActions>()(
             loading: { ...state.loading, [predictionId]: false }
           }));
 
-          // Update the prediction store count as well
-          get().updateCommentCount(predictionId, comments.length);
-
         } catch (error) {
           console.error('❌ Failed to fetch comments:', error);
           
@@ -306,7 +239,11 @@ export const useUnifiedCommentStore = create<CommentState & CommentActions>()(
 
       // Add a new comment
       addComment: async (predictionId: string, content: string, parentCommentId?: string) => {
-        if (!content.trim()) {
+        if (!predictionId?.trim()) {
+          throw new Error('Cannot add comment: invalid predictionId');
+        }
+
+        if (!content?.trim()) {
           throw new Error('Comment content cannot be empty');
         }
 
@@ -377,10 +314,6 @@ export const useUnifiedCommentStore = create<CommentState & CommentActions>()(
             };
           });
 
-          // Update prediction store count
-          const currentCount = get().commentCounts[predictionId] || 0;
-          get().updateCommentCount(predictionId, currentCount);
-
           console.log(`✅ Added comment to prediction ${predictionId}`);
 
         } catch (error) {
@@ -400,6 +333,11 @@ export const useUnifiedCommentStore = create<CommentState & CommentActions>()(
 
       // Toggle like on a comment
       toggleCommentLike: async (commentId: string, predictionId: string) => {
+        if (!commentId?.trim() || !predictionId?.trim()) {
+          console.warn('⚠️ Cannot toggle comment like: invalid parameters');
+          return;
+        }
+
         try {
           // Optimistically update the UI first
           set((state) => {
@@ -469,50 +407,36 @@ export const useUnifiedCommentStore = create<CommentState & CommentActions>()(
 
 // Helper hook to get comment data for a specific prediction
 export const useCommentsForPrediction = (predictionId: string) => {
-  const {
-    getComments,
-    getCommentCount,
-    fetchComments,
-    addComment,
-    toggleCommentLike,
-    loading,
-    errors,
-    submitting,
-    clearError,
-    initialize,
-    syncWithPredictionStore
-  } = useUnifiedCommentStore();
-
-  // Initialize store on first use
-  React.useEffect(() => {
-    initialize();
-    // Sync with prediction store after a short delay to ensure it's loaded
-    const timer = setTimeout(() => {
-      syncWithPredictionStore();
-    }, 100);
-    return () => clearTimeout(timer);
-  }, [initialize, syncWithPredictionStore]);
+  const store = useUnifiedCommentStore();
 
   // Handle empty prediction ID gracefully
   const safePredictionId = predictionId?.trim() || '';
   
-  const comments = safePredictionId ? getComments(safePredictionId) : [];
-  const commentCount = safePredictionId ? getCommentCount(safePredictionId) : 0;
-  const isLoading = safePredictionId ? (loading[safePredictionId] || false) : false;
-  const error = safePredictionId ? (errors[safePredictionId] || null) : null;
-  const isSubmitting = safePredictionId ? (submitting[safePredictionId] || false) : false;
+  if (!safePredictionId) {
+    return {
+      comments: [],
+      commentCount: 0,
+      isLoading: false,
+      error: null,
+      isSubmitting: false,
+      fetchComments: () => Promise.resolve(),
+      addComment: () => Promise.resolve(),
+      toggleCommentLike: () => Promise.resolve(),
+      clearError: () => undefined,
+    };
+  }
 
   return {
-    comments,
-    commentCount,
-    isLoading,
-    error,
-    isSubmitting,
-    fetchComments: () => safePredictionId ? fetchComments(safePredictionId) : Promise.resolve(),
+    comments: store.getComments(safePredictionId),
+    commentCount: store.getCommentCount(safePredictionId),
+    isLoading: store.loading[safePredictionId] || false,
+    error: store.errors[safePredictionId] || null,
+    isSubmitting: store.submitting[safePredictionId] || false,
+    fetchComments: () => store.fetchComments(safePredictionId),
     addComment: (content: string, parentCommentId?: string) => 
-      safePredictionId ? addComment(safePredictionId, content, parentCommentId) : Promise.resolve(),
+      store.addComment(safePredictionId, content, parentCommentId),
     toggleCommentLike: (commentId: string) => 
-      safePredictionId ? toggleCommentLike(commentId, safePredictionId) : Promise.resolve(),
-    clearError: () => safePredictionId ? clearError(safePredictionId) : undefined,
+      store.toggleCommentLike(commentId, safePredictionId),
+    clearError: () => store.clearError(safePredictionId),
   };
 };
