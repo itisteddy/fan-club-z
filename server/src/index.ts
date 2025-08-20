@@ -15,6 +15,9 @@ const app = express();
 const PORT = config.server.port || 3001;
 const VERSION = '2.0.49';
 
+console.log('🚀 Fan Club Z Server v2.0.49 - CONSOLIDATED ARCHITECTURE - SINGLE SOURCE OF TRUTH');
+console.log('📡 Starting server with fixed prediction rendering...');
+
 // Enhanced CORS middleware
 app.use(cors({
   origin: [

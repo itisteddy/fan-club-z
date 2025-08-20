@@ -197,24 +197,37 @@ const DiscoverPage: React.FC<DiscoverPageProps> = memo(({ onNavigateToProfile, o
     totalUsers: platformStats.totalUsers
   }), [platformStats]);
 
-  // Filter predictions based on search and category
+  // Filter predictions based on search and category with error handling
   const filteredPredictions = useMemo(() => {
-    if (!predictions) return [];
+    if (!predictions || !Array.isArray(predictions)) {
+      console.log('🔍 DiscoverPage Debug - No valid predictions array:', predictions);
+      return [];
+    }
     
     // Debug: Log the predictions being filtered
-    console.log('🔍 DiscoverPage Debug - Raw predictions:', predictions);
+    console.log('🔍 DiscoverPage Debug - Raw predictions:', predictions.length, 'predictions');
     
     return predictions.filter(prediction => {
+      // Safety check for prediction object
+      if (!prediction || !prediction.id || !prediction.title) {
+        console.warn('⚠️ DiscoverPage: Invalid prediction object:', prediction);
+        return false;
+      }
+      
       // Category filter
       if (selectedCategory !== 'all' && prediction.category !== selectedCategory) {
         return false;
       }
       
-      // Search filter
-      if (searchQuery.trim() && 
-          !prediction.title.toLowerCase().includes(searchQuery.toLowerCase()) &&
-          !prediction.description?.toLowerCase().includes(searchQuery.toLowerCase())) {
-        return false;
+      // Search filter with safe string access
+      if (searchQuery.trim()) {
+        const title = (prediction.title || '').toLowerCase();
+        const description = (prediction.description || '').toLowerCase();
+        const query = searchQuery.toLowerCase();
+        
+        if (!title.includes(query) && !description.includes(query)) {
+          return false;
+        }
       }
       
       return true;
@@ -377,21 +390,29 @@ const DiscoverPage: React.FC<DiscoverPageProps> = memo(({ onNavigateToProfile, o
           </p>
         </motion.div>
 
-        {/* Predictions Grid */}
+        {/* Predictions Grid with error boundaries */}
         <div className="space-y-2">
           <AnimatePresence mode="wait">
             {filteredPredictions.length > 0 ? (
-              filteredPredictions.map((prediction, index) => (
-                <PredictionCard
-                  key={prediction.id}
-                  prediction={prediction}
-                  variant="compact"
-                  onPredict={() => handlePredict(prediction)}
-                  onLike={() => handleLike(prediction.id)}
-                  onComment={() => handleComment(prediction.id)}
-                  onShare={() => handleShare(prediction)}
-                />
-              ))
+              filteredPredictions.map((prediction, index) => {
+                // Additional safety check before rendering
+                if (!prediction || !prediction.id) {
+                  console.warn('⚠️ DiscoverPage: Skipping invalid prediction at index', index);
+                  return null;
+                }
+                
+                return (
+                  <PredictionCard
+                    key={`${prediction.id}-${index}`} // More robust key
+                    prediction={prediction}
+                    variant="compact"
+                    onPredict={() => handlePredict(prediction)}
+                    onLike={() => handleLike(prediction.id)}
+                    onComment={() => handleComment(prediction.id)}
+                    onShare={() => handleShare(prediction)}
+                  />
+                );
+              })
             ) : (
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
@@ -406,9 +427,19 @@ const DiscoverPage: React.FC<DiscoverPageProps> = memo(({ onNavigateToProfile, o
                 <p className="text-gray-600">
                   {searchQuery 
                     ? `No predictions match "${searchQuery}"`
-                    : 'Try adjusting your filters or check back later'
+                    : loading 
+                      ? 'Loading predictions...'
+                      : 'Try adjusting your filters or check back later'
                   }
                 </p>
+                {!loading && !searchQuery && (
+                  <button
+                    onClick={() => refreshPredictions(true)}
+                    className="mt-4 px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors"
+                  >
+                    Refresh Predictions
+                  </button>
+                )}
               </motion.div>
             )}
           </AnimatePresence>

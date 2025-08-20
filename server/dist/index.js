@@ -48,6 +48,8 @@ const database_1 = require("./config/database");
 const app = (0, express_1.default)();
 const PORT = config_1.config.server.port || 3001;
 const VERSION = '2.0.49';
+console.log('🚀 Fan Club Z Server v2.0.49 - CONSOLIDATED ARCHITECTURE - SINGLE SOURCE OF TRUTH');
+console.log('📡 Starting server with fixed prediction rendering...');
 // Enhanced CORS middleware
 app.use((0, cors_1.default)({
     origin: [

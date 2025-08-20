@@ -29,26 +29,42 @@ const PredictionCard: React.FC<PredictionCardProps> = ({
   onPredict,
   className = ''
 }) => {
+  // Early return with error boundary if prediction is invalid
+  if (!prediction || !prediction.id) {
+    console.warn('⚠️ PredictionCard: Invalid prediction data received:', prediction);
+    return (
+      <div className="bg-white rounded-xl shadow-sm border border-red-200 p-4 m-2">
+        <div className="text-red-600 text-sm">
+          ⚠️ Error: Invalid prediction data
+        </div>
+      </div>
+    );
+  }
+
   const { toggleLike, checkIfLiked, getLikeCount } = useLikeStore();
   const { getCommentCount } = useUnifiedCommentStore();
   const [commentModalOpen, setCommentModalOpen] = useState(false);
   const [isLiking, setIsLiking] = useState(false);
 
-  // Get real-time data from stores
-  const isLiked = checkIfLiked(prediction.id);
-  const likeCount = getLikeCount(prediction.id);
-  const commentCount = getCommentCount(prediction.id);
+  // Get real-time data from stores with safe fallbacks
+  const isLiked = checkIfLiked(prediction.id) || false;
+  const likeCount = getLikeCount(prediction.id) || prediction.likes_count || prediction.likes || 0;
+  const commentCount = getCommentCount(prediction.id) || prediction.comments_count || prediction.comments || 0;
 
-  // Calculate real data
-  const timeRemaining = Math.max(0, new Date(prediction.entry_deadline).getTime() - Date.now());
+  // Calculate real data with safe fallbacks
+  const entryDeadline = prediction.entry_deadline || prediction.entryDeadline;
+  const timeRemaining = entryDeadline ? Math.max(0, new Date(entryDeadline).getTime() - Date.now()) : 0;
   const hoursRemaining = Math.floor(timeRemaining / (1000 * 60 * 60));
-  const isClosingSoon = hoursRemaining < 24;
+  const isClosingSoon = hoursRemaining < 24 && hoursRemaining > 0;
 
-  // Use real participant count from database
-  const participantCount = prediction.participant_count || 0;
+  // Use real participant count from database with fallbacks
+  const participantCount = prediction.participant_count || prediction.entries?.length || 0;
   
-  // Calculate real pool total from options
-  const totalPool = prediction.options?.reduce((sum, option) => sum + (option.total_staked || 0), 0) || 0;
+  // Calculate real pool total from options with safe fallbacks
+  const totalPool = prediction.options?.reduce((sum, option) => {
+    const staked = option.total_staked || option.totalStaked || 0;
+    return sum + staked;
+  }, 0) || prediction.pool_total || prediction.poolTotal || 0;
 
   // Debug: Log the actual prediction data being used
   // console.log('🔍 PredictionCard Debug:', {
@@ -150,8 +166,8 @@ const PredictionCard: React.FC<PredictionCardProps> = ({
               </div>
               <div>
                 <TappableUsername 
-                  username={prediction.creator?.username || 'anonymous'}
-                  userId={prediction.creator?.id}
+                  username={prediction.creator?.username || prediction.creator?.full_name || 'Anonymous'}
+                  userId={prediction.creator?.id || 'anonymous'}
                   className="font-medium text-gray-900 text-sm hover:text-blue-600"
                   showAt={true}
                 />
@@ -161,9 +177,11 @@ const PredictionCard: React.FC<PredictionCardProps> = ({
             <span className={`px-2 py-1 rounded-full text-xs font-medium ${
               prediction.category === 'sports' ? 'bg-red-100 text-red-700' :
               prediction.category === 'pop_culture' ? 'bg-purple-100 text-purple-700' :
+              prediction.category === 'crypto' ? 'bg-yellow-100 text-yellow-700' :
+              prediction.category === 'politics' ? 'bg-blue-100 text-blue-700' :
               'bg-green-100 text-green-700'
             }`}>
-              {prediction.category || 'General'}
+              {prediction.category?.replace('_', ' ') || 'General'}
           </span>
         </div>
 
@@ -183,7 +201,7 @@ const PredictionCard: React.FC<PredictionCardProps> = ({
             >
               <span className="font-medium">{formatCurrency(totalPool)}</span>
               <span>•</span>
-              <span>{prediction.options?.length || 2} options</span>
+              <span>{(prediction.options?.length || 2)} options</span>
             </div>
             <div className="flex items-center gap-3">
               <button
@@ -337,13 +355,13 @@ const PredictionCard: React.FC<PredictionCardProps> = ({
               </div>
               <div>
                 <TappableUsername 
-                  username={prediction.creator?.username || 'anonymous'}
-                  userId={prediction.creator?.id}
+                  username={prediction.creator?.username || prediction.creator?.full_name || 'Anonymous'}
+                  userId={prediction.creator?.id || 'anonymous'}
                   className="font-medium text-gray-900 hover:text-blue-600"
                   showAt={true}
                 />
                 <div className="text-sm text-gray-500">
-                  {new Date(prediction.created_at).toLocaleDateString()}
+                  {prediction.created_at ? new Date(prediction.created_at).toLocaleDateString() : 'Recently'}
                 </div>
               </div>
             </div>
@@ -351,6 +369,7 @@ const PredictionCard: React.FC<PredictionCardProps> = ({
               <span className={`px-3 py-1 rounded-full text-xs font-medium ${
                 prediction.category === 'sports' ? 'bg-red-100 text-red-700' :
                 prediction.category === 'pop_culture' ? 'bg-purple-100 text-purple-700' :
+                prediction.category === 'crypto' ? 'bg-yellow-100 text-yellow-700' :
                 prediction.category === 'politics' ? 'bg-blue-100 text-blue-700' :
                 'bg-green-100 text-green-700'
               }`}>
@@ -384,9 +403,10 @@ const PredictionCard: React.FC<PredictionCardProps> = ({
             </div>
             
             <div className="space-y-2">
-              {prediction.options?.slice(0, 3).map((option, index) => {
-                const percentage = totalPool > 0 ? ((option.total_staked || 0) / totalPool) * 100 : 25;
-                const odds = (option.total_staked || 0) > 0 ? totalPool / (option.total_staked || 0) : 2.0;
+              {(prediction.options || []).slice(0, 3).map((option, index) => {
+                const optionStaked = option.total_staked || option.totalStaked || 0;
+                const percentage = totalPool > 0 ? (optionStaked / totalPool) * 100 : (100 / (prediction.options?.length || 2));
+                const odds = optionStaked > 0 ? totalPool / optionStaked : 2.0;
                 
                 return (
                   <motion.button
@@ -402,7 +422,7 @@ const PredictionCard: React.FC<PredictionCardProps> = ({
                           {option.label}
                         </div>
                         <div className="text-sm text-gray-500">
-                          {percentage.toFixed(0)}% • {formatCurrency(option.total_staked || 0)}
+                          {percentage.toFixed(0)}% • {formatCurrency(optionStaked)}
                         </div>
                       </div>
                       <div className="text-right">
@@ -415,7 +435,7 @@ const PredictionCard: React.FC<PredictionCardProps> = ({
                 );
               })}
               
-              {(prediction.options?.length || 0) > 3 && (
+              {((prediction.options?.length || 0) > 3) && (
                 <div className="text-center text-sm text-gray-500">
                   +{(prediction.options?.length || 0) - 3} more options available
                 </div>

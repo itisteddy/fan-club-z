@@ -108,32 +108,42 @@ export const useUnifiedCommentStore = create<CommentState & CommentActions>()(
       // Sync comment counts with prediction store
       syncWithPredictionStore: () => {
         try {
-          // Dynamic import to avoid circular dependencies
-          import('./predictionStore').then(({ usePredictionStore }) => {
-            const predictionStore = usePredictionStore.getState();
-            const predictionCommentCounts: CommentCounts = {};
-            
-            // Extract comment counts from predictions
-            predictionStore.predictions?.forEach(prediction => {
-              if (prediction.comments_count !== undefined) {
-                predictionCommentCounts[prediction.id] = prediction.comments_count;
+          // Avoid circular dependency by using setTimeout to defer import
+          setTimeout(async () => {
+            try {
+              // Dynamic import to avoid circular dependencies
+              const { usePredictionStore } = await import('./predictionStore');
+              const predictionStore = usePredictionStore.getState();
+              const predictionCommentCounts: CommentCounts = {};
+              
+              // Extract comment counts from predictions with safe access
+              if (predictionStore.predictions && Array.isArray(predictionStore.predictions)) {
+                predictionStore.predictions.forEach(prediction => {
+                  if (prediction && prediction.id && prediction.comments_count !== undefined) {
+                    predictionCommentCounts[prediction.id] = prediction.comments_count;
+                  }
+                });
               }
-            });
-            
-            // Sync trending predictions too
-            predictionStore.trendingPredictions?.forEach(prediction => {
-              if (prediction.comments_count !== undefined) {
-                predictionCommentCounts[prediction.id] = prediction.comments_count;
+              
+              // Sync trending predictions too
+              if (predictionStore.trendingPredictions && Array.isArray(predictionStore.trendingPredictions)) {
+                predictionStore.trendingPredictions.forEach(prediction => {
+                  if (prediction && prediction.id && prediction.comments_count !== undefined) {
+                    predictionCommentCounts[prediction.id] = prediction.comments_count;
+                  }
+                });
               }
-            });
-            
-            if (Object.keys(predictionCommentCounts).length > 0) {
-              console.log('🔄 Syncing comment counts from prediction store:', predictionCommentCounts);
-              set((state) => ({
-                commentCounts: { ...state.commentCounts, ...predictionCommentCounts }
-              }));
+              
+              if (Object.keys(predictionCommentCounts).length > 0) {
+                console.log('🔄 Syncing comment counts from prediction store:', predictionCommentCounts);
+                set((state) => ({
+                  commentCounts: { ...state.commentCounts, ...predictionCommentCounts }
+                }));
+              }
+            } catch (error) {
+              console.warn('⚠️ Could not import prediction store (expected during initialization):', error);
             }
-          });
+          }, 100);
         } catch (error) {
           console.warn('⚠️ Could not sync with prediction store:', error);
         }
@@ -157,18 +167,24 @@ export const useUnifiedCommentStore = create<CommentState & CommentActions>()(
           }
         }));
         
-        // Also sync back to prediction store
-        try {
-          import('./predictionStore').then(({ usePredictionStore }) => {
+        // Also sync back to prediction store (optional, non-blocking)
+        setTimeout(async () => {
+          try {
+            const { usePredictionStore } = await import('./predictionStore');
             const predictionStore = usePredictionStore.getState();
-            const predictions = predictionStore.predictions.map(p => 
-              p.id === predictionId ? { ...p, comments_count: count } : p
-            );
-            predictionStore.predictions = predictions;
-          });
-        } catch (error) {
-          console.warn('⚠️ Could not sync comment count back to prediction store:', error);
-        }
+            if (predictionStore.predictions && Array.isArray(predictionStore.predictions)) {
+              const predictions = predictionStore.predictions.map(p => 
+                (p && p.id === predictionId) ? { ...p, comments_count: count } : p
+              );
+              // Only update if we have a valid update function
+              if (typeof predictionStore.setCommentCount === 'function') {
+                predictionStore.setCommentCount(predictionId, count);
+              }
+            }
+          } catch (error) {
+            console.warn('⚠️ Could not sync comment count back to prediction store (non-critical):', error);
+          }
+        }, 50);
       },
 
       // Get comment count for a prediction (with fallbacks)
@@ -186,15 +202,18 @@ export const useUnifiedCommentStore = create<CommentState & CommentActions>()(
           return state.commentCounts[predictionId];
         }
         
-        // 3. Try to get from prediction store as last resort
+        // 3. Try to get from prediction store as last resort (safe access)
         try {
-          const predictionStore = require('./predictionStore').usePredictionStore.getState();
-          const prediction = predictionStore.predictions?.find((p: any) => p.id === predictionId) ||
-                            predictionStore.trendingPredictions?.find((p: any) => p.id === predictionId);
-          if (prediction?.comments_count !== undefined) {
-            // Cache it for next time
-            state.updateCommentCount(predictionId, prediction.comments_count);
-            return prediction.comments_count;
+          // Use window global to avoid require() issues
+          if (typeof window !== 'undefined' && (window as any).__predictionStore) {
+            const predictionStore = (window as any).__predictionStore;
+            const prediction = predictionStore.predictions?.find((p: any) => p && p.id === predictionId) ||
+                              predictionStore.trendingPredictions?.find((p: any) => p && p.id === predictionId);
+            if (prediction?.comments_count !== undefined) {
+              // Cache it for next time
+              state.updateCommentCount(predictionId, prediction.comments_count);
+              return prediction.comments_count;
+            }
           }
         } catch (error) {
           // Ignore - prediction store might not be available yet
