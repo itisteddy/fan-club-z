@@ -47,7 +47,7 @@ const config_1 = require("./config");
 const database_1 = require("./config/database");
 const app = (0, express_1.default)();
 const PORT = config_1.config.server.port || 3001;
-const VERSION = '2.0.47';
+const VERSION = '2.0.49';
 // Enhanced CORS middleware
 app.use((0, cors_1.default)({
     origin: [

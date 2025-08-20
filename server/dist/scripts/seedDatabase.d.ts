@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Database Seeding Script for Fan Club Z v2.0.47
+ * Database Seeding Script for Fan Club Z v2.0.49
  * Seeds the database with sample predictions, users, and options
  */
 declare const sampleUsers: {

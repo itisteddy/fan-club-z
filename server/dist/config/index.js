@@ -21,7 +21,7 @@ exports.config = {
     },
     // API Configuration
     api: {
-        url: process.env.API_URL || 'http://localhost:3001',
+        url: process.env.API_URL || 'https://fan-club-z.onrender.com',
         version: 'v2',
     },
     // Supabase Configuration

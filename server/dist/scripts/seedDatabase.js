@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 "use strict";
 /**
- * Database Seeding Script for Fan Club Z v2.0.47
+ * Database Seeding Script for Fan Club Z v2.0.49
  * Seeds the database with sample predictions, users, and options
  */
 Object.defineProperty(exports, "__esModule", { value: true });
@@ -375,7 +375,7 @@ const samplePredictionOptions = [
 ];
 exports.samplePredictionOptions = samplePredictionOptions;
 async function seedDatabase() {
-    console.log('🌱 Starting database seeding for Fan Club Z v2.0.47...');
+    console.log('🌱 Starting database seeding for Fan Club Z v2.0.49...');
     try {
         console.log('🔧 Testing database connection...');
         const { data: connectionTest, error: connectionError } = await database_1.supabase
