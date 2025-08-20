@@ -1,0 +1,45 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "lib": ["ES2020"],
+    "module": "commonjs",
+    "declaration": false,
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "strict": false,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
+    "moduleResolution": "node",
+    "allowSyntheticDefaultImports": true,
+    "noImplicitReturns": false,
+    "noFallthroughCasesInSwitch": false,
+    "noUncheckedIndexedAccess": false,
+    "exactOptionalPropertyTypes": false,
+    "baseUrl": ".",
+    "paths": {
+      "@fanclubz/shared": ["../shared/dist"],
+      "@fanclubz/shared/*": ["../shared/dist/*"]
+    }
+  },
+  "include": [
+    "src/index-minimal.ts",
+    "src/config/**/*",
+    "src/services/ChatService.ts",
+    "src/utils/logger.ts"
+  ],
+  "exclude": [
+    "node_modules", 
+    "dist", 
+    "**/*.test.ts",
+    "../shared/src/**/*",
+    "src/routes/**/*",
+    "src/middleware/**/*",
+    "src/services/social.ts",
+    "src/services/wallet.ts",
+    "src/scripts/**/*"
+  ]
+}

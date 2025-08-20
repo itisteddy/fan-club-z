@@ -1,0 +1,148 @@
+/* Category Filter Pills - Optimized Layout */
+.category-filters-container {
+  /* Prevent horizontal overflow */
+  overflow-x: hidden;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  scroll-behavior: smooth;
+  padding: 0;
+  width: 100%;
+  max-width: 100%;
+}
+
+.category-filters-container::-webkit-scrollbar {
+  display: none;
+}
+
+.category-filters-flex {
+  display: flex;
+  gap: 8px;
+  padding: 0 16px;
+  min-height: 48px;
+  align-items: center;
+  width: 100%;
+  max-width: 100%;
+  flex-wrap: wrap;
+}
+
+.category-pill {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 16px;
+  height: 36px;
+  border-radius: 18px;
+  white-space: nowrap;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1;
+  transition: all 0.2s ease;
+  cursor: pointer;
+  border: none;
+  outline: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  
+  /* Ensure consistent sizing */
+  min-width: fit-content;
+  max-width: 100%;
+  max-height: 36px;
+}
+
+.category-pill:focus {
+  outline: 2px solid #22c55e;
+  outline-offset: 2px;
+}
+
+.category-pill span {
+  line-height: 1;
+  vertical-align: middle;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Active and hover states */
+.category-pill.active {
+  color: white;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  transform: translateY(-1px);
+}
+
+.category-pill:not(.active) {
+  background-color: #f1f5f9;
+  color: #475569;
+}
+
+.category-pill:not(.active):hover {
+  background-color: #e2e8f0;
+  transform: translateY(-1px);
+}
+
+.category-pill:active {
+  transform: translateY(0);
+}
+
+/* Responsive adjustments */
+@media (max-width: 640px) {
+  .category-filters-flex {
+    padding: 0 12px;
+    gap: 6px;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overflow-y: hidden;
+  }
+  
+  .category-pill {
+    padding: 6px 12px;
+    height: 32px;
+    border-radius: 16px;
+    font-size: 13px;
+    flex-shrink: 0;
+  }
+}
+
+/* Better touch handling for mobile */
+@media (hover: none) {
+  .category-pill:hover {
+    transform: none;
+    background-color: inherit;
+  }
+  
+  .category-pill:not(.active):active {
+    background-color: #cbd5e1;
+  }
+}
+
+/* Performance optimizations */
+.category-filters-container,
+.category-pill {
+  contain: layout style paint;
+  will-change: transform;
+}
+
+/* Accessibility improvements */
+@media (prefers-reduced-motion: reduce) {
+  .category-pill {
+    transition: none;
+  }
+  
+  .category-pill:hover,
+  .category-pill.active {
+    transform: none;
+  }
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+  .category-pill {
+    border: 2px solid currentColor;
+  }
+  
+  .category-pill.active {
+    border-color: #22c55e;
+  }
+}

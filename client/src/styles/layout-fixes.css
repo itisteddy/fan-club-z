@@ -1,0 +1,91 @@
+/* Fixed layout and z-index for mobile header and cards */
+.discover-page {
+  position: relative;
+  min-height: 100vh;
+  background-color: #f9fafb;
+}
+
+.discover-header {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  background: white;
+  border-bottom: 1px solid #e5e7eb;
+  will-change: transform;
+}
+
+.header-content {
+  position: relative;
+  z-index: 51;
+  background: white;
+}
+
+.category-filters {
+  position: relative;
+  z-index: 40;
+  background: white;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.prediction-cards-container {
+  position: relative;
+  z-index: 10;
+  padding-top: 1rem;
+  margin-top: 0;
+}
+
+/* Prediction card styles moved to main index.css to avoid conflicts */
+
+/* Fix header overlap issues */
+.mobile-header-safe {
+  padding-top: env(safe-area-inset-top, 0);
+  background: white;
+}
+
+/* Ensure search bar doesn't overlap cards */
+.search-container {
+  position: relative;
+  z-index: 45;
+  margin-bottom: 0;
+}
+
+/* Fix bottom navigation overlap */
+.content-with-bottom-nav {
+  padding-bottom: calc(5rem + env(safe-area-inset-bottom, 0));
+}
+
+/* Category filter improvements */
+.category-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.category-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+/* Card content protection */
+.card-content {
+  position: relative;
+  z-index: 21;
+}
+
+/* Modal improvements */
+.modal-backdrop {
+  z-index: 9999;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+}
+
+.modal-content {
+  z-index: 10000;
+  position: relative;
+  background: white;
+  border-radius: 1rem;
+  max-height: 90vh;
+  overflow-y: auto;
+}

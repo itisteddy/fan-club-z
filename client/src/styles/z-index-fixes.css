@@ -1,0 +1,315 @@
+/* Z-Index Management System for Fan Club Z */
+
+/*
+Z-Index Hierarchy (from lowest to highest):
+- Base content: 0-9
+- Headers/Navigation: 10-99  
+- Dropdowns/Tooltips: 100-999
+- Modals/Overlays: 1000-9999
+- Critical Notifications: 10000+
+*/
+
+/* Navigation and Headers */
+.discover-header {
+  z-index: 50 !important;
+}
+
+.bottom-nav {
+  z-index: 100 !important;
+}
+
+/* Search and Filter UI - CRITICAL FIX: Lower z-index than modals */
+.search-container,
+.filter-dropdown,
+.category-filters {
+  z-index: 45 !important;
+  position: relative !important;
+}
+
+/* Fix for category filters specifically */
+.category-filters-container {
+  z-index: 45 !important;
+  position: relative !important;
+}
+
+.category-pill {
+  z-index: 46 !important;
+  position: relative !important;
+}
+
+/* Tooltips and Dropdowns */
+.tooltip,
+.dropdown-menu {
+  z-index: 500 !important;
+}
+
+/* Modal Base Layer - All modals should be above regular UI but below critical notifications */
+.modal-overlay {
+  z-index: 8000 !important;
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  background: rgba(0, 0, 0, 0.5) !important;
+  backdrop-filter: blur(4px) !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 1rem !important;
+}
+
+.modal-content {
+  z-index: 8001 !important;
+  position: relative !important;
+}
+
+/* Ensure modals are properly centered */
+.prediction-modal {
+  z-index: 8501 !important;
+  position: relative !important;
+  max-width: 28rem !important;
+  width: 100% !important;
+  max-height: 90vh !important;
+  margin: 0 auto !important;
+}
+
+/* Prediction and Comment Modals */
+.prediction-modal,
+.comment-modal,
+.place-prediction-modal,
+.manage-prediction-modal {
+  z-index: 8500 !important;
+}
+
+/* Ensure modal containers are properly layered */
+.prediction-modal .modal-container,
+.place-prediction-modal .modal-container {
+  z-index: 8501 !important;
+}
+
+/* Wallet Modals */
+.deposit-modal,
+.withdraw-modal {
+  z-index: 8600 !important;
+}
+
+/* PWA and System Notifications - Highest Priority */
+.update-notification,
+.pwa-install-prompt,
+.ios-install-modal {
+  z-index: 10000 !important;
+}
+
+/* Critical alerts and toasts */
+.notification-container,
+.toast-container {
+  z-index: 10100 !important;
+}
+
+/* Loading overlays */
+.loading-overlay {
+  z-index: 9000 !important;
+}
+
+/* Specific component fixes */
+.react-hot-toast-container {
+  z-index: 10200 !important;
+}
+
+/* Auth callback and loading screens */
+.auth-callback-screen,
+.loading-screen {
+  z-index: 9500 !important;
+}
+
+/* Modal backdrop fixes - ensure they are behind their content but above everything else */
+.modal-overlay,
+[data-modal-backdrop] {
+  z-index: 8000 !important;
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+}
+
+/* Modal content containers */
+.modal-container,
+[data-modal-content] {
+  z-index: 8001 !important;
+  position: relative !important;
+}
+
+/* Specific modal type overrides */
+.prediction-modal,
+.place-prediction-modal {
+  z-index: 8500 !important;
+}
+
+.prediction-modal > *,
+.place-prediction-modal > * {
+  z-index: inherit !important;
+}
+
+/* Ensure modal buttons and inputs are properly visible */
+.prediction-modal .modal-bottom-button,
+.place-prediction-modal .modal-bottom-button {
+  z-index: 8502 !important;
+  position: relative !important;
+}
+
+.force-visible {
+  opacity: 1 !important;
+  visibility: visible !important;
+  display: block !important;
+}
+
+.force-white-bg {
+  background-color: #ffffff !important;
+  color: #111827 !important;
+}
+
+.force-green-button {
+  background-color: #22c55e !important;
+  color: #ffffff !important;
+}
+
+/* Additional modal content styling fixes */
+.modal-header {
+  z-index: 8502 !important;
+  position: relative !important;
+  background: white !important;
+  padding: 1rem !important;
+  border-bottom: 1px solid #e5e7eb !important;
+}
+
+.modal-body {
+  z-index: 8502 !important;
+  position: relative !important;
+  background: white !important;
+  padding: 1rem !important;
+  overflow-y: auto !important;
+  max-height: calc(100vh - 200px) !important;
+}
+
+.modal-footer {
+  z-index: 8502 !important;
+  position: relative !important;
+  background: white !important;
+  padding: 1rem !important;
+  border-top: 1px solid #e5e7eb !important;
+}
+
+/* Fix for any modal content that might be getting hidden */
+.modal-overlay + * {
+  z-index: 8001 !important;
+}
+
+/* Ensure search and filter elements don't interfere with modals */
+.search-bar,
+.category-filter {
+  z-index: 200 !important;
+}
+
+/* Fix for specific modal implementations that use different selectors */
+[class*="Modal"][class*="open"],
+[class*="modal"][class*="show"] {
+  z-index: 8500 !important;
+}
+
+/* React hot toast specific fixes to ensure it's above everything */
+.__react-hot-toast {
+  z-index: 10200 !important;
+}
+
+.__react-hot-toast > * {
+  z-index: inherit !important;
+}
+
+/* Additional override for any stubborn elements */
+.prediction-modal *,
+.place-prediction-modal *,
+.comments-modal *,
+.deposit-modal *,
+.withdraw-modal * {
+  position: relative !important;
+}
+
+/* Fix for iOS Safari z-index stacking context issues */
+@supports (-webkit-touch-callout: none) {
+  .modal-overlay {
+    transform: translateZ(0) !important;
+    -webkit-transform: translateZ(0) !important;
+  }
+  
+  .modal-container {
+    transform: translateZ(0) !important;
+    -webkit-transform: translateZ(0) !important;
+  }
+  
+  .category-filters {
+    transform: translateZ(0) !important;
+    -webkit-transform: translateZ(0) !important;
+  }
+}
+
+/* Emergency z-index fix for any modal that gets stuck behind other elements */
+.modal-emergency-fix {
+  z-index: 9999 !important;
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+}
+
+/* Additional fixes for category filters appearing over modals */
+.category-filters-wrapper,
+.category-filters,
+.category-filters-container,
+.category-filters-flex {
+  z-index: 45 !important;
+  position: relative !important;
+}
+
+/* Ensure all category pills stay below modals */
+.category-pill,
+.category-pill.active,
+.category-pill:hover,
+.category-pill:focus {
+  z-index: 46 !important;
+  position: relative !important;
+}
+
+/* Make sure modal overlays create proper stacking context */
+.modal-overlay {
+  position: fixed !important;
+  isolation: isolate !important;
+}
+
+.prediction-modal {
+  position: fixed !important;
+  isolation: isolate !important;
+}
+
+/* Force proper stacking context for discover page elements */
+.discover-page {
+  position: relative !important;
+  z-index: 1 !important;
+}
+
+.discover-header {
+  position: sticky !important;
+  z-index: 50 !important;
+}
+
+.category-filters {
+  position: sticky !important;
+  z-index: 45 !important;
+}
+
+.prediction-cards-container {
+  position: relative !important;
+  z-index: 10 !important;
+}

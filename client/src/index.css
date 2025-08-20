@@ -1,0 +1,452 @@
+@import './styles/navigation-fixes.css';
+@import './styles/modal-fixes.css';
+@import './styles/compact-cards.css';
+@import './styles/pwa.css';
+@import './styles/category-filters.css';
+@import './styles/layout-fixes.css';
+@import './styles/z-index-fixes.css';
+@import './styles/comments.css';
+@import './styles/enhanced-comments.css';
+
+/* Tailwind CSS directives */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Force CSS reset and base styles - Performance optimized */
+@layer base {
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+
+  html {
+    height: 100%;
+    width: 100%;
+    max-width: 100vw;
+    overflow-x: hidden;
+    -webkit-tap-highlight-color: transparent;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    position: relative;
+  }
+
+  body {
+    height: 100%;
+    width: 100%;
+    max-width: 100vw;
+    overflow-x: hidden;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif;
+    background-color: #f9fafb;
+    color: #111827;
+    line-height: 1.5;
+    position: relative;
+  }
+
+  #root {
+    min-height: 100vh;
+    min-height: 100dvh;
+    width: 100%;
+    max-width: 100vw;
+    overflow-x: hidden;
+  }
+
+  /* Prevent horizontal scroll and optimize performance */
+  *, *::before, *::after {
+    max-width: 100vw;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+  }
+
+  /* Global container to prevent horizontal scroll */
+  .app-container {
+    width: 100%;
+    max-width: 100vw;
+    overflow-x: hidden;
+    position: relative;
+  }
+
+  /* Ensure all pages fit within viewport */
+  .page-container {
+    width: 100%;
+    max-width: 100vw;
+    overflow-x: hidden;
+    min-height: 100vh;
+    min-height: 100dvh;
+  }
+
+  /* Input and form optimizations */
+  input, textarea, select, button {
+    font-family: inherit;
+    font-size: inherit;
+    line-height: inherit;
+    max-width: 100%;
+  }
+
+  /* Button reset with improved touch targets */
+  button {
+    cursor: pointer;
+    border: none;
+    background: none;
+    min-height: 44px;
+    min-width: 44px;
+    touch-action: manipulation;
+    max-width: 100%;
+  }
+
+  /* Link styling */
+  a {
+    color: inherit;
+    text-decoration: none;
+    touch-action: manipulation;
+    max-width: 100%;
+  }
+
+  /* Image optimization */
+  img {
+    max-width: 100%;
+    height: auto;
+    display: block;
+  }
+
+  /* Scrollbar styling */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 3px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+  }
+}
+
+/* Simplified animations for better performance */
+@layer components {
+  /* Reduce motion for users who prefer it */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+
+  /* Fast, simple transitions */
+  .transition-fast {
+    transition: all 0.15s ease-out;
+  }
+
+  .transition-colors-fast {
+    transition: color 0.15s ease-out, background-color 0.15s ease-out, border-color 0.15s ease-out;
+  }
+
+  /* Optimized loading states */
+  .loading-skeleton {
+    background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%);
+    background-size: 200% 100%;
+    animation: skeleton-shimmer 1.5s ease-in-out infinite;
+  }
+
+  @keyframes skeleton-shimmer {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+  }
+
+  /* Simple fade animations */
+  .fade-in {
+    animation: fade-in 0.3s ease-out forwards;
+  }
+
+  @keyframes fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
+  .fade-in-up {
+    animation: fade-in-up 0.3s ease-out forwards;
+  }
+
+  @keyframes fade-in-up {
+    from { 
+      opacity: 0; 
+      transform: translateY(10px); 
+    }
+    to { 
+      opacity: 1; 
+      transform: translateY(0); 
+    }
+  }
+
+  /* Simple scale for interactions */
+  .scale-tap {
+    transform-origin: center;
+    transition: transform 0.1s ease-out;
+  }
+
+  .scale-tap:active {
+    transform: scale(0.98);
+  }
+
+  /* Loading spinner - optimized */
+  .spinner {
+    width: 20px;
+    height: 20px;
+    border: 2px solid #e5e7eb;
+    border-top: 2px solid #22c55e;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+  }
+
+  @keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+  }
+
+  /* Card hover effects - simplified */
+  .card-hover {
+    transition: transform 0.2s ease-out, box-shadow 0.2s ease-out;
+  }
+
+  .card-hover:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+  }
+
+  /* Focus states for accessibility */
+  .focus-ring {
+    outline: 2px solid transparent;
+    outline-offset: 2px;
+    transition: outline-color 0.15s ease-out;
+  }
+
+  .focus-ring:focus {
+    outline-color: #22c55e;
+  }
+
+  /* Page transitions - minimal */
+  .page-enter {
+    opacity: 0;
+  }
+
+  .page-enter-active {
+    opacity: 1;
+    transition: opacity 0.2s ease-out;
+  }
+
+  .page-exit {
+    opacity: 1;
+  }
+
+  .page-exit-active {
+    opacity: 0;
+    transition: opacity 0.1s ease-out;
+  }
+
+  /* Text truncation utilities */
+  .line-clamp-1 {
+    display: -webkit-box;
+    -webkit-line-clamp: 1;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    line-clamp: 1; /* Standard property for compatibility */
+  }
+
+  .line-clamp-2 {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    line-clamp: 2; /* Standard property for compatibility */
+  }
+
+  .line-clamp-3 {
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    line-clamp: 3; /* Standard property for compatibility */
+  }
+}
+
+/* Utility classes */
+@layer utilities {
+  /* Safe area padding for mobile devices */
+  .safe-top {
+    padding-top: env(safe-area-inset-top, 0);
+  }
+
+  .safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom, 0);
+  }
+
+  .safe-left {
+    padding-left: env(safe-area-inset-left, 0);
+  }
+
+  .safe-right {
+    padding-right: env(safe-area-inset-right, 0);
+  }
+
+  /* Hide scrollbar but keep functionality */
+  .scrollbar-hide {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Touch-friendly tap targets */
+  .tap-target {
+    min-height: 44px;
+    min-width: 44px;
+    touch-action: manipulation;
+  }
+
+  /* Prevent text selection on interactive elements */
+  .no-select {
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+  }
+
+  /* Better text rendering */
+  .text-crisp {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* GPU acceleration for animations */
+  .gpu-accelerated {
+    transform: translateZ(0);
+    will-change: transform;
+  }
+
+  /* Momentum scrolling for iOS */
+  .momentum-scroll {
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+/* Component-specific styles */
+.prediction-card {
+  /* Tailwind @apply directive */
+  @apply bg-white rounded-2xl border border-gray-100 shadow-sm transition-fast hover:shadow-md;
+  will-change: transform, box-shadow;
+}
+
+.prediction-card:hover {
+  transform: translateY(-1px);
+}
+
+.prediction-option {
+  /* Tailwind @apply directive */
+  @apply border-2 border-gray-200 rounded-xl p-4 transition-fast;
+  touch-action: manipulation;
+}
+
+.prediction-option:hover {
+  /* Tailwind @apply directive */
+  @apply border-gray-300;
+}
+
+.prediction-option.selected {
+  /* Tailwind @apply directive */
+  @apply border-green-500 bg-green-50;
+}
+
+.bottom-nav {
+  /* Tailwind @apply directive */
+  @apply fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 safe-bottom;
+  z-index: 1000;
+  will-change: transform;
+}
+
+.modal-overlay {
+  /* Tailwind @apply directive */
+  @apply fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4;
+  z-index: 9999;
+  backdrop-filter: blur(4px);
+}
+
+.modal-content {
+  /* Tailwind @apply directive */
+  @apply bg-white rounded-2xl max-w-md w-full max-h-[90vh] overflow-y-auto;
+  will-change: transform;
+}
+
+/* Print styles */
+@media print {
+  * {
+    background: transparent !important;
+    color: black !important;
+    box-shadow: none !important;
+    text-shadow: none !important;
+  }
+  
+  .no-print {
+    display: none !important;
+  }
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+  .prediction-card {
+    border: 2px solid #000;
+  }
+  
+  .prediction-option {
+    border: 2px solid #000;
+  }
+}
+
+/* Optimize for better rendering performance */
+* {
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+/* Critical above-the-fold styles */
+.discover-header {
+  /* Tailwind @apply directive */
+  @apply bg-white border-b border-gray-200 sticky top-0;
+  z-index: 100;
+  will-change: transform;
+}
+
+.prediction-grid {
+  /* Tailwind @apply directive */
+  @apply space-y-4 pb-20;
+  contain: layout style paint;
+}
+
+/* Error and loading states */
+.error-state {
+  /* Tailwind @apply directive */
+  @apply text-center py-12 text-gray-500;
+}
+
+.loading-state {
+  /* Tailwind @apply directive */
+  @apply text-center py-12;
+}
+
+.empty-state {
+  /* Tailwind @apply directive */
+  @apply text-center py-16 text-gray-500;
+}
+/* Cache busting timestamp - 2025-08-19T14:05:00Z */

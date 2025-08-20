@@ -1,0 +1,177 @@
+/* Additional CSS fixes for compact comments */
+
+/* Comments Modal Specific Improvements - More Compact */
+.comments-modal .modal-body {
+  padding: 4px 16px !important;
+}
+
+.comments-modal .space-y-0 > * + * {
+  margin-top: 0px !important;
+}
+
+/* Comment item spacing - Much more compact */
+.comments-modal .flex.gap-3.mb-2 {
+  margin-bottom: 6px !important;
+  padding: 4px 0 !important;
+}
+
+.comments-modal .flex.gap-3.mb-2:last-child {
+  margin-bottom: 0 !important;
+}
+
+/* Reduce gap between avatar and content */
+.comments-modal .flex.gap-3 {
+  gap: 8px !important;
+}
+
+/* Make comment bubbles more compact */
+.comments-modal .bg-gray-50.rounded-2xl {
+  padding: 8px 12px !important;
+  margin-bottom: 2px !important;
+}
+
+/* Reduce spacing in comment actions */
+.comments-modal .mt-1.ml-3 {
+  margin-top: 2px !important;
+  margin-left: 8px !important;
+}
+
+/* Make avatars slightly smaller */
+.comments-modal .w-8.h-8 {
+  width: 28px !important;
+  height: 28px !important;
+}
+
+/* Reduce text spacing within comments */
+.comments-modal .mb-1 {
+  margin-bottom: 2px !important;
+}
+
+/* Make the overall comment container more compact */
+.comments-modal .space-y-0 {
+  gap: 2px !important;
+}
+
+/* Modal Structure and Layout Fixes */
+.modal-container {
+  position: relative !important;
+  background: white !important;
+  border-radius: 1rem !important;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04) !important;
+  max-width: 28rem !important;
+  width: 100% !important;
+  max-height: 90vh !important;
+  overflow: hidden !important;
+  display: flex !important;
+  flex-direction: column !important;
+  margin: 0 auto !important;
+}
+
+/* Ensure modal sections are properly structured */
+.modal-header {
+  flex-shrink: 0 !important;
+  background: white !important;
+  padding: 1rem !important;
+  border-bottom: 1px solid #e5e7eb !important;
+  border-radius: 1rem 1rem 0 0 !important;
+}
+
+.modal-body {
+  flex: 1 !important;
+  overflow-y: auto !important;
+  padding: 1rem !important;
+  background: white !important;
+}
+
+.modal-footer {
+  flex-shrink: 0 !important;
+  background: white !important;
+  padding: 1rem !important;
+  border-top: 1px solid #e5e7eb !important;
+  border-radius: 0 0 1rem 1rem !important;
+}
+
+/* Mobile-specific modal adjustments */
+@media (max-width: 640px) {
+  .modal-container {
+    max-width: calc(100vw - 1rem) !important;
+    margin: 0.5rem !important;
+  }
+  
+  .modal-header,
+  .modal-body,
+  .modal-footer {
+    padding: 0.75rem !important;
+  }
+}
+
+/* Fix for prediction modal specific structure */
+.prediction-modal .modal-container {
+  width: 100% !important;
+  max-width: 28rem !important;
+  margin: 0 auto !important;
+}
+
+/* Ensure buttons in modals are always visible and clickable */
+.modal-footer button,
+.modal-header button,
+.modal-body button {
+  position: relative !important;
+  z-index: 10 !important;
+}
+
+/* Override any opacity or visibility issues */
+.modal-container * {
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+
+/* Specific fixes for input visibility in modals */
+.modal-body input,
+.modal-body textarea,
+.modal-body select {
+  background-color: white !important;
+  color: #111827 !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+
+/* Fix for any transform or transition issues */
+.modal-container,
+.modal-header,
+.modal-body,
+.modal-footer {
+  transform: none !important;
+  will-change: auto !important;
+}
+
+/* Accessibility improvements */
+.modal-overlay {
+  backdrop-filter: blur(4px) !important;
+  -webkit-backdrop-filter: blur(4px) !important;
+}
+
+/* Fix for modal content that might be getting clipped */
+.modal-body {
+  -webkit-overflow-scrolling: touch !important;
+  scrollbar-width: thin !important;
+}
+
+.modal-body::-webkit-scrollbar {
+  width: 6px !important;
+}
+
+.modal-body::-webkit-scrollbar-track {
+  background: transparent !important;
+}
+
+.modal-body::-webkit-scrollbar-thumb {
+  background: #cbd5e1 !important;
+  border-radius: 3px !important;
+}
+
+/* Prevent modal content from being affected by parent transforms */
+.modal-container {
+  transform-style: flat !important;
+  contain: layout style paint !important;
+}

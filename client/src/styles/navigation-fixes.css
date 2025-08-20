@@ -1,0 +1,89 @@
+/* Navigation fixes to prevent overflow and improve UX */
+
+/* Fix navigation container width */
+.bottom-navigation {
+  width: 100% !important;
+  max-width: 100% !important;
+  overflow: hidden !important;
+}
+
+/* Ensure navigation tabs don't overflow */
+.nav-tabs-container {
+  width: 100% !important;
+  max-width: 100% !important;
+  display: flex !important;
+  justify-content: space-around !important;
+  align-items: center !important;
+}
+
+/* Fix tab button sizing */
+.nav-tab-button {
+  flex: 1 !important;
+  min-width: 0 !important;
+  max-width: none !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 8px 4px !important;
+  text-align: center !important;
+}
+
+/* Fix tab label text */
+.nav-tab-label {
+  font-size: 11px !important;
+  line-height: 1.2 !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  max-width: 100% !important;
+  display: block !important;
+}
+
+/* Fix create button */
+.nav-create-button {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 8px !important;
+}
+
+/* Prevent horizontal scroll in main content */
+.page-content,
+.main-content,
+.app-container {
+  width: 100% !important;
+  max-width: 100% !important;
+  overflow-x: hidden !important;
+  box-sizing: border-box !important;
+}
+
+/* Fix modal containers */
+.modal-container,
+.modal-overlay {
+  width: 100% !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+}
+
+/* Fix any card containers */
+.card-container,
+.bet-card {
+  width: 100% !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+}
+
+/* Responsive text sizing */
+@media (max-width: 360px) {
+  .nav-tab-label {
+    font-size: 10px !important;
+  }
+}
+
+@media (max-width: 320px) {
+  .nav-tab-label {
+    font-size: 9px !important;
+  }
+}

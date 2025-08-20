@@ -1,0 +1,359 @@
+import React, { useEffect, useCallback, memo, Suspense } from 'react';
+import { Router, Route, Switch, useLocation } from 'wouter';
+import { useWalletStore } from './store/walletStore';
+import { useAuthStore } from './store/authStore';
+import { useLikeStore } from './store/likeStore';
+import { useCommentStore } from './store/commentStore';
+import { Toaster } from 'react-hot-toast';
+import { scrollToTop } from './utils/scroll';
+import NotificationContainer from './components/ui/NotificationContainer';
+import PWAInstallManager from './components/PWAInstallManager';
+import PageWrapper from './components/PageWrapper';
+
+// Import all page components
+import DiscoverPage from './pages/DiscoverPage';
+import CreatePredictionPage from './pages/CreatePredictionPage';
+import BetsTab from './pages/BetsTab';
+import ProfilePage from './pages/ProfilePage';
+import WalletPage from './pages/WalletPage';
+import AuthPage from './pages/auth/AuthPage';
+import AuthCallbackPage from './pages/auth/AuthCallbackPage';
+import PredictionDetailsPage from './pages/PredictionDetailsPage';
+import BottomNavigation from './components/BottomNavigation';
+
+// Simple Loading Component
+const LoadingSpinner: React.FC<{ message?: string }> = ({ message = "Loading..." }) => (
+  <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+    <div className="text-center">
+      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-500 mx-auto"></div>
+      <p className="mt-2 text-gray-600">{message}</p>
+    </div>
+  </div>
+);
+
+// Simplified Auth Guard
+const AuthGuard: React.FC<{ children: React.ReactNode }> = memo(({ children }) => {
+  const { isAuthenticated, loading, initialized, initializeAuth } = useAuthStore();
+  
+  useEffect(() => {
+    if (!initialized && !loading) {
+      initializeAuth();
+    }
+  }, [initialized, loading, initializeAuth]);
+  
+  if (!initialized || (loading && !isAuthenticated)) {
+    return <LoadingSpinner message="Authenticating..." />;
+  }
+  
+  if (!isAuthenticated) {
+    return <AuthPage />;
+  }
+  
+  return <>{children}</>;
+});
+
+AuthGuard.displayName = 'AuthGuard';
+
+// Main Layout Component with fixed navigation
+const MainLayout: React.FC<{ children: React.ReactNode }> = memo(({ children }) => {
+  const [location, navigate] = useLocation();
+  
+  const getCurrentTab = useCallback(() => {
+    const path = location.toLowerCase();
+    if (path === '/' || path === '/discover') return 'discover';
+    if (path === '/bets' || path === '/predictions') return 'bets';
+    if (path === '/profile') return 'profile';
+    if (path === '/wallet') return 'wallet';
+    return 'discover';
+  }, [location]);
+
+  const handleTabChange = useCallback((tab: string) => {
+    // Prevent infinite loops by checking if we're already on the target route
+    const currentTab = getCurrentTab();
+    if (currentTab === tab) return;
+    
+    // Navigate to the appropriate route
+    switch (tab) {
+      case 'discover':
+        navigate('/');
+        break;
+      case 'bets':
+        navigate('/predictions');
+        break;
+      case 'profile':
+        navigate('/profile');
+        break;
+      case 'wallet':
+        navigate('/wallet');
+        break;
+      default:
+        navigate('/');
+    }
+    
+    // Scroll to top after navigation
+    setTimeout(() => {
+      scrollToTop();
+    }, 50);
+  }, [navigate, getCurrentTab]);
+
+  const handleFABClick = useCallback(() => {
+    navigate('/create');
+  }, [navigate]);
+
+  const showFAB = getCurrentTab() === 'discover';
+
+  return (
+    <div className="min-h-screen bg-gray-50 flex flex-col">
+      {/* Main Content */}
+      <main className="flex-1 pb-20">
+        <Suspense fallback={<LoadingSpinner message="Loading page..." />}>
+          {children}
+        </Suspense>
+      </main>
+
+      {/* Bottom Navigation */}
+      <BottomNavigation
+        activeTab={getCurrentTab()}
+        onTabChange={handleTabChange}
+        showFAB={showFAB}
+        onFABClick={handleFABClick}
+      />
+
+      {/* Notifications */}
+      <NotificationContainer />
+      
+      {/* PWA Install Manager */}
+      <PWAInstallManager />
+      
+      {/* Toast Notifications */}
+      <Toaster
+        position="top-center"
+        toastOptions={{
+          duration: 4000,
+          style: {
+            background: '#363636',
+            color: '#fff',
+          },
+        }}
+      />
+    </div>
+  );
+});
+
+MainLayout.displayName = 'MainLayout';
+
+// Page Wrapper Components with proper props and error handling
+const DiscoverPageWrapper: React.FC = () => {
+  const [, navigate] = useLocation();
+  
+  const handleNavigateToProfile = useCallback(() => {
+    navigate('/profile');
+  }, [navigate]);
+
+  const handleNavigateToPrediction = useCallback((predictionId: string) => {
+    navigate(`/prediction/${predictionId}`);
+  }, [navigate]);
+
+  return (
+    <PageWrapper title="Discover">
+      <DiscoverPage 
+        onNavigateToProfile={handleNavigateToProfile}
+        onNavigateToPrediction={handleNavigateToPrediction}
+      />
+    </PageWrapper>
+  );
+};
+
+const PredictionsPageWrapper: React.FC = () => {
+  const [, navigate] = useLocation();
+  
+  const handleNavigateToDiscover = useCallback(() => {
+    navigate('/');
+  }, [navigate]);
+
+  return (
+    <PageWrapper title="My Predictions">
+      <BetsTab onNavigateToDiscover={handleNavigateToDiscover} />
+    </PageWrapper>
+  );
+};
+
+const CreatePredictionPageWrapper: React.FC = () => {
+  const [, navigate] = useLocation();
+  
+  const handleNavigateBack = useCallback(() => {
+    navigate('/');
+  }, [navigate]);
+
+  const handleComplete = useCallback(() => {
+    navigate('/');
+  }, [navigate]);
+
+  return (
+    <PageWrapper title="Create Prediction">
+      <CreatePredictionPage 
+        onNavigateBack={handleNavigateBack}
+        onComplete={handleComplete}
+      />
+    </PageWrapper>
+  );
+};
+
+const ProfilePageWrapper: React.FC<{ params?: { userId: string } }> = ({ params }) => {
+  const [, navigate] = useLocation();
+  
+  const handleNavigateBack = useCallback(() => {
+    navigate('/');
+  }, [navigate]);
+
+  return (
+    <PageWrapper title="Profile">
+      <ProfilePage 
+        onNavigateBack={handleNavigateBack} 
+        userId={params?.userId} 
+      />
+    </PageWrapper>
+  );
+};
+
+// Wrapper for current user profile
+const MyProfilePageWrapper: React.FC = () => {
+  const [, navigate] = useLocation();
+  
+  const handleNavigateBack = useCallback(() => {
+    navigate('/');
+  }, [navigate]);
+
+  return (
+    <PageWrapper title="My Profile">
+      <ProfilePage 
+        onNavigateBack={handleNavigateBack} 
+      />
+    </PageWrapper>
+  );
+};
+
+const WalletPageWrapper: React.FC = () => {
+  const [, navigate] = useLocation();
+  
+  const handleNavigateBack = useCallback(() => {
+    navigate('/');
+  }, [navigate]);
+
+  return (
+    <PageWrapper title="Wallet">
+      <WalletPage onNavigateBack={handleNavigateBack} />
+    </PageWrapper>
+  );
+};
+
+const PredictionDetailsWrapper: React.FC<{ params: { id: string } }> = ({ params }) => {
+  const [, navigate] = useLocation();
+  
+  const handleNavigateBack = useCallback(() => {
+    navigate('/');
+  }, [navigate]);
+
+  if (!params?.id) {
+    return (
+      <PageWrapper title="Error">
+        <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+          <div className="text-center">
+            <h2 className="text-xl font-semibold text-gray-900 mb-2">Prediction Not Found</h2>
+            <p className="text-gray-600 mb-4">The prediction you're looking for doesn't exist.</p>
+            <button
+              onClick={handleNavigateBack}
+              className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600"
+            >
+              Go Back
+            </button>
+          </div>
+        </div>
+      </PageWrapper>
+    );
+  }
+
+  return (
+    <PageWrapper title="Prediction Details">
+      <PredictionDetailsPage 
+        predictionId={params.id}
+        onNavigateBack={handleNavigateBack}
+      />
+    </PageWrapper>
+  );
+};
+
+// Main App Component with improved error handling
+function App() {
+  const { initializeWallet } = useWalletStore();
+  const { initializeAuth, isAuthenticated, loading, initialized } = useAuthStore();
+  const { initializeLikes } = useLikeStore();
+  const { initializeCommentCounts } = useCommentStore();
+
+  // Initialize auth once on app start
+  useEffect(() => {
+    if (!initialized && !loading) {
+      try {
+        console.log('App: Initializing auth...');
+        initializeAuth();
+      } catch (error) {
+        console.error('Auth initialization failed:', error);
+      }
+    }
+  }, [initializeAuth, initialized, loading]);
+
+  // Initialize wallet and social features after auth is ready
+  useEffect(() => {
+    if (isAuthenticated && !loading && initialized) {
+      try {
+        console.log('App: Initializing wallet and social features...');
+        
+        // Initialize wallet
+        initializeWallet();
+        
+        // Initialize social engagement features
+        initializeLikes();
+        initializeCommentCounts();
+        
+        console.log('✅ All stores initialized successfully');
+      } catch (error) {
+        console.error('Store initialization failed:', error);
+      }
+    }
+  }, [isAuthenticated, loading, initialized, initializeWallet, initializeLikes, initializeCommentCounts]);
+
+  return (
+    <Router>
+      <Switch>
+        {/* Public auth routes */}
+        <Route path="/auth/callback">
+          <PageWrapper title="Authentication">
+            <AuthCallbackPage />
+          </PageWrapper>
+        </Route>
+        
+        {/* Protected app routes */}
+        <AuthGuard>
+          <MainLayout>
+            <Switch>
+              <Route path="/" component={DiscoverPageWrapper} />
+              <Route path="/discover" component={DiscoverPageWrapper} />
+              <Route path="/predictions" component={PredictionsPageWrapper} />
+              <Route path="/bets" component={PredictionsPageWrapper} />
+              <Route path="/create" component={CreatePredictionPageWrapper} />
+              <Route path="/profile" component={MyProfilePageWrapper} />
+              <Route path="/profile/:userId" component={ProfilePageWrapper} />
+              <Route path="/wallet" component={WalletPageWrapper} />
+              <Route path="/prediction/:id" component={PredictionDetailsWrapper} />
+
+              {/* Fallback */}
+              <Route component={DiscoverPageWrapper} />
+            </Switch>
+          </MainLayout>
+        </AuthGuard>
+      </Switch>
+    </Router>
+  );
+}
+
+export default App;
