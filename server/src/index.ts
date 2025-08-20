@@ -13,9 +13,9 @@ import { db } from './config/database';
 
 const app = express();
 const PORT = config.server.port || 3001;
-const VERSION = '2.0.51';
+const VERSION = '2.0.52';
 
-console.log('🚀 Fan Club Z Server v2.0.51 - CORS FIXED - SINGLE SOURCE OF TRUTH');
+console.log('🚀 Fan Club Z Server v2.0.52 - CORS FIXED - SINGLE SOURCE OF TRUTH');
 console.log('📡 Starting server with enhanced CORS support...');
 
 // Enhanced CORS middleware - Allow all origins for now to fix immediate issue
@@ -91,6 +91,12 @@ app.post('/api/v2/admin/seed-database', async (req, res) => {
     });
   }
 });
+
+// Import routes
+import usersRoutes from './routes/users';
+
+// Use routes
+app.use('/api/v2/users', usersRoutes);
 
 // API routes placeholder
 app.get('/api/v2/predictions', async (req, res) => {

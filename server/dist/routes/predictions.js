@@ -13,7 +13,7 @@ router.get('/', async (req, res) => {
         res.json({
             data: [],
             message: 'Predictions endpoint - working',
-            version: '2.0.51',
+            version: '2.0.52',
             pagination: {
                 page: 1,
                 limit: 10,
@@ -43,7 +43,7 @@ router.get('/stats/platform', async (req, res) => {
                 activePredictions: 0
             },
             message: 'Platform stats - working',
-            version: '2.0.51'
+            version: '2.0.52'
         });
     }
     catch (error) {
@@ -61,7 +61,7 @@ router.get('/:id', async (req, res) => {
         res.json({
             data: null,
             message: `Prediction ${id} not found`,
-            version: '2.0.51'
+            version: '2.0.52'
         });
     }
     catch (error) {
@@ -78,7 +78,7 @@ router.post('/', async (req, res) => {
         res.status(201).json({
             data: null,
             message: 'Prediction creation - coming soon',
-            version: '2.0.51'
+            version: '2.0.52'
         });
     }
     catch (error) {

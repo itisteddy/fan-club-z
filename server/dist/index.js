@@ -47,8 +47,8 @@ const config_1 = require("./config");
 const database_1 = require("./config/database");
 const app = (0, express_1.default)();
 const PORT = config_1.config.server.port || 3001;
-const VERSION = '2.0.51';
-console.log('🚀 Fan Club Z Server v2.0.51 - CORS FIXED - SINGLE SOURCE OF TRUTH');
+const VERSION = '2.0.52';
+console.log('🚀 Fan Club Z Server v2.0.52 - CORS FIXED - SINGLE SOURCE OF TRUTH');
 console.log('📡 Starting server with enhanced CORS support...');
 // Enhanced CORS middleware - Allow all origins for now to fix immediate issue
 app.use((0, cors_1.default)({
@@ -116,6 +116,10 @@ app.post('/api/v2/admin/seed-database', async (req, res) => {
         });
     }
 });
+// Import routes
+const users_1 = __importDefault(require("./routes/users"));
+// Use routes
+app.use('/api/v2/users', users_1.default);
 // API routes placeholder
 app.get('/api/v2/predictions', async (req, res) => {
     console.log('📡 Predictions endpoint called - origin:', req.headers.origin);

@@ -10,6 +10,7 @@ import { useLikeStore } from '../store/likeStore';
 import { useUnifiedCommentStore, useCommentsForPrediction } from '../store/unifiedCommentStore';
 import { formatTimeRemaining } from '../lib/utils';
 import CommentSystem from '../components/CommentSystem';
+import TappableUsername from '../components/TappableUsername';
 import {
   SettlementBadge,
   SettlementPanel,
@@ -206,7 +207,12 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
     try {
       console.log('🎲 Placing prediction:', { predictionId: prediction.id, optionId: selectedOption, amount });
       
-      await placePrediction(prediction.id, selectedOption, amount);
+      await placePrediction({
+        predictionId: prediction.id,
+        optionId: selectedOption,
+        amount: amount,
+        userId: user?.id || ''
+      });
       
       toast.success('Prediction placed successfully!');
       setStakeAmount('');
@@ -284,17 +290,29 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
     }
   };
 
-  const handleNavigateToProfile = () => {
-    if (!prediction?.creator?.id) {
-      toast.error('Creator profile not available');
-      return;
+  // Get creator info with fallbacks for different data structures
+  const getCreatorInfo = () => {
+    // Handle different possible creator data structures
+    if (prediction?.creator) {
+      return {
+        id: prediction.creator.id || prediction.creator_id,
+        username: prediction.creator.username || prediction.creator.full_name || 'creator',
+        displayName: prediction.creator.full_name || prediction.creator.username,
+        avatar_url: prediction.creator.avatar_url
+      };
+    } else if (prediction?.creator_id) {
+      return {
+        id: prediction.creator_id,
+        username: 'creator',
+        displayName: 'Creator'
+      };
     }
     
-    console.log('👤 Navigating to profile:', prediction.creator.id);
-    
-    // Navigate to the profile page with the creator's user ID
-    // The ProfilePage component will handle displaying a non-editable view for other users
-    setLocation(`/profile/${prediction.creator.id}`);
+    return {
+      id: 'unknown',
+      username: 'Fan Club Z',
+      displayName: 'Fan Club Z'
+    };
   };
 
   // Check if user has a bet entry
@@ -374,6 +392,9 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
   // Determine if betting is still allowed
   const canPlaceBet = prediction.status === 'open' && new Date(prediction.entry_deadline) > new Date();
 
+  // Get creator info
+  const creatorInfo = getCreatorInfo();
+
   return (
     <>
       <div className="min-h-screen bg-gray-50">
@@ -407,34 +428,31 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
             animate={{ opacity: 1, y: 0 }}
             className="bg-white rounded-2xl p-6 mb-6 shadow-sm border border-gray-100"
           >
-            {/* Creator Info */}
+            {/* Creator Info - Fixed with TappableUsername */}
             <div className="flex items-center gap-3 mb-4">
-              <button
-                onClick={handleNavigateToProfile}
-                className="flex items-center gap-3 flex-1 text-left group hover:bg-gray-50 rounded-xl p-2 -m-2 transition-colors"
-                title="View creator's profile"
-              >
-                <div className="w-12 h-12 bg-gradient-to-br from-green-400 to-green-600 rounded-full flex items-center justify-center group-hover:shadow-lg transition-shadow">
-                  <span className="text-white font-bold text-lg">
-                    {prediction.creator?.username?.charAt(0)?.toUpperCase() || 'FC'}
-                  </span>
+              <div className="w-12 h-12 bg-gradient-to-br from-green-400 to-green-600 rounded-full flex items-center justify-center">
+                <span className="text-white font-bold text-lg">
+                  {creatorInfo.username?.charAt(0)?.toUpperCase() || 'FC'}
+                </span>
+              </div>
+              <div className="flex-1">
+                <div className="flex items-center gap-2">
+                  <TappableUsername 
+                    username={creatorInfo.username}
+                    userId={creatorInfo.id}
+                    displayName={creatorInfo.displayName}
+                    className="font-semibold text-gray-900 text-lg hover:text-green-600 transition-colors"
+                    showAt={false}
+                  />
                 </div>
-                <div className="flex-1">
-                  <div className="font-semibold text-gray-900 text-lg group-hover:text-green-600 transition-colors">
-                    {prediction.creator?.username || 'Fan Club Z'}
-                  </div>
-                  <div className="text-sm text-gray-500">
-                    {new Date(prediction.created_at).toLocaleDateString('en-US', {
-                      month: 'short',
-                      day: 'numeric',
-                      year: 'numeric'
-                    })}
-                  </div>
+                <div className="text-sm text-gray-500">
+                  {new Date(prediction.created_at).toLocaleDateString('en-US', {
+                    month: 'short',
+                    day: 'numeric',
+                    year: 'numeric'
+                  })}
                 </div>
-                <div className="opacity-0 group-hover:opacity-100 transition-opacity">
-                  <User size={16} className="text-gray-400" />
-                </div>
-              </button>
+              </div>
               
               {/* Settlement Badge */}
               {prediction.settlement?.method && (
@@ -475,7 +493,7 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
               </div>
             )}
 
-            {/* Stats Grid */}
+            {/* Stats Grid - Using real data */}
             <div className="grid grid-cols-3 gap-4 mb-6">
               <div className="text-center p-4 bg-green-50 rounded-xl">
                 <div className="text-2xl font-bold text-green-600">
@@ -744,7 +762,7 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
             </motion.div>
           )}
 
-          {/* Engagement Section */}
+          {/* Engagement Section - Using real like/comment counts */}
           <motion.div
             ref={engagementRef}
             initial={{ opacity: 0, y: 20 }}
