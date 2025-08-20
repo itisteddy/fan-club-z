@@ -4,7 +4,7 @@ import { X, Send, Heart, MessageCircle, ArrowLeft } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Avatar, AvatarImage, AvatarFallback } from '../ui/avatar';
-import { useCommentStore, type Comment } from '../../store/commentStore';
+import { useUnifiedCommentStore, useCommentsForPrediction } from '../../store/unifiedCommentStore';
 import { useAuthStore } from '../../store/authStore';
 import { generateInitials, getAvatarUrl } from '../../lib/utils';
 import toast from 'react-hot-toast';
@@ -22,7 +22,7 @@ export const CommentsModal: React.FC<CommentsModalProps> = ({
   isOpen,
   onClose,
 }) => {
-  const { comments, loading, fetchComments, addComment, likeComment, unlikeComment } = useCommentStore();
+  const { comments, loading, fetchComments, addComment, toggleCommentLike } = useCommentsForPrediction(predictionId);
   const { user } = useAuthStore();
   const [newComment, setNewComment] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);

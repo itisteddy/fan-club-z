@@ -3,7 +3,7 @@ import { Router, Route, Switch, useLocation } from 'wouter';
 import { useWalletStore } from './store/walletStore';
 import { useAuthStore } from './store/authStore';
 import { useLikeStore } from './store/likeStore';
-import { useCommentStore } from './store/commentStore';
+import { useUnifiedCommentStore } from './store/unifiedCommentStore';
 import { Toaster } from 'react-hot-toast';
 import { scrollToTop } from './utils/scroll';
 import NotificationContainer from './components/ui/NotificationContainer';
@@ -185,10 +185,6 @@ const CreatePredictionPageWrapper: React.FC = () => {
     navigate('/');
   }, [navigate]);
 
-  const handleComplete = useCallback(() => {
-    navigate('/');
-  }, [navigate]);
-
   return (
     <PageWrapper title="Create Prediction">
       <CreatePredictionPage 
@@ -287,7 +283,7 @@ function App() {
   const { initializeWallet } = useWalletStore();
   const { initializeAuth, isAuthenticated, loading, initialized } = useAuthStore();
   const { initializeLikes } = useLikeStore();
-  const { initializeCommentCounts } = useCommentStore();
+  const { initialize: initializeCommentStore } = useUnifiedCommentStore();
 
   // Initialize auth once on app start
   useEffect(() => {
@@ -312,14 +308,14 @@ function App() {
         
         // Initialize social engagement features
         initializeLikes();
-        initializeCommentCounts();
+        initializeCommentStore();
         
         console.log('✅ All stores initialized successfully');
       } catch (error) {
         console.error('Store initialization failed:', error);
       }
     }
-  }, [isAuthenticated, loading, initialized, initializeWallet, initializeLikes, initializeCommentCounts]);
+  }, [isAuthenticated, loading, initialized, initializeWallet, initializeLikes, initializeCommentStore]);
 
   return (
     <Router>

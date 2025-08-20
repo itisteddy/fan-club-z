@@ -51,14 +51,14 @@ const PredictionCard: React.FC<PredictionCardProps> = ({
   const totalPool = prediction.options?.reduce((sum, option) => sum + (option.total_staked || 0), 0) || 0;
 
   // Debug: Log the actual prediction data being used
-  console.log('🔍 PredictionCard Debug:', {
-    id: prediction.id,
-    title: prediction.title,
-    participant_count: prediction.participant_count,
-    options: prediction.options,
-    totalPool,
-    participantCount
-  });
+  // console.log('🔍 PredictionCard Debug:', {
+  //   id: prediction.id,
+  //   title: prediction.title,
+  //   participant_count: prediction.participant_count,
+  //   options: prediction.options,
+  //   totalPool,
+  //   participantCount
+  // });
 
   // Format currency consistently
   const formatCurrency = (amount: number) => {
