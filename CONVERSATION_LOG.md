@@ -11,7 +11,33 @@
 
 ## Key Conversations & Updates
 
-### CORS & API Connection Fix (Current Session)
+### React Architecture Debugging & Error Resolution (Current Session)
+- **Date**: August 20, 2025
+- **Focus**: Fixing critical "r is not a function" React compilation errors
+- **Issues Identified**:
+  - React component compilation errors in DiscoverPage.tsx
+  - Package.json import causing build failures in version.ts
+  - Component export/import conflicts between BetCard and PredictionCard
+  - PlacePredictionModal not handling null predictions properly
+  - JSX transpilation issues causing runtime errors
+- **Fixes Applied**:
+  - Removed unused CategoryFilter import from DiscoverPage
+  - Fixed React.memo usage (changed from memo to React.memo)
+  - Fixed package.json import issue in version.ts (hardcoded version)
+  - Added null checks in PlacePredictionModal component
+  - Enhanced error boundaries in PredictionCard
+  - Improved prediction validation in DiscoverPage
+- **Current Status**: 
+  - Major import and component safety issues resolved
+  - Build tool configuration verified (Vite + React setup correct)
+  - TypeScript config reviewed (some linting rules disabled for faster development)
+  - Still monitoring for remaining compilation issues
+- **Next Steps**: 
+  - Test component rendering in browser
+  - Monitor for remaining "r is not a function" errors
+  - Verify all stores and data flow working properly
+
+### CORS & API Connection Fix (Previous Session)
 - **Date**: [Current Date]
 - **Focus**: Resolving CORS policy blocking API requests
 - **Root Cause**: 

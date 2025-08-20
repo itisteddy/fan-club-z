@@ -10,7 +10,7 @@ import { usePredictionStore } from '../../store/predictionStore';
 import toast from 'react-hot-toast';
 
 interface PlacePredictionModalProps {
-  prediction: Prediction;
+  prediction: Prediction | null;
   isOpen: boolean;
   onClose: () => void;
 }
@@ -38,6 +38,8 @@ export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
   isOpen,
   onClose,
 }) => {
+  // Early return if no prediction
+  if (!prediction || !isOpen) return null;
   const [selectedOptionId, setSelectedOptionId] = useState<string>('');
   const [amount, setAmount] = useState<string>('');
   const [isLoading, setIsLoading] = useState(false);
@@ -99,7 +101,7 @@ export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
     }
   };
 
-  if (!isOpen) return null;
+  // Component logic continues here...
 
   return (
     <AnimatePresence mode="wait" initial={false}>
@@ -164,7 +166,7 @@ export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
                 <div className="space-y-3">
                   <h4 className="font-medium text-gray-900">Select your prediction:</h4>
                   <div className="space-y-2">
-                    {prediction.options.map((option) => {
+                    {(prediction.options || []).map((option) => {
                       const totalStaked = option.total_staked || 0;
                       const poolTotal = prediction.pool_total || 1;
                       const percentage = poolTotal > 0 ? Math.min((totalStaked / poolTotal * 100), 100) : 50;
@@ -172,7 +174,7 @@ export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
                       
                       return (
                         <Card
-                          key={option.id}
+                          key={option.id || Math.random()}
                           className={cn(
                             "cursor-pointer transition-all border-2",
                             selectedOptionId === option.id 

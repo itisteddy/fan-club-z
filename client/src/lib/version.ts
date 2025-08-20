@@ -1,8 +1,6 @@
 // Comprehensive version management system
-import packageJson from '../../package.json';
-
-// Get base version from package.json
-const BASE_VERSION = packageJson.version;
+// Note: Using hardcoded version to avoid import issues with package.json
+const BASE_VERSION = '2.0.52';
 
 // Version management with support for major releases
 export class VersionManager {

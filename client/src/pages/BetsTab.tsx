@@ -25,6 +25,30 @@ const BetsTab: React.FC<BetsTabProps> = ({ onNavigateToDiscover }) => {
   } = usePredictionStore();
   const { user, isAuthenticated } = useAuthStore();
   
+  // Helper functions
+  const getTimeRemaining = (deadline: Date | string | undefined) => {
+    if (!deadline) return '2d 14h';
+    const now = new Date().getTime();
+    const deadlineTime = new Date(deadline).getTime();
+    const diff = deadlineTime - now;
+    
+    if (diff <= 0) return 'Ended';
+    
+    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+    const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+    
+    if (days > 0) return `${days}d ${hours}h`;
+    return `${hours}h`;
+  };
+
+  const calculateConfidence = (prediction: any) => {
+    if (!prediction || !prediction.options) return 68;
+    const totalStaked = prediction.options.reduce((sum: number, option: any) => sum + (option.total_staked || 0), 0);
+    if (totalStaked === 0) return 68;
+    const maxStaked = Math.max(...prediction.options.map((option: any) => option.total_staked || 0));
+    return Math.round((maxStaked / totalStaked) * 100);
+  };
+  
   // Scroll to top when component mounts
   useEffect(() => {
     scrollToTop({ behavior: 'instant' });
@@ -166,29 +190,6 @@ const BetsTab: React.FC<BetsTabProps> = ({ onNavigateToDiscover }) => {
       Created: createdPredictions,
       Completed: completedPredictions
     };
-  };
-
-  const getTimeRemaining = (deadline: Date | string | undefined) => {
-    if (!deadline) return '2d 14h';
-    const now = new Date().getTime();
-    const deadlineTime = new Date(deadline).getTime();
-    const diff = deadlineTime - now;
-    
-    if (diff <= 0) return 'Ended';
-    
-    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-    const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-    
-    if (days > 0) return `${days}d ${hours}h`;
-    return `${hours}h`;
-  };
-
-  const calculateConfidence = (prediction: any) => {
-    if (!prediction || !prediction.options) return 68;
-    const totalStaked = prediction.options.reduce((sum: number, option: any) => sum + (option.total_staked || 0), 0);
-    if (totalStaked === 0) return 68;
-    const maxStaked = Math.max(...prediction.options.map((option: any) => option.total_staked || 0));
-    return Math.round((maxStaked / totalStaked) * 100);
   };
 
   const mockPredictions = getUserPredictions();

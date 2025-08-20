@@ -1,13 +1,10 @@
-import React, { useState, useCallback, useMemo, useEffect, memo } from 'react';
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import { usePredictionStore, Prediction } from '../store/predictionStore';
 import { toast } from 'react-hot-toast';
 import PredictionCard from '../components/PredictionCard';
-
-import { CategoryFilter } from '../components/CategoryFilter';
 import { motion, AnimatePresence } from 'framer-motion';
 import { TrendingUp, Search } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
-
 import PredictionCardSkeleton from '../components/PredictionCardSkeleton';
 import { PlacePredictionModal } from '../components/predictions/PlacePredictionModal';
 
@@ -17,10 +14,10 @@ interface DiscoverPageProps {
 }
 
 // Enhanced Category Filter Component
-const CategoryFilters: React.FC<{
+const CategoryFilters = React.memo<{
   selectedCategory: string;
   onSelect: (category: string) => void;
-}> = memo(({ selectedCategory, onSelect }) => {
+}>(({ selectedCategory, onSelect }) => {
   const categories = [
     { id: 'all', label: 'All', icon: '🌟' },
     { id: 'sports', label: 'Sports', icon: '⚽' },
@@ -63,13 +60,13 @@ const CategoryFilters: React.FC<{
 CategoryFilters.displayName = 'CategoryFilters';
 
 // Enhanced Mobile Header Component
-const MobileHeader: React.FC<{
+const MobileHeader = React.memo<{
   user: any;
   stats: any;
   searchQuery: string;
   onSearchChange: (query: string) => void;
   onNavigateToProfile: () => void;
-}> = memo(({ user, stats, searchQuery, onSearchChange, onNavigateToProfile }) => {
+}>(({ user, stats, searchQuery, onSearchChange, onNavigateToProfile }) => {
   return (
     <div className="bg-white border-b border-gray-100 sticky top-0 z-50">
       {/* Status bar spacer */}
@@ -143,7 +140,7 @@ const MobileHeader: React.FC<{
 MobileHeader.displayName = 'MobileHeader';
 
 // Main DiscoverPage Component
-const DiscoverPage: React.FC<DiscoverPageProps> = memo(({ onNavigateToProfile, onNavigateToPrediction }) => {
+const DiscoverPage: React.FC<DiscoverPageProps> = React.memo(({ onNavigateToProfile, onNavigateToPrediction }) => {
   const { user } = useAuthStore();
   const { predictions, loading, refreshPredictions } = usePredictionStore();
   
