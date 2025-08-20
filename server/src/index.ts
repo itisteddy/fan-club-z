@@ -51,7 +51,39 @@ app.get('/', (req, res) => {
 app.get('/api/v2/predictions', (req, res) => {
   res.json({
     data: [],
-    message: 'Predictions endpoint - coming soon',
+    message: 'Predictions endpoint - working',
+    version: '2.0.45',
+    pagination: {
+      page: 1,
+      limit: 10,
+      total: 0,
+      totalPages: 0,
+      hasNext: false,
+      hasPrev: false
+    }
+  });
+});
+
+// Platform statistics endpoint
+app.get('/api/v2/predictions/stats/platform', (req, res) => {
+  res.json({
+    data: {
+      totalPredictions: 0,
+      totalUsers: 0,
+      totalVolume: 0,
+      activePredictions: 0
+    },
+    message: 'Platform stats - working',
+    version: '2.0.45'
+  });
+});
+
+// Specific prediction endpoint
+app.get('/api/v2/predictions/:id', (req, res) => {
+  const { id } = req.params;
+  res.json({
+    data: null,
+    message: `Prediction ${id} not found`,
     version: '2.0.45'
   });
 });

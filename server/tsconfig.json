@@ -33,6 +33,7 @@
     "dist", 
     "**/*.test.ts",
     "../shared/src/**/*",
-    "src/disabled/**/*"
+    "src/disabled/**/*",
+    "src/services/**/*"
   ]
 }

@@ -2016,7 +2016,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigateBack, userId }) => 
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span style={{ fontSize: '14px', color: '#6b7280' }}>Email</span>
               <span style={{ fontSize: '14px', fontWeight: '500', color: '#111827' }}>
-                {user?.email || 'Not provided'}
+                {currentUser?.email || 'Not provided'}
               </span>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
