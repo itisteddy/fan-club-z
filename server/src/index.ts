@@ -8,6 +8,8 @@
 import express from 'express';
 import cors from 'cors';
 import { config } from './config';
+import { supabase } from './config/database';
+import { supabase } from './config/database';
 
 const app = express();
 const PORT = config.server.port || 3001;
@@ -57,46 +59,92 @@ app.get('/', (req, res) => {
 });
 
 // API routes placeholder
-app.get('/api/v2/predictions', (req, res) => {
+app.get('/api/v2/predictions', async (req, res) => {
   // Set CORS headers explicitly
   res.header('Access-Control-Allow-Origin', 'https://app.fanclubz.app');
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
   res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   res.header('Access-Control-Allow-Credentials', 'true');
   
-  res.json({
-    data: [],
-    message: 'Predictions endpoint - working',
-    version: process.env.npm_package_version || '2.0.46',
-    pagination: {
-      page: 1,
-      limit: 10,
-      total: 0,
-      totalPages: 0,
-      hasNext: false,
-      hasPrev: false
+  try {
+    // Fetch real predictions from Supabase database
+    const { data: predictions, error, count } = await supabase
+      .from('predictions')
+      .select(`
+        *,
+        creator:users!creator_id(id, username, full_name, avatar_url),
+        options:prediction_options(*),
+        club:clubs(id, name, avatar_url)
+      `, { count: 'exact' })
+      .order('created_at', { ascending: false })
+      .limit(20);
+
+    if (error) {
+      console.error('Error fetching predictions:', error);
+      return res.status(500).json({
+        error: 'Database error',
+        message: 'Failed to fetch predictions',
+        version: process.env.npm_package_version || '2.0.46'
+      });
     }
-  });
+
+    res.json({
+      data: predictions || [],
+      message: 'Predictions fetched from database',
+      version: process.env.npm_package_version || '2.0.46',
+      pagination: {
+        page: 1,
+        limit: 20,
+        total: count || 0,
+        totalPages: Math.ceil((count || 0) / 20),
+        hasNext: false,
+        hasPrev: false
+      }
+    });
+  } catch (error) {
+    console.error('Error in predictions endpoint:', error);
+    res.status(500).json({
+      error: 'Internal server error',
+      message: 'Failed to fetch predictions',
+      version: process.env.npm_package_version || '2.0.46'
+    });
+  }
 });
 
 // Platform statistics endpoint
-app.get('/api/v2/predictions/stats/platform', (req, res) => {
+app.get('/api/v2/predictions/stats/platform', async (req, res) => {
   // Set CORS headers explicitly
   res.header('Access-Control-Allow-Origin', 'https://app.fanclubz.app');
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
   res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   res.header('Access-Control-Allow-Credentials', 'true');
   
-  res.json({
-    data: {
-      totalPredictions: 0,
-      totalUsers: 0,
-      totalVolume: 0,
-      activePredictions: 0
-    },
-    message: 'Platform stats - working',
-    version: process.env.npm_package_version || '2.0.46'
-  });
+  try {
+    // Fetch real platform statistics from database
+    const [predictionsCount, usersCount, activePredictionsCount] = await Promise.all([
+      supabase.from('predictions').select('*', { count: 'exact', head: true }),
+      supabase.from('users').select('*', { count: 'exact', head: true }),
+      supabase.from('predictions').select('*', { count: 'exact', head: true }).eq('status', 'active')
+    ]);
+
+    res.json({
+      data: {
+        totalPredictions: predictionsCount.count || 0,
+        totalUsers: usersCount.count || 0,
+        totalVolume: 0, // Will be calculated from prediction entries
+        activePredictions: activePredictionsCount.count || 0
+      },
+      message: 'Platform stats fetched from database',
+      version: process.env.npm_package_version || '2.0.46'
+    });
+  } catch (error) {
+    console.error('Error fetching platform stats:', error);
+    res.status(500).json({
+      error: 'Internal server error',
+      message: 'Failed to fetch platform statistics',
+      version: process.env.npm_package_version || '2.0.46'
+    });
+  }
 });
 
 // Specific prediction endpoint
@@ -130,6 +178,8 @@ app.listen(PORT, () => {
   console.log(`📡 Environment: ${config.server.nodeEnv || 'production'}`);
   console.log(`🌐 Server running on port ${PORT}`);
   console.log(`📊 Version: ${process.env.npm_package_version || '2.0.46'}`);
+  console.log(`🔗 API URL: ${config.api.url || `https://fan-club-z.onrender.com`}`);
+  console.log(`🎯 Frontend URL: ${config.frontend.url || 'https://app.fanclubz.app'}`);
 });
 
 export default app;
