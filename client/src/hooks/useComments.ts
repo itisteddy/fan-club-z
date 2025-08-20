@@ -52,100 +52,15 @@ export const useComments = (predictionId: string, page: number = 1, limit: numbe
         
         return response;
       } catch (error) {
-        // Return mock data if API fails
-        console.warn('Comments API not available, using mock data');
+        console.error('Comments API error:', error);
         
-        const mockComments: Comment[] = [
-          {
-            id: '1',
-            prediction_id: predictionId,
-            user_id: 'user1',
-            content: 'I think Bitcoin will definitely hit $100K! The fundamentals are strong. 📈',
-            is_edited: false,
-            created_at: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
-            updated_at: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
-            user: {
-              id: 'user1',
-              username: 'sarah_crypto',
-              full_name: 'Sarah Johnson',
-              avatar_url: undefined,
-              is_verified: true,
-            },
-            likes_count: 5,
-            is_liked: false,
-            replies_count: 1,
-            replies: [
-              {
-                id: '1-1',
-                prediction_id: predictionId,
-                user_id: 'user3',
-                parent_comment_id: '1',
-                content: 'Totally agree! The ETF approvals are a game changer.',
-                is_edited: false,
-                created_at: new Date(Date.now() - 1.5 * 60 * 60 * 1000).toISOString(),
-                updated_at: new Date(Date.now() - 1.5 * 60 * 60 * 1000).toISOString(),
-                user: {
-                  id: 'user3',
-                  username: 'alex_defi',
-                  full_name: 'Alex Chen',
-                  avatar_url: undefined,
-                  is_verified: false,
-                },
-                likes_count: 2,
-                is_liked: true,
-                replies_count: 0,
-                replies: [],
-              }
-            ],
-          },
-          {
-            id: '2',
-            prediction_id: predictionId,
-            user_id: 'user2',
-            content: 'Not so sure... the market is very volatile. Could go either way. We need to see more institutional adoption.',
-            is_edited: false,
-            created_at: new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString(),
-            updated_at: new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString(),
-            user: {
-              id: 'user2',
-              username: 'mike_trader',
-              full_name: 'Mike Chen',
-              avatar_url: undefined,
-              is_verified: false,
-            },
-            likes_count: 3,
-            is_liked: false,
-            replies_count: 0,
-            replies: [],
-          },
-          {
-            id: '3',
-            prediction_id: predictionId,
-            user_id: 'user4',
-            content: 'Historical data shows December is often bullish for crypto. The timing could be perfect! 🚀',
-            is_edited: true,
-            created_at: new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString(),
-            updated_at: new Date(Date.now() - 1 * 60 * 60 * 1000).toISOString(),
-            user: {
-              id: 'user4',
-              username: 'crypto_analyst',
-              full_name: 'Dr. Lisa Wang',
-              avatar_url: undefined,
-              is_verified: true,
-            },
-            likes_count: 8,
-            is_liked: false,
-            replies_count: 0,
-            replies: [],
-          },
-        ];
-
+        // Return empty data instead of mock data
         return {
-          data: mockComments,
+          data: [],
           pagination: {
             page: 1,
             limit: 20,
-            total: mockComments.length,
+            total: 0,
             totalPages: 1,
             hasNext: false,
             hasPrev: false,
@@ -357,12 +272,8 @@ export const useToggleCommentLike = () => {
           likes_count: response.likes_count || 1,
         };
       } catch (error) {
-        console.warn('Comment like API not available:', error);
-        // For demo purposes, return mock response
-        return {
-          liked: true,
-          likes_count: 0,
-        };
+        console.error('Comment like API error:', error);
+        throw error;
       }
     },
     onSuccess: (result, commentId) => {

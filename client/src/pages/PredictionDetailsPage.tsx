@@ -49,7 +49,6 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
   const { isAuthenticated, user } = useAuthStore();
   const { getBalance } = useWalletStore();
   const { checkIfLiked, getLikeCount, toggleLike } = useLikeStore();
-  const { commentCount } = useCommentsForPrediction(getCurrentPredictionId() || '');
   const { 
     settlements, 
     disputes, 
@@ -69,6 +68,10 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
     const match = currentPath.match(/\/prediction\/([^\/]+)/);
     return match ? match[1] : null;
   };
+
+  // Initialize comment store after prediction ID is available
+  const currentPredictionId = getCurrentPredictionId();
+  const { commentCount } = useCommentsForPrediction(currentPredictionId || '');
 
   useEffect(() => {
     const loadPrediction = async () => {

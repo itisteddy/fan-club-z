@@ -295,7 +295,7 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
           // Compatibility aliases
           poolTotal: pred.pool_total,
           entryDeadline: pred.entry_deadline,
-          entries: [], // Mock data for now
+          entries: [], // Will be populated when user places bets
           likes: currentLikeCount,
           comments: currentCommentCount,
           
@@ -580,25 +580,7 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
       return result.data?.data || [];
     } catch (error) {
       console.error('❌ Error fetching prediction activity:', error);
-      // Return mock activity data
-      return [
-        {
-          id: '1',
-          type: 'participant_joined',
-          description: 'New participant joined',
-          amount: 75,
-          timestamp: new Date(Date.now() - 2 * 60 * 1000).toISOString(),
-          timeAgo: '2 minutes ago'
-        },
-        {
-          id: '2',
-          type: 'prediction_placed',
-          description: 'Large prediction placed',
-          amount: 200,
-          timestamp: new Date(Date.now() - 15 * 60 * 1000).toISOString(),
-          timeAgo: '15 minutes ago'
-        }
-      ];
+      return [];
     }
   },
 
@@ -621,27 +603,7 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
       return result.data?.data || [];
     } catch (error) {
       console.error('❌ Error fetching prediction participants:', error);
-      // Return mock participants data
-      return [
-        {
-          id: '1',
-          username: 'alice_trader',
-          avatar_url: undefined,
-          amount: 150,
-          option: 'Yes',
-          joinedAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
-          timeAgo: '2 hours ago'
-        },
-        {
-          id: '2',
-          username: 'bet_master',
-          avatar_url: undefined,
-          amount: 200,
-          option: 'No',
-          joinedAt: new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString(),
-          timeAgo: '4 hours ago'
-        }
-      ];
+      return [];
     }
   },
 

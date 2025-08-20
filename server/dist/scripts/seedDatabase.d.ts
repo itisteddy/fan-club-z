@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Database Seeding Script for Fan Club Z v2.0.50
+ * Database Seeding Script for Fan Club Z v2.0.51
  * Seeds the database with sample predictions, users, and options
  */
 declare function seedDatabase(): Promise<{

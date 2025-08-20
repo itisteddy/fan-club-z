@@ -11,7 +11,7 @@ router.get('/', async (req, res) => {
     res.json({
       data: [],
       message: 'Predictions endpoint - working',
-      version: '2.0.50',
+              version: '2.0.51',
       pagination: {
         page: 1,
         limit: 10,
@@ -41,7 +41,7 @@ router.get('/stats/platform', async (req, res) => {
         activePredictions: 0
       },
       message: 'Platform stats - working',
-      version: '2.0.50'
+      version: '2.0.51'
     });
   } catch (error) {
     console.error('Error fetching platform stats:', error);
@@ -59,7 +59,7 @@ router.get('/:id', async (req, res) => {
     res.json({
       data: null,
       message: `Prediction ${id} not found`,
-      version: '2.0.50'
+      version: '2.0.51'
     });
   } catch (error) {
     console.error('Error fetching prediction:', error);
@@ -76,7 +76,7 @@ router.post('/', async (req, res) => {
     res.status(201).json({
       data: null,
       message: 'Prediction creation - coming soon',
-      version: '2.0.50'
+      version: '2.0.51'
     });
   } catch (error) {
     console.error('Error creating prediction:', error);

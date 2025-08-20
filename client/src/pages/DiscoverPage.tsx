@@ -172,12 +172,16 @@ const DiscoverPage: React.FC<DiscoverPageProps> = memo(({ onNavigateToProfile, o
   // Fetch platform stats
   const fetchPlatformStats = useCallback(async () => {
     try {
-      const response = await fetch('/api/v2/predictions/stats/platform');
+      const apiUrl = import.meta.env.VITE_API_URL || 'https://fan-club-z.onrender.com';
+      const response = await fetch(`${apiUrl}/api/v2/predictions/stats/platform`);
       if (response.ok) {
         const data = await response.json();
         if (data.success) {
           setPlatformStats(data.data);
+          console.log('✅ Platform stats fetched:', data.data);
         }
+      } else {
+        console.error('Failed to fetch platform stats:', response.status);
       }
     } catch (error) {
       console.error('Error fetching platform stats:', error);
