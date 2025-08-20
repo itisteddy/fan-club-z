@@ -193,7 +193,6 @@ const CreatePredictionPageWrapper: React.FC = () => {
     <PageWrapper title="Create Prediction">
       <CreatePredictionPage 
         onNavigateBack={handleNavigateBack}
-        onComplete={handleComplete}
       />
     </PageWrapper>
   );

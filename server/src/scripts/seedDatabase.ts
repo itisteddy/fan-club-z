@@ -16,7 +16,6 @@ const sampleUsers = [
     username: 'fanclubz_admin',
     full_name: 'Fan Club Z Admin',
     avatar_url: null,
-    bio: 'Official Fan Club Z account',
     is_verified: true,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString()
@@ -27,7 +26,6 @@ const sampleUsers = [
     username: 'sports_guru',
     full_name: 'Sports Guru',
     avatar_url: null,
-    bio: 'Sports prediction expert',
     is_verified: true,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString()
@@ -38,7 +36,6 @@ const sampleUsers = [
     username: 'crypto_prophet',
     full_name: 'Crypto Prophet',
     avatar_url: null,
-    bio: 'Crypto market analyst',
     is_verified: true,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString()
@@ -49,7 +46,6 @@ const sampleUsers = [
     username: 'pop_culture_maven',
     full_name: 'Pop Culture Maven',
     avatar_url: null,
-    bio: 'Entertainment industry insider',
     is_verified: true,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString()

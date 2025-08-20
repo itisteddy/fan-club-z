@@ -9,7 +9,6 @@ declare const sampleUsers: {
     username: string;
     full_name: string;
     avatar_url: null;
-    bio: string;
     is_verified: boolean;
     created_at: string;
     updated_at: string;
