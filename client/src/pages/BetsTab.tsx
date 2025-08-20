@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { TrendingUp, Target, CheckCircle, Plus, ArrowRight } from 'lucide-react';
 import { useLocation } from 'wouter';
@@ -192,7 +192,7 @@ const BetsTab: React.FC<BetsTabProps> = ({ onNavigateToDiscover }) => {
     };
   };
 
-  const mockPredictions = getUserPredictions();
+  const mockPredictions = useMemo(() => getUserPredictions(), [user?.id, isAuthenticated, predictions, activeTab]);
   const currentPredictions = mockPredictions[activeTab] || [];
 
   const getStatusColor = (status: string) => {

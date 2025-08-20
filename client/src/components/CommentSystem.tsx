@@ -165,7 +165,7 @@ const CommentSystem: React.FC<CommentSystemProps> = ({ predictionId }) => {
     });
   }, []);
 
-  const CommentItem: React.FC<{ comment: any; isReply?: boolean }> = React.memo(({ comment, isReply = false }) => {
+  const CommentItem = React.memo(function CommentItem({ comment, isReply = false }: { comment: any; isReply?: boolean }) {
     const [showOptions, setShowOptions] = useState(false);
     const isCurrentlyEditing = editingComment === comment.id;
     const isCurrentlyReplying = replyTo === comment.id;

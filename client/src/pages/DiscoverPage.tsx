@@ -14,10 +14,13 @@ interface DiscoverPageProps {
 }
 
 // Enhanced Category Filter Component
-const CategoryFilters = React.memo<{
+const CategoryFilters = React.memo(function CategoryFilters({ 
+  selectedCategory, 
+  onSelect 
+}: {
   selectedCategory: string;
   onSelect: (category: string) => void;
-}>(({ selectedCategory, onSelect }) => {
+}) {
   const categories = [
     { id: 'all', label: 'All', icon: '🌟' },
     { id: 'sports', label: 'Sports', icon: '⚽' },
@@ -60,13 +63,19 @@ const CategoryFilters = React.memo<{
 CategoryFilters.displayName = 'CategoryFilters';
 
 // Enhanced Mobile Header Component
-const MobileHeader = React.memo<{
+const MobileHeader = React.memo(function MobileHeader({ 
+  user, 
+  stats, 
+  searchQuery, 
+  onSearchChange, 
+  onNavigateToProfile 
+}: {
   user: any;
   stats: any;
   searchQuery: string;
   onSearchChange: (query: string) => void;
   onNavigateToProfile: () => void;
-}>(({ user, stats, searchQuery, onSearchChange, onNavigateToProfile }) => {
+}) {
   return (
     <div className="bg-white border-b border-gray-100 sticky top-0 z-50">
       {/* Status bar spacer */}
@@ -140,7 +149,7 @@ const MobileHeader = React.memo<{
 MobileHeader.displayName = 'MobileHeader';
 
 // Main DiscoverPage Component
-const DiscoverPage: React.FC<DiscoverPageProps> = React.memo(({ onNavigateToProfile, onNavigateToPrediction }) => {
+const DiscoverPage = React.memo(function DiscoverPage({ onNavigateToProfile, onNavigateToPrediction }: DiscoverPageProps) {
   const { user } = useAuthStore();
   const { predictions, loading, refreshPredictions } = usePredictionStore();
   
