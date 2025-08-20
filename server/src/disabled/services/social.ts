@@ -44,7 +44,7 @@ export class SocialService {
     filters: { search?: string; category?: string } = {}
   ): Promise<PaginatedResponse<Club>> {
     try {
-      const { page, limit } = pagination;
+      const { page = 1, limit = 10 } = pagination;
       const offset = (page - 1) * limit;
 
       let query = this.supabase
@@ -82,15 +82,14 @@ export class SocialService {
       const totalPages = Math.ceil(total / limit);
 
       return {
-        success: true,
         data: data || [],
         pagination: {
-          page,
-          limit,
+          page: page || 1,
+          limit: limit || 10,
           total,
           totalPages,
-          hasNext: page < totalPages,
-          hasPrev: page > 1,
+          hasNext: (page || 1) < totalPages,
+          hasPrev: (page || 1) > 1,
         },
       };
     } catch (error) {
