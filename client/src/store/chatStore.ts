@@ -138,7 +138,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         userId: user.id,
         username: user.username || user.email?.split('@')[0] || 'Anonymous',
         clientType: 'web',
-        version: '2.0.42',
+        version: '2.0.49',
         environment: import.meta.env.MODE
       }
     });

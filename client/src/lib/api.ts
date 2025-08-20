@@ -17,7 +17,8 @@ if (supabaseUrl && supabaseAnonKey && !supabaseUrl.includes('demo')) {
 export { supabase };
 
 // API configuration
-export const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+import { getApiUrl } from './environment';
+export const API_BASE_URL = getApiUrl();
 export const API_VERSION = 'v2';
 export const API_URL = `${API_BASE_URL}/api/${API_VERSION}`;
 
