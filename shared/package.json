@@ -1,6 +1,6 @@
 {
   "name": "@fanclubz/shared",
-  "version": "2.0.45",
+  "version": "2.0.46",
   "description": "Shared types and schemas for Fan Club Z",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

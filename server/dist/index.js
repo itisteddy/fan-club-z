@@ -25,12 +25,20 @@ app.use((0, cors_1.default)({
     credentials: true
 }));
 app.use(express_1.default.json());
+// Handle CORS preflight requests
+app.options('*', (req, res) => {
+    res.header('Access-Control-Allow-Origin', 'https://app.fanclubz.app');
+    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    res.header('Access-Control-Allow-Credentials', 'true');
+    res.sendStatus(200);
+});
 // Health check endpoint
 app.get('/health', (req, res) => {
     res.status(200).json({
         status: 'OK',
         timestamp: new Date().toISOString(),
-        version: '2.0.45',
+        version: process.env.npm_package_version || '2.0.46',
         environment: config_1.config.server.nodeEnv || 'production',
         uptime: process.uptime()
     });
@@ -39,17 +47,22 @@ app.get('/health', (req, res) => {
 app.get('/', (req, res) => {
     res.json({
         message: 'Fan Club Z API Server',
-        version: '2.0.45',
+        version: process.env.npm_package_version || '2.0.46',
         environment: config_1.config.server.nodeEnv || 'production',
         status: 'running'
     });
 });
 // API routes placeholder
 app.get('/api/v2/predictions', (req, res) => {
+    // Set CORS headers explicitly
+    res.header('Access-Control-Allow-Origin', 'https://app.fanclubz.app');
+    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    res.header('Access-Control-Allow-Credentials', 'true');
     res.json({
         data: [],
         message: 'Predictions endpoint - working',
-        version: '2.0.45',
+        version: process.env.npm_package_version || '2.0.46',
         pagination: {
             page: 1,
             limit: 10,
@@ -62,6 +75,11 @@ app.get('/api/v2/predictions', (req, res) => {
 });
 // Platform statistics endpoint
 app.get('/api/v2/predictions/stats/platform', (req, res) => {
+    // Set CORS headers explicitly
+    res.header('Access-Control-Allow-Origin', 'https://app.fanclubz.app');
+    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    res.header('Access-Control-Allow-Credentials', 'true');
     res.json({
         data: {
             totalPredictions: 0,
@@ -70,16 +88,21 @@ app.get('/api/v2/predictions/stats/platform', (req, res) => {
             activePredictions: 0
         },
         message: 'Platform stats - working',
-        version: '2.0.45'
+        version: process.env.npm_package_version || '2.0.46'
     });
 });
 // Specific prediction endpoint
 app.get('/api/v2/predictions/:id', (req, res) => {
+    // Set CORS headers explicitly
+    res.header('Access-Control-Allow-Origin', 'https://app.fanclubz.app');
+    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    res.header('Access-Control-Allow-Credentials', 'true');
     const { id } = req.params;
     res.json({
         data: null,
         message: `Prediction ${id} not found`,
-        version: '2.0.45'
+        version: process.env.npm_package_version || '2.0.46'
     });
 });
 // 404 handler
@@ -95,6 +118,6 @@ app.listen(PORT, () => {
     console.log(`🚀 Fan Club Z Server started successfully!`);
     console.log(`📡 Environment: ${config_1.config.server.nodeEnv || 'production'}`);
     console.log(`🌐 Server running on port ${PORT}`);
-    console.log(`📊 Version: 2.0.45`);
+    console.log(`📊 Version: ${process.env.npm_package_version || '2.0.46'}`);
 });
 exports.default = app;
