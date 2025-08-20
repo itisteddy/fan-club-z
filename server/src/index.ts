@@ -13,7 +13,7 @@ import { db } from './config/database';
 
 const app = express();
 const PORT = config.server.port || 3001;
-const VERSION = '2.0.48';
+const VERSION = '2.0.49';
 
 // Enhanced CORS middleware
 app.use(cors({

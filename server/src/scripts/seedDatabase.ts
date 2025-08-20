@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 /**
- * Database Seeding Script for Fan Club Z v2.0.47
+ * Database Seeding Script for Fan Club Z v2.0.49
  * Seeds the database with sample predictions, users, and options
  */
 
@@ -380,7 +380,7 @@ const samplePredictionOptions = [
 ];
 
 async function seedDatabase() {
-  console.log('🌱 Starting database seeding for Fan Club Z v2.0.47...');
+  console.log('🌱 Starting database seeding for Fan Club Z v2.0.49...');
   
   try {
     console.log('🔧 Testing database connection...');

@@ -20,7 +20,7 @@ const CommentModal: React.FC<CommentModalProps> = ({
 }) => {
   const { user } = useAuthStore();
   
-  // Always call the hook, but pass empty string if no prediction ID
+  // Only call the hook if we have a valid prediction ID
   const {
     comments,
     commentCount,
@@ -31,7 +31,7 @@ const CommentModal: React.FC<CommentModalProps> = ({
     addComment,
     toggleCommentLike,
     clearError
-  } = useCommentsForPrediction(prediction?.id || '');
+  } = useCommentsForPrediction(prediction?.id || 'temp-id');
   const [newComment, setNewComment] = useState('');
 
   useEffect(() => {

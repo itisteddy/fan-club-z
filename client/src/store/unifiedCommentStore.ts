@@ -472,7 +472,7 @@ export const useCommentsForPrediction = (predictionId: string) => {
       syncWithPredictionStore();
     }, 100);
     return () => clearTimeout(timer);
-  }, []);
+  }, [initialize, syncWithPredictionStore]);
 
   // Handle empty prediction ID gracefully
   const safePredictionId = predictionId?.trim() || '';
