@@ -367,24 +367,28 @@ router.post('/', async (req, res) => {
       });
     }
 
-    // Create prediction options
+    // Create prediction options (and return inserted rows)
+    let insertedOptions: any[] = [];
     if (options && options.length > 0) {
       const optionData = options.map((option: any, index: number) => ({
         prediction_id: prediction.id,
-        label: option.label,
+        label: String(option.label || '').trim(),
         description: option.description || null,
         total_staked: 0,
-        current_odds: option.currentOdds || 2.0,
+        current_odds: Number(option.currentOdds) || 2.0,
         order_index: index
       }));
 
-      const { error: optionsError } = await supabase
+      const { data: createdOptions, error: optionsError } = await supabase
         .from('prediction_options')
-        .insert(optionData);
+        .insert(optionData)
+        .select('*');
 
       if (optionsError) {
         console.error('Error creating prediction options:', optionsError);
         // Note: We don't fail here, just log the error
+      } else if (Array.isArray(createdOptions)) {
+        insertedOptions = createdOptions;
       }
     }
 
@@ -407,6 +411,12 @@ router.post('/', async (req, res) => {
         version: VERSION,
         details: fetchError.message
       });
+    }
+
+    // Fallback: if joined fetch returned no options but we inserted them, attach inserted options
+    if (completePrediction && Array.isArray(completePrediction.options) && completePrediction.options.length === 0 && insertedOptions.length > 0) {
+      console.warn('⚠️ Joined fetch returned no options; attaching inserted options directly');
+      (completePrediction as any).options = insertedOptions;
     }
 
     console.log('✅ Prediction created successfully:', completePrediction.id);
