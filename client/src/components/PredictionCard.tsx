@@ -101,17 +101,11 @@ const PredictionCardContent: React.FC<PredictionCardProps> = ({
   }
 
   // Get real-time data from stores with safe fallbacks
-  const isLiked = React.useMemo(() => checkIfLiked(prediction.id) || false, [prediction.id, checkIfLiked]);
+  const isLiked = checkIfLiked(prediction.id) || false;
   // FIXED: Always prioritize store data over potentially stale prediction data
-  const storeLikeCount = React.useMemo(() => getLikeCount(prediction.id), [prediction.id, getLikeCount]);
-  const likeCount = React.useMemo(() => 
-    storeLikeCount !== undefined && storeLikeCount !== null ? storeLikeCount : (prediction.likes_count || prediction.likes || 0),
-    [storeLikeCount, prediction.likes_count, prediction.likes]
-  );
-  const commentCount = React.useMemo(() => 
-    getCommentCount(prediction.id) || prediction.comments_count || prediction.comments || 0,
-    [prediction.id, getCommentCount, prediction.comments_count, prediction.comments]
-  );
+  const storeLikeCount = getLikeCount(prediction.id);
+  const likeCount = storeLikeCount !== undefined && storeLikeCount !== null ? storeLikeCount : (prediction.likes_count || prediction.likes || 0);
+  const commentCount = getCommentCount(prediction.id) || prediction.comments_count || prediction.comments || 0;
 
   // Calculate real data with safe fallbacks
   const entryDeadline = prediction.entry_deadline || prediction.entryDeadline;
