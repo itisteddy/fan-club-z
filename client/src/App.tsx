@@ -20,6 +20,8 @@ import AuthPage from './pages/auth/AuthPage';
 import AuthCallbackPage from './pages/auth/AuthCallbackPage';
 import PredictionDetailsPage from './pages/PredictionDetailsPage';
 import BottomNavigation from './components/BottomNavigation';
+import ErrorBoundary from './components/ErrorBoundary';
+import ProfileRoute from './components/ProfileRoute';
 
 // Simple Loading Component
 const LoadingSpinner: React.FC<{ message?: string }> = ({ message = "Loading..." }) => (
@@ -322,36 +324,38 @@ function App() {
   }, [isAuthenticated, loading, initialized, initializeWallet, initializeLikes, initializeCommentStore]);
 
   return (
-    <Router>
-      <Switch>
-        {/* Public auth routes */}
-        <Route path="/auth/callback">
-          <PageWrapper title="Authentication">
-            <AuthCallbackPage />
-          </PageWrapper>
-        </Route>
-        
-        {/* Protected app routes */}
-        <AuthGuard>
-          <MainLayout>
-            <Switch>
-              <Route path="/" component={DiscoverPageWrapper} />
-              <Route path="/discover" component={DiscoverPageWrapper} />
-              <Route path="/predictions" component={PredictionsPageWrapper} />
-              <Route path="/bets" component={PredictionsPageWrapper} />
-              <Route path="/create" component={CreatePredictionPageWrapper} />
-              <Route path="/profile" component={MyProfilePageWrapper} />
-              <Route path="/profile/:userId" component={ProfilePageWrapper} />
-              <Route path="/wallet" component={WalletPageWrapper} />
-              <Route path="/prediction/:id" component={PredictionDetailsWrapper} />
+    <ErrorBoundary>
+      <Router>
+        <Switch>
+          {/* Public auth routes */}
+          <Route path="/auth/callback">
+            <PageWrapper title="Authentication">
+              <AuthCallbackPage />
+            </PageWrapper>
+          </Route>
+          
+          {/* Protected app routes */}
+          <AuthGuard>
+            <MainLayout>
+              <Switch>
+                <Route path="/" component={DiscoverPageWrapper} />
+                <Route path="/discover" component={DiscoverPageWrapper} />
+                <Route path="/predictions" component={PredictionsPageWrapper} />
+                <Route path="/bets" component={PredictionsPageWrapper} />
+                <Route path="/create" component={CreatePredictionPageWrapper} />
+                <Route path="/profile" component={MyProfilePageWrapper} />
+                <Route path="/profile/:userId" component={ProfileRoute} />
+                <Route path="/wallet" component={WalletPageWrapper} />
+                <Route path="/prediction/:id" component={PredictionDetailsWrapper} />
 
-              {/* Fallback */}
-              <Route component={DiscoverPageWrapper} />
-            </Switch>
-          </MainLayout>
-        </AuthGuard>
-      </Switch>
-    </Router>
+                {/* Fallback */}
+                <Route component={DiscoverPageWrapper} />
+              </Switch>
+            </MainLayout>
+          </AuthGuard>
+        </Switch>
+      </Router>
+    </ErrorBoundary>
   );
 }
 

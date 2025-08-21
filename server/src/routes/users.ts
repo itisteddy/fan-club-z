@@ -1,5 +1,6 @@
 import express from 'express';
 import { supabase } from '../config/database';
+import { VERSION } from '../../../shared/src/version';
 
 const router = express.Router();
 
@@ -29,7 +30,7 @@ router.get('/:id', async (req, res) => {
       return res.status(404).json({
         error: 'Not found',
         message: `User ${id} not found`,
-        version: '2.0.55',
+        version: VERSION,
         details: error.message
       });
     }
@@ -105,7 +106,7 @@ router.get('/:id/predictions', async (req, res) => {
       return res.status(500).json({
         error: 'Database error',
         message: 'Failed to fetch user predictions',
-        version: '2.0.55',
+        version: VERSION,
         details: error.message
       });
     }

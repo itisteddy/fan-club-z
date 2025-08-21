@@ -2,6 +2,7 @@ import { io, Socket } from 'socket.io-client';
 import { create } from 'zustand';
 import { useAuthStore } from './authStore';
 import { getSocketUrl } from '../lib/environment';
+import { VERSION } from '../../../shared/src/version';
 
 export interface ChatMessage {
   id: string;
@@ -138,7 +139,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         userId: user.id,
         username: user.username || user.email?.split('@')[0] || 'Anonymous',
         clientType: 'web',
-        version: '2.0.55',
+        version: VERSION,
         environment: import.meta.env.MODE
       }
     });

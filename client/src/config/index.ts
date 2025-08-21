@@ -1,8 +1,9 @@
 // Centralized configuration for Fan Club Z
 // Single source of truth for all configuration values
+import { VERSION } from '../../../shared/src/version';
 
 export const APP_CONFIG = {
-  version: '2.0.55',
+  version: VERSION,
   name: 'Fan Club Z',
   description: 'Social Prediction Platform',
   
