@@ -4,7 +4,7 @@ services:
     env: node
     plan: free
     branch: main
-    buildCommand: npm install && cd server && npm install
+    buildCommand: npm install && npm run build:server
     startCommand: cd server && npm start
     envVars:
       - key: NODE_ENV
@@ -12,7 +12,7 @@ services:
       - key: PORT
         value: 10000
       - key: CLIENT_URL
-        value: https://fan-club-z.vercel.app
+        value: https://app.fanclubz.app
       - key: JWT_SECRET
         generateValue: true
       - key: SUPABASE_URL
