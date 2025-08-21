@@ -1,6 +1,7 @@
 import express from 'express';
 import { config } from '../config';
 import { supabase } from '../config/database';
+import { VERSION } from '../../../shared/src/version';
 
 const router = express.Router();
 
@@ -26,7 +27,7 @@ router.get('/', async (req, res) => {
       return res.status(500).json({
         error: 'Database error',
         message: 'Failed to fetch predictions',
-        version: '2.0.56',
+        version: VERSION,
         details: error.message
       });
     }
@@ -36,7 +37,7 @@ router.get('/', async (req, res) => {
     return res.json({
       data: predictions || [],
       message: 'Predictions endpoint - working',
-      version: '2.0.56',
+      version: VERSION,
       pagination: {
         page: 1,
         limit: 20,
@@ -51,7 +52,7 @@ router.get('/', async (req, res) => {
     return res.status(500).json({
       error: 'Internal server error',
       message: 'Failed to fetch predictions',
-      version: '2.0.56'
+      version: VERSION
     });
   }
 });
@@ -72,7 +73,7 @@ router.get('/stats/platform', async (req, res) => {
       return res.status(500).json({
         error: 'Database error',
         message: 'Failed to fetch volume data',
-        version: '2.0.56'
+        version: VERSION
       });
     }
 
@@ -87,7 +88,7 @@ router.get('/stats/platform', async (req, res) => {
       return res.status(500).json({
         error: 'Database error',
         message: 'Failed to fetch active predictions count',
-        version: '2.0.56'
+        version: VERSION
       });
     }
 
@@ -101,7 +102,7 @@ router.get('/stats/platform', async (req, res) => {
       return res.status(500).json({
         error: 'Database error',
         message: 'Failed to fetch user count',
-        version: '2.0.56'
+        version: VERSION
       });
     }
 
@@ -122,14 +123,14 @@ router.get('/stats/platform', async (req, res) => {
       success: true,
       data: stats,
       message: 'Platform stats fetched successfully',
-      version: '2.0.56'
+      version: VERSION
     });
   } catch (error) {
     console.error('Error fetching platform stats:', error);
     return res.status(500).json({
       error: 'Internal server error',
       message: 'Failed to fetch platform statistics',
-      version: '2.0.56'
+      version: VERSION
     });
   }
 });
@@ -157,7 +158,7 @@ router.get('/trending', async (req, res) => {
       return res.status(500).json({
         error: 'Database error',
         message: 'Failed to fetch trending predictions',
-        version: '2.0.56',
+        version: VERSION,
         details: error.message
       });
     }
@@ -167,14 +168,14 @@ router.get('/trending', async (req, res) => {
     return res.json({
       data: predictions || [],
       message: 'Trending predictions endpoint - working',
-      version: '2.0.56'
+      version: VERSION
     });
   } catch (error) {
     console.error('Error in trending predictions endpoint:', error);
     return res.status(500).json({
       error: 'Internal server error',
       message: 'Failed to fetch trending predictions',
-      version: '2.0.56'
+      version: VERSION
     });
   }
 });
@@ -201,7 +202,7 @@ router.get('/:id', async (req, res) => {
       return res.status(404).json({
         error: 'Not found',
       message: `Prediction ${id} not found`,
-        version: '2.0.56',
+        version: VERSION,
         details: error.message
       });
     }
@@ -209,14 +210,14 @@ router.get('/:id', async (req, res) => {
     return res.json({
       data: prediction,
       message: 'Prediction fetched successfully',
-      version: '2.0.56'
+      version: VERSION
     });
   } catch (error) {
     console.error(`Error in specific prediction endpoint:`, error);
     return res.status(500).json({
       error: 'Internal server error',
       message: 'Failed to fetch prediction',
-      version: '2.0.56'
+      version: VERSION
     });
   }
 });
@@ -247,7 +248,7 @@ router.get('/created/:userId', async (req, res) => {
       return res.status(500).json({
         error: 'Database error',
         message: 'Failed to fetch user created predictions',
-        version: '2.0.56',
+        version: VERSION,
         details: error.message
       });
     }
@@ -255,14 +256,14 @@ router.get('/created/:userId', async (req, res) => {
     return res.json({
       data: predictions || [],
       message: `Created predictions for user ${userId}`,
-      version: '2.0.56'
+      version: VERSION
     });
   } catch (error) {
     console.error('Error fetching user created predictions:', error);
     return res.status(500).json({
       error: 'Internal server error',
       message: 'Failed to fetch user created predictions',
-      version: '2.0.56'
+      version: VERSION
     });
   }
 });
@@ -290,7 +291,7 @@ router.post('/', async (req, res) => {
       return res.status(400).json({
         error: 'Validation error',
         message: 'Missing required fields',
-        version: '2.0.56',
+        version: VERSION,
         details: 'Title, category, type, options, and entryDeadline are required'
       });
     }
@@ -361,7 +362,7 @@ router.post('/', async (req, res) => {
       return res.status(500).json({
         error: 'Database error',
         message: 'Failed to create prediction',
-        version: '2.0.56',
+        version: VERSION,
         details: predictionError.message
       });
     }
@@ -403,7 +404,7 @@ router.post('/', async (req, res) => {
       return res.status(500).json({
         error: 'Database error',
         message: 'Prediction created but failed to fetch complete data',
-        version: '2.0.56',
+        version: VERSION,
         details: fetchError.message
       });
     }
@@ -413,7 +414,7 @@ router.post('/', async (req, res) => {
     return res.json({
       data: completePrediction,
       message: 'Prediction created successfully',
-      version: '2.0.56'
+      version: VERSION
     });
 
   } catch (error) {
@@ -421,7 +422,7 @@ router.post('/', async (req, res) => {
     return res.status(500).json({
       error: 'Internal server error',
       message: 'Failed to create prediction',
-      version: '2.0.56',
+      version: VERSION,
       details: error instanceof Error ? error.message : 'Unknown error'
     });
   }
@@ -440,7 +441,7 @@ router.post('/:id/entries', async (req, res) => {
       return res.status(400).json({
         error: 'Validation error',
         message: 'option_id, amount, and user_id are required',
-        version: '2.0.56'
+        version: VERSION
       });
     }
     
@@ -465,7 +466,7 @@ router.post('/:id/entries', async (req, res) => {
       return res.status(500).json({
         error: 'Database error',
         message: 'Failed to create prediction entry',
-        version: '2.0.56',
+        version: VERSION,
         details: entryError.message
       });
     }
@@ -482,7 +483,7 @@ router.post('/:id/entries', async (req, res) => {
         }
       },
       message: 'Prediction entry created successfully',
-      version: '2.0.56'
+      version: VERSION
     });
     
   } catch (error) {
@@ -490,7 +491,7 @@ router.post('/:id/entries', async (req, res) => {
     return res.status(500).json({
       error: 'Internal server error',
       message: 'Failed to create prediction entry',
-      version: '2.0.56'
+      version: VERSION
     });
   }
 });
@@ -502,7 +503,7 @@ router.put('/:id', async (req, res) => {
     res.json({
       data: { id, ...req.body },
       message: `Prediction ${id} updated`,
-      version: '2.0.56'
+      version: VERSION
     });
   } catch (error) {
     console.error('Error updating prediction:', error);
@@ -520,7 +521,7 @@ router.delete('/:id', async (req, res) => {
     res.json({
       data: { id },
       message: `Prediction ${id} deleted`,
-      version: '2.0.56'
+      version: VERSION
     });
   } catch (error) {
     console.error('Error deleting prediction:', error);
@@ -538,7 +539,7 @@ router.post('/:id/close', async (req, res) => {
     res.json({
       data: { id, status: 'closed' },
       message: `Prediction ${id} closed`,
-      version: '2.0.56'
+      version: VERSION
     });
   } catch (error) {
     console.error('Error closing prediction:', error);
@@ -556,7 +557,7 @@ router.get('/:id/activity', async (req, res) => {
     res.json({
       data: [],
       message: `Activity for prediction ${id}`,
-      version: '2.0.56'
+      version: VERSION
     });
   } catch (error) {
     console.error('Error fetching prediction activity:', error);
@@ -574,7 +575,7 @@ router.get('/:id/participants', async (req, res) => {
     res.json({
       data: [],
       message: `Participants for prediction ${id}`,
-      version: '2.0.56'
+      version: VERSION
     });
   } catch (error) {
     console.error('Error fetching prediction participants:', error);
