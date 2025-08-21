@@ -9,17 +9,53 @@ const router = express_1.default.Router();
 router.get('/user/:userId', async (req, res) => {
     try {
         const { userId } = req.params;
-        // For now, return empty array with proper structure
-        // This will be replaced with real database queries later
-        res.json({
-            data: [],
+        console.log(`📊 Fetching prediction entries for user: ${userId}`);
+        // Import supabase here since it's not imported at the top
+        const { supabase } = require('../config/database');
+        // Fetch user's prediction entries with all related data
+        const { data: entries, error } = await supabase
+            .from('prediction_entries')
+            .select(`
+        *,
+        prediction:predictions!prediction_id(
+          id,
+          title,
+          category,
+          type,
+          status,
+          entry_deadline,
+          pool_total,
+          participant_count,
+          creator:users!creator_id(id, username, full_name)
+        ),
+        option:prediction_options!option_id(
+          id,
+          label,
+          current_odds,
+          total_staked
+        )
+      `)
+            .eq('user_id', userId)
+            .order('created_at', { ascending: false });
+        if (error) {
+            console.error(`Error fetching prediction entries for ${userId}:`, error);
+            return res.status(500).json({
+                error: 'Database error',
+                message: 'Failed to fetch user prediction entries',
+                version: '2.0.56',
+                details: error.message
+            });
+        }
+        console.log(`✅ Found ${entries?.length || 0} prediction entries for user ${userId}`);
+        return res.json({
+            data: entries || [],
             message: `Prediction entries for user ${userId}`,
-            version: '2.0.55',
+            version: '2.0.56',
             pagination: {
                 page: 1,
-                limit: 10,
-                total: 0,
-                totalPages: 0,
+                limit: 50,
+                total: entries?.length || 0,
+                totalPages: 1,
                 hasNext: false,
                 hasPrev: false
             }
@@ -27,9 +63,10 @@ router.get('/user/:userId', async (req, res) => {
     }
     catch (error) {
         console.error('Error fetching user prediction entries:', error);
-        res.status(500).json({
+        return res.status(500).json({
             error: 'Internal server error',
-            message: 'Failed to fetch user prediction entries'
+            message: 'Failed to fetch user prediction entries',
+            version: '2.0.56'
         });
     }
 });
@@ -51,7 +88,7 @@ router.post('/', async (req, res) => {
                 updated_at: new Date().toISOString()
             },
             message: 'Prediction entry created successfully',
-            version: '2.0.55'
+            version: '2.0.56'
         });
     }
     catch (error) {
@@ -69,7 +106,7 @@ router.get('/:id', async (req, res) => {
         res.json({
             data: null,
             message: `Prediction entry ${id} not found`,
-            version: '2.0.55'
+            version: '2.0.56'
         });
     }
     catch (error) {
