@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "buildCommand": "cd client && rm -rf node_modules package-lock.json && npm install && npm run build",
+  "buildCommand": "cd client && npm install && npm run build",
   "outputDirectory": "client/dist",
   "installCommand": "npm install --prefix client",
   "rewrites": [
@@ -52,10 +52,5 @@
     "VITE_SUPABASE_URL": "https://ihtnsyhknvltgrksffun.supabase.co",
     "VITE_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlodG5zeWhrbnZsdGdya3NmZnVuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTM2NzA2MzYsImV4cCI6MjA2OTI0NjYzNn0.ZmoZ5cGVHfhDwTvkmaw9LSVHm_awoyMOTyQKewr7rYo"
   },
-  "regions": ["iad1"],
-  "functions": {
-    "client/dist/**/*.js": {
-      "runtime": "nodejs18.x"
-    }
-  }
+  "regions": ["iad1"]
 }
