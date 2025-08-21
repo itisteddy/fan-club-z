@@ -10,7 +10,11 @@ rm -rf node_modules package-lock.json
 echo "📦 Installing dependencies with legacy peer deps..."
 npm install --legacy-peer-deps --no-optional
 
+echo "🔍 Verifying Vite installation..."
+ls -la node_modules/.bin/vite || echo "Vite not found in .bin"
+ls -la node_modules/vite || echo "Vite package not found"
+
 echo "🏗️ Building application..."
-npm run build
+npx vite build
 
 echo "✅ Build completed successfully!"
