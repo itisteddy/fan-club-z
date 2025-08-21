@@ -183,13 +183,16 @@ const AuthPage: React.FC = () => {
   return (
     <div style={{
       minHeight: '100vh',
+      width: '100%',
+      maxWidth: '100vw',
       background: 'linear-gradient(135deg, #f8fafc 0%, #ffffff 30%, #ecfdf5 70%, #f0fdfa 100%)',
       display: 'flex',
       alignItems: 'flex-start',
       justifyContent: 'center',
       padding: '8px',
       position: 'relative',
-      overflow: 'auto'
+      overflow: 'hidden',
+      boxSizing: 'border-box'
     }}>
       {/* Development Test Panel - Only show in development */}
       {import.meta.env.VITE_DEBUG === 'true' && (
@@ -323,10 +326,12 @@ const AuthPage: React.FC = () => {
             .auth-card {
               padding: 16px !important;
               margin: 8px !important;
-              max-width: calc(100% - 16px) !important;
-              width: calc(100% - 16px) !important;
+              max-width: calc(100vw - 16px) !important;
+              width: calc(100vw - 16px) !important;
               min-height: calc(100vh - 16px) !important;
               border-radius: 16px !important;
+              box-sizing: border-box !important;
+              overflow: hidden !important;
             }
             
             .auth-card h1 {
@@ -368,26 +373,28 @@ const AuthPage: React.FC = () => {
         animation: 'float 10s ease-in-out infinite reverse'
       }}></div>
 
-      {/* FIXED: Main card - Now covers 95% of page and starts at top */}
+      {/* FIXED: Main card - Properly constrained horizontally */}
       <div 
         className="auth-card"
         style={{
           width: '100%',
-          maxWidth: '100%',
-          minHeight: 'calc(100vh - 16px)', // FIXED: Covers most of the screen
+          maxWidth: 'calc(100vw - 16px)',
+          minHeight: 'calc(100vh - 16px)',
           backgroundColor: 'rgba(255, 255, 255, 0.95)',
           backdropFilter: 'blur(20px)',
           borderRadius: '24px',
-          padding: '32px',
+          padding: '24px',
           boxShadow: '0 25px 50px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(255, 255, 255, 0.2)',
           border: '1px solid rgba(255, 255, 255, 0.3)',
           position: 'relative',
           zIndex: 10,
-                margin: '8px', // FIXED: Small margin for mobile
-      marginTop: '8px',   // FIXED: Start at very top
+          margin: '8px',
+          marginTop: '8px',
           display: 'flex',
           flexDirection: 'column',
-          justifyContent: 'flex-start' // FIXED: Start from top
+          justifyContent: 'flex-start',
+          boxSizing: 'border-box',
+          overflow: 'hidden'
         }}
       >
         {/* Logo section - Reduced margin */}
@@ -468,6 +475,96 @@ const AuthPage: React.FC = () => {
             </div>
           </div>
         )}
+
+        {/* PRIORITY: Google Sign-In (Primary Authentication Method) */}
+        <div style={{ marginBottom: '32px' }}>
+          <p style={{
+            fontSize: '15px',
+            color: '#6b7280',
+            textAlign: 'center',
+            marginBottom: '16px',
+            fontWeight: '500'
+          }}>
+            Recommended: Quick {isLoginMode ? 'sign in' : 'sign up'} with Google
+          </p>
+          <button 
+            type="button"
+            onClick={() => handleSocialAuth('google')}
+            disabled={loading}
+            style={{
+              width: '100%',
+              height: '56px',
+              backgroundColor: '#4285F4',
+              border: 'none',
+              borderRadius: '16px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '12px',
+              fontSize: '16px',
+              fontWeight: '600',
+              color: 'white',
+              cursor: loading ? 'not-allowed' : 'pointer',
+              opacity: loading ? '0.7' : '1',
+              transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+              boxShadow: '0 8px 16px rgba(66, 133, 244, 0.3)',
+              transform: 'translateY(0)',
+              position: 'relative',
+              overflow: 'hidden'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.transform = 'translateY(-2px)';
+              e.currentTarget.style.boxShadow = '0 12px 24px rgba(66, 133, 244, 0.4)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.transform = 'translateY(0)';
+              e.currentTarget.style.boxShadow = '0 8px 16px rgba(66, 133, 244, 0.3)';
+            }}
+          >
+            {loading ? (
+              <div style={{
+                width: '24px',
+                height: '24px',
+                border: '2px solid rgba(255, 255, 255, 0.3)',
+                borderTop: '2px solid white',
+                borderRadius: '50%',
+                animation: 'spin 1s linear infinite'
+              }}></div>
+            ) : (
+              <svg width="24" height="24" viewBox="0 0 24 24">
+                <path fill="white" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                <path fill="white" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                <path fill="white" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+                <path fill="white" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+              </svg>
+            )}
+            Continue with Google
+          </button>
+        </div>
+
+        {/* Divider */}
+        <div style={{
+          position: 'relative',
+          textAlign: 'center',
+          margin: '24px 0',
+          fontSize: '14px',
+          color: '#6b7280'
+        }}>
+          <div style={{
+            position: 'absolute',
+            top: '50%',
+            left: '0',
+            right: '0',
+            height: '1px',
+            backgroundColor: '#e5e7eb'
+          }}></div>
+          <span style={{
+            backgroundColor: 'white',
+            padding: '0 16px',
+            position: 'relative',
+            zIndex: 1
+          }}>Or {isLoginMode ? 'sign in' : 'sign up'} with email</span>
+        </div>
 
         {/* Form with improved layout */}
         <form onSubmit={handleSubmit} style={{ marginBottom: '20px', flex: 1 }}>
@@ -878,80 +975,7 @@ const AuthPage: React.FC = () => {
         </button>
         </form>
 
-        {/* Divider */}
-        <div style={{
-          position: 'relative',
-          textAlign: 'center',
-          margin: '24px 0',
-          fontSize: '14px',
-          color: '#6b7280'
-        }}>
-          <div style={{
-            position: 'absolute',
-            top: '50%',
-            left: '0',
-            right: '0',
-            height: '1px',
-            backgroundColor: '#e5e7eb'
-          }}></div>
-          <span style={{
-            backgroundColor: 'white',
-            padding: '0 16px',
-            position: 'relative',
-            zIndex: 1
-          }}>Or {isLoginMode ? 'continue' : 'sign up'} with Google</span>
-        </div>
 
-        {/* Social buttons - Google only for now */}
-        <div style={{
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '12px',
-          marginBottom: '24px'
-        }}>
-        <button 
-          type="button"
-            onClick={() => handleSocialAuth('google')}
-            disabled={loading}
-            style={{
-              width: '100%',
-              height: '52px',
-              backgroundColor: 'white',
-              border: '1.5px solid #e5e7eb',
-              borderRadius: '14px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '12px',
-              fontSize: '15px',
-              fontWeight: '500',
-              color: '#374151',
-              cursor: loading ? 'not-allowed' : 'pointer',
-              opacity: loading ? '0.7' : '1',
-              transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
-              boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)'
-            }}
-          >
-            {loading ? (
-              <div style={{
-                width: '20px',
-                height: '20px',
-                border: '2px solid #e5e7eb',
-                borderTop: '2px solid #10b981',
-                borderRadius: '50%',
-                animation: 'spin 1s linear infinite'
-              }}></div>
-            ) : (
-              <svg width="20" height="20" viewBox="0 0 24 24">
-                <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-                <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-                <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
-                <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
-              </svg>
-            )}
-          Continue with Google
-        </button>
-        </div>
 
         {/* Toggle between login/signup */}
       <div style={{
