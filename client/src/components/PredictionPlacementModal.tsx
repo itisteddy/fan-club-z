@@ -34,9 +34,9 @@ const PredictionPlacementModal: React.FC<PredictionPlacementModalProps> = ({
   const [amount, setAmount] = useState<string>('');
   const [showAdvanced, setShowAdvanced] = useState(false);
 
-  const totalPool = prediction.options.reduce((sum, option) => sum + option.totalStaked, 0);
+  const totalPool = (prediction.options || []).reduce((sum, option) => sum + option.totalStaked, 0);
   const numericAmount = parseFloat(amount) || 0;
-  const selectedOption = prediction.options.find(opt => opt.id === selectedOptionId);
+  const selectedOption = (prediction.options || []).find(opt => opt.id === selectedOptionId);
 
   // Calculate potential payout
   const potentialPayout = useMemo(() => {
@@ -51,8 +51,9 @@ const PredictionPlacementModal: React.FC<PredictionPlacementModalProps> = ({
   }, [selectedOption, numericAmount, totalPool]);
 
   const getOptionAnalysis = (option: PredictionOption) => {
-    const percentage = totalPool > 0 ? (option.totalStaked / totalPool * 100) : (100 / prediction.options.length);
-    const isLeading = option.totalStaked === Math.max(...prediction.options.map(o => o.totalStaked));
+    const optionsLength = (prediction.options || []).length;
+    const percentage = totalPool > 0 ? (option.totalStaked / totalPool * 100) : (100 / optionsLength);
+    const isLeading = option.totalStaked === Math.max(...(prediction.options || []).map(o => o.totalStaked));
     const confidence = percentage > 60 ? 'high' : percentage > 30 ? 'medium' : 'low';
     
     return { percentage: Math.round(percentage), isLeading, confidence };
@@ -138,8 +139,16 @@ const PredictionPlacementModal: React.FC<PredictionPlacementModalProps> = ({
             {/* Option Selection */}
             <div className="mb-6">
               <h4 className="font-semibold text-gray-900 mb-3">Select Your Prediction</h4>
-              <div className="space-y-3 max-h-60 overflow-y-auto">
-                {prediction.options.map((option) => {
+              {(!prediction.options || prediction.options.length === 0) ? (
+                <div className="p-4 bg-gray-50 rounded-lg text-center">
+                  <div className="animate-spin inline-block w-6 h-6 border-[3px] border-current border-t-transparent text-blue-600 rounded-full mb-2" role="status" aria-label="loading">
+                    <span className="sr-only">Loading...</span>
+                  </div>
+                  <p className="text-gray-600 text-sm">Loading prediction options...</p>
+                </div>
+              ) : (
+                <div className="space-y-3 max-h-60 overflow-y-auto">
+                  {(prediction.options || []).map((option) => {
                   const analysis = getOptionAnalysis(option);
                   const isSelected = selectedOptionId === option.id;
                   
@@ -192,7 +201,8 @@ const PredictionPlacementModal: React.FC<PredictionPlacementModalProps> = ({
                     </motion.button>
                   );
                 })}
-              </div>
+                </div>
+              )}
             </div>
 
             {/* Amount Input */}
