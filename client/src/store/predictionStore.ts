@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { supabase } from '../lib/supabase';
 import { getApiUrl } from '../config';
+import { useAuthStore } from './authStore';
 
 export interface Prediction {
   id: string;
@@ -346,7 +347,17 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
       }
 
       const data = await response.json();
+      
+      if (!data.data) {
+        throw new Error('Invalid response: no prediction data returned');
+      }
+      
       const newPrediction = data.data;
+
+      // Validate the prediction has required fields
+      if (!newPrediction || !newPrediction.id) {
+        throw new Error('Invalid prediction data: missing required fields');
+      }
 
       // Add to predictions list
       set(state => ({
@@ -354,6 +365,16 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
         loading: false,
         error: null
       }));
+
+      // Also refresh user's created predictions
+      try {
+        const { user } = useAuthStore.getState();
+        if (user?.id) {
+          await get().fetchUserCreatedPredictions(user.id);
+        }
+      } catch (error) {
+        console.warn('⚠️ Failed to refresh user created predictions:', error);
+      }
 
       console.log('✅ Prediction created successfully:', newPrediction.id);
       return newPrediction;

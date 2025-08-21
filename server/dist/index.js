@@ -46,8 +46,8 @@ const cors_1 = __importDefault(require("cors"));
 const config_1 = require("./config");
 const app = (0, express_1.default)();
 const PORT = config_1.config.server.port || 3001;
-const VERSION = '2.0.54';
-console.log('🚀 Fan Club Z Server v2.0.54 - CORS FIXED - SINGLE SOURCE OF TRUTH');
+const VERSION = '2.0.55';
+console.log('🚀 Fan Club Z Server v2.0.55 - CORS FIXED - SINGLE SOURCE OF TRUTH');
 console.log('📡 Starting server with enhanced CORS support...');
 // Enhanced CORS middleware - Allow all origins for now to fix immediate issue
 app.use((0, cors_1.default)({

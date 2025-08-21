@@ -1,4 +1,4 @@
-export declare const VERSION = "2.0.54";
+export declare const VERSION = "2.0.55";
 export declare const BUILD_DATE: string;
 export declare const BUILD_ENV: string;
 export declare const FEATURES: {

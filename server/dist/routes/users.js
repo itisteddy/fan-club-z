@@ -30,7 +30,7 @@ router.get('/:id', async (req, res) => {
             return res.status(404).json({
                 error: 'Not found',
                 message: `User ${id} not found`,
-                version: '2.0.54',
+                version: '2.0.55',
                 details: error.message
             });
         }
@@ -66,7 +66,7 @@ router.get('/:id', async (req, res) => {
                 stats
             },
             message: 'User profile fetched successfully',
-            version: '2.0.54'
+            version: '2.0.55'
         });
     }
     catch (error) {
@@ -74,7 +74,7 @@ router.get('/:id', async (req, res) => {
         return res.status(500).json({
             error: 'Internal server error',
             message: 'Failed to fetch user profile',
-            version: '2.0.54',
+            version: '2.0.55',
             details: error instanceof Error ? error.message : 'Unknown error'
         });
     }
@@ -100,14 +100,14 @@ router.get('/:id/predictions', async (req, res) => {
             return res.status(500).json({
                 error: 'Database error',
                 message: 'Failed to fetch user predictions',
-                version: '2.0.54',
+                version: '2.0.55',
                 details: error.message
             });
         }
         return res.json({
             data: predictions || [],
             message: 'User predictions fetched successfully',
-            version: '2.0.54'
+            version: '2.0.55'
         });
     }
     catch (error) {
@@ -115,7 +115,7 @@ router.get('/:id/predictions', async (req, res) => {
         return res.status(500).json({
             error: 'Internal server error',
             message: 'Failed to fetch user predictions',
-            version: '2.0.54',
+            version: '2.0.55',
             details: error instanceof Error ? error.message : 'Unknown error'
         });
     }

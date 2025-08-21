@@ -1,6 +1,6 @@
 // Comprehensive version management system
 // Note: Using hardcoded version to avoid import issues with package.json
-const BASE_VERSION = '2.0.52';
+const BASE_VERSION = '2.0.55';
 
 // Version management with support for major releases
 export class VersionManager {
