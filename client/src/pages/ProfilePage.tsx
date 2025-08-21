@@ -1138,6 +1138,37 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigateBack, userId }) => 
     bio: currentUser?.bio || ''
   });
 
+  // Early safety guard to prevent rendering before data is ready
+  const isViewingOwnProfile = !userId || userId === currentUser?.id;
+  const isProfileDataReady = isViewingOwnProfile || (!!profileUser && !loadingProfile);
+  if (!isProfileDataReady) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <div className="bg-gradient-to-r from-green-500 to-green-600 pt-12 pb-6">
+          <div className="px-6">
+            <div className="flex items-center gap-4">
+              <button
+                onClick={onNavigateBack}
+                className="bg-white/20 p-2 rounded-lg backdrop-blur-sm"
+              >
+                <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                </svg>
+              </button>
+              <h1 className="text-white text-2xl font-bold">Profile</h1>
+            </div>
+          </div>
+        </div>
+        <div className="p-6">
+          <div className="animate-pulse">
+            <div className="h-24 bg-white rounded-2xl shadow mb-4" />
+            <div className="h-32 bg-white rounded-2xl shadow" />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   // Determine if viewing another user's profile and fetch their data
   React.useEffect(() => {
     try {
