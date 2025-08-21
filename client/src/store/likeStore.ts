@@ -188,8 +188,8 @@ export const useLikeStore = create<LikeState & LikeActions>((set, get) => ({
         }
       }
 
-      // Refresh like counts from database to ensure consistency
-      await get().refreshLikeCounts();
+      // Don't refresh all counts immediately - trust the optimistic update
+      // The counts will be refreshed naturally when the component re-fetches data
 
       set({ loading: false, error: null });
       console.log('✅ Like toggled successfully:', { predictionId, wasLiked: !wasLiked });
