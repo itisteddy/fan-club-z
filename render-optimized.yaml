@@ -1,0 +1,27 @@
+services:
+  - type: web
+    name: fanclubz-backend
+    env: node
+    plan: free
+    branch: main
+    buildCommand: npm ci && npm run build:server
+    startCommand: npm start --workspace=@fanclubz/server
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: CLIENT_URL
+        value: https://fan-club-z.vercel.app
+      - key: JWT_SECRET
+        generateValue: true
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false 
+      - key: VITE_SUPABASE_URL
+        sync: false
+      - key: VITE_SUPABASE_ANON_KEY
+        sync: false

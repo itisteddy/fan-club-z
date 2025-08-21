@@ -1,13 +1,13 @@
 {
   "version": 2,
+  "installCommand": "npm ci",
   "buildCommand": "npm run build:client",
+  "outputDirectory": "client/dist",
   "build": {
     "env": {
       "NODE_VERSION": "18.19.0"
     }
   },
-  "outputDirectory": "client/dist",
-  "installCommand": "npm install",
   "rewrites": [
     {
       "source": "/api/(.*)",
