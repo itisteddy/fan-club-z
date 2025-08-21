@@ -20,8 +20,6 @@ import AuthPage from './pages/auth/AuthPage';
 import AuthCallbackPage from './pages/auth/AuthCallbackPage';
 import PredictionDetailsPage from './pages/PredictionDetailsPage';
 import BottomNavigation from './components/BottomNavigation';
-import ErrorBoundary from './components/ErrorBoundary';
-import ProfileRoute from './components/ProfileRoute';
 
 // Simple Loading Component
 const LoadingSpinner: React.FC<{ message?: string }> = ({ message = "Loading..." }) => (
@@ -201,14 +199,33 @@ const ProfilePageWrapper: React.FC = () => {
   const [location] = useLocation();
   
   const handleNavigateBack = useCallback(() => {
-    navigate('/');
+    if (window.history.length > 1) {
+      window.history.back();
+    } else {
+      navigate('/');
+    }
   }, [navigate]);
 
-  // Extract userId from the URL path
-  const userId = location.split('/profile/')[1];
+  // Extract userId from the URL path with better validation
+  const userId = React.useMemo(() => {
+    const pathParts = location.split('/profile/');
+    if (pathParts.length > 1 && pathParts[1]) {
+      const extractedId = pathParts[1].trim();
+      // Basic UUID validation
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      if (uuidRegex.test(extractedId)) {
+        return extractedId;
+      }
+      // If not UUID but has content, could be username (for backward compatibility)
+      if (extractedId.length > 2) {
+        return extractedId;
+      }
+    }
+    return undefined;
+  }, [location]);
 
   return (
-    <PageWrapper title="Profile">
+    <PageWrapper title={userId ? "User Profile" : "Profile"}>
       <ProfilePage 
         onNavigateBack={handleNavigateBack} 
         userId={userId} 
@@ -324,38 +341,36 @@ function App() {
   }, [isAuthenticated, loading, initialized, initializeWallet, initializeLikes, initializeCommentStore]);
 
   return (
-    <ErrorBoundary>
-      <Router>
-        <Switch>
-          {/* Public auth routes */}
-          <Route path="/auth/callback">
-            <PageWrapper title="Authentication">
-              <AuthCallbackPage />
-            </PageWrapper>
-          </Route>
-          
-          {/* Protected app routes */}
-          <AuthGuard>
-            <MainLayout>
-              <Switch>
-                <Route path="/" component={DiscoverPageWrapper} />
-                <Route path="/discover" component={DiscoverPageWrapper} />
-                <Route path="/predictions" component={PredictionsPageWrapper} />
-                <Route path="/bets" component={PredictionsPageWrapper} />
-                <Route path="/create" component={CreatePredictionPageWrapper} />
-                <Route path="/profile" component={MyProfilePageWrapper} />
-                <Route path="/profile/:userId" component={ProfileRoute} />
-                <Route path="/wallet" component={WalletPageWrapper} />
-                <Route path="/prediction/:id" component={PredictionDetailsWrapper} />
+    <Router>
+      <Switch>
+        {/* Public auth routes */}
+        <Route path="/auth/callback">
+          <PageWrapper title="Authentication">
+            <AuthCallbackPage />
+          </PageWrapper>
+        </Route>
+        
+        {/* Protected app routes */}
+        <AuthGuard>
+          <MainLayout>
+            <Switch>
+              <Route path="/" component={DiscoverPageWrapper} />
+              <Route path="/discover" component={DiscoverPageWrapper} />
+              <Route path="/predictions" component={PredictionsPageWrapper} />
+              <Route path="/bets" component={PredictionsPageWrapper} />
+              <Route path="/create" component={CreatePredictionPageWrapper} />
+              <Route path="/profile" component={MyProfilePageWrapper} />
+              <Route path="/profile/:userId" component={ProfilePageWrapper} />
+              <Route path="/wallet" component={WalletPageWrapper} />
+              <Route path="/prediction/:id" component={PredictionDetailsWrapper} />
 
-                {/* Fallback */}
-                <Route component={DiscoverPageWrapper} />
-              </Switch>
-            </MainLayout>
-          </AuthGuard>
-        </Switch>
-      </Router>
-    </ErrorBoundary>
+              {/* Fallback */}
+              <Route component={DiscoverPageWrapper} />
+            </Switch>
+          </MainLayout>
+        </AuthGuard>
+      </Switch>
+    </Router>
   );
 }
 
