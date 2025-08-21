@@ -370,8 +370,6 @@ router.post('/', async (req, res) => {
     // Create prediction options (and return inserted rows)
     let insertedOptions: any[] = [];
     if (options && options.length > 0) {
-      console.log('🔄 Creating options for prediction:', prediction.id);
-      
       const optionData = options.map((option: any, index: number) => ({
         prediction_id: prediction.id,
         label: String(option.label || '').trim(),
@@ -389,7 +387,7 @@ router.post('/', async (req, res) => {
         // Note: We don't fail here, just log the error
       } else if (Array.isArray(createdOptions)) {
         insertedOptions = createdOptions;
-        console.log('✅ Successfully created', createdOptions.length, 'options');
+        console.log('✅ Successfully created', createdOptions.length, 'options for prediction:', prediction.id);
       }
     }
 
