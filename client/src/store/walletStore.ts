@@ -106,26 +106,50 @@ export const useWalletStore = create<WalletState>()(
 
           if (walletError && walletError.code !== 'PGRST116') {
             console.error('❌ Error fetching wallet data:', walletError);
-            // Use demo balance as fallback
             set({ 
-              balances: [{ currency: 'USD', available: 1000, reserved: 0, total: 1000 }],
-              isLoading: false 
+              balances: [],
+              isLoading: false,
+              error: 'Failed to fetch wallet data'
             });
             return;
           }
 
-          // Transform wallet data
+          // Transform wallet data - NO DEMO FALLBACKS
           const balances = walletData?.map(wallet => ({
             currency: wallet.currency as 'USD',
             available: Number(wallet.available_balance) || 0,
             reserved: Number(wallet.reserved_balance) || 0,
             total: Number(wallet.available_balance || 0) + Number(wallet.reserved_balance || 0)
-          })) || [{ currency: 'USD', available: 1000, reserved: 0, total: 1000 }];
+          })) || [];
 
-          // Only use demo balance if no wallet exists in database at all
+          // Create initial wallet in database if none exists
           if (balances.length === 0) {
-            console.log('🏦 Creating initial wallet with demo balance');
-            balances.push({ currency: 'USD', available: 1000, reserved: 0, total: 1000 });
+            console.log('🏦 Creating initial wallet in database');
+            try {
+              await supabase
+                .from('wallets')
+                .insert({
+                  user_id: user.id,
+                  currency: 'USD',
+                  available_balance: 0,
+                  reserved_balance: 0,
+                  total_deposited: 0,
+                  total_withdrawn: 0,
+                  created_at: new Date().toISOString(),
+                  updated_at: new Date().toISOString()
+                });
+              
+              balances.push({ currency: 'USD', available: 0, reserved: 0, total: 0 });
+              console.log('✅ Initial wallet created in database');
+            } catch (createError) {
+              console.error('❌ Failed to create initial wallet:', createError);
+              set({ 
+                balances: [],
+                isLoading: false,
+                error: 'Failed to create wallet'
+              });
+              return;
+            }
           } else {
             console.log('✅ Using real wallet data from database:', balances[0]);
           }
@@ -294,7 +318,45 @@ export const useWalletStore = create<WalletState>()(
             error: null
           }));
 
-          console.log('✅ Funds added successfully:', amount, currency);
+          // CRITICAL: Save to database for persistence
+          try {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (user) {
+              // Update wallet balance in database
+              await supabase
+                .from('wallets')
+                .upsert({
+                  user_id: user.id,
+                  currency: currency,
+                  available_balance: newAvailable,
+                  reserved_balance: currentBalance?.reserved || 0,
+                  total_deposited: (currentBalance?.available || 0) + amount,
+                  updated_at: new Date().toISOString()
+                }, {
+                  onConflict: 'user_id,currency'
+                });
+
+              // Create transaction record in database
+              await supabase
+                .from('wallet_transactions')
+                .insert({
+                  user_id: user.id,
+                  type: transaction.type,
+                  currency: transaction.currency,
+                  amount: transaction.amount,
+                  status: transaction.status,
+                  reference: transaction.reference,
+                  description: transaction.description,
+                  created_at: new Date().toISOString()
+                });
+
+              console.log('✅ Funds added and saved to database:', amount, currency);
+            }
+          } catch (dbError) {
+            console.error('❌ Failed to save to database:', dbError);
+            // Don't throw error here - local state is updated, just log the issue
+          }
+
           return transaction;
 
         } catch (error) {

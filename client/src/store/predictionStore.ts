@@ -368,6 +368,11 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
         error: null
       }));
 
+      // Force refresh predictions to ensure options are displayed correctly
+      setTimeout(() => {
+        get().fetchPredictions();
+      }, 1000);
+
       // Add to user created predictions immediately for instant UI update
       set(state => ({
         userCreatedPredictions: [newPrediction, ...state.userCreatedPredictions]

@@ -94,6 +94,13 @@
     flex-wrap: nowrap;
     overflow-x: auto;
     overflow-y: hidden;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    -webkit-overflow-scrolling: touch;
+  }
+  
+  .category-filters-flex::-webkit-scrollbar {
+    display: none;
   }
   
   .category-pill {
