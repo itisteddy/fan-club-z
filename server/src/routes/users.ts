@@ -70,14 +70,14 @@ router.get('/:id', async (req, res) => {
         stats
       },
       message: 'User profile fetched successfully',
-      version: '2.0.55'
+      version: VERSION
     });
   } catch (error) {
     console.error(`Error in user profile endpoint for ${id}:`, error);
     return res.status(500).json({
       error: 'Internal server error',
       message: 'Failed to fetch user profile',
-      version: '2.0.55',
+      version: VERSION,
       details: error instanceof Error ? error.message : 'Unknown error'
     });
   }
@@ -114,14 +114,14 @@ router.get('/:id/predictions', async (req, res) => {
     return res.json({
       data: predictions || [],
       message: 'User predictions fetched successfully',
-      version: '2.0.55'
+      version: VERSION
     });
   } catch (error) {
     console.error(`Error in user predictions endpoint for ${id}:`, error);
     return res.status(500).json({
       error: 'Internal server error',
       message: 'Failed to fetch user predictions',
-      version: '2.0.55',
+      version: VERSION,
       details: error instanceof Error ? error.message : 'Unknown error'
     });
   }

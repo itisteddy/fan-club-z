@@ -1,6 +1,8 @@
 // Comprehensive version management system
-// Note: Using hardcoded version to avoid import issues with package.json
-const BASE_VERSION = '2.0.55';
+// Centralized: import VERSION from shared
+import { VERSION as SHARED_VERSION } from '../../../shared/src/version';
+
+const BASE_VERSION = SHARED_VERSION;
 
 // Version management with support for major releases
 export class VersionManager {
