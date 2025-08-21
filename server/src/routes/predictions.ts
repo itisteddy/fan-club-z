@@ -370,13 +370,13 @@ router.post('/', async (req, res) => {
     // Create prediction options (and return inserted rows)
     let insertedOptions: any[] = [];
     if (options && options.length > 0) {
+      console.log('🔄 Creating options for prediction:', prediction.id);
+      
       const optionData = options.map((option: any, index: number) => ({
         prediction_id: prediction.id,
         label: String(option.label || '').trim(),
-        description: option.description || null,
         total_staked: 0,
         current_odds: Number(option.currentOdds) || 2.0,
-        order_index: index
       }));
 
       const { data: createdOptions, error: optionsError } = await supabase
@@ -385,10 +385,11 @@ router.post('/', async (req, res) => {
         .select('*');
 
       if (optionsError) {
-        console.error('Error creating prediction options:', optionsError);
+        console.error('❌ Error creating prediction options:', optionsError);
         // Note: We don't fail here, just log the error
       } else if (Array.isArray(createdOptions)) {
         insertedOptions = createdOptions;
+        console.log('✅ Successfully created', createdOptions.length, 'options');
       }
     }
 
