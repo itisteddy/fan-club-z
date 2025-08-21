@@ -294,8 +294,12 @@ router.post('/', async (req, res) => {
       });
     }
 
-    // Get current user (mock for now - in real app, get from auth)
-    const currentUserId = '00000000-0000-0000-0000-000000000001'; // Mock user ID
+    // Get current user ID from request body (passed from frontend)
+    // In production, this would come from JWT token
+    console.log('🔍 Debug - Request body creatorId:', req.body.creatorId);
+    console.log('🔍 Debug - Full request body:', JSON.stringify(req.body, null, 2));
+    const currentUserId = req.body.creatorId || '325343a7-0a32-4565-8059-7c0d9d3fed1b'; // Default to test user
+    console.log('🔍 Debug - Final currentUserId:', currentUserId);
 
     // Create prediction in database
     const { data: prediction, error: predictionError } = await supabase
