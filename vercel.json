@@ -5,7 +5,7 @@
     "env": {
       "NODE_VERSION": "18"
     }
-  }
+  },
   "outputDirectory": "client/dist",
   "installCommand": "npm install --prefix client",
   "rewrites": [
