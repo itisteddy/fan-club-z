@@ -13,13 +13,13 @@ Fan Club Z v2.0 uses a comprehensive version synchronization system to ensure al
 ## Version Components
 
 ### 1. Package.json Files
-- `package.json` (root) - `2.0.45`
-- `client/package.json` - `2.0.45`
-- `server/package.json` - `2.0.45`
-- `shared/package.json` - `2.0.45`
+- `package.json` (root) - `2.0.58`
+- `client/package.json` - `2.0.58`
+- `server/package.json` - `2.0.58`
+- `shared/package.json` - `2.0.58`
 
 ### 2. Cache Buster
-- `client/index.html` - `v2.0.45-20250820-clean`
+- `client/index.html` - `v2.0.58-2025-08-21-auto`
 
 ### 3. Version Management Files
 - `client/src/lib/version.ts` - Dynamic version management
@@ -72,9 +72,9 @@ If versions are out of sync:
 ## Version Format
 
 ### Semantic Versioning
-- **Major:** Breaking changes (2.0.45 -> 3.0.0)
-- **Minor:** New features (2.0.45 -> 2.1.0)
-- **Patch:** Bug fixes (2.0.45 -> 2.0.46)
+- **Major:** Breaking changes (2.0.58 -> 3.0.0)
+- **Minor:** New features (2.0.58 -> 2.1.0)
+- **Patch:** Bug fixes (2.0.58 -> 2.0.59)
 
 ### Cache Buster Format
 ```

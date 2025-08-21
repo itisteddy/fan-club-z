@@ -3,6 +3,7 @@ import { Server as HttpServer } from 'http';
 import { supabase } from '../config/supabase.js';
 import logger from '../utils/logger';
 import { config } from '../config';
+import { VERSION } from '../../../shared/src/version';
 
 interface SocketUser {
   id: string;
@@ -187,7 +188,7 @@ export class ChatService {
             timestamp: new Date().toISOString(),
             serverInfo: {
               environment: process.env.NODE_ENV,
-              version: '2.0.0'
+              version: VERSION
             }
           });
         } catch (error) {
@@ -514,7 +515,7 @@ export class ChatService {
       socket.emit('connected', { 
         socketId: socket.id, 
         timestamp: new Date().toISOString(),
-        serverVersion: '2.0.0',
+        serverVersion: VERSION,
         environment: process.env.NODE_ENV,
         platform: process.env.RENDER ? 'render' : 'local'
       });
