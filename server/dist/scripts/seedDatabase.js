@@ -1,14 +1,14 @@
 #!/usr/bin/env node
 "use strict";
 /**
- * Database Seeding Script for Fan Club Z v2.0.54
+ * Database Seeding Script for Fan Club Z v2.0.55
  * Seeds the database with sample predictions, users, and options
  */
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.seedDatabase = seedDatabase;
 const database_1 = require("../config/database");
 async function seedDatabase() {
-    console.log('🌱 Starting database seeding for Fan Club Z v2.0.54...');
+    console.log('🌱 Starting database seeding for Fan Club Z v2.0.55...');
     try {
         // Sample users
         const sampleUsers = [
