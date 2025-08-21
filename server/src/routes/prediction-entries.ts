@@ -13,7 +13,7 @@ router.get('/user/:userId', async (req, res) => {
     res.json({
       data: [],
       message: `Prediction entries for user ${userId}`,
-      version: '2.0.53',
+              version: '2.0.55',
       pagination: {
         page: 1,
         limit: 10,
@@ -51,7 +51,7 @@ router.post('/', async (req, res) => {
         updated_at: new Date().toISOString()
       },
       message: 'Prediction entry created successfully',
-      version: '2.0.53'
+      version: '2.0.55'
     });
   } catch (error) {
     console.error('Error creating prediction entry:', error);
@@ -69,7 +69,7 @@ router.get('/:id', async (req, res) => {
     res.json({
       data: null,
       message: `Prediction entry ${id} not found`,
-      version: '2.0.53'
+      version: '2.0.55'
     });
   } catch (error) {
     console.error('Error fetching prediction entry:', error);

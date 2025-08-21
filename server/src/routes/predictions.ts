@@ -221,22 +221,7 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-// POST /api/v2/predictions - Create new prediction
-router.post('/', async (req, res) => {
-  try {
-    res.status(201).json({
-      data: null,
-      message: 'Prediction creation - coming soon',
-      version: '2.0.53'
-    });
-  } catch (error) {
-    console.error('Error creating prediction:', error);
-    res.status(500).json({
-      error: 'Internal server error',
-      message: 'Failed to create prediction'
-    });
-  }
-});
+
 
 // GET /api/v2/predictions/created/:userId - Get user's created predictions
 router.get('/created/:userId', async (req, res) => {

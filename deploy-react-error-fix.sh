@@ -8,7 +8,7 @@ set -e
 
 # Get timestamp
 TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
-VERSION="2.0.54"
+VERSION="2.0.55"
 
 echo "📅 Deployment started at: $(date)"
 echo "🔧 Version: $VERSION"

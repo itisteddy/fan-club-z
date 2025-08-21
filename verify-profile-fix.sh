@@ -17,10 +17,10 @@ BACKEND_VERSION=$(echo "$BACKEND_HEALTH" | grep -o '"version":"[^"]*"' | cut -d'
 echo ""
 echo "Backend Version: $BACKEND_VERSION"
 
-if [ "$BACKEND_VERSION" = "2.0.54" ]; then
-    echo "✅ Backend version is correct (2.0.54)"
+if [ "$BACKEND_VERSION" = "2.0.55" ]; then
+    echo "✅ Backend version is correct (2.0.55)"
 else
-    echo "❌ Backend version mismatch: expected 2.0.54, got $BACKEND_VERSION"
+    echo "❌ Backend version mismatch: expected 2.0.55, got $BACKEND_VERSION"
 fi
 
 echo ""
@@ -110,8 +110,8 @@ echo "------------------------------"
 echo "✅ PROFILE NAVIGATION FIX VERIFICATION:"
 echo ""
 
-if [ "$BACKEND_VERSION" = "2.0.54" ]; then
-    echo "✅ Backend: Version 2.0.54 deployed successfully"
+if [ "$BACKEND_VERSION" = "2.0.55" ]; then
+    echo "✅ Backend: Version 2.0.55 deployed successfully"
 else
     echo "❌ Backend: Version mismatch or deployment in progress"
 fi
@@ -143,7 +143,7 @@ echo "- User Profile API: https://fan-club-z.onrender.com/api/v2/users/:userId"
 
 echo ""
 echo "📋 PROFILE NAVIGATION FIX VERIFICATION:"
-echo "1. ✅ Backend deployed with version 2.0.54"
+echo "1. ✅ Backend deployed with version 2.0.55"
 echo "2. ✅ User Profile API working with real data"
 echo "3. ✅ Frontend accessible and functional"
 echo "4. ✅ CORS properly configured for profile API"
