@@ -201,9 +201,22 @@ export const useWalletStore = create<WalletState>()(
             throw new Error('Insufficient funds');
           }
 
-          // Update local state immediately for demo
+          // Update local state immediately
           const newAvailable = currentBalance.available - amount;
           const newReserved = currentBalance.reserved + amount;
+
+          // Create transaction record for locking funds
+          const transaction: Transaction = {
+            id: `tx_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+            type: 'prediction',
+            amount: amount,
+            description: 'Funds locked for prediction',
+            date: new Date(),
+            status: 'pending',
+            reference: `LOCK_${Date.now()}`,
+            currency: currency,
+            fee: 0
+          };
 
           set(state => ({
             balances: state.balances.map(balance => 
@@ -211,10 +224,11 @@ export const useWalletStore = create<WalletState>()(
                 ? { ...balance, available: newAvailable, reserved: newReserved, total: newAvailable + newReserved }
                 : balance
             ),
+            transactions: [transaction, ...state.transactions],
             error: null
           }));
 
-          console.log('✅ Funds locked successfully:', amount, currency);
+          console.log('✅ Funds locked successfully with transaction record:', amount, currency);
 
           // Try to update database if user is authenticated
           try {

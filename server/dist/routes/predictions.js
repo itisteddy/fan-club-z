@@ -373,6 +373,67 @@ router.post('/', async (req, res) => {
         });
     }
 });
+// POST /api/v2/predictions/:id/entries - Create prediction entry (place bet)
+router.post('/:id/entries', async (req, res) => {
+    try {
+        const predictionId = req.params.id;
+        const { option_id, amount, user_id } = req.body;
+        console.log(`🎲 Creating prediction entry for prediction ${predictionId}:`, { option_id, amount, user_id });
+        // Validate required fields
+        if (!option_id || !amount || !user_id) {
+            return res.status(400).json({
+                error: 'Validation error',
+                message: 'option_id, amount, and user_id are required',
+                version: '2.0.56'
+            });
+        }
+        // Create prediction entry in database
+        const { data: entry, error: entryError } = await database_1.supabase
+            .from('prediction_entries')
+            .insert({
+            prediction_id: predictionId,
+            option_id: option_id,
+            user_id: user_id,
+            amount: amount,
+            status: 'active',
+            potential_payout: amount * 2.0, // Simple calculation for now
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+        })
+            .select()
+            .single();
+        if (entryError) {
+            console.error('Error creating prediction entry:', entryError);
+            return res.status(500).json({
+                error: 'Database error',
+                message: 'Failed to create prediction entry',
+                version: '2.0.56',
+                details: entryError.message
+            });
+        }
+        console.log('✅ Prediction entry created successfully:', entry.id);
+        return res.status(201).json({
+            data: {
+                entry,
+                prediction: {
+                    id: predictionId,
+                    pool_total: 0, // TODO: Calculate actual pool total
+                    participant_count: 1 // TODO: Calculate actual participant count
+                }
+            },
+            message: 'Prediction entry created successfully',
+            version: '2.0.56'
+        });
+    }
+    catch (error) {
+        console.error('Error in prediction entry creation:', error);
+        return res.status(500).json({
+            error: 'Internal server error',
+            message: 'Failed to create prediction entry',
+            version: '2.0.56'
+        });
+    }
+});
 // PUT /api/v2/predictions/:id - Update prediction
 router.put('/:id', async (req, res) => {
     try {
