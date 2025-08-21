@@ -180,7 +180,7 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
       console.log('📋 Using cached predictions');
       return;
     }
-
+    
     set({ loading: true, error: null });
     
     try {
@@ -200,14 +200,14 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
 
       const data = await response.json();
       const predictions = data.data || [];
-
+      
       console.log('✅ Predictions fetched successfully:', predictions.length);
 
-      set({
+        set({ 
         predictions,
-        loading: false,
+          loading: false,
         error: null,
-        initialized: true,
+          initialized: true,
         lastFetchTime: currentTime
       });
 
@@ -256,18 +256,18 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
 
       const data = await response.json();
       const trendingPredictions = data.data || [];
-
-      set({
+      
+      set({ 
         trendingPredictions,
         loading: false,
         error: null
       });
-
+      
       console.log('✅ Trending predictions fetched:', trendingPredictions.length);
 
     } catch (error) {
       console.error('❌ Error fetching trending predictions:', error);
-      set({
+      set({ 
         loading: false,
         error: error instanceof Error ? error.message : 'Failed to fetch trending predictions'
       });
@@ -381,7 +381,7 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
 
     } catch (error) {
       console.error('❌ Error creating prediction:', error);
-      set({
+      set({ 
         loading: false,
         error: error instanceof Error ? error.message : 'Failed to create prediction'
       });
@@ -559,7 +559,7 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
 
       set({ userCreatedPredictions });
       console.log('✅ User created predictions fetched:', userCreatedPredictions.length);
-
+      
     } catch (error) {
       console.error('❌ Error fetching user created predictions:', error);
       // Don't set error state for this, just log it
@@ -729,7 +729,7 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
 
       const data = await response.json();
       return data.data || [];
-
+      
     } catch (error) {
       console.warn('Participants endpoint not implemented yet:', error);
       return []; // Return empty array for now

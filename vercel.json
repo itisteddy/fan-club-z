@@ -1,7 +1,7 @@
 {
   "version": 2,
-  "installCommand": "npm install",
-  "buildCommand": "npm run build:client",
+  "installCommand": "cd client && npm install",
+  "buildCommand": "cd client && npm run build",
   "outputDirectory": "client/dist",
   "build": {
     "env": {
