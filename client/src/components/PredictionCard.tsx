@@ -101,11 +101,17 @@ const PredictionCardContent: React.FC<PredictionCardProps> = ({
   }
 
   // Get real-time data from stores with safe fallbacks
-  const isLiked = checkIfLiked(prediction.id) || false;
+  const isLiked = React.useMemo(() => checkIfLiked(prediction.id) || false, [prediction.id, checkIfLiked]);
   // FIXED: Always prioritize store data over potentially stale prediction data
-  const storeLikeCount = getLikeCount(prediction.id);
-  const likeCount = storeLikeCount !== undefined && storeLikeCount !== null ? storeLikeCount : (prediction.likes_count || prediction.likes || 0);
-  const commentCount = getCommentCount(prediction.id) || prediction.comments_count || prediction.comments || 0;
+  const storeLikeCount = React.useMemo(() => getLikeCount(prediction.id), [prediction.id, getLikeCount]);
+  const likeCount = React.useMemo(() => 
+    storeLikeCount !== undefined && storeLikeCount !== null ? storeLikeCount : (prediction.likes_count || prediction.likes || 0),
+    [storeLikeCount, prediction.likes_count, prediction.likes]
+  );
+  const commentCount = React.useMemo(() => 
+    getCommentCount(prediction.id) || prediction.comments_count || prediction.comments || 0,
+    [prediction.id, getCommentCount, prediction.comments_count, prediction.comments]
+  );
 
   // Calculate real data with safe fallbacks
   const entryDeadline = prediction.entry_deadline || prediction.entryDeadline;
@@ -135,19 +141,11 @@ const PredictionCardContent: React.FC<PredictionCardProps> = ({
   const handleLike = async () => {
     if (isLiking) return;
     
-    console.log('🔄 Like button clicked for prediction:', prediction.id);
-    console.log('📊 Before like - isLiked:', isLiked, 'likeCount:', likeCount);
+    console.log('❤️ Like clicked:', prediction.id, '- Before:', { isLiked, likeCount });
     
     try {
       setIsLiking(true);
       await toggleLike(prediction.id);
-      
-      // Debug the state after toggle
-      setTimeout(() => {
-        const { debugLikeState } = getLikeData();
-        debugLikeState(prediction.id);
-      }, 100);
-      
       if (customOnLike) customOnLike();
     } catch (error) {
       console.error('❌ Error toggling like:', error);
