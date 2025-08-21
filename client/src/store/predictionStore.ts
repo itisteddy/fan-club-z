@@ -104,6 +104,8 @@ interface PredictionState {
   userPredictions: Prediction[];
   createdPredictions: Prediction[];
   completedPredictions: Prediction[];
+  userPredictionEntries: PredictionEntry[];
+  userCreatedPredictions: Prediction[];
   loading: boolean;
   error: string | null;
   initialized: boolean;
@@ -121,6 +123,21 @@ interface PredictionActions {
   fetchCreatedPredictions: (userId: string) => Promise<void>;
   createPrediction: (predictionData: any) => Promise<Prediction>;
   placePrediction: (predictionId: string, optionId: string, amount: number, userId?: string) => Promise<void>;
+  
+  // User-specific data fetching
+  fetchUserPredictionEntries: (userId: string) => Promise<void>;
+  fetchUserCreatedPredictions: (userId: string) => Promise<void>;
+  
+  // Utility methods for accessing user data
+  getUserPredictionEntries: (userId: string) => PredictionEntry[];
+  getUserCreatedPredictions: (userId: string) => Prediction[];
+  
+  // Prediction management methods
+  updatePrediction: (predictionId: string, updates: any) => Promise<void>;
+  deletePrediction: (predictionId: string) => Promise<void>;
+  closePrediction: (predictionId: string) => Promise<void>;
+  fetchPredictionActivity: (predictionId: string) => Promise<ActivityItem[]>;
+  fetchPredictionParticipants: (predictionId: string) => Promise<Participant[]>;
   
   // Platform stats
   fetchPlatformStats: () => Promise<void>;
@@ -140,6 +157,8 @@ const initialState: PredictionState = {
   userPredictions: [],
   createdPredictions: [],
   completedPredictions: [],
+  userPredictionEntries: [],
+  userCreatedPredictions: [],
   loading: false,
   error: null,
   initialized: false,
@@ -467,6 +486,233 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
 
   clearError: () => {
     set({ error: null });
+  },
+
+  // User-specific data fetching methods
+  fetchUserPredictionEntries: async (userId: string) => {
+    try {
+      console.log('📋 Fetching user prediction entries for:', userId);
+      
+      const response = await fetch(`${getApiUrl()}/api/v2/prediction-entries/user/${userId}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch user prediction entries: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      const userPredictionEntries = data.data || [];
+
+      set({ userPredictionEntries });
+      console.log('✅ User prediction entries fetched:', userPredictionEntries.length);
+
+    } catch (error) {
+      console.error('❌ Error fetching user prediction entries:', error);
+      // Don't set error state for this, just log it
+    }
+  },
+
+  fetchUserCreatedPredictions: async (userId: string) => {
+    try {
+      console.log('📋 Fetching user created predictions for:', userId);
+      
+      const response = await fetch(`${getApiUrl()}/api/v2/predictions/created/${userId}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch user created predictions: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      const userCreatedPredictions = data.data || [];
+
+      set({ userCreatedPredictions });
+      console.log('✅ User created predictions fetched:', userCreatedPredictions.length);
+
+    } catch (error) {
+      console.error('❌ Error fetching user created predictions:', error);
+      // Don't set error state for this, just log it
+    }
+  },
+
+  // Utility methods for accessing user data
+  getUserPredictionEntries: (userId: string) => {
+    const { userPredictionEntries } = get();
+    return userPredictionEntries.filter(entry => entry.user_id === userId);
+  },
+
+  getUserCreatedPredictions: (userId: string) => {
+    const { userCreatedPredictions } = get();
+    return userCreatedPredictions.filter(prediction => prediction.creator_id === userId);
+  },
+
+  // Prediction management methods
+  updatePrediction: async (predictionId: string, updates: any) => {
+    try {
+      console.log('🔄 Updating prediction:', predictionId, updates);
+      
+      const response = await fetch(`${getApiUrl()}/api/v2/predictions/${predictionId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify(updates)
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to update prediction: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      const updatedPrediction = data.data;
+
+      // Update prediction in all relevant state arrays
+      set(state => ({
+        predictions: state.predictions.map(pred => 
+          pred.id === predictionId ? { ...pred, ...updatedPrediction } : pred
+        ),
+        userCreatedPredictions: state.userCreatedPredictions.map(pred => 
+          pred.id === predictionId ? { ...pred, ...updatedPrediction } : pred
+        )
+      }));
+
+      console.log('✅ Prediction updated successfully');
+
+    } catch (error) {
+      console.error('❌ Error updating prediction:', error);
+      throw error;
+    }
+  },
+
+  deletePrediction: async (predictionId: string) => {
+    try {
+      console.log('🗑️ Deleting prediction:', predictionId);
+      
+      const response = await fetch(`${getApiUrl()}/api/v2/predictions/${predictionId}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to delete prediction: ${response.statusText}`);
+      }
+
+      // Remove prediction from all state arrays
+      set(state => ({
+        predictions: state.predictions.filter(pred => pred.id !== predictionId),
+        userCreatedPredictions: state.userCreatedPredictions.filter(pred => pred.id !== predictionId),
+        trendingPredictions: state.trendingPredictions.filter(pred => pred.id !== predictionId)
+      }));
+
+      console.log('✅ Prediction deleted successfully');
+
+    } catch (error) {
+      console.error('❌ Error deleting prediction:', error);
+      throw error;
+    }
+  },
+
+  closePrediction: async (predictionId: string) => {
+    try {
+      console.log('🔒 Closing prediction:', predictionId);
+      
+      const response = await fetch(`${getApiUrl()}/api/v2/predictions/${predictionId}/close`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to close prediction: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      const updatedPrediction = data.data;
+
+      // Update prediction status in state
+      set(state => ({
+        predictions: state.predictions.map(pred => 
+          pred.id === predictionId ? { ...pred, status: 'closed', ...updatedPrediction } : pred
+        ),
+        userCreatedPredictions: state.userCreatedPredictions.map(pred => 
+          pred.id === predictionId ? { ...pred, status: 'closed', ...updatedPrediction } : pred
+        )
+      }));
+
+      console.log('✅ Prediction closed successfully');
+
+    } catch (error) {
+      console.error('❌ Error closing prediction:', error);
+      throw error;
+    }
+  },
+
+  fetchPredictionActivity: async (predictionId: string) => {
+    try {
+      console.log('📋 Fetching prediction activity:', predictionId);
+      
+      const response = await fetch(`${getApiUrl()}/api/v2/predictions/${predictionId}/activity`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        console.warn(`Activity endpoint not available: ${response.statusText}`);
+        return []; // Return empty array if endpoint doesn't exist yet
+      }
+
+      const data = await response.json();
+      return data.data || [];
+
+    } catch (error) {
+      console.warn('Activity endpoint not implemented yet:', error);
+      return []; // Return empty array for now
+    }
+  },
+
+  fetchPredictionParticipants: async (predictionId: string) => {
+    try {
+      console.log('📋 Fetching prediction participants:', predictionId);
+      
+      const response = await fetch(`${getApiUrl()}/api/v2/predictions/${predictionId}/participants`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        console.warn(`Participants endpoint not available: ${response.statusText}`);
+        return []; // Return empty array if endpoint doesn't exist yet
+      }
+
+      const data = await response.json();
+      return data.data || [];
+
+    } catch (error) {
+      console.warn('Participants endpoint not implemented yet:', error);
+      return []; // Return empty array for now
+    }
   },
 
   reset: () => {

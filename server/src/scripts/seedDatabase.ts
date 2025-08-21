@@ -1,14 +1,14 @@
 #!/usr/bin/env node
 
 /**
- * Database Seeding Script for Fan Club Z v2.0.53
+ * Database Seeding Script for Fan Club Z v2.0.54
  * Seeds the database with sample predictions, users, and options
  */
 
 import { supabase } from '../config/database';
 
 async function seedDatabase() {
-  console.log('🌱 Starting database seeding for Fan Club Z v2.0.53...');
+  console.log('🌱 Starting database seeding for Fan Club Z v2.0.54...');
   
   try {
     // Sample users

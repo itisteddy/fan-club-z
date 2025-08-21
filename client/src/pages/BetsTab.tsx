@@ -6,7 +6,8 @@ import { usePredictionStore } from '../store/predictionStore';
 import { useAuthStore } from '../store/authStore';
 import { scrollToTop } from '../utils/scroll';
 import { formatTimeRemaining } from '../lib/utils';
-import BetCard from '../components/BetCard';
+// Remove unused BetCard import since we're using custom cards
+// import BetCard from '../components/BetCard';
 import ManagePredictionModal from '../components/modals/ManagePredictionModal';
 
 interface BetsTabProps {
@@ -192,8 +193,16 @@ const BetsTab: React.FC<BetsTabProps> = ({ onNavigateToDiscover }) => {
     };
   };
 
-  const mockPredictions = useMemo(() => getUserPredictions(), [user?.id, isAuthenticated, predictions, activeTab]);
-  const currentPredictions = mockPredictions[activeTab] || [];
+  const userPredictions = useMemo(() => {
+    try {
+      return getUserPredictions();
+    } catch (error) {
+      console.error('Error getting user predictions:', error);
+      return { Active: [], Created: [], Completed: [] };
+    }
+  }, [user?.id, isAuthenticated, predictions, activeTab]);
+  
+  const currentPredictions = userPredictions[activeTab] || [];
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -556,15 +565,42 @@ const BetsTab: React.FC<BetsTabProps> = ({ onNavigateToDiscover }) => {
           </div>
         ) : currentPredictions.length > 0 ? (
           <div className="space-y-4">
-            {activeTab === 'Active' && currentPredictions.map((prediction) => (
-              <ActivePredictionCard key={prediction.id} prediction={prediction} />
-            ))}
-            {activeTab === 'Created' && currentPredictions.map((prediction) => (
-              <CreatedPredictionCard key={prediction.id} prediction={prediction} />
-            ))}
-            {activeTab === 'Completed' && currentPredictions.map((prediction) => (
-              <CompletedPredictionCard key={prediction.id} prediction={prediction} />
-            ))}
+            {activeTab === 'Active' && currentPredictions.map((prediction, index) => {
+              if (!prediction || typeof prediction.id === 'undefined') {
+                console.warn('Invalid prediction object:', prediction);
+                return null;
+              }
+              return (
+                <ActivePredictionCard 
+                  key={`active-${prediction.id}-${index}`} 
+                  prediction={prediction} 
+                />
+              );
+            })}
+            {activeTab === 'Created' && currentPredictions.map((prediction, index) => {
+              if (!prediction || typeof prediction.id === 'undefined') {
+                console.warn('Invalid prediction object:', prediction);
+                return null;
+              }
+              return (
+                <CreatedPredictionCard 
+                  key={`created-${prediction.id}-${index}`} 
+                  prediction={prediction} 
+                />
+              );
+            })}
+            {activeTab === 'Completed' && currentPredictions.map((prediction, index) => {
+              if (!prediction || typeof prediction.id === 'undefined') {
+                console.warn('Invalid prediction object:', prediction);
+                return null;
+              }
+              return (
+                <CompletedPredictionCard 
+                  key={`completed-${prediction.id}-${index}`} 
+                  prediction={prediction} 
+                />
+              );
+            })}
           </div>
         ) : (
           <EmptyState tab={activeTab} />
@@ -579,7 +615,21 @@ const BetsTab: React.FC<BetsTabProps> = ({ onNavigateToDiscover }) => {
             setIsManageModalOpen(false);
             setSelectedPrediction(null);
           }}
-          prediction={selectedPrediction}
+          prediction={{
+            id: selectedPrediction.id,
+            title: selectedPrediction.title,
+            category: selectedPrediction.category,
+            totalPool: selectedPrediction.totalPool || selectedPrediction.pool_total || 0,
+            participants: selectedPrediction.participants || selectedPrediction.participant_count || 0,
+            timeRemaining: selectedPrediction.timeRemaining || '0h',
+            yourCut: selectedPrediction.yourCut || selectedPrediction.creator_fee_percentage || 3.5,
+            status: selectedPrediction.status || 'open',
+            description: selectedPrediction.description,
+            pool_total: selectedPrediction.pool_total || selectedPrediction.totalPool,
+            participant_count: selectedPrediction.participant_count || selectedPrediction.participants,
+            creator_fee_percentage: selectedPrediction.creator_fee_percentage || selectedPrediction.yourCut,
+            entry_deadline: selectedPrediction.entry_deadline
+          }}
         />
       )}
     </div>

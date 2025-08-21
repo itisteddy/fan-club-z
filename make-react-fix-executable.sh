@@ -1,2 +1,3 @@
 #!/bin/bash
-chmod +x "/Users/efe/Library/CloudStorage/OneDrive-Personal/Fan Club Z v2.0/FanClubZ-version2.0/deploy-react-error-185-fix.sh"
+chmod +x deploy-react-error-fix.sh
+echo "✅ Made deploy-react-error-fix.sh executable"

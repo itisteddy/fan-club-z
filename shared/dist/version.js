@@ -1,7 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.versionInfo = exports.isStaging = exports.isProduction = exports.isDevelopment = exports.API_VERSIONS = exports.FEATURES = exports.BUILD_ENV = exports.BUILD_DATE = exports.VERSION = void 0;
-exports.VERSION = "2.0.53";
+exports.VERSION = "2.0.54";
 exports.BUILD_DATE = new Date().toISOString();
 exports.BUILD_ENV = process.env.NODE_ENV || "development";
 exports.FEATURES = {
