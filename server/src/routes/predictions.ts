@@ -298,7 +298,35 @@ router.post('/', async (req, res) => {
     // In production, this would come from JWT token
     console.log('🔍 Debug - Request body creatorId:', req.body.creatorId);
     console.log('🔍 Debug - Full request body:', JSON.stringify(req.body, null, 2));
-    const currentUserId = req.body.creatorId || '325343a7-0a32-4565-8059-7c0d9d3fed1b'; // Default to test user
+    
+    const requestedUserId = req.body.creatorId || '325343a7-0a32-4565-8059-7c0d9d3fed1b';
+    console.log('🔍 Debug - Requested userId:', requestedUserId);
+    
+    // Verify user exists in database
+    const { data: userExists, error: userError } = await supabase
+      .from('users')
+      .select('id')
+      .eq('id', requestedUserId)
+      .single();
+    
+    if (userError || !userExists) {
+      console.log('🔍 Debug - User not found, creating user:', requestedUserId);
+      // Create user if doesn't exist
+      const { error: createUserError } = await supabase
+        .from('users')
+        .insert({
+          id: requestedUserId,
+          username: 'itisteddy',
+          full_name: 'Fan Club Z User',
+          email: 'user@fanclubz.app'
+        });
+      
+      if (createUserError && !createUserError.message.includes('duplicate')) {
+        console.error('Error creating user:', createUserError);
+      }
+    }
+    
+    const currentUserId = requestedUserId;
     console.log('🔍 Debug - Final currentUserId:', currentUserId);
 
     // Create prediction in database
