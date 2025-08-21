@@ -93,7 +93,9 @@ export interface Participant {
 export interface PlatformStats {
   totalVolume: string;
   activePredictions: number;
-  totalUsers: number;
+  totalUsers: string;
+  rawVolume: number;
+  rawUsers: number;
 }
 
 interface PredictionState {
@@ -113,11 +115,12 @@ interface PredictionState {
 interface PredictionActions {
   // Core prediction actions
   fetchPredictions: () => Promise<void>;
+  refreshPredictions: (force?: boolean) => Promise<void>; // Added this method
   fetchTrendingPredictions: () => Promise<void>;
   fetchUserPredictions: (userId: string) => Promise<void>;
   fetchCreatedPredictions: (userId: string) => Promise<void>;
   createPrediction: (predictionData: any) => Promise<Prediction>;
-  placePrediction: (entry: { predictionId: string; optionId: string; amount: number; userId: string }) => Promise<void>;
+  placePrediction: (predictionId: string, optionId: string, amount: number, userId?: string) => Promise<void>;
   
   // Platform stats
   fetchPlatformStats: () => Promise<void>;
@@ -195,6 +198,29 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
         error: error instanceof Error ? error.message : 'Failed to fetch predictions',
         // Don't clear predictions on error, keep existing data
       });
+    }
+  },
+
+  // NEW: refreshPredictions method that was missing
+  refreshPredictions: async (force = false) => {
+    const { lastFetchTime } = get();
+    const currentTime = Date.now();
+    
+    // If not forced and we've fetched recently, use cache
+    if (!force && currentTime - lastFetchTime < 10000) {
+      console.log('📋 Using cached predictions (refresh)');
+      return;
+    }
+
+    // Reset cache time to force fetch
+    set({ lastFetchTime: 0 });
+    
+    try {
+      await get().fetchPredictions();
+      console.log('🔄 Predictions refreshed successfully');
+    } catch (error) {
+      console.error('❌ Error refreshing predictions:', error);
+      throw error;
     }
   },
 
@@ -323,7 +349,7 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
     }
   },
 
-  placePrediction: async ({ predictionId, optionId, amount, userId }) => {
+  placePrediction: async (predictionId: string, optionId: string, amount: number, userId?: string) => {
     set({ loading: true, error: null });
     
     try {
@@ -412,7 +438,9 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
       const fallbackStats: PlatformStats = {
         totalVolume: predictions.reduce((sum, pred) => sum + (pred.pool_total || 0), 0).toFixed(2),
         activePredictions: predictions.filter(pred => pred.status === 'open').length,
-        totalUsers: predictions.length > 0 ? 5 : 0 // Fallback user count
+        totalUsers: predictions.length > 0 ? '5' : '0', // Fallback user count
+        rawVolume: predictions.reduce((sum, pred) => sum + (pred.pool_total || 0), 0),
+        rawUsers: predictions.length > 0 ? 5 : 0
       };
       
       set({

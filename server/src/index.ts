@@ -13,9 +13,9 @@ import { db } from './config/database';
 
 const app = express();
 const PORT = config.server.port || 3001;
-const VERSION = '2.0.52';
+const VERSION = '2.0.53';
 
-console.log('🚀 Fan Club Z Server v2.0.52 - CORS FIXED - SINGLE SOURCE OF TRUTH');
+console.log('🚀 Fan Club Z Server v2.0.53 - CORS FIXED - SINGLE SOURCE OF TRUTH');
 console.log('📡 Starting server with enhanced CORS support...');
 
 // Enhanced CORS middleware - Allow all origins for now to fix immediate issue

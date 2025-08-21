@@ -7,6 +7,7 @@ import { Card, CardContent } from '../ui/card';
 import { Prediction } from '../../store/predictionStore';
 import { useWalletStore } from '../../store/walletStore';
 import { usePredictionStore } from '../../store/predictionStore';
+import { useAuthStore } from '../../store/authStore';
 import toast from 'react-hot-toast';
 
 interface PlacePredictionModalProps {
@@ -33,6 +34,22 @@ const cn = (...classes: (string | undefined | null | false)[]) => {
   return classes.filter(Boolean).join(' ');
 };
 
+// Helper function for time remaining
+const formatTimeRemaining = (prediction: Prediction) => {
+  const entryDeadline = prediction.entry_deadline || prediction.entryDeadline;
+  if (!entryDeadline) return "Time remaining unknown";
+  
+  const timeRemaining = Math.max(0, new Date(entryDeadline).getTime() - Date.now());
+  const hoursRemaining = Math.floor(timeRemaining / (1000 * 60 * 60));
+  
+  if (timeRemaining <= 0) return "Ended";
+  if (hoursRemaining >= 24) {
+    const days = Math.floor(hoursRemaining / 24);
+    return `${days}d left`;
+  }
+  return `${hoursRemaining}h left`;
+};
+
 export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
   prediction,
   isOpen,
@@ -40,11 +57,13 @@ export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
 }) => {
   // Early return if no prediction
   if (!prediction || !isOpen) return null;
+  
   const [selectedOptionId, setSelectedOptionId] = useState<string>('');
   const [amount, setAmount] = useState<string>('');
   const [isLoading, setIsLoading] = useState(false);
   
-  const { getBalance, makePrediction } = useWalletStore();
+  const { user } = useAuthStore();
+  const { getBalance, lockFunds } = useWalletStore();
   const { placePrediction } = usePredictionStore();
 
   const usdBalance = getBalance('USD') || 0; // Use real balance, no mock data
@@ -81,13 +100,18 @@ export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
       return;
     }
 
+    if (!user?.id) {
+      toast.error('You must be logged in to place predictions');
+      return;
+    }
+
     setIsLoading(true);
     try {
-      // Use wallet store to make prediction
-      await makePrediction(numAmount, `Prediction on: ${prediction.title}`, prediction.id, 'USD');
+      // Lock funds in wallet first
+      await lockFunds(numAmount, 'USD');
       
-      // Also update the predictions store
-      await placePrediction(prediction.id, selectedOptionId, numAmount);
+      // Place the prediction
+      await placePrediction(prediction.id, selectedOptionId, numAmount, user.id);
       
       toast.success(`Prediction placed successfully! You staked ${formatCurrency(numAmount)} on ${selectedOption?.label}.`);
       onClose();
@@ -100,8 +124,6 @@ export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
       setIsLoading(false);
     }
   };
-
-  // Component logic continues here...
 
   return (
     <AnimatePresence mode="wait" initial={false}>
@@ -158,7 +180,7 @@ export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
                     <span>•</span>
                     <span>{prediction.participant_count || 0} Players</span>
                     <span>•</span>
-                    <span>{formatTimeRemaining()}</span>
+                    <span>{formatTimeRemaining(prediction)}</span>
                   </div>
                 </div>
 
@@ -317,11 +339,4 @@ export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
       )}
     </AnimatePresence>
   );
-};
-
-// Helper function for time remaining
-const formatTimeRemaining = () => {
-  // This should be calculated based on prediction.end_date
-  // For now, returning a placeholder
-  return "3d 16h Left";
 };
