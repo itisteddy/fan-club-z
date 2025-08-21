@@ -272,7 +272,7 @@ const PredictionCardContent: React.FC<PredictionCardProps> = ({
             >
               <span className="font-medium">{formatCurrency(totalPool)}</span>
               <span>•</span>
-              <span>{(prediction.options?.length || 2)} options</span>
+              <span>{Array.isArray(prediction.options) ? prediction.options.length : 0} options</span>
             </div>
             <div className="flex items-center gap-3">
               <button
@@ -473,13 +473,14 @@ const PredictionCardContent: React.FC<PredictionCardProps> = ({
           <div className="bg-gray-50 rounded-xl p-4">
             <div className="flex items-center justify-between mb-3">
               <h4 className="text-sm font-semibold text-gray-900">Options</h4>
-              <span className="text-xs text-gray-500">{prediction.options?.length || 2} choices</span>
+              <span className="text-xs text-gray-500">{Array.isArray(prediction.options) ? prediction.options.length : 0} choices</span>
             </div>
             
             <div className="space-y-2">
               {(prediction.options || []).slice(0, 3).map((option, index) => {
                 const optionStaked = option.total_staked || option.totalStaked || 0;
-                const percentage = totalPool > 0 ? (optionStaked / totalPool) * 100 : (100 / (prediction.options?.length || 2));
+                const optionCount = Array.isArray(prediction.options) ? prediction.options.length : 0;
+                const percentage = totalPool > 0 ? (optionStaked / totalPool) * 100 : (optionCount > 0 ? 100 / optionCount : 0);
                 const odds = optionStaked > 0 ? totalPool / optionStaked : 2.0;
                 
                 return (
@@ -604,8 +605,9 @@ const PredictionCardContent: React.FC<PredictionCardProps> = ({
 
 // Main component wrapped in error boundary
 const PredictionCard: React.FC<PredictionCardProps> = (props) => {
+  // Use default fallback signature to satisfy ErrorBoundary prop typing
   return (
-    <ErrorBoundary fallback={<PredictionCardErrorFallback />}>
+    <ErrorBoundary>
       <PredictionCardContent {...props} />
     </ErrorBoundary>
   );
