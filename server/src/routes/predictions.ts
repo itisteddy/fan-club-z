@@ -227,8 +227,32 @@ router.get('/:id', async (req, res) => {
 router.get('/created/:userId', async (req, res) => {
   try {
     const { userId } = req.params;
-    res.json({
-      data: [],
+    console.log(`📊 User created predictions endpoint called for ID: ${userId} - origin:`, req.headers.origin);
+    
+    const { data: predictions, error } = await supabase
+      .from('predictions')
+      .select(`
+        *,
+        creator:users!creator_id(id, username, full_name, avatar_url),
+        options:prediction_options(*),
+        club:clubs(id, name, avatar_url)
+      `)
+      .eq('creator_id', userId)
+      .order('created_at', { ascending: false })
+      .limit(20);
+
+    if (error) {
+      console.error(`Error fetching user created predictions for ${userId}:`, error);
+      return res.status(500).json({
+        error: 'Database error',
+        message: 'Failed to fetch user created predictions',
+        version: '2.0.55',
+        details: error.message
+      });
+    }
+
+    return res.json({
+      data: predictions || [],
       message: `Created predictions for user ${userId}`,
       version: '2.0.55'
     });
@@ -236,7 +260,8 @@ router.get('/created/:userId', async (req, res) => {
     console.error('Error fetching user created predictions:', error);
     res.status(500).json({
       error: 'Internal server error',
-      message: 'Failed to fetch user created predictions'
+      message: 'Failed to fetch user created predictions',
+      version: '2.0.55'
     });
   }
 });

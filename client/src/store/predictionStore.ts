@@ -366,11 +366,19 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
         error: null
       }));
 
-      // Also refresh user's created predictions
+      // Add to user created predictions immediately for instant UI update
+      set(state => ({
+        userCreatedPredictions: [newPrediction, ...state.userCreatedPredictions]
+      }));
+
+      // Also refresh user's created predictions from server after a delay
       try {
         const { user } = useAuthStore.getState();
         if (user?.id) {
-          await get().fetchUserCreatedPredictions(user.id);
+          // Wait a bit for database to be consistent, then refresh
+          setTimeout(() => {
+            get().fetchUserCreatedPredictions(user.id);
+          }, 1000);
         }
       } catch (error) {
         console.warn('⚠️ Failed to refresh user created predictions:', error);

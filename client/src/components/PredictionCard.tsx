@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Heart, MessageCircle, Share, TrendingUp, Clock, Users } from 'lucide-react';
+import { useLocation } from 'wouter';
 import { Prediction, PredictionEntry } from '../store/predictionStore';
 import { useLikeStore } from '../store/likeStore';
 import { useUnifiedCommentStore } from '../store/unifiedCommentStore';
@@ -46,6 +47,7 @@ const PredictionCardContent: React.FC<PredictionCardProps> = ({
     return <PredictionCardErrorFallback error="Invalid prediction data" />;
   }
 
+  const [, setLocation] = useLocation();
   const [mounted, setMounted] = useState(false);
   const [commentModalOpen, setCommentModalOpen] = useState(false);
   const [isLiking, setIsLiking] = useState(false);
@@ -185,6 +187,17 @@ const PredictionCardContent: React.FC<PredictionCardProps> = ({
     }
   };
 
+  const handleCardClick = (e: React.MouseEvent) => {
+    // Don't navigate if clicking on interactive elements
+    const target = e.target as HTMLElement;
+    if (target.closest('button') || target.closest('a') || target.closest('.interactive')) {
+      return;
+    }
+    
+    // Navigate to prediction details page
+    setLocation(`/prediction/${prediction.id}`);
+  };
+
   const formatTimeRemaining = () => {
     if (timeRemaining <= 0) return 'Ended';
     if (hoursRemaining >= 24) {
@@ -198,9 +211,10 @@ const PredictionCardContent: React.FC<PredictionCardProps> = ({
     return (
       <>
         <motion.div
-          className={`bg-white rounded-xl shadow-sm border border-gray-100 p-4 ${className}`}
+          className={`bg-white rounded-xl shadow-sm border border-gray-100 p-4 cursor-pointer ${className}`}
           whileHover={{ scale: 1.02, y: -2 }}
           whileTap={{ scale: 0.98 }}
+          onClick={handleCardClick}
         >
           {/* Header */}
           <div className="flex items-center justify-between mb-3">
@@ -296,8 +310,9 @@ const PredictionCardContent: React.FC<PredictionCardProps> = ({
             status === 'lost' ? 'border-red-500' :
             status === 'settled' ? 'border-gray-500' :
             'border-blue-500'
-          } p-4 ${className}`}
+          } p-4 cursor-pointer ${className}`}
           whileHover={{ scale: 1.01, y: -2 }}
+          onClick={handleCardClick}
         >
           {/* Header */}
           <div className="flex items-center justify-between mb-3">
@@ -384,10 +399,11 @@ const PredictionCardContent: React.FC<PredictionCardProps> = ({
   return (
     <>
       <motion.div
-        className={`bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden ${className}`}
+        className={`bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden cursor-pointer ${className}`}
         whileHover={{ scale: 1.01, y: -2 }}
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
+        onClick={handleCardClick}
         transition={{ duration: 0.3 }}
       >
         {/* Header */}
