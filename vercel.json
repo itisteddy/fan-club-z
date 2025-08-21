@@ -1,9 +1,9 @@
 {
   "version": 2,
-  "buildCommand": "cd client && npm install && npm run build",
+  "buildCommand": "cd client && ./build.sh",
   "build": {
     "env": {
-      "NODE_VERSION": "18"
+      "NODE_VERSION": "18.19.0"
     }
   },
   "outputDirectory": "client/dist",

@@ -63,6 +63,7 @@ export default defineConfig({
     outDir: 'dist',
     sourcemap: false,
     target: 'es2020',
+    minify: 'esbuild',
     rollupOptions: {
       output: {
         manualChunks: {
