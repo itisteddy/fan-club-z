@@ -214,7 +214,10 @@ export const useLikeStore = create<LikeState & LikeActions>((set, get) => ({
   },
 
   getLikeCount: (predictionId: string) => {
-    return get().likeCounts[predictionId] || 0;
+    const state = get();
+    const count = state.likeCounts[predictionId];
+    console.log(`🔍 getLikeCount for ${predictionId}:`, count, 'from store:', state.likeCounts);
+    return count !== undefined ? count : 0;
   },
 
   clearError: () => {

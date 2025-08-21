@@ -102,7 +102,9 @@ const PredictionCardContent: React.FC<PredictionCardProps> = ({
 
   // Get real-time data from stores with safe fallbacks
   const isLiked = checkIfLiked(prediction.id) || false;
-  const likeCount = getLikeCount(prediction.id) || prediction.likes_count || prediction.likes || 0;
+  // FIXED: Always prioritize store data over potentially stale prediction data
+  const storeLikeCount = getLikeCount(prediction.id);
+  const likeCount = storeLikeCount !== undefined && storeLikeCount !== null ? storeLikeCount : (prediction.likes_count || prediction.likes || 0);
   const commentCount = getCommentCount(prediction.id) || prediction.comments_count || prediction.comments || 0;
 
   // Calculate real data with safe fallbacks
@@ -133,9 +135,19 @@ const PredictionCardContent: React.FC<PredictionCardProps> = ({
   const handleLike = async () => {
     if (isLiking) return;
     
+    console.log('🔄 Like button clicked for prediction:', prediction.id);
+    console.log('📊 Before like - isLiked:', isLiked, 'likeCount:', likeCount);
+    
     try {
       setIsLiking(true);
       await toggleLike(prediction.id);
+      
+      // Debug the state after toggle
+      setTimeout(() => {
+        const { debugLikeState } = getLikeData();
+        debugLikeState(prediction.id);
+      }, 100);
+      
       if (customOnLike) customOnLike();
     } catch (error) {
       console.error('❌ Error toggling like:', error);
