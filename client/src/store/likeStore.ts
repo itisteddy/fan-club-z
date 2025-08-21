@@ -15,6 +15,8 @@ interface LikeActions {
   getLikeCount: (predictionId: string) => number;
   clearError: () => void;
   refreshLikeCounts: () => Promise<void>;
+  // Helper for debugging
+  debugLikeState: (predictionId: string) => void;
 }
 
 export const useLikeStore = create<LikeState & LikeActions>((set, get) => ({
@@ -28,28 +30,31 @@ export const useLikeStore = create<LikeState & LikeActions>((set, get) => ({
       const { data: { user } } = await supabase.auth.getUser();
       
       if (!user) {
+        console.log('❌ No authenticated user, skipping like initialization');
         return;
       }
 
-      // Fetch user's likes
+      console.log('🔄 Initializing like store for user:', user.id);
+
+      // Fetch user's likes with better error handling
       const { data: userLikes, error: likesError } = await supabase
         .from('prediction_likes')
         .select('prediction_id')
         .eq('user_id', user.id);
 
       if (likesError) {
-        console.error('Error fetching user likes:', likesError);
-        return;
+        console.error('❌ Error fetching user likes:', likesError);
+        // Continue with empty likes rather than failing completely
       }
 
-      // Fetch like counts for all predictions
+      // Fetch like counts for all predictions with better error handling
       const { data: likeCounts, error: countsError } = await supabase
         .from('predictions')
         .select('id, likes_count');
 
       if (countsError) {
-        console.error('Error fetching like counts:', countsError);
-        return;
+        console.error('❌ Error fetching like counts:', countsError);
+        // Continue with empty counts rather than failing completely
       }
 
       const likedSet = new Set(userLikes?.map(like => like.prediction_id) || []);
@@ -59,16 +64,19 @@ export const useLikeStore = create<LikeState & LikeActions>((set, get) => ({
 
       set({
         likedPredictions: likedSet,
-        likeCounts: countsMap
+        likeCounts: countsMap,
+        error: null
       });
 
-      console.log('✅ Like store initialized:', {
+      console.log('✅ Like store initialized successfully:', {
         likedCount: likedSet.size,
-        totalPredictions: Object.keys(countsMap).length
+        totalPredictions: Object.keys(countsMap).length,
+        userLikes: Array.from(likedSet)
       });
 
     } catch (error) {
-      console.error('Error initializing likes:', error);
+      console.error('❌ Error initializing likes:', error);
+      set({ error: 'Failed to load likes' });
     }
   },
 
@@ -211,5 +219,17 @@ export const useLikeStore = create<LikeState & LikeActions>((set, get) => ({
 
   clearError: () => {
     set({ error: null });
+  },
+
+  debugLikeState: (predictionId: string) => {
+    const state = get();
+    console.log(`🔍 Debug like state for prediction ${predictionId}:`, {
+      isLiked: state.likedPredictions.has(predictionId),
+      likeCount: state.likeCounts[predictionId] || 0,
+      allLikedPredictions: Array.from(state.likedPredictions),
+      allLikeCounts: state.likeCounts,
+      loading: state.loading,
+      error: state.error
+    });
   }
 }));
