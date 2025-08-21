@@ -133,8 +133,7 @@ interface PredictionActions {
   getUserPredictionEntries: (userId: string) => PredictionEntry[];
   getUserCreatedPredictions: (userId: string) => Prediction[];
   
-  // Temporary workaround for created predictions
-  getUserCreatedPredictionsWorkaround: (userId: string) => Prediction[];
+
   
   // Prediction management methods
   updatePrediction: (predictionId: string, updates: any) => Promise<void>;
@@ -588,25 +587,7 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
     return userCreatedPredictions.filter(prediction => prediction.creator_id === userId);
   },
 
-  // Temporary workaround for created predictions - identify by patterns
-  getUserCreatedPredictionsWorkaround: (userId: string) => {
-    const state = get();
-    const now = new Date();
-    const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
-    
-    // Strategy: Look for predictions created in the last hour that might be user's
-    // This is a temporary solution until backend creator_id is fixed
-    const recentPredictions = state.predictions.filter(prediction => {
-      const createdAt = new Date(prediction.created_at);
-      return createdAt > oneHourAgo;
-    });
-    
-    // If user has created predictions via API, show recent ones
-    // Better than showing empty Created tab
-    console.log('🔍 Workaround: Recent predictions that might be user-created:', recentPredictions.length);
-    
-    return recentPredictions;
-  },
+
 
   // Prediction management methods
   updatePrediction: async (predictionId: string, updates: any) => {

@@ -1,47 +1,33 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Wallet, Plus, ArrowUpRight, ArrowDownLeft, Clock, CheckCircle } from 'lucide-react';
 import { useWalletStore } from '../store/walletStore';
 import { useAuthStore } from '../store/authStore';
 
 const SimpleWalletPage: React.FC = () => {
-  const { balance, transactions, loading } = useWalletStore();
+  const { balance, transactions, loading, initializeWallet } = useWalletStore();
   const { user } = useAuthStore();
 
-  const mockTransactions = [
-    {
-      id: '1',
-      type: 'deposit' as const,
-      amount: 500,
-      status: 'completed' as const,
-      description: 'Added funds via card',
-      timestamp: '2 hours ago'
-    },
-    {
-      id: '2',
-      type: 'bet_lock' as const,
-      amount: -150,
-      status: 'completed' as const,
-      description: 'Prediction: Bitcoin $100k',
-      timestamp: '4 hours ago'
-    },
-    {
-      id: '3',
-      type: 'bet_release' as const,
-      amount: 275,
-      status: 'completed' as const,
-      description: 'Won: Arsenal Top 4',
-      timestamp: '1 day ago'
-    },
-    {
-      id: '4',
-      type: 'withdraw' as const,
-      amount: -200,
-      status: 'pending' as const,
-      description: 'Withdrawal to bank',
-      timestamp: '2 days ago'
+  // Initialize wallet data when component mounts
+  useEffect(() => {
+    if (user?.id) {
+      initializeWallet();
     }
-  ];
+  }, [user?.id, initializeWallet]);
+
+  // Format transactions for display
+  const formatTransactionTimestamp = (date: Date) => {
+    const now = new Date();
+    const diffTime = Math.abs(now.getTime() - date.getTime());
+    const diffHours = Math.ceil(diffTime / (1000 * 60 * 60));
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    
+    if (diffHours < 24) {
+      return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
+    } else {
+      return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
+    }
+  };
 
   const getTransactionIcon = (type: string, status: string) => {
     if (status === 'pending') return <Clock className="w-4 h-4 text-yellow-500" />;
@@ -127,37 +113,43 @@ const SimpleWalletPage: React.FC = () => {
           <h2 className="text-xl font-bold text-gray-900 mb-4">Recent Transactions</h2>
           
           <div className="space-y-4">
-            {mockTransactions.map((transaction, index) => (
-              <motion.div
-                key={transaction.id}
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: 0.1 * index }}
-                className="flex items-center gap-4 p-3 rounded-xl hover:bg-gray-50 transition-colors"
-              >
-                <div className="w-10 h-10 bg-gray-100 rounded-xl flex items-center justify-center">
-                  {getTransactionIcon(transaction.type, transaction.status)}
-                </div>
-                
-                <div className="flex-1">
-                  <div className="font-semibold text-gray-900">
-                    {transaction.description}
+            {transactions.length === 0 ? (
+              <div className="text-center py-8 text-gray-500">
+                <p>No transactions yet. Start by adding funds or making predictions!</p>
+              </div>
+            ) : (
+              transactions.slice(0, 10).map((transaction, index) => (
+                <motion.div
+                  key={transaction.id}
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: 0.1 * index }}
+                  className="flex items-center gap-4 p-3 rounded-xl hover:bg-gray-50 transition-colors"
+                >
+                  <div className="w-10 h-10 bg-gray-100 rounded-xl flex items-center justify-center">
+                    {getTransactionIcon(transaction.type, transaction.status)}
                   </div>
-                  <div className="text-sm text-gray-600">
-                    {transaction.timestamp}
+                  
+                  <div className="flex-1">
+                    <div className="font-semibold text-gray-900">
+                      {transaction.description}
+                    </div>
+                    <div className="text-sm text-gray-600">
+                      {formatTransactionTimestamp(transaction.date)}
+                    </div>
                   </div>
-                </div>
-                
-                <div className="text-right">
-                  <div className={`font-bold ${getTransactionColor(transaction.amount, transaction.status)}`}>
-                    {transaction.amount > 0 ? '+' : ''}${Math.abs(transaction.amount).toLocaleString()}
+                  
+                  <div className="text-right">
+                    <div className={`font-bold ${getTransactionColor(transaction.amount, transaction.status)}`}>
+                      {transaction.amount > 0 ? '+' : ''}${Math.abs(transaction.amount).toLocaleString()}
+                    </div>
+                    <div className="text-xs text-gray-500 capitalize">
+                      {transaction.status}
+                    </div>
                   </div>
-                  <div className="text-xs text-gray-500 capitalize">
-                    {transaction.status}
-                  </div>
-                </div>
-              </motion.div>
-            ))}
+                </motion.div>
+              ))
+            )}
           </div>
         </motion.div>
       </div>

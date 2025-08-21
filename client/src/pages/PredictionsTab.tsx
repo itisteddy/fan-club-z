@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { TrendingUp, Target, CheckCircle, Plus, ArrowRight } from 'lucide-react';
 import { usePredictionStore } from '../store/predictionStore';
+import { useAuthStore } from '../store/authStore';
 import { formatTimeRemaining } from '../lib/utils';
 import ManagePredictionModal from '../components/modals/ManagePredictionModal';
 
@@ -10,76 +11,111 @@ interface PredictionsTabProps {
 }
 
 const PredictionsTab: React.FC<PredictionsTabProps> = ({ onNavigateToDiscover }) => {
-  const { predictions, predictionEntries } = usePredictionStore();
+  const { 
+    predictions, 
+    predictionEntries, 
+    getUserCreatedPredictions, 
+    getUserPredictionEntries,
+    fetchUserCreatedPredictions,
+    fetchUserPredictionEntries 
+  } = usePredictionStore();
+  const { user, isAuthenticated } = useAuthStore();
   const [activeTab, setActiveTab] = useState('Active');
   const [isManageModalOpen, setIsManageModalOpen] = useState(false);
   const [selectedPrediction, setSelectedPrediction] = useState(null);
 
-  const tabs = [
-    { id: 'Active', label: 'Active', icon: TrendingUp, count: 3 },
-    { id: 'Created', label: 'Created', icon: Target, count: 1 },
-    { id: 'Completed', label: 'Completed', icon: CheckCircle, count: 8 }
-  ];
+  // Fetch user data when component mounts
+  useEffect(() => {
+    if (user?.id && isAuthenticated) {
+      fetchUserCreatedPredictions(user.id);
+      fetchUserPredictionEntries(user.id);
+    }
+  }, [user?.id, isAuthenticated, fetchUserCreatedPredictions, fetchUserPredictionEntries]);
 
-  // Mock user's predictions data
-  const mockPredictions = {
-    Active: [
-      {
-        id: 1,
-        title: "Will Bitcoin reach $50k by end of week?",
-        category: "Crypto",
-        position: "Yes",
-        stake: 25.00,
-        potentialReturn: 37.50,
-        odds: "1.5x",
-        timeRemaining: "2d 14h",
-        status: "active",
-        participants: 142,
-        confidence: 68
-      },
-      {
-        id: 2,
-        title: "Manchester United vs Arsenal - Who wins?",
-        category: "Sports",
-        position: "Man United",
-        stake: 50.00,
-        potentialReturn: 95.00,
-        odds: "1.9x",
-        timeRemaining: "5h 23m",
-        status: "active",
-        participants: 89,
-        confidence: 45
-      },
-      {
-        id: 3,
-        title: "Next iPhone will have USB-C",
-        category: "Tech",
-        position: "Yes",
-        stake: 15.00,
-        potentialReturn: 22.50,
-        odds: "1.5x",
-        timeRemaining: "30d 12h",
-        status: "active",
-        participants: 234,
-        confidence: 82
-      }
-    ],
-    Created: [
-      {
-        id: 4,
-        title: "Will the new Marvel movie break box office records?",
-        category: "Entertainment",
-        totalPool: 1250.00,
-        participants: 67,
-        timeRemaining: "7d 8h",
-        status: "open",
-        yourCut: 3.5
-      }
-    ],
-    Completed: []
+  // Get real data from store
+  const getUserPredictionsData = () => {
+    if (!isAuthenticated || !user) {
+      return { Active: [], Created: [], Completed: [] };
+    }
+
+    const userEntries = getUserPredictionEntries(user.id);
+    const userCreated = getUserCreatedPredictions(user.id);
+
+    const activePredictions = userEntries
+      .filter(entry => entry.status === 'active')
+      .map(entry => {
+        const prediction = predictions.find(p => p.id === entry.prediction_id);
+        if (!prediction) return null;
+        
+        const option = prediction.options?.find(o => o.id === entry.option_id);
+        
+        return {
+          id: entry.id,
+          title: prediction.title,
+          category: prediction.category,
+          position: option?.label || 'Unknown',
+          stake: entry.amount,
+          potentialReturn: entry.potential_payout || 0,
+          odds: `${((entry.potential_payout || 0) / entry.amount).toFixed(2)}x`,
+          timeRemaining: formatTimeRemaining(prediction.entry_deadline),
+          status: 'active',
+          participants: prediction.participant_count || 0,
+          confidence: Math.round(Math.random() * 100) // This would be calculated from real data
+        };
+      })
+      .filter(Boolean);
+
+    const createdPredictions = userCreated.map(prediction => ({
+      id: prediction.id,
+      title: prediction.title,
+      category: prediction.category,
+      totalPool: prediction.pool_total || 0,
+      participants: prediction.participant_count || 0,
+      timeRemaining: formatTimeRemaining(prediction.entry_deadline),
+      status: prediction.status,
+      yourCut: prediction.creator_fee_percentage || 3.5
+    }));
+
+    const completedPredictions = userEntries
+      .filter(entry => entry.status === 'won' || entry.status === 'lost')
+      .map(entry => {
+        const prediction = predictions.find(p => p.id === entry.prediction_id);
+        if (!prediction) return null;
+        
+        const option = prediction.options?.find(o => o.id === entry.option_id);
+        const profit = (entry.actual_payout || 0) - entry.amount;
+        
+        return {
+          id: entry.id,
+          title: prediction.title,
+          category: prediction.category,
+          position: option?.label || 'Unknown',
+          stake: entry.amount,
+          actualReturn: entry.actual_payout || 0,
+          profit,
+          status: entry.status,
+          participants: prediction.participant_count || 0,
+          settledAt: new Date(entry.updated_at).toLocaleDateString()
+        };
+      })
+      .filter(Boolean);
+
+    return {
+      Active: activePredictions,
+      Created: createdPredictions,
+      Completed: completedPredictions
+    };
   };
 
-  const currentPredictions = mockPredictions[activeTab] || [];
+  const userPredictionsData = getUserPredictionsData();
+  
+  const tabs = [
+    { id: 'Active', label: 'Active', icon: TrendingUp, count: userPredictionsData.Active.length },
+    { id: 'Created', label: 'Created', icon: Target, count: userPredictionsData.Created.length },
+    { id: 'Completed', label: 'Completed', icon: CheckCircle, count: userPredictionsData.Completed.length }
+  ];
+
+  const currentPredictions = userPredictionsData[activeTab] || [];
 
   const getStatusColor = (status) => {
     switch (status) {

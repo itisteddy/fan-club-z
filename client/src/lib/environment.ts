@@ -60,7 +60,21 @@ export function getEnvironmentConfig(): EnvironmentConfig {
     return config;
   }
   
-  // Check environment variable first
+  // Check if local development server is running (regardless of hostname)
+  // This allows development even when accessing via production domains
+  if (import.meta.env.DEV || import.meta.env.MODE === 'development') {
+    const config: EnvironmentConfig = {
+      apiUrl: 'http://localhost:3001',
+      socketUrl: 'http://localhost:3001',
+      environment: 'development',
+      isDevelopment: true,
+      isProduction: false
+    };
+    console.log('🏠 Development mode detected (using local server):', config);
+    return config;
+  }
+  
+  // Check environment variable
   if (import.meta.env.VITE_API_URL) {
     const config: EnvironmentConfig = {
       apiUrl: import.meta.env.VITE_API_URL,

@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronLeft, Plus, X, Calendar, DollarSign, Users, Settings, Sparkles, Check, Globe, Clock, Shield, CheckCircle } from 'lucide-react';
 import { usePredictionStore } from '../store/predictionStore';
 import { useSettlementStore } from '../store/settlementStore';
+import { useAuthStore } from '../store/authStore';
 import { useLocation } from 'wouter';
 import toast from 'react-hot-toast';
 import { scrollToTop } from '../utils/scroll';
@@ -23,6 +24,7 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitSuccess, setSubmitSuccess] = useState(false);
   const { createPrediction } = usePredictionStore();
+  const { user, isAuthenticated } = useAuthStore();
   const [, setLocation] = useLocation();
   
   // Scroll to top when component mounts (UI/UX best practice)
@@ -155,6 +157,11 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
         throw new Error('Entry deadline must be in the future');
       }
 
+      // Check authentication
+      if (!isAuthenticated || !user?.id) {
+        throw new Error('You must be logged in to create predictions');
+      }
+
       // Prepare prediction data
       const predictionData = {
         title: title.trim(),
@@ -173,7 +180,8 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
         stakeMin: Math.max(1, parseFloat(stakeMin) || 100),
         stakeMax: stakeMax ? Math.max(parseFloat(stakeMin) || 100, parseFloat(stakeMax)) : undefined,
         settlementMethod: settlementMethod as 'auto' | 'manual',
-        isPrivate: isPrivate
+        isPrivate: isPrivate,
+        creatorId: user.id // Add the real user ID
       };
 
       // Validate options

@@ -19,7 +19,7 @@ const BetsTab: React.FC<BetsTabProps> = ({ onNavigateToDiscover }) => {
   const { 
     predictions, 
     getUserCreatedPredictions, 
-    getUserCreatedPredictionsWorkaround,
+
     fetchUserCreatedPredictions, 
     fetchUserPredictionEntries,
     getUserPredictionEntries,
@@ -109,18 +109,7 @@ const BetsTab: React.FC<BetsTabProps> = ({ onNavigateToDiscover }) => {
     }
 
     const userEntries = getUserPredictionEntries(user.id);
-    // Use workaround for created predictions until backend creator_id is fixed
-    const userCreatedFromAPI = getUserCreatedPredictions(user.id);
-    const userCreatedWorkaround = getUserCreatedPredictionsWorkaround(user.id);
-    
-    // Use API data if available, otherwise use workaround
-    const userCreated = userCreatedFromAPI.length > 0 ? userCreatedFromAPI : userCreatedWorkaround;
-    
-    console.log('🔍 BetsTab - Created predictions:', {
-      fromAPI: userCreatedFromAPI.length,
-      fromWorkaround: userCreatedWorkaround.length,
-      using: userCreated.length
-    });
+    const userCreated = getUserCreatedPredictions(user.id);
     
     const activePredictions = userEntries
       .filter(entry => entry.status === 'active')

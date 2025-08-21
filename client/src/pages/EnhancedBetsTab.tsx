@@ -16,7 +16,14 @@ interface BetsTabProps {
 
 const BetsTab: React.FC<BetsTabProps> = ({ onNavigateToDiscover }) => {
   const [, setLocation] = useLocation();
-  const { predictions, getUserCreatedPredictions, fetchUserCreatedPredictions, loading } = usePredictionStore();
+  const { 
+    predictions, 
+    getUserCreatedPredictions, 
+    fetchUserCreatedPredictions, 
+    getUserPredictionEntries,
+    fetchUserPredictionEntries,
+    loading 
+  } = usePredictionStore();
   const { user, isAuthenticated } = useAuthStore();
   
   const [activeTab, setActiveTab] = useState('Active');
@@ -33,24 +40,24 @@ const BetsTab: React.FC<BetsTabProps> = ({ onNavigateToDiscover }) => {
     if (user?.id && isAuthenticated) {
       const timeoutId = setTimeout(() => {
         fetchUserCreatedPredictions(user.id);
+        fetchUserPredictionEntries(user.id);
       }, 100);
       
       return () => clearTimeout(timeoutId);
     }
-  }, [user?.id, isAuthenticated, fetchUserCreatedPredictions]);
+  }, [user?.id, isAuthenticated, fetchUserCreatedPredictions, fetchUserPredictionEntries]);
   
   // Get real prediction entries from the database
   const getPredictionEntries = () => {
     if (!isAuthenticated || !user) return [];
-    return [];
+    return getUserPredictionEntries(user.id);
   };
 
   // Get completed predictions
   const getCompletedPredictions = () => {
     if (!isAuthenticated || !user) return [];
-    const hasActivity = getUserCreatedPredictions(user.id).length > 0 || getPredictionEntries().length > 0;
-    if (!hasActivity) return [];
-    return [];
+    const userEntries = getUserPredictionEntries(user.id);
+    return userEntries.filter(entry => entry.status === 'won' || entry.status === 'lost');
   };
 
   // Get dynamic counts based on actual data

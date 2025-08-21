@@ -190,7 +190,13 @@ const PredictionCardContent: React.FC<PredictionCardProps> = ({
   const handleCardClick = (e: React.MouseEvent) => {
     // Don't navigate if clicking on interactive elements
     const target = e.target as HTMLElement;
-    if (target.closest('button') || target.closest('a') || target.closest('.interactive')) {
+    if (target.closest('button') || 
+        target.closest('a') || 
+        target.closest('.interactive') ||
+        target.closest('.options-clickable') ||
+        target.closest('[data-clickable="true"]') ||
+        target.closest('.predict-button') ||
+        e.defaultPrevented) {
       return;
     }
     
@@ -235,8 +241,9 @@ const PredictionCardContent: React.FC<PredictionCardProps> = ({
             <span className={`px-2 py-1 rounded-full text-xs font-medium ${
               prediction.category === 'sports' ? 'bg-red-100 text-red-700' :
               prediction.category === 'pop_culture' ? 'bg-purple-100 text-purple-700' :
-              prediction.category === 'crypto' ? 'bg-yellow-100 text-yellow-700' :
+              prediction.category === 'esports' ? 'bg-yellow-100 text-yellow-700' :
               prediction.category === 'politics' ? 'bg-blue-100 text-blue-700' :
+              prediction.category === 'celebrity_gossip' ? 'bg-pink-100 text-pink-700' :
               'bg-green-100 text-green-700'
             }`}>
               {prediction.category?.replace('_', ' ') || 'General'}
@@ -245,8 +252,11 @@ const PredictionCardContent: React.FC<PredictionCardProps> = ({
 
           {/* Title */}
           <h3 
-            className="font-semibold text-gray-900 mb-2 line-clamp-2 cursor-pointer"
-            onClick={() => onPredict && onPredict()}
+            className="font-semibold text-gray-900 mb-2 line-clamp-2 cursor-pointer options-clickable"
+            onClick={(e) => {
+              e.stopPropagation();
+              onPredict && onPredict();
+            }}
           >
             {prediction.title}
           </h3>
@@ -254,8 +264,11 @@ const PredictionCardContent: React.FC<PredictionCardProps> = ({
           {/* Pool Info */}
           <div className="flex items-center justify-between text-sm">
             <div 
-              className="flex items-center gap-2 text-gray-600 cursor-pointer"
-              onClick={() => onPredict && onPredict()}
+              className="flex items-center gap-2 text-gray-600 cursor-pointer options-clickable"
+              onClick={(e) => {
+                e.stopPropagation();
+                onPredict && onPredict();
+              }}
             >
               <span className="font-medium">{formatCurrency(totalPool)}</span>
               <span>•</span>
@@ -429,8 +442,9 @@ const PredictionCardContent: React.FC<PredictionCardProps> = ({
               <span className={`px-3 py-1 rounded-full text-xs font-medium ${
                 prediction.category === 'sports' ? 'bg-red-100 text-red-700' :
                 prediction.category === 'pop_culture' ? 'bg-purple-100 text-purple-700' :
-                prediction.category === 'crypto' ? 'bg-yellow-100 text-yellow-700' :
+                prediction.category === 'esports' ? 'bg-yellow-100 text-yellow-700' :
                 prediction.category === 'politics' ? 'bg-blue-100 text-blue-700' :
+                prediction.category === 'celebrity_gossip' ? 'bg-pink-100 text-pink-700' :
                 'bg-green-100 text-green-700'
               }`}>
                 {prediction.category?.replace('_', ' ') || 'General'}

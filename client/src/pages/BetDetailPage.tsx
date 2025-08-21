@@ -31,10 +31,8 @@ const BetDetailPage: React.FC = () => {
     );
   }
 
-  // Mock data for display - exactly as shown in reference
-  const mockTopBettors = [
-    { name: 'Alice', amount: '$1,000', avatar: 'A' }
-  ];
+  // Real data would come from API - for now empty until backend provides this data
+  const topBettors = [];
 
   const handlePlaceBet = () => {
     if (!selectedOption || !stakeAmount) return;
@@ -125,15 +123,21 @@ const BetDetailPage: React.FC = () => {
           </h3>
         </div>
         <div className="comments-list">
-          {mockTopBettors.map((bettor, index) => (
-            <div key={index} className="comment-item">
-              <div className="comment-header">
-                <div className="comment-avatar">{bettor.avatar}</div>
-                <div className="comment-author">{bettor.name}</div>
-                <div className="comment-time">{bettor.amount}</div>
-              </div>
+          {topBettors.length === 0 ? (
+            <div className="text-center py-8 text-gray-500">
+              <p>No participants yet. Be the first to place a prediction!</p>
             </div>
-          ))}
+          ) : (
+            topBettors.map((bettor, index) => (
+              <div key={index} className="comment-item">
+                <div className="comment-header">
+                  <div className="comment-avatar">{bettor.avatar}</div>
+                  <div className="comment-author">{bettor.name}</div>
+                  <div className="comment-time">{bettor.amount}</div>
+                </div>
+              </div>
+            ))
+          )}
         </div>
       </div>
 
