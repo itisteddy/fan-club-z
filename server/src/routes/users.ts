@@ -18,11 +18,8 @@ router.get('/:id', async (req, res) => {
         full_name,
         email,
         avatar_url,
-        bio,
         created_at,
-        updated_at,
-        reputation_score,
-        is_verified
+        updated_at
       `)
       .eq('id', id)
       .single();
@@ -66,6 +63,9 @@ router.get('/:id', async (req, res) => {
     return res.json({
       data: {
         ...user,
+        bio: null, // Add default bio since column doesn't exist
+        reputation_score: 0, // Add default reputation score
+        is_verified: false, // Add default verification status
         stats
       },
       message: 'User profile fetched successfully',
