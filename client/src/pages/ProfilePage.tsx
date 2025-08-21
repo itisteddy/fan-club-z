@@ -1138,51 +1138,104 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigateBack, userId }) => 
 
   // Determine if viewing another user's profile and fetch their data
   React.useEffect(() => {
-    const isViewingOther = userId && userId !== currentUser?.id;
-    setViewingOtherUser(isViewingOther);
-    
-    if (isViewingOther) {
-      // Fetch other user's profile data
-      fetchUserProfile(userId);
-    } else {
-      // Viewing own profile
+    try {
+      // Validate userId
+      if (!userId || typeof userId !== 'string' || userId.trim() === '') {
+        console.log('No valid userId provided, viewing own profile');
+        setViewingOtherUser(false);
+        setProfileUser(currentUser);
+        return;
+      }
+
+      const isViewingOther = userId !== currentUser?.id;
+      setViewingOtherUser(isViewingOther);
+      
+      if (isViewingOther) {
+        console.log('Viewing other user profile:', userId);
+        // Fetch other user's profile data
+        fetchUserProfile(userId);
+      } else {
+        console.log('Viewing own profile');
+        // Viewing own profile
+        setProfileUser(currentUser);
+      }
+    } catch (error) {
+      console.error('Error in profile useEffect:', error);
+      // Fallback to own profile on error
+      setViewingOtherUser(false);
       setProfileUser(currentUser);
     }
   }, [userId, currentUser]);
 
-  // Function to fetch user profile data (mock implementation)
+  // Function to fetch user profile data from API
   const fetchUserProfile = async (targetUserId: string) => {
     setLoadingProfile(true);
     try {
-      // In a real implementation, this would be an API call
-      // For now, we'll create a mock user profile
       console.log('🔍 Fetching profile for user ID:', targetUserId);
       
-      // Simulate API delay
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      const apiUrl = import.meta.env.VITE_API_URL || 'https://fan-club-z.onrender.com';
+      const response = await fetch(`${apiUrl}/api/v2/users/${targetUserId}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const result = await response.json();
       
-      // Mock user data - in a real app, this would come from your API
-      const mockUser = {
-        id: targetUserId,
-        firstName: 'Demo',
-        lastName: 'User',
-        email: 'demo@fanclubz.com',
-        bio: 'This is a sample user profile. In a real application, this data would be fetched from your user API.',
-        avatar: null,
-        totalEarnings: 2500,
-        totalInvested: 1800,
-        winRate: 68,
-        activePredictions: 5,
-        totalPredictions: 24,
-        rank: 142,
-        level: 'Advanced Predictor',
-        createdAt: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString() // 90 days ago
+      if (result.error) {
+        throw new Error(result.message || 'Failed to fetch user profile');
+      }
+
+      // Transform API data to match component expectations
+      const userData = result.data;
+      const transformedUser = {
+        id: userData.id,
+        firstName: userData.full_name?.split(' ')[0] || userData.username,
+        lastName: userData.full_name?.split(' ').slice(1).join(' ') || '',
+        email: userData.email,
+        bio: userData.bio || 'No bio available',
+        avatar: userData.avatar_url,
+        totalEarnings: userData.stats?.totalEarnings || 0,
+        totalInvested: userData.stats?.totalInvested || 0,
+        winRate: userData.stats?.winRate || 0,
+        activePredictions: userData.stats?.predictionsCreated || 0,
+        totalPredictions: userData.stats?.predictionsParticipated || 0,
+        rank: 0, // Will be calculated based on reputation
+        level: userData.reputation_score > 1000 ? 'Advanced Predictor' : 
+               userData.reputation_score > 500 ? 'Intermediate Predictor' : 'New Predictor',
+        createdAt: userData.created_at,
+        username: userData.username,
+        isVerified: userData.is_verified
       };
       
-      setProfileUser(mockUser);
+      console.log('✅ User profile fetched successfully:', transformedUser);
+      setProfileUser(transformedUser);
     } catch (error) {
       console.error('❌ Error fetching user profile:', error);
-      // Handle error - could show a toast or redirect back
+      // Set a fallback user object to prevent React errors
+      setProfileUser({
+        id: targetUserId,
+        firstName: 'Unknown',
+        lastName: 'User',
+        email: '',
+        bio: 'Profile not available',
+        avatar: null,
+        totalEarnings: 0,
+        totalInvested: 0,
+        winRate: 0,
+        activePredictions: 0,
+        totalPredictions: 0,
+        rank: 0,
+        level: 'Unknown',
+        createdAt: new Date().toISOString(),
+        username: 'unknown_user',
+        isVerified: false
+      });
     } finally {
       setLoadingProfile(false);
     }
@@ -1208,18 +1261,33 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigateBack, userId }) => 
   // Real user stats based on actual user data - memoized for performance
   const userStats = React.useMemo(() => {
     const dataUser = profileUser || currentUser;
+    
+    // Safety check to prevent errors when dataUser is null/undefined
+    if (!dataUser) {
+      return {
+        totalEarnings: 0,
+        totalInvested: 0,
+        winRate: 0,
+        activePredictions: 0,
+        totalPredictions: 0,
+        rank: 0,
+        joinedDate: 'Recently',
+        level: 'New Predictor'
+      };
+    }
+    
     return {
-      totalEarnings: dataUser?.totalEarnings || 0,
-      totalInvested: dataUser?.totalInvested || 0,
-      winRate: dataUser?.winRate || 0,
-      activePredictions: dataUser?.activePredictions || 0,
-      totalPredictions: dataUser?.totalPredictions || 0,
-      rank: dataUser?.rank || 0,
-      joinedDate: dataUser?.createdAt ? new Date(dataUser.createdAt).toLocaleDateString('en-US', { 
+      totalEarnings: dataUser.totalEarnings || 0,
+      totalInvested: dataUser.totalInvested || 0,
+      winRate: dataUser.winRate || 0,
+      activePredictions: dataUser.activePredictions || 0,
+      totalPredictions: dataUser.totalPredictions || 0,
+      rank: dataUser.rank || 0,
+      joinedDate: dataUser.createdAt ? new Date(dataUser.createdAt).toLocaleDateString('en-US', { 
         year: 'numeric', 
         month: 'long' 
       }) : 'Recently',
-      level: dataUser?.level || 'New Predictor'
+      level: dataUser.level || 'New Predictor'
     };
   }, [profileUser, currentUser]);
 
@@ -1456,6 +1524,80 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigateBack, userId }) => 
               margin: '0 auto 16px'
             }}></div>
             <p style={{ color: '#6b7280', fontSize: '16px' }}>Loading profile...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Show error state if profileUser is null and we're not loading
+  if (viewingOtherUser && !loadingProfile && !profileUser) {
+    return (
+      <div style={{ minHeight: '100vh', backgroundColor: '#f9fafb' }}>
+        <div style={{ background: 'linear-gradient(135deg, #10b981, #059669)', minHeight: '300px' }}>
+          <div style={{ height: '44px' }} />
+          <div style={{ padding: '20px 16px', position: 'relative', zIndex: 10 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '40px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                {onNavigateBack && (
+                  <button 
+                    onClick={onNavigateBack}
+                    style={{
+                      background: 'rgba(255, 255, 255, 0.2)',
+                      border: 'none',
+                      borderRadius: '12px',
+                      padding: '10px',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      backdropFilter: 'blur(10px)'
+                    }}
+                  >
+                    <ArrowLeft size={20} style={{ color: 'white' }} />
+                  </button>
+                )}
+                <h1 style={{ color: 'white', fontSize: '24px', fontWeight: '700', margin: 0 }}>Profile</h1>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '40px' }}>
+          <div style={{ textAlign: 'center' }}>
+            <div style={{
+              width: '48px',
+              height: '48px',
+              background: '#fef3c7',
+              borderRadius: '50%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              margin: '0 auto 16px'
+            }}>
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" strokeWidth="2">
+                <path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z"/>
+              </svg>
+            </div>
+            <h3 style={{ fontSize: '18px', fontWeight: '700', color: '#111827', margin: '0 0 8px 0' }}>Profile Not Found</h3>
+            <p style={{ color: '#6b7280', fontSize: '16px', margin: '0 0 24px 0' }}>The user profile you're looking for doesn't exist or is not available.</p>
+            {onNavigateBack && (
+              <button
+                onClick={onNavigateBack}
+                style={{
+                  background: '#10b981',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '12px',
+                  padding: '12px 24px',
+                  fontSize: '16px',
+                  fontWeight: '600',
+                  cursor: 'pointer'
+                }}
+              >
+                Go Back
+              </button>
+            )}
           </div>
         </div>
       </div>

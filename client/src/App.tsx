@@ -194,18 +194,22 @@ const CreatePredictionPageWrapper: React.FC = () => {
   );
 };
 
-const ProfilePageWrapper: React.FC<{ params?: { userId: string } }> = ({ params }) => {
+const ProfilePageWrapper: React.FC = () => {
   const [, navigate] = useLocation();
+  const [location] = useLocation();
   
   const handleNavigateBack = useCallback(() => {
     navigate('/');
   }, [navigate]);
 
+  // Extract userId from the URL path
+  const userId = location.split('/profile/')[1];
+
   return (
     <PageWrapper title="Profile">
       <ProfilePage 
         onNavigateBack={handleNavigateBack} 
-        userId={params?.userId} 
+        userId={userId} 
       />
     </PageWrapper>
   );
