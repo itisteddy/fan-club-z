@@ -114,14 +114,16 @@ const BetsTab: React.FC<BetsTabProps> = ({ onNavigateToDiscover }) => {
     const activePredictions = userEntries
       .filter(entry => entry.status === 'active')
       .map(entry => {
-        // Find the prediction data
-        const prediction = predictions.find(p => p.id === entry.prediction_id);
+        // Use nested prediction data from backend
+        const prediction = entry.prediction || predictions.find(p => p.id === entry.prediction_id);
         
         if (!prediction) {
+          console.warn('⚠️ No prediction found for entry:', entry.id);
           return null;
         }
 
-        const option = prediction.options?.find(o => o.id === entry.option_id);
+        // Use nested option data from backend
+        const option = entry.option || prediction.options?.find(o => o.id === entry.option_id);
         const timeRemaining = getTimeRemaining(prediction.entry_deadline);
         
         return {
@@ -163,13 +165,16 @@ const BetsTab: React.FC<BetsTabProps> = ({ onNavigateToDiscover }) => {
     const completedPredictions = userEntries
       .filter(entry => entry.status === 'won' || entry.status === 'lost')
       .map(entry => {
-        const prediction = predictions.find(p => p.id === entry.prediction_id);
+        // Use nested prediction data from backend
+        const prediction = entry.prediction || predictions.find(p => p.id === entry.prediction_id);
         
         if (!prediction) {
+          console.warn('⚠️ No prediction found for completed entry:', entry.id);
           return null;
         }
 
-        const option = prediction.options?.find(o => o.id === entry.option_id);
+        // Use nested option data from backend
+        const option = entry.option || prediction.options?.find(o => o.id === entry.option_id);
         const profit = (entry.actual_payout || 0) - entry.amount;
         
         return {

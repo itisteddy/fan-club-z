@@ -127,9 +127,12 @@ export const useWalletStore = create<WalletState>()(
             total: Number(wallet.available_balance || 0) + Number(wallet.reserved_balance || 0)
           })) || [{ currency: 'USD', available: 1000, reserved: 0, total: 1000 }];
 
-          // Ensure at least demo balance if no database balance
-          if (balances.length === 0 || balances[0].total === 0) {
-            balances[0] = { currency: 'USD', available: 1000, reserved: 0, total: 1000 };
+          // Only use demo balance if no wallet exists in database at all
+          if (balances.length === 0) {
+            console.log('🏦 Creating initial wallet with demo balance');
+            balances.push({ currency: 'USD', available: 1000, reserved: 0, total: 1000 });
+          } else {
+            console.log('✅ Using real wallet data from database:', balances[0]);
           }
 
           // Fetch transaction history

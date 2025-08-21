@@ -28,6 +28,7 @@ import {
   Heart
 } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
+import { usePredictionStore } from '../store/predictionStore';
 import { scrollToTop } from '../utils/scroll';
 import { usePullToRefresh } from '../utils/pullToRefresh';
 import { APP_VERSION } from '../lib/version';
@@ -1124,6 +1125,7 @@ const HelpSupport: React.FC<{ onBack: () => void }> = ({ onBack }) => {
 
 const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigateBack, userId }) => {
   const { user: currentUser, updateProfile, logout } = useAuthStore();
+  const { getUserPredictionEntries, getUserCreatedPredictions, fetchUserPredictionEntries, fetchUserCreatedPredictions } = usePredictionStore();
   const [activeSection, setActiveSection] = useState('overview');
   const [isEditing, setIsEditing] = useState(false);
   const [viewingOtherUser, setViewingOtherUser] = useState(false);
@@ -1173,6 +1175,16 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigateBack, userId }) => 
     try {
       console.log('🔍 Fetching profile for user ID:', targetUserId);
       
+      // Validate userId format (basic UUID check)
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      if (!uuidRegex.test(targetUserId)) {
+        console.warn('⚠️ Invalid userId format:', targetUserId);
+        setViewingOtherUser(false);
+        setProfileUser(currentUser);
+        setLoadingProfile(false);
+        return;
+      }
+      
       const apiUrl = import.meta.env.VITE_API_URL || 'https://fan-club-z.onrender.com';
       const response = await fetch(`${apiUrl}/api/v2/users/${targetUserId}`, {
         method: 'GET',
@@ -1182,6 +1194,13 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigateBack, userId }) => 
       });
 
       if (!response.ok) {
+        if (response.status === 404) {
+          console.warn('⚠️ User not found:', targetUserId);
+          setViewingOtherUser(false);
+          setProfileUser(currentUser);
+          setLoadingProfile(false);
+          return;
+        }
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
@@ -1258,12 +1277,22 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigateBack, userId }) => 
     disabled: false
   });
 
-  // Real user stats based on actual user data - memoized for performance
+  // Fetch user prediction data for stats calculation
+  React.useEffect(() => {
+    const targetUserId = userId || currentUser?.id;
+    if (targetUserId) {
+      fetchUserPredictionEntries(targetUserId);
+      fetchUserCreatedPredictions(targetUserId);
+    }
+  }, [userId, currentUser?.id, fetchUserPredictionEntries, fetchUserCreatedPredictions]);
+
+  // Real user stats based on actual prediction data - memoized for performance
   const userStats = React.useMemo(() => {
     const dataUser = profileUser || currentUser;
+    const targetUserId = userId || currentUser?.id;
     
     // Safety check to prevent errors when dataUser is null/undefined
-    if (!dataUser) {
+    if (!dataUser || !targetUserId) {
       return {
         totalEarnings: 0,
         totalInvested: 0,
@@ -1276,20 +1305,32 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigateBack, userId }) => 
       };
     }
     
+    // Get real prediction data
+    const userEntries = getUserPredictionEntries(targetUserId);
+    const userCreated = getUserCreatedPredictions(targetUserId);
+    
+    // Calculate real stats
+    const activePredictions = userEntries.filter(entry => entry.status === 'active').length;
+    const completedEntries = userEntries.filter(entry => entry.status === 'won' || entry.status === 'lost');
+    const wonEntries = userEntries.filter(entry => entry.status === 'won');
+    const totalInvested = userEntries.reduce((sum, entry) => sum + (entry.amount || 0), 0);
+    const totalEarnings = wonEntries.reduce((sum, entry) => sum + (entry.actual_payout || 0), 0);
+    const winRate = completedEntries.length > 0 ? Math.round((wonEntries.length / completedEntries.length) * 100) : 0;
+    
     return {
-      totalEarnings: dataUser.totalEarnings || 0,
-      totalInvested: dataUser.totalInvested || 0,
-      winRate: dataUser.winRate || 0,
-      activePredictions: dataUser.activePredictions || 0,
-      totalPredictions: dataUser.totalPredictions || 0,
+      totalEarnings,
+      totalInvested,
+      winRate,
+      activePredictions,
+      totalPredictions: userEntries.length + userCreated.length,
       rank: dataUser.rank || 0,
       joinedDate: dataUser.createdAt ? new Date(dataUser.createdAt).toLocaleDateString('en-US', { 
         year: 'numeric', 
         month: 'long' 
       }) : 'Recently',
-      level: dataUser.level || 'New Predictor'
+      level: activePredictions > 5 ? 'Expert Predictor' : activePredictions > 0 ? 'Active Predictor' : 'New Predictor'
     };
-  }, [profileUser, currentUser]);
+  }, [profileUser, currentUser, userId, getUserPredictionEntries, getUserCreatedPredictions]);
 
   const menuItems = React.useMemo(() => [
     {
