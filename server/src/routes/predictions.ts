@@ -223,6 +223,35 @@ router.get('/:id', async (req, res) => {
 
 
 
+// POST /api/v2/predictions/debug-creator - Debug endpoint to test creator_id handling
+router.post('/debug-creator', async (req, res) => {
+  try {
+    console.log('🔍 DEBUG ENDPOINT - Request body:', JSON.stringify(req.body, null, 2));
+    
+    const creatorId = req.body.creatorId;
+    const title = req.body.title;
+    
+    // Test if we can read the request body properly
+    const result = {
+      received_creatorId: creatorId,
+      received_title: title,
+      would_use_creatorId: creatorId || 'FALLBACK_USED',
+      timestamp: new Date().toISOString()
+    };
+    
+    console.log('🔍 DEBUG RESULT:', result);
+    
+    return res.json({
+      debug: result,
+      message: 'Debug endpoint for testing creator_id handling',
+      version: '2.0.55'
+    });
+  } catch (error) {
+    console.error('Debug endpoint error:', error);
+    return res.status(500).json({ error: error.message });
+  }
+});
+
 // GET /api/v2/predictions/created/:userId - Get user's created predictions
 router.get('/created/:userId', async (req, res) => {
   try {
