@@ -1363,12 +1363,53 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigateBack, userId }) => 
     }
   ], [setActiveSection]);
 
-  const achievements = React.useMemo(() => [
-    { id: 1, title: 'First Prediction', icon: '🎯', unlocked: true },
-    { id: 2, title: 'Winning Streak', icon: '🔥', unlocked: true },
-    { id: 3, title: 'Top Predictor', icon: '👑', unlocked: false },
-    { id: 4, title: 'Community Leader', icon: '⭐', unlocked: false }
-  ], []);
+  // Real achievements based on user activity
+  const achievements = React.useMemo(() => {
+    const targetUserId = userId || currentUser?.id;
+    if (!targetUserId) return [];
+
+    const userEntries = getUserPredictionEntries(targetUserId);
+    const userCreated = getUserCreatedPredictions(targetUserId);
+    
+    // Calculate real achievement criteria
+    const totalPredictions = userEntries.length;
+    const totalCreated = userCreated.length;
+    const wonPredictions = userEntries.filter(entry => entry.status === 'won').length;
+    const totalEarnings = userEntries
+      .filter(entry => entry.status === 'won')
+      .reduce((sum, entry) => sum + (entry.actual_payout || 0), 0);
+    
+    return [
+      { 
+        id: 1, 
+        title: 'First Prediction', 
+        icon: '🎯', 
+        unlocked: totalPredictions > 0,
+        description: 'Make your first prediction'
+      },
+      { 
+        id: 2, 
+        title: 'Active Predictor', 
+        icon: '🔥', 
+        unlocked: totalPredictions >= 3,
+        description: `Make 3 predictions (${totalPredictions}/3)`
+      },
+      { 
+        id: 3, 
+        title: 'Top Predictor', 
+        icon: '👑', 
+        unlocked: wonPredictions >= 5,
+        description: `Win 5 predictions (${wonPredictions}/5)`
+      },
+      { 
+        id: 4, 
+        title: 'Community Leader', 
+        icon: '⭐', 
+        unlocked: totalCreated >= 2,
+        description: `Create 2 predictions (${totalCreated}/2)`
+      }
+    ];
+  }, [userId, currentUser?.id, getUserPredictionEntries, getUserCreatedPredictions]);
 
   const handleSaveProfile = () => {
     updateProfile({

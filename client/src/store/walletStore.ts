@@ -82,21 +82,16 @@ export const useWalletStore = create<WalletState>()(
         set({ isLoading: true, error: null });
         
         try {
-          // For demo purposes, we'll use local state with fallback to database
-          const state = get();
-          if (state.balances.length > 0 && state.balances[0].total > 0) {
-            console.log('✅ Wallet already initialized with demo balance');
-            set({ isLoading: false });
-            return;
-          }
+          // Always fetch from database - no demo balance fallback
 
-          // Try to get from database first
+          // Get user from database
           const { data: { user } } = await supabase.auth.getUser();
           if (!user) {
-            console.log('⚠️ No authenticated user found, using demo balance');
+            console.log('⚠️ No authenticated user found');
             set({ 
-              balances: [{ currency: 'USD', available: 1000, reserved: 0, total: 1000 }],
-              isLoading: false 
+              balances: [],
+              isLoading: false,
+              error: 'User not authenticated'
             });
             return;
           }

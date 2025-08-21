@@ -28,18 +28,27 @@ const TappableUsername: React.FC<TappableUsernameProps> = ({
     
     if (onClick) {
       onClick();
-    } else if (userId && userId.trim() !== '') {
-      // Navigate to user profile with userId
+      return;
+    }
+    
+    // Validate userId format (basic UUID check)
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    
+    if (userId && userId.trim() !== '' && uuidRegex.test(userId.trim())) {
+      // Navigate to user profile with valid userId
       console.log('🔗 Navigating to profile with userId:', userId);
-      navigate(`/profile/${userId}`);
+      navigate(`/profile/${userId.trim()}`);
     } else if (username && username.trim() !== '') {
-      // Navigate to user profile with username as fallback
+      // Log warning for invalid userId but still try username
+      if (userId && !uuidRegex.test(userId.trim())) {
+        console.warn('⚠️ Invalid userId format, using username instead:', userId);
+      }
       const cleanUsername = username.replace('@', '').trim();
       console.log('🔗 Navigating to profile with username:', cleanUsername);
       navigate(`/profile/${cleanUsername}`);
     } else {
       console.warn('⚠️ No valid userId or username provided for profile navigation');
-      // Don't throw error, just log warning and return
+      // Don't navigate on invalid data to prevent React errors
       return;
     }
   };
