@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { supabase } from '../lib/supabase';
 import { getApiUrl } from '../config';
 import { useAuthStore } from './authStore';
+import { apiClient } from '../lib/apiUtils';
 
 export interface Prediction {
   id: string;
@@ -186,30 +187,22 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
     set({ loading: true, error: null });
     
     try {
-      console.log('📡 Fetching predictions from API...');
+      console.log('📡 Fetching predictions from API with retry logic...');
       
-      const response = await fetch(`${getApiUrl()}/api/v2/predictions`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json'
-        }
+      const data = await apiClient.get('/api/v2/predictions', {
+        timeout: 10000,
+        retryOptions: { maxRetries: 3 }
       });
 
-      if (!response.ok) {
-        throw new Error(`API Error: ${response.status} ${response.statusText}`);
-      }
-
-      const data = await response.json();
       const predictions = data.data || [];
       
       console.log('✅ Predictions fetched successfully:', predictions.length);
 
-        set({ 
+      set({ 
         predictions,
-          loading: false,
+        loading: false,
         error: null,
-          initialized: true,
+        initialized: true,
         lastFetchTime: currentTime
       });
 
@@ -458,21 +451,12 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
     set({ statsLoading: true });
     
     try {
-      console.log('📊 Fetching platform stats...');
+      console.log('📊 Fetching platform stats with retry logic...');
       
-      const response = await fetch(`${getApiUrl()}/api/v2/predictions/stats/platform`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json'
-        }
+      const data = await apiClient.get('/api/v2/predictions/stats/platform', {
+        timeout: 8000,
+        retryOptions: { maxRetries: 3 }
       });
-
-      if (!response.ok) {
-        throw new Error(`Stats API Error: ${response.status} ${response.statusText}`);
-      }
-
-      const data = await response.json();
       
       if (data.success && data.data) {
         set({
@@ -527,21 +511,13 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
   // User-specific data fetching methods
   fetchUserPredictionEntries: async (userId: string) => {
     try {
-      console.log('📋 Fetching user prediction entries for:', userId);
+      console.log('📋 Fetching user prediction entries with retry logic for:', userId);
       
-      const response = await fetch(`${getApiUrl()}/api/v2/prediction-entries/user/${userId}`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json'
-        }
+      const data = await apiClient.get(`/api/v2/prediction-entries/user/${userId}`, {
+        timeout: 10000,
+        retryOptions: { maxRetries: 3 }
       });
 
-      if (!response.ok) {
-        throw new Error(`Failed to fetch user prediction entries: ${response.statusText}`);
-      }
-
-      const data = await response.json();
       const userPredictionEntries = data.data || [];
 
       set({ userPredictionEntries });
@@ -555,21 +531,13 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
 
   fetchUserCreatedPredictions: async (userId: string) => {
     try {
-      console.log('📋 Fetching user created predictions for:', userId);
+      console.log('📋 Fetching user created predictions with retry logic for:', userId);
       
-      const response = await fetch(`${getApiUrl()}/api/v2/predictions/created/${userId}`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json'
-        }
+      const data = await apiClient.get(`/api/v2/predictions/created/${userId}`, {
+        timeout: 10000,
+        retryOptions: { maxRetries: 3 }
       });
 
-      if (!response.ok) {
-        throw new Error(`Failed to fetch user created predictions: ${response.statusText}`);
-      }
-
-      const data = await response.json();
       const userCreatedPredictions = data.data || [];
 
       set({ userCreatedPredictions });
