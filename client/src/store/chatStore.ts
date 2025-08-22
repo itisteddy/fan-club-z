@@ -2,7 +2,8 @@ import { io, Socket } from 'socket.io-client';
 import { create } from 'zustand';
 import { useAuthStore } from './authStore';
 import { getSocketUrl } from '../lib/environment';
-import { VERSION } from '../../../shared/src/version';
+// Production-compatible version import
+const VERSION = "2.0.67";
 
 export interface ChatMessage {
   id: string;

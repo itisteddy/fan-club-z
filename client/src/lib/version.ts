@@ -1,6 +1,7 @@
 // Comprehensive version management system
 // Centralized: import VERSION from shared
-import { VERSION as SHARED_VERSION } from '../../../shared/src/version';
+// Production-compatible version import
+const SHARED_VERSION = "2.0.67";
 
 const BASE_VERSION = SHARED_VERSION;
 
