@@ -649,12 +649,28 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
         throw new Error(`Failed to delete prediction: ${response.statusText}`);
       }
 
-      // Remove prediction from all state arrays
+      // Optimistically remove prediction from all relevant state arrays
       set(state => ({
         predictions: state.predictions.filter(pred => pred.id !== predictionId),
+        createdPredictions: state.createdPredictions.filter(pred => pred.id !== predictionId),
         userCreatedPredictions: state.userCreatedPredictions.filter(pred => pred.id !== predictionId),
-        trendingPredictions: state.trendingPredictions.filter(pred => pred.id !== predictionId)
+        trendingPredictions: state.trendingPredictions.filter(pred => pred.id !== predictionId),
+        completedPredictions: state.completedPredictions.filter(pred => pred.id !== predictionId),
       }));
+
+      // Proactively refresh lists to avoid any stale interactions
+      try {
+        const { user } = useAuthStore.getState();
+        // Force-refresh main feeds (bypass cache)
+        await get().refreshPredictions(true);
+        await get().fetchTrendingPredictions();
+        if (user?.id) {
+          await get().fetchUserCreatedPredictions(user.id);
+          await get().fetchUserPredictionEntries(user.id);
+        }
+      } catch (refreshError) {
+        console.warn('⚠️ Post-delete refresh had an issue:', refreshError);
+      }
 
       console.log('✅ Prediction deleted successfully');
 

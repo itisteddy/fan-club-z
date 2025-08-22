@@ -5,6 +5,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = __importDefault(require("express"));
 const database_1 = require("../config/database");
+const shared_1 = require("@fanclubz/shared");
 const router = express_1.default.Router();
 // GET /api/v2/users/:id - Get user profile by ID
 router.get('/:id', async (req, res) => {
@@ -30,7 +31,7 @@ router.get('/:id', async (req, res) => {
             return res.status(404).json({
                 error: 'Not found',
                 message: `User ${id} not found`,
-                version: '2.0.55',
+                version: shared_1.VERSION,
                 details: error.message
             });
         }
@@ -66,7 +67,7 @@ router.get('/:id', async (req, res) => {
                 stats
             },
             message: 'User profile fetched successfully',
-            version: '2.0.55'
+            version: shared_1.VERSION
         });
     }
     catch (error) {
@@ -74,7 +75,7 @@ router.get('/:id', async (req, res) => {
         return res.status(500).json({
             error: 'Internal server error',
             message: 'Failed to fetch user profile',
-            version: '2.0.55',
+            version: shared_1.VERSION,
             details: error instanceof Error ? error.message : 'Unknown error'
         });
     }
@@ -100,14 +101,14 @@ router.get('/:id/predictions', async (req, res) => {
             return res.status(500).json({
                 error: 'Database error',
                 message: 'Failed to fetch user predictions',
-                version: '2.0.55',
+                version: shared_1.VERSION,
                 details: error.message
             });
         }
         return res.json({
             data: predictions || [],
             message: 'User predictions fetched successfully',
-            version: '2.0.55'
+            version: shared_1.VERSION
         });
     }
     catch (error) {
@@ -115,7 +116,7 @@ router.get('/:id/predictions', async (req, res) => {
         return res.status(500).json({
             error: 'Internal server error',
             message: 'Failed to fetch user predictions',
-            version: '2.0.55',
+            version: shared_1.VERSION,
             details: error instanceof Error ? error.message : 'Unknown error'
         });
     }

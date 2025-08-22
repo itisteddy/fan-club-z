@@ -3,7 +3,7 @@ import { useLocation } from 'wouter';
 import { Search, Bell, Menu, Sparkles } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { Button } from '../ui/button';
-import { Avatar, AvatarImage, AvatarFallback } from '../ui/avatar';
+import UserAvatar from '../common/UserAvatar';
 import { useAuth } from '../../providers/AuthProvider';
 import { generateInitials, getAvatarUrl } from '../../lib/utils';
 
@@ -92,16 +92,8 @@ export const TopHeader: React.FC = () => {
           </motion.div>
 
           {/* User Avatar */}
-          <motion.div
-            whileTap={{ scale: 0.95 }}
-            whileHover={{ scale: 1.05 }}
-          >
-            <Avatar className="w-11 h-11 ring-2 ring-primary-green/20 transition-all duration-200 hover:ring-primary-green/40">
-              <AvatarImage src={getAvatarUrl(user || {})} />
-              <AvatarFallback className="bg-gradient-primary text-white text-sm font-semibold">
-                {generateInitials(user?.full_name || user?.username)}
-              </AvatarFallback>
-            </Avatar>
+          <motion.div whileTap={{ scale: 0.95 }} whileHover={{ scale: 1.05 }}>
+            <UserAvatar email={user?.email} username={user?.username} avatarUrl={getAvatarUrl(user || {})} size="md" className="ring-2 ring-primary-green/20 transition-all duration-200 hover:ring-primary-green/40" />
           </motion.div>
         </motion.div>
       </div>

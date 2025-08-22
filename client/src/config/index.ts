@@ -1,6 +1,7 @@
 // Centralized configuration for Fan Club Z
 // Single source of truth for all configuration values
 import { VERSION } from '../../../shared/src/version';
+import { getEnvironmentConfig } from '../lib/environment';
 
 export const APP_CONFIG = {
   version: VERSION,
@@ -8,7 +9,8 @@ export const APP_CONFIG = {
   description: 'Social Prediction Platform',
   
   api: {
-    url: import.meta.env.VITE_API_URL || 'https://fan-club-z.onrender.com',
+    // Use dynamic environment detection so LAN access (e.g., 172.x) targets the same host:3001
+    url: getEnvironmentConfig().apiUrl,
     timeout: 15000,
     retries: 3
   },

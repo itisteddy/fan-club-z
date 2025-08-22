@@ -56,18 +56,34 @@ const BetsTab: React.FC<BetsTabProps> = ({ onNavigateToDiscover }) => {
     scrollToTop({ behavior: 'instant' });
   }, []);
 
-  // Fetch user's data when component mounts or user changes - optimized
+  // Fetch user's data when component mounts or user changes - optimized to prevent loops
   useEffect(() => {
-    if (user?.id && isAuthenticated) {
-      // Add a small delay to prevent excessive fetching during rapid navigation
-      const timeoutId = setTimeout(() => {
-        fetchUserCreatedPredictions(user.id);
-        fetchUserPredictionEntries(user.id);
-      }, 100);
-      
-      return () => clearTimeout(timeoutId);
+    if (!user?.id || !isAuthenticated) {
+      return;
     }
-  }, [user?.id, isAuthenticated, fetchUserCreatedPredictions, fetchUserPredictionEntries]);
+
+    let isMounted = true;
+    let hasFetched = false;
+
+    const fetchData = () => {
+      if (!isMounted || hasFetched) return;
+      
+      console.log('📊 BetsTab: Fetching data for user:', user.id);
+      fetchUserCreatedPredictions(user.id);
+      fetchUserPredictionEntries(user.id);
+      hasFetched = true;
+    };
+
+    // Add a small delay to prevent excessive fetching during rapid navigation
+    const timeoutId = setTimeout(fetchData, 100);
+    
+    return () => {
+      isMounted = false;
+      clearTimeout(timeoutId);
+    };
+  }, [user?.id, isAuthenticated]); // Removed function dependencies to prevent loops
+
+
   
   const [activeTab, setActiveTab] = useState('Active');
   const [isManageModalOpen, setIsManageModalOpen] = useState(false);
@@ -531,7 +547,7 @@ const BetsTab: React.FC<BetsTabProps> = ({ onNavigateToDiscover }) => {
           <h1 className="text-3xl font-bold text-gray-900 mb-6">My Predictions</h1>
           
           {/* Tab Navigation */}
-          <div className="flex space-x-1 bg-gray-100 p-1 rounded-xl">
+          <div className="flex space-x-1 bg-gray-100 p-1 rounded-xl" data-tour-id="bets-tabs">
             {tabs.map((tab) => {
               const Icon = tab.icon;
               return (

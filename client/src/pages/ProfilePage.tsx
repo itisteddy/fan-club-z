@@ -27,11 +27,13 @@ import {
   FileText,
   Heart
 } from 'lucide-react';
+import UserAvatar from '../components/common/UserAvatar';
 import { useAuthStore } from '../store/authStore';
 import { usePredictionStore } from '../store/predictionStore';
 import { scrollToTop } from '../utils/scroll';
 import { usePullToRefresh } from '../utils/pullToRefresh';
 import { APP_VERSION } from '../lib/version';
+import { getApiUrl } from '../config';
 
 interface ProfilePageProps {
   onNavigateBack?: () => void;
@@ -1145,37 +1147,72 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigateBack, userId }) => 
 
   // Determine if viewing another user's profile and fetch their data
   React.useEffect(() => {
+    // Prevent infinite loops with early returns
+    if (!currentUser) {
+      console.log('⏳ Waiting for currentUser to load...');
+      return;
+    }
+
     try {
+      console.log('🔎 ProfilePage useEffect triggered with:', { userId, currentUserId: currentUser?.id });
+      
       // Validate userId
       if (!userId || typeof userId !== 'string' || userId.trim() === '') {
-        console.log('No valid userId provided, viewing own profile');
-        setViewingOtherUser(false);
-        setProfileUser(currentUser);
+        console.log('ℹ️ No valid userId provided, viewing own profile');
+        if (!viewingOtherUser) { // Prevent unnecessary state updates
+          setViewingOtherUser(false);
+        }
+        if (profileUser !== currentUser) { // Prevent unnecessary state updates
+          setProfileUser(currentUser);
+        }
         return;
       }
 
       const isViewingOther = userId !== currentUser?.id;
-      setViewingOtherUser(isViewingOther);
+      console.log('🔄 Profile viewing decision:', { 
+        userId, 
+        currentUserId: currentUser?.id, 
+        isViewingOther 
+      });
+      
+      // Only update state if it actually changed
+      if (viewingOtherUser !== isViewingOther) {
+        setViewingOtherUser(isViewingOther);
+      }
       
       if (isViewingOther) {
-        console.log('Viewing other user profile:', userId);
-        // Fetch other user's profile data
-        fetchUserProfile(userId);
+        console.log('👥 Viewing other user profile:', userId);
+        // Only fetch if we don't already have this user's data
+        if (!profileUser || profileUser.id !== userId) {
+          fetchUserProfile(userId);
+        }
       } else {
-        console.log('Viewing own profile');
-        // Viewing own profile
-        setProfileUser(currentUser);
+        console.log('👤 Viewing own profile');
+        // Only update if different
+        if (profileUser !== currentUser) {
+          setProfileUser(currentUser);
+        }
       }
     } catch (error) {
-      console.error('Error in profile useEffect:', error);
-      // Fallback to own profile on error
-      setViewingOtherUser(false);
-      setProfileUser(currentUser);
+      console.error('❌ Error in profile useEffect:', error);
+      // Fallback to own profile on error - prevent loops
+      if (viewingOtherUser) {
+        setViewingOtherUser(false);
+      }
+      if (profileUser !== currentUser) {
+        setProfileUser(currentUser);
+      }
     }
-  }, [userId, currentUser]);
+  }, [userId, currentUser?.id]); // Only depend on userId and currentUser.id, not full currentUser object
 
-  // Function to fetch user profile data from API
-  const fetchUserProfile = async (targetUserId: string) => {
+  // Function to fetch user profile data from API  
+  const fetchUserProfile = React.useCallback(async (targetUserId: string) => {
+    // Prevent multiple simultaneous requests for the same user
+    if (loadingProfile) {
+      console.log('🔄 Already loading profile, skipping request');
+      return;
+    }
+
     setLoadingProfile(true);
     try {
       console.log('🔍 Fetching profile for user ID:', targetUserId);
@@ -1183,20 +1220,25 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigateBack, userId }) => 
       // Validate userId format (basic UUID check)
       const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
       if (!uuidRegex.test(targetUserId)) {
-        console.warn('⚠️ Invalid userId format:', targetUserId);
-        setViewingOtherUser(false);
-        setProfileUser(currentUser);
-        setLoadingProfile(false);
-        return;
+        console.warn('⚠️ Invalid userId format, but attempting API call anyway:', targetUserId);
+        // Don't return early - some users might have non-UUID identifiers
       }
       
-      const apiUrl = import.meta.env.VITE_API_URL || 'https://fan-club-z.onrender.com';
-      const response = await fetch(`${apiUrl}/api/v2/users/${targetUserId}`, {
+      // Use getApiUrl helper for consistent API URL handling
+      const apiUrl = getApiUrl();
+      const requestUrl = `${apiUrl}/api/v2/users/${targetUserId}`;
+      console.log('🌐 Making API request to:', requestUrl);
+      
+      const response = await fetch(requestUrl, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
         },
+        // Add timeout and error handling
+        signal: AbortSignal.timeout(10000), // 10 second timeout
       });
+
+      console.log('📝 API Response status:', response.status, response.statusText);
 
       if (!response.ok) {
         if (response.status === 404) {
@@ -1206,10 +1248,11 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigateBack, userId }) => 
           setLoadingProfile(false);
           return;
         }
-        throw new Error(`HTTP error! status: ${response.status}`);
+        throw new Error(`HTTP error! status: ${response.status} ${response.statusText}`);
       }
 
       const result = await response.json();
+      console.log('📦 Raw API response:', result);
       
       if (result.error) {
         throw new Error(result.message || 'Failed to fetch user profile');
@@ -1217,13 +1260,17 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigateBack, userId }) => 
 
       // Transform API data to match component expectations
       const userData = result.data;
+      if (!userData) {
+        throw new Error('No user data in API response');
+      }
+
       const transformedUser = {
         id: userData.id,
-        firstName: userData.full_name?.split(' ')[0] || userData.username,
+        firstName: userData.full_name?.split(' ')[0] || userData.username || 'Unknown',
         lastName: userData.full_name?.split(' ').slice(1).join(' ') || '',
-        email: userData.email,
+        email: userData.email || '',
         bio: userData.bio || 'No bio available',
-        avatar: userData.avatar_url,
+        avatar: userData.avatar_url || null,
         totalEarnings: userData.stats?.totalEarnings || 0,
         totalInvested: userData.stats?.totalInvested || 0,
         winRate: userData.stats?.winRate || 0,
@@ -1233,21 +1280,29 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigateBack, userId }) => 
         level: userData.reputation_score > 1000 ? 'Advanced Predictor' : 
                userData.reputation_score > 500 ? 'Intermediate Predictor' : 'New Predictor',
         createdAt: userData.created_at,
-        username: userData.username,
-        isVerified: userData.is_verified
+        username: userData.username || userData.full_name || 'unknown_user',
+        isVerified: userData.is_verified || false
       };
       
-      console.log('✅ User profile fetched successfully:', transformedUser);
+      console.log('✅ User profile transformed successfully:', transformedUser);
       setProfileUser(transformedUser);
     } catch (error) {
       console.error('❌ Error fetching user profile:', error);
-      // Set a fallback user object to prevent React errors
-      setProfileUser({
+      
+      // Handle different types of errors
+      if (error.name === 'AbortError') {
+        console.log('⏱️ Request timed out');
+      } else if (error.message.includes('ERR_BLOCKED_BY_CLIENT')) {
+        console.log('🚫 Request blocked by client (likely ad blocker)');
+      }
+      
+      // Create a more informative fallback user object
+      const fallbackUser = {
         id: targetUserId,
         firstName: 'Unknown',
         lastName: 'User',
         email: '',
-        bio: 'Profile not available',
+        bio: error instanceof Error ? `Profile temporarily unavailable` : 'Profile not available',
         avatar: null,
         totalEarnings: 0,
         totalInvested: 0,
@@ -1259,11 +1314,14 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigateBack, userId }) => 
         createdAt: new Date().toISOString(),
         username: 'unknown_user',
         isVerified: false
-      });
+      };
+      
+      console.log('🎆 Setting fallback user:', fallbackUser);
+      setProfileUser(fallbackUser);
     } finally {
       setLoadingProfile(false);
     }
-  };
+  }, [loadingProfile]); // Add loadingProfile to dependencies
 
   // Scroll to top when component mounts
   React.useEffect(() => {
@@ -1282,14 +1340,54 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigateBack, userId }) => 
     disabled: false
   });
 
-  // Fetch user prediction data for stats calculation
+  // Unified effect to fetch user prediction data - prevents infinite loops
   React.useEffect(() => {
     const targetUserId = userId || currentUser?.id;
-    if (targetUserId) {
-      fetchUserPredictionEntries(targetUserId);
-      fetchUserCreatedPredictions(targetUserId);
+    
+    // Only proceed if we have a target user and current user context
+    if (!targetUserId || !currentUser) {
+      return;
     }
-  }, [userId, currentUser?.id, fetchUserPredictionEntries, fetchUserCreatedPredictions]);
+
+    let isMounted = true;
+    let hasInitialFetch = false;
+
+    const fetchData = () => {
+      if (!isMounted || hasInitialFetch) return;
+      
+      try {
+        console.log('📊 ProfilePage: Fetching data for user:', targetUserId);
+        fetchUserPredictionEntries(targetUserId);
+        fetchUserCreatedPredictions(targetUserId);
+        hasInitialFetch = true;
+      } catch (error) {
+        console.error('Error fetching user prediction data:', error);
+      }
+    };
+
+    // Check if auth is ready, if not wait for it
+    const { isAuthenticated, initialized } = useAuthStore.getState();
+    if (initialized && isAuthenticated) {
+      fetchData();
+    } else {
+      // Wait for auth initialization
+      const unsubscribe = useAuthStore.subscribe((state) => {
+        if (state.initialized && state.isAuthenticated && !hasInitialFetch) {
+          fetchData();
+          unsubscribe();
+        }
+      });
+      
+      return () => {
+        isMounted = false;
+        unsubscribe();
+      };
+    }
+
+    return () => {
+      isMounted = false;
+    };
+  }, [userId, currentUser?.id]); // Only depend on stable user IDs
 
   // Real user stats based on actual prediction data - memoized for performance
   const userStats = React.useMemo(() => {
@@ -1310,32 +1408,46 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigateBack, userId }) => 
       };
     }
     
-    // Get real prediction data
-    const userEntries = getUserPredictionEntries(targetUserId);
-    const userCreated = getUserCreatedPredictions(targetUserId);
-    
-    // Calculate real stats
-    const activePredictions = userEntries.filter(entry => entry.status === 'active').length;
-    const completedEntries = userEntries.filter(entry => entry.status === 'won' || entry.status === 'lost');
-    const wonEntries = userEntries.filter(entry => entry.status === 'won');
-    const totalInvested = userEntries.reduce((sum, entry) => sum + (entry.amount || 0), 0);
-    const totalEarnings = wonEntries.reduce((sum, entry) => sum + (entry.actual_payout || 0), 0);
-    const winRate = completedEntries.length > 0 ? Math.round((wonEntries.length / completedEntries.length) * 100) : 0;
-    
-    return {
-      totalEarnings,
-      totalInvested,
-      winRate,
-      activePredictions,
-      totalPredictions: userEntries.length + userCreated.length,
-      rank: dataUser.rank || 0,
-      joinedDate: dataUser.createdAt ? new Date(dataUser.createdAt).toLocaleDateString('en-US', { 
-        year: 'numeric', 
-        month: 'long' 
-      }) : 'Recently',
-      level: activePredictions > 5 ? 'Expert Predictor' : activePredictions > 0 ? 'Active Predictor' : 'New Predictor'
-    };
-  }, [profileUser, currentUser, userId, getUserPredictionEntries, getUserCreatedPredictions]);
+    try {
+      // Get real prediction data with error handling
+      const userEntries = getUserPredictionEntries(targetUserId) || [];
+      const userCreated = getUserCreatedPredictions(targetUserId) || [];
+      
+      // Calculate real stats
+      const activePredictions = userEntries.filter(entry => entry?.status === 'active').length;
+      const completedEntries = userEntries.filter(entry => entry?.status === 'won' || entry?.status === 'lost');
+      const wonEntries = userEntries.filter(entry => entry?.status === 'won');
+      const totalInvested = userEntries.reduce((sum, entry) => sum + (entry?.amount || 0), 0);
+      const totalEarnings = wonEntries.reduce((sum, entry) => sum + (entry?.actual_payout || 0), 0);
+      const winRate = completedEntries.length > 0 ? Math.round((wonEntries.length / completedEntries.length) * 100) : 0;
+      
+      return {
+        totalEarnings,
+        totalInvested,
+        winRate,
+        activePredictions,
+        totalPredictions: userEntries.length + userCreated.length,
+        rank: dataUser.rank || 0,
+        joinedDate: dataUser.createdAt ? new Date(dataUser.createdAt).toLocaleDateString('en-US', { 
+          year: 'numeric', 
+          month: 'long' 
+        }) : 'Recently',
+        level: activePredictions > 5 ? 'Expert Predictor' : activePredictions > 0 ? 'Active Predictor' : 'New Predictor'
+      };
+    } catch (error) {
+      console.error('Error calculating user stats:', error);
+      return {
+        totalEarnings: 0,
+        totalInvested: 0,
+        winRate: 0,
+        activePredictions: 0,
+        totalPredictions: 0,
+        rank: 0,
+        joinedDate: 'Recently',
+        level: 'New Predictor'
+      };
+    }
+  }, [profileUser?.id, userId, currentUser?.id]); // Simplified dependencies
 
   const menuItems = React.useMemo(() => [
     {
@@ -1373,48 +1485,53 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigateBack, userId }) => 
     const targetUserId = userId || currentUser?.id;
     if (!targetUserId) return [];
 
-    const userEntries = getUserPredictionEntries(targetUserId);
-    const userCreated = getUserCreatedPredictions(targetUserId);
-    
-    // Calculate real achievement criteria
-    const totalPredictions = userEntries.length;
-    const totalCreated = userCreated.length;
-    const wonPredictions = userEntries.filter(entry => entry.status === 'won').length;
-    const totalEarnings = userEntries
-      .filter(entry => entry.status === 'won')
-      .reduce((sum, entry) => sum + (entry.actual_payout || 0), 0);
-    
-    return [
-      { 
-        id: 1, 
-        title: 'First Prediction', 
-        icon: '🎯', 
-        unlocked: totalPredictions > 0,
-        description: 'Make your first prediction'
-      },
-      { 
-        id: 2, 
-        title: 'Active Predictor', 
-        icon: '🔥', 
-        unlocked: totalPredictions >= 3,
-        description: `Make 3 predictions (${totalPredictions}/3)`
-      },
-      { 
-        id: 3, 
-        title: 'Top Predictor', 
-        icon: '👑', 
-        unlocked: wonPredictions >= 5,
-        description: `Win 5 predictions (${wonPredictions}/5)`
-      },
-      { 
-        id: 4, 
-        title: 'Community Leader', 
-        icon: '⭐', 
-        unlocked: totalCreated >= 2,
-        description: `Create 2 predictions (${totalCreated}/2)`
-      }
-    ];
-  }, [userId, currentUser?.id, getUserPredictionEntries, getUserCreatedPredictions]);
+    try {
+      const userEntries = getUserPredictionEntries(targetUserId) || [];
+      const userCreated = getUserCreatedPredictions(targetUserId) || [];
+      
+      // Calculate real achievement criteria
+      const totalPredictions = userEntries.length;
+      const totalCreated = userCreated.length;
+      const wonPredictions = userEntries.filter(entry => entry?.status === 'won').length;
+      const totalEarnings = userEntries
+        .filter(entry => entry?.status === 'won')
+        .reduce((sum, entry) => sum + (entry?.actual_payout || 0), 0);
+      
+      return [
+        { 
+          id: 1, 
+          title: 'First Prediction', 
+          icon: '🎯', 
+          unlocked: totalPredictions > 0,
+          description: 'Make your first prediction'
+        },
+        { 
+          id: 2, 
+          title: 'Active Predictor', 
+          icon: '🔥', 
+          unlocked: totalPredictions >= 3,
+          description: `Make 3 predictions (${totalPredictions}/3)`
+        },
+        { 
+          id: 3, 
+          title: 'Top Predictor', 
+          icon: '👑', 
+          unlocked: wonPredictions >= 5,
+          description: `Win 5 predictions (${wonPredictions}/5)`
+        },
+        { 
+          id: 4, 
+          title: 'Community Leader', 
+          icon: '⭐', 
+          unlocked: totalCreated >= 2,
+          description: `Create 2 predictions (${totalCreated}/2)`
+        }
+      ];
+    } catch (error) {
+      console.error('Error calculating achievements:', error);
+      return [];
+    }
+  }, [userId, currentUser?.id]); // Simplified dependencies
 
   const handleSaveProfile = () => {
     updateProfile({
@@ -1544,10 +1661,11 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigateBack, userId }) => 
   };
 
   // Don't show settings sections when viewing another user's profile
-  if (viewingOtherUser) {
-    // Keep activeSection as 'overview' for other users
-    setActiveSection('overview');
-  }
+  React.useEffect(() => {
+    if (viewingOtherUser && activeSection !== 'overview') {
+      setActiveSection('overview');
+    }
+  }, [viewingOtherUser, activeSection]);
 
   // Render different sections based on activeSection (only for own profile)
   if (!viewingOtherUser && activeSection === 'account') {
@@ -1722,7 +1840,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigateBack, userId }) => 
       )}
 
       {/* Header with Gradient Background */}
-      <div style={{ background: 'linear-gradient(135deg, #10b981, #059669)', minHeight: '300px' }}>
+      <div style={{ background: 'linear-gradient(135deg, #10b981, #059669)', minHeight: '300px' }} data-tour-id="profile-header">
           {/* Decorative elements */}
           <div 
             style={{
@@ -1801,6 +1919,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigateBack, userId }) => 
 
         {/* Profile Card - Normal positioning */}
         <div 
+          data-tour-id="profile-card"
           style={{
             margin: '16px',
             background: 'white',
@@ -1821,22 +1940,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigateBack, userId }) => 
               >
                 <div style={{ display: 'flex', alignItems: 'flex-start', gap: '16px', marginBottom: '16px' }}>
                   <div style={{ position: 'relative', flexShrink: 0 }}>
-                    <div 
-                      style={{
-                        width: '80px',
-                        height: '80px',
-                        background: 'linear-gradient(135deg, #10b981, #059669)',
-                        borderRadius: '50%',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        border: '4px solid white'
-                      }}
-                    >
-                      <span style={{ color: 'white', fontSize: '28px', fontWeight: '700' }}>
-                        {(editForm.firstName?.charAt(0) || editForm.email?.charAt(0) || 'U').toUpperCase()}
-                      </span>
-                    </div>
+                    <UserAvatar email={editForm.email} avatarUrl={currentUser?.avatar} size="xl" className="ring-4 ring-white" />
                     <button 
                       style={{
                         position: 'absolute',
@@ -1851,6 +1955,23 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigateBack, userId }) => 
                         alignItems: 'center',
                         justifyContent: 'center',
                         cursor: 'pointer'
+                      }}
+                      onClick={() => {
+                        const input = document.createElement('input');
+                        input.type = 'file';
+                        input.accept = 'image/*';
+                        input.onchange = async (e: any) => {
+                          const file = e.target.files?.[0];
+                          if (!file) return;
+                          try {
+                            const url = await useAuthStore.getState().uploadAvatar(file);
+                            console.log('Avatar uploaded:', url);
+                          } catch (err) {
+                            console.error('Avatar upload failed', err);
+                            alert('Failed to upload image. Please try again.');
+                          }
+                        };
+                        input.click();
                       }}
                     >
                       <Camera size={12} style={{ color: 'white' }} />
@@ -1992,22 +2113,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigateBack, userId }) => 
               >
                 <div style={{ display: 'flex', alignItems: 'flex-start', gap: '16px', marginBottom: '16px' }}>
                   <div style={{ position: 'relative', flexShrink: 0 }}>
-                    <div 
-                      style={{
-                        width: '80px',
-                        height: '80px',
-                        background: 'linear-gradient(135deg, #10b981, #059669)',
-                        borderRadius: '50%',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        border: '4px solid white'
-                      }}
-                    >
-                      <span style={{ color: 'white', fontSize: '28px', fontWeight: '700' }}>
-                        {(profileUser?.firstName?.charAt(0) || profileUser?.email?.charAt(0) || 'U').toUpperCase()}
-                      </span>
-                    </div>
+                    <UserAvatar email={profileUser?.email} username={profileUser?.username} avatarUrl={profileUser?.avatar} size="xl" className="ring-4 ring-white" />
                   </div>
                   
                   <div style={{ flex: 1, minWidth: 0, paddingTop: '4px' }}>
@@ -2252,76 +2358,79 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigateBack, userId }) => 
         </motion.div>
         )}
 
-        {/* Account Info */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.3 }}
-          style={{
-            background: 'white',
-            borderRadius: '12px',
-            padding: '20px',
-            marginBottom: '16px',
-            boxShadow: '0 2px 8px rgba(0, 0, 0, 0.05)'
-          }}
-        >
-          <h3 style={{ fontSize: '18px', fontWeight: '700', color: '#111827', marginBottom: '16px', margin: '0 0 16px 0' }}>
-            Account Information
-          </h3>
-          
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ fontSize: '14px', color: '#6b7280' }}>Email</span>
-              <span style={{ fontSize: '14px', fontWeight: '500', color: '#111827' }}>
-                {currentUser?.email || 'Not provided'}
-              </span>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ fontSize: '14px', color: '#6b7280' }}>Member Since</span>
-              <span style={{ fontSize: '14px', fontWeight: '500', color: '#111827' }}>
-                {userStats.joinedDate}
-              </span>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ fontSize: '14px', color: '#6b7280' }}>Account Status</span>
-              <span style={{ fontSize: '14px', fontWeight: '500', color: '#10b981' }}>
-                Active
-              </span>
-            </div>
-          </div>
-        </motion.div>
+        {/* Account Info and Logout - only for own profile */}
+        {!viewingOtherUser && (
+          <>
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0.3 }}
+              style={{
+                background: 'white',
+                borderRadius: '12px',
+                padding: '20px',
+                marginBottom: '16px',
+                boxShadow: '0 2px 8px rgba(0, 0, 0, 0.05)'
+              }}
+            >
+              <h3 style={{ fontSize: '18px', fontWeight: '700', color: '#111827', marginBottom: '16px', margin: '0 0 16px 0' }}>
+                Account Information
+              </h3>
+              
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: '14px', color: '#6b7280' }}>Email</span>
+                  <span style={{ fontSize: '14px', fontWeight: '500', color: '#111827' }}>
+                    {currentUser?.email || 'Not provided'}
+                  </span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: '14px', color: '#6b7280' }}>Member Since</span>
+                  <span style={{ fontSize: '14px', fontWeight: '500', color: '#111827' }}>
+                    {userStats.joinedDate}
+                  </span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: '14px', color: '#6b7280' }}>Account Status</span>
+                  <span style={{ fontSize: '14px', fontWeight: '500', color: '#10b981' }}>
+                    Active
+                  </span>
+                </div>
+              </div>
+            </motion.div>
 
-        {/* Logout Button */}
-        <motion.button
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.4 }}
-          style={{
-            width: '100%',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: '8px',
-            padding: '16px',
-            background: 'rgba(239, 68, 68, 0.1)',
-            color: '#dc2626',
-            border: 'none',
-            borderRadius: '12px',
-            cursor: 'pointer',
-            fontSize: '16px',
-            fontWeight: '600',
-            marginBottom: '20px',
-            transition: 'background-color 0.2s'
-          }}
-          onClick={handleLogout}
-          onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.15)'}
-          onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.1)'}
-          whileHover={{ scale: 1.02 }}
-          whileTap={{ scale: 0.98 }}
-        >
-          <LogOut size={20} />
-          <span>Sign Out</span>
-        </motion.button>
+            <motion.button
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0.4 }}
+              style={{
+                width: '100%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px',
+                padding: '16px',
+                background: 'rgba(239, 68, 68, 0.1)',
+                color: '#dc2626',
+                border: 'none',
+                borderRadius: '12px',
+                cursor: 'pointer',
+                fontSize: '16px',
+                fontWeight: '600',
+                marginBottom: '20px',
+                transition: 'background-color 0.2s'
+              }}
+              onClick={handleLogout}
+              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.15)'}
+              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.1)'}
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+            >
+              <LogOut size={20} />
+              <span>Sign Out</span>
+            </motion.button>
+          </>
+        )}
       </div>
     </div>
   );

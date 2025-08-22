@@ -92,6 +92,7 @@ const BottomNavigation: React.FC<BottomNavigationProps> = ({
                     e.currentTarget.style.backgroundColor = 'transparent';
                   }
                 }}
+                data-tour-id={`tab-${tab.id}`}
               >
                 {/* Icon container */}
                 <div style={{
@@ -159,6 +160,7 @@ const BottomNavigation: React.FC<BottomNavigationProps> = ({
             whileHover={{ scale: 1.1 }}
             whileTap={{ scale: 0.9 }}
             onClick={onFABClick}
+            data-tour-id="create-fab"
             style={{
               position: 'fixed',
               bottom: 'calc(80px + env(safe-area-inset-bottom, 0px))',

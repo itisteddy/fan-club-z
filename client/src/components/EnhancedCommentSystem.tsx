@@ -3,6 +3,7 @@ import { useComments, useCreateComment, useToggleCommentLike } from '../hooks/us
 import { useAuthStore } from '../store/authStore';
 import { formatDate, generateInitials } from '@fanclubz/shared';
 import type { Comment } from '@fanclubz/shared';
+import TappableUsername from './TappableUsername';
 
 interface EnhancedCommentSystemProps {
   predictionId: string;
@@ -92,7 +93,13 @@ const CommentItem = React.memo(function CommentItem({
           </div>
           <div className="comment-author-info">
             <div className="comment-author">
-              {comment.user?.full_name || comment.user?.username || 'Anonymous'}
+              <TappableUsername 
+                username={comment.user?.username || comment.user?.full_name || 'Anonymous'}
+                userId={comment.user?.id}
+                displayName={comment.user?.full_name || comment.user?.username || 'Anonymous'}
+                className="text-sm font-medium text-gray-900 hover:text-blue-600"
+                showAt={false}
+              />
               {comment.user?.is_verified && (
                 <span className="verified-badge" title="Verified user">✓</span>
               )}

@@ -33,7 +33,7 @@ const CategoryFilters = React.memo(function CategoryFilters({
   ];
 
   return (
-    <div className="category-filters bg-white border-b border-gray-100 px-4 py-3">
+    <div className="category-filters bg-white border-b border-gray-100 px-4 py-3" data-tour-id="category-filters">
       <div className="category-filters-container overflow-x-auto -mx-2 px-2">
         <div className="category-filters-flex flex gap-2 pb-1">
           {categories.map((category) => (
@@ -129,7 +129,7 @@ const MobileHeader = React.memo(function MobileHeader({
         </motion.div>
 
         {/* Search bar */}
-        <div className="relative">
+        <div className="relative" data-tour-id="search-bar">
           <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
             <Search className="h-5 w-5 text-gray-400" />
           </div>
@@ -178,8 +178,9 @@ const DiscoverPage = React.memo(function DiscoverPage({ onNavigateToProfile, onN
   // Fetch platform stats
   const fetchPlatformStats = useCallback(async () => {
     try {
-      const apiUrl = import.meta.env.VITE_API_URL || 'https://fan-club-z.onrender.com';
-      const response = await fetch(`${apiUrl}/api/v2/predictions/stats/platform`);
+      // Use the same environment API URL logic as the rest of the app
+      const { getApiUrl } = await import('../lib/environment');
+      const response = await fetch(`${getApiUrl()}/api/v2/predictions/stats/platform`);
       if (response.ok) {
         const data = await response.json();
         if (data.success) {
@@ -391,7 +392,7 @@ const DiscoverPage = React.memo(function DiscoverPage({ onNavigateToProfile, onN
           animate={{ opacity: 1, y: 0 }}
           className="px-4 mb-4"
         >
-          <h2 className="text-xl font-bold text-gray-900 mb-1">
+          <h2 className="text-xl font-bold text-gray-900 mb-1" data-tour-id="discover-list">
             {selectedCategory === 'all' ? 'All Predictions' : `${selectedCategory} Predictions`}
             {searchQuery && ` - "${searchQuery}"`}
           </h2>

@@ -5,6 +5,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = __importDefault(require("express"));
 const database_1 = require("../config/database");
+const shared_1 = require("@fanclubz/shared");
 const router = express_1.default.Router();
 // GET /api/v2/predictions - Get all predictions
 router.get('/', async (req, res) => {
@@ -19,6 +20,7 @@ router.get('/', async (req, res) => {
         options:prediction_options(*),
         club:clubs(id, name, avatar_url)
       `, { count: 'exact' })
+            .neq('status', 'cancelled')
             .order('created_at', { ascending: false })
             .limit(20);
         if (error) {
@@ -26,7 +28,7 @@ router.get('/', async (req, res) => {
             return res.status(500).json({
                 error: 'Database error',
                 message: 'Failed to fetch predictions',
-                version: '2.0.56',
+                version: shared_1.VERSION,
                 details: error.message
             });
         }
@@ -34,7 +36,7 @@ router.get('/', async (req, res) => {
         return res.json({
             data: predictions || [],
             message: 'Predictions endpoint - working',
-            version: '2.0.56',
+            version: shared_1.VERSION,
             pagination: {
                 page: 1,
                 limit: 20,
@@ -50,7 +52,7 @@ router.get('/', async (req, res) => {
         return res.status(500).json({
             error: 'Internal server error',
             message: 'Failed to fetch predictions',
-            version: '2.0.56'
+            version: shared_1.VERSION
         });
     }
 });
@@ -68,7 +70,7 @@ router.get('/stats/platform', async (req, res) => {
             return res.status(500).json({
                 error: 'Database error',
                 message: 'Failed to fetch volume data',
-                version: '2.0.56'
+                version: shared_1.VERSION
             });
         }
         // Get active predictions count
@@ -81,7 +83,7 @@ router.get('/stats/platform', async (req, res) => {
             return res.status(500).json({
                 error: 'Database error',
                 message: 'Failed to fetch active predictions count',
-                version: '2.0.56'
+                version: shared_1.VERSION
             });
         }
         // Get total users count
@@ -93,7 +95,7 @@ router.get('/stats/platform', async (req, res) => {
             return res.status(500).json({
                 error: 'Database error',
                 message: 'Failed to fetch user count',
-                version: '2.0.56'
+                version: shared_1.VERSION
             });
         }
         // Calculate total volume
@@ -110,7 +112,7 @@ router.get('/stats/platform', async (req, res) => {
             success: true,
             data: stats,
             message: 'Platform stats fetched successfully',
-            version: '2.0.56'
+            version: shared_1.VERSION
         });
     }
     catch (error) {
@@ -118,7 +120,7 @@ router.get('/stats/platform', async (req, res) => {
         return res.status(500).json({
             error: 'Internal server error',
             message: 'Failed to fetch platform statistics',
-            version: '2.0.56'
+            version: shared_1.VERSION
         });
     }
 });
@@ -143,7 +145,7 @@ router.get('/trending', async (req, res) => {
             return res.status(500).json({
                 error: 'Database error',
                 message: 'Failed to fetch trending predictions',
-                version: '2.0.56',
+                version: shared_1.VERSION,
                 details: error.message
             });
         }
@@ -151,7 +153,7 @@ router.get('/trending', async (req, res) => {
         return res.json({
             data: predictions || [],
             message: 'Trending predictions endpoint - working',
-            version: '2.0.56'
+            version: shared_1.VERSION
         });
     }
     catch (error) {
@@ -159,7 +161,7 @@ router.get('/trending', async (req, res) => {
         return res.status(500).json({
             error: 'Internal server error',
             message: 'Failed to fetch trending predictions',
-            version: '2.0.56'
+            version: shared_1.VERSION
         });
     }
 });
@@ -183,14 +185,14 @@ router.get('/:id', async (req, res) => {
             return res.status(404).json({
                 error: 'Not found',
                 message: `Prediction ${id} not found`,
-                version: '2.0.56',
+                version: shared_1.VERSION,
                 details: error.message
             });
         }
         return res.json({
             data: prediction,
             message: 'Prediction fetched successfully',
-            version: '2.0.56'
+            version: shared_1.VERSION
         });
     }
     catch (error) {
@@ -198,7 +200,7 @@ router.get('/:id', async (req, res) => {
         return res.status(500).json({
             error: 'Internal server error',
             message: 'Failed to fetch prediction',
-            version: '2.0.56'
+            version: shared_1.VERSION
         });
     }
 });
@@ -216,6 +218,7 @@ router.get('/created/:userId', async (req, res) => {
         club:clubs(id, name, avatar_url)
       `)
             .eq('creator_id', userId)
+            .neq('status', 'cancelled')
             .order('created_at', { ascending: false })
             .limit(20);
         if (error) {
@@ -223,14 +226,14 @@ router.get('/created/:userId', async (req, res) => {
             return res.status(500).json({
                 error: 'Database error',
                 message: 'Failed to fetch user created predictions',
-                version: '2.0.56',
+                version: shared_1.VERSION,
                 details: error.message
             });
         }
         return res.json({
             data: predictions || [],
             message: `Created predictions for user ${userId}`,
-            version: '2.0.56'
+            version: shared_1.VERSION
         });
     }
     catch (error) {
@@ -238,7 +241,7 @@ router.get('/created/:userId', async (req, res) => {
         return res.status(500).json({
             error: 'Internal server error',
             message: 'Failed to fetch user created predictions',
-            version: '2.0.56'
+            version: shared_1.VERSION
         });
     }
 });
@@ -252,7 +255,7 @@ router.post('/', async (req, res) => {
             return res.status(400).json({
                 error: 'Validation error',
                 message: 'Missing required fields',
-                version: '2.0.56',
+                version: shared_1.VERSION,
                 details: 'Title, category, type, options, and entryDeadline are required'
             });
         }
@@ -315,26 +318,30 @@ router.post('/', async (req, res) => {
             return res.status(500).json({
                 error: 'Database error',
                 message: 'Failed to create prediction',
-                version: '2.0.56',
+                version: shared_1.VERSION,
                 details: predictionError.message
             });
         }
-        // Create prediction options
+        // Create prediction options (and return inserted rows)
+        let insertedOptions = [];
         if (options && options.length > 0) {
             const optionData = options.map((option, index) => ({
                 prediction_id: prediction.id,
-                label: option.label,
-                description: option.description || null,
+                label: String(option.label || '').trim(),
                 total_staked: 0,
-                current_odds: option.currentOdds || 2.0,
-                order_index: index
+                current_odds: Number(option.currentOdds) || 2.0,
             }));
-            const { error: optionsError } = await database_1.supabase
+            const { data: createdOptions, error: optionsError } = await database_1.supabase
                 .from('prediction_options')
-                .insert(optionData);
+                .insert(optionData)
+                .select('*');
             if (optionsError) {
-                console.error('Error creating prediction options:', optionsError);
+                console.error('❌ Error creating prediction options:', optionsError);
                 // Note: We don't fail here, just log the error
+            }
+            else if (Array.isArray(createdOptions)) {
+                insertedOptions = createdOptions;
+                console.log('✅ Successfully created', createdOptions.length, 'options for prediction:', prediction.id);
             }
         }
         // Fetch the complete prediction with options and creator info
@@ -352,15 +359,20 @@ router.post('/', async (req, res) => {
             return res.status(500).json({
                 error: 'Database error',
                 message: 'Prediction created but failed to fetch complete data',
-                version: '2.0.56',
+                version: shared_1.VERSION,
                 details: fetchError.message
             });
+        }
+        // Fallback: if joined fetch returned no options but we inserted them, attach inserted options
+        if (completePrediction && Array.isArray(completePrediction.options) && completePrediction.options.length === 0 && insertedOptions.length > 0) {
+            console.warn('⚠️ Joined fetch returned no options; attaching inserted options directly');
+            completePrediction.options = insertedOptions;
         }
         console.log('✅ Prediction created successfully:', completePrediction.id);
         return res.json({
             data: completePrediction,
             message: 'Prediction created successfully',
-            version: '2.0.56'
+            version: shared_1.VERSION
         });
     }
     catch (error) {
@@ -368,7 +380,7 @@ router.post('/', async (req, res) => {
         return res.status(500).json({
             error: 'Internal server error',
             message: 'Failed to create prediction',
-            version: '2.0.56',
+            version: shared_1.VERSION,
             details: error instanceof Error ? error.message : 'Unknown error'
         });
     }
@@ -384,7 +396,7 @@ router.post('/:id/entries', async (req, res) => {
             return res.status(400).json({
                 error: 'Validation error',
                 message: 'option_id, amount, and user_id are required',
-                version: '2.0.56'
+                version: shared_1.VERSION
             });
         }
         // Create prediction entry in database
@@ -407,7 +419,7 @@ router.post('/:id/entries', async (req, res) => {
             return res.status(500).json({
                 error: 'Database error',
                 message: 'Failed to create prediction entry',
-                version: '2.0.56',
+                version: shared_1.VERSION,
                 details: entryError.message
             });
         }
@@ -422,7 +434,7 @@ router.post('/:id/entries', async (req, res) => {
                 }
             },
             message: 'Prediction entry created successfully',
-            version: '2.0.56'
+            version: shared_1.VERSION
         });
     }
     catch (error) {
@@ -430,7 +442,7 @@ router.post('/:id/entries', async (req, res) => {
         return res.status(500).json({
             error: 'Internal server error',
             message: 'Failed to create prediction entry',
-            version: '2.0.56'
+            version: shared_1.VERSION
         });
     }
 });
@@ -441,7 +453,7 @@ router.put('/:id', async (req, res) => {
         res.json({
             data: { id, ...req.body },
             message: `Prediction ${id} updated`,
-            version: '2.0.56'
+            version: shared_1.VERSION
         });
     }
     catch (error) {
@@ -456,17 +468,88 @@ router.put('/:id', async (req, res) => {
 router.delete('/:id', async (req, res) => {
     try {
         const { id } = req.params;
-        res.json({
-            data: { id },
+        console.log(`🗑️ Delete prediction requested for: ${id} - origin:`, req.headers.origin);
+        // Soft delete: mark status as cancelled so it no longer appears in Discover
+        const { data: updated, error } = await database_1.supabase
+            .from('predictions')
+            .update({ status: 'cancelled', updated_at: new Date().toISOString() })
+            .eq('id', id)
+            .select('id, status')
+            .single();
+        if (error) {
+            console.error('Error soft-deleting prediction:', error);
+            return res.status(500).json({
+                error: 'Database error',
+                message: 'Failed to delete prediction',
+                version: shared_1.VERSION,
+                details: error.message
+            });
+        }
+        // Persistence guard: verify the row now has status cancelled
+        const { data: verifyRow, error: verifyError } = await database_1.supabase
+            .from('predictions')
+            .select('id, status')
+            .eq('id', id)
+            .single();
+        if (verifyError) {
+            console.error('Verification read failed after delete:', verifyError);
+        }
+        else {
+            console.log('✅ Delete persisted check:', verifyRow);
+        }
+        return res.json({
+            success: true,
+            data: updated,
             message: `Prediction ${id} deleted`,
-            version: '2.0.56'
+            version: shared_1.VERSION
         });
     }
     catch (error) {
         console.error('Error deleting prediction:', error);
-        res.status(500).json({
+        return res.status(500).json({
             error: 'Internal server error',
             message: 'Failed to delete prediction'
+        });
+    }
+});
+// Alias: GET /api/v2/predictions/user/:id -> same as users/:id/predictions
+router.get('/user/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        console.log(`📊 [Alias] User predictions endpoint called for ID: ${id} - origin:`, req.headers.origin);
+        const { data: predictions, error } = await database_1.supabase
+            .from('predictions')
+            .select(`
+        *,
+        creator:users!creator_id(id, username, full_name, avatar_url),
+        options:prediction_options(*),
+        club:clubs(id, name, avatar_url)
+      `)
+            .eq('creator_id', id)
+            .neq('status', 'cancelled')
+            .order('created_at', { ascending: false })
+            .limit(20);
+        if (error) {
+            console.error(`Error fetching user predictions (alias) for ${id}:`, error);
+            return res.status(500).json({
+                error: 'Database error',
+                message: 'Failed to fetch user predictions',
+                version: shared_1.VERSION,
+                details: error.message
+            });
+        }
+        return res.json({
+            data: predictions || [],
+            message: 'User predictions fetched successfully (alias)',
+            version: shared_1.VERSION,
+        });
+    }
+    catch (error) {
+        console.error('Error in alias user predictions endpoint:', error);
+        return res.status(500).json({
+            error: 'Internal server error',
+            message: 'Failed to fetch user predictions',
+            version: shared_1.VERSION,
         });
     }
 });
@@ -477,7 +560,7 @@ router.post('/:id/close', async (req, res) => {
         res.json({
             data: { id, status: 'closed' },
             message: `Prediction ${id} closed`,
-            version: '2.0.56'
+            version: shared_1.VERSION
         });
     }
     catch (error) {
@@ -495,7 +578,7 @@ router.get('/:id/activity', async (req, res) => {
         res.json({
             data: [],
             message: `Activity for prediction ${id}`,
-            version: '2.0.56'
+            version: shared_1.VERSION
         });
     }
     catch (error) {
@@ -513,7 +596,7 @@ router.get('/:id/participants', async (req, res) => {
         res.json({
             data: [],
             message: `Participants for prediction ${id}`,
-            version: '2.0.56'
+            version: shared_1.VERSION
         });
     }
     catch (error) {

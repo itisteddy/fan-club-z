@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { X, Send, Heart, MessageCircle, ArrowLeft } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
-import { Avatar, AvatarImage, AvatarFallback } from '../ui/avatar';
+import UserAvatar from '../common/UserAvatar';
 import { useUnifiedCommentStore, useCommentsForPrediction } from '../../store/unifiedCommentStore';
 import { useAuthStore } from '../../store/authStore';
 import { generateInitials, getAvatarUrl } from '../../lib/utils';
@@ -158,12 +158,7 @@ export const CommentsModal: React.FC<CommentsModalProps> = ({
                         animate={{ opacity: 1, y: 0 }}
                         className="flex gap-3"
                       >
-                        <Avatar className="w-8 h-8 flex-shrink-0">
-                          <AvatarImage src={getAvatarUrl(comment.user)} />
-                          <AvatarFallback className="text-xs">
-                            {generateInitials(comment.user.username)}
-                          </AvatarFallback>
-                        </Avatar>
+                        <UserAvatar email={comment.user?.email} username={comment.user?.username} avatarUrl={getAvatarUrl(comment.user)} size="sm" />
                         <div className="flex-1 min-w-0">
                           <div className="bg-gray-100 rounded-2xl px-4 py-3 max-w-[85%]">
                             <div className="flex items-center gap-2 mb-2">

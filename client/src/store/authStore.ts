@@ -36,6 +36,7 @@ interface AuthState {
   loginWithOAuth: (provider: 'google' | 'apple') => Promise<void>;
   logout: () => Promise<void>;
   updateProfile: (profileData: any) => Promise<void>;
+  uploadAvatar: (file: File) => Promise<string>;
   initializeAuth: () => Promise<void>;
   handleOAuthCallback: () => Promise<void>;
 }
@@ -484,6 +485,47 @@ export const useAuthStore = create<AuthState>()(
           showError(error.message || 'Failed to update profile');
           throw error;
         }
+      },
+
+      // Upload profile avatar to Supabase Storage and persist URL in both auth metadata and users table
+      uploadAvatar: async (file: File) => {
+        const state = get();
+        if (!state.user) throw new Error('No user logged in');
+        const userId = state.user.id;
+
+        const ext = file.name.split('.').pop()?.toLowerCase() || 'jpg';
+        // Path must NOT include the bucket name; the SDK prefixes it.
+        const path = `${userId}/${Date.now()}.${ext}`;
+
+        // 1) Upload to storage (public bucket configured: avatars)
+        const { data: uploadData, error: uploadError } = await supabase.storage
+          .from('avatars')
+          .upload(path, file, { cacheControl: '3600', upsert: true, contentType: file.type });
+
+        if (uploadError) {
+          showError('Failed to upload image.');
+          throw uploadError;
+        }
+
+        // 2) Get public URL
+        const { data: publicUrlData } = supabase.storage.from('avatars').getPublicUrl(uploadData.path);
+        const publicUrl = publicUrlData.publicUrl;
+
+        // 3) Save to auth user metadata
+        const { data: authUpdate, error: authErr } = await supabase.auth.updateUser({ data: { avatar_url: publicUrl } });
+        if (authErr) {
+          showError('Failed to save avatar to profile.');
+          throw authErr;
+        }
+
+        // 4) Mirror to public users table for fast reads
+        await clientDb.users.updateProfile(userId, { avatar_url: publicUrl });
+
+        // 5) Update local state
+        const updatedUser = convertSupabaseUser(authUpdate.user);
+        set({ user: updatedUser, lastAuthCheck: Date.now() });
+        showSuccess('Profile photo updated.');
+        return publicUrl;
       },
     }),
     {

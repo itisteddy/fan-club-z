@@ -9,6 +9,7 @@ import CommentModal from './modals/CommentModal';
 import TappableUsername from './TappableUsername';
 import ErrorBoundary from './ErrorBoundary';
 import toast from 'react-hot-toast';
+import UserAvatar from './common/UserAvatar';
 
 interface PredictionCardProps {
   prediction: Prediction;
@@ -225,9 +226,7 @@ const PredictionCardContent: React.FC<PredictionCardProps> = ({
           {/* Header */}
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-full bg-gradient-to-r from-purple-400 to-purple-600 flex items-center justify-center text-white text-sm font-bold">
-                {prediction.creator?.username?.slice(0, 2).toUpperCase() || 'FC'}
-              </div>
+              <UserAvatar email={prediction.creator?.email} username={prediction.creator?.username} avatarUrl={prediction.creator?.avatar_url} size="sm" />
               <div>
                 <TappableUsername 
                   username={prediction.creator?.username || prediction.creator?.full_name || 'Anonymous'}

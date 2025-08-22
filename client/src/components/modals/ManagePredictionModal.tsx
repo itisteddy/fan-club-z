@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { X, Users, Clock, DollarSign, BarChart3, Settings, Trash2, Eye, Share2, Edit3, CheckCircle } from 'lucide-react';
 import { usePredictionStore, ActivityItem, Participant } from '../../store/predictionStore';
 import { useToast } from '../../hooks/use-toast';
+import { ConfirmationModal } from './ConfirmationModal';
 
 interface ManagePredictionModalProps {
   isOpen: boolean;
@@ -37,6 +38,8 @@ const ManagePredictionModal: React.FC<ManagePredictionModalProps> = ({
   const [participantData, setParticipantData] = useState<Participant[]>([]);
   const [loading, setLoading] = useState(false);
   const [savingSettings, setSavingSettings] = useState(false);
+  const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
+  const [confirmLoading, setConfirmLoading] = useState(false);
 
   const { 
     updatePrediction, 
@@ -113,27 +116,7 @@ const ManagePredictionModal: React.FC<ManagePredictionModalProps> = ({
   };
 
   const handleDeletePrediction = async () => {
-    if (window.confirm('Are you sure you want to delete this prediction? This action cannot be undone.')) {
-      try {
-        setLoading(true);
-        await deletePrediction(String(prediction.id));
-        toast({
-          title: "Success",
-          description: "Prediction deleted successfully!",
-          variant: "default"
-        });
-        onClose();
-      } catch (error) {
-        console.error('Failed to delete prediction:', error);
-        toast({
-          title: "Error",
-          description: error instanceof Error ? error.message : "Failed to delete prediction",
-          variant: "destructive"
-        });
-      } finally {
-        setLoading(false);
-      }
-    }
+    setShowDeleteConfirmation(true);
   };
 
   const handleClosePrediction = async () => {
@@ -570,6 +553,40 @@ const ManagePredictionModal: React.FC<ManagePredictionModalProps> = ({
               </div>
             </div>
           </motion.div>
+
+          {/* Delete Confirmation */}
+          <ConfirmationModal
+            isOpen={showDeleteConfirmation}
+            onClose={() => setShowDeleteConfirmation(false)}
+            onConfirm={async () => {
+              try {
+                setConfirmLoading(true);
+                await deletePrediction(String(prediction.id));
+                toast({
+                  title: 'Prediction deleted',
+                  description: 'Removed from Discover and My Bets. Lists refreshed.',
+                  variant: 'default',
+                });
+                setShowDeleteConfirmation(false);
+                onClose();
+              } catch (error) {
+                console.error('Failed to delete prediction:', error);
+                toast({
+                  title: 'Delete failed',
+                  description: error instanceof Error ? error.message : 'Please try again.',
+                  variant: 'destructive',
+                });
+              } finally {
+                setConfirmLoading(false);
+              }
+            }}
+            title="Delete prediction?"
+            message="This action cannot be undone. The prediction will be removed from public lists."
+            confirmText="Delete"
+            cancelText="Cancel"
+            variant="danger"
+            isLoading={confirmLoading}
+          />
         </>
       )}
     </AnimatePresence>

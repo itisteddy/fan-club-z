@@ -9,6 +9,7 @@ import { scrollToTop } from './utils/scroll';
 import NotificationContainer from './components/ui/NotificationContainer';
 import PWAInstallManager from './components/PWAInstallManager';
 import PageWrapper from './components/PageWrapper';
+import { OnboardingProvider } from './components/onboarding/OnboardingProvider';
 
 // Import all page components
 import DiscoverPage from './pages/DiscoverPage';
@@ -194,9 +195,9 @@ const CreatePredictionPageWrapper: React.FC = () => {
   );
 };
 
-const ProfilePageWrapper: React.FC = () => {
+// Component for viewing other users' profiles with proper param extraction
+const UserProfilePageWrapper: React.FC<{ params: { userId: string } }> = ({ params }) => {
   const [, navigate] = useLocation();
-  const [location] = useLocation();
   
   const handleNavigateBack = useCallback(() => {
     if (window.history.length > 1) {
@@ -206,26 +207,51 @@ const ProfilePageWrapper: React.FC = () => {
     }
   }, [navigate]);
 
-  // Extract userId from the URL path with better validation
+  // Validate and clean the userId parameter
   const userId = React.useMemo(() => {
-    const pathParts = location.split('/profile/');
-    if (pathParts.length > 1 && pathParts[1]) {
-      const extractedId = pathParts[1].trim();
-      // Basic UUID validation
-      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-      if (uuidRegex.test(extractedId)) {
-        return extractedId;
-      }
-      // If not UUID but has content, could be username (for backward compatibility)
-      if (extractedId.length > 2) {
-        return extractedId;
-      }
+    const rawUserId = params?.userId;
+    if (!rawUserId) {
+      console.warn('⚠️ No userId provided in profile route');
+      return undefined;
     }
+    
+    const cleanUserId = rawUserId.trim();
+    if (!cleanUserId) {
+      console.warn('⚠️ Empty userId in profile route');
+      return undefined;
+    }
+    
+    // Basic UUID validation
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (uuidRegex.test(cleanUserId)) {
+      console.log('✅ Valid UUID userId:', cleanUserId);
+      return cleanUserId;
+    }
+    
+    // If not UUID but has content, could be username (for backward compatibility)
+    if (cleanUserId.length > 2) {
+      console.log('⚠️ Non-UUID userId (might be username):', cleanUserId);
+      return cleanUserId;
+    }
+    
+    console.warn('⚠️ Invalid userId format:', cleanUserId);
     return undefined;
-  }, [location]);
+  }, [params?.userId]);
+
+  // If no valid userId, redirect to own profile
+  if (!userId) {
+    React.useEffect(() => {
+      console.warn('⚠️ Invalid userId in profile route, redirecting to own profile');
+      navigate('/profile');
+    }, [navigate]);
+    
+    return <LoadingSpinner message="Redirecting..." />;
+  }
+
+  console.log('🔍 UserProfilePageWrapper rendering with userId:', userId);
 
   return (
-    <PageWrapper title={userId ? "User Profile" : "Profile"}>
+    <PageWrapper title="User Profile">
       <ProfilePage 
         onNavigateBack={handleNavigateBack} 
         userId={userId} 
@@ -352,22 +378,26 @@ function App() {
         
         {/* Protected app routes */}
         <AuthGuard>
-          <MainLayout>
-            <Switch>
-              <Route path="/" component={DiscoverPageWrapper} />
-              <Route path="/discover" component={DiscoverPageWrapper} />
-              <Route path="/predictions" component={PredictionsPageWrapper} />
-              <Route path="/bets" component={PredictionsPageWrapper} />
-              <Route path="/create" component={CreatePredictionPageWrapper} />
-              <Route path="/profile" component={MyProfilePageWrapper} />
-              <Route path="/profile/:userId" component={ProfilePageWrapper} />
-              <Route path="/wallet" component={WalletPageWrapper} />
-              <Route path="/prediction/:id" component={PredictionDetailsWrapper} />
+          <OnboardingProvider>
+            <MainLayout>
+              <Switch>
+                <Route path="/" component={DiscoverPageWrapper} />
+                <Route path="/discover" component={DiscoverPageWrapper} />
+                <Route path="/predictions" component={PredictionsPageWrapper} />
+                <Route path="/bets" component={PredictionsPageWrapper} />
+                <Route path="/create" component={CreatePredictionPageWrapper} />
+                <Route path="/profile" component={MyProfilePageWrapper} />
+                <Route path="/profile/:userId" component={UserProfilePageWrapper} />
+                <Route path="/wallet" component={WalletPageWrapper} />
+                <Route path="/prediction/:id" component={PredictionDetailsWrapper} />
 
-              {/* Fallback */}
-              <Route component={DiscoverPageWrapper} />
-            </Switch>
-          </MainLayout>
+                {/* Fallback */}
+                <Route component={DiscoverPageWrapper} />
+              </Switch>
+              
+              {/* Onboarding debug panel removed per request */}
+            </MainLayout>
+          </OnboardingProvider>
         </AuthGuard>
       </Switch>
     </Router>

@@ -1,7 +1,7 @@
 import express from 'express';
 import { config } from '../config';
 import { supabase } from '../config/database';
-import { VERSION } from '../../../shared/src/version';
+import { VERSION } from '@fanclubz/shared';
 
 const router = express.Router();
 

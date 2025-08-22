@@ -1,7 +1,7 @@
 import express from 'express';
 import { config } from '../config';
 import { supabase } from '../config/database';
-import { VERSION } from '../../../shared/src/version';
+import { VERSION } from '@fanclubz/shared';
 
 const router = express.Router();
 
@@ -19,6 +19,7 @@ router.get('/', async (req, res) => {
         options:prediction_options(*),
         club:clubs(id, name, avatar_url)
       `, { count: 'exact' })
+      .neq('status', 'cancelled')
       .order('created_at', { ascending: false })
       .limit(20);
 
@@ -240,6 +241,7 @@ router.get('/created/:userId', async (req, res) => {
         club:clubs(id, name, avatar_url)
       `)
       .eq('creator_id', userId)
+      .neq('status', 'cancelled')
       .order('created_at', { ascending: false })
       .limit(20);
 
@@ -527,16 +529,91 @@ router.put('/:id', async (req, res) => {
 router.delete('/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    res.json({
-      data: { id },
+    console.log(`🗑️ Delete prediction requested for: ${id} - origin:`, req.headers.origin);
+    // Soft delete: mark status as cancelled so it no longer appears in Discover
+    const { data: updated, error } = await supabase
+      .from('predictions')
+      .update({ status: 'cancelled', updated_at: new Date().toISOString() })
+      .eq('id', id)
+      .select('id, status')
+      .single();
+
+    if (error) {
+      console.error('Error soft-deleting prediction:', error);
+      return res.status(500).json({
+        error: 'Database error',
+        message: 'Failed to delete prediction',
+        version: VERSION,
+        details: error.message
+      });
+    }
+
+    // Persistence guard: verify the row now has status cancelled
+    const { data: verifyRow, error: verifyError } = await supabase
+      .from('predictions')
+      .select('id, status')
+      .eq('id', id)
+      .single();
+    if (verifyError) {
+      console.error('Verification read failed after delete:', verifyError);
+    } else {
+      console.log('✅ Delete persisted check:', verifyRow);
+    }
+
+    return res.json({
+      success: true,
+      data: updated,
       message: `Prediction ${id} deleted`,
       version: VERSION
     });
   } catch (error) {
     console.error('Error deleting prediction:', error);
-    res.status(500).json({
+    return res.status(500).json({
       error: 'Internal server error',
       message: 'Failed to delete prediction'
+    });
+  }
+});
+
+// Alias: GET /api/v2/predictions/user/:id -> same as users/:id/predictions
+router.get('/user/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    console.log(`📊 [Alias] User predictions endpoint called for ID: ${id} - origin:`, req.headers.origin);
+    const { data: predictions, error } = await supabase
+      .from('predictions')
+      .select(`
+        *,
+        creator:users!creator_id(id, username, full_name, avatar_url),
+        options:prediction_options(*),
+        club:clubs(id, name, avatar_url)
+      `)
+      .eq('creator_id', id)
+      .neq('status', 'cancelled')
+      .order('created_at', { ascending: false })
+      .limit(20);
+
+    if (error) {
+      console.error(`Error fetching user predictions (alias) for ${id}:`, error);
+      return res.status(500).json({
+        error: 'Database error',
+        message: 'Failed to fetch user predictions',
+        version: VERSION,
+        details: error.message
+      });
+    }
+
+    return res.json({
+      data: predictions || [],
+      message: 'User predictions fetched successfully (alias)',
+      version: VERSION,
+    });
+  } catch (error) {
+    console.error('Error in alias user predictions endpoint:', error);
+    return res.status(500).json({
+      error: 'Internal server error',
+      message: 'Failed to fetch user predictions',
+      version: VERSION,
     });
   }
 });

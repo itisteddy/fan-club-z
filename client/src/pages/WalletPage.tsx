@@ -148,7 +148,7 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
         <div className="h-11" />
         
         <div className="px-4 py-4">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between" data-tour-id="wallet-balance">
             <button
               onClick={handleBackClick}
               className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center hover:bg-gray-200 transition-colors"
@@ -191,8 +191,9 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.1 }}
-        className="mx-4 mt-4 bg-gradient-to-br from-green-500 to-green-600 rounded-2xl p-6 text-white"
+            transition={{ delay: 0.1 }}
+            className="mx-4 mt-4 bg-gradient-to-br from-green-500 to-green-600 rounded-2xl p-6 text-white"
+            data-tour-id="wallet-balance-card"
           >
             <div className="flex items-center justify-between mb-4">
                 <div>
@@ -209,7 +210,7 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
               </div>
               
         {/* Quick Actions */}
-        <div className="flex gap-2">
+        <div className="flex gap-2" data-tour-id="wallet-actions">
           <button
             onClick={() => setSelectedAmount(25)}
             className="flex-1 bg-white bg-opacity-20 hover:bg-opacity-30 rounded-lg py-2 px-3 text-sm font-medium transition-all"

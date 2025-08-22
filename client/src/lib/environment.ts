@@ -61,16 +61,19 @@ export function getEnvironmentConfig(): EnvironmentConfig {
   }
   
   // Check if local development server is running (regardless of hostname)
-  // This allows development even when accessing via production domains
+  // Prefer the current hostname for LAN access so other devices can reach the API
   if (import.meta.env.DEV || import.meta.env.MODE === 'development') {
+    const isLoopback = hostname === 'localhost' || hostname.startsWith('127.');
+    const apiHost = isLoopback ? 'localhost' : hostname; // e.g., 172.20.x.x
+    const devApiUrl = `${protocol}//${apiHost}:3001`;
     const config: EnvironmentConfig = {
-      apiUrl: 'http://localhost:3001',
-      socketUrl: 'http://localhost:3001',
+      apiUrl: devApiUrl,
+      socketUrl: devApiUrl,
       environment: 'development',
       isDevelopment: true,
       isProduction: false
     };
-    console.log('🏠 Development mode detected (using local server):', config);
+    console.log('🏠 Development mode detected (dynamic host for LAN):', config);
     return config;
   }
   

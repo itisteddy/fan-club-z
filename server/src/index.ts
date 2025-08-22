@@ -10,7 +10,7 @@ import cors from 'cors';
 import { config } from './config';
 import { supabase } from './config/database';
 import { db } from './config/database';
-import { VERSION } from '../../shared/src/version';
+import { VERSION } from '@fanclubz/shared';
 
 const app = express();
 const PORT = config.server.port || 3001;
@@ -105,6 +105,7 @@ app.post('/api/v2/admin/seed-database', async (req, res) => {
 import usersRoutes from './routes/users';
 import predictionsRoutes from './routes/predictions';
 import predictionEntriesRoutes from './routes/prediction-entries';
+import { ensureAvatarsBucket } from './startup/storage';
 
 // Use routes
 app.use('/api/v2/users', usersRoutes);
@@ -153,6 +154,7 @@ app.listen(PORT, () => {
   console.log(`🔗 API URL: ${config.api.url || `https://fan-club-z.onrender.com`}`);
   console.log(`🎯 Frontend URL: ${config.frontend.url || 'https://app.fanclubz.app'}`);
   console.log(`✅ CORS enabled for all origins (development mode)`);
+  ensureAvatarsBucket();
 });
 
 export default app;
