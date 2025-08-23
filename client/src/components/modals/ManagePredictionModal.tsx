@@ -244,7 +244,7 @@ const ManagePredictionModal: React.FC<ManagePredictionModalProps> = ({
               <DollarSign className="w-4 h-4 text-green-600" />
               <span className="text-sm font-medium text-gray-700">Total Pool</span>
             </div>
-            <p className="text-2xl font-bold text-gray-900">₦{totalPool.toLocaleString()}</p>
+            <p className="text-2xl font-bold text-gray-900">${totalPool.toLocaleString()}</p>
           </div>
           
           <div className="bg-gray-50 rounded-lg p-4">
@@ -268,7 +268,7 @@ const ManagePredictionModal: React.FC<ManagePredictionModalProps> = ({
               <DollarSign className="w-4 h-4 text-green-600" />
               <span className="text-sm font-medium text-gray-700">Est. Earnings</span>
             </div>
-            <p className="text-2xl font-bold text-green-600">₦{estimatedEarnings.toLocaleString()}</p>
+            <p className="text-2xl font-bold text-green-600">${estimatedEarnings.toLocaleString()}</p>
           </div>
         </div>
 
@@ -319,7 +319,7 @@ const ManagePredictionModal: React.FC<ManagePredictionModalProps> = ({
                   </div>
                   {activity.amount && (
                     <span className="text-sm font-semibold text-green-600">
-                      ₦{activity.amount.toLocaleString()}
+                      ${activity.amount.toLocaleString()}
                     </span>
                   )}
                 </div>
@@ -463,7 +463,7 @@ const ManagePredictionModal: React.FC<ManagePredictionModalProps> = ({
                   </div>
                 </div>
                 <span className="text-sm font-semibold text-gray-900">
-                  ₦{participant.amount.toLocaleString()}
+                  ${participant.amount.toLocaleString()}
                 </span>
               </div>
             ))}
@@ -554,8 +554,8 @@ const ManagePredictionModal: React.FC<ManagePredictionModalProps> = ({
           title="Delete Prediction"
           message="Are you sure you want to delete this prediction? This action cannot be undone and all participant data will be lost."
           confirmText="Delete"
-          confirmVariant="danger"
-          loading={confirmLoading}
+          variant="danger"
+          isLoading={confirmLoading}
         />
       )}
     </>

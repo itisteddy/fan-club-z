@@ -382,17 +382,15 @@ const BetsTab: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNavigateTo
       
       <div className="flex items-center justify-between">
         <span className="text-sm text-gray-500">Closes in {prediction.timeRemaining}</span>
-        <motion.button
+        <button
           onClick={() => {
             setSelectedPrediction(prediction);
             setShowManageModal(true);
           }}
           className="bg-blue-600 text-white px-4 py-2 rounded-lg font-medium text-sm flex items-center gap-1 hover:bg-blue-700 transition-colors"
-          whileHover={{ scale: 1.02 }}
-          whileTap={{ scale: 0.98 }}
         >
           Manage <Settings className="w-4 h-4" />
-        </motion.button>
+        </button>
       </div>
     </div>
   );
