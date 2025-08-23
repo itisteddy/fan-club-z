@@ -46,7 +46,7 @@ const TopUpdateToast: React.FC<TopUpdateToastProps> = ({
       `} style={{ zIndex: 10001 }}>
         <div className="bg-white rounded-2xl shadow-2xl border border-gray-200 overflow-hidden">
           {/* Header with icon and close */}
-          <div className="bg-gradient-to-r from-green-500 to-green-600 p-4 text-white relative">
+          <div className="bg-gradient-to-r from-purple-500 to-teal-600 p-4 text-white relative">
             <div className="flex items-center space-x-3">
               <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center backdrop-blur-sm">
                 <RefreshCw className="w-5 h-5" />
@@ -87,7 +87,7 @@ const TopUpdateToast: React.FC<TopUpdateToastProps> = ({
             <div className="flex space-x-3">
               <button
                 onClick={handleUpdate}
-                className="flex-[2] bg-green-600 text-white py-3 px-4 rounded-xl font-semibold text-sm hover:bg-green-700 active:bg-green-800 transition-colors flex items-center justify-center space-x-2 shadow-lg"
+                className="flex-[2] bg-teal-600 text-white py-3 px-4 rounded-xl font-semibold text-sm hover:bg-green-700 active:bg-green-800 transition-colors flex items-center justify-center space-x-2 shadow-lg"
               >
                 <RefreshCw className="w-4 h-4" />
                 <span>Update Now</span>

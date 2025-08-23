@@ -56,7 +56,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
       <header className="bg-white border-b border-gray-200 px-4 py-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-3">
-            <div className="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center">
+            <div className="w-8 h-8 bg-teal-500 rounded-full flex items-center justify-center">
               <span className="text-white text-sm font-bold">Z</span>
             </div>
             <h1 className="text-xl font-semibold text-gray-900">Fan Club Z</h1>
@@ -117,7 +117,7 @@ const NavItem: React.FC<NavItemProps> = ({
     return (
       <button
         onClick={onClick}
-        className="w-12 h-12 bg-green-500 rounded-full flex items-center justify-center text-white shadow-lg"
+        className="w-12 h-12 bg-teal-500 rounded-full flex items-center justify-center text-white shadow-lg"
       >
         <Icon className="w-6 h-6" />
       </button>
@@ -128,7 +128,7 @@ const NavItem: React.FC<NavItemProps> = ({
     <button
       onClick={onClick}
       className={`flex flex-col items-center space-y-1 p-2 rounded-lg transition-colors ${
-        isActive ? 'bg-green-100 text-green-600' : 'hover:bg-gray-100 text-gray-600'
+        isActive ? 'bg-teal-100 text-teal-600' : 'hover:bg-gray-100 text-gray-600'
       }`}
     >
       <Icon className="w-5 h-5" />

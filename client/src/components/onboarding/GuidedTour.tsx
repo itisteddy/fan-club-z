@@ -55,7 +55,7 @@ const GuidedTour: React.FC<GuidedTourProps> = ({ isOpen, steps, index, onClose, 
           {/* Highlight box */}
           {targetInfo && (
             <motion.div
-              className="absolute border-2 border-emerald-400 rounded-xl pointer-events-none"
+              className="absolute border-2 border-teal-400 rounded-xl pointer-events-none"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
@@ -101,10 +101,10 @@ const GuidedTour: React.FC<GuidedTourProps> = ({ isOpen, steps, index, onClose, 
               </button>
               <div className="flex items-center justify-center gap-1">
                 {steps.map((_, i) => (
-                  <div key={i} className={`w-2 h-2 rounded-full ${i === index ? 'bg-emerald-500' : 'bg-gray-300'}`} />
+                  <div key={i} className={`w-2 h-2 rounded-full ${i === index ? 'bg-teal-500' : 'bg-gray-300'}`} />
                 ))}
               </div>
-              <button onClick={onNext} className="px-3 py-2 rounded-lg bg-emerald-600 text-white min-w-[72px] flex items-center gap-1 justify-center">
+              <button onClick={onNext} className="px-3 py-2 rounded-lg bg-teal-600 text-white min-w-[72px] flex items-center gap-1 justify-center">
                 {index === steps.length - 1 ? 'Finish' : 'Next'} <ChevronRight className="w-4 h-4" />
               </button>
             </div>

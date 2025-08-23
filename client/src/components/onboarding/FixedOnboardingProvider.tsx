@@ -362,7 +362,7 @@ export const FixedOnboardingDebugPanel: React.FC = () => {
 
   return (
     <div className="fixed bottom-4 left-4 bg-white p-3 rounded-lg shadow-lg border z-[20000] text-xs max-w-48">
-      <div className="font-semibold mb-2 text-green-600">Fixed Onboarding v2</div>
+      <div className="font-semibold mb-2 text-teal-600">Fixed Onboarding v2</div>
       <div className="space-y-1 text-gray-600">
         <div>Active: {isActive ? 'Yes' : 'No'}</div>
         <div>Seen: {hasSeenOnboarding ? 'Yes' : 'No'}</div>
@@ -377,7 +377,7 @@ export const FixedOnboardingDebugPanel: React.FC = () => {
         </button>
         <button
           onClick={startQuickTour}
-          className="px-2 py-1 bg-green-500 text-white rounded text-xs"
+          className="px-2 py-1 bg-teal-500 text-white rounded text-xs"
         >
           Quick
         </button>

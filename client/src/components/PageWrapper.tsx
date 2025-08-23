@@ -45,7 +45,7 @@ class ErrorBoundary extends Component<{ children: ReactNode; onRetry: () => void
                 this.setState({ hasError: false, error: undefined });
                 this.props.onRetry();
               }}
-              className="bg-green-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-green-700 transition-colors"
+              className="bg-teal-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-green-700 transition-colors"
             >
               Try Again
             </button>
@@ -62,7 +62,7 @@ class ErrorBoundary extends Component<{ children: ReactNode; onRetry: () => void
 const LoadingSpinner: React.FC<{ title?: string }> = ({ title = 'Loading...' }) => (
   <div className="min-h-screen bg-gray-50 flex items-center justify-center">
     <div className="text-center">
-      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-500 mx-auto mb-4"></div>
+      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-teal-500 mx-auto mb-4"></div>
       <p className="text-gray-600">{title}</p>
     </div>
   </div>

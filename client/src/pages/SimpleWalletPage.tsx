@@ -31,17 +31,17 @@ const SimpleWalletPage: React.FC = () => {
 
   const getTransactionIcon = (type: string, status: string) => {
     if (status === 'pending') return <Clock className="w-4 h-4 text-yellow-500" />;
-    if (status === 'completed') return <CheckCircle className="w-4 h-4 text-green-500" />;
+    if (status === 'completed') return <CheckCircle className="w-4 h-4 text-teal-500" />;
     
     switch (type) {
       case 'deposit':
-        return <ArrowDownLeft className="w-4 h-4 text-green-500" />;
+        return <ArrowDownLeft className="w-4 h-4 text-teal-500" />;
       case 'withdraw':
         return <ArrowUpRight className="w-4 h-4 text-red-500" />;
       case 'bet_lock':
         return <ArrowUpRight className="w-4 h-4 text-orange-500" />;
       case 'bet_release':
-        return <ArrowDownLeft className="w-4 h-4 text-green-500" />;
+        return <ArrowDownLeft className="w-4 h-4 text-teal-500" />;
       default:
         return <Wallet className="w-4 h-4 text-gray-500" />;
     }
@@ -49,7 +49,7 @@ const SimpleWalletPage: React.FC = () => {
 
   const getTransactionColor = (amount: number, status: string) => {
     if (status === 'pending') return 'text-yellow-600';
-    return amount > 0 ? 'text-green-600' : 'text-red-600';
+    return amount > 0 ? 'text-teal-600' : 'text-red-600';
   };
 
   return (
@@ -68,7 +68,7 @@ const SimpleWalletPage: React.FC = () => {
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="bg-gradient-to-br from-green-500 to-green-600 rounded-2xl p-6 mb-6 text-white shadow-lg"
+          className="bg-gradient-to-br from-purple-500 to-teal-600 rounded-2xl p-6 mb-6 text-white shadow-lg"
         >
           <div className="flex items-center justify-between mb-4">
             <div>

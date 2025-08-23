@@ -141,7 +141,7 @@ const AuthCallbackPage: React.FC = () => {
         <div style={{
           width: '60px',
           height: '60px',
-          background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+          background: 'linear-gradient(135deg, #00F5D4 0%, #7B2FF7 100%)',
           borderRadius: '50%',
           margin: '0 auto 20px',
           display: 'flex',
@@ -180,7 +180,7 @@ const AuthCallbackPage: React.FC = () => {
               style={{
                 width: '8px',
                 height: '8px',
-                background: '#10b981',
+                background: '#00F5D4',
                 borderRadius: '50%',
                 animation: `bounce 1.4s ease-in-out ${i * 0.16}s infinite both`
               }}

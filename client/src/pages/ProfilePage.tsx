@@ -114,7 +114,7 @@ const AccountSettings: React.FC<{ onBack: () => void }> = ({ onBack }) => {
         position: fixed;
         top: 20px;
         right: 20px;
-        background: #10b981;
+        background: #00F5D4;
         color: white;
         padding: 12px 16px;
         border-radius: 8px;
@@ -159,7 +159,7 @@ const AccountSettings: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                   height: '24px',
                   borderRadius: '12px',
                   border: 'none',
-                  background: settings.publicProfile ? '#10b981' : '#e5e7eb',
+                  background: settings.publicProfile ? '#00F5D4' : '#e5e7eb',
                   position: 'relative',
                   cursor: isUpdating ? 'not-allowed' : 'pointer',
                   transition: 'background 0.2s',
@@ -195,7 +195,7 @@ const AccountSettings: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                   height: '24px',
                   borderRadius: '12px',
                   border: 'none',
-                  background: settings.showEarnings ? '#10b981' : '#e5e7eb',
+                  background: settings.showEarnings ? '#00F5D4' : '#e5e7eb',
                   position: 'relative',
                   cursor: isUpdating ? 'not-allowed' : 'pointer',
                   transition: 'background 0.2s',
@@ -241,7 +241,7 @@ const AccountSettings: React.FC<{ onBack: () => void }> = ({ onBack }) => {
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span style={{ fontSize: '14px', color: '#6b7280' }}>Suspicious Activity</span>
-              <span style={{ fontSize: '14px', fontWeight: '500', color: securityStats.suspiciousActivity > 0 ? '#dc2626' : '#10b981' }}>
+              <span style={{ fontSize: '14px', fontWeight: '500', color: securityStats.suspiciousActivity > 0 ? '#dc2626' : '#00F5D4' }}>
                 {securityStats.suspiciousActivity === 0 ? 'None detected' : `${securityStats.suspiciousActivity} incidents`}
               </span>
             </div>
@@ -264,7 +264,7 @@ const AccountSettings: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                 height: '24px',
                 borderRadius: '12px',
                 border: 'none',
-                background: settings.twoFactorEnabled ? '#10b981' : '#e5e7eb',
+                background: settings.twoFactorEnabled ? '#00F5D4' : '#e5e7eb',
                 position: 'relative',
                 cursor: isUpdating ? 'not-allowed' : 'pointer',
                 transition: 'background 0.2s',
@@ -423,7 +423,7 @@ const NotificationSettings: React.FC<{ onBack: () => void }> = ({ onBack }) => {
       position: fixed;
       top: 20px;
       right: 20px;
-      background: #10b981;
+      background: #00F5D4;
       color: white;
       padding: 12px 16px;
       border-radius: 8px;
@@ -538,7 +538,7 @@ const NotificationSettings: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                   height: '24px',
                   borderRadius: '12px',
                   border: 'none',
-                  background: notifications.pushEnabled ? '#10b981' : '#e5e7eb',
+                  background: notifications.pushEnabled ? '#00F5D4' : '#e5e7eb',
                   position: 'relative',
                   cursor: isUpdating ? 'not-allowed' : 'pointer',
                   opacity: isUpdating ? 0.6 : 1
@@ -573,7 +573,7 @@ const NotificationSettings: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                   height: '24px',
                   borderRadius: '12px',
                   border: 'none',
-                  background: notifications.emailEnabled ? '#10b981' : '#e5e7eb',
+                  background: notifications.emailEnabled ? '#00F5D4' : '#e5e7eb',
                   position: 'relative',
                   cursor: isUpdating ? 'not-allowed' : 'pointer',
                   opacity: isUpdating ? 0.6 : 1
@@ -614,7 +614,7 @@ const NotificationSettings: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                   height: '24px',
                   borderRadius: '12px',
                   border: 'none',
-                  background: notifications.winLossAlerts ? '#10b981' : '#e5e7eb',
+                  background: notifications.winLossAlerts ? '#00F5D4' : '#e5e7eb',
                   position: 'relative',
                   cursor: isUpdating ? 'not-allowed' : 'pointer',
                   opacity: isUpdating ? 0.6 : 1
@@ -649,7 +649,7 @@ const NotificationSettings: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                   height: '24px',
                   borderRadius: '12px',
                   border: 'none',
-                  background: notifications.clubActivity ? '#10b981' : '#e5e7eb',
+                  background: notifications.clubActivity ? '#00F5D4' : '#e5e7eb',
                   position: 'relative',
                   cursor: isUpdating ? 'not-allowed' : 'pointer',
                   opacity: isUpdating ? 0.6 : 1
@@ -833,7 +833,7 @@ const SecuritySettings: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                       style={{
                         flex: 1,
                         padding: '8px',
-                        background: isUpdating || !passwordForm.currentPassword || !passwordForm.newPassword || !passwordForm.confirmPassword ? '#9ca3af' : '#10b981',
+                        background: isUpdating || !passwordForm.currentPassword || !passwordForm.newPassword || !passwordForm.confirmPassword ? '#9ca3af' : '#00F5D4',
                         color: 'white',
                         border: 'none',
                         borderRadius: '6px',
@@ -933,7 +933,7 @@ const SecuritySettings: React.FC<{ onBack: () => void }> = ({ onBack }) => {
           <div style={{ padding: '12px', background: '#f9fafb', borderRadius: '8px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
               <span style={{ fontWeight: '500', fontSize: '14px' }}>Current Device</span>
-              <span style={{ fontSize: '12px', color: '#10b981' }}>Active Now</span>
+              <span style={{ fontSize: '12px', color: '#00F5D4' }}>Active Now</span>
             </div>
             <div style={{ fontSize: '12px', color: '#6b7280' }}>
               MacBook Pro • Chrome • Gainesville, GA
@@ -1621,7 +1621,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigateBack, userId }) => 
           gap: 12px;
           justify-content: center;
         ">
-          <button onclick="this.closest('[style*=\'position: fixed\']').remove()" style="
+          <button onclick="dialog.remove()" style="
             padding: 10px 20px;
             background: #f3f4f6;
             color: #374151;
@@ -1688,7 +1688,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigateBack, userId }) => 
   if (viewingOtherUser && loadingProfile) {
     return (
       <div style={{ minHeight: '100vh', backgroundColor: '#f9fafb' }}>
-        <div style={{ background: 'linear-gradient(135deg, #10b981, #059669)', minHeight: '300px' }}>
+        <div style={{ background: 'linear-gradient(135deg, #00F5D4, #7B2FF7)', minHeight: '300px' }}>
           <div style={{ height: '44px' }} />
           <div style={{ padding: '20px 16px', position: 'relative', zIndex: 10 }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '40px' }}>
@@ -1722,7 +1722,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigateBack, userId }) => 
             <div style={{
               width: '40px',
               height: '40px',
-              border: '3px solid #10b981',
+              border: '3px solid #00F5D4',
               borderTop: '3px solid transparent',
               borderRadius: '50%',
               animation: 'spin 1s linear infinite',
@@ -1739,7 +1739,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigateBack, userId }) => 
   if (viewingOtherUser && !loadingProfile && !profileUser) {
     return (
       <div style={{ minHeight: '100vh', backgroundColor: '#f9fafb' }}>
-        <div style={{ background: 'linear-gradient(135deg, #10b981, #059669)', minHeight: '300px' }}>
+        <div style={{ background: 'linear-gradient(135deg, #00F5D4, #7B2FF7)', minHeight: '300px' }}>
           <div style={{ height: '44px' }} />
           <div style={{ padding: '20px 16px', position: 'relative', zIndex: 10 }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '40px' }}>
@@ -1790,7 +1790,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigateBack, userId }) => 
               <button
                 onClick={onNavigateBack}
                 style={{
-                  background: '#10b981',
+                  background: '#00F5D4',
                   color: 'white',
                   border: 'none',
                   borderRadius: '12px',
@@ -1813,7 +1813,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigateBack, userId }) => 
     <div style={{ minHeight: '100vh', backgroundColor: '#f9fafb' }}>
       {showLoadingSkeleton && (
         <div className="min-h-screen bg-gray-50">
-          <div className="bg-gradient-to-r from-green-500 to-green-600 pt-12 pb-6">
+          <div className="bg-gradient-to-r from-purple-500 to-teal-600 pt-12 pb-6">
             <div className="px-6">
               <div className="flex items-center gap-4">
                 {onNavigateBack && (
@@ -1840,7 +1840,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigateBack, userId }) => 
       )}
 
       {/* Header with Gradient Background */}
-      <div style={{ background: 'linear-gradient(135deg, #10b981, #059669)', minHeight: '300px' }} data-tour-id="profile-header">
+      <div style={{ background: 'linear-gradient(135deg, #00F5D4, #7B2FF7)', minHeight: '300px' }} data-tour-id="profile-header">
           {/* Decorative elements */}
           <div 
             style={{
@@ -1948,7 +1948,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigateBack, userId }) => 
                         right: '0',
                         width: '28px',
                         height: '28px',
-                        background: '#10b981',
+                        background: '#00F5D4',
                         border: '2px solid white',
                         borderRadius: '50%',
                         display: 'flex',
@@ -1996,7 +1996,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigateBack, userId }) => 
                           transition: 'border-color 0.2s',
                           boxSizing: 'border-box'
                         }}
-                        onFocus={(e) => e.target.style.borderColor = '#10b981'}
+                        onFocus={(e) => e.target.style.borderColor = '#00F5D4'}
                         onBlur={(e) => e.target.style.borderColor = '#e5e7eb'}
                       />
                       <input
@@ -2015,7 +2015,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigateBack, userId }) => 
                           transition: 'border-color 0.2s',
                           boxSizing: 'border-box'
                         }}
-                        onFocus={(e) => e.target.style.borderColor = '#10b981'}
+                        onFocus={(e) => e.target.style.borderColor = '#00F5D4'}
                         onBlur={(e) => e.target.style.borderColor = '#e5e7eb'}
                       />
                     </div>
@@ -2035,7 +2035,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigateBack, userId }) => 
                         boxSizing: 'border-box',
                         transition: 'border-color 0.2s'
                       }}
-                      onFocus={(e) => e.target.style.borderColor = '#10b981'}
+                      onFocus={(e) => e.target.style.borderColor = '#00F5D4'}
                       onBlur={(e) => e.target.style.borderColor = '#e5e7eb'}
                     />
                     <textarea
@@ -2054,7 +2054,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigateBack, userId }) => 
                         boxSizing: 'border-box',
                         transition: 'border-color 0.2s'
                       }}
-                      onFocus={(e) => e.target.style.borderColor = '#10b981'}
+                      onFocus={(e) => e.target.style.borderColor = '#00F5D4'}
                       onBlur={(e) => e.target.style.borderColor = '#e5e7eb'}
                     />
                   </div>
@@ -2083,7 +2083,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigateBack, userId }) => 
                     onClick={handleSaveProfile}
                     style={{
                       padding: '8px 16px',
-                      background: '#10b981',
+                      background: '#00F5D4',
                       color: 'white',
                       border: 'none',
                       borderRadius: '8px',
@@ -2095,8 +2095,8 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigateBack, userId }) => 
                       gap: '4px',
                       transition: 'background-color 0.2s'
                     }}
-                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#059669'}
-                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#10b981'}
+                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#7B2FF7'}
+                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#00F5D4'}
                   >
                     <Save size={16} />
                     Save
@@ -2113,7 +2113,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigateBack, userId }) => 
               >
                 <div style={{ display: 'flex', alignItems: 'flex-start', gap: '16px', marginBottom: '16px' }}>
                   <div style={{ position: 'relative', flexShrink: 0 }}>
-                    <UserAvatar email={profileUser?.email} username={profileUser?.username} avatarUrl={profileUser?.avatar} size="xl" className="ring-4 ring-white" />
+                    <UserAvatar email={profileUser?.email} username={profileUser?.username} avatarUrl={profileUser?.avatar} size="lg" className="ring-4 ring-white" />
                   </div>
                   
                   <div style={{ flex: 1, minWidth: 0, paddingTop: '4px' }}>
@@ -2149,7 +2149,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigateBack, userId }) => 
                     <div style={{ fontSize: '11px', color: '#6b7280' }}>Predictions</div>
                   </div>
                   <div style={{ textAlign: 'center', padding: '6px' }}>
-                    <div style={{ fontSize: '18px', fontWeight: '700', color: '#10b981' }}>
+                    <div style={{ fontSize: '18px', fontWeight: '700', color: '#00F5D4' }}>
                       {userStats.winRate}%
                     </div>
                     <div style={{ fontSize: '11px', color: '#6b7280' }}>Win Rate</div>
@@ -2200,7 +2200,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigateBack, userId }) => 
                   flexShrink: 0
                 }}
               >
-                <DollarSign size={20} style={{ color: '#10b981' }} />
+                <DollarSign size={20} style={{ color: '#00F5D4' }} />
               </div>
               <div style={{ minWidth: 0 }}>
                 <div style={{ fontSize: '16px', fontWeight: '700', color: '#111827' }}>
@@ -2252,29 +2252,30 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigateBack, userId }) => 
             Achievements
           </h3>
           
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '12px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '12px', padding: '0 4px' }}>
             {achievements.map((achievement) => (
               <div
                 key={achievement.id}
                 style={{
                   display: 'flex',
                   alignItems: 'center',
-                  gap: '12px',
-                  padding: '12px',
+                  gap: '8px',
+                  padding: '10px 8px',
                   borderRadius: '8px',
-                  backgroundColor: achievement.unlocked ? 'rgba(16, 185, 129, 0.05)' : '#f9fafb',
-                  opacity: achievement.unlocked ? 1 : 0.6
+                  backgroundColor: achievement.unlocked ? 'rgba(0, 245, 212, 0.05)' : '#f9fafb',
+                  opacity: achievement.unlocked ? 1 : 0.6,
+                  minWidth: 0
                 }}
               >
                 <div style={{ fontSize: '20px', flexShrink: 0 }}>{achievement.icon}</div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: '14px', fontWeight: '600', color: '#111827' }}>
+                <div style={{ flex: 1, minWidth: 0, overflow: 'hidden' }}>
+                  <div style={{ fontSize: '14px', fontWeight: '600', color: '#111827', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                     {achievement.title}
                   </div>
                 </div>
                 {achievement.unlocked && (
                   <div style={{ flexShrink: 0 }}>
-                    <Trophy size={16} style={{ color: '#10b981' }} />
+                    <Trophy size={16} style={{ color: '#00F5D4' }} />
                   </div>
                 )}
               </div>
@@ -2392,7 +2393,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigateBack, userId }) => 
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <span style={{ fontSize: '14px', color: '#6b7280' }}>Account Status</span>
-                  <span style={{ fontSize: '14px', fontWeight: '500', color: '#10b981' }}>
+                  <span style={{ fontSize: '14px', fontWeight: '500', color: '#00F5D4' }}>
                     Active
                   </span>
                 </div>

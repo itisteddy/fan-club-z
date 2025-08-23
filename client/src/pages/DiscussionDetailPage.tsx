@@ -329,7 +329,7 @@ const DiscussionDetailPage: React.FC<DiscussionDetailPageProps> = ({
           className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 mb-6"
         >
           <div className="flex gap-3">
-            <div className="w-10 h-10 bg-gradient-to-br from-green-500 to-green-600 rounded-full flex items-center justify-center text-white font-semibold flex-shrink-0">
+            <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-teal-600 rounded-full flex items-center justify-center text-white font-semibold flex-shrink-0">
               YU
             </div>
             <div className="flex-1">

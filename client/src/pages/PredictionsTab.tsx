@@ -119,8 +119,8 @@ const PredictionsTab: React.FC<PredictionsTabProps> = ({ onNavigateToDiscover })
 
   const getStatusColor = (status) => {
     switch (status) {
-      case 'active': return 'bg-emerald-50 text-emerald-700 border-emerald-200';
-      case 'winning': return 'bg-green-50 text-green-700 border-green-200';
+      case 'active': return 'bg-teal-50 text-teal-700 border-teal-200';
+      case 'winning': return 'bg-teal-50 text-teal-700 border-teal-200';
       case 'losing': return 'bg-red-50 text-red-700 border-red-200';
       case 'open': return 'bg-blue-50 text-blue-700 border-blue-200';
       default: return 'bg-gray-50 text-gray-700 border-gray-200';
@@ -157,7 +157,7 @@ const PredictionsTab: React.FC<PredictionsTabProps> = ({ onNavigateToDiscover })
       </p>
       
       <motion.button 
-        className="bg-emerald-500 hover:bg-emerald-600 text-white px-8 py-3 rounded-xl font-medium transition-all duration-200 flex items-center gap-2"
+        className="bg-teal-500 hover:bg-teal-600 text-white px-8 py-3 rounded-xl font-medium transition-all duration-200 flex items-center gap-2"
         onClick={() => {
           if (tab === 'Created') {
             // Navigate to create page
@@ -198,24 +198,24 @@ const PredictionsTab: React.FC<PredictionsTabProps> = ({ onNavigateToDiscover })
       </div>
 
       {/* Position and Stats */}
-      <div className="bg-emerald-50 rounded-xl p-4 mb-4">
+      <div className="bg-teal-50 rounded-xl p-4 mb-4">
         <div className="flex items-center justify-between mb-2">
-          <span className="text-sm font-medium text-emerald-800">Your Position</span>
-          <span className="text-lg font-bold text-emerald-700">{prediction.position}</span>
+          <span className="text-sm font-medium text-teal-800">Your Position</span>
+          <span className="text-lg font-bold text-teal-700">{prediction.position}</span>
         </div>
         
         <div className="grid grid-cols-3 gap-4 mt-3">
           <div>
-            <p className="text-xs text-emerald-600 mb-1">Staked</p>
-            <p className="font-semibold text-emerald-900">${prediction.stake}</p>
+            <p className="text-xs text-teal-600 mb-1">Staked</p>
+            <p className="font-semibold text-teal-900">${prediction.stake}</p>
           </div>
           <div>
-            <p className="text-xs text-emerald-600 mb-1">Potential</p>
-            <p className="font-semibold text-emerald-900">${prediction.potentialReturn}</p>
+            <p className="text-xs text-teal-600 mb-1">Potential</p>
+            <p className="font-semibold text-teal-900">${prediction.potentialReturn}</p>
           </div>
           <div>
-            <p className="text-xs text-emerald-600 mb-1">Odds</p>
-            <p className="font-semibold text-emerald-900">{prediction.odds}</p>
+            <p className="text-xs text-teal-600 mb-1">Odds</p>
+            <p className="font-semibold text-teal-900">{prediction.odds}</p>
           </div>
         </div>
       </div>
@@ -228,7 +228,7 @@ const PredictionsTab: React.FC<PredictionsTabProps> = ({ onNavigateToDiscover })
         </div>
         <div className="w-full bg-gray-200 rounded-full h-2">
           <div 
-            className="bg-emerald-500 h-2 rounded-full transition-all duration-500"
+            className="bg-teal-500 h-2 rounded-full transition-all duration-500"
             style={{ width: `${prediction.confidence}%` }}
           />
         </div>
@@ -324,7 +324,7 @@ const PredictionsTab: React.FC<PredictionsTabProps> = ({ onNavigateToDiscover })
                   {tab.count > 0 && (
                     <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
                       activeTab === tab.id
-                        ? 'bg-emerald-100 text-emerald-700'
+                        ? 'bg-teal-100 text-teal-700'
                         : 'bg-gray-200 text-gray-600'
                     }`}>
                       {tab.count}

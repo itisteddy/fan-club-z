@@ -2,7 +2,7 @@
 "use strict";
 /**
  * Fan Club Z Server Entry Point
- * Simple working version for deployment
+ * Simple working version for deployment with settlement support
  */
 var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
     if (k2 === undefined) k2 = k;
@@ -47,14 +47,14 @@ const config_1 = require("./config");
 const shared_1 = require("@fanclubz/shared");
 const app = (0, express_1.default)();
 const PORT = config_1.config.server.port || 3001;
-console.log(`🚀 Fan Club Z Server v${shared_1.VERSION} - CORS FIXED - SINGLE SOURCE OF TRUTH`);
-console.log('📡 Starting server with enhanced CORS support...');
+console.log(`🚀 Fan Club Z Server v${shared_1.VERSION} - CORS FIXED - WITH SETTLEMENT`);
+console.log('📡 Starting server with enhanced CORS support and settlement functionality...');
 // Enhanced CORS middleware - Allow all origins for now to fix immediate issue
 app.use((0, cors_1.default)({
     origin: true, // Allow all origins temporarily
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'Origin', 'X-Requested-With'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'Origin', 'X-Requested-With', 'Cache-Control'],
     exposedHeaders: ['Content-Range', 'X-Content-Range']
 }));
 // Explicit OPTIONS preflight handler (some hosts require this)
@@ -62,7 +62,7 @@ app.options('*', (req, res) => {
     res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
     res.header('Access-Control-Allow-Credentials', 'true');
     res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, Accept, Origin, X-Requested-With');
+    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, Accept, Origin, X-Requested-With, Cache-Control');
     res.sendStatus(200);
 });
 // Additional CORS headers middleware
@@ -70,7 +70,7 @@ app.use((req, res, next) => {
     res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
     res.header('Access-Control-Allow-Credentials', 'true');
     res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, Accept, Origin, X-Requested-With');
+    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, Accept, Origin, X-Requested-With, Cache-Control');
     // Handle preflight requests
     if (req.method === 'OPTIONS') {
         res.status(200).end();
@@ -87,7 +87,8 @@ app.get('/health', (req, res) => {
         version: shared_1.VERSION,
         environment: config_1.config.server.nodeEnv || 'production',
         uptime: process.uptime(),
-        cors: 'enabled'
+        cors: 'enabled',
+        settlement: 'enabled'
     });
 });
 // Root endpoint
@@ -97,7 +98,8 @@ app.get('/', (req, res) => {
         version: shared_1.VERSION,
         environment: config_1.config.server.nodeEnv || 'production',
         status: 'running',
-        cors: 'enabled'
+        cors: 'enabled',
+        settlement: 'enabled'
     });
 });
 // Database seeding endpoint (for development/testing)
@@ -127,11 +129,22 @@ app.post('/api/v2/admin/seed-database', async (req, res) => {
 const users_1 = __importDefault(require("./routes/users"));
 const predictions_1 = __importDefault(require("./routes/predictions"));
 const prediction_entries_1 = __importDefault(require("./routes/prediction-entries"));
+// import commentsRoutes from './routes/comments'; // Temporarily disabled due to TypeScript errors
+const settlement_1 = __importDefault(require("./routes/settlement"));
 const storage_1 = require("./startup/storage");
 // Use routes
 app.use('/api/v2/users', users_1.default);
 app.use('/api/v2/predictions', predictions_1.default);
 app.use('/api/v2/prediction-entries', prediction_entries_1.default);
+// app.use('/api/v2/social', commentsRoutes); // Temporarily disabled
+app.use('/api/v2/settlement', settlement_1.default);
+// Debug logging for route registration
+console.log('✅ Routes registered:');
+console.log('  - /api/v2/users');
+console.log('  - /api/v2/predictions');
+console.log('  - /api/v2/prediction-entries');
+// console.log('  - /api/v2/social (comments system)'); // Temporarily disabled
+console.log('  - /api/v2/settlement (manual/auto settlement)');
 // CORS test endpoint
 app.get('/api/v2/test-cors', (req, res) => {
     console.log('🧪 CORS test endpoint called - origin:', req.headers.origin);
@@ -171,6 +184,7 @@ app.listen(PORT, () => {
     console.log(`🔗 API URL: ${config_1.config.api.url || `https://fan-club-z.onrender.com`}`);
     console.log(`🎯 Frontend URL: ${config_1.config.frontend.url || 'https://app.fanclubz.app'}`);
     console.log(`✅ CORS enabled for all origins (development mode)`);
+    console.log(`🔨 Settlement system enabled`);
     (0, storage_1.ensureAvatarsBucket)();
 });
 exports.default = app;

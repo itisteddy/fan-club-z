@@ -26,9 +26,9 @@ export const SettlementBadge: React.FC<SettlementBadgeProps> = ({
       return {
         text: 'Auto-Settled',
         icon: '⚡',
-        bgColor: 'bg-green-100',
-        textColor: 'text-green-700',
-        borderColor: 'border-green-200'
+        bgColor: 'bg-teal-100',
+        textColor: 'text-teal-700',
+        borderColor: 'border-teal-200'
       };
     }
     

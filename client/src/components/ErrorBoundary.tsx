@@ -107,7 +107,7 @@ const DefaultErrorFallback: React.FC<{ error?: Error; resetError: () => void }> 
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
             onClick={handleRefresh}
-            className="flex items-center justify-center gap-2 w-full bg-green-600 text-white py-3 px-4 rounded-xl font-semibold hover:bg-green-700 transition-colors"
+            className="flex items-center justify-center gap-2 w-full bg-teal-600 text-white py-3 px-4 rounded-xl font-semibold hover:bg-green-700 transition-colors"
           >
             <RefreshCw className="w-4 h-4" />
             Try Again
@@ -167,7 +167,7 @@ const ProfileErrorFallback: React.FC<{ error?: Error; resetError: () => void }> 
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <div className="bg-gradient-to-r from-green-500 to-green-600 pt-12 pb-6">
+      <div className="bg-gradient-to-r from-purple-500 to-teal-600 pt-12 pb-6">
         <div className="px-6">
           <h1 className="text-white text-2xl font-bold">Profile</h1>
         </div>
@@ -197,7 +197,7 @@ const ProfileErrorFallback: React.FC<{ error?: Error; resetError: () => void }> 
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
               onClick={handleGoBack}
-              className="w-full bg-green-600 text-white py-3 px-4 rounded-xl font-semibold hover:bg-green-700 transition-colors"
+              className="w-full bg-teal-600 text-white py-3 px-4 rounded-xl font-semibold hover:bg-green-700 transition-colors"
             >
               Go Back
             </motion.button>

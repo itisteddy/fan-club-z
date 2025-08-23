@@ -1,0 +1,19 @@
+<svg viewBox="0 0 192 192" xmlns="http://www.w3.org/2000/svg">
+  <!-- Outer circle background with padding for maskable - Neon Teal -->
+  <circle cx="96" cy="96" r="80" fill="#00F5D4" stroke="#00F5D4" stroke-width="4"/>
+  
+  <!-- Electric Purple F section -->
+  <path d="M 36 36 Q 36 36 66 36 Q 96 36 96 56 Q 96 96 66 96 L 36 96 Q 36 96 36 156 Q 156 156 156 96 Q 156 36 96 36 L 66 36 Z" fill="#7B2FF7"/>
+  
+  <!-- White F letter -->
+  <g fill="white">
+    <rect x="48" y="52" width="12" height="56"/>
+    <rect x="48" y="52" width="36" height="10"/>
+    <rect x="48" y="72" width="28" height="8"/>
+  </g>
+  
+  <!-- White C letter -->
+  <g fill="white" transform="translate(86, 36)">
+    <path d="M 30 20 Q 10 20 10 40 L 10 60 Q 10 80 30 80 L 50 80 L 50 70 L 30 70 Q 20 70 20 60 L 20 40 Q 20 30 30 30 L 50 30 L 50 20 Z"/>
+  </g>
+</svg>

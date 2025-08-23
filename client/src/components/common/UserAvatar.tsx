@@ -23,19 +23,46 @@ export const UserAvatar: React.FC<UserAvatarProps> = ({
   className,
   size = 'md',
 }) => {
-  const letter = (email?.trim()?.charAt(0) || username?.trim()?.charAt(0) || 'U').toUpperCase();
   const classes = `${sizeToClasses[size]} ${className || ''}`.trim();
+  
+  // Generate fallback initials from username, email, or default to 'FC'
+  const generateInitials = (): string => {
+    if (username && username.trim()) {
+      return username
+        .trim()
+        .split(' ')
+        .map(word => word.charAt(0))
+        .join('')
+        .toUpperCase()
+        .slice(0, 2);
+    }
+    
+    if (email && email.trim()) {
+      return email
+        .trim()
+        .split('@')[0]
+        .slice(0, 2)
+        .toUpperCase();
+    }
+    
+    return 'FC'; // Fan Club default
+  };
+
+  const initials = generateInitials();
 
   return (
     <Avatar className={classes}>
-      <AvatarImage src={avatarUrl || undefined} />
-      <AvatarFallback className="bg-emerald-600 text-white font-semibold">
-        {letter}
+      {avatarUrl && avatarUrl.trim() ? (
+        <AvatarImage 
+          src={avatarUrl} 
+          alt={username || email || 'User avatar'}
+        />
+      ) : null}
+      <AvatarFallback className="bg-gradient-to-r from-purple-400 to-purple-600 text-white font-bold">
+        {initials}
       </AvatarFallback>
     </Avatar>
   );
 };
 
 export default UserAvatar;
-
-

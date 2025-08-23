@@ -63,8 +63,8 @@ export const ApiHealthIndicator: React.FC<ApiHealthIndicatorProps> = ({
       return {
         icon: CheckCircle,
         text: 'Connected',
-        color: 'text-green-600',
-        bgColor: 'bg-green-50 border-green-200'
+        color: 'text-teal-600',
+        bgColor: 'bg-teal-50 border-teal-200'
       };
     }
 

@@ -250,9 +250,6 @@ const CommentModal: React.FC<CommentModalProps> = ({
                       animate={{ opacity: 1, y: 0 }}
                       className="flex gap-3"
                     >
-                      <div className="w-8 h-8 rounded-full bg-gradient-to-r from-green-400 to-green-500 flex items-center justify-center text-white text-sm font-semibold flex-shrink-0">
-                        {comment.user?.username?.[0]?.toUpperCase() || 'U'}
-                      </div>
                       <div className="flex-1 min-w-0">
                         <div className="bg-gray-50 rounded-2xl px-4 py-3">
                           <div className="flex items-center gap-2 mb-1">
@@ -299,9 +296,6 @@ const CommentModal: React.FC<CommentModalProps> = ({
             {user ? (
               <div className="p-4 border-t border-gray-100 bg-white sticky bottom-0">
                 <div className="flex gap-3">
-                  <div className="w-8 h-8 rounded-full bg-gradient-to-r from-green-400 to-green-500 flex items-center justify-center text-white text-sm font-semibold flex-shrink-0">
-                    {user.firstName?.[0]?.toUpperCase() || user.username?.[0]?.toUpperCase() || user.email?.[0]?.toUpperCase() || 'U'}
-                  </div>
                   <div className="flex-1 flex gap-2">
                     <input
                       type="text"
@@ -320,7 +314,7 @@ const CommentModal: React.FC<CommentModalProps> = ({
                     <button
                       onClick={handleSubmitComment}
                       disabled={!newComment.trim() || isSubmitting}
-                      className="w-8 h-8 rounded-full bg-green-500 text-white flex items-center justify-center hover:bg-green-600 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+                      className="w-8 h-8 rounded-full bg-teal-500 text-white flex items-center justify-center hover:bg-teal-600 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
                     >
                       <Send size={14} />
                     </button>

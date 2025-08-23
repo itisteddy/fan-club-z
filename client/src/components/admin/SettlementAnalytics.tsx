@@ -26,7 +26,7 @@ interface MetricCardProps {
 const MetricCard: React.FC<MetricCardProps> = ({ title, value, subtitle, icon: Icon, trend, color }) => {
   const colorClasses = {
     blue: 'bg-blue-50 border-blue-200 text-blue-600',
-    green: 'bg-green-50 border-green-200 text-green-600',
+    green: 'bg-teal-50 border-teal-200 text-teal-600',
     red: 'bg-red-50 border-red-200 text-red-600',
     yellow: 'bg-yellow-50 border-yellow-200 text-yellow-600',
     purple: 'bg-purple-50 border-purple-200 text-purple-600'
@@ -39,7 +39,7 @@ const MetricCard: React.FC<MetricCardProps> = ({ title, value, subtitle, icon: I
           <Icon size={24} />
         </div>
         {trend && (
-          <div className={`flex items-center gap-1 text-sm ${trend.isPositive ? 'text-green-600' : 'text-red-600'}`}>
+          <div className={`flex items-center gap-1 text-sm ${trend.isPositive ? 'text-teal-600' : 'text-red-600'}`}>
             {trend.isPositive ? <TrendingUp size={16} /> : <TrendingDown size={16} />}
             <span>{trend.value > 0 ? '+' : ''}{trend.value}%</span>
           </div>
@@ -165,7 +165,7 @@ export const SettlementAnalytics: React.FC = () => {
         <p className="text-gray-600 mb-4">{error}</p>
         <button
           onClick={fetchAnalytics}
-          className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+          className="px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-green-700 transition-colors"
         >
           Retry
         </button>
@@ -192,7 +192,7 @@ export const SettlementAnalytics: React.FC = () => {
         </div>
         <button
           onClick={fetchAnalytics}
-          className="px-4 py-2 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+          className="px-4 py-2 text-sm bg-teal-600 text-white rounded-lg hover:bg-green-700 transition-colors"
         >
           Refresh Data
         </button>
@@ -278,9 +278,9 @@ export const SettlementAnalytics: React.FC = () => {
         <div className="bg-white rounded-lg border border-gray-200 p-6">
           <h3 className="text-lg font-semibold text-gray-900 mb-4">Settlement Performance</h3>
           <div className="space-y-4">
-            <div className="flex items-center justify-between p-4 bg-green-50 rounded-lg">
+            <div className="flex items-center justify-between p-4 bg-teal-50 rounded-lg">
               <div className="flex items-center gap-3">
-                <CheckCircle className="text-green-600" size={20} />
+                <CheckCircle className="text-teal-600" size={20} />
                 <div>
                   <p className="font-medium text-gray-900">Successfully Settled</p>
                   <p className="text-sm text-gray-600">
@@ -288,7 +288,7 @@ export const SettlementAnalytics: React.FC = () => {
                   </p>
                 </div>
               </div>
-              <div className="text-2xl font-bold text-green-600">
+              <div className="text-2xl font-bold text-teal-600">
                 {analytics.settlement_success_rate.toFixed(1)}%
               </div>
             </div>
@@ -324,14 +324,14 @@ export const SettlementAnalytics: React.FC = () => {
               </div>
             </div>
             
-            <div className="flex items-center justify-between p-4 bg-green-50 rounded-lg">
+            <div className="flex items-center justify-between p-4 bg-teal-50 rounded-lg">
               <div>
                 <p className="font-medium text-gray-900">Platform Revenue</p>
                 <p className="text-sm text-gray-600">
                   {((analytics.total_fees_collected / analytics.total_volume) * 100).toFixed(1)}% of volume
                 </p>
               </div>
-              <div className="text-2xl font-bold text-green-600">
+              <div className="text-2xl font-bold text-teal-600">
                 {formatCurrency(analytics.total_fees_collected)}
               </div>
             </div>

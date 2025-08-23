@@ -47,10 +47,10 @@ export const ToastNotification: React.FC<ToastNotificationProps> = ({
     switch (type) {
       case 'success':
         return {
-          bg: 'bg-green-50 border-green-200',
-          icon: <CheckCircle className="w-5 h-5 text-green-600" />,
-          text: 'text-green-800',
-          button: 'text-green-600 hover:text-green-800',
+          bg: 'bg-teal-50 border-teal-200',
+          icon: <CheckCircle className="w-5 h-5 text-teal-600" />,
+          text: 'text-teal-800',
+          button: 'text-teal-600 hover:text-teal-800',
         };
       case 'error':
         return {

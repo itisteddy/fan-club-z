@@ -374,7 +374,7 @@ export const OnboardingDebugPanel: React.FC = () => {
         </button>
         <button
           onClick={startQuickTour}
-          className="px-2 py-1 bg-green-500 text-white rounded text-xs"
+          className="px-2 py-1 bg-teal-500 text-white rounded text-xs"
         >
           Quick
         </button>

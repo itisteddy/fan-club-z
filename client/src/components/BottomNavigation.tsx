@@ -107,7 +107,7 @@ const BottomNavigation: React.FC<BottomNavigationProps> = ({
                 }}>
                   <div style={{
                     transition: 'all 0.2s ease',
-                    color: isActive ? '#22c55e' : '#6b7280',
+                    color: isActive ? '#7B2FF7' : '#6b7280',
                     transform: isActive ? 'scale(1.1)' : 'scale(1)',
                     display: 'flex',
                     alignItems: 'center',
@@ -127,7 +127,7 @@ const BottomNavigation: React.FC<BottomNavigationProps> = ({
                         transform: 'translateX(-50%)',
                         width: '4px',
                         height: '4px',
-                        backgroundColor: '#22c55e',
+                        backgroundColor: '#7B2FF7',
                         borderRadius: '50%',
                         boxShadow: '0 0 6px rgba(34, 197, 94, 0.6)'
                       }}
@@ -140,7 +140,7 @@ const BottomNavigation: React.FC<BottomNavigationProps> = ({
                   fontSize: '11px',
                   fontWeight: isActive ? '600' : '500',
                   transition: 'all 0.2s ease',
-                  color: isActive ? '#22c55e' : '#6b7280',
+                  color: isActive ? '#7B2FF7' : '#6b7280',
                   textAlign: 'center',
                   lineHeight: '1.2'
                 }}>
@@ -168,7 +168,7 @@ const BottomNavigation: React.FC<BottomNavigationProps> = ({
               width: '56px',
               height: '56px',
               borderRadius: '50%',
-              background: 'linear-gradient(135deg, #22c55e, #16a34a)',
+              background: 'linear-gradient(135deg, #7B2FF7, #00F5D4)',
               border: 'none',
               boxShadow: '0 8px 24px rgba(34, 197, 94, 0.4)',
               cursor: 'pointer',

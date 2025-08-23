@@ -1,6 +1,7 @@
 import React from 'react';
 import { ArrowLeft, Zap, Users, Shield, TrendingUp } from 'lucide-react';
 import { useLocation } from 'wouter';
+import Logo from '../common/Logo';
 
 interface AuthLayoutProps {
   children: React.ReactNode;
@@ -49,9 +50,7 @@ export const AuthLayout: React.FC<AuthLayoutProps> = ({ children }) => {
           )}
           <div className="flex-1" />
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-gradient-primary rounded-full flex items-center justify-center">
-              <span className="text-white text-sm font-bold">F</span>
-            </div>
+            <Logo size="sm" variant="icon" />
             <span className="text-body-md font-semibold text-foreground">Fan Club Z</span>
           </div>
         </div>
@@ -68,8 +67,8 @@ export const AuthLayout: React.FC<AuthLayoutProps> = ({ children }) => {
             <div className="absolute inset-2 rounded-full bg-primary/10 animate-pulse-ring" style={{ animationDelay: '0.5s' }} />
             
             {/* Main logo */}
-            <div className="relative w-full h-full bg-gradient-primary rounded-full flex items-center justify-center shadow-fab">
-              <span className="text-3xl font-bold text-white">F</span>
+            <div className="relative w-full h-full">
+              <Logo size="xl" variant="icon" />
             </div>
           </div>
 

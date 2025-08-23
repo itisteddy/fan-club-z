@@ -165,7 +165,7 @@ export const SettlementCriteriaSetup: React.FC<SettlementCriteriaSetupProps> = (
                 className={`
                   border rounded-lg p-4 cursor-pointer transition-all
                   ${selectedTemplate === template.id
-                    ? 'border-green-500 bg-green-50 ring-2 ring-green-200'
+                    ? 'border-teal-500 bg-teal-50 ring-2 ring-green-200'
                     : 'border-gray-200 hover:border-gray-300'
                   }
                 `}
@@ -177,7 +177,7 @@ export const SettlementCriteriaSetup: React.FC<SettlementCriteriaSetupProps> = (
                       <div className={`
                         w-4 h-4 rounded-full border-2 flex items-center justify-center
                         ${selectedTemplate === template.id
-                          ? 'border-green-500 bg-green-500'
+                          ? 'border-teal-500 bg-teal-500'
                           : 'border-gray-300'
                         }
                       `}>
@@ -187,7 +187,7 @@ export const SettlementCriteriaSetup: React.FC<SettlementCriteriaSetupProps> = (
                       </div>
                       <h4 className="font-semibold text-gray-900">{template.name}</h4>
                       {template.auto_settlement_capable && (
-                        <span className="px-2 py-1 text-xs bg-green-100 text-green-700 rounded-full">
+                        <span className="px-2 py-1 text-xs bg-teal-100 text-teal-700 rounded-full">
                           AUTO
                         </span>
                       )}

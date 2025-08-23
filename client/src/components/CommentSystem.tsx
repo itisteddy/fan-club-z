@@ -1,8 +1,9 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuthStore } from '../store/authStore';
 import { useCommentsForPrediction } from '../store/unifiedCommentStore';
 import { MessageCircle, Heart, Reply, MoreHorizontal, Flag, Edit, Trash2 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
+import TappableUsername from './TappableUsername';
 
 interface CommentSystemProps {
   predictionId: string;
@@ -79,12 +80,44 @@ const CommentSystem: React.FC<CommentSystemProps> = ({ predictionId }) => {
   const [replyTo, setReplyTo] = useState<string | null>(null);
   const [editingComment, setEditingComment] = useState<string | null>(null);
 
-  // Load comments on mount
+  // Track which predictions have been fetched to prevent repeated fetches
+  const [hasAttemptedFetch, setHasAttemptedFetch] = useState(false);
+  
+  // Stable reference to prediction ID to prevent effect re-runs
+  const stablePredictionId = useRef(predictionId);
+  
+  // Update stable ref only when prediction ID actually changes
   useEffect(() => {
-    if (predictionId && comments.length === 0 && !isLoading) {
-      fetchComments();
+    if (stablePredictionId.current !== predictionId) {
+      stablePredictionId.current = predictionId;
+      setHasAttemptedFetch(false); // Reset fetch attempt for new prediction
     }
-  }, [predictionId, comments.length, isLoading, fetchComments]);
+  }, [predictionId]);
+
+  // Load comments on mount - FIXED: Prevent infinite loop
+  useEffect(() => {
+    // Only fetch if:
+    // 1. We have a valid prediction ID
+    // 2. We haven't already attempted to fetch for this prediction
+    // 3. We're not currently loading
+    if (predictionId && 
+        predictionId.trim() &&
+        !hasAttemptedFetch && 
+        !isLoading) {
+      
+      console.log(`🔄 Fetching comments for prediction ${predictionId}`);
+      
+      // Mark as attempted immediately to prevent race conditions
+      setHasAttemptedFetch(true);
+      
+      // Fetch comments with error handling
+      fetchComments().catch(error => {
+        console.error('❌ Failed to fetch comments:', error);
+        // Allow retry on next component mount or prop change
+        setHasAttemptedFetch(false);
+      });
+    }
+  }, [predictionId, hasAttemptedFetch, isLoading]);
 
   // Handle adding a comment
   const handleAddComment = useCallback(async (parentId?: string) => {
@@ -100,7 +133,14 @@ const CommentSystem: React.FC<CommentSystemProps> = ({ predictionId }) => {
     }
 
     try {
-      await addComment(content.trim(), parentId);
+      // Pass user data to the comment creation
+      await addComment(content.trim(), parentId, {
+        id: user.id,
+        username: user.firstName || user.email?.split('@')[0] || 'Anonymous',
+        full_name: `${user.firstName} ${user.lastName}`.trim() || user.email?.split('@')[0] || 'Anonymous User',
+        avatar_url: user.avatar,
+        is_verified: false
+      });
       
       // Clear the text input
       if (parentId) {
@@ -171,32 +211,28 @@ const CommentSystem: React.FC<CommentSystemProps> = ({ predictionId }) => {
     const isCurrentlyReplying = replyTo === comment.id;
 
     return (
-      <div className={`comment-item ${isReply ? 'ml-8 pl-4 border-l-2 border-gray-100' : ''} py-4`}>
+      <div className={`comment-item ${isReply ? 'ml-8 pl-4 border-l-2 border-gray-100' : ''} p-4 bg-white rounded-lg border border-gray-100 shadow-sm hover:shadow-md transition-shadow`}>
         <div className="flex space-x-3">
-          {/* Avatar */}
-          <div className="flex-shrink-0">
-            <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center">
-              {comment.user?.avatar_url ? (
-                <img
-                  src={comment.user.avatar_url}
-                  alt={comment.user.username}
-                  className="w-8 h-8 rounded-full object-cover"
-                />
-              ) : (
-                <span className="text-green-600 font-semibold text-sm">
-                  {comment.user?.username?.charAt(0)?.toUpperCase() || comment.username?.charAt(0)?.toUpperCase() || 'U'}
-                </span>
-              )}
+          {/* Only show avatar if user has an actual avatar URL */}
+          {comment.user?.avatar_url && (
+            <div className="flex-shrink-0">
+              <img
+                src={comment.user.avatar_url}
+                alt={comment.user.username}
+                className="w-8 h-8 rounded-full object-cover"
+              />
             </div>
-          </div>
+          )}
 
           {/* Comment Content */}
           <div className="flex-1 min-w-0">
             {/* Header */}
-            <div className="flex items-center space-x-2 mb-1">
-              <span className="font-semibold text-sm text-gray-900">
-                {comment.user?.username || comment.username || 'Anonymous'}
-              </span>
+            <div className="flex items-center space-x-2 mb-2">
+              <TappableUsername 
+                username={comment.user?.username || comment.username || 'Anonymous'}
+                userId={comment.user?.id}
+                className="font-semibold text-sm text-gray-900 hover:text-teal-600 transition-colors"
+              />
               {(comment.user?.is_verified || comment.is_verified) && (
                 <span className="text-blue-500 text-xs">✓</span>
               )}
@@ -232,7 +268,7 @@ const CommentSystem: React.FC<CommentSystemProps> = ({ predictionId }) => {
                           setEditingComment(null);
                         }}
                         disabled={!(editTexts[comment.id] || '').trim()}
-                        className="px-3 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="px-3 py-1 bg-teal-600 text-white text-xs rounded hover:bg-teal-700 disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         Save
                       </button>
@@ -351,7 +387,7 @@ const CommentSystem: React.FC<CommentSystemProps> = ({ predictionId }) => {
                     <button
                       onClick={() => handleAddComment(comment.id)}
                       disabled={!(replyTexts[comment.id] || '').trim() || isSubmitting}
-                      className="px-3 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                                              className="px-3 py-1 bg-teal-600 text-white text-xs rounded hover:bg-teal-700 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       {isSubmitting ? 'Replying...' : 'Reply'}
                     </button>
@@ -407,42 +443,27 @@ const CommentSystem: React.FC<CommentSystemProps> = ({ predictionId }) => {
 
       {/* New comment input */}
       {user && (
-        <div className="p-4 border-b border-gray-200">
-          <div className="flex space-x-3">
-            <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center flex-shrink-0">
-              {user.avatar_url ? (
-                <img
-                  src={user.avatar_url}
-                  alt={user.username}
-                  className="w-8 h-8 rounded-full object-cover"
-                />
-              ) : (
-                <span className="text-green-600 font-semibold text-sm">
-                  {user.firstName?.[0]?.toUpperCase() || user.username?.charAt(0)?.toUpperCase() || user.email?.[0]?.toUpperCase() || 'U'}
-                </span>
-              )}
-            </div>
-            <div className="flex-1">
-              <IsolatedTextarea
-                id="main-textarea"
-                value={mainCommentText}
-                onValueChange={setMainCommentText}
-                placeholder="Share your thoughts..."
-                rows={3}
-                maxLength={500}
-              />
-              <div className="flex justify-between items-center mt-2">
-                <span className="text-xs text-gray-500">
-                  {mainCommentText.length}/500
-                </span>
-                <button
-                  onClick={() => handleAddComment()}
-                  disabled={!mainCommentText.trim() || isSubmitting}
-                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm font-medium"
-                >
-                  {isSubmitting ? 'Posting...' : 'Comment'}
-                </button>
-              </div>
+        <div className="p-4 border-b border-gray-200 bg-gray-50">
+          <div className="w-full">
+            <IsolatedTextarea
+              id="main-textarea"
+              value={mainCommentText}
+              onValueChange={setMainCommentText}
+              placeholder="Share your thoughts..."
+              rows={3}
+              maxLength={500}
+            />
+            <div className="flex justify-between items-center mt-3">
+              <span className="text-xs text-gray-500">
+                {mainCommentText.length}/500
+              </span>
+              <button
+                onClick={() => handleAddComment()}
+                disabled={!mainCommentText.trim() || isSubmitting}
+                className="px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm font-medium"
+              >
+                {isSubmitting ? 'Posting...' : 'Comment'}
+              </button>
             </div>
           </div>
         </div>
@@ -452,7 +473,7 @@ const CommentSystem: React.FC<CommentSystemProps> = ({ predictionId }) => {
       {!user && (
         <div className="p-4 border-b border-gray-200 bg-gray-50">
           <p className="text-gray-600 text-center">
-            Please <span className="text-green-600 font-medium">sign in</span> to join the conversation
+            Please <span className="text-teal-600 font-medium">sign in</span> to join the conversation
           </p>
         </div>
       )}
@@ -460,7 +481,7 @@ const CommentSystem: React.FC<CommentSystemProps> = ({ predictionId }) => {
       {/* Loading state */}
       {isLoading && (
         <div className="p-8 text-center">
-          <div className="w-8 h-8 border-2 border-green-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <div className="w-8 h-8 border-2 border-teal-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
           <p className="text-gray-600">Loading comments...</p>
         </div>
       )}

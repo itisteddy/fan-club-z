@@ -200,7 +200,7 @@ export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
                           className={cn(
                             "cursor-pointer transition-all border-2",
                             selectedOptionId === option.id 
-                              ? "border-green-500 bg-green-50" 
+                              ? "border-teal-500 bg-teal-50" 
                               : "border-gray-200 hover:border-gray-300"
                           )}
                           onClick={() => setSelectedOptionId(option.id)}
@@ -214,7 +214,7 @@ export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
                                 </div>
                               </div>
                               <div className="text-right">
-                                <div className="text-lg font-bold text-green-600">
+                                <div className="text-lg font-bold text-teal-600">
                                   {currentOdds.toFixed(2)}x
                                 </div>
                               </div>
@@ -286,12 +286,12 @@ export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
 
                       {/* Potential payout */}
                       {numAmount > 0 && (
-                        <Card className="bg-green-50 border-green-200">
+                        <Card className="bg-teal-50 border-teal-200">
                           <CardContent className="p-3">
                             <div className="flex items-center justify-between">
                               <div>
                                 <div className="text-sm text-gray-500">Potential return</div>
-                                <div className="text-lg font-bold text-green-600">
+                                <div className="text-lg font-bold text-teal-600">
                                   {formatCurrency(potentialPayout)}
                                 </div>
                               </div>
@@ -299,7 +299,7 @@ export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
                                 <div className="text-sm text-gray-500">Profit</div>
                                 <div className={cn(
                                   "font-semibold",
-                                  potentialPayout > numAmount ? "text-green-600" : "text-red-600"
+                                  potentialPayout > numAmount ? "text-teal-600" : "text-red-600"
                                 )}>
                                   {formatCurrency(potentialPayout - numAmount)}
                                 </div>
@@ -318,7 +318,7 @@ export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
                 <Button
                   onClick={handleSubmit}
                   disabled={!selectedOptionId || !numAmount || isLoading || numAmount > usdBalance}
-                  className="w-full h-12 bg-green-500 hover:bg-green-600 disabled:bg-gray-400 text-white font-semibold rounded-xl transition-all duration-200 shadow-lg flex items-center justify-center"
+                  className="w-full h-12 bg-teal-500 hover:bg-teal-600 disabled:bg-gray-400 text-white font-semibold rounded-xl transition-all duration-200 shadow-lg flex items-center justify-center"
                 >
                   {isLoading ? (
                     <div className="flex items-center gap-2">

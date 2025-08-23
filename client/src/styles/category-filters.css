@@ -53,7 +53,7 @@
 }
 
 .category-pill:focus {
-  outline: 2px solid #22c55e;
+  outline: 2px solid #00F5D4;
   outline-offset: 2px;
 }
 
@@ -67,7 +67,8 @@
 
 /* Active and hover states */
 .category-pill.active {
-  color: white;
+  color: white !important;
+  background-color: #7B2FF7 !important;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
   transform: translateY(-1px);
 }
@@ -150,6 +151,6 @@
   }
   
   .category-pill.active {
-    border-color: #22c55e;
+    border-color: #00F5D4;
   }
 }

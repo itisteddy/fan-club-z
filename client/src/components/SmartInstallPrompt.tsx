@@ -33,7 +33,7 @@ const InstallPromptCard: React.FC<InstallPromptCardProps> = ({ onInstall, onDism
     `} style={{ zIndex: 10000 }}>
       <div className="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
         {/* Header with gradient */}
-        <div className="bg-gradient-to-r from-green-500 to-green-600 p-4 text-white">
+        <div className="bg-gradient-to-r from-purple-500 to-teal-600 p-4 text-white">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-2">
               <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">
@@ -56,8 +56,8 @@ const InstallPromptCard: React.FC<InstallPromptCardProps> = ({ onInstall, onDism
         {/* Benefits */}
         <div className="p-4 space-y-3">
           <div className="flex items-center space-x-3">
-            <div className="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center">
-              <Zap className="w-4 h-4 text-green-600" />
+                            <div className="w-8 h-8 bg-gradient-to-r from-purple-400 to-teal-500 rounded-lg flex items-center justify-center">
+              <Zap className="w-4 h-4 text-teal-600" />
             </div>
             <div>
               <p className="text-sm font-medium text-gray-900">Faster Performance</p>
@@ -96,7 +96,7 @@ const InstallPromptCard: React.FC<InstallPromptCardProps> = ({ onInstall, onDism
           </button>
           <button
             onClick={handleInstall}
-            className="flex-1 py-2.5 px-4 bg-green-600 text-white rounded-lg font-medium text-sm hover:bg-green-700 transition-colors flex items-center justify-center space-x-1"
+            className="flex-1 py-2.5 px-4 bg-teal-600 text-white rounded-lg font-medium text-sm hover:bg-green-700 transition-colors flex items-center justify-center space-x-1"
           >
             <Download className="w-4 h-4" />
             <span>Install</span>

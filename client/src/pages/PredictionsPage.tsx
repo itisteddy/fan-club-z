@@ -174,7 +174,7 @@ export const PredictionsPage: React.FC = () => {
         transition={{ duration: 0.6 }}
       >
         {/* Enhanced Stats Overview */}
-        <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-primary-green via-primary-green/90 to-deep-green p-8 text-white shadow-level-2">
+        <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-purple-500 via-purple-500/90 to-teal-600 p-8 text-white shadow-level-2">
           {/* Background pattern */}
           <div className="absolute inset-0 opacity-10">
             <div className="absolute top-4 right-4 w-32 h-32 rounded-full bg-white/20" />
@@ -276,7 +276,7 @@ export const PredictionsPage: React.FC = () => {
 const ActivePredictionCard: React.FC<{ prediction: any }> = ({ prediction }) => {
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'winning': return 'text-success-green bg-green-50 border-success-green';
+      case 'winning': return 'text-success-green bg-teal-50 border-success-green';
       case 'losing': return 'text-coral bg-red-50 border-coral';
       case 'neutral': return 'text-amber bg-yellow-50 border-amber';
       default: return 'text-cool-gray-600 bg-cool-gray-50 border-cool-gray-300';
@@ -428,7 +428,7 @@ const CreatedPredictionCard: React.FC<{ prediction: any }> = ({ prediction }) =>
       </div>
 
       {/* Enhanced Pool Stats */}
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-primary-green to-deep-green p-6 text-white">
+      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-purple-500 to-teal-600 p-6 text-white">
         {/* Background pattern */}
         <div className="absolute inset-0 opacity-20">
           <div className="absolute top-2 right-2 w-16 h-16 rounded-full bg-white/30" />
@@ -510,7 +510,7 @@ const CompletedPredictionCard: React.FC<{ prediction: any }> = ({ prediction }) 
   return (
     <motion.div 
       className={`card-level-1 p-6 space-y-6 relative overflow-hidden border-l-4 ${
-        isWin ? 'border-l-success-green bg-green-50/30' : 'border-l-coral bg-red-50/30'
+        isWin ? 'border-l-success-green bg-teal-50/30' : 'border-l-coral bg-red-50/30'
       }`}
       whileHover={{ y: -2, boxShadow: "0 8px 24px rgba(0, 0, 0, 0.12)" }}
       transition={{ type: "spring", stiffness: 300, damping: 30 }}
@@ -526,7 +526,7 @@ const CompletedPredictionCard: React.FC<{ prediction: any }> = ({ prediction }) 
         </div>
         <motion.div 
           className={`flex items-center gap-2 px-4 py-2 rounded-xl ${
-            isWin ? 'bg-green-100 text-success-green' : 'bg-red-100 text-coral'
+            isWin ? 'bg-teal-100 text-success-green' : 'bg-red-100 text-coral'
           }`}
           whileHover={{ scale: 1.05 }}
         >

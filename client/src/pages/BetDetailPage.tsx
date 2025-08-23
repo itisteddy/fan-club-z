@@ -48,15 +48,33 @@ const BetDetailPage: React.FC = () => {
 
   return (
     <div className="page-container">
-      {/* Bet Header - from reference */}
+      {/* Bet Header */}
       <div className="prediction-card">
         <div className="prediction-header">
-          <div className="prediction-avatar">A</div>
-          <div className="prediction-creator-info">
-            <div className="prediction-creator-name">By @alexj</div>
-            <div className="prediction-timestamp">OPEN</div>
+          <div className="prediction-avatar">
+            {bet.creator?.avatar_url ? (
+              <img
+                src={bet.creator.avatar_url}
+                alt={bet.creator.username || 'Creator'}
+                className="w-full h-full object-cover rounded-full"
+                onError={(e) => {
+                  const target = e.target as HTMLImageElement;
+                  target.style.display = 'none';
+                  const parent = target.parentElement;
+                  if (parent) {
+                    parent.innerHTML = (bet.creator?.username?.slice(0, 1) || 'A').toUpperCase();
+                  }
+                }}
+              />
+            ) : (
+              (bet.creator?.username?.slice(0, 1) || 'A').toUpperCase()
+            )}
           </div>
-          <div className="prediction-category">CRYPTO</div>
+          <div className="prediction-creator-info">
+            <div className="prediction-creator-name">By @{bet.creator?.username || 'creator'}</div>
+            <div className="prediction-timestamp">{bet.status.toUpperCase()}</div>
+          </div>
+          <div className="prediction-category">{bet.category?.toUpperCase() || 'GENERAL'}</div>
         </div>
 
         <div className="prediction-content">

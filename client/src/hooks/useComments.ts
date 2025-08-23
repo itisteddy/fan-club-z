@@ -82,7 +82,7 @@ export const useCreateComment = () => {
     mutationFn: async (commentData: CreateComment): Promise<Comment> => {
       try {
         // Fixed endpoint to match server routes
-        const response = await apiClient.post(`/social/comments`, {
+        const response = await apiClient.post(`/social/predictions/${commentData.prediction_id}/comments`, {
           content: commentData.content,
           parent_comment_id: commentData.parent_comment_id,
         });
@@ -197,7 +197,7 @@ export const useUpdateComment = () => {
   return useMutation({
     mutationFn: async ({ commentId, content }: { commentId: string; content: string }): Promise<Comment> => {
       try {
-        const response = await apiClient.put(`/comments/${commentId}`, { content });
+        const response = await apiClient.put(`/social/comments/${commentId}`, { content });
         
         if (response.success === false) {
           throw new Error(response.error || 'Failed to update comment');
@@ -235,7 +235,7 @@ export const useDeleteComment = () => {
   return useMutation({
     mutationFn: async (commentId: string): Promise<void> => {
       try {
-        const response = await apiClient.delete(`/comments/${commentId}`);
+        const response = await apiClient.delete(`/social/comments/${commentId}`);
         
         if (response.success === false) {
           throw new Error(response.error || 'Failed to delete comment');
@@ -261,7 +261,7 @@ export const useToggleCommentLike = () => {
   return useMutation({
     mutationFn: async (commentId: string): Promise<{ liked: boolean; likes_count: number }> => {
       try {
-        const response = await apiClient.post(`/comments/${commentId}/like`);
+        const response = await apiClient.post(`/social/comments/${commentId}/like`);
         
         if (response.success === false) {
           throw new Error(response.error || 'Failed to toggle like');
@@ -317,7 +317,7 @@ export const useCommentReplies = (commentId: string, page: number = 1, limit: nu
     queryFn: async (): Promise<PaginatedResponse<Comment>> => {
       try {
         const response = await apiClient.get(
-          `/comments/${commentId}/replies?page=${page}&limit=${limit}`
+          `/social/comments/${commentId}/replies?page=${page}&limit=${limit}`
         );
         return response;
       } catch (error) {

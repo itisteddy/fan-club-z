@@ -140,7 +140,7 @@ export const CommentThread: React.FC<CommentThreadProps> = ({
                   <div className="flex gap-2">
                     <button
                       onClick={() => handleEdit(comment.id)}
-                      className="px-3 py-1 bg-green-600 text-white text-xs rounded-md hover:bg-green-700"
+                      className="px-3 py-1 bg-teal-600 text-white text-xs rounded-md hover:bg-green-700"
                     >
                       Save
                     </button>
@@ -245,7 +245,7 @@ export const CommentThread: React.FC<CommentThreadProps> = ({
                   <button
                     onClick={handleSubmitComment}
                     disabled={!newComment.trim() || loading}
-                    className="px-3 py-1 bg-green-600 text-white text-xs rounded-md hover:bg-green-700 disabled:opacity-50"
+                    className="px-3 py-1 bg-teal-600 text-white text-xs rounded-md hover:bg-green-700 disabled:opacity-50"
                   >
                     Reply
                   </button>
@@ -341,7 +341,7 @@ export const CommentThread: React.FC<CommentThreadProps> = ({
                   <button
                     onClick={handleSubmitComment}
                     disabled={!newComment.trim() || loading}
-                    className="px-4 py-2 bg-green-600 text-white text-sm rounded-md hover:bg-green-700 disabled:opacity-50"
+                    className="px-4 py-2 bg-teal-600 text-white text-sm rounded-md hover:bg-green-700 disabled:opacity-50"
                   >
                     {loading ? 'Posting...' : 'Post Comment'}
                   </button>

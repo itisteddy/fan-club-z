@@ -11,8 +11,40 @@
 
 ## Key Conversations & Updates
 
-### React Architecture Debugging & Error Fixes (Current Session)
+### Comments API Architecture Fix (Current Session)
 - **Date**: [Current Date]
+- **Focus**: Resolving 404 errors on comments API endpoints causing console flooding
+- **Root Cause Analysis**: API endpoint misalignment between frontend and backend
+  1. Frontend hooks using inconsistent endpoint patterns
+  2. Missing comprehensive route coverage in backend
+  3. Terminology update created endpoint inconsistencies
+  4. Server route mounting not properly aligned
+
+#### Key Fixes Applied:
+
+**1. Frontend API Consistency**
+- ✅ Fixed useComments.ts to use consistent `/social/` prefix for all endpoints
+- ✅ Updated create comment from `/social/comments` to `/social/predictions/{id}/comments`
+- ✅ Fixed edit endpoint to `/social/comments/{id}`
+- ✅ Fixed delete endpoint to `/social/comments/{id}`
+- ✅ Fixed like endpoint to `/social/comments/{id}/like`
+- ✅ Added missing replies endpoint `/social/comments/{id}/replies`
+
+**2. Backend Route Enhancement**
+- ✅ Completely rewrote comments.ts with comprehensive logging
+- ✅ Added all missing CRUD endpoints for comments
+- ✅ Enhanced error handling and debugging information
+- ✅ Proper route parameter validation and error responses
+- ✅ Added comprehensive catch-all handler for debugging
+
+**3. Architecture Alignment**
+- ✅ Ensured all frontend calls match backend route structure
+- ✅ Consistent use of prediction-based comment endpoints
+- ✅ Proper error handling and fallback mechanisms
+- ✅ Enhanced logging for debugging API issues
+
+### React Architecture Debugging & Error Fixes (Previous Session)
+- **Date**: [Previous Date]
 - **Focus**: Fixing "o is not a function" error in DiscoverPage.tsx and related TypeScript issues
 - **Root Cause Analysis**: The error was caused by:
   1. Missing `refreshPredictions` method in predictionStore.ts
@@ -130,7 +162,12 @@
 
 ## Files Modified/Created (Current Session)
 
-### Core Store Updates
+### Comments API Fixes
+- `client/src/hooks/useComments.ts` - Fixed all API endpoint calls to use consistent patterns
+- `server/src/routes/comments.ts` - Complete rewrite with comprehensive routes and logging
+- `CONVERSATION_LOG.md` - Updated with current session fixes
+
+### Core Store Updates (Previous Session)
 - `client/src/store/predictionStore.ts` - Added refreshPredictions method, fixed interfaces
 - `client/src/store/walletStore.ts` - Added lockFunds method, enhanced error handling
 - `client/src/components/predictions/PlacePredictionModal.tsx` - Fixed imports, added user auth

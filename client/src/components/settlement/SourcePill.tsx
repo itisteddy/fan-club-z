@@ -15,7 +15,7 @@ export const SourcePill: React.FC<SourcePillProps> = ({
   const getTrustLevelColor = (level?: string) => {
     switch (level) {
       case 'high':
-        return 'bg-green-100 text-green-800 border-green-200';
+        return 'bg-teal-100 text-teal-800 border-teal-200';
       case 'medium':
         return 'bg-amber-100 text-amber-800 border-amber-200';
       case 'low':

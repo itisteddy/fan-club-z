@@ -142,7 +142,7 @@ export const BehaviorAnalytics: React.FC = () => {
               onClick={() => setTimeframe(period)}
               className={`px-3 py-1 rounded-full text-sm font-medium transition-colors ${
                 timeframe === period
-                  ? 'bg-green-100 text-green-700'
+                  ? 'bg-teal-100 text-teal-700'
                   : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
               }`}
             >
@@ -166,7 +166,7 @@ export const BehaviorAnalytics: React.FC = () => {
 
         <div className="bg-white p-4 rounded-lg border border-gray-200">
           <div className="flex items-center gap-2 mb-2">
-            <Users className="w-5 h-5 text-green-600" />
+            <Users className="w-5 h-5 text-teal-600" />
             <span className="text-sm font-medium text-gray-600">Unique Visitors</span>
           </div>
           <div className="text-2xl font-bold text-gray-900">
@@ -216,7 +216,7 @@ export const BehaviorAnalytics: React.FC = () => {
                 </div>
                 <div className="w-24 bg-gray-200 rounded-full h-2">
                   <div
-                    className="bg-green-600 h-2 rounded-full"
+                    className="bg-teal-600 h-2 rounded-full"
                     style={{ width: `${(page.views / data.topPages[0].views) * 100}%` }}
                   ></div>
                 </div>
@@ -244,7 +244,7 @@ export const BehaviorAnalytics: React.FC = () => {
                 </div>
                 <div className="w-full bg-gray-200 rounded-full h-2">
                   <div
-                    className="bg-green-600 h-2 rounded-full transition-all duration-300"
+                    className="bg-teal-600 h-2 rounded-full transition-all duration-300"
                     style={{ width: `${step.conversionRate}%` }}
                   ></div>
                 </div>

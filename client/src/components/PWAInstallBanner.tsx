@@ -94,7 +94,7 @@ const PWAInstallBanner: React.FC = () => {
   const isIOS = pwaManager.isIOSDevice();
 
   return (
-    <div className="fixed top-0 left-0 right-0 z-50 bg-gradient-to-r from-green-500 to-green-600 text-white shadow-lg animate-in slide-in-from-top duration-300">
+    <div className="fixed top-0 left-0 right-0 z-50 bg-gradient-to-r from-purple-500 to-teal-600 text-white shadow-lg animate-in slide-in-from-top duration-300">
       <div className="flex items-center justify-between px-4 py-3 max-w-md mx-auto">
         <div className="flex items-center space-x-3">
           <div className="bg-white/20 p-2 rounded-lg backdrop-blur-sm">
@@ -116,7 +116,7 @@ const PWAInstallBanner: React.FC = () => {
         <div className="flex items-center space-x-2">
           <button
             onClick={handleInstallClick}
-            className="bg-white text-green-600 px-3 py-1.5 rounded-md text-sm font-medium hover:bg-green-50 active:bg-green-100 transition-colors flex items-center space-x-1 shadow-sm"
+            className="bg-white text-teal-600 px-3 py-1.5 rounded-md text-sm font-medium hover:bg-teal-50 active:bg-teal-100 transition-colors flex items-center space-x-1 shadow-sm"
           >
             <Download className="w-4 h-4" />
             <span>{isIOS ? 'How To' : 'Install'}</span>

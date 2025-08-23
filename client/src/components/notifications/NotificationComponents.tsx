@@ -52,7 +52,7 @@ export const ActivityIndicator: React.FC<{ type: 'comment' | 'like' | 'predictio
       case 'prediction':
         return <Trophy className="w-4 h-4" />;
       case 'payout':
-        return <span className="text-green-500">$</span>;
+        return <span className="text-teal-500">$</span>;
       default:
         return <Bell className="w-4 h-4" />;
     }
@@ -67,7 +67,7 @@ export const ActivityIndicator: React.FC<{ type: 'comment' | 'like' | 'predictio
       case 'prediction':
         return 'text-purple-500';
       case 'payout':
-        return 'text-green-500';
+        return 'text-teal-500';
       default:
         return 'text-gray-500';
     }
@@ -115,7 +115,7 @@ export const QuickNotification: React.FC<{
   const getStyles = () => {
     switch (type) {
       case 'success':
-        return 'bg-green-500 text-white';
+        return 'bg-teal-500 text-white';
       case 'error':
         return 'bg-red-500 text-white';
       case 'info':

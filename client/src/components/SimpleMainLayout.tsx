@@ -1,4 +1,5 @@
 import React from 'react';
+import Logo from './common/Logo';
 import SimpleBottomNavigation from './SimpleBottomNavigation';
 
 interface MainLayoutProps {
@@ -32,21 +33,7 @@ const SimpleMainLayout: React.FC<MainLayoutProps> = ({ children }) => {
           alignItems: 'center',
           gap: '12px'
         }}>
-          <div style={{
-            width: '36px',
-            height: '36px',
-            background: 'linear-gradient(135deg, #22c55e, #16a34a)',
-            borderRadius: '12px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            color: 'white',
-            fontWeight: 'bold',
-            fontSize: '18px',
-            boxShadow: '0 2px 8px rgba(34, 197, 94, 0.2)'
-          }}>
-            Z
-          </div>
+          <Logo size="md" variant="icon" />
           <div>
             <div style={{
               fontSize: '18px',
@@ -54,7 +41,7 @@ const SimpleMainLayout: React.FC<MainLayoutProps> = ({ children }) => {
               color: '#111827',
               lineHeight: '1'
             }}>
-              SOCIAL PREDICTIONS
+              FAN CLUB Z
             </div>
             <div style={{
               fontSize: '10px',
@@ -64,7 +51,7 @@ const SimpleMainLayout: React.FC<MainLayoutProps> = ({ children }) => {
               fontWeight: '500',
               lineHeight: '1'
             }}>
-              Live
+              Predictions Live
             </div>
           </div>
         </div>

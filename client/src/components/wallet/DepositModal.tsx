@@ -144,7 +144,7 @@ export const DepositModal: React.FC<DepositModalProps> = ({ isOpen, onClose }) =
                     initial={{ opacity: 0, height: 0 }}
                     animate={{ opacity: 1, height: 'auto' }}
                   >
-                    <Card className="bg-green-50 border-green-200">
+                    <Card className="bg-teal-50 border-teal-200">
                       <CardContent className="p-4">
                         <div className="space-y-2 text-sm">
                           <div className="flex justify-between">
@@ -153,12 +153,12 @@ export const DepositModal: React.FC<DepositModalProps> = ({ isOpen, onClose }) =
                           </div>
                           <div className="flex justify-between">
                             <span>Fee:</span>
-                            <span className="font-medium text-green-600">Free</span>
+                            <span className="font-medium text-teal-600">Free</span>
                           </div>
-                          <hr className="border-green-200" />
+                          <hr className="border-teal-200" />
                           <div className="flex justify-between font-semibold">
                             <span>Total Added:</span>
-                            <span className="text-green-600">
+                            <span className="text-teal-600">
                               {formatCurrency(numAmount)}
                             </span>
                           </div>
@@ -174,7 +174,7 @@ export const DepositModal: React.FC<DepositModalProps> = ({ isOpen, onClose }) =
                 <Button
                   onClick={handleDeposit}
                   disabled={!numAmount || numAmount < 100 || isLoading}
-                  className="w-full bg-green-500 hover:bg-green-600"
+                  className="w-full bg-teal-500 hover:bg-teal-600"
                   size="lg"
                 >
                   {isLoading ? 'Adding Demo Funds...' : `Add ${formatCurrency(numAmount)} Demo Funds`}

@@ -130,7 +130,7 @@ export const AdminDashboard: React.FC = () => {
                 <p className="text-sm font-medium text-gray-600">Settled Today</p>
                 <p className="text-2xl font-bold text-gray-900">{stats.settlements_today}</p>
               </div>
-              <BarChart3 className="text-green-500" size={24} />
+              <BarChart3 className="text-teal-500" size={24} />
             </div>
           </div>
           
@@ -150,7 +150,7 @@ export const AdminDashboard: React.FC = () => {
                 <p className="text-sm font-medium text-gray-600">Success Rate</p>
                 <p className="text-2xl font-bold text-gray-900">{stats.success_rate}%</p>
               </div>
-              <div className="w-6 h-6 bg-green-500 rounded-full flex items-center justify-center">
+              <div className="w-6 h-6 bg-teal-500 rounded-full flex items-center justify-center">
                 <span className="text-white text-xs">✓</span>
               </div>
             </div>

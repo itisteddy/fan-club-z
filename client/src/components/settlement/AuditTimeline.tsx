@@ -37,7 +37,7 @@ export const AuditTimeline: React.FC<AuditTimelineProps> = ({ events, className 
   const getEventColor = (event: string) => {
     switch (event.toLowerCase()) {
       case 'settled':
-        return 'text-green-600';
+        return 'text-teal-600';
       case 'disputed':
         return 'text-red-600';
       case 'voided':
@@ -47,7 +47,7 @@ export const AuditTimeline: React.FC<AuditTimelineProps> = ({ events, className 
       case 'source_fetched':
         return 'text-blue-600';
       case 'accepted':
-        return 'text-green-600';
+        return 'text-teal-600';
       default:
         return 'text-gray-600';
     }

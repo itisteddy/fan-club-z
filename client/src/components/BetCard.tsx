@@ -27,17 +27,18 @@ const BetCard: React.FC<BetCardProps> = ({
   const [isCommentModalOpen, setIsCommentModalOpen] = useState(false);
   const { getCommentCount, updateCommentCount, initialize } = useUnifiedCommentStore();
   
-  // Initialize comment store and sync comment count from bet data
+  // Initialize comment store once
   useEffect(() => {
     initialize();
-    
-    // If bet has a comment count, sync it to the comment store
+  }, []);
+  
+  // Sync comment count from bet data only when it changes
+  useEffect(() => {
     if (bet.comments_count !== undefined || bet.comments !== undefined) {
       const count = bet.comments_count || bet.comments || 0;
       updateCommentCount(bet.id, count);
-      console.log(`🔄 Synced comment count for bet ${bet.id}: ${count}`);
     }
-  }, [bet.id, bet.comments_count, bet.comments, updateCommentCount, initialize]);
+  }, [bet.id, bet.comments_count, bet.comments, updateCommentCount]);
   
   // Get comment count for this bet
   const commentCount = getCommentCount(bet.id);
@@ -129,7 +130,7 @@ const BetCard: React.FC<BetCardProps> = ({
             <h3 className="text-base font-semibold text-gray-900 mb-1 line-clamp-2">{bet.title}</h3>
             <div className="flex items-center gap-2 text-sm text-gray-600">
               <span className={`px-2 py-0.5 rounded text-xs font-medium ${
-                bet.status === 'settled' ? 'bg-green-100 text-green-700' :
+                bet.status === 'settled' ? 'bg-teal-100 text-teal-700' :
                 bet.status === 'open' ? 'bg-blue-100 text-blue-700' :
                 'bg-amber-100 text-amber-700'
               }`}>
@@ -151,19 +152,19 @@ const BetCard: React.FC<BetCardProps> = ({
             <div className="text-xs text-gray-600 mb-1">Your Investment</div>
               <div className="text-lg font-bold text-gray-900">${(bet.stake_min * 2).toLocaleString('en-US')}</div>
           </div>
-          <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-lg p-3">
+          <div className="bg-gradient-to-r from-purple-50 to-teal-50 rounded-lg p-3">
             <div className="text-xs text-gray-600 mb-1">
               {bet.status === 'settled' ? 'Final Return' : 'Potential Return'}
             </div>
-              <div className="text-lg font-bold text-green-700">${(bet.stake_min * 3.5).toLocaleString('en-US')}</div>
-            <div className="text-xs text-green-600 font-medium">+75% gain</div>
+              <div className="text-lg font-bold text-teal-700">${(bet.stake_min * 3.5).toLocaleString('en-US')}</div>
+            <div className="text-xs text-teal-600 font-medium">+75% gain</div>
           </div>
         </div>
 
         <div className="flex gap-2">
           <motion.button
               onClick={() => onBet && onBet()}
-            className="flex-1 bg-gradient-to-r from-green-600 to-emerald-600 text-white py-2.5 rounded-lg font-medium text-sm"
+            className="flex-1 bg-gradient-to-r from-purple-600 to-teal-600 text-white py-2.5 rounded-lg font-medium text-sm"
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
           >
@@ -205,25 +206,44 @@ const BetCard: React.FC<BetCardProps> = ({
       <div className="p-6 pb-0">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-gradient-to-r from-blue-500 to-purple-600 flex items-center justify-center text-white font-semibold">
-          {bet.creator?.username?.slice(0, 2) || 'FC'}
-          </div>
-          <div>
-          <TappableUsername 
-          username={bet.creator?.username || 'creator'}
-          userId={bet.creator_id}
-          className="font-medium text-gray-900 hover:text-blue-600"
-          showAt={true}
-          />
-          <div className="text-sm text-gray-500">2 hours ago</div>
-          </div>
+            <div className="w-10 h-10 rounded-full overflow-hidden bg-gradient-to-r from-blue-500 to-purple-600 flex items-center justify-center flex-shrink-0">
+              {bet.creator?.avatar_url ? (
+                <img
+                  src={bet.creator.avatar_url}
+                  alt={bet.creator.username || 'Creator'}
+                  className="w-full h-full object-cover"
+                  onError={(e) => {
+                    // Show fallback if image fails to load
+                    const target = e.target as HTMLImageElement;
+                    target.style.display = 'none';
+                    const parent = target.parentElement;
+                    if (parent) {
+                      parent.innerHTML = `<span class="text-white font-semibold text-sm">${(bet.creator?.username?.slice(0, 2) || 'FC').toUpperCase()}</span>`;
+                    }
+                  }}
+                />
+              ) : (
+                <span className="text-white font-semibold text-sm">
+                  {(bet.creator?.username?.slice(0, 2) || 'FC').toUpperCase()}
+                </span>
+              )}
+            </div>
+            <div>
+              <TappableUsername 
+                username={bet.creator?.username || 'creator'}
+                userId={bet.creator_id}
+                className="font-medium text-gray-900 hover:text-blue-600"
+                showAt={true}
+              />
+              <div className="text-sm text-gray-500">2 hours ago</div>
+            </div>
           </div>
             <div className="flex items-center gap-2">
           <span className={`px-3 py-1 rounded-full text-xs font-medium ${
             bet.category === 'sports' ? 'bg-red-100 text-red-700' :
             bet.category === 'pop_culture' ? 'bg-purple-100 text-purple-700' :
             bet.category === 'politics' ? 'bg-blue-100 text-blue-700' :
-            'bg-green-100 text-green-700'
+            'bg-teal-100 text-teal-700'
           }`}>
             {bet.category?.replace('_', ' ') || 'General'}
           </span>
@@ -258,14 +278,14 @@ const BetCard: React.FC<BetCardProps> = ({
               // Fallback for binary betting (backward compatibility)
         <div className="grid grid-cols-2 gap-3">
               <motion.button
-                className="p-4 rounded-xl border-2 border-green-200 bg-gradient-to-r from-green-50 to-emerald-50 hover:from-green-100 hover:to-emerald-100"
+                className="p-4 rounded-xl border-2 border-teal-200 bg-gradient-to-r from-purple-50 to-teal-50 hover:from-purple-100 hover:to-teal-100"
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
                   onClick={() => onBet && onBet('yes')}
               >
                 <div className="text-center">
                   <div className="font-semibold text-gray-900 mb-1">Yes</div>
-                  <div className="text-2xl font-bold text-green-700">2.1x</div>
+                  <div className="text-2xl font-bold text-teal-700">2.1x</div>
                   <div className="text-sm text-gray-600">55% backing</div>
                 </div>
               </motion.button>
@@ -295,7 +315,7 @@ const BetCard: React.FC<BetCardProps> = ({
                       key={option.id}
                       className={`p-4 rounded-xl border-2 transition-all group ${
                         index === 0 
-                          ? 'border-green-200 bg-gradient-to-r from-green-50 to-emerald-50 hover:from-green-100 hover:to-emerald-100 hover:border-green-300'
+                          ? 'border-teal-200 bg-gradient-to-r from-purple-50 to-teal-50 hover:from-purple-100 hover:to-teal-100 hover:border-teal-300'
                           : 'border-blue-200 bg-gradient-to-r from-blue-50 to-indigo-50 hover:from-blue-100 hover:to-indigo-100 hover:border-blue-300'
                       }`}
                       whileHover={{ scale: 1.02 }}
@@ -307,7 +327,7 @@ const BetCard: React.FC<BetCardProps> = ({
                           {option.label}
                         </div>
                         <div className={`text-2xl font-bold mb-1 ${
-                          index === 0 ? 'text-green-700' : 'text-blue-700'
+                          index === 0 ? 'text-teal-700' : 'text-blue-700'
                         }`}>
                           {odds.toFixed(1)}x
                         </div>
@@ -318,7 +338,7 @@ const BetCard: React.FC<BetCardProps> = ({
                           <div className="w-full h-1.5 bg-gray-200 rounded-full overflow-hidden">
                             <div 
                               className={`h-full transition-all duration-500 ${
-                                index === 0 ? 'bg-green-500' : 'bg-blue-500'
+                                index === 0 ? 'bg-teal-500' : 'bg-blue-500'
                               }`}
                               style={{ width: `${Math.min(percentage, 100)}%` }}
                             />
@@ -338,7 +358,7 @@ const BetCard: React.FC<BetCardProps> = ({
                   const odds = optionStaked > 0 ? totalPool / optionStaked : (Math.random() * 3 + 1.5);
                   
                   const colors = [
-                    { bg: 'from-emerald-50 to-green-50', border: 'border-emerald-200 hover:border-emerald-300', text: 'text-emerald-700', bar: 'bg-emerald-500' },
+                    { bg: 'from-emerald-50 to-green-50', border: 'border-teal-200 hover:border-teal-300', text: 'text-teal-700', bar: 'bg-teal-500' },
                     { bg: 'from-blue-50 to-indigo-50', border: 'border-blue-200 hover:border-blue-300', text: 'text-blue-700', bar: 'bg-blue-500' },
                     { bg: 'from-purple-50 to-violet-50', border: 'border-purple-200 hover:border-purple-300', text: 'text-purple-700', bar: 'bg-purple-500' },
                     { bg: 'from-amber-50 to-yellow-50', border: 'border-amber-200 hover:border-amber-300', text: 'text-amber-700', bar: 'bg-amber-500' },
@@ -410,7 +430,7 @@ const BetCard: React.FC<BetCardProps> = ({
         <div className="flex items-center justify-between text-sm">
           <div className="flex items-center gap-4">
               <div className="flex items-center gap-2">
-                <div className="w-6 h-6 rounded-full bg-gradient-to-r from-green-500 to-emerald-500 flex items-center justify-center">
+                <div className="w-6 h-6 rounded-full bg-gradient-to-r from-purple-500 to-emerald-500 flex items-center justify-center">
                   <span className="text-white text-xs font-bold">$</span>
                 </div>
                 <span className="font-semibold text-gray-900">${totalPool.toLocaleString('en-US')}</span>
@@ -425,7 +445,7 @@ const BetCard: React.FC<BetCardProps> = ({
               <span>2 days left</span>
             </div>
           </div>
-          <div className="flex items-center gap-1 text-green-600">
+          <div className="flex items-center gap-1 text-teal-600">
             <TrendingUp className="w-4 h-4" />
               <span className="font-medium">Trending</span>
             </div>
@@ -456,7 +476,7 @@ const BetCard: React.FC<BetCardProps> = ({
             </motion.button>
             <motion.button
               onClick={onShare}
-              className="flex items-center gap-2 text-gray-600 hover:text-green-500 transition-colors"
+              className="flex items-center gap-2 text-gray-600 hover:text-teal-500 transition-colors"
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
             >
@@ -466,7 +486,7 @@ const BetCard: React.FC<BetCardProps> = ({
           </div>
           <motion.button
               onClick={() => onBet && onBet()}
-              className="bg-gradient-to-r from-green-600 to-emerald-600 text-white px-6 py-2.5 rounded-lg font-medium shadow-sm"
+              className="bg-gradient-to-r from-purple-600 to-teal-600 text-white px-6 py-2.5 rounded-lg font-medium shadow-sm"
             whileHover={{ scale: 1.02, boxShadow: '0 8px 25px rgba(16, 185, 129, 0.25)' }}
             whileTap={{ scale: 0.98 }}
           >

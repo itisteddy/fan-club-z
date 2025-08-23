@@ -132,11 +132,11 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
 
   const getTransactionColor = (type: string) => {
     const colorMap = {
-      'deposit': 'text-green-600 bg-green-50',
+      'deposit': 'text-teal-600 bg-teal-50',
       'withdraw': 'text-blue-600 bg-blue-50',
       'bet_lock': 'text-red-600 bg-red-50',
-      'bet_release': 'text-emerald-600 bg-emerald-50',
-      'transfer_in': 'text-green-600 bg-green-50',
+      'bet_release': 'text-teal-600 bg-teal-50',
+      'transfer_in': 'text-teal-600 bg-teal-50',
       'transfer_out': 'text-orange-600 bg-orange-50'
     };
     return colorMap[type] || 'text-gray-600 bg-gray-50';
@@ -144,7 +144,7 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
 
   const getStatusColor = (status: string) => {
     const colorMap = {
-      'completed': 'text-green-700 bg-green-100',
+      'completed': 'text-teal-700 bg-teal-100',
       'pending': 'text-yellow-700 bg-yellow-100',
       'failed': 'text-red-700 bg-red-100'
     };
@@ -174,7 +174,7 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
                 <Wallet className="w-5 h-5" />
               </div>
               <div>
-                <p className="text-emerald-100 text-sm font-medium">Total Balance</p>
+                <p className="text-teal-100 text-sm font-medium">Total Balance</p>
                 {isDemoMode && (
                   <span className="inline-flex items-center gap-1 text-xs bg-white/20 px-2 py-1 rounded-full">
                     <Zap className="w-3 h-3" />
@@ -207,11 +207,11 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
             {/* Profit/Loss Indicator */}
             <div className="flex items-center gap-2">
               {netProfit >= 0 ? (
-                <TrendingUp className="w-4 h-4 text-emerald-200" />
+                <TrendingUp className="w-4 h-4 text-teal-200" />
               ) : (
                 <TrendingDown className="w-4 h-4 text-red-200" />
               )}
-              <span className="text-emerald-100 text-sm font-medium">
+              <span className="text-teal-100 text-sm font-medium">
                 {netProfit >= 0 ? '+' : ''}${Math.abs(netProfit).toLocaleString()} ({profitPercentage}%)
               </span>
             </div>
@@ -266,12 +266,12 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
           className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm"
         >
           <div className="flex items-center gap-3 mb-2">
-            <div className="w-8 h-8 bg-emerald-100 rounded-lg flex items-center justify-center">
-              <Activity className="w-4 h-4 text-emerald-600" />
+            <div className="w-8 h-8 bg-teal-100 rounded-lg flex items-center justify-center">
+              <Activity className="w-4 h-4 text-teal-600" />
             </div>
             <span className="text-sm text-gray-600 font-medium">Net Profit</span>
           </div>
-          <p className={`text-xl font-bold ${netProfit >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+          <p className={`text-xl font-bold ${netProfit >= 0 ? 'text-teal-600' : 'text-red-600'}`}>
             {netProfit >= 0 ? '+' : ''}${Math.abs(netProfit).toLocaleString()}
           </p>
         </motion.div>
@@ -305,7 +305,7 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.3, delay: index * 0.1 }}
           >
-            <Icon className={`w-4 h-4 ${isActive ? 'text-emerald-600' : ''}`} />
+            <Icon className={`w-4 h-4 ${isActive ? 'text-teal-600' : ''}`} />
             <span>{tab.label}</span>
             
             {/* Active indicator */}
@@ -353,7 +353,7 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
               </h4>
               <span className={`text-lg font-bold ${
                 ['deposit', 'bet_release', 'transfer_in'].includes(transaction.type) 
-                  ? 'text-emerald-600' 
+                  ? 'text-teal-600' 
                   : 'text-gray-900'
               }`}>
                 {['deposit', 'bet_release', 'transfer_in'].includes(transaction.type) ? '+' : '-'}
@@ -416,7 +416,7 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
                   onClick={() => setSelectedAmount(amount)}
                   className={`p-4 rounded-2xl border-2 transition-all duration-200 ${
                     selectedAmount === amount
-                      ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
+                      ? 'border-teal-500 bg-teal-50 text-teal-700'
                       : 'border-gray-200 hover:border-gray-300 text-gray-700'
                   }`}
                 >
@@ -441,7 +441,7 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
                     setSelectedAmount(null);
                   }}
                   placeholder="0.00"
-                  className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 text-lg font-medium"
+                  className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-teal-500 text-lg font-medium"
                 />
               </div>
             </div>
@@ -540,7 +540,7 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
                   <h3 className="text-lg font-bold text-gray-900">Recent Activity</h3>
                   <button
                     onClick={() => setActiveTab('transactions')}
-                    className="text-emerald-600 hover:text-emerald-700 font-medium text-sm flex items-center gap-1"
+                    className="text-teal-600 hover:text-teal-700 font-medium text-sm flex items-center gap-1"
                   >
                     View All
                     <ChevronRight className="w-4 h-4" />
@@ -664,15 +664,15 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
 
                 <div className="bg-white rounded-2xl p-5 border border-gray-100">
                   <div className="flex items-center gap-3 mb-3">
-                    <div className="w-10 h-10 bg-emerald-100 rounded-xl flex items-center justify-center">
-                      <TrendingUp className="w-5 h-5 text-emerald-600" />
+                    <div className="w-10 h-10 bg-teal-100 rounded-xl flex items-center justify-center">
+                      <TrendingUp className="w-5 h-5 text-teal-600" />
                     </div>
                     <div>
                       <h4 className="font-semibold text-gray-900">Total Winnings</h4>
                       <p className="text-sm text-gray-600">From predictions</p>
                     </div>
                   </div>
-                  <p className="text-2xl font-bold text-emerald-600">${portfolioStats.totalWinnings.toLocaleString()}</p>
+                  <p className="text-2xl font-bold text-teal-600">${portfolioStats.totalWinnings.toLocaleString()}</p>
                 </div>
 
                 <div className="bg-white rounded-2xl p-5 border border-gray-100">
@@ -691,10 +691,10 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
                 <div className="bg-white rounded-2xl p-5 border border-gray-100">
                   <div className="flex items-center gap-3 mb-3">
                     <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
-                      netProfit >= 0 ? 'bg-emerald-100' : 'bg-red-100'
+                      netProfit >= 0 ? 'bg-teal-100' : 'bg-red-100'
                     }`}>
                       {netProfit >= 0 ? (
-                        <TrendingUp className="w-5 h-5 text-emerald-600" />
+                        <TrendingUp className="w-5 h-5 text-teal-600" />
                       ) : (
                         <TrendingDown className="w-5 h-5 text-red-600" />
                       )}
@@ -704,7 +704,7 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
                       <p className="text-sm text-gray-600">{profitPercentage}% return</p>
                     </div>
                   </div>
-                  <p className={`text-2xl font-bold ${netProfit >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                  <p className={`text-2xl font-bold ${netProfit >= 0 ? 'text-teal-600' : 'text-red-600'}`}>
                     {netProfit >= 0 ? '+' : ''}${Math.abs(netProfit).toLocaleString()}
                   </p>
                 </div>

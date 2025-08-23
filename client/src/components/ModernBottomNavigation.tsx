@@ -81,7 +81,7 @@ const ModernBottomNavigation: React.FC = () => {
                   <Icon 
                     className={`w-6 h-6 transition-colors duration-200 ${
                       isActive 
-                        ? 'text-emerald-600' 
+                        ? 'text-teal-600' 
                         : 'text-gray-400'
                     }`} 
                     strokeWidth={isActive ? 2.5 : 2}
@@ -90,7 +90,7 @@ const ModernBottomNavigation: React.FC = () => {
                   {/* Active indicator */}
                   {isActive && (
                     <motion.div
-                      className="absolute -bottom-1 left-1/2 w-1 h-1 bg-emerald-600 rounded-full"
+                      className="absolute -bottom-1 left-1/2 w-1 h-1 bg-teal-600 rounded-full"
                       initial={{ scale: 0, x: '-50%' }}
                       animate={{ scale: 1, x: '-50%' }}
                       transition={{ type: "spring", stiffness: 400, damping: 25 }}
@@ -101,7 +101,7 @@ const ModernBottomNavigation: React.FC = () => {
                 <span 
                   className={`text-xs font-medium transition-colors duration-200 ${
                     isActive 
-                      ? 'text-emerald-600' 
+                      ? 'text-teal-600' 
                       : 'text-gray-400'
                   }`}
                 >

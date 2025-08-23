@@ -190,7 +190,7 @@ const DisputeModal: React.FC<DisputeModalProps> = ({ dispute, onClose, onResolve
                 className={`
                   border rounded-lg p-4 cursor-pointer transition-all
                   ${resolution === 'approved'
-                    ? 'border-green-500 bg-green-50 ring-2 ring-green-200'
+                    ? 'border-teal-500 bg-teal-50 ring-2 ring-green-200'
                     : 'border-gray-200 hover:border-gray-300'
                   }
                 `}
@@ -200,7 +200,7 @@ const DisputeModal: React.FC<DisputeModalProps> = ({ dispute, onClose, onResolve
                   <div className={`
                     w-4 h-4 rounded-full border-2 flex items-center justify-center
                     ${resolution === 'approved'
-                      ? 'border-green-500 bg-green-500'
+                      ? 'border-teal-500 bg-teal-500'
                       : 'border-gray-300'
                     }
                   `}>
@@ -235,7 +235,7 @@ const DisputeModal: React.FC<DisputeModalProps> = ({ dispute, onClose, onResolve
                       className={`
                         border rounded-lg p-3 cursor-pointer transition-all
                         ${newWinningOptionId === option.id
-                          ? 'border-green-500 bg-green-50 ring-2 ring-green-200'
+                          ? 'border-teal-500 bg-teal-50 ring-2 ring-green-200'
                           : 'border-gray-200 hover:border-gray-300'
                         }
                       `}
@@ -245,7 +245,7 @@ const DisputeModal: React.FC<DisputeModalProps> = ({ dispute, onClose, onResolve
                         <div className={`
                           w-4 h-4 rounded-full border-2 flex items-center justify-center
                           ${newWinningOptionId === option.id
-                            ? 'border-green-500 bg-green-500'
+                            ? 'border-teal-500 bg-teal-500'
                             : 'border-gray-300'
                           }
                         `}>
@@ -270,7 +270,7 @@ const DisputeModal: React.FC<DisputeModalProps> = ({ dispute, onClose, onResolve
             <textarea
               value={resolutionReason}
               onChange={(e) => setResolutionReason(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-teal-500"
               rows={4}
               placeholder="Explain your decision and any actions taken..."
               minLength={10}
@@ -302,7 +302,7 @@ const DisputeModal: React.FC<DisputeModalProps> = ({ dispute, onClose, onResolve
               ${resolutionReason && resolutionReason.length >= 10 && 
                 (resolution === 'rejected' || newWinningOptionId) && !isResolving
                 ? (resolution === 'approved' 
-                   ? 'bg-green-600 hover:bg-green-700 text-white'
+                   ? 'bg-teal-600 hover:bg-green-700 text-white'
                    : 'bg-red-600 hover:bg-red-700 text-white')
                 : 'bg-gray-300 text-gray-500 cursor-not-allowed'
               }
@@ -436,7 +436,7 @@ export const DisputeResolution: React.FC = () => {
         <p className="text-gray-600 mb-4">{error}</p>
         <button
           onClick={fetchDisputes}
-          className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+          className="px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-green-700 transition-colors"
         >
           Try Again
         </button>
@@ -447,7 +447,7 @@ export const DisputeResolution: React.FC = () => {
   if (disputes.length === 0) {
     return (
       <div className="text-center py-12">
-        <CheckCircle className="w-12 h-12 text-green-500 mx-auto mb-4" />
+        <CheckCircle className="w-12 h-12 text-teal-500 mx-auto mb-4" />
         <h3 className="text-lg font-medium text-gray-900 mb-2">No Open Disputes</h3>
         <p className="text-gray-600">All disputes have been resolved. Great work!</p>
       </div>

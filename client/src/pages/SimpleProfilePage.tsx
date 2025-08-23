@@ -29,7 +29,7 @@ const SimpleProfilePage: React.FC<SimpleProfilePageProps> = ({ onNavigateBack })
           className="bg-white rounded-2xl p-6 mb-6 shadow-sm"
         >
           <div className="flex items-center gap-4 mb-4">
-            <div className="w-16 h-16 bg-gradient-to-br from-green-400 to-green-600 rounded-2xl flex items-center justify-center">
+            <div className="w-16 h-16 bg-gradient-to-br from-purple-400 to-teal-600 rounded-2xl flex items-center justify-center">
               <span className="text-white text-2xl font-bold">
                 {user?.email?.[0]?.toUpperCase() || 'U'}
               </span>
@@ -49,7 +49,7 @@ const SimpleProfilePage: React.FC<SimpleProfilePageProps> = ({ onNavigateBack })
               <div className="text-xs text-gray-600">Predictions</div>
             </div>
             <div className="text-center p-3 bg-gray-50 rounded-xl">
-              <div className="text-2xl font-bold text-green-600">8</div>
+              <div className="text-2xl font-bold text-teal-600">8</div>
               <div className="text-xs text-gray-600">Wins</div>
             </div>
             <div className="text-center p-3 bg-gray-50 rounded-xl">
@@ -97,8 +97,8 @@ const SimpleProfilePage: React.FC<SimpleProfilePageProps> = ({ onNavigateBack })
             transition={{ delay: 0.3 }}
             className="bg-white rounded-xl p-4 flex items-center gap-4"
           >
-            <div className="w-10 h-10 bg-green-100 rounded-xl flex items-center justify-center">
-              <TrendingUp className="w-5 h-5 text-green-600" />
+            <div className="w-10 h-10 bg-teal-100 rounded-xl flex items-center justify-center">
+              <TrendingUp className="w-5 h-5 text-teal-600" />
             </div>
             <div className="flex-1">
               <div className="font-semibold text-gray-900">Performance</div>

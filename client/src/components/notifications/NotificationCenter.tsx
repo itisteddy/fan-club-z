@@ -27,11 +27,11 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
   const getNotificationIcon = (type: string) => {
     switch (type) {
       case 'prediction_outcome':
-        return <Trophy className="w-5 h-5 text-green-600" />;
+        return <Trophy className="w-5 h-5 text-teal-600" />;
       case 'comment':
         return <MessageCircle className="w-5 h-5 text-blue-600" />;
       case 'payout':
-        return <DollarSign className="w-5 h-5 text-green-600" />;
+        return <DollarSign className="w-5 h-5 text-teal-600" />;
       case 'market_close':
         return <Eye className="w-5 h-5 text-amber-600" />;
       default:
@@ -62,7 +62,7 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
             {unreadCount > 0 && (
               <button
                 onClick={markAllAsRead}
-                className="text-sm text-green-600 hover:text-green-700 font-medium"
+                className="text-sm text-teal-600 hover:text-teal-700 font-medium"
               >
                 Mark all read
               </button>
@@ -81,7 +81,7 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
           <button
             className={`flex-1 px-4 py-3 text-sm font-medium ${
               activeTab === 'all'
-                ? 'text-green-600 border-b-2 border-green-600'
+                ? 'text-teal-600 border-b-2 border-teal-600'
                 : 'text-gray-500 hover:text-gray-700'
             }`}
             onClick={() => setActiveTab('all')}
@@ -91,7 +91,7 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
           <button
             className={`flex-1 px-4 py-3 text-sm font-medium ${
               activeTab === 'unread'
-                ? 'text-green-600 border-b-2 border-green-600'
+                ? 'text-teal-600 border-b-2 border-teal-600'
                 : 'text-gray-500 hover:text-gray-700'
             }`}
             onClick={() => setActiveTab('unread')}
@@ -101,7 +101,7 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
           <button
             className={`flex-1 px-4 py-3 text-sm font-medium ${
               activeTab === 'settings'
-                ? 'text-green-600 border-b-2 border-green-600'
+                ? 'text-teal-600 border-b-2 border-teal-600'
                 : 'text-gray-500 hover:text-gray-700'
             }`}
             onClick={() => setActiveTab('settings')}
@@ -126,7 +126,7 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
                       onChange={(e) => updateSettings({ predictionOutcomes: e.target.checked })}
                       className="sr-only peer"
                     />
-                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-green-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600"></div>
+                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-green-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-teal-600"></div>
                   </label>
                 </div>
 
@@ -139,7 +139,7 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
                       onChange={(e) => updateSettings({ comments: e.target.checked })}
                       className="sr-only peer"
                     />
-                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-green-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600"></div>
+                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-green-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-teal-600"></div>
                   </label>
                 </div>
 
@@ -152,7 +152,7 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
                       onChange={(e) => updateSettings({ marketClosing: e.target.checked })}
                       className="sr-only peer"
                     />
-                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-green-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600"></div>
+                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-green-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-teal-600"></div>
                   </label>
                 </div>
 
@@ -165,7 +165,7 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
                       onChange={(e) => updateSettings({ payouts: e.target.checked })}
                       className="sr-only peer"
                     />
-                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-green-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600"></div>
+                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-green-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-teal-600"></div>
                   </label>
                 </div>
 
@@ -178,7 +178,7 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
                       onChange={(e) => updateSettings({ pushNotifications: e.target.checked })}
                       className="sr-only peer"
                     />
-                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-green-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600"></div>
+                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-green-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-teal-600"></div>
                   </label>
                 </div>
               </div>
@@ -196,7 +196,7 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
                 <div
                   key={notification.id}
                   className={`p-4 hover:bg-gray-50 cursor-pointer ${
-                    !notification.read ? 'bg-green-50' : ''
+                    !notification.read ? 'bg-teal-50' : ''
                   }`}
                   onClick={() => handleNotificationClick(notification.id)}
                 >
@@ -217,7 +217,7 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
                     </div>
                     <div className="flex-shrink-0 flex items-center gap-2">
                       {!notification.read && (
-                        <div className="w-2 h-2 bg-green-600 rounded-full"></div>
+                        <div className="w-2 h-2 bg-teal-600 rounded-full"></div>
                       )}
                       <button
                         onClick={(e) => {

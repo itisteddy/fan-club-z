@@ -62,7 +62,7 @@ const PredictionPlacementModal: React.FC<PredictionPlacementModalProps> = ({
   const getTrendIcon = (option: PredictionOption) => {
     const analysis = getOptionAnalysis(option);
     if (analysis.isLeading && analysis.percentage > 50) {
-      return <TrendingUp size={14} className="text-green-500" />;
+      return <TrendingUp size={14} className="text-teal-500" />;
     } else if (analysis.percentage < 20) {
       return <TrendingDown size={14} className="text-red-500" />;
     }
@@ -160,25 +160,25 @@ const PredictionPlacementModal: React.FC<PredictionPlacementModalProps> = ({
                       onClick={() => setSelectedOptionId(option.id)}
                       className={`w-full p-4 rounded-xl border-2 transition-all duration-200 text-left ${
                         isSelected 
-                          ? 'border-green-400 bg-green-50 shadow-lg shadow-green-500/10' 
-                          : 'border-gray-200 hover:border-green-300 bg-white'
+                          ? 'border-teal-400 bg-teal-50 shadow-lg shadow-purple-500/10' 
+                          : 'border-gray-200 hover:border-teal-300 bg-white'
                       }`}
                     >
                       <div className="flex items-center justify-between mb-2">
                         <div className="flex items-center gap-2">
                           {getTrendIcon(option)}
-                          <span className={`font-medium ${isSelected ? 'text-green-700' : 'text-gray-900'}`}>
+                          <span className={`font-medium ${isSelected ? 'text-teal-700' : 'text-gray-900'}`}>
                             {option.label}
                           </span>
                           {analysis.isLeading && (
-                            <span className="px-2 py-0.5 text-xs font-medium bg-green-100 text-green-700 rounded-full">
+                            <span className="px-2 py-0.5 text-xs font-medium bg-teal-100 text-teal-700 rounded-full">
                               Leading
                             </span>
                           )}
                         </div>
                         <div className="text-right">
                           <div className={`font-bold ${
-                            analysis.confidence === 'high' ? 'text-green-600' :
+                            analysis.confidence === 'high' ? 'text-teal-600' :
                             analysis.confidence === 'medium' ? 'text-blue-600' :
                             'text-gray-600'
                           }`}>
@@ -191,7 +191,7 @@ const PredictionPlacementModal: React.FC<PredictionPlacementModalProps> = ({
                       <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
                         <div 
                           className={`h-full rounded-full transition-all duration-500 ${
-                            analysis.isLeading ? 'bg-green-500' :
+                            analysis.isLeading ? 'bg-teal-500' :
                             analysis.confidence === 'medium' ? 'bg-blue-500' :
                             'bg-gray-400'
                           }`}
@@ -225,7 +225,7 @@ const PredictionPlacementModal: React.FC<PredictionPlacementModalProps> = ({
                     onChange={(e) => setAmount(e.target.value)}
                     placeholder="0.00"
                     className={`w-full pl-12 pr-4 py-4 text-lg font-semibold border-2 rounded-xl transition-all duration-200 ${
-                      amount && !isValidAmount ? 'border-red-300 bg-red-50' : 'border-gray-200 focus:border-green-400'
+                      amount && !isValidAmount ? 'border-red-300 bg-red-50' : 'border-gray-200 focus:border-teal-400'
                     } focus:outline-none`}
                   />
                 </div>
@@ -236,7 +236,7 @@ const PredictionPlacementModal: React.FC<PredictionPlacementModalProps> = ({
                     <button
                       key={quickAmount}
                       onClick={() => setAmount(quickAmount.toString())}
-                      className="flex-1 py-2 text-sm font-medium border border-gray-300 rounded-lg hover:border-green-400 hover:bg-green-50 transition-all duration-200"
+                      className="flex-1 py-2 text-sm font-medium border border-gray-300 rounded-lg hover:border-teal-400 hover:bg-teal-50 transition-all duration-200"
                     >
                       ${quickAmount}
                     </button>
@@ -264,7 +264,7 @@ const PredictionPlacementModal: React.FC<PredictionPlacementModalProps> = ({
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="mb-6 p-4 bg-gradient-to-r from-green-50 to-blue-50 rounded-xl border border-green-200"
+                className="mb-6 p-4 bg-gradient-to-r from-purple-50 to-blue-50 rounded-xl border border-teal-200"
               >
                 <h4 className="font-semibold text-gray-900 mb-3">Potential Payout</h4>
                 <div className="grid grid-cols-2 gap-4">
@@ -274,12 +274,12 @@ const PredictionPlacementModal: React.FC<PredictionPlacementModalProps> = ({
                   </div>
                   <div>
                     <p className="text-sm text-gray-600">Potential Return</p>
-                    <p className="text-lg font-bold text-green-600">${potentialPayout.toLocaleString()}</p>
+                    <p className="text-lg font-bold text-teal-600">${potentialPayout.toLocaleString()}</p>
                   </div>
                 </div>
-                <div className="mt-3 pt-3 border-t border-green-200">
+                <div className="mt-3 pt-3 border-t border-teal-200">
                   <p className="text-sm text-gray-600">
-                    Potential profit: <span className="font-semibold text-green-600">
+                    Potential profit: <span className="font-semibold text-teal-600">
                       ${(potentialPayout - numericAmount).toLocaleString()}
                     </span>
                   </p>
@@ -323,7 +323,7 @@ const PredictionPlacementModal: React.FC<PredictionPlacementModalProps> = ({
               disabled={!isValidAmount || !selectedOptionId}
               className={`w-full py-4 rounded-xl font-semibold text-lg transition-all duration-200 ${
                 isValidAmount && selectedOptionId
-                  ? 'bg-gradient-to-r from-green-500 to-green-600 text-white shadow-lg shadow-green-500/25 hover:shadow-xl hover:shadow-green-500/30'
+                  ? 'bg-gradient-to-r from-purple-500 to-teal-600 text-white shadow-lg shadow-purple-500/25 hover:shadow-xl hover:shadow-purple-500/30'
                   : 'bg-gray-300 text-gray-500 cursor-not-allowed'
               }`}
             >

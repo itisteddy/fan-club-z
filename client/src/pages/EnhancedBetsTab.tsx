@@ -342,7 +342,7 @@ const BetsTab: React.FC<BetsTabProps> = ({ onNavigateToDiscover }) => {
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4 }}
-      className="bg-white rounded-3xl shadow-sm border border-gray-100 p-6 mb-4 hover:shadow-xl hover:border-emerald-200 transition-all duration-300 group relative overflow-hidden"
+      className="bg-white rounded-3xl shadow-sm border border-gray-100 p-6 mb-4 hover:shadow-xl hover:border-teal-200 transition-all duration-300 group relative overflow-hidden"
     >
       {/* Animated background gradient */}
       <div className="absolute inset-0 bg-gradient-to-br from-emerald-50/50 to-teal-50/50 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
@@ -361,47 +361,47 @@ const BetsTab: React.FC<BetsTabProps> = ({ onNavigateToDiscover }) => {
                   🔥 Hot
                 </span>
               )}
-              <span className="px-3 py-1 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700 border border-emerald-200">
+              <span className="px-3 py-1 rounded-full text-xs font-medium bg-teal-100 text-teal-700 border border-teal-200">
                 Active
               </span>
             </div>
-            <h3 className="font-bold text-gray-900 text-lg leading-tight group-hover:text-emerald-900 transition-colors">
+            <h3 className="font-bold text-gray-900 text-lg leading-tight group-hover:text-teal-900 transition-colors">
               {prediction.title}
             </h3>
           </div>
           
           {/* Trend indicator */}
           {prediction.trend === 'up' && (
-            <div className="text-green-500 text-sm font-medium flex items-center gap-1">
+            <div className="text-teal-500 text-sm font-medium flex items-center gap-1">
               ↗ +2.4%
             </div>
           )}
         </div>
 
         {/* Enhanced Position Display */}
-        <div className="bg-gradient-to-r from-emerald-50 to-teal-50 rounded-2xl p-5 mb-4 border border-emerald-100">
+        <div className="bg-gradient-to-r from-emerald-50 to-teal-50 rounded-2xl p-5 mb-4 border border-teal-100">
           <div className="flex items-center justify-between mb-3">
-            <span className="text-sm font-semibold text-emerald-800 flex items-center gap-2">
+            <span className="text-sm font-semibold text-teal-800 flex items-center gap-2">
               <Target className="w-4 h-4" />
               Your Position
             </span>
-            <span className="text-xl font-bold text-emerald-700 bg-white px-3 py-1 rounded-full shadow-sm">
+            <span className="text-xl font-bold text-teal-700 bg-white px-3 py-1 rounded-full shadow-sm">
               {prediction.position}
             </span>
           </div>
           
           <div className="grid grid-cols-3 gap-4">
             <div className="text-center">
-              <p className="text-xs text-emerald-600 mb-1 font-medium">Staked</p>
-              <p className="font-bold text-emerald-900 text-lg">${prediction.stake.toLocaleString()}</p>
+              <p className="text-xs text-teal-600 mb-1 font-medium">Staked</p>
+              <p className="font-bold text-teal-900 text-lg">${prediction.stake.toLocaleString()}</p>
             </div>
             <div className="text-center">
-              <p className="text-xs text-emerald-600 mb-1 font-medium">Potential</p>
-              <p className="font-bold text-emerald-900 text-lg">${prediction.potentialReturn.toLocaleString()}</p>
+              <p className="text-xs text-teal-600 mb-1 font-medium">Potential</p>
+              <p className="font-bold text-teal-900 text-lg">${prediction.potentialReturn.toLocaleString()}</p>
             </div>
             <div className="text-center">
-              <p className="text-xs text-emerald-600 mb-1 font-medium">Odds</p>
-              <p className="font-bold text-emerald-900 text-lg">{prediction.odds}</p>
+              <p className="text-xs text-teal-600 mb-1 font-medium">Odds</p>
+              <p className="font-bold text-teal-900 text-lg">{prediction.odds}</p>
             </div>
           </div>
         </div>
@@ -571,7 +571,7 @@ const BetsTab: React.FC<BetsTabProps> = ({ onNavigateToDiscover }) => {
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.3, delay: index * 0.1 }}
                   >
-                    <Icon className={`w-4 h-4 ${isActive ? 'text-emerald-600' : ''}`} />
+                    <Icon className={`w-4 h-4 ${isActive ? 'text-teal-600' : ''}`} />
                     <span>{tab.label}</span>
                     {tab.count > 0 && (
                       <motion.span 
@@ -579,7 +579,7 @@ const BetsTab: React.FC<BetsTabProps> = ({ onNavigateToDiscover }) => {
                         animate={{ scale: 1 }}
                         className={`px-2 py-0.5 rounded-full text-xs font-bold ${
                           isActive
-                            ? 'bg-emerald-100 text-emerald-700'
+                            ? 'bg-teal-100 text-teal-700'
                             : 'bg-gray-200 text-gray-600'
                         }`}
                       >
@@ -616,7 +616,7 @@ const BetsTab: React.FC<BetsTabProps> = ({ onNavigateToDiscover }) => {
               className="flex flex-col items-center justify-center py-20"
             >
               <div className="relative">
-                <div className="w-12 h-12 border-4 border-emerald-200 border-t-emerald-500 rounded-full animate-spin"></div>
+                <div className="w-12 h-12 border-4 border-teal-200 border-t-emerald-500 rounded-full animate-spin"></div>
                 <div className="absolute inset-0 w-12 h-12 border-4 border-transparent border-r-teal-300 rounded-full animate-spin animate-reverse" style={{ animationDelay: '0.5s' }}></div>
               </div>
               <span className="mt-4 text-gray-600 font-medium">Loading your predictions...</span>
@@ -644,15 +644,15 @@ const BetsTab: React.FC<BetsTabProps> = ({ onNavigateToDiscover }) => {
                   </h3>
                   <div className="grid grid-cols-3 gap-4">
                     <div className="text-center">
-                      <p className="text-emerald-100 text-sm font-medium">Total Staked</p>
+                      <p className="text-teal-100 text-sm font-medium">Total Staked</p>
                       <p className="text-2xl font-bold">$2,350</p>
                     </div>
                     <div className="text-center">
-                      <p className="text-emerald-100 text-sm font-medium">Potential Win</p>
+                      <p className="text-teal-100 text-sm font-medium">Potential Win</p>
                       <p className="text-2xl font-bold">$4,890</p>
                     </div>
                     <div className="text-center">
-                      <p className="text-emerald-100 text-sm font-medium">Win Rate</p>
+                      <p className="text-teal-100 text-sm font-medium">Win Rate</p>
                       <p className="text-2xl font-bold">78%</p>
                     </div>
                   </div>

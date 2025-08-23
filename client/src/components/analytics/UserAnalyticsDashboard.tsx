@@ -211,7 +211,7 @@ export const UserAnalyticsDashboard: React.FC = () => {
               onClick={() => setTimeframe(period)}
               className={`px-3 py-1 rounded-full text-sm font-medium transition-colors ${
                 timeframe === period
-                  ? 'bg-green-100 text-green-700'
+                  ? 'bg-teal-100 text-teal-700'
                   : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
               }`}
             >
@@ -238,11 +238,11 @@ export const UserAnalyticsDashboard: React.FC = () => {
 
         <div className="bg-white p-4 rounded-lg border border-gray-200">
           <div className="flex items-center gap-2 mb-2">
-            <DollarSign className="w-5 h-5 text-green-600" />
+            <DollarSign className="w-5 h-5 text-teal-600" />
             <span className="text-sm font-medium text-gray-600">Profit/Loss</span>
           </div>
           <div className={`text-2xl font-bold ${
-            analytics.profitLoss >= 0 ? 'text-green-600' : 'text-red-600'
+            analytics.profitLoss >= 0 ? 'text-teal-600' : 'text-red-600'
           }`}>
             {analytics.profitLoss >= 0 ? '+' : ''}${analytics.profitLoss.toFixed(2)}
           </div>
@@ -267,14 +267,14 @@ export const UserAnalyticsDashboard: React.FC = () => {
         <div className="bg-white p-4 rounded-lg border border-gray-200">
           <div className="flex items-center gap-2 mb-2">
             {analytics.streak.type === 'win' ? (
-              <TrendingUp className="w-5 h-5 text-green-600" />
+              <TrendingUp className="w-5 h-5 text-teal-600" />
             ) : (
               <TrendingDown className="w-5 h-5 text-red-600" />
             )}
             <span className="text-sm font-medium text-gray-600">Streak</span>
           </div>
           <div className={`text-2xl font-bold ${
-            analytics.streak.type === 'win' ? 'text-green-600' : 'text-red-600'
+            analytics.streak.type === 'win' ? 'text-teal-600' : 'text-red-600'
           }`}>
             {analytics.streak.current}
           </div>
@@ -296,7 +296,7 @@ export const UserAnalyticsDashboard: React.FC = () => {
                 <div className="flex items-center gap-4 text-sm">
                   <span className="text-gray-500">{month.predictions} predictions</span>
                   <span className={`font-medium ${
-                    month.winRate >= 50 ? 'text-green-600' : 'text-red-600'
+                    month.winRate >= 50 ? 'text-teal-600' : 'text-red-600'
                   }`}>
                     {month.winRate.toFixed(1)}%
                   </span>
@@ -317,7 +317,7 @@ export const UserAnalyticsDashboard: React.FC = () => {
                 <div className="flex items-center gap-4 text-sm">
                   <span className="text-gray-500">{category.predictions}</span>
                   <span className={`font-medium ${
-                    category.winRate >= 50 ? 'text-green-600' : 'text-red-600'
+                    category.winRate >= 50 ? 'text-teal-600' : 'text-red-600'
                   }`}>
                     {category.winRate.toFixed(1)}%
                   </span>

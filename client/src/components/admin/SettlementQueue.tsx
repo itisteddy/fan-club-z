@@ -102,7 +102,7 @@ const SettleModal: React.FC<SettleModalProps> = ({ prediction, onClose, onSettle
                   className={`
                     border rounded-lg p-4 cursor-pointer transition-all
                     ${selectedOption === option.id
-                      ? 'border-green-500 bg-green-50 ring-2 ring-green-200'
+                      ? 'border-teal-500 bg-teal-50 ring-2 ring-green-200'
                       : 'border-gray-200 hover:border-gray-300'
                     }
                   `}
@@ -113,7 +113,7 @@ const SettleModal: React.FC<SettleModalProps> = ({ prediction, onClose, onSettle
                       <div className={`
                         w-4 h-4 rounded-full border-2 flex items-center justify-center
                         ${selectedOption === option.id
-                          ? 'border-green-500 bg-green-500'
+                          ? 'border-teal-500 bg-teal-500'
                           : 'border-gray-300'
                         }
                       `}>
@@ -141,7 +141,7 @@ const SettleModal: React.FC<SettleModalProps> = ({ prediction, onClose, onSettle
               type="url"
               value={proofUrl}
               onChange={(e) => setProofUrl(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-teal-500"
               placeholder="https://example.com/proof"
             />
             <p className="text-xs text-gray-500 mt-1">
@@ -157,7 +157,7 @@ const SettleModal: React.FC<SettleModalProps> = ({ prediction, onClose, onSettle
             <textarea
               value={reason}
               onChange={(e) => setReason(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-teal-500"
               rows={3}
               placeholder="Explain why this outcome was chosen..."
               minLength={10}
@@ -182,7 +182,7 @@ const SettleModal: React.FC<SettleModalProps> = ({ prediction, onClose, onSettle
             className={`
               px-6 py-2 rounded-lg font-medium transition-all
               ${selectedOption && reason && reason.length >= 10 && !isSettling
-                ? 'bg-green-600 hover:bg-green-700 text-white'
+                ? 'bg-teal-600 hover:bg-green-700 text-white'
                 : 'bg-gray-300 text-gray-500 cursor-not-allowed'
               }
             `}
@@ -321,7 +321,7 @@ export const SettlementQueue: React.FC = () => {
         <p className="text-gray-600 mb-4">{error}</p>
         <button
           onClick={fetchPendingPredictions}
-          className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+          className="px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-green-700 transition-colors"
         >
           Try Again
         </button>
@@ -332,7 +332,7 @@ export const SettlementQueue: React.FC = () => {
   if (predictions.length === 0) {
     return (
       <div className="text-center py-12">
-        <CheckCircle className="w-12 h-12 text-green-500 mx-auto mb-4" />
+        <CheckCircle className="w-12 h-12 text-teal-500 mx-auto mb-4" />
         <h3 className="text-lg font-medium text-gray-900 mb-2">All Caught Up!</h3>
         <p className="text-gray-600">No predictions pending settlement right now.</p>
       </div>
@@ -411,7 +411,7 @@ export const SettlementQueue: React.FC = () => {
               <div className="flex items-center gap-2 ml-6">
                 <button
                   onClick={() => setSelectedPrediction(prediction)}
-                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium"
+                  className="px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium"
                 >
                   Settle
                 </button>

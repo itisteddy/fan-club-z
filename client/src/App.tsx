@@ -5,7 +5,7 @@ import { useAuthStore } from './store/authStore';
 import { useLikeStore } from './store/likeStore';
 import { useUnifiedCommentStore } from './store/unifiedCommentStore';
 import { Toaster } from 'react-hot-toast';
-import { scrollToTop } from './utils/scroll';
+import { scrollToTop, saveScrollPosition, markNavigationAsIntentional } from './utils/scroll';
 import NotificationContainer from './components/ui/NotificationContainer';
 import PWAInstallManager from './components/PWAInstallManager';
 import PageWrapper from './components/PageWrapper';
@@ -26,7 +26,7 @@ import BottomNavigation from './components/BottomNavigation';
 const LoadingSpinner: React.FC<{ message?: string }> = ({ message = "Loading..." }) => (
   <div className="min-h-screen bg-gray-50 flex items-center justify-center">
     <div className="text-center">
-      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-500 mx-auto"></div>
+      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-500 mx-auto"></div>
       <p className="mt-2 text-gray-600">{message}</p>
     </div>
   </div>
@@ -55,7 +55,7 @@ const AuthGuard: React.FC<{ children: React.ReactNode }> = memo(({ children }) =
 
 AuthGuard.displayName = 'AuthGuard';
 
-// Main Layout Component with fixed navigation
+// Enhanced Main Layout Component with scroll preservation
 const MainLayout: React.FC<{ children: React.ReactNode }> = memo(({ children }) => {
   const [location, navigate] = useLocation();
   
@@ -72,6 +72,12 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = memo(({ children }) 
     // Prevent infinite loops by checking if we're already on the target route
     const currentTab = getCurrentTab();
     if (currentTab === tab) return;
+    
+    // Save current scroll position before navigating
+    saveScrollPosition(location);
+    
+    // Mark as intentional navigation to prevent auto-scroll-restore
+    markNavigationAsIntentional();
     
     // Navigate to the appropriate route
     switch (tab) {
@@ -91,20 +97,23 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = memo(({ children }) 
         navigate('/');
     }
     
-    // Scroll to top after navigation
+    // Only scroll to top for intentional tab changes, not for back navigation
     setTimeout(() => {
-      scrollToTop();
+      scrollToTop({ behavior: 'instant' });
     }, 50);
-  }, [navigate, getCurrentTab]);
+  }, [navigate, getCurrentTab, location]);
 
   const handleFABClick = useCallback(() => {
+    // Save current scroll position
+    saveScrollPosition(location);
+    markNavigationAsIntentional();
     navigate('/create');
-  }, [navigate]);
+  }, [navigate, location]);
 
   const showFAB = getCurrentTab() === 'discover';
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
+    <div className="min-h-screen bg-gray-50 flex flex-col" data-scroll-container>
       {/* Main Content */}
       <main className="flex-1 pb-20">
         <Suspense fallback={<LoadingSpinner message="Loading page..." />}>
@@ -143,17 +152,20 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = memo(({ children }) 
 
 MainLayout.displayName = 'MainLayout';
 
-// Page Wrapper Components with proper props and error handling
+// Enhanced Page Wrapper Components with scroll preservation
 const DiscoverPageWrapper: React.FC = () => {
-  const [, navigate] = useLocation();
+  const [location, navigate] = useLocation();
   
   const handleNavigateToProfile = useCallback(() => {
+    saveScrollPosition(location);
     navigate('/profile');
-  }, [navigate]);
+  }, [navigate, location]);
 
   const handleNavigateToPrediction = useCallback((predictionId: string) => {
+    // Save scroll position before navigating to details
+    saveScrollPosition(location);
     navigate(`/prediction/${predictionId}`);
-  }, [navigate]);
+  }, [navigate, location]);
 
   return (
     <PageWrapper title="Discover">
@@ -166,11 +178,12 @@ const DiscoverPageWrapper: React.FC = () => {
 };
 
 const PredictionsPageWrapper: React.FC = () => {
-  const [, navigate] = useLocation();
+  const [location, navigate] = useLocation();
   
   const handleNavigateToDiscover = useCallback(() => {
+    saveScrollPosition(location);
     navigate('/');
-  }, [navigate]);
+  }, [navigate, location]);
 
   return (
     <PageWrapper title="My Predictions">
@@ -180,9 +193,11 @@ const PredictionsPageWrapper: React.FC = () => {
 };
 
 const CreatePredictionPageWrapper: React.FC = () => {
-  const [, navigate] = useLocation();
+  const [location, navigate] = useLocation();
   
   const handleNavigateBack = useCallback(() => {
+    // Don't save scroll position when going back from create
+    markNavigationAsIntentional();
     navigate('/');
   }, [navigate]);
 
@@ -197,12 +212,14 @@ const CreatePredictionPageWrapper: React.FC = () => {
 
 // Component for viewing other users' profiles with proper param extraction
 const UserProfilePageWrapper: React.FC<{ params: { userId: string } }> = ({ params }) => {
-  const [, navigate] = useLocation();
+  const [location, navigate] = useLocation();
   
   const handleNavigateBack = useCallback(() => {
     if (window.history.length > 1) {
+      // Use browser back to restore previous scroll position
       window.history.back();
     } else {
+      markNavigationAsIntentional();
       navigate('/');
     }
   }, [navigate]);
@@ -242,6 +259,7 @@ const UserProfilePageWrapper: React.FC<{ params: { userId: string } }> = ({ para
   if (!userId) {
     React.useEffect(() => {
       console.warn('⚠️ Invalid userId in profile route, redirecting to own profile');
+      markNavigationAsIntentional();
       navigate('/profile');
     }, [navigate]);
     
@@ -262,11 +280,12 @@ const UserProfilePageWrapper: React.FC<{ params: { userId: string } }> = ({ para
 
 // Wrapper for current user profile
 const MyProfilePageWrapper: React.FC = () => {
-  const [, navigate] = useLocation();
+  const [location, navigate] = useLocation();
   
   const handleNavigateBack = useCallback(() => {
+    saveScrollPosition(location);
     navigate('/');
-  }, [navigate]);
+  }, [navigate, location]);
 
   return (
     <PageWrapper title="My Profile">
@@ -278,11 +297,12 @@ const MyProfilePageWrapper: React.FC = () => {
 };
 
 const WalletPageWrapper: React.FC = () => {
-  const [, navigate] = useLocation();
+  const [location, navigate] = useLocation();
   
   const handleNavigateBack = useCallback(() => {
+    saveScrollPosition(location);
     navigate('/');
-  }, [navigate]);
+  }, [navigate, location]);
 
   return (
     <PageWrapper title="Wallet">
@@ -292,10 +312,20 @@ const WalletPageWrapper: React.FC = () => {
 };
 
 const PredictionDetailsWrapper: React.FC<{ params: { id: string } }> = ({ params }) => {
-  const [, navigate] = useLocation();
+  const [location, navigate] = useLocation();
   
   const handleNavigateBack = useCallback(() => {
-    navigate('/');
+    // Use browser back to restore previous scroll position automatically
+    console.log('🔙 Navigating back from prediction details');
+    
+    if (window.history.length > 1) {
+      // Browser back will automatically restore scroll position via our scroll manager
+      window.history.back();
+    } else {
+      // Fallback to discover page
+      markNavigationAsIntentional();
+      navigate('/');
+    }
   }, [navigate]);
 
   if (!params?.id) {
@@ -307,7 +337,7 @@ const PredictionDetailsWrapper: React.FC<{ params: { id: string } }> = ({ params
             <p className="text-gray-600 mb-4">The prediction you're looking for doesn't exist.</p>
             <button
               onClick={handleNavigateBack}
-              className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600"
+              className="px-4 py-2 bg-teal-500 text-white rounded-lg hover:bg-teal-600"
             >
               Go Back
             </button>
@@ -394,8 +424,6 @@ function App() {
                 {/* Fallback */}
                 <Route component={DiscoverPageWrapper} />
               </Switch>
-              
-              {/* Onboarding debug panel removed per request */}
             </MainLayout>
           </OnboardingProvider>
         </AuthGuard>

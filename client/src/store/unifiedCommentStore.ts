@@ -44,6 +44,12 @@ interface CommentState {
   // Submission states
   submitting: Record<string, boolean>;
   
+  // Track which predictions have been fetched to prevent refetching
+  fetchedPredictions: Set<string>;
+  
+  // Last fetch timestamps to enable cache invalidation
+  lastFetched: Record<string, number>;
+  
   // Initialization state
   initialized: boolean;
 }
@@ -77,7 +83,9 @@ interface CommentActions {
   initialize: () => void;
 }
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://fan-club-z.onrender.com';
+import { getEnvironmentConfig } from '../lib/environment';
+
+const API_BASE_URL = getEnvironmentConfig().apiUrl;
 
 export const useUnifiedCommentStore = create<CommentState & CommentActions>()(
   devtools(
@@ -88,6 +96,8 @@ export const useUnifiedCommentStore = create<CommentState & CommentActions>()(
       loading: {},
       errors: {},
       submitting: {},
+      fetchedPredictions: new Set(),
+      lastFetched: {},
       initialized: false,
 
       // Initialize the store
@@ -177,6 +187,29 @@ export const useUnifiedCommentStore = create<CommentState & CommentActions>()(
           return;
         }
 
+        const state = get();
+        
+        // Check if we've already fetched this prediction recently (within 5 minutes)
+        const lastFetch = state.lastFetched[predictionId];
+        const fiveMinutesAgo = Date.now() - (5 * 60 * 1000);
+        
+        if (lastFetch && lastFetch > fiveMinutesAgo && state.commentsByPrediction[predictionId]) {
+          console.log(`⚡ Using cached comments for prediction ${predictionId} (${state.commentsByPrediction[predictionId]?.length || 0} comments)`);
+          return;
+        }
+        
+        // Check if we're already loading this prediction
+        if (state.loading[predictionId]) {
+          console.log(`⏳ Already loading comments for prediction ${predictionId}`);
+          return;
+        }
+
+        // Check if we're already in the fetched set to prevent double-fetching
+        if (state.fetchedPredictions.has(predictionId) && !state.errors[predictionId]) {
+          console.log(`✅ Comments already fetched for prediction ${predictionId}`);
+          return;
+        }
+
         console.log(`🔍 Fetching comments for prediction ${predictionId}`);
         
         set((state) => ({
@@ -204,17 +237,27 @@ export const useUnifiedCommentStore = create<CommentState & CommentActions>()(
 
           console.log(`✅ Loaded ${comments.length} comments for prediction ${predictionId}`);
 
-          set((state) => ({
-            commentsByPrediction: {
-              ...state.commentsByPrediction,
-              [predictionId]: comments
-            },
-            commentCounts: {
-              ...state.commentCounts,
-              [predictionId]: comments.length
-            },
-            loading: { ...state.loading, [predictionId]: false }
-          }));
+          set((state) => {
+            const newFetchedPredictions = new Set(state.fetchedPredictions);
+            newFetchedPredictions.add(predictionId);
+            
+            return {
+              commentsByPrediction: {
+                ...state.commentsByPrediction,
+                [predictionId]: comments
+              },
+              commentCounts: {
+                ...state.commentCounts,
+                [predictionId]: comments.length
+              },
+              fetchedPredictions: newFetchedPredictions,
+              lastFetched: {
+                ...state.lastFetched,
+                [predictionId]: Date.now()
+              },
+              loading: { ...state.loading, [predictionId]: false }
+            };
+          });
 
         } catch (error) {
           console.error('❌ Failed to fetch comments:', error);
@@ -238,7 +281,7 @@ export const useUnifiedCommentStore = create<CommentState & CommentActions>()(
       },
 
       // Add a new comment
-      addComment: async (predictionId: string, content: string, parentCommentId?: string) => {
+      addComment: async (predictionId: string, content: string, parentCommentId?: string, userData?: any) => {
         if (!predictionId?.trim()) {
           throw new Error('Cannot add comment: invalid predictionId');
         }
@@ -265,6 +308,7 @@ export const useUnifiedCommentStore = create<CommentState & CommentActions>()(
               body: JSON.stringify({
                 content: content.trim(),
                 parent_comment_id: parentCommentId || null,
+                user: userData || null,
               }),
             }
           );
@@ -405,38 +449,84 @@ export const useUnifiedCommentStore = create<CommentState & CommentActions>()(
   )
 );
 
+import { useCallback, useMemo } from 'react';
+
 // Helper hook to get comment data for a specific prediction
 export const useCommentsForPrediction = (predictionId: string) => {
   const store = useUnifiedCommentStore();
 
-  // Handle empty prediction ID gracefully
-  const safePredictionId = predictionId?.trim() || '';
+  // Stabilize the prediction ID to prevent unnecessary re-renders
+  const safePredictionId = useMemo(() => predictionId?.trim() || '', [predictionId]);
   
-  if (!safePredictionId) {
-    return {
-      comments: [],
-      commentCount: 0,
-      isLoading: false,
-      error: null,
-      isSubmitting: false,
-      fetchComments: () => Promise.resolve(),
-      addComment: () => Promise.resolve(),
-      toggleCommentLike: () => Promise.resolve(),
-      clearError: () => undefined,
-    };
-  }
+  // Memoize the functions to prevent useEffect dependencies from changing
+  const fetchComments = useCallback(() => {
+    if (!safePredictionId) {
+      console.warn('⚠️ Cannot fetch comments: no prediction ID provided');
+      return Promise.resolve();
+    }
+    return store.fetchComments(safePredictionId);
+  }, [store.fetchComments, safePredictionId]);
 
-  return {
-    comments: store.getComments(safePredictionId),
-    commentCount: store.getCommentCount(safePredictionId),
-    isLoading: store.loading[safePredictionId] || false,
-    error: store.errors[safePredictionId] || null,
-    isSubmitting: store.submitting[safePredictionId] || false,
-    fetchComments: () => store.fetchComments(safePredictionId),
-    addComment: (content: string, parentCommentId?: string) => 
-      store.addComment(safePredictionId, content, parentCommentId),
-    toggleCommentLike: (commentId: string) => 
-      store.toggleCommentLike(commentId, safePredictionId),
-    clearError: () => store.clearError(safePredictionId),
-  };
+  const addComment = useCallback((content: string, parentCommentId?: string, userData?: any) => {
+    if (!safePredictionId) {
+      console.warn('⚠️ Cannot add comment: no prediction ID provided');
+      return Promise.resolve();
+    }
+    return store.addComment(safePredictionId, content, parentCommentId, userData);
+  }, [store.addComment, safePredictionId]);
+
+  const toggleCommentLike = useCallback((commentId: string) => {
+    if (!safePredictionId) {
+      console.warn('⚠️ Cannot toggle like: no prediction ID provided');
+      return Promise.resolve();
+    }
+    return store.toggleCommentLike(commentId, safePredictionId);
+  }, [store.toggleCommentLike, safePredictionId]);
+
+  const clearError = useCallback(() => {
+    if (!safePredictionId) {
+      return;
+    }
+    store.clearError(safePredictionId);
+  }, [store.clearError, safePredictionId]);
+  
+  // Return memoized object to prevent unnecessary re-renders
+  return useMemo(() => {
+    if (!safePredictionId) {
+      return {
+        comments: [],
+        commentCount: 0,
+        isLoading: false,
+        error: null,
+        isSubmitting: false,
+        fetchComments,
+        addComment,
+        toggleCommentLike,
+        clearError,
+      };
+    }
+
+    return {
+      comments: store.getComments(safePredictionId),
+      commentCount: store.getCommentCount(safePredictionId),
+      isLoading: store.loading[safePredictionId] || false,
+      error: store.errors[safePredictionId] || null,
+      isSubmitting: store.submitting[safePredictionId] || false,
+      fetchComments,
+      addComment,
+      toggleCommentLike,
+      clearError,
+    };
+  }, [
+    safePredictionId,
+    store.commentsByPrediction[safePredictionId],
+    store.commentCounts[safePredictionId],
+    store.loading[safePredictionId],
+    store.errors[safePredictionId],
+    store.submitting[safePredictionId],
+    fetchComments,
+    addComment,
+    toggleCommentLike,
+    clearError
+  ]);
 };

@@ -2,7 +2,7 @@
 
 /**
  * Fan Club Z Server Entry Point
- * Simple working version for deployment
+ * Simple working version for deployment with settlement support
  */
 
 import express from 'express';
@@ -15,8 +15,8 @@ import { VERSION } from '@fanclubz/shared';
 const app = express();
 const PORT = config.server.port || 3001;
 
-console.log(`🚀 Fan Club Z Server v${VERSION} - CORS FIXED - SINGLE SOURCE OF TRUTH`);
-console.log('📡 Starting server with enhanced CORS support...');
+console.log(`🚀 Fan Club Z Server v${VERSION} - CORS FIXED - WITH SETTLEMENT`);
+console.log('📡 Starting server with enhanced CORS support and settlement functionality...');
 
 // Enhanced CORS middleware - Allow all origins for now to fix immediate issue
 app.use(cors({
@@ -62,7 +62,8 @@ app.get('/health', (req, res) => {
     version: VERSION,
     environment: config.server.nodeEnv || 'production',
     uptime: process.uptime(),
-    cors: 'enabled'
+    cors: 'enabled',
+    settlement: 'enabled'
   });
 });
 
@@ -73,7 +74,8 @@ app.get('/', (req, res) => {
     version: VERSION,
     environment: config.server.nodeEnv || 'production',
     status: 'running',
-    cors: 'enabled'
+    cors: 'enabled',
+    settlement: 'enabled'
   });
 });
 
@@ -105,12 +107,24 @@ app.post('/api/v2/admin/seed-database', async (req, res) => {
 import usersRoutes from './routes/users';
 import predictionsRoutes from './routes/predictions';
 import predictionEntriesRoutes from './routes/prediction-entries';
+// import commentsRoutes from './routes/comments'; // Temporarily disabled due to TypeScript errors
+import settlementRoutes from './routes/settlement';
 import { ensureAvatarsBucket } from './startup/storage';
 
 // Use routes
 app.use('/api/v2/users', usersRoutes);
 app.use('/api/v2/predictions', predictionsRoutes);
 app.use('/api/v2/prediction-entries', predictionEntriesRoutes);
+// app.use('/api/v2/social', commentsRoutes); // Temporarily disabled
+app.use('/api/v2/settlement', settlementRoutes);
+
+// Debug logging for route registration
+console.log('✅ Routes registered:');
+console.log('  - /api/v2/users');
+console.log('  - /api/v2/predictions');
+console.log('  - /api/v2/prediction-entries');
+// console.log('  - /api/v2/social (comments system)'); // Temporarily disabled
+console.log('  - /api/v2/settlement (manual/auto settlement)');
 
 // CORS test endpoint
 app.get('/api/v2/test-cors', (req, res) => {
@@ -154,6 +168,7 @@ app.listen(PORT, () => {
   console.log(`🔗 API URL: ${config.api.url || `https://fan-club-z.onrender.com`}`);
   console.log(`🎯 Frontend URL: ${config.frontend.url || 'https://app.fanclubz.app'}`);
   console.log(`✅ CORS enabled for all origins (development mode)`);
+  console.log(`🔨 Settlement system enabled`);
   ensureAvatarsBucket();
 });
 

@@ -77,7 +77,7 @@ const ProfileRoute: React.FC<ProfileRouteProps> = () => {
       <PageWrapper title="Profile">
         <div className="min-h-screen bg-gray-50">
           {/* Header */}
-          <div className="bg-gradient-to-r from-green-500 to-green-600 pt-12 pb-6">
+          <div className="bg-gradient-to-r from-purple-500 to-teal-600 pt-12 pb-6">
             <div className="px-6">
               <div className="flex items-center gap-4">
                 <button
@@ -113,7 +113,7 @@ const ProfileRoute: React.FC<ProfileRouteProps> = () => {
               <div className="flex flex-col gap-3">
                 <button
                   onClick={handleNavigateBack}
-                  className="w-full bg-green-600 text-white py-3 px-4 rounded-xl font-semibold hover:bg-green-700 transition-colors"
+                  className="w-full bg-teal-600 text-white py-3 px-4 rounded-xl font-semibold hover:bg-green-700 transition-colors"
                 >
                   Go Back
                 </button>

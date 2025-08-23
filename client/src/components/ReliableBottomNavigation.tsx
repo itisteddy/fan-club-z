@@ -48,7 +48,7 @@ const ReliableBottomNavigation: React.FC = () => {
                   width: '48px',
                   height: '48px',
                   borderRadius: '24px',
-                  background: 'linear-gradient(135deg, #22c55e, #16a34a)',
+                  background: 'linear-gradient(135deg, #00F5D4, #00F5D4)',
                   border: 'none',
                   color: 'white',
                   fontSize: '20px',
@@ -90,7 +90,7 @@ const ReliableBottomNavigation: React.FC = () => {
                 cursor: 'pointer',
                 transition: 'all 0.2s ease',
                 minWidth: '60px',
-                color: isActive ? '#22c55e' : '#9ca3af'
+                color: isActive ? '#00F5D4' : '#9ca3af'
               }}
               onMouseOver={(e) => {
                 if (!isActive) {
@@ -125,7 +125,7 @@ const ReliableBottomNavigation: React.FC = () => {
                   transform: 'translateX(-50%)',
                   width: '4px',
                   height: '4px',
-                  backgroundColor: '#22c55e',
+                  backgroundColor: '#00F5D4',
                   borderRadius: '50%'
                 }}></div>
               )}

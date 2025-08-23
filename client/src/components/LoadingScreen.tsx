@@ -1,4 +1,5 @@
 import React from 'react';
+import Logo from './common/Logo';
 
 export const LoadingScreen: React.FC = () => {
   return (
@@ -7,11 +8,11 @@ export const LoadingScreen: React.FC = () => {
       <div className="relative">
         {/* Pulse Ring Animation */}
         <div className="absolute inset-0 rounded-full bg-green-200 animate-pulse-ring" />
-        <div className="absolute inset-2 rounded-full bg-green-100 animate-pulse-ring" style={{ animationDelay: '0.15s' }} />
+        <div className="absolute inset-2 rounded-full bg-teal-100 animate-pulse-ring" style={{ animationDelay: '0.15s' }} />
         
         {/* Main Logo */}
-        <div className="relative w-20 h-20 bg-gradient-to-br from-green-500 to-green-600 rounded-full flex items-center justify-center shadow-lg animate-bounce-subtle">
-          <span className="text-2xl font-bold text-white">F</span>
+        <div className="relative animate-bounce-subtle">
+          <Logo size="xl" variant="icon" />
         </div>
       </div>
 
@@ -26,7 +27,7 @@ export const LoadingScreen: React.FC = () => {
       {/* Loading Indicator */}
       <div className="space-y-3">
         <div className="flex justify-center">
-          <div className="loading-spinner w-6 h-6 border-green-500" />
+          <div className="loading-spinner w-6 h-6 border-teal-500" />
         </div>
         <div className="text-xs text-gray-500 text-center">
           Loading...
@@ -54,14 +55,14 @@ const LoadingStep: React.FC<LoadingStepProps> = ({ label, completed, active }) =
     <div className="flex items-center gap-3">
       <div className={`w-3 h-3 rounded-full transition-all duration-300 ${
         completed 
-          ? 'bg-green-500' 
+          ? 'bg-teal-500' 
           : active 
-          ? 'bg-green-500 animate-pulse' 
+          ? 'bg-teal-500 animate-pulse' 
           : 'bg-gray-300'
       }`} />
       <span className={`text-xs transition-colors duration-300 ${
         completed 
-          ? 'text-green-600' 
+          ? 'text-teal-600' 
           : active 
           ? 'text-gray-900' 
           : 'text-gray-500'
@@ -77,10 +78,10 @@ export const MinimalLoadingScreen: React.FC = () => {
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center">
       <div className="space-y-6 text-center">
-        <div className="w-16 h-16 bg-gradient-to-br from-green-500 to-green-600 rounded-full flex items-center justify-center mx-auto animate-pulse">
+        <div className="w-16 h-16 bg-gradient-to-br from-purple-500 to-teal-600 rounded-full flex items-center justify-center mx-auto animate-pulse">
           <span className="text-xl font-bold text-white">F</span>
         </div>
-        <div className="loading-spinner w-8 h-8 border-green-500 mx-auto" />
+        <div className="loading-spinner w-8 h-8 border-teal-500 mx-auto" />
       </div>
     </div>
   );

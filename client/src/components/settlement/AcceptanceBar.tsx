@@ -90,7 +90,7 @@ export const AcceptanceBar: React.FC<AcceptanceBarProps> = ({
           <button
             onClick={handleAccept}
             disabled={loading}
-            className="flex-1 bg-green-600 hover:bg-green-700 disabled:bg-green-400
+            className="flex-1 bg-teal-600 hover:bg-green-700 disabled:bg-teal-400
                        text-white font-semibold py-3 px-4 rounded-lg
                        transition-colors duration-200
                        flex items-center justify-center gap-2"

@@ -113,7 +113,7 @@ export const WithdrawModal: React.FC<WithdrawModalProps> = ({ isOpen, onClose })
                         <Banknote size={16} />
                         <span className="text-sm text-gray-600">Available Balance</span>
                       </div>
-                      <div className="font-semibold text-green-600">
+                      <div className="font-semibold text-teal-600">
                         {formatCurrency(usdBalance)}
                       </div>
                     </div>
@@ -256,7 +256,7 @@ export const WithdrawModal: React.FC<WithdrawModalProps> = ({ isOpen, onClose })
                     initial={{ opacity: 0, height: 0 }}
                     animate={{ opacity: 1, height: 'auto' }}
                   >
-                    <Card className="bg-green-50 border-green-200">
+                    <Card className="bg-teal-50 border-teal-200">
                       <CardContent className="p-4">
                         <div className="space-y-2 text-sm">
                           <div className="flex justify-between">
@@ -267,10 +267,10 @@ export const WithdrawModal: React.FC<WithdrawModalProps> = ({ isOpen, onClose })
                             <span>Processing fee:</span>
                             <span className="font-medium">Free</span>
                           </div>
-                          <hr className="border-green-200" />
+                          <hr className="border-teal-200" />
                           <div className="flex justify-between font-semibold">
                             <span>You will receive:</span>
-                            <span className="text-green-600">{formatCurrency(numAmount)}</span>
+                            <span className="text-teal-600">{formatCurrency(numAmount)}</span>
                           </div>
                         </div>
                       </CardContent>
@@ -287,7 +287,7 @@ export const WithdrawModal: React.FC<WithdrawModalProps> = ({ isOpen, onClose })
                     !amount || !accountName || !accountNumber || !bankCode ||
                     numAmount < 50 || numAmount > usdBalance || isLoading
                   }
-                  className="w-full bg-green-500 hover:bg-green-600"
+                  className="w-full bg-teal-500 hover:bg-teal-600"
                   size="lg"
                 >
                   {isLoading ? 'Processing...' : `Withdraw ${formatCurrency(numAmount)}`}

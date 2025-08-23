@@ -122,7 +122,7 @@ export const SharePrediction: React.FC<SharePredictionProps> = ({
             className="flex items-center justify-center gap-3 p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
           >
             {copied ? (
-              <Check className="w-5 h-5 text-green-600" />
+              <Check className="w-5 h-5 text-teal-600" />
             ) : (
               <Copy className="w-5 h-5 text-gray-600" />
             )}
@@ -154,9 +154,9 @@ export const SharePrediction: React.FC<SharePredictionProps> = ({
           {/* WhatsApp */}
           <button
             onClick={shareToWhatsApp}
-            className="flex items-center justify-center gap-3 p-4 border border-gray-200 rounded-lg hover:bg-green-50 transition-colors"
+            className="flex items-center justify-center gap-3 p-4 border border-gray-200 rounded-lg hover:bg-teal-50 transition-colors"
           >
-            <MessageCircle className="w-5 h-5 text-green-600" />
+            <MessageCircle className="w-5 h-5 text-teal-600" />
             <span className="font-medium text-gray-900">WhatsApp</span>
           </button>
 

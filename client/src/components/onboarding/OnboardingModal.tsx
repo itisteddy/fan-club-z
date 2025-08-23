@@ -67,7 +67,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({ isOpen, onClos
             exit={{ y: 40, opacity: 0, scale: 0.98 }}
             transition={{ duration: 0.2 }}
           >
-            <div className="bg-gradient-to-r from-emerald-500 to-green-600 p-4 text-white flex items-center justify-between">
+            <div className="bg-gradient-to-r from-purple-500 to-teal-600 p-4 text-white flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <CheckCircle className="w-5 h-5" />
                 <span className="font-semibold">Welcome to Fan Club Z</span>
@@ -79,7 +79,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({ isOpen, onClos
 
             <div className="p-5">
               <div className="flex items-center gap-3 mb-3">
-                <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
+                <div className="w-10 h-10 rounded-xl bg-teal-50 text-teal-600 flex items-center justify-center">
                   {step.icon}
                 </div>
                 <div>
@@ -94,7 +94,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({ isOpen, onClos
                   <div
                     key={i}
                     className={`h-2 rounded-full transition-all ${
-                      i <= index ? 'bg-emerald-500' : 'bg-gray-200'
+                      i <= index ? 'bg-teal-500' : 'bg-gray-200'
                     }`}
                     style={{ width: i === index ? 40 : 20 }}
                   />
@@ -111,7 +111,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({ isOpen, onClos
                 </button>
                 <button
                   onClick={next}
-                  className="px-4 py-2 rounded-xl bg-emerald-600 text-white font-medium hover:bg-emerald-700"
+                  className="px-4 py-2 rounded-xl bg-teal-600 text-white font-medium hover:bg-emerald-700"
                 >
                   {index === steps.length - 1 ? 'Finish' : 'Next'}
                 </button>

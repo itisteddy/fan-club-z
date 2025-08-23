@@ -5,7 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Fan Club Z - Where Fandom Becomes a Game</title>
     <meta name="description" content="Join the first social prediction platform built for fans, creators, and culture shapers. Predict on music, memes, matches, and moments — all in real time.">
-    <meta name="theme-color" content="#00D084">
+    <meta name="theme-color" content="#7B2FF7">
+    
+    <!-- Favicon -->
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <link rel="shortcut icon" href="/favicon.svg">
     
     <!-- PWA Meta Tags -->
     <link rel="manifest" href="/manifest.json">
@@ -21,14 +25,14 @@
     
     <style>
         :root {
-            --primary-green: #00D084;
-            --deep-green: #00A86B;
+            --primary-purple: #7B2FF7;
+            --neon-teal: #00F5D4;
             --background: #FAFBFC;
             --white: #FFFFFF;
             --text-primary: #212529;
             --text-secondary: #6C757D;
             --border-light: #E9ECEF;
-            --gradient-primary: linear-gradient(135deg, #00D084, #00A86B);
+            --gradient-primary: linear-gradient(135deg, #7B2FF7, #00F5D4);
             --shadow-card: 0 4px 12px rgba(0, 0, 0, 0.08);
             --shadow-elevated: 0 8px 24px rgba(0, 0, 0, 0.12);
         }
@@ -72,10 +76,19 @@
         }
 
         .logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
             font-size: 24px;
             font-weight: 800;
-            color: var(--primary-green);
+            color: var(--primary-purple);
             text-decoration: none;
+        }
+        
+        .logo-icon {
+            width: 40px;
+            height: 40px;
+            flex-shrink: 0;
         }
 
         .cta-button {
@@ -291,7 +304,7 @@
 
         .feature-tag {
             background: rgba(0, 208, 132, 0.1);
-            color: var(--primary-green);
+            color: var(--primary-purple);
             padding: 8px 16px;
             border-radius: 20px;
             font-size: 14px;
@@ -564,7 +577,7 @@
 
         .cta-white {
             background: white;
-            color: var(--primary-green);
+            color: var(--primary-purple);
             padding: 16px 32px;
             border-radius: 28px;
             text-decoration: none;
@@ -707,7 +720,10 @@
     <!-- Header -->
     <header class="header">
         <nav class="nav container">
-            <a href="#" class="logo">Fan Club Z</a>
+            <a href="#" class="logo">
+                <img src="assets/images/fc-logo.svg" alt="Fan Club Z Logo" class="logo-icon">
+                Fan Club Z
+            </a>
             <a href="https://app.fanclubz.app" class="cta-button">
                 Launch App
                 <span style="transform: rotate(-45deg);">↗</span>

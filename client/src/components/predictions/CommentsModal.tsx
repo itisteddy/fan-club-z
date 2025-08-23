@@ -66,13 +66,10 @@ export const CommentsModal: React.FC<CommentsModalProps> = ({
     }
   };
 
-  const handleLikeComment = async (commentId: string, isLiked: boolean) => {
+  const handleLikeComment = async (commentId: string) => {
     try {
-      if (isLiked) {
-        await unlikeComment(commentId);
-      } else {
-        await likeComment(commentId);
-      }
+      await toggleCommentLike(commentId);
+      toast.success('Like updated!');
     } catch (error) {
       toast.error('Failed to update like');
     }
@@ -141,7 +138,7 @@ export const CommentsModal: React.FC<CommentsModalProps> = ({
               <div className="modal-body">
                 {loading ? (
                   <div className="flex justify-center py-8">
-                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-green-500"></div>
+                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-teal-500"></div>
                   </div>
                 ) : comments.length === 0 ? (
                   <div className="text-center py-8">
@@ -151,31 +148,41 @@ export const CommentsModal: React.FC<CommentsModalProps> = ({
                   </div>
                 ) : (
                   <div className="space-y-4">
-                    {comments.map((comment) => (
-                      <motion.div
-                        key={comment.id}
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        className="flex gap-3"
-                      >
-                        <UserAvatar email={comment.user?.email} username={comment.user?.username} avatarUrl={getAvatarUrl(comment.user)} size="sm" />
-                        <div className="flex-1 min-w-0">
-                          <div className="bg-gray-100 rounded-2xl px-4 py-3 max-w-[85%]">
-                            <div className="flex items-center gap-2 mb-2">
-                              <span className="font-semibold text-sm text-gray-900">
-                                {comment.user.username}
-                              </span>
-                              <span className="text-xs text-gray-500">
-                                {formatTimeAgo(comment.created_at)}
-                              </span>
+                    {comments.map((comment) => {
+                      const hasAvatar = comment.user?.avatar_url && comment.user.avatar_url.trim() !== '';
+                      return (
+                        <motion.div
+                          key={comment.id}
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          className={`flex ${hasAvatar ? 'gap-3' : 'gap-0'}`}
+                        >
+                          {hasAvatar && (
+                            <UserAvatar 
+                              email={comment.user?.email} 
+                              username={comment.user?.username} 
+                              avatarUrl={getAvatarUrl(comment.user)} 
+                              size="sm" 
+                            />
+                          )}
+                          <div className="flex-1 min-w-0">
+                            <div className="bg-gray-100 rounded-2xl px-4 py-3 max-w-[85%]">
+                              <div className="flex items-center gap-2 mb-2">
+                                <span className="font-semibold text-sm text-gray-900">
+                                  {comment.user.username}
+                                </span>
+                                <span className="text-xs text-gray-500">
+                                  {formatTimeAgo(comment.created_at)}
+                                </span>
+                              </div>
+                              <p className="text-sm text-gray-700 leading-relaxed">
+                                {comment.content}
+                              </p>
                             </div>
-                            <p className="text-sm text-gray-700 leading-relaxed">
-                              {comment.content}
-                            </p>
                           </div>
-                        </div>
-                      </motion.div>
-                    ))}
+                        </motion.div>
+                      );
+                    })}
                   </div>
                 )}
                 <div ref={commentsEndRef} />
@@ -201,7 +208,7 @@ export const CommentsModal: React.FC<CommentsModalProps> = ({
                       onClick={handleSubmitComment}
                       disabled={!newComment.trim() || isSubmitting}
                       size="sm"
-                      className="rounded-full px-4 bg-green-500 hover:bg-green-600"
+                      className="rounded-full px-4 bg-teal-500 hover:bg-teal-600"
                     >
                       {isSubmitting ? (
                         <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>

@@ -46,7 +46,7 @@ const SimpleBottomNavigation: React.FC = () => {
             borderRadius: item.isSpecial ? '50%' : '12px',
             border: 'none',
             background: item.isSpecial 
-              ? 'linear-gradient(135deg, #22c55e, #16a34a)'
+              ? 'linear-gradient(135deg, #00F5D4, #00F5D4)'
               : 'transparent',
             cursor: 'pointer',
             transition: 'all 0.2s ease',
@@ -55,7 +55,7 @@ const SimpleBottomNavigation: React.FC = () => {
             color: item.isSpecial 
               ? 'white' 
               : currentPath === item.path 
-                ? '#22c55e' 
+                ? '#00F5D4' 
                 : '#6b7280',
             boxShadow: item.isSpecial 
               ? '0 4px 12px rgba(34, 197, 94, 0.3)'

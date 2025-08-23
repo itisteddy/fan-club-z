@@ -203,7 +203,7 @@
     width: 20px;
     height: 20px;
     border: 2px solid #e5e7eb;
-    border-top: 2px solid #22c55e;
+    border-top: 2px solid #7B2FF7;
     border-radius: 50%;
     animation: spin 1s linear infinite;
   }
@@ -231,7 +231,7 @@
   }
 
   .focus-ring:focus {
-    outline-color: #22c55e;
+    outline-color: #7B2FF7;
   }
 
   /* Page transitions - minimal */
@@ -366,7 +366,7 @@
 
 .prediction-option.selected {
   /* Tailwind @apply directive */
-  @apply border-green-500 bg-green-50;
+  @apply border-purple-500 bg-purple-50;
 }
 
 .bottom-nav {

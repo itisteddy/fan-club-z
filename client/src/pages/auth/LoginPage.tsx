@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useAuthStore } from '../../store/authStore';
+import Logo from '../../components/common/Logo';
 import toast from 'react-hot-toast';
 
 export const LoginPage: React.FC = () => {
@@ -58,7 +59,15 @@ export const LoginPage: React.FC = () => {
 
   return (
     <div className="bg-white rounded-lg shadow-lg p-6">
-      <h2 className="text-2xl font-semibold text-center mb-6">Welcome Back</h2>
+      {/* Logo and Brand */}
+      <div className="text-center mb-6">
+        <div className="flex justify-center mb-3">
+          <Logo size="lg" variant="icon" />
+        </div>
+        <h1 className="text-2xl font-bold text-gray-900 mb-1">Fan Club Z</h1>
+        <h2 className="text-lg font-semibold text-gray-700">Welcome Back</h2>
+        <p className="text-sm text-gray-500">Predict the future, earn rewards</p>
+      </div>
       
       {/* Test Mode Panel */}
       <div className="mb-4 p-3 bg-gray-100 rounded-lg">
@@ -75,7 +84,7 @@ export const LoginPage: React.FC = () => {
           <button
             type="button"
             onClick={() => handleTestLogin('user@gmail.com', 'test123')}
-            className="px-3 py-1 bg-green-500 text-white text-xs rounded hover:bg-green-600 transition-colors"
+            className="px-3 py-1 bg-purple-500 text-white text-xs rounded hover:bg-purple-600 transition-colors"
             disabled={loading}
           >
             Test User

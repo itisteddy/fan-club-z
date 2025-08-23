@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuthStore } from '../../store/authStore';
+import Logo from '../../components/common/Logo';
 import NotificationContainer from '../../components/ui/NotificationContainer';
 
 const AuthPage: React.FC = () => {
@@ -235,7 +236,7 @@ const AuthPage: React.FC = () => {
                 style={{
                   margin: '4px 0',
                   padding: '6px 12px',
-                  background: '#10b981',
+                  background: '#00F5D4',
                   color: 'white',
                   border: 'none',
                   borderRadius: '4px',
@@ -251,7 +252,7 @@ const AuthPage: React.FC = () => {
                 style={{
                   margin: '4px 0',
                   padding: '6px 12px',
-                  background: '#10b981',
+                  background: '#00F5D4',
                   color: 'white',
                   border: 'none',
                   borderRadius: '4px',
@@ -267,7 +268,7 @@ const AuthPage: React.FC = () => {
                 style={{
                   margin: '4px 0',
                   padding: '6px 12px',
-                  background: '#10b981',
+                  background: '#00F5D4',
                   color: 'white',
                   border: 'none',
                   borderRadius: '4px',
@@ -397,29 +398,15 @@ const AuthPage: React.FC = () => {
           overflow: 'hidden'
         }}
       >
-        {/* Logo section - Reduced margin */}
+        {/* Logo section - Updated with FC Logo */}
         <div style={{ textAlign: 'center', marginBottom: '20px' }}>
-        <div style={{
-          width: '80px',
-          height: '80px',
-            background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-          borderRadius: '20px',
-            margin: '0 auto 16px',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-            boxShadow: '0 12px 24px rgba(16, 185, 129, 0.3), 0 0 0 1px rgba(255, 255, 255, 0.1)',
-            cursor: 'pointer',
-            transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-            position: 'relative',
-            overflow: 'hidden'
+          <div style={{ 
+            display: 'flex', 
+            justifyContent: 'center', 
+            marginBottom: '16px',
+            filter: 'drop-shadow(0 12px 24px rgba(123, 47, 247, 0.3))'
           }}>
-            <span style={{
-              fontSize: '32px',
-              fontWeight: 'bold',
-          color: 'white',
-              textShadow: '0 2px 4px rgba(0, 0, 0, 0.1)'
-            }}>Z</span>
+            <Logo size="xl" variant="icon" />
           </div>
           <h1 style={{
           fontSize: '32px',
@@ -917,7 +904,7 @@ const AuthPage: React.FC = () => {
                   alert('Password reset functionality will be available soon!');
                 }} 
                 style={{
-                  color: '#10b981',
+                  color: '#00F5D4',
                   textDecoration: 'none',
                   fontSize: '14px',
                   fontWeight: '500',
@@ -938,7 +925,7 @@ const AuthPage: React.FC = () => {
             style={{
               width: '100%',
               height: '56px',
-              background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+              background: 'linear-gradient(135deg, #00F5D4 0%, #7B2FF7 100%)',
               color: 'white',
               border: 'none',
               borderRadius: '16px',
@@ -997,7 +984,7 @@ const AuthPage: React.FC = () => {
                 toggleMode();
               }} 
             style={{
-                color: '#10b981',
+                color: '#00F5D4',
               textDecoration: 'none',
                 fontWeight: '600',
                 padding: '8px 12px',

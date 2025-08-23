@@ -352,7 +352,7 @@ const OnboardingTooltip: React.FC<TooltipProps> = ({
       transition={{ duration: 0.2, ease: "easeOut" }}
     >
       {/* Header */}
-      <div className="bg-gradient-to-r from-green-500 to-emerald-600 p-4 text-white">
+      <div className="bg-gradient-to-r from-purple-500 to-teal-600 p-4 text-white">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             {step.icon && (
@@ -409,7 +409,7 @@ const OnboardingTooltip: React.FC<TooltipProps> = ({
               <div
                 key={i}
                 className={`w-2 h-2 rounded-full transition-colors ${
-                  i === stepNumber ? 'bg-green-500' : 'bg-gray-200'
+                  i === stepNumber ? 'bg-teal-500' : 'bg-gray-200'
                 }`}
               />
             ))}
@@ -417,7 +417,7 @@ const OnboardingTooltip: React.FC<TooltipProps> = ({
 
           <button
             onClick={handleNext}
-            className="flex items-center gap-1 px-4 py-2 rounded-xl bg-green-500 text-white hover:bg-green-600 transition-colors text-sm font-medium min-w-[80px] justify-center"
+            className="flex items-center gap-1 px-4 py-2 rounded-xl bg-teal-500 text-white hover:bg-teal-600 transition-colors text-sm font-medium min-w-[80px] justify-center"
           >
             {isLast ? (
               <>
@@ -622,7 +622,7 @@ export const OnboardingSystem: React.FC<OnboardingSystemProps> = ({
         {/* Highlight border for target element */}
         {targetRect && step.target && (
           <motion.div
-            className="absolute border-4 border-green-400 rounded-xl pointer-events-none shadow-lg"
+            className="absolute border-4 border-teal-400 rounded-xl pointer-events-none shadow-lg"
             style={{
               left: Math.max(0, targetRect.left - 4),
               top: Math.max(0, targetRect.top - 4),
@@ -705,7 +705,7 @@ export const WelcomeModal: React.FC<WelcomeModalProps> = ({
             transition={{ duration: 0.3, ease: "easeOut" }}
           >
             {/* Header with gradient */}
-            <div className="bg-gradient-to-br from-green-500 via-emerald-600 to-teal-600 p-6 text-white text-center relative overflow-hidden">
+            <div className="bg-gradient-to-br from-purple-500 via-teal-600 to-teal-600 p-6 text-white text-center relative overflow-hidden">
               <motion.div
                 className="absolute inset-0 bg-white/10"
                 animate={{
@@ -727,7 +727,7 @@ export const WelcomeModal: React.FC<WelcomeModalProps> = ({
                   <Sparkles className="w-8 h-8" />
                 </motion.div>
                 <h2 className="text-2xl font-bold mb-2">Welcome to Fan Club Z!</h2>
-                <p className="text-green-100 text-sm">
+                <p className="text-teal-100 text-sm">
                   Ready to discover the future of social predictions?
                 </p>
               </div>
@@ -737,8 +737,8 @@ export const WelcomeModal: React.FC<WelcomeModalProps> = ({
             <div className="p-6">
               <div className="space-y-4 mb-6">
                 <div className="flex items-start gap-3">
-                  <div className="w-10 h-10 bg-green-100 rounded-xl flex items-center justify-center flex-shrink-0">
-                    <Compass className="w-5 h-5 text-green-600" />
+                  <div className="w-10 h-10 bg-gradient-to-r from-purple-400 to-teal-500 rounded-xl flex items-center justify-center flex-shrink-0">
+                    <Compass className="w-5 h-5 text-teal-600" />
                   </div>
                   <div>
                     <h3 className="font-semibold text-gray-900">Discover Predictions</h3>
@@ -771,7 +771,7 @@ export const WelcomeModal: React.FC<WelcomeModalProps> = ({
               <div className="space-y-3">
                 <button
                   onClick={handleStartTour}
-                  className="w-full bg-green-500 hover:bg-green-600 text-white py-3 px-4 rounded-xl font-semibold transition-colors flex items-center justify-center gap-2"
+                  className="w-full bg-teal-500 hover:bg-teal-600 text-white py-3 px-4 rounded-xl font-semibold transition-colors flex items-center justify-center gap-2"
                 >
                   <Play className="w-4 h-4" />
                   Take the Tour

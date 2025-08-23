@@ -4,6 +4,7 @@ import { Search, Bell, Menu, Sparkles } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { Button } from '../ui/button';
 import UserAvatar from '../common/UserAvatar';
+import Logo from '../common/Logo';
 import { useAuth } from '../../providers/AuthProvider';
 import { generateInitials, getAvatarUrl } from '../../lib/utils';
 
@@ -36,14 +37,14 @@ export const TopHeader: React.FC = () => {
       transition={{ type: "spring", stiffness: 300, damping: 30 }}
     >
       <div className="flex items-center justify-between px-6 h-20">
-        {/* Left Section - Title with Icon */}
+        {/* Left Section - Logo and Title */}
         <motion.div 
           className="flex items-center gap-3"
           initial={{ opacity: 0, x: -20 }}
           animate={{ opacity: 1, x: 0 }}
           transition={{ delay: 0.1 }}
         >
-          {getPageIcon()}
+          <Logo size="md" variant="icon" />
           <div>
             <h1 className="display-small text-cool-gray-900 font-bold">
               {getPageTitle()}

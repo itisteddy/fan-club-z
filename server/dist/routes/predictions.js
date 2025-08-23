@@ -7,12 +7,21 @@ const express_1 = __importDefault(require("express"));
 const database_1 = require("../config/database");
 const shared_1 = require("@fanclubz/shared");
 const router = express_1.default.Router();
-// GET /api/v2/predictions - Get all predictions
+// GET /api/v2/predictions - Get all predictions with pagination
 router.get('/', async (req, res) => {
     try {
         console.log('📡 Predictions endpoint called - origin:', req.headers.origin);
-        // Fetch real predictions from Supabase database
-        const { data: predictions, error, count } = await database_1.supabase
+        // Parse pagination parameters
+        const page = parseInt(req.query.page) || 1;
+        const limit = Math.min(parseInt(req.query.limit) || 20, 50); // Max 50 per request
+        const offset = (page - 1) * limit;
+        // Parse filter parameters
+        const category = req.query.category;
+        const search = req.query.search;
+        console.log(`📊 Pagination: page=${page}, limit=${limit}, offset=${offset}`);
+        console.log(`🔍 Filters: category=${category}, search=${search}`);
+        // Build query with filters
+        let query = database_1.supabase
             .from('predictions')
             .select(`
         *,
@@ -21,8 +30,18 @@ router.get('/', async (req, res) => {
         club:clubs(id, name, avatar_url)
       `, { count: 'exact' })
             .neq('status', 'cancelled')
-            .order('created_at', { ascending: false })
-            .limit(20);
+            .order('created_at', { ascending: false });
+        // Apply category filter
+        if (category && category !== 'all') {
+            query = query.eq('category', category);
+        }
+        // Apply search filter
+        if (search && search.trim()) {
+            query = query.or(`title.ilike.%${search}%,description.ilike.%${search}%`);
+        }
+        // Apply pagination
+        query = query.range(offset, offset + limit - 1);
+        const { data: predictions, error, count } = await query;
         if (error) {
             console.error('Error fetching predictions:', error);
             return res.status(500).json({
@@ -32,18 +51,22 @@ router.get('/', async (req, res) => {
                 details: error.message
             });
         }
-        console.log(`✅ Successfully fetched ${predictions?.length || 0} predictions`);
+        const totalPages = Math.ceil((count || 0) / limit);
+        const hasNext = page < totalPages;
+        const hasPrev = page > 1;
+        console.log(`✅ Successfully fetched ${predictions?.length || 0} predictions (${count} total)`);
         return res.json({
             data: predictions || [],
-            message: 'Predictions endpoint - working',
+            message: 'Predictions fetched successfully',
             version: shared_1.VERSION,
             pagination: {
-                page: 1,
-                limit: 20,
+                page,
+                limit,
                 total: count || 0,
-                totalPages: Math.ceil((count || 0) / 20),
-                hasNext: false,
-                hasPrev: false
+                totalPages,
+                hasNext,
+                hasPrev,
+                currentCount: predictions?.length || 0
             }
         });
     }
@@ -424,14 +447,92 @@ router.post('/:id/entries', async (req, res) => {
             });
         }
         console.log('✅ Prediction entry created successfully:', entry.id);
+        // 1) Update the selected option's total_staked
+        const { data: currentOption, error: readOptError } = await database_1.supabase
+            .from('prediction_options')
+            .select('id,total_staked')
+            .eq('id', option_id)
+            .single();
+        if (readOptError) {
+            console.error('Error reading option for update:', readOptError);
+        }
+        else {
+            const newTotalStaked = (currentOption?.total_staked || 0) + Number(amount || 0);
+            const { error: updateOptError } = await database_1.supabase
+                .from('prediction_options')
+                .update({ total_staked: newTotalStaked, updated_at: new Date().toISOString() })
+                .eq('id', option_id);
+            if (updateOptError) {
+                console.error('Error updating option total_staked:', updateOptError);
+            }
+        }
+        // 2) Recalculate pool_total from all options
+        const { data: allOptions, error: optionsError } = await database_1.supabase
+            .from('prediction_options')
+            .select('id,total_staked')
+            .eq('prediction_id', predictionId);
+        let poolTotal = 0;
+        if (optionsError) {
+            console.error('Error fetching options to calculate pool:', optionsError);
+        }
+        else {
+            poolTotal = (allOptions || []).reduce((sum, opt) => sum + (opt.total_staked || 0), 0);
+        }
+        // 3) Recalculate participant_count = number of entries for prediction
+        const { count: participantCount, error: countError } = await database_1.supabase
+            .from('prediction_entries')
+            .select('id', { count: 'exact', head: true })
+            .eq('prediction_id', predictionId);
+        if (countError) {
+            console.error('Error counting participants:', countError);
+        }
+        // 4) Update prediction with new pool_total and participant_count
+        const { data: updatedPredictionRow, error: updatePredError } = await database_1.supabase
+            .from('predictions')
+            .update({
+            pool_total: poolTotal,
+            participant_count: participantCount || 0,
+            updated_at: new Date().toISOString()
+        })
+            .eq('id', predictionId)
+            .select('*')
+            .single();
+        if (updatePredError) {
+            console.error('Error updating prediction totals:', updatePredError);
+        }
+        // 5) Recalculate odds for each option: odds = pool_total / option.total_staked (fallback 2.0)
+        if (allOptions && allOptions.length > 0) {
+            for (const opt of allOptions) {
+                const stake = opt.total_staked || 0;
+                // If there is stake, use pool_total / option_stake; otherwise default to equal-probability baseline (N options)
+                const baseline = allOptions.length > 0 ? allOptions.length : 2; // binary -> 2.0, 3-way -> 3.0, etc.
+                const newOdds = stake > 0 && poolTotal > 0 ? Math.max(1.01, poolTotal / stake) : baseline;
+                const { error: updateOddsError } = await database_1.supabase
+                    .from('prediction_options')
+                    .update({ current_odds: newOdds, updated_at: new Date().toISOString() })
+                    .eq('id', opt.id);
+                if (updateOddsError) {
+                    console.error('Error updating option odds:', updateOddsError);
+                }
+            }
+        }
+        // 6) Fetch full prediction with creator and options to return
+        const { data: fullPrediction, error: fetchUpdatedError } = await database_1.supabase
+            .from('predictions')
+            .select(`
+        *,
+        creator:users!creator_id(id, username, full_name, avatar_url),
+        options:prediction_options(*)
+      `)
+            .eq('id', predictionId)
+            .single();
+        if (fetchUpdatedError) {
+            console.error('Error fetching full updated prediction:', fetchUpdatedError);
+        }
         return res.status(201).json({
             data: {
                 entry,
-                prediction: {
-                    id: predictionId,
-                    pool_total: 0, // TODO: Calculate actual pool total
-                    participant_count: 1 // TODO: Calculate actual participant count
-                }
+                prediction: fullPrediction || updatedPredictionRow || { id: predictionId, pool_total: poolTotal, participant_count: participantCount || 0 }
             },
             message: 'Prediction entry created successfully',
             version: shared_1.VERSION
@@ -450,17 +551,53 @@ router.post('/:id/entries', async (req, res) => {
 router.put('/:id', async (req, res) => {
     try {
         const { id } = req.params;
-        res.json({
-            data: { id, ...req.body },
-            message: `Prediction ${id} updated`,
+        const updates = req.body;
+        console.log(`🔄 Updating prediction ${id}:`, updates);
+        // Validate allowed fields
+        const allowedFields = ['title', 'description', 'is_private', 'entry_deadline'];
+        const filteredUpdates = Object.keys(updates)
+            .filter(key => allowedFields.includes(key))
+            .reduce((obj, key) => {
+            obj[key] = updates[key];
+            return obj;
+        }, {});
+        if (Object.keys(filteredUpdates).length === 0) {
+            return res.status(400).json({
+                error: 'No valid fields to update',
+                message: 'Please provide valid fields to update',
+                version: shared_1.VERSION
+            });
+        }
+        // Add updated timestamp
+        filteredUpdates.updated_at = new Date().toISOString();
+        const { data: updated, error } = await database_1.supabase
+            .from('predictions')
+            .update(filteredUpdates)
+            .eq('id', id)
+            .select('*')
+            .single();
+        if (error) {
+            console.error('Error updating prediction:', error);
+            return res.status(500).json({
+                error: 'Database error',
+                message: 'Failed to update prediction',
+                version: shared_1.VERSION,
+                details: error.message
+            });
+        }
+        console.log(`✅ Prediction ${id} updated successfully`);
+        return res.json({
+            data: updated,
+            message: `Prediction ${id} updated successfully`,
             version: shared_1.VERSION
         });
     }
     catch (error) {
         console.error('Error updating prediction:', error);
-        res.status(500).json({
+        return res.status(500).json({
             error: 'Internal server error',
-            message: 'Failed to update prediction'
+            message: 'Failed to update prediction',
+            version: shared_1.VERSION
         });
     }
 });
@@ -571,39 +708,139 @@ router.post('/:id/close', async (req, res) => {
         });
     }
 });
-// GET /api/v2/predictions/:id/activity - Get prediction activity (optional)
+// GET /api/v2/predictions/:id/activity - Get prediction activity
 router.get('/:id/activity', async (req, res) => {
     try {
         const { id } = req.params;
-        res.json({
-            data: [],
+        console.log(`📊 Fetching activity for prediction: ${id}`);
+        // Get recent prediction entries (bets placed)
+        const { data: entries, error: entriesError } = await database_1.supabase
+            .from('prediction_entries')
+            .select(`
+        id,
+        amount,
+        created_at,
+        option:prediction_options(id, label),
+        user:users(id, username, full_name, avatar_url)
+      `)
+            .eq('prediction_id', id)
+            .order('created_at', { ascending: false })
+            .limit(20);
+        if (entriesError) {
+            console.error('Error fetching prediction entries for activity:', entriesError);
+            return res.status(500).json({
+                error: 'Database error',
+                message: 'Failed to fetch prediction activity',
+                version: shared_1.VERSION,
+                details: entriesError.message
+            });
+        }
+        // Transform entries into activity items
+        const activities = (entries || []).map(entry => {
+            const user = Array.isArray(entry.user) ? entry.user[0] : entry.user;
+            const option = Array.isArray(entry.option) ? entry.option[0] : entry.option;
+            return {
+                id: entry.id,
+                type: 'bet_placed',
+                user: {
+                    id: user?.id || entry.id,
+                    username: user?.username || user?.full_name || 'Anonymous',
+                    avatar_url: user?.avatar_url
+                },
+                amount: entry.amount,
+                option: option?.label || 'Unknown',
+                timestamp: entry.created_at,
+                timeAgo: getTimeAgo(entry.created_at),
+                description: `Placed $${entry.amount} on "${option?.label || 'Unknown'}"`
+            };
+        });
+        console.log(`✅ Found ${activities.length} activity items for prediction ${id}`);
+        return res.json({
+            data: activities,
             message: `Activity for prediction ${id}`,
             version: shared_1.VERSION
         });
     }
     catch (error) {
         console.error('Error fetching prediction activity:', error);
-        res.status(500).json({
+        return res.status(500).json({
             error: 'Internal server error',
-            message: 'Failed to fetch prediction activity'
+            message: 'Failed to fetch prediction activity',
+            version: shared_1.VERSION
         });
     }
 });
-// GET /api/v2/predictions/:id/participants - Get prediction participants (optional)
+// Helper function to calculate time ago
+function getTimeAgo(timestamp) {
+    const now = new Date();
+    const past = new Date(timestamp);
+    const diffMs = now.getTime() - past.getTime();
+    const diffMins = Math.floor(diffMs / (1000 * 60));
+    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+    if (diffMins < 1)
+        return 'Just now';
+    if (diffMins < 60)
+        return `${diffMins}m ago`;
+    if (diffHours < 24)
+        return `${diffHours}h ago`;
+    if (diffDays < 7)
+        return `${diffDays}d ago`;
+    return past.toLocaleDateString();
+}
+// GET /api/v2/predictions/:id/participants - Get prediction participants
 router.get('/:id/participants', async (req, res) => {
     try {
         const { id } = req.params;
-        res.json({
-            data: [],
+        console.log(`📊 Fetching participants for prediction: ${id}`);
+        const { data: entries, error } = await database_1.supabase
+            .from('prediction_entries')
+            .select(`
+        id,
+        amount,
+        created_at,
+        option:prediction_options(id, label),
+        user:users(id, username, full_name, avatar_url)
+      `)
+            .eq('prediction_id', id)
+            .eq('status', 'active')
+            .order('created_at', { ascending: false });
+        if (error) {
+            console.error('Error fetching prediction participants:', error);
+            return res.status(500).json({
+                error: 'Database error',
+                message: 'Failed to fetch prediction participants',
+                version: shared_1.VERSION,
+                details: error.message
+            });
+        }
+        // Transform the data to match the expected format
+        const participants = (entries || []).map(entry => {
+            const user = Array.isArray(entry.user) ? entry.user[0] : entry.user;
+            const option = Array.isArray(entry.option) ? entry.option[0] : entry.option;
+            return {
+                id: user?.id || entry.id,
+                username: user?.username || user?.full_name || 'Anonymous',
+                avatar_url: user?.avatar_url,
+                amount: entry.amount,
+                option: option?.label || 'Unknown',
+                joinedAt: entry.created_at,
+                timeAgo: new Date(entry.created_at).toLocaleDateString()
+            };
+        });
+        console.log(`✅ Found ${participants.length} participants for prediction ${id}`);
+        return res.json({
+            data: participants,
             message: `Participants for prediction ${id}`,
             version: shared_1.VERSION
         });
     }
     catch (error) {
         console.error('Error fetching prediction participants:', error);
-        res.status(500).json({
+        return res.status(500).json({
             error: 'Internal server error',
-            message: 'Failed to fetch prediction participants'
+            message: 'Failed to fetch prediction participants',
+            version: shared_1.VERSION
         });
     }
 });

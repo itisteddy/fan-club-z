@@ -109,20 +109,36 @@ interface PredictionState {
   userPredictionEntries: PredictionEntry[];
   userCreatedPredictions: Prediction[];
   loading: boolean;
+  loadingMore: boolean;
   error: string | null;
   initialized: boolean;
   lastFetchTime: number;
   platformStats: PlatformStats | null;
   statsLoading: boolean;
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    hasNext: boolean;
+    hasPrev: boolean;
+  };
+  filters: {
+    category: string;
+    search: string;
+  };
 }
 
 interface PredictionActions {
   // Core prediction actions
-  fetchPredictions: () => Promise<void>;
+  fetchPredictions: (params?: { page?: number; category?: string; search?: string; append?: boolean }) => Promise<void>;
+  loadMorePredictions: () => Promise<void>;
   refreshPredictions: (force?: boolean) => Promise<void>; // Added this method
+  setFilters: (filters: Partial<{ category: string; search: string }>) => void;
+  resetPagination: () => void;
   fetchTrendingPredictions: () => Promise<void>;
   fetchUserPredictions: (userId: string) => Promise<void>;
   fetchCreatedPredictions: (userId: string) => Promise<void>;
+  fetchPredictionById: (id: string) => Promise<Prediction | null>;
   createPrediction: (predictionData: any) => Promise<Prediction>;
   placePrediction: (predictionId: string, optionId: string, amount: number, userId?: string) => Promise<void>;
   
@@ -164,56 +180,143 @@ const initialState: PredictionState = {
   userPredictionEntries: [],
   userCreatedPredictions: [],
   loading: false,
+  loadingMore: false,
   error: null,
   initialized: false,
   lastFetchTime: 0,
   platformStats: null,
   statsLoading: false,
+  pagination: {
+    page: 1,
+    limit: 20,
+    total: 0,
+    hasNext: false,
+    hasPrev: false,
+  },
+  filters: {
+    category: 'all',
+    search: '',
+  },
 };
 
 export const usePredictionStore = create<PredictionState & PredictionActions>((set, get) => ({
   ...initialState,
 
-  fetchPredictions: async () => {
-    const currentTime = Date.now();
-    const { lastFetchTime, predictions } = get();
+  fetchPredictions: async (params = {}) => {
+    const { 
+      page = 1, 
+      category = get().filters.category, 
+      search = get().filters.search, 
+      append = false 
+    } = params;
     
-    // Cache for 30 seconds to prevent excessive API calls
-    if (currentTime - lastFetchTime < 30000 && predictions.length > 0) {
+    const currentTime = Date.now();
+    const { lastFetchTime, predictions: currentPredictions } = get();
+    
+    // Cache for 30 seconds for first page only
+    if (!append && page === 1 && currentTime - lastFetchTime < 30000 && currentPredictions.length > 0) {
       console.log('📋 Using cached predictions');
       return;
     }
     
-    set({ loading: true, error: null });
+    const isLoadingMore = append && page > 1;
+    set({ 
+      [isLoadingMore ? 'loadingMore' : 'loading']: true, 
+      error: null 
+    });
     
     try {
-      console.log('📡 Fetching predictions from API with retry logic...');
+      console.log(`📡 Fetching predictions: page=${page}, category=${category}, search=${search}, append=${append}`);
       
-      const data = await apiClient.get('/api/v2/predictions', {
+      const queryParams = new URLSearchParams({
+        page: page.toString(),
+        limit: '20',
+        ...(category !== 'all' && { category }),
+        ...(search.trim() && { search: search.trim() })
+      });
+      
+      const data = await apiClient.get(`/api/v2/predictions?${queryParams}`, {
         timeout: 10000,
         retryOptions: { maxRetries: 3 }
       });
 
-      const predictions = data.data || [];
+      const newPredictions = data.data || [];
+      const pagination = data.pagination || {};
       
-      console.log('✅ Predictions fetched successfully:', predictions.length);
+      console.log(`✅ Predictions fetched successfully: ${newPredictions.length} items (${pagination.total} total)`);
 
-      set({ 
-        predictions,
+      set(state => ({ 
+        predictions: append ? [...state.predictions, ...newPredictions] : newPredictions,
         loading: false,
+        loadingMore: false,
         error: null,
         initialized: true,
-        lastFetchTime: currentTime
-      });
+        lastFetchTime: currentTime,
+        pagination: {
+          page: pagination.page || page,
+          limit: pagination.limit || 20,
+          total: pagination.total || 0,
+          hasNext: pagination.hasNext || false,
+          hasPrev: pagination.hasPrev || false,
+        },
+        filters: { category, search }
+      }));
 
     } catch (error) {
       console.error('❌ Error fetching predictions:', error);
       set({
         loading: false,
+        loadingMore: false,
         error: error instanceof Error ? error.message : 'Failed to fetch predictions',
         // Don't clear predictions on error, keep existing data
       });
     }
+  },
+
+  // Load more predictions for infinite scroll
+  loadMorePredictions: async () => {
+    const { pagination, loadingMore } = get();
+    
+    if (loadingMore || !pagination.hasNext) {
+      console.log('📋 Load more skipped:', { loadingMore, hasNext: pagination.hasNext });
+      return;
+    }
+    
+    console.log(`📋 Loading more predictions: page ${pagination.page + 1}`);
+    await get().fetchPredictions({ 
+      page: pagination.page + 1, 
+      append: true 
+    });
+  },
+
+  // Set filters and reset pagination
+  setFilters: (newFilters) => {
+    const currentFilters = get().filters;
+    const updatedFilters = { ...currentFilters, ...newFilters };
+    
+    console.log('🔍 Setting filters:', updatedFilters);
+    
+    set(state => ({
+      filters: updatedFilters,
+      pagination: { ...state.pagination, page: 1 },
+      predictions: [] // Clear current predictions
+    }));
+    
+    // Fetch with new filters
+    get().fetchPredictions({ 
+      category: updatedFilters.category, 
+      search: updatedFilters.search 
+    });
+  },
+
+  // Reset pagination to initial state
+  resetPagination: () => {
+    console.log('🔄 Resetting pagination');
+    set(state => ({
+      pagination: { ...initialState.pagination },
+      filters: { ...initialState.filters },
+      predictions: []
+    }));
   },
 
   // NEW: refreshPredictions method that was missing
@@ -226,9 +329,13 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
       console.log('📋 Using cached predictions (refresh)');
       return;
     }
-
-    // Reset cache time to force fetch
-    set({ lastFetchTime: 0 });
+    
+    // Reset to first page and fetch
+    set(state => ({
+      lastFetchTime: 0,
+      pagination: { ...state.pagination, page: 1 },
+      predictions: []
+    }));
     
     try {
       await get().fetchPredictions();
@@ -262,8 +369,8 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
 
     } catch (error) {
       console.error('❌ Error fetching trending predictions:', error);
-      set({ 
-        loading: false,
+        set({ 
+          loading: false,
         error: error instanceof Error ? error.message : 'Failed to fetch trending predictions'
       });
     }
@@ -281,8 +388,8 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
 
       const data = await response.json();
       const userPredictions = data.data || [];
-
-      set({
+      
+      set({ 
         userPredictions,
         loading: false,
         error: null
@@ -290,7 +397,7 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
 
     } catch (error) {
       console.error('❌ Error fetching user predictions:', error);
-      set({
+      set({ 
         loading: false,
         error: error instanceof Error ? error.message : 'Failed to fetch user predictions'
       });
@@ -322,6 +429,48 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
         loading: false,
         error: error instanceof Error ? error.message : 'Failed to fetch created predictions'
       });
+    }
+  },
+
+  fetchPredictionById: async (id: string) => {
+    try {
+      console.log(`🔍 Fetching prediction by ID: ${id}`);
+      
+      // First check if it's already in the store
+      const { predictions } = get();
+      const existing = predictions.find(p => p.id === id);
+      if (existing) {
+        console.log('✅ Found prediction in store:', existing.title);
+        return existing;
+      }
+      
+      // If not in store, try to fetch all predictions first
+      await get().fetchPredictions();
+      
+      // Check again after fetch
+      const { predictions: updatedPredictions } = get();
+      const found = updatedPredictions.find(p => p.id === id);
+      if (found) {
+        console.log('✅ Found prediction after fetch:', found.title);
+        return found;
+      }
+      
+      // If still not found, try fetching more pages
+      await get().fetchPredictions({ page: 2, append: true });
+      const { predictions: allPredictions } = get();
+      const finalCheck = allPredictions.find(p => p.id === id);
+      
+      if (finalCheck) {
+        console.log('✅ Found prediction on page 2:', finalCheck.title);
+        return finalCheck;
+      }
+      
+      console.log('❌ Prediction not found:', id);
+      return null;
+
+    } catch (error) {
+      console.error('❌ Error fetching prediction by ID:', error);
+      return null;
     }
   },
 
@@ -380,7 +529,7 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
             get().fetchUserCreatedPredictions(user.id);
           }, 1000);
         }
-      } catch (error) {
+    } catch (error) {
         console.warn('⚠️ Failed to refresh user created predictions:', error);
       }
 
@@ -419,23 +568,66 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
 
       const data = await response.json();
       
-      // Update prediction in store with new pool total and participant count
-      set(state => ({
-        predictions: state.predictions.map(pred => 
-          pred.id === predictionId 
-            ? { 
-                ...pred, 
-                pool_total: data.prediction?.pool_total || pred.pool_total,
-                participant_count: data.prediction?.participant_count || pred.participant_count,
-                user_entry: data.entry
-              }
-            : pred
-        ),
-        loading: false,
-        error: null
-      }));
+      // Use the full updated prediction object returned by the server
+      if (data.prediction) {
+        console.log('📊 Updating prediction with server data:', {
+          id: data.prediction.id,
+          pool_total: data.prediction.pool_total,
+          participant_count: data.prediction.participant_count,
+          options: data.prediction.options?.length || 0
+        });
+        
+        set(state => ({
+          predictions: state.predictions.map(pred => 
+            pred.id === predictionId 
+              ? { 
+                  ...pred,
+                  ...data.prediction, // Use full updated prediction from server
+                  user_entry: data.entry
+                }
+              : pred
+          ),
+          // Also update other arrays if they contain this prediction
+          userPredictions: state.userPredictions.map(pred => 
+            pred.id === predictionId 
+              ? { 
+                  ...pred,
+                  ...data.prediction,
+                  user_entry: data.entry
+                }
+              : pred
+          ),
+          createdPredictions: state.createdPredictions.map(pred => 
+            pred.id === predictionId 
+              ? { 
+                  ...pred,
+                  ...data.prediction,
+                  user_entry: data.entry
+                }
+              : pred
+          ),
+          loading: false,
+          error: null
+        }));
+      } else {
+        // Fallback to partial update if no full prediction returned
+        set(state => ({
+          predictions: state.predictions.map(pred => 
+            pred.id === predictionId 
+              ? { 
+                  ...pred, 
+                  pool_total: data.pool_total || pred.pool_total,
+                  participant_count: data.participant_count || pred.participant_count,
+                  user_entry: data.entry
+                }
+              : pred
+          ),
+          loading: false,
+          error: null
+        }));
+      }
 
-      console.log('✅ Prediction placed successfully');
+      console.log('✅ Prediction placed successfully with updated data');
 
     } catch (error) {
       console.error('❌ Error placing prediction:', error);
@@ -594,7 +786,7 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
       }));
 
       console.log('✅ Prediction updated successfully');
-
+      
     } catch (error) {
       console.error('❌ Error updating prediction:', error);
       throw error;

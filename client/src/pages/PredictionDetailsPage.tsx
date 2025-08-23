@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, Clock, Heart, MessageCircle, Share2, TrendingUp, ChevronDown, User } from 'lucide-react';
 import { useLocation } from 'wouter';
@@ -46,7 +46,7 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
   const commentsRef = useRef<HTMLDivElement>(null);
   const engagementRef = useRef<HTMLDivElement>(null);
   
-  const { predictions, fetchPredictions, placePrediction } = usePredictionStore();
+  const { predictions, fetchPredictions, fetchPredictionById, placePrediction } = usePredictionStore();
   const { isAuthenticated, user } = useAuthStore();
   const { getBalance } = useWalletStore();
   const { checkIfLiked, getLikeCount, toggleLike } = useLikeStore();
@@ -61,74 +61,54 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
     setDisputeModalOpen
   } = useSettlementStore();
 
-  // Get prediction ID from URL or prop
-  const getCurrentPredictionId = (): string | null => {
+  // Get prediction ID from URL or prop - memoized to prevent unnecessary re-renders
+  const currentPredictionId = useMemo((): string | null => {
     if (predictionId) return predictionId;
     
     const currentPath = window.location.pathname;
     const match = currentPath.match(/\/prediction\/([^\/]+)/);
     return match ? match[1] : null;
-  };
+  }, [predictionId]); // Only re-compute when predictionId prop changes
 
+  // Stable prediction ID for comment system
+  const stablePredictionId = useMemo(() => currentPredictionId || '', [currentPredictionId]);
+
+  // Get the live prediction from store (reactive to updates)
+  const livePrediction = useMemo(() => {
+    if (!currentPredictionId) return null;
+    return predictions.find(p => p.id === currentPredictionId) || null;
+  }, [predictions, currentPredictionId]);
+  
   // Initialize comment store after prediction ID is available
-  const currentPredictionId = getCurrentPredictionId();
-  const { commentCount } = useCommentsForPrediction(currentPredictionId || '');
+  const { commentCount } = useCommentsForPrediction(stablePredictionId);
 
   useEffect(() => {
     const loadPrediction = async () => {
-      const id = getCurrentPredictionId();
-      
-      if (!id) {
+      if (!currentPredictionId) {
         console.log('❌ No prediction ID found');
         setLocation('/discover');
         return;
       }
 
-      console.log('🔍 Loading prediction with ID:', id);
+      console.log('🔍 Loading prediction with ID:', currentPredictionId);
       setLoading(true);
       
       try {
-        // First check if prediction is already in store
-        let foundPrediction = predictions.find(p => p.id === id);
+        // Use the new fetchPredictionById method for better deep-link support
+        const foundPrediction = await fetchPredictionById(currentPredictionId);
         
         if (foundPrediction) {
-          console.log('✅ Found prediction in store:', foundPrediction.title);
+          console.log('✅ Found prediction:', foundPrediction.title);
           setPrediction(foundPrediction);
           
           // Load settlement data if needed
           if (['locked', 'settling', 'settled', 'voided', 'disputed', 'resolved'].includes(foundPrediction.status)) {
-            await fetchSettlement(id);
-            await fetchDisputes(id);
-            await fetchAuditTimeline(id);
-          }
-          
-          setLoading(false);
-          return;
-        }
-
-        // If not found and no predictions loaded, fetch predictions
-        if (predictions.length === 0) {
-          console.log('📡 Fetching predictions from server...');
-          await fetchPredictions();
-          
-          // Check again after fetch
-          foundPrediction = predictions.find(p => p.id === id);
-          if (foundPrediction) {
-            console.log('✅ Found prediction after fetch:', foundPrediction.title);
-            setPrediction(foundPrediction);
-            
-            // Load settlement data if needed
-            if (['locked', 'settling', 'settled', 'voided', 'disputed', 'resolved'].includes(foundPrediction.status)) {
-              await fetchSettlement(id);
-              await fetchDisputes(id);
-              await fetchAuditTimeline(id);
-            }
-          } else {
-            console.log('❌ Prediction not found after fetch');
-            setPrediction(null);
+            await fetchSettlement(currentPredictionId);
+            await fetchDisputes(currentPredictionId);
+            await fetchAuditTimeline(currentPredictionId);
           }
         } else {
-          console.log('❌ Prediction not found in available predictions');
+          console.log('❌ Prediction not found:', currentPredictionId);
           setPrediction(null);
         }
       } catch (error) {
@@ -140,7 +120,15 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
     };
 
     loadPrediction();
-  }, [predictionId, predictions, fetchPredictions, setLocation, fetchSettlement, fetchDisputes, fetchAuditTimeline]);
+  }, [currentPredictionId, fetchPredictionById, setLocation, fetchSettlement, fetchDisputes, fetchAuditTimeline]);
+
+  // Update local prediction state when store prediction changes (for real-time updates)
+  useEffect(() => {
+    if (livePrediction && prediction?.id === livePrediction.id) {
+      console.log('🔄 Updating prediction with latest data from store');
+      setPrediction(livePrediction);
+    }
+  }, [livePrediction, prediction?.id]);
 
   const handleBack = () => {
     console.log('🔙 Navigating back');
@@ -232,20 +220,57 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
     }
   };
 
-  const handleShare = () => {
-    const shareUrl = `${window.location.origin}/prediction/${prediction?.id}`;
-    const shareText = `${prediction?.title}\n\nMake your prediction on Fan Club Z!`;
+  const handleShare = async () => {
+    if (!prediction) {
+      toast.error('No prediction to share');
+      return;
+    }
+
+    const shareUrl = `${window.location.origin}/prediction/${prediction.id}`;
+    const shareText = `${prediction.title}\n\nMake your prediction on Fan Club Z!`;
     
-    if (navigator.share) {
-      navigator.share({
-        title: prediction?.title,
-        text: shareText,
-        url: shareUrl,
-      }).catch(console.error);
-    } else {
-      navigator.clipboard.writeText(`${shareText}\n${shareUrl}`)
-        .then(() => toast.success('Link copied to clipboard!'))
-        .catch(() => toast.error('Failed to copy link'));
+    // Try native sharing first (mobile devices)
+    if (navigator.share && navigator.canShare) {
+      try {
+        await navigator.share({
+          title: prediction.title,
+          text: shareText,
+          url: shareUrl,
+        });
+        return;
+      } catch (error) {
+        // User cancelled or sharing failed, fall back to clipboard
+        console.log('Native sharing cancelled or failed:', error);
+      }
+    }
+    
+    // Fallback to clipboard
+    try {
+      await navigator.clipboard.writeText(`${shareText}\n${shareUrl}`);
+      toast.success('Link copied to clipboard!');
+    } catch (error) {
+      // Final fallback for older browsers
+      console.error('Clipboard API failed:', error);
+      
+      // Create a temporary textarea to copy text
+      const textArea = document.createElement('textarea');
+      textArea.value = `${shareText}\n${shareUrl}`;
+      textArea.style.position = 'fixed';
+      textArea.style.left = '-999999px';
+      textArea.style.top = '-999999px';
+      document.body.appendChild(textArea);
+      textArea.focus();
+      textArea.select();
+      
+      try {
+        document.execCommand('copy');
+        toast.success('Link copied to clipboard!');
+      } catch (execError) {
+        toast.error('Failed to copy link');
+        console.error('execCommand failed:', execError);
+      } finally {
+        document.body.removeChild(textArea);
+      }
     }
   };
 
@@ -343,7 +368,7 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
         
         <div className="flex items-center justify-center py-20">
           <div className="text-center">
-            <div className="w-8 h-8 border-2 border-green-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+            <div className="w-8 h-8 border-2 border-teal-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
             <p className="text-gray-600">Loading prediction...</p>
           </div>
         </div>
@@ -375,7 +400,7 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
             <p className="text-gray-600 mb-4">The prediction you're looking for doesn't exist or has been removed.</p>
             <button
               onClick={() => setLocation('/discover')}
-              className="bg-green-500 text-white px-6 py-2 rounded-lg hover:bg-green-600 transition-colors"
+              className="bg-teal-500 text-white px-6 py-2 rounded-lg hover:bg-teal-600 transition-colors"
             >
               Browse Predictions
             </button>
@@ -430,7 +455,7 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
           >
             {/* Creator Info - Fixed with TappableUsername */}
             <div className="flex items-center gap-3 mb-4">
-              <div className="w-12 h-12 bg-gradient-to-br from-green-400 to-green-600 rounded-full flex items-center justify-center">
+              <div className="w-12 h-12 bg-gradient-to-br from-purple-400 to-teal-600 rounded-full flex items-center justify-center">
                 <span className="text-white font-bold text-lg">
                   {creatorInfo.username?.charAt(0)?.toUpperCase() || 'FC'}
                 </span>
@@ -441,7 +466,7 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
                     username={creatorInfo.username}
                     userId={creatorInfo.id}
                     displayName={creatorInfo.displayName}
-                    className="font-semibold text-gray-900 text-lg hover:text-green-600 transition-colors"
+                    className="font-semibold text-gray-900 text-lg hover:text-teal-600 transition-colors"
                     showAt={false}
                   />
                 </div>
@@ -495,8 +520,8 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
 
             {/* Stats Grid - Using real data */}
             <div className="grid grid-cols-3 gap-4 mb-6">
-              <div className="text-center p-4 bg-green-50 rounded-xl">
-                <div className="text-2xl font-bold text-green-600">
+              <div className="text-center p-4 bg-teal-50 rounded-xl">
+                <div className="text-2xl font-bold text-teal-600">
                   ${(prediction.pool_total || 0).toLocaleString()}
                 </div>
                 <div className="text-sm text-gray-600 font-medium">Total Pool</div>
@@ -505,7 +530,7 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
                 <div className="text-2xl font-bold text-blue-600">
                   {prediction.participant_count || 0}
                 </div>
-                <div className="text-sm text-gray-600 font-medium">Participants</div>
+                <div className="text-sm text-gray-600 font-medium whitespace-nowrap text-center">Participants</div>
               </div>
               <div className="text-center p-4 bg-purple-50 rounded-xl">
                 <div className="text-2xl font-bold text-purple-600">
@@ -668,7 +693,7 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
                     onClick={() => handleOptionSelect(option.id)}
                     className={`w-full p-4 rounded-xl border-2 transition-all ${
                       selectedOption === option.id
-                        ? 'border-green-500 bg-green-50 shadow-lg'
+                        ? 'border-teal-500 bg-teal-50 shadow-lg'
                         : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
                     }`}
                     whileHover={{ scale: 1.01 }}
@@ -685,7 +710,7 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
                         </div>
                       </div>
                       <div className="text-right ml-4">
-                        <div className="text-2xl font-bold text-green-600">
+                        <div className="text-2xl font-bold text-teal-600">
                           {(option.current_odds || 1.0).toFixed(2)}x
                         </div>
                         <div className="text-xs text-gray-500">odds</div>
@@ -707,7 +732,7 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
                     value={stakeAmount}
                     onChange={handleStakeChange}
                     placeholder="0.00"
-                    className="w-full pl-10 pr-4 py-4 border-2 border-gray-200 rounded-xl focus:border-green-500 focus:outline-none transition-colors text-lg"
+                    className="w-full pl-10 pr-4 py-4 border-2 border-gray-200 rounded-xl focus:border-teal-500 focus:outline-none transition-colors text-lg"
                   />
                 </div>
                 <div className="flex justify-between text-sm text-gray-500 mt-2">
@@ -723,15 +748,15 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
                     initial={{ opacity: 0, scale: 0.95 }}
                     animate={{ opacity: 1, scale: 1 }}
                     exit={{ opacity: 0, scale: 0.95 }}
-                    className="bg-green-50 border-2 border-green-200 rounded-xl p-4 mb-6"
+                    className="bg-teal-50 border-2 border-teal-200 rounded-xl p-4 mb-6"
                   >
                     <div className="flex items-center justify-between mb-2">
-                      <span className="text-green-800 font-semibold">Potential Payout:</span>
-                      <span className="text-green-800 font-bold text-xl">
+                      <span className="text-teal-800 font-semibold">Potential Payout:</span>
+                      <span className="text-teal-800 font-bold text-xl">
                         ${potentialPayout.toFixed(2)}
                       </span>
                     </div>
-                    <div className="text-green-700 text-sm">
+                    <div className="text-teal-700 text-sm">
                       Profit: ${Math.max(0, potentialPayout - parseFloat(stakeAmount)).toFixed(2)}
                     </div>
                   </motion.div>
@@ -744,7 +769,7 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
                 disabled={!selectedOption || !stakeAmount || isPlacingBet}
                 className={`w-full py-4 rounded-xl font-semibold text-white transition-all text-lg ${
                   selectedOption && stakeAmount && !isPlacingBet
-                    ? 'bg-green-500 hover:bg-green-600 active:bg-green-700 shadow-lg'
+                    ? 'bg-teal-500 hover:bg-teal-600 active:bg-green-700 shadow-lg'
                     : 'bg-gray-300 cursor-not-allowed'
                 }`}
                 whileHover={selectedOption && stakeAmount && !isPlacingBet ? { scale: 1.02 } : {}}
@@ -824,7 +849,7 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
                 </div>
                 <div className="min-h-[300px] max-h-[600px] overflow-y-auto">
                   <CommentSystem 
-                    predictionId={prediction?.id || ''}
+                    predictionId={stablePredictionId}
                   />
                 </div>
               </motion.div>

@@ -62,7 +62,7 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
     { id: 'politics', label: 'Politics', icon: '🏛️', gradient: 'from-blue-500 to-indigo-500' },
     { id: 'entertainment', label: 'Entertainment', icon: '🎬', gradient: 'from-purple-500 to-pink-500' },
     { id: 'crypto', label: 'Crypto', icon: '₿', gradient: 'from-yellow-500 to-orange-500' },
-    { id: 'tech', label: 'Technology', icon: '💻', gradient: 'from-green-500 to-teal-500' },
+    { id: 'tech', label: 'Technology', icon: '💻', gradient: 'from-purple-500 to-teal-500' },
     { id: 'custom', label: 'Custom', icon: '⚡', gradient: 'from-gray-500 to-gray-600' },
   ];
 
@@ -259,25 +259,25 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
   // Success View
   if (submitSuccess) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-green-50 via-white to-green-100 flex items-center justify-center px-6">
+      <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-teal-100 flex items-center justify-center px-6">
         <motion.div
           initial={{ opacity: 0, scale: 0.8 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ duration: 0.5 }}
-          className="bg-white rounded-3xl p-8 text-center shadow-2xl border border-green-200"
+          className="bg-white rounded-3xl p-8 text-center shadow-2xl border border-teal-200"
         >
           <motion.div
             initial={{ scale: 0 }}
             animate={{ scale: 1 }}
             transition={{ delay: 0.2, type: "spring", stiffness: 200, damping: 10 }}
-            className="w-16 h-16 bg-green-500 rounded-full flex items-center justify-center mx-auto mb-6"
+            className="w-16 h-16 bg-teal-500 rounded-full flex items-center justify-center mx-auto mb-6"
           >
             <Check size={32} className="text-white" />
           </motion.div>
           
           <h2 className="text-2xl font-bold text-gray-900 mb-2">Prediction Created!</h2>
           <p className="text-gray-600 mb-4">Your prediction has been successfully created and is now live.</p>
-          <div className="text-sm text-green-600 font-medium">Redirecting to My Predictions...</div>
+          <div className="text-sm text-teal-600 font-medium">Redirecting to My Predictions...</div>
         </motion.div>
       </div>
     );
@@ -287,7 +287,7 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-100 pb-20 create-prediction-page">
       {/* Header */}
       <div className="relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-br from-green-600 via-green-700 to-teal-600" />
+        <div className="absolute inset-0 bg-gradient-to-br from-purple-600 via-green-700 to-teal-600" />
         <div className="absolute inset-0 bg-gradient-to-r from-blue-600/10 via-transparent to-purple-600/10" />
         
         {/* Animated elements */}
@@ -341,7 +341,7 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
                 transition={{ duration: 0.3 }}
               >
                 <div className="flex items-center gap-3 mb-6">
-                  <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-green-600 rounded-2xl flex items-center justify-center">
+                  <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-teal-600 rounded-2xl flex items-center justify-center">
                     <Sparkles size={24} className="text-white" />
                   </div>
                   <div>
@@ -361,7 +361,7 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
                       value={title}
                       onChange={(e) => setTitle(e.target.value)}
                       placeholder="Will Bitcoin reach $100,000 by end of 2024?"
-                      className="w-full p-4 border-2 border-gray-200 rounded-2xl focus:border-green-500 focus:outline-none transition-all duration-200 text-gray-900 placeholder-gray-500"
+                      className="w-full p-4 border-2 border-gray-200 rounded-2xl focus:border-teal-500 focus:outline-none transition-all duration-200 text-gray-900 placeholder-gray-500"
                     />
                   </div>
 
@@ -375,7 +375,7 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
                       onChange={(e) => setDescription(e.target.value)}
                       placeholder="Provide additional context and rules for your prediction..."
                       rows={4}
-                      className="w-full p-4 border-2 border-gray-200 rounded-2xl focus:border-green-500 focus:outline-none transition-all duration-200 text-gray-900 placeholder-gray-500 resize-none"
+                      className="w-full p-4 border-2 border-gray-200 rounded-2xl focus:border-teal-500 focus:outline-none transition-all duration-200 text-gray-900 placeholder-gray-500 resize-none"
                     />
                   </div>
 
@@ -550,7 +550,7 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
                       value={entryDeadline}
                       onChange={(e) => setEntryDeadline(e.target.value)}
                       min={new Date().toISOString().slice(0, 16)}
-                      className="w-full p-4 border-2 border-gray-200 rounded-2xl focus:border-green-500 focus:outline-none transition-all duration-200"
+                      className="w-full p-4 border-2 border-gray-200 rounded-2xl focus:border-teal-500 focus:outline-none transition-all duration-200"
                     />
                   </div>
 
@@ -566,7 +566,7 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
                         onChange={(e) => setStakeMin(e.target.value)}
                         placeholder="100"
                         min="1"
-                        className="w-full p-4 border-2 border-gray-200 rounded-2xl focus:border-green-500 focus:outline-none transition-all duration-200"
+                        className="w-full p-4 border-2 border-gray-200 rounded-2xl focus:border-teal-500 focus:outline-none transition-all duration-200"
                       />
                     </div>
                     <div className="input-container">
@@ -579,7 +579,7 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
                         onChange={(e) => setStakeMax(e.target.value)}
                         placeholder="100000"
                         min={stakeMin || "1"}
-                        className="w-full p-4 border-2 border-gray-200 rounded-2xl focus:border-green-500 focus:outline-none transition-all duration-200"
+                        className="w-full p-4 border-2 border-gray-200 rounded-2xl focus:border-teal-500 focus:outline-none transition-all duration-200"
                       />
                     </div>
                   </div>
@@ -596,13 +596,13 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
                         onClick={() => setSettlementMethod('manual')}
                         className={`w-full p-4 rounded-2xl border-2 text-left transition-all duration-200 ${
                           settlementMethod === 'manual'
-                            ? 'border-green-500 bg-green-50'
-                            : 'border-gray-200 bg-white hover:border-green-300'
+                            ? 'border-teal-500 bg-teal-50'
+                            : 'border-gray-200 bg-white hover:border-teal-300'
                         }`}
                       >
                         <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center">
-                            <Users size={16} className="text-green-600" />
+                          <div className="w-8 h-8 bg-teal-100 rounded-lg flex items-center justify-center">
+                            <Users size={16} className="text-teal-600" />
                           </div>
                           <div>
                             <h3 className="font-semibold text-gray-900">Manual Settlement</h3>
@@ -617,8 +617,8 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
                         onClick={() => setSettlementMethod('auto')}
                         className={`w-full p-4 rounded-2xl border-2 text-left transition-all duration-200 ${
                           settlementMethod === 'auto'
-                            ? 'border-green-500 bg-green-50'
-                            : 'border-gray-200 bg-white hover:border-green-300'
+                            ? 'border-teal-500 bg-teal-50'
+                            : 'border-gray-200 bg-white hover:border-teal-300'
                         }`}
                       >
                         <div className="flex items-center gap-3">
@@ -645,7 +645,7 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
                         whileTap={{ scale: 0.95 }}
                         onClick={() => setIsPrivate(!isPrivate)}
                         className={`relative w-12 h-6 rounded-full transition-all duration-200 ${
-                          isPrivate ? 'bg-green-500' : 'bg-gray-300'
+                          isPrivate ? 'bg-teal-500' : 'bg-gray-300'
                         }`}
                       >
                         <motion.div
@@ -741,12 +741,12 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
                   </div>
 
                   {/* Confirmation Message */}
-                  <div className="bg-green-50 border border-green-200 rounded-2xl p-4">
+                  <div className="bg-teal-50 border border-teal-200 rounded-2xl p-4">
                     <div className="flex items-center gap-3">
-                      <CheckCircle size={20} className="text-green-600" />
+                      <CheckCircle size={20} className="text-teal-600" />
                       <div>
-                        <h4 className="font-semibold text-green-800">Ready to Publish</h4>
-                        <p className="text-sm text-green-700">Your prediction looks good! Click "Create Prediction" to publish it.</p>
+                        <h4 className="font-semibold text-teal-800">Ready to Publish</h4>
+                        <p className="text-sm text-teal-700">Your prediction looks good! Click "Create Prediction" to publish it.</p>
                       </div>
                     </div>
                   </div>
@@ -774,7 +774,7 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
                 disabled={!validateStep(step)}
                 className={`px-8 py-3 font-semibold rounded-xl shadow-lg transition-all duration-200 ${
                   validateStep(step)
-                    ? 'bg-gradient-to-r from-green-500 to-green-600 text-white shadow-green-500/25 hover:shadow-xl hover:shadow-green-500/30'
+                    ? 'bg-gradient-to-r from-purple-500 to-teal-600 text-white shadow-purple-500/25 hover:shadow-xl hover:shadow-purple-500/30'
                     : 'bg-gray-300 text-gray-500 cursor-not-allowed'
                 }`}
               >
@@ -788,7 +788,7 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
                 disabled={!validateStep(4) || isSubmitting}
                 className={`px-8 py-3 font-semibold rounded-xl shadow-lg transition-all duration-200 flex items-center gap-2 ${
                   validateStep(4) && !isSubmitting
-                    ? 'bg-gradient-to-r from-green-500 to-green-600 text-white shadow-green-500/25 hover:shadow-xl hover:shadow-green-500/30'
+                    ? 'bg-gradient-to-r from-purple-500 to-teal-600 text-white shadow-purple-500/25 hover:shadow-xl hover:shadow-purple-500/30'
                     : 'bg-gray-300 text-gray-500 cursor-not-allowed'
                 }`}
               >
