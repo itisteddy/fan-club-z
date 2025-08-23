@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, Clock, Heart, MessageCircle, Share2, TrendingUp, ChevronDown, User } from 'lucide-react';
 import { useLocation } from 'wouter';
@@ -46,7 +46,7 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
   const commentsRef = useRef<HTMLDivElement>(null);
   const engagementRef = useRef<HTMLDivElement>(null);
   
-  const { predictions, fetchPredictions, placePrediction } = usePredictionStore();
+  const { predictions, fetchPredictions, fetchPredictionById, placePrediction, getUserPredictionEntries } = usePredictionStore();
   const { isAuthenticated, user } = useAuthStore();
   const { getBalance } = useWalletStore();
   const { checkIfLiked, getLikeCount, toggleLike } = useLikeStore();
@@ -61,74 +61,54 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
     setDisputeModalOpen
   } = useSettlementStore();
 
-  // Get prediction ID from URL or prop
-  const getCurrentPredictionId = (): string | null => {
+  // Get prediction ID from URL or prop - memoized to prevent unnecessary re-renders
+  const currentPredictionId = useMemo((): string | null => {
     if (predictionId) return predictionId;
     
     const currentPath = window.location.pathname;
     const match = currentPath.match(/\/prediction\/([^\/]+)/);
     return match ? match[1] : null;
-  };
+  }, [predictionId]); // Only re-compute when predictionId prop changes
 
+  // Stable prediction ID for comment system
+  const stablePredictionId = useMemo(() => currentPredictionId || '', [currentPredictionId]);
+
+  // Get the live prediction from store (reactive to updates)
+  const livePrediction = useMemo(() => {
+    if (!currentPredictionId) return null;
+    return predictions.find(p => p.id === currentPredictionId) || null;
+  }, [predictions, currentPredictionId]);
+  
   // Initialize comment store after prediction ID is available
-  const currentPredictionId = getCurrentPredictionId();
-  const { commentCount } = useCommentsForPrediction(currentPredictionId || '');
+  const { commentCount } = useCommentsForPrediction(stablePredictionId);
 
   useEffect(() => {
     const loadPrediction = async () => {
-      const id = getCurrentPredictionId();
-      
-      if (!id) {
+      if (!currentPredictionId) {
         console.log('❌ No prediction ID found');
         setLocation('/discover');
         return;
       }
 
-      console.log('🔍 Loading prediction with ID:', id);
+      console.log('🔍 Loading prediction with ID:', currentPredictionId);
       setLoading(true);
       
       try {
-        // First check if prediction is already in store
-        let foundPrediction = predictions.find(p => p.id === id);
+        // Use the new fetchPredictionById method for better deep-link support
+        const foundPrediction = await fetchPredictionById(currentPredictionId);
         
         if (foundPrediction) {
-          console.log('✅ Found prediction in store:', foundPrediction.title);
+          console.log('✅ Found prediction:', foundPrediction.title);
           setPrediction(foundPrediction);
           
           // Load settlement data if needed
           if (['locked', 'settling', 'settled', 'voided', 'disputed', 'resolved'].includes(foundPrediction.status)) {
-            await fetchSettlement(id);
-            await fetchDisputes(id);
-            await fetchAuditTimeline(id);
-          }
-          
-          setLoading(false);
-          return;
-        }
-
-        // If not found and no predictions loaded, fetch predictions
-        if (predictions.length === 0) {
-          console.log('📡 Fetching predictions from server...');
-          await fetchPredictions();
-          
-          // Check again after fetch
-          foundPrediction = predictions.find(p => p.id === id);
-          if (foundPrediction) {
-            console.log('✅ Found prediction after fetch:', foundPrediction.title);
-            setPrediction(foundPrediction);
-            
-            // Load settlement data if needed
-            if (['locked', 'settling', 'settled', 'voided', 'disputed', 'resolved'].includes(foundPrediction.status)) {
-              await fetchSettlement(id);
-              await fetchDisputes(id);
-              await fetchAuditTimeline(id);
-            }
-          } else {
-            console.log('❌ Prediction not found after fetch');
-            setPrediction(null);
+            await fetchSettlement(currentPredictionId);
+            await fetchDisputes(currentPredictionId);
+            await fetchAuditTimeline(currentPredictionId);
           }
         } else {
-          console.log('❌ Prediction not found in available predictions');
+          console.log('❌ Prediction not found:', currentPredictionId);
           setPrediction(null);
         }
       } catch (error) {
@@ -140,7 +120,15 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
     };
 
     loadPrediction();
-  }, [predictionId, predictions, fetchPredictions, setLocation, fetchSettlement, fetchDisputes, fetchAuditTimeline]);
+  }, [currentPredictionId, fetchPredictionById, setLocation, fetchSettlement, fetchDisputes, fetchAuditTimeline]);
+
+  // Update local prediction state when store prediction changes (for real-time updates)
+  useEffect(() => {
+    if (livePrediction && prediction?.id === livePrediction.id) {
+      console.log('🔄 Updating prediction with latest data from store');
+      setPrediction(livePrediction);
+    }
+  }, [livePrediction, prediction?.id]);
 
   const handleBack = () => {
     console.log('🔙 Navigating back');
@@ -203,16 +191,27 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
       return;
     }
 
+    // Check if user has already placed a bet on this prediction
+    const userEntries = getUserPredictionEntries(user?.id || '');
+    const existingEntry = userEntries.find(entry => 
+      entry.prediction_id === prediction.id
+    );
+    
+    if (existingEntry) {
+      toast.error('You have already placed a bet on this prediction');
+      return;
+    }
+
     setIsPlacingBet(true);
     try {
       console.log('🎲 Placing prediction:', { predictionId: prediction.id, optionId: selectedOption, amount });
       
-      await placePrediction({
-        predictionId: prediction.id,
-        optionId: selectedOption,
-        amount: amount,
-        userId: user?.id || ''
-      });
+      await placePrediction(
+        prediction.id,
+        selectedOption,
+        amount,
+        user?.id || ''
+      );
       
       toast.success('Prediction placed successfully!');
       setStakeAmount('');
@@ -232,20 +231,57 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
     }
   };
 
-  const handleShare = () => {
-    const shareUrl = `${window.location.origin}/prediction/${prediction?.id}`;
-    const shareText = `${prediction?.title}\n\nMake your prediction on Fan Club Z!`;
+  const handleShare = async () => {
+    if (!prediction) {
+      toast.error('No prediction to share');
+      return;
+    }
+
+    const shareUrl = `${window.location.origin}/prediction/${prediction.id}`;
+    const shareText = `${prediction.title}\n\nMake your prediction on Fan Club Z!`;
     
-    if (navigator.share) {
-      navigator.share({
-        title: prediction?.title,
-        text: shareText,
-        url: shareUrl,
-      }).catch(console.error);
-    } else {
-      navigator.clipboard.writeText(`${shareText}\n${shareUrl}`)
-        .then(() => toast.success('Link copied to clipboard!'))
-        .catch(() => toast.error('Failed to copy link'));
+    // Try native sharing first (mobile devices)
+    if (navigator.share && navigator.canShare) {
+      try {
+        await navigator.share({
+          title: prediction.title,
+          text: shareText,
+          url: shareUrl,
+        });
+        return;
+      } catch (error) {
+        // User cancelled or sharing failed, fall back to clipboard
+        console.log('Native sharing cancelled or failed:', error);
+      }
+    }
+    
+    // Fallback to clipboard
+    try {
+      await navigator.clipboard.writeText(`${shareText}\n${shareUrl}`);
+      toast.success('Link copied to clipboard!');
+    } catch (error) {
+      // Final fallback for older browsers
+      console.error('Clipboard API failed:', error);
+      
+      // Create a temporary textarea to copy text
+      const textArea = document.createElement('textarea');
+      textArea.value = `${shareText}\n${shareUrl}`;
+      textArea.style.position = 'fixed';
+      textArea.style.left = '-999999px';
+      textArea.style.top = '-999999px';
+      document.body.appendChild(textArea);
+      textArea.focus();
+      textArea.select();
+      
+      try {
+        document.execCommand('copy');
+        toast.success('Link copied to clipboard!');
+      } catch (execError) {
+        toast.error('Failed to copy link');
+        console.error('execCommand failed:', execError);
+      } finally {
+        document.body.removeChild(textArea);
+      }
     }
   };
 
@@ -343,7 +379,7 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
         
         <div className="flex items-center justify-center py-20">
           <div className="text-center">
-            <div className="w-8 h-8 border-2 border-green-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+            <div className="w-8 h-8 border-2 border-teal-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
             <p className="text-gray-600">Loading prediction...</p>
           </div>
         </div>
@@ -375,7 +411,7 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
             <p className="text-gray-600 mb-4">The prediction you're looking for doesn't exist or has been removed.</p>
             <button
               onClick={() => setLocation('/discover')}
-              className="bg-green-500 text-white px-6 py-2 rounded-lg hover:bg-green-600 transition-colors"
+              className="bg-teal-500 text-white px-6 py-2 rounded-lg hover:bg-teal-600 transition-colors"
             >
               Browse Predictions
             </button>
@@ -397,40 +433,55 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
 
   return (
     <>
-      <div className="min-h-screen bg-gray-50">
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-100">
+        {/* Sophisticated background pattern */}
+        <div className="fixed inset-0 opacity-30 pointer-events-none">
+          <div className="absolute inset-0 bg-gradient-to-r from-purple-500/5 via-transparent to-blue-500/5" />
+          <div className="absolute top-0 left-1/4 w-96 h-96 bg-teal-400/10 rounded-full blur-3xl" />
+          <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-blue-400/10 rounded-full blur-3xl" />
+        </div>
+
         {/* Header */}
-        <div className="bg-white border-b border-gray-200 sticky top-0 z-50">
+        <motion.div 
+          className="relative z-10 bg-white/80 backdrop-blur-xl border-b border-gray-200/50 sticky top-0 z-50"
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+        >
           <div className="px-4 py-4">
             <div className="flex items-center justify-between">
-              <button
+              <motion.button
                 onClick={handleBack}
                 className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors"
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
               >
                 <ArrowLeft size={20} />
                 <span className="font-medium">Back</span>
-              </button>
+              </motion.button>
               
-              <button
+              <motion.button
                 onClick={handleShare}
                 className="p-2 text-gray-600 hover:text-gray-900 transition-colors rounded-lg hover:bg-gray-100"
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
               >
                 <Share2 size={20} />
-              </button>
+              </motion.button>
             </div>
           </div>
-        </div>
+        </motion.div>
 
         {/* Content */}
-        <div className="px-4 py-6 max-w-2xl mx-auto pb-24">
+        <div className="relative z-10 px-4 py-6 max-w-2xl mx-auto pb-24">
           {/* Prediction Header */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="bg-white rounded-2xl p-6 mb-6 shadow-sm border border-gray-100"
+            className="bg-white/90 backdrop-blur-sm rounded-2xl p-6 mb-6 shadow-lg border border-gray-200/50 hover:shadow-xl transition-all duration-300"
           >
             {/* Creator Info - Fixed with TappableUsername */}
             <div className="flex items-center gap-3 mb-4">
-              <div className="w-12 h-12 bg-gradient-to-br from-green-400 to-green-600 rounded-full flex items-center justify-center">
+              <div className="w-12 h-12 bg-gradient-to-br from-purple-400 to-teal-600 rounded-full flex items-center justify-center">
                 <span className="text-white font-bold text-lg">
                   {creatorInfo.username?.charAt(0)?.toUpperCase() || 'FC'}
                 </span>
@@ -441,7 +492,7 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
                     username={creatorInfo.username}
                     userId={creatorInfo.id}
                     displayName={creatorInfo.displayName}
-                    className="font-semibold text-gray-900 text-lg hover:text-green-600 transition-colors"
+                    className="font-semibold text-gray-900 text-lg hover:text-teal-600 transition-colors"
                     showAt={false}
                   />
                 </div>
@@ -495,8 +546,8 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
 
             {/* Stats Grid - Using real data */}
             <div className="grid grid-cols-3 gap-4 mb-6">
-              <div className="text-center p-4 bg-green-50 rounded-xl">
-                <div className="text-2xl font-bold text-green-600">
+              <div className="text-center p-4 bg-teal-50 rounded-xl">
+                <div className="text-2xl font-bold text-teal-600">
                   ${(prediction.pool_total || 0).toLocaleString()}
                 </div>
                 <div className="text-sm text-gray-600 font-medium">Total Pool</div>
@@ -505,7 +556,7 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
                 <div className="text-2xl font-bold text-blue-600">
                   {prediction.participant_count || 0}
                 </div>
-                <div className="text-sm text-gray-600 font-medium">Participants</div>
+                <div className="text-sm text-gray-600 font-medium whitespace-nowrap text-center">Participants</div>
               </div>
               <div className="text-center p-4 bg-purple-50 rounded-xl">
                 <div className="text-2xl font-bold text-purple-600">
@@ -576,7 +627,7 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
               transition={{ delay: 0.1 }}
               className="mb-6"
             >
-              <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+              <div className="bg-white/90 backdrop-blur-sm rounded-2xl p-6 shadow-lg border border-gray-200/50 hover:shadow-xl transition-all duration-300">
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-lg font-bold text-gray-900">Settlement Proof</h3>
                   <button
@@ -613,7 +664,7 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
               transition={{ delay: 0.15 }}
               className="mb-6"
             >
-              <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+              <div className="bg-white/90 backdrop-blur-sm rounded-2xl p-6 shadow-lg border border-gray-200/50 hover:shadow-xl transition-all duration-300">
                 <h3 className="text-lg font-bold text-gray-900 mb-4">Disputes</h3>
                 <div className="space-y-4">
                   {disputeList.map((dispute) => (
@@ -632,7 +683,7 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
               transition={{ delay: 0.2 }}
               className="mb-6"
             >
-              <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+              <div className="bg-white/90 backdrop-blur-sm rounded-2xl p-6 shadow-lg border border-gray-200/50 hover:shadow-xl transition-all duration-300">
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-lg font-bold text-gray-900">Audit Timeline</h3>
                   <button
@@ -656,7 +707,7 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.1 }}
-              className="bg-white rounded-2xl p-6 mb-6 shadow-sm border border-gray-100"
+              className="bg-white/90 backdrop-blur-sm rounded-2xl p-6 mb-6 shadow-lg border border-gray-200/50 hover:shadow-xl transition-all duration-300"
             >
               <h2 className="text-xl font-bold text-gray-900 mb-6">Place Your Prediction</h2>
 
@@ -666,13 +717,13 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
                   <motion.button
                     key={option.id}
                     onClick={() => handleOptionSelect(option.id)}
-                    className={`w-full p-4 rounded-xl border-2 transition-all ${
+                    className={`w-full p-4 rounded-xl border-2 transition-all duration-200 ${
                       selectedOption === option.id
-                        ? 'border-green-500 bg-green-50 shadow-lg'
-                        : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                        ? 'border-teal-500 bg-gradient-to-r from-teal-50 to-emerald-50 shadow-lg'
+                        : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50 hover:shadow-md'
                     }`}
-                    whileHover={{ scale: 1.01 }}
-                    whileTap={{ scale: 0.99 }}
+                    whileHover={{ scale: 1.02, y: -2 }}
+                    whileTap={{ scale: 0.98 }}
                   >
                     <div className="flex items-center justify-between">
                       <div className="text-left flex-1">
@@ -685,7 +736,7 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
                         </div>
                       </div>
                       <div className="text-right ml-4">
-                        <div className="text-2xl font-bold text-green-600">
+                        <div className="text-2xl font-bold text-teal-600">
                           {(option.current_odds || 1.0).toFixed(2)}x
                         </div>
                         <div className="text-xs text-gray-500">odds</div>
@@ -707,7 +758,7 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
                     value={stakeAmount}
                     onChange={handleStakeChange}
                     placeholder="0.00"
-                    className="w-full pl-10 pr-4 py-4 border-2 border-gray-200 rounded-xl focus:border-green-500 focus:outline-none transition-colors text-lg"
+                    className="w-full pl-10 pr-4 py-4 border-2 border-gray-200 rounded-xl focus:border-teal-500 focus:outline-none transition-colors text-lg"
                   />
                 </div>
                 <div className="flex justify-between text-sm text-gray-500 mt-2">
@@ -723,15 +774,15 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
                     initial={{ opacity: 0, scale: 0.95 }}
                     animate={{ opacity: 1, scale: 1 }}
                     exit={{ opacity: 0, scale: 0.95 }}
-                    className="bg-green-50 border-2 border-green-200 rounded-xl p-4 mb-6"
+                    className="bg-teal-50 border-2 border-teal-200 rounded-xl p-4 mb-6"
                   >
                     <div className="flex items-center justify-between mb-2">
-                      <span className="text-green-800 font-semibold">Potential Payout:</span>
-                      <span className="text-green-800 font-bold text-xl">
+                      <span className="text-teal-800 font-semibold">Potential Payout:</span>
+                      <span className="text-teal-800 font-bold text-xl">
                         ${potentialPayout.toFixed(2)}
                       </span>
                     </div>
-                    <div className="text-green-700 text-sm">
+                    <div className="text-teal-700 text-sm">
                       Profit: ${Math.max(0, potentialPayout - parseFloat(stakeAmount)).toFixed(2)}
                     </div>
                   </motion.div>
@@ -744,10 +795,10 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
                 disabled={!selectedOption || !stakeAmount || isPlacingBet}
                 className={`w-full py-4 rounded-xl font-semibold text-white transition-all text-lg ${
                   selectedOption && stakeAmount && !isPlacingBet
-                    ? 'bg-green-500 hover:bg-green-600 active:bg-green-700 shadow-lg'
+                    ? 'bg-gradient-to-r from-teal-500 to-emerald-500 hover:from-teal-600 hover:to-emerald-600 shadow-lg hover:shadow-xl'
                     : 'bg-gray-300 cursor-not-allowed'
                 }`}
-                whileHover={selectedOption && stakeAmount && !isPlacingBet ? { scale: 1.02 } : {}}
+                whileHover={selectedOption && stakeAmount && !isPlacingBet ? { scale: 1.02, y: -2 } : {}}
                 whileTap={selectedOption && stakeAmount && !isPlacingBet ? { scale: 0.98 } : {}}
               >
                 {isPlacingBet ? (
@@ -768,7 +819,7 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2 }}
-            className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 mb-6"
+            className="bg-white/90 backdrop-blur-sm rounded-2xl p-6 shadow-lg border border-gray-200/50 hover:shadow-xl transition-all duration-300 mb-6"
           >
             <h3 className="text-lg font-bold text-gray-900 mb-4">Community Engagement</h3>
             <div className="flex items-center gap-6">
@@ -824,7 +875,7 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
                 </div>
                 <div className="min-h-[300px] max-h-[600px] overflow-y-auto">
                   <CommentSystem 
-                    predictionId={prediction?.id || ''}
+                    predictionId={stablePredictionId}
                   />
                 </div>
               </motion.div>
