@@ -16,7 +16,7 @@ export const DisputeCard: React.FC<DisputeCardProps> = ({ dispute, className = "
       case 'upheld':
         return 'bg-red-100 text-red-800 border-red-200';
       case 'overturned':
-        return 'bg-teal-100 text-teal-800 border-teal-200';
+        return 'bg-emerald-100 text-emerald-800 border-emerald-200';
       default:
         return 'bg-gray-100 text-gray-800 border-gray-200';
     }

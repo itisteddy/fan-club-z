@@ -11,6 +11,7 @@ import {
   Settings,
   Share2
 } from 'lucide-react';
+import ManagePredictionModal from '../components/modals/ManagePredictionModal';
 
 // Production BetsTab Component - Extracted from production bundle
 const BetsTab: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNavigateToDiscover }) => {
@@ -29,16 +30,29 @@ const BetsTab: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNavigateTo
   const [showManageModal, setShowManageModal] = useState(false);
   const [selectedPrediction, setSelectedPrediction] = useState(null);
 
-  // Helper function to get time remaining
-  const getTimeRemaining = (deadline: string) => {
-    if (!deadline) return "2d 14h";
+  // Helper function to get time remaining with proper status context
+  const getTimeRemaining = (deadline: string, predictionStatus?: string) => {
+    if (!deadline) return "Unknown";
+    
     const now = new Date().getTime();
     const end = new Date(deadline).getTime() - now;
+    
+    // Handle different prediction states
+    if (predictionStatus === 'closed') return "Closed";
+    if (predictionStatus === 'settled') return "Settled";
+    if (predictionStatus === 'awaiting_settlement') return "Awaiting Settlement";
+    if (predictionStatus === 'disputed') return "Disputed";
+    if (predictionStatus === 'refunded') return "Refunded";
+    if (predictionStatus === 'ended') return "Ended";
+    
+    // Time-based logic for active predictions
     if (end <= 0) return "Ended";
     
     const days = Math.floor(end / (1000 * 60 * 60 * 24));
     const hours = Math.floor((end % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-    return days > 0 ? `${days}d ${hours}h` : `${hours}h`;
+    
+    if (days > 0) return `${days}d ${hours}h`;
+    return `${hours}h`;
   };
 
   // Helper function to calculate confidence
@@ -83,12 +97,42 @@ const BetsTab: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNavigateTo
     const userCreated = getUserCreatedPredictions(user.id);
     const userEntries = getUserPredictionEntries(user.id);
     
-    const activeEntries = userEntries.filter(entry => entry.status === 'active');
-    const completedEntries = userEntries.filter(entry => entry.status === 'won' || entry.status === 'lost');
+    // Count active entries (same logic as getUserPredictions)
+    const activeEntries = userEntries.filter(entry => {
+      const prediction = (entry as any).prediction || predictions.find(p => p.id === entry.prediction_id);
+      if (!prediction) return false;
+      
+      const isOpen = prediction.status === 'open';
+      const beforeDeadline = new Date(prediction.entry_deadline) > new Date();
+      const entryActive = entry.status === 'active';
+      
+      return isOpen && beforeDeadline && entryActive;
+    });
+    
+    // Count created predictions (only open and before deadline)
+    const activeCreated = userCreated.filter(prediction => {
+      // Include predictions that need management: open, closed, or awaiting settlement
+      const needsManagement = prediction.status === 'open' || 
+                             prediction.status === 'closed' || 
+                             prediction.status === 'awaiting_settlement';
+      return needsManagement;
+    });
+    
+    // Count completed entries (settled or ended)
+    const completedEntries = userEntries.filter(entry => {
+      const prediction = (entry as any).prediction || predictions.find(p => p.id === entry.prediction_id);
+      if (!prediction) return false;
+      
+      const isSettled = entry.status === 'won' || entry.status === 'lost';
+      const predictionEnded = prediction.status === 'closed' || prediction.status === 'settled' || prediction.status === 'ended';
+      const pastDeadline = new Date(prediction.entry_deadline) <= new Date();
+      
+      return isSettled || predictionEnded || pastDeadline;
+    });
     
     return {
       active: activeEntries.length,
-      created: userCreated.length,
+      created: activeCreated.length,
       completed: completedEntries.length
     };
   };
@@ -112,16 +156,26 @@ const BetsTab: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNavigateTo
     const userCreated = getUserCreatedPredictions(user.id);
     
     const activePredictions = userEntries
-      .filter(entry => entry.status === 'active')
+      .filter(entry => {
+        const prediction = (entry as any).prediction || predictions.find(p => p.id === entry.prediction_id);
+        if (!prediction) return false;
+        
+        // Check if prediction is still active (not ended/closed/settled and before deadline)
+        const isOpen = prediction.status === 'open';
+        const beforeDeadline = new Date(prediction.entry_deadline) > new Date();
+        const entryActive = entry.status === 'active';
+        
+        return isOpen && beforeDeadline && entryActive;
+      })
       .map(entry => {
-        const prediction = entry.prediction || predictions.find(p => p.id === entry.prediction_id);
+        const prediction = (entry as any).prediction || predictions.find(p => p.id === entry.prediction_id);
         if (!prediction) {
           console.warn('⚠️ No prediction found for entry:', entry.id);
           return null;
         }
 
-        const option = entry.option || prediction.options?.find(o => o.id === entry.option_id);
-        const timeRemaining = getTimeRemaining(prediction.entry_deadline);
+        const option = (entry as any).option || prediction.options?.find(o => o.id === entry.option_id);
+        const timeRemaining = getTimeRemaining(prediction.entry_deadline, prediction.status);
         
         return {
           id: entry.id,
@@ -139,37 +193,89 @@ const BetsTab: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNavigateTo
       })
       .filter(Boolean);
 
-    const createdPredictions = userCreated.map(prediction => {
-      const timeRemaining = getTimeRemaining(prediction.entry_deadline);
-      
-      return {
-        id: prediction.id,
-        title: prediction.title,
-        category: prediction.category,
-        totalPool: prediction.pool_total || 0,
-        participants: prediction.participant_count || 0,
-        timeRemaining,
-        status: prediction.status,
-        yourCut: prediction.creator_fee_percentage || 3.5,
-        description: prediction.description,
-        pool_total: prediction.pool_total,
-        participant_count: prediction.participant_count,
-        creator_fee_percentage: prediction.creator_fee_percentage,
-        entry_deadline: prediction.entry_deadline
-      };
-    });
+    const createdPredictions = userCreated
+      .filter(prediction => {
+        // Show predictions that need management: open, closed, or awaiting settlement
+        const needsManagement = prediction.status === 'open' || 
+                               prediction.status === 'closed' || 
+                               prediction.status === 'awaiting_settlement';
+        return needsManagement;
+      })
+      .map(prediction => {
+        // Determine the actual status based on current time and prediction state
+        let actualStatus = prediction.status;
+        const now = new Date();
+        const deadline = new Date(prediction.entry_deadline);
+        
+        // If prediction is still "open" but deadline has passed, it should be considered "ended"
+        if (actualStatus === 'open' && deadline <= now) {
+          actualStatus = 'ended';
+        }
+        
+        const timeRemaining = getTimeRemaining(prediction.entry_deadline, actualStatus);
+        
+        return {
+          id: prediction.id,
+          title: prediction.title,
+          category: prediction.category,
+          totalPool: prediction.pool_total || 0,
+          participants: prediction.participant_count || 0,
+          timeRemaining,
+          status: actualStatus,
+          yourCut: prediction.creator_fee_percentage || 3.5,
+          description: prediction.description,
+          pool_total: prediction.pool_total,
+          participant_count: prediction.participant_count,
+          creator_fee_percentage: prediction.creator_fee_percentage,
+          entry_deadline: prediction.entry_deadline
+        };
+      });
 
     const completedPredictions = userEntries
-      .filter(entry => entry.status === 'won' || entry.status === 'lost')
+      .filter(entry => {
+        const prediction = (entry as any).prediction || predictions.find(p => p.id === entry.prediction_id);
+        if (!prediction) return false;
+        
+        // Include entries that are settled (won/lost) OR predictions that have ended
+        const isSettled = entry.status === 'won' || entry.status === 'lost';
+        const predictionEnded = prediction.status === 'closed' || prediction.status === 'settled' || prediction.status === 'ended';
+        const pastDeadline = new Date(prediction.entry_deadline) <= new Date();
+        
+        return isSettled || predictionEnded || pastDeadline;
+      })
       .map(entry => {
-        const prediction = entry.prediction || predictions.find(p => p.id === entry.prediction_id);
+        const prediction = (entry as any).prediction || predictions.find(p => p.id === entry.prediction_id);
         if (!prediction) {
           console.warn('⚠️ No prediction found for completed entry:', entry.id);
           return null;
         }
 
-        const option = entry.option || prediction.options?.find(o => o.id === entry.option_id);
+        const option = (entry as any).option || prediction.options?.find(o => o.id === entry.option_id);
         const profit = (entry.actual_payout || 0) - entry.amount;
+        
+        // Determine display status and time with proper terminology
+        let displayStatus: 'active' | 'won' | 'lost' | 'refunded' = entry.status;
+        let timeLabel = "";
+        
+        if (prediction.status === 'settled' && (entry.status === 'won' || entry.status === 'lost')) {
+          timeLabel = `Settled on ${new Date(entry.updated_at).toLocaleDateString()}`;
+        } else if (prediction.status === 'closed') {
+          timeLabel = "Closed - Awaiting Settlement";
+        } else if (prediction.status === 'awaiting_settlement') {
+          timeLabel = "Awaiting Settlement";
+        } else if (prediction.status === 'disputed') {
+          timeLabel = "Settlement Disputed";
+        } else if (prediction.status === 'refunded') {
+          timeLabel = `Refunded on ${new Date(prediction.updated_at || prediction.created_at).toLocaleDateString()}`;
+        } else if (new Date(prediction.entry_deadline) <= new Date()) {
+          timeLabel = `Ended on ${new Date(prediction.entry_deadline).toLocaleDateString()}`;
+          // Keep the original status for ended predictions that haven't been settled
+          if (entry.status === 'active') {
+            displayStatus = 'active'; // Will show as "pending settlement" in UI
+          }
+        } else {
+          timeLabel = getTimeRemaining(prediction.entry_deadline, prediction.status);
+        }
         
         return {
           id: entry.id,
@@ -179,9 +285,9 @@ const BetsTab: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNavigateTo
           stake: entry.amount,
           actualReturn: entry.actual_payout || 0,
           profit,
-          status: entry.status,
+          status: displayStatus,
           participants: prediction.participant_count || 0,
-          settledAt: new Date(entry.updated_at).toLocaleDateString()
+          settledAt: timeLabel
         };
       })
       .filter(Boolean);
@@ -208,7 +314,7 @@ const BetsTab: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNavigateTo
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'active': return 'bg-emerald-50 text-emerald-700 border-emerald-200';
-      case 'winning': return 'bg-green-50 text-green-700 border-green-200';
+      case 'winning': return 'bg-emerald-50 text-emerald-700 border-emerald-200';
       case 'losing': return 'bg-red-50 text-red-700 border-red-200';
       case 'open': return 'bg-blue-50 text-blue-700 border-blue-200';
       default: return 'bg-gray-50 text-gray-700 border-gray-200';
@@ -221,7 +327,7 @@ const BetsTab: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNavigateTo
     'esports': 'bg-purple-100 text-purple-700',
     'pop_culture': 'bg-pink-100 text-pink-700',
     'politics': 'bg-red-100 text-red-700',
-    'celebrity_gossip': 'bg-green-100 text-green-700'
+    'celebrity_gossip': 'bg-emerald-100 text-emerald-700'
   })[category] || 'bg-gray-100 text-gray-700';
 
   // Not authenticated state
@@ -341,7 +447,24 @@ const BetsTab: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNavigateTo
       
       <div className="flex items-center justify-between text-sm text-gray-500">
         <span>{prediction.participants} participants</span>
-        <span className="font-medium text-amber-600">{prediction.timeRemaining} left</span>
+        <span className={`font-medium ${
+          prediction.timeRemaining.includes('Closed') || 
+          prediction.timeRemaining.includes('Settled') || 
+          prediction.timeRemaining.includes('Disputed') || 
+          prediction.timeRemaining.includes('Ended') ? 'text-red-600' :
+          prediction.timeRemaining.includes('Awaiting') ? 'text-yellow-600' :
+          'text-amber-600'
+        }`}>
+          {(prediction.timeRemaining.includes('h') || prediction.timeRemaining.includes('d')) && 
+           !prediction.timeRemaining.includes('Closed') && 
+           !prediction.timeRemaining.includes('Ended') && 
+           !prediction.timeRemaining.includes('Settled') && 
+           !prediction.timeRemaining.includes('Disputed') && 
+           !prediction.timeRemaining.includes('Awaiting') ? 
+            `${prediction.timeRemaining} left` : 
+            prediction.timeRemaining
+          }
+        </span>
       </div>
     </div>
   );
@@ -381,7 +504,24 @@ const BetsTab: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNavigateTo
       </div>
       
       <div className="flex items-center justify-between">
-        <span className="text-sm text-gray-500">Closes in {prediction.timeRemaining}</span>
+        <span className={`text-sm ${
+          prediction.timeRemaining.includes('Closed') || 
+          prediction.timeRemaining.includes('Settled') || 
+          prediction.timeRemaining.includes('Disputed') || 
+          prediction.timeRemaining.includes('Ended') ? 'text-red-600' :
+          prediction.timeRemaining.includes('Awaiting') ? 'text-yellow-600' :
+          'text-gray-500'
+        }`}>
+          {(prediction.timeRemaining.includes('h') || prediction.timeRemaining.includes('d')) && 
+           !prediction.timeRemaining.includes('Closed') && 
+           !prediction.timeRemaining.includes('Ended') && 
+           !prediction.timeRemaining.includes('Settled') && 
+           !prediction.timeRemaining.includes('Disputed') && 
+           !prediction.timeRemaining.includes('Awaiting') ? 
+            `Closes in ${prediction.timeRemaining}` : 
+            prediction.timeRemaining
+          }
+        </span>
         <button
           onClick={() => {
             setSelectedPrediction(prediction);
@@ -406,7 +546,7 @@ const BetsTab: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNavigateTo
             </span>
             <span className={`px-2 py-1 rounded-lg text-xs font-medium border ${
               prediction.status === 'won' 
-                ? 'bg-green-50 text-green-700 border-green-200' 
+                ? 'bg-emerald-50 text-emerald-700 border-emerald-200' 
                 : 'bg-red-50 text-red-700 border-red-200'
             }`}>
               {prediction.status === 'won' ? 'Won' : 'Lost'}
@@ -416,31 +556,31 @@ const BetsTab: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNavigateTo
         </div>
       </div>
       
-      <div className={`rounded-xl p-4 mb-4 ${prediction.status === 'won' ? 'bg-green-50' : 'bg-red-50'}`}>
+      <div className={`rounded-xl p-4 mb-4 ${prediction.status === 'won' ? 'bg-emerald-50' : 'bg-red-50'}`}>
         <div className="flex items-center justify-between mb-2">
-          <span className={`text-sm font-medium ${prediction.status === 'won' ? 'text-green-800' : 'text-red-800'}`}>
+          <span className={`text-sm font-medium ${prediction.status === 'won' ? 'text-emerald-800' : 'text-red-800'}`}>
             Your Position: {prediction.position}
           </span>
-          <span className={`text-lg font-bold ${prediction.status === 'won' ? 'text-green-700' : 'text-red-700'}`}>
+          <span className={`text-lg font-bold ${prediction.status === 'won' ? 'text-emerald-700' : 'text-red-700'}`}>
             {prediction.profit >= 0 ? '+' : ''}${Math.abs(prediction.profit).toLocaleString()}
           </span>
         </div>
         <div className="grid grid-cols-3 gap-4 mt-3">
           <div>
-            <p className={`text-xs mb-1 ${prediction.status === 'won' ? 'text-green-600' : 'text-red-600'}`}>Staked</p>
-            <p className={`font-semibold ${prediction.status === 'won' ? 'text-green-900' : 'text-red-900'}`}>
+            <p className={`text-xs mb-1 ${prediction.status === 'won' ? 'text-emerald-600' : 'text-red-600'}`}>Staked</p>
+            <p className={`font-semibold ${prediction.status === 'won' ? 'text-emerald-900' : 'text-red-900'}`}>
               ${prediction.stake.toLocaleString()}
             </p>
           </div>
           <div>
-            <p className={`text-xs mb-1 ${prediction.status === 'won' ? 'text-green-600' : 'text-red-600'}`}>Returned</p>
-            <p className={`font-semibold ${prediction.status === 'won' ? 'text-green-900' : 'text-red-900'}`}>
+            <p className={`text-xs mb-1 ${prediction.status === 'won' ? 'text-emerald-600' : 'text-red-600'}`}>Returned</p>
+            <p className={`font-semibold ${prediction.status === 'won' ? 'text-emerald-900' : 'text-red-900'}`}>
               ${prediction.actualReturn.toLocaleString()}
             </p>
           </div>
           <div>
-            <p className={`text-xs mb-1 ${prediction.status === 'won' ? 'text-green-600' : 'text-red-600'}`}>Profit/Loss</p>
-            <p className={`font-semibold ${prediction.status === 'won' ? 'text-green-900' : 'text-red-900'}`}>
+            <p className={`text-xs mb-1 ${prediction.status === 'won' ? 'text-emerald-600' : 'text-red-600'}`}>Profit/Loss</p>
+            <p className={`font-semibold ${prediction.status === 'won' ? 'text-emerald-900' : 'text-red-900'}`}>
               {prediction.profit >= 0 ? '+' : ''}${Math.abs(prediction.profit).toLocaleString()}
             </p>
           </div>
@@ -528,6 +668,41 @@ const BetsTab: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNavigateTo
           <EmptyState tab={activeTab} />
         )}
       </div>
+
+      {/* Manage Prediction Modal */}
+      {selectedPrediction && (
+        <ManagePredictionModal
+          isOpen={showManageModal}
+          onClose={() => {
+            setShowManageModal(false);
+            setSelectedPrediction(null);
+          }}
+          prediction={{
+            id: (selectedPrediction as any).id,
+            title: (selectedPrediction as any).title,
+            category: (selectedPrediction as any).category,
+            totalPool:
+              (selectedPrediction as any).totalPool ||
+              (selectedPrediction as any).pool_total ||
+              0,
+            participants:
+              (selectedPrediction as any).participants ||
+              (selectedPrediction as any).participant_count ||
+              0,
+            timeRemaining: (selectedPrediction as any).timeRemaining || '0h',
+            yourCut:
+              (selectedPrediction as any).yourCut ||
+              (selectedPrediction as any).creator_fee_percentage ||
+              3.5,
+            status: (selectedPrediction as any).status || 'open',
+            description: (selectedPrediction as any).description,
+            pool_total: (selectedPrediction as any).pool_total,
+            participant_count: (selectedPrediction as any).participant_count,
+            creator_fee_percentage: (selectedPrediction as any).creator_fee_percentage,
+            entry_deadline: (selectedPrediction as any).entry_deadline,
+          }}
+        />
+      )}
     </div>
   );
 };

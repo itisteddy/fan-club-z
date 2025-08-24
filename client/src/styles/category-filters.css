@@ -53,7 +53,7 @@
 }
 
 .category-pill:focus {
-  outline: 2px solid #00F5D4;
+  outline: 2px solid #059669;
   outline-offset: 2px;
 }
 
@@ -151,6 +151,6 @@
   }
   
   .category-pill.active {
-    border-color: #00F5D4;
+    border-color: #059669;
   }
 }

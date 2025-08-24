@@ -22,16 +22,17 @@ router.get('/', async (req, res) => {
     console.log(`📊 Pagination: page=${page}, limit=${limit}, offset=${offset}`);
     console.log(`🔍 Filters: category=${category}, search=${search}`);
     
-    // Build query with filters
+    // Build query with filters - only show active, open predictions
     let query = supabase
       .from('predictions')
       .select(`
         *,
         creator:users!creator_id(id, username, full_name, avatar_url),
-        options:prediction_options(*),
+        options:prediction_options!prediction_options_prediction_id_fkey(*),
         club:clubs(id, name, avatar_url)
       `, { count: 'exact' })
-      .neq('status', 'cancelled')
+      .eq('status', 'open') // Only show open predictions
+      .gt('entry_deadline', new Date().toISOString()) // Only show predictions with future deadlines
       .order('created_at', { ascending: false });
     
     // Apply category filter
@@ -178,7 +179,7 @@ router.get('/trending', async (req, res) => {
       .select(`
         *,
         creator:users!creator_id(id, username, full_name, avatar_url),
-        options:prediction_options(*),
+        options:prediction_options!prediction_options_prediction_id_fkey(*),
         club:clubs(id, name, avatar_url)
       `)
       .eq('status', 'open')
@@ -223,7 +224,7 @@ router.get('/:id', async (req, res) => {
       .select(`
         *,
         creator:users!creator_id(id, username, full_name, avatar_url),
-        options:prediction_options(*),
+        options:prediction_options!prediction_options_prediction_id_fkey(*),
         club:clubs(id, name, avatar_url)
       `)
       .eq('id', id)
@@ -268,7 +269,7 @@ router.get('/created/:userId', async (req, res) => {
       .select(`
         *,
         creator:users!creator_id(id, username, full_name, avatar_url),
-        options:prediction_options(*),
+        options:prediction_options!prediction_options_prediction_id_fkey(*),
         club:clubs(id, name, avatar_url)
       `)
       .eq('creator_id', userId)
@@ -430,7 +431,7 @@ router.post('/', async (req, res) => {
       .select(`
         *,
         creator:users!creator_id(id, username, full_name, avatar_url),
-        options:prediction_options(*)
+        options:prediction_options!prediction_options_prediction_id_fkey(*)
       `)
       .eq('id', prediction.id)
       .single();
@@ -595,7 +596,7 @@ router.post('/:id/entries', async (req, res) => {
       .select(`
         *,
         creator:users!creator_id(id, username, full_name, avatar_url),
-        options:prediction_options(*)
+        options:prediction_options!prediction_options_prediction_id_fkey(*)
       `)
       .eq('id', predictionId)
       .single();
@@ -744,7 +745,7 @@ router.get('/user/:id', async (req, res) => {
       .select(`
         *,
         creator:users!creator_id(id, username, full_name, avatar_url),
-        options:prediction_options(*),
+        options:prediction_options!prediction_options_prediction_id_fkey(*),
         club:clubs(id, name, avatar_url)
       `)
       .eq('creator_id', id)
@@ -781,14 +782,45 @@ router.get('/user/:id', async (req, res) => {
 router.post('/:id/close', async (req, res) => {
   try {
     const { id } = req.params;
-    res.json({
-      data: { id, status: 'closed' },
-      message: `Prediction ${id} closed`,
+    
+    console.log('🔒 Closing prediction:', id);
+    
+    // Update prediction status to 'closed' in database
+    const { data: updatedPrediction, error } = await supabase
+      .from('predictions')
+      .update({ 
+        status: 'closed',
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', id)
+      .select('*')
+      .single();
+
+    if (error) {
+      console.error('Database error closing prediction:', error);
+      return res.status(500).json({
+        error: 'Database error',
+        message: 'Failed to close prediction in database'
+      });
+    }
+
+    if (!updatedPrediction) {
+      return res.status(404).json({
+        error: 'Not found',
+        message: 'Prediction not found'
+      });
+    }
+
+    console.log('✅ Prediction closed successfully:', updatedPrediction.id);
+    
+    return res.json({
+      data: updatedPrediction,
+      message: `Prediction ${id} closed successfully`,
       version: VERSION
     });
   } catch (error) {
     console.error('Error closing prediction:', error);
-    res.status(500).json({
+    return res.status(500).json({
       error: 'Internal server error',
       message: 'Failed to close prediction'
     });

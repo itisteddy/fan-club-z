@@ -7,6 +7,7 @@ import { Button } from '../ui/button';
 import { Textarea } from '../ui/textarea';
 import { Input } from '../ui/input';
 import toast from 'react-hot-toast';
+import { useNotificationStore } from '../../store/notificationStore';
 
 interface SettlementModalProps {
   isOpen: boolean;
@@ -27,6 +28,7 @@ const SettlementModal: React.FC<SettlementModalProps> = ({
   const [showConfirmation, setShowConfirmation] = useState(false);
 
   const { settleManually, isSettling, settlementError, clearError } = useSettlement();
+  const { notifySettlementReady } = useNotificationStore();
 
   const handleSubmit = async () => {
     if (!selectedOptionId) {
@@ -50,6 +52,11 @@ const SettlementModal: React.FC<SettlementModalProps> = ({
 
       if (result) {
         toast.success('Prediction settled successfully!');
+        
+        // Notify all participants about the settlement (individual notifications, not bulk)
+        // This will be handled by the backend to send individual notifications to each participant
+        console.log('🔔 Settlement completed, participants will be notified individually');
+        
         setShowConfirmation(false);
         onClose();
         if (onSettlementComplete) {
@@ -70,6 +77,15 @@ const SettlementModal: React.FC<SettlementModalProps> = ({
     onClose();
   };
 
+  // Only log options once when modal opens
+  React.useEffect(() => {
+    if (!prediction.options || prediction.options.length === 0) {
+      console.warn('⚠️ SettlementModal: No options available for prediction:', prediction.id);
+    } else {
+      console.log('✅ SettlementModal: Found', prediction.options.length, 'options for prediction:', prediction.id);
+    }
+  }, [prediction.id, prediction.options?.length]);
+  
   const selectedOption = prediction.options?.find(opt => opt.id === selectedOptionId);
   const totalPool = prediction.pool_total || 0;
   const participantCount = prediction.participant_count || 0;
@@ -128,7 +144,26 @@ const SettlementModal: React.FC<SettlementModalProps> = ({
                     Select Winning Option *
                   </label>
                   <div className="space-y-2">
-                    {prediction.options?.map((option) => {
+                    {!prediction.options || prediction.options.length === 0 ? (
+                      <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                        <div className="flex items-center gap-2 mb-2">
+                          <AlertTriangle className="w-5 h-5 text-yellow-600" />
+                          <p className="text-yellow-800 font-medium">No Options Available</p>
+                        </div>
+                        <p className="text-yellow-700 text-sm mb-3">
+                          This prediction doesn't have any options to select from. This might be because:
+                        </p>
+                        <ul className="text-yellow-700 text-sm space-y-1 ml-4">
+                          <li>• The prediction data is still loading</li>
+                          <li>• The prediction was created without options</li>
+                          <li>• There was an error fetching the prediction details</li>
+                        </ul>
+                        <p className="text-yellow-600 text-xs mt-3">
+                          Please close this modal and try opening it again. If the problem persists, contact support.
+                        </p>
+                      </div>
+                    ) : (
+                      prediction.options.map((option) => {
                       const isSelected = selectedOptionId === option.id;
                       const optionStaked = option.total_staked || 0;
                       const percentage = totalPool > 0 ? (optionStaked / totalPool) * 100 : 0;
@@ -139,7 +174,7 @@ const SettlementModal: React.FC<SettlementModalProps> = ({
                           onClick={() => setSelectedOptionId(option.id)}
                           className={`w-full p-4 rounded-lg border-2 transition-all text-left ${
                             isSelected
-                              ? 'border-teal-500 bg-teal-50'
+                              ? 'border-emerald-500 bg-emerald-50'
                               : 'border-gray-200 hover:border-gray-300'
                           }`}
                           whileHover={{ scale: 1.01 }}
@@ -148,7 +183,7 @@ const SettlementModal: React.FC<SettlementModalProps> = ({
                           <div className="flex items-center justify-between">
                             <div className="flex-1">
                               <div className={`font-medium ${
-                                isSelected ? 'text-teal-700' : 'text-gray-900'
+                                isSelected ? 'text-emerald-700' : 'text-gray-900'
                               }`}>
                                 {option.label}
                               </div>
@@ -157,12 +192,12 @@ const SettlementModal: React.FC<SettlementModalProps> = ({
                               </div>
                             </div>
                             {isSelected && (
-                              <Check className="w-5 h-5 text-teal-500" />
+                              <Check className="w-5 h-5 text-emerald-500" />
                             )}
                           </div>
                         </motion.button>
                       );
-                    })}
+                    }))}
                   </div>
                 </div>
 
@@ -223,7 +258,7 @@ const SettlementModal: React.FC<SettlementModalProps> = ({
                 <Button
                   onClick={() => setShowConfirmation(true)}
                   disabled={!selectedOptionId || !reason.trim() || isSettling}
-                  className="bg-teal-600 hover:bg-teal-700"
+                  className="bg-emerald-600 hover:bg-emerald-700"
                 >
                   Continue
                 </Button>
@@ -247,9 +282,9 @@ const SettlementModal: React.FC<SettlementModalProps> = ({
 
               <div className="p-6 space-y-6">
                 {/* Settlement Summary */}
-                <div className="bg-gradient-to-r from-teal-50 to-blue-50 rounded-lg p-4 border border-teal-100">
+                <div className="bg-gradient-to-r from-emerald-50 to-blue-50 rounded-lg p-4 border border-emerald-100">
                   <div className="flex items-center gap-2 mb-3">
-                    <Trophy className="w-5 h-5 text-teal-600" />
+                    <Trophy className="w-5 h-5 text-emerald-600" />
                     <h3 className="font-medium text-gray-900">Settlement Summary</h3>
                   </div>
                   
@@ -273,7 +308,7 @@ const SettlementModal: React.FC<SettlementModalProps> = ({
                     <hr className="border-gray-200" />
                     <div className="flex justify-between">
                       <span className="text-gray-600">Winner Payout:</span>
-                      <span className="font-semibold text-teal-600">${payoutPool.toFixed(2)}</span>
+                      <span className="font-semibold text-emerald-600">${payoutPool.toFixed(2)}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-gray-600">Participants:</span>
@@ -315,7 +350,7 @@ const SettlementModal: React.FC<SettlementModalProps> = ({
                 <Button
                   onClick={handleSubmit}
                   disabled={isSettling}
-                  className="bg-teal-600 hover:bg-teal-700"
+                  className="bg-emerald-600 hover:bg-emerald-700"
                 >
                   {isSettling ? 'Settling...' : 'Confirm Settlement'}
                 </Button>

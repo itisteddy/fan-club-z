@@ -36,7 +36,7 @@ export const RulePreview: React.FC<RulePreviewProps> = ({ settlement, className 
         <div className="flex items-center gap-2">
           <span className="text-xs font-medium text-gray-500">Primary Source:</span>
           <div className="flex items-center gap-1">
-            <span className="w-2 h-2 bg-teal-500 rounded-full"></span>
+            <span className="w-2 h-2 bg-emerald-500 rounded-full"></span>
             <span className="text-xs text-gray-700">{settlement.primary_source.name}</span>
           </div>
         </div>

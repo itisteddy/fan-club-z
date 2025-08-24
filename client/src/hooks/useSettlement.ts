@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { config } from '../config';
+import { getApiUrl } from '../config';
 
 interface SettlementRequest {
   predictionId: string;
@@ -45,7 +45,7 @@ export const useSettlement = () => {
     try {
       console.log('🔨 Starting manual settlement:', request);
 
-      const response = await fetch(`${config.api.url}/api/v2/settlement/manual`, {
+      const response = await fetch(`${getApiUrl()}/api/v2/settlement/manual`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -82,7 +82,7 @@ export const useSettlement = () => {
     try {
       console.log('📊 Fetching settlement info for:', predictionId);
 
-      const response = await fetch(`${config.api.url}/api/v2/settlement/prediction/${predictionId}`, {
+      const response = await fetch(`${getApiUrl()}/api/v2/settlement/prediction/${predictionId}`, {
         method: 'GET',
         headers: {
           'Accept': 'application/json',

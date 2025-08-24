@@ -53,7 +53,7 @@ const CategoryFilters = React.memo(function CategoryFilters({
               `}
               whileTap={{ scale: 0.96 }}
             >
-              <span className="text-xs">{category.icon}</span>
+              {/* Removed emoji icons in category chips to align with standard iconography preference */}
               <span>{category.label}</span>
             </motion.button>
           ))}
@@ -106,7 +106,7 @@ const MobileHeader = React.memo(function MobileHeader({
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
-          className="bg-gradient-to-r from-purple-50 to-teal-50 rounded-2xl p-4 mb-4"
+          className="bg-gradient-to-r from-purple-50 to-emerald-50 rounded-2xl p-4 mb-4"
         >
           <div className="flex items-center gap-2 mb-3">
             <div className="w-2 h-2 bg-purple-500 rounded-full animate-pulse"></div>
@@ -208,12 +208,21 @@ const DiscoverPage = React.memo(function DiscoverPage({ onNavigateToProfile, onN
     }
   }, []);
 
-  // Setup infinite scroll
+  // Setup infinite scroll on container
   useInfiniteScroll({
     hasNext: pagination.hasNext,
     loading: loadingMore,
-    onLoadMore: loadMorePredictions,
+    onLoadMore: () => {
+      console.log('🔄 Infinite scroll triggered in DiscoverPage:', {
+        hasNext: pagination.hasNext,
+        loading: loadingMore,
+        currentPage: pagination.page,
+        total: pagination.total
+      });
+      loadMorePredictions();
+    },
     threshold: 300,
+    container: containerRef.current
   });
 
   // Initialize data on mount
@@ -229,7 +238,7 @@ const DiscoverPage = React.memo(function DiscoverPage({ onNavigateToProfile, onN
     totalUsers: platformStats.totalUsers
   }), [platformStats]);
 
-  // No more manual filtering needed - backend handles it
+  // Backend now handles filtering - no additional filtering needed
   const displayPredictions = useMemo(() => {
     if (!predictions || !Array.isArray(predictions)) {
       console.log('🔍 DiscoverPage Debug - No valid predictions array:', predictions);
@@ -238,7 +247,7 @@ const DiscoverPage = React.memo(function DiscoverPage({ onNavigateToProfile, onN
     
     console.log(`🔍 DiscoverPage Debug - Displaying ${predictions.length} predictions`);
     return predictions.filter(prediction => {
-      // Safety check for prediction object
+      // Safety check for prediction object only
       if (!prediction || !prediction.id || !prediction.title) {
         console.warn('⚠️ DiscoverPage: Invalid prediction object:', prediction);
         return false;
@@ -452,6 +461,28 @@ const DiscoverPage = React.memo(function DiscoverPage({ onNavigateToProfile, onN
                   >
                     <Loader2 className="w-6 h-6 animate-spin text-purple-500 mr-3" />
                     <span className="text-gray-600">Loading more predictions...</span>
+                  </motion.div>
+                )}
+                
+                {/* Debug info and manual load more button */}
+                {pagination.hasNext && !loadingMore && (
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    className="text-center py-6"
+                  >
+                    <button
+                      onClick={() => {
+                        console.log('🔄 Manual load more triggered');
+                        loadMorePredictions();
+                      }}
+                      className="bg-purple-500 text-white px-4 py-2 rounded-lg font-medium hover:bg-purple-600 transition-colors"
+                    >
+                      Load More ({pagination.total - displayPredictions.length} remaining)
+                    </button>
+                    <p className="text-xs text-gray-500 mt-2">
+                      Page {pagination.page} • {displayPredictions.length}/{pagination.total}
+                    </p>
                   </motion.div>
                 )}
                 

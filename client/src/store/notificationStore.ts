@@ -3,7 +3,7 @@ import { persist } from 'zustand/middleware';
 
 export interface Notification {
   id: string;
-  type: 'prediction_outcome' | 'comment' | 'payout' | 'market_close' | 'like' | 'follow' | 'general';
+  type: 'prediction_outcome' | 'comment' | 'payout' | 'market_close' | 'like' | 'follow' | 'general' | 'settlement_ready' | 'settlement_completed';
   title: string;
   message: string;
   read: boolean;
@@ -56,6 +56,10 @@ interface NotificationStore {
   // Utility functions
   showSuccess: (message: string, title?: string) => void;
   showError: (message: string, title?: string) => void;
+  
+  // Settlement notification helpers
+  notifySettlementReady: (predictionId: string, predictionTitle: string) => void;
+  notifySettlementCompleted: (predictionId: string, predictionTitle: string, outcome: 'won' | 'lost', payout?: number) => void;
 }
 
 export const useNotificationStore = create<NotificationStore>()(
@@ -233,6 +237,69 @@ export const useNotificationStore = create<NotificationStore>()(
           pushNotification.close();
         }, 5000);
       },
+
+      // Settlement notification helpers
+      notifySettlementReady: (predictionId: string, predictionTitle: string) => {
+        const { addNotification, addToast } = get();
+        
+        // Add persistent notification
+        addNotification({
+          type: 'settlement_ready',
+          title: 'Settlement Required',
+          message: `"${predictionTitle}" needs your validation. Tap to review the outcome.`,
+          data: { predictionId, action: 'validate_settlement' }
+        });
+        
+        // Show toast notification
+        addToast({
+          type: 'info',
+          title: '⚖️ Settlement Ready',
+          message: `Tap to validate the outcome of "${predictionTitle}"`,
+          duration: 8000,
+        });
+      },
+
+      notifySettlementCompleted: (predictionId: string, predictionTitle: string, outcome: 'won' | 'lost', payout?: number) => {
+        const { addNotification, addToast } = get();
+        
+        const message = outcome === 'won' 
+          ? `You won ${payout ? `$${payout}` : ''} on "${predictionTitle}"!`
+          : `Settlement completed for "${predictionTitle}". Better luck next time!`;
+          
+        // Add persistent notification
+        addNotification({
+          type: 'settlement_completed',
+          title: outcome === 'won' ? 'You Won!' : 'Settlement Complete',
+          message,
+          data: { predictionId, outcome, payout }
+        });
+        
+        // Show toast notification
+        addToast({
+          type: outcome === 'won' ? 'success' : 'info',
+          title: outcome === 'won' ? '🎉 You Won!' : '📋 Settlement Complete',
+          message,
+          duration: outcome === 'won' ? 10000 : 6000,
+        });
+      },
+
+      showSuccess: (message: string, title?: string) => {
+        get().addToast({
+          type: 'success',
+          title: title || 'Success',
+          message,
+          duration: 3000,
+        });
+      },
+
+      showError: (message: string, title?: string) => {
+        get().addToast({
+          type: 'error',
+          title: title || 'Error',
+          message,
+          duration: 5000,
+        });
+      },
     }),
     {
       name: 'fanclubz-notifications',
@@ -327,5 +394,50 @@ export const showError = (message: string, title?: string) => {
     title: title || 'Error',
     message,
     duration: 5000,
+  });
+};
+
+// Settlement notification helpers
+export const notifySettlementReady = (predictionId: string, predictionTitle: string) => {
+  const store = useNotificationStore.getState();
+  
+  // Add persistent notification
+  store.addNotification({
+    type: 'settlement_ready',
+    title: 'Settlement Required',
+    message: `"${predictionTitle}" needs your validation. Tap to review the outcome.`,
+    data: { predictionId, action: 'validate_settlement' }
+  });
+  
+  // Show toast notification
+  store.addToast({
+    type: 'info',
+    title: '⚖️ Settlement Ready',
+    message: `Tap to validate the outcome of "${predictionTitle}"`,
+    duration: 8000,
+  });
+};
+
+export const notifySettlementCompleted = (predictionId: string, predictionTitle: string, outcome: 'won' | 'lost', payout?: number) => {
+  const store = useNotificationStore.getState();
+  
+  const message = outcome === 'won' 
+    ? `You won ${payout ? `$${payout}` : ''} on "${predictionTitle}"!`
+    : `Settlement completed for "${predictionTitle}". Better luck next time!`;
+    
+  // Add persistent notification
+  store.addNotification({
+    type: 'settlement_completed',
+    title: outcome === 'won' ? 'You Won!' : 'Settlement Complete',
+    message,
+    data: { predictionId, outcome, payout }
+  });
+  
+  // Show toast notification
+  store.addToast({
+    type: outcome === 'won' ? 'success' : 'info',
+    title: outcome === 'won' ? '🎉 You Won!' : '📋 Settlement Complete',
+    message,
+    duration: outcome === 'won' ? 10000 : 6000,
   });
 };

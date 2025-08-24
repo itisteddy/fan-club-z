@@ -23,7 +23,7 @@ const IOSInstallModal: React.FC<IOSInstallModalProps> = ({ isOpen, onClose }) =>
           style={{ zIndex: 10001 }}
         >
           {/* Fixed Header */}
-          <div className="bg-gradient-to-r from-purple-500 to-teal-600 p-4 text-center text-white relative rounded-t-2xl flex-shrink-0">
+          <div className="bg-gradient-to-r from-purple-500 to-emerald-600 p-4 text-center text-white relative rounded-t-2xl flex-shrink-0">
             <button
               onClick={onClose}
               className="absolute top-3 right-3 text-white/80 hover:text-white transition-colors p-1 rounded-full hover:bg-white/20"
@@ -121,7 +121,7 @@ const IOSInstallModal: React.FC<IOSInstallModalProps> = ({ isOpen, onClose }) =>
                   // Don't show again for a week
                   localStorage.setItem('ios-install-dismissed', Date.now().toString());
                 }}
-                className="flex-1 px-4 py-3 bg-teal-600 text-white rounded-lg font-medium hover:bg-green-700 transition-colors text-base"
+                className="flex-1 px-4 py-3 bg-emerald-600 text-white rounded-lg font-medium hover:bg-green-700 transition-colors text-base"
               >
                 Got It!
               </button>

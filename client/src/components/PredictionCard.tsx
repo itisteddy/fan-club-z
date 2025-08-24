@@ -243,7 +243,7 @@ const PredictionCardContent: React.FC<PredictionCardProps> = ({
               prediction.category === 'esports' ? 'bg-yellow-100 text-yellow-700' :
               prediction.category === 'politics' ? 'bg-blue-100 text-blue-700' :
               prediction.category === 'celebrity_gossip' ? 'bg-pink-100 text-pink-700' :
-              'bg-teal-100 text-teal-700'
+              'bg-emerald-100 text-emerald-700'
             }`}>
               {prediction.category?.replace('_', ' ') || 'General'}
             </span>
@@ -318,7 +318,7 @@ const PredictionCardContent: React.FC<PredictionCardProps> = ({
       <>
         <motion.div
           className={`bg-white rounded-xl shadow-sm border-l-4 ${
-            status === 'won' ? 'border-teal-500' :
+            status === 'won' ? 'border-emerald-500' :
             status === 'lost' ? 'border-red-500' :
             status === 'settled' ? 'border-gray-500' :
             'border-blue-500'
@@ -334,7 +334,7 @@ const PredictionCardContent: React.FC<PredictionCardProps> = ({
               </h3>
               <div className="flex items-center gap-2 mt-1">
                 <span className={`px-2 py-0.5 rounded text-xs font-medium ${
-                  status === 'won' ? 'bg-teal-100 text-teal-700' :
+                  status === 'won' ? 'bg-emerald-100 text-emerald-700' :
                   status === 'lost' ? 'bg-red-100 text-red-700' :
                   status === 'settled' ? 'bg-gray-100 text-gray-700' :
                   'bg-blue-100 text-blue-700'
@@ -383,7 +383,7 @@ const PredictionCardContent: React.FC<PredictionCardProps> = ({
               </button>
               <button
                 onClick={handleShare}
-                className="flex items-center gap-1 text-gray-500 hover:text-teal-500 transition-colors"
+                className="flex items-center gap-1 text-gray-500 hover:text-emerald-500 transition-colors"
               >
                 <Share className="w-4 h-4" />
                 <span className="text-sm">Share</span>
@@ -391,7 +391,7 @@ const PredictionCardContent: React.FC<PredictionCardProps> = ({
             </div>
             <button
               onClick={onPredict}
-              className="px-4 py-2 bg-teal-500 text-white rounded-lg hover:bg-teal-600 text-sm font-medium transition-colors"
+              className="px-4 py-2 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 text-sm font-medium transition-colors"
             >
               View Details
             </button>
@@ -444,7 +444,7 @@ const PredictionCardContent: React.FC<PredictionCardProps> = ({
                 prediction.category === 'esports' ? 'bg-yellow-100 text-yellow-700' :
                 prediction.category === 'politics' ? 'bg-blue-100 text-blue-700' :
                 prediction.category === 'celebrity_gossip' ? 'bg-pink-100 text-pink-700' :
-                'bg-teal-100 text-teal-700'
+                'bg-emerald-100 text-emerald-700'
               }`}>
                 {prediction.category?.replace('_', ' ') || 'General'}
               </span>
@@ -486,14 +486,14 @@ const PredictionCardContent: React.FC<PredictionCardProps> = ({
                 return (
                   <motion.button
                     key={option.id}
-                    className="w-full p-3 rounded-lg border-2 border-gray-200 bg-white hover:border-teal-300 hover:bg-teal-50 transition-all group"
+                    className="w-full p-3 rounded-lg border-2 border-gray-200 bg-white hover:border-emerald-300 hover:bg-emerald-50 transition-all group"
                     whileHover={{ scale: 1.01 }}
                     whileTap={{ scale: 0.99 }}
                     onClick={() => onPredict && onPredict()}
                   >
                     <div className="flex items-center justify-between">
                       <div className="flex-1 text-left">
-                        <div className="font-medium text-gray-900 group-hover:text-teal-700">
+                        <div className="font-medium text-gray-900 group-hover:text-emerald-700">
                           {option.label}
                         </div>
                         <div className="text-sm text-gray-500">
@@ -501,7 +501,7 @@ const PredictionCardContent: React.FC<PredictionCardProps> = ({
                         </div>
                       </div>
                       <div className="text-right">
-                        <div className="text-lg font-bold text-teal-600">
+                        <div className="text-lg font-bold text-emerald-600">
                           {odds.toFixed(1)}x
                         </div>
                       </div>
@@ -540,7 +540,7 @@ const PredictionCardContent: React.FC<PredictionCardProps> = ({
             </div>
             {/* Only show trending if there are actual participants */}
             {participantCount > 5 && (
-              <div className="flex items-center gap-1 text-teal-600">
+              <div className="flex items-center gap-1 text-emerald-600">
                 <TrendingUp className="w-4 h-4" />
                 <span className="font-medium">Trending</span>
               </div>
@@ -573,7 +573,7 @@ const PredictionCardContent: React.FC<PredictionCardProps> = ({
               </motion.button>
               <motion.button
                 onClick={handleShare}
-                className="flex items-center gap-2 text-gray-600 hover:text-teal-500 transition-colors"
+                className="flex items-center gap-2 text-gray-600 hover:text-emerald-500 transition-colors"
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
               >
@@ -583,7 +583,7 @@ const PredictionCardContent: React.FC<PredictionCardProps> = ({
             </div>
             <motion.button
               onClick={onPredict}
-              className="bg-gradient-to-r from-purple-600 to-teal-600 text-white px-6 py-2 rounded-lg font-medium shadow-sm"
+              className="bg-gradient-to-r from-purple-600 to-emerald-600 text-white px-6 py-2 rounded-lg font-medium shadow-sm"
               whileHover={{ scale: 1.02, boxShadow: '0 8px 25px rgba(123, 47, 247, 0.25)' }}
               whileTap={{ scale: 0.98 }}
             >

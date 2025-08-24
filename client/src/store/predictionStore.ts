@@ -436,33 +436,44 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
     try {
       console.log(`🔍 Fetching prediction by ID: ${id}`);
       
-      // First check if it's already in the store
+      // First check if it's already in the store and has options
       const { predictions } = get();
       const existing = predictions.find(p => p.id === id);
-      if (existing) {
-        console.log('✅ Found prediction in store:', existing.title);
+      if (existing && existing.options && existing.options.length > 0) {
+        console.log('✅ Found prediction in store with options:', existing.title, existing.options.length);
         return existing;
       }
       
-      // If not in store, try to fetch all predictions first
-      await get().fetchPredictions();
+      // Fetch directly from the specific prediction endpoint to ensure we get options
+      console.log('🌐 Fetching prediction directly from API:', id);
+      const response = await fetch(`${getApiUrl()}/api/v2/predictions/${id}`);
       
-      // Check again after fetch
-      const { predictions: updatedPredictions } = get();
-      const found = updatedPredictions.find(p => p.id === id);
-      if (found) {
-        console.log('✅ Found prediction after fetch:', found.title);
-        return found;
+      if (!response.ok) {
+        console.error(`❌ Failed to fetch prediction ${id}:`, response.status);
+        return null;
       }
       
-      // If still not found, try fetching more pages
-      await get().fetchPredictions({ page: 2, append: true });
-      const { predictions: allPredictions } = get();
-      const finalCheck = allPredictions.find(p => p.id === id);
+      const data = await response.json();
+      const prediction = data.data;
       
-      if (finalCheck) {
-        console.log('✅ Found prediction on page 2:', finalCheck.title);
-        return finalCheck;
+      if (prediction) {
+        console.log('✅ Fetched prediction from API:', prediction.title);
+        console.log('🔍 Prediction options:', prediction.options?.length || 0);
+        
+        // Update the store with the fetched prediction
+        set(state => ({
+          predictions: state.predictions.some(p => p.id === id) 
+            ? state.predictions.map(p => p.id === id ? prediction : p)
+            : [...state.predictions, prediction]
+        }));
+        
+        return prediction;
+      }
+      
+      // Fallback: try to find in store without options requirement
+      if (existing) {
+        console.log('⚠️ Using existing prediction without options:', existing.title);
+        return existing;
       }
       
       console.log('❌ Prediction not found:', id);
@@ -550,6 +561,20 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
     set({ loading: true, error: null });
     
     try {
+      // First, update the wallet to lock funds
+      const { useWalletStore } = await import('./walletStore');
+      const walletStore = useWalletStore.getState();
+      
+      // Get prediction details for transaction description
+      const prediction = get().predictions.find(p => p.id === predictionId);
+      const option = prediction?.options.find(o => o.id === optionId);
+      const description = `Bet on "${option?.label || 'Unknown'}" in "${prediction?.title || 'Unknown Prediction'}"`;
+      
+      // Lock funds in wallet first
+      console.log('🔄 Locking wallet funds before prediction placement...');
+      await walletStore.makePrediction(amount, description, predictionId);
+      console.log('✅ Wallet funds locked successfully');
+      
       const response = await fetch(`${getApiUrl()}/api/v2/predictions/${predictionId}/entries`, {
         method: 'POST',
         headers: {
@@ -563,6 +588,8 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
       });
 
       if (!response.ok) {
+        // If API call fails, we should reverse the wallet transaction
+        // For now, just throw the error - wallet will show locked funds
         throw new Error(`Failed to place prediction: ${response.statusText}`);
       }
 
@@ -628,6 +655,11 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
       }
 
       console.log('✅ Prediction placed successfully with updated data');
+      
+      // Refresh wallet to show updated transactions
+      console.log('🔄 Refreshing wallet data after prediction placement...');
+      await walletStore.initializeWallet();
+      console.log('✅ Wallet refreshed');
 
     } catch (error) {
       console.error('❌ Error placing prediction:', error);

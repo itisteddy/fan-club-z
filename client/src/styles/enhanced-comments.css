@@ -54,7 +54,7 @@
 
 .sort-select:focus {
   outline: none;
-  border-color: #00F5D4;
+  border-color: #059669;
   box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.1);
 }
 
@@ -77,7 +77,7 @@
   width: 40px;
   height: 40px;
   border-radius: 50%;
-  background: #00F5D4;
+  background: #059669;
   color: white;
   display: flex;
   align-items: center;
@@ -104,7 +104,7 @@
 
 .comment-input:focus {
   outline: none;
-  border-color: #00F5D4;
+  border-color: #059669;
   box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.1);
 }
 
@@ -216,8 +216,8 @@
 
 .reaction-item.active {
   background: rgba(34, 197, 94, 0.1);
-  border-color: #00F5D4;
-  color: #00F5D4;
+  border-color: #059669;
+  color: #059669;
 }
 
 /* Comment Actions */
@@ -248,7 +248,7 @@
 }
 
 .comment-action-btn.active {
-  color: #00F5D4;
+  color: #059669;
   background: rgba(34, 197, 94, 0.1);
 }
 
@@ -313,7 +313,7 @@
 
 .reply-input:focus {
   outline: none;
-  border-color: #00F5D4;
+  border-color: #059669;
   box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.1);
 }
 
@@ -456,12 +456,12 @@
 }
 
 .btn-primary {
-  background: #00F5D4;
+  background: #059669;
   color: white;
 }
 
 .btn-primary:hover {
-  background: #00F5D4;
+  background: #059669;
 }
 
 .btn-primary:disabled {

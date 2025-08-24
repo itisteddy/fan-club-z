@@ -31,17 +31,17 @@ const SimpleWalletPage: React.FC = () => {
 
   const getTransactionIcon = (type: string, status: string) => {
     if (status === 'pending') return <Clock className="w-4 h-4 text-yellow-500" />;
-    if (status === 'completed') return <CheckCircle className="w-4 h-4 text-teal-500" />;
+    if (status === 'completed') return <CheckCircle className="w-4 h-4 text-emerald-500" />;
     
     switch (type) {
       case 'deposit':
-        return <ArrowDownLeft className="w-4 h-4 text-teal-500" />;
+        return <ArrowDownLeft className="w-4 h-4 text-emerald-500" />;
       case 'withdraw':
         return <ArrowUpRight className="w-4 h-4 text-red-500" />;
       case 'bet_lock':
         return <ArrowUpRight className="w-4 h-4 text-orange-500" />;
       case 'bet_release':
-        return <ArrowDownLeft className="w-4 h-4 text-teal-500" />;
+        return <ArrowDownLeft className="w-4 h-4 text-emerald-500" />;
       default:
         return <Wallet className="w-4 h-4 text-gray-500" />;
     }
@@ -49,7 +49,7 @@ const SimpleWalletPage: React.FC = () => {
 
   const getTransactionColor = (amount: number, status: string) => {
     if (status === 'pending') return 'text-yellow-600';
-    return amount > 0 ? 'text-teal-600' : 'text-red-600';
+    return amount > 0 ? 'text-emerald-600' : 'text-red-600';
   };
 
   return (

@@ -6,6 +6,7 @@ import { usePredictionStore } from '../store/predictionStore';
 import { useAuthStore } from '../store/authStore';
 import { useWalletStore } from '../store/walletStore';
 import { useSettlementStore } from '../store/settlementStore';
+import SettlementValidationModal from '../components/modals/SettlementValidationModal';
 import { useLikeStore } from '../store/likeStore';
 import { useUnifiedCommentStore, useCommentsForPrediction } from '../store/unifiedCommentStore';
 import { formatTimeRemaining } from '../lib/utils';
@@ -41,6 +42,7 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
   const [showSettlementModal, setShowSettlementModal] = useState(false);
   const [showProofDetails, setShowProofDetails] = useState(false);
   const [showAuditTimeline, setShowAuditTimeline] = useState(false);
+  const [showValidationModal, setShowValidationModal] = useState(false);
   
   // Refs for smooth scrolling
   const commentsRef = useRef<HTMLDivElement>(null);
@@ -195,12 +197,8 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
     try {
       console.log('🎲 Placing prediction:', { predictionId: prediction.id, optionId: selectedOption, amount });
       
-      await placePrediction({
-        predictionId: prediction.id,
-        optionId: selectedOption,
-        amount: amount,
-        userId: user?.id || ''
-      });
+      // Call store method with correct parameter signature
+      await placePrediction(prediction.id, selectedOption, amount, user?.id || '');
       
       toast.success('Prediction placed successfully!');
       setStakeAmount('');
@@ -368,7 +366,7 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
         
         <div className="flex items-center justify-center py-20">
           <div className="text-center">
-            <div className="w-8 h-8 border-2 border-teal-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+            <div className="w-8 h-8 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
             <p className="text-gray-600">Loading prediction...</p>
           </div>
         </div>
@@ -400,7 +398,7 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
             <p className="text-gray-600 mb-4">The prediction you're looking for doesn't exist or has been removed.</p>
             <button
               onClick={() => setLocation('/discover')}
-              className="bg-teal-500 text-white px-6 py-2 rounded-lg hover:bg-teal-600 transition-colors"
+              className="bg-emerald-500 text-white px-6 py-2 rounded-lg hover:bg-emerald-600 transition-colors"
             >
               Browse Predictions
             </button>
@@ -455,7 +453,7 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
           >
             {/* Creator Info - Fixed with TappableUsername */}
             <div className="flex items-center gap-3 mb-4">
-              <div className="w-12 h-12 bg-gradient-to-br from-purple-400 to-teal-600 rounded-full flex items-center justify-center">
+              <div className="w-12 h-12 bg-gradient-to-br from-purple-400 to-emerald-600 rounded-full flex items-center justify-center">
                 <span className="text-white font-bold text-lg">
                   {creatorInfo.username?.charAt(0)?.toUpperCase() || 'FC'}
                 </span>
@@ -466,7 +464,7 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
                     username={creatorInfo.username}
                     userId={creatorInfo.id}
                     displayName={creatorInfo.displayName}
-                    className="font-semibold text-gray-900 text-lg hover:text-teal-600 transition-colors"
+                    className="font-semibold text-gray-900 text-lg hover:text-emerald-600 transition-colors"
                     showAt={false}
                   />
                 </div>
@@ -520,8 +518,8 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
 
             {/* Stats Grid - Using real data */}
             <div className="grid grid-cols-3 gap-4 mb-6">
-              <div className="text-center p-4 bg-teal-50 rounded-xl">
-                <div className="text-2xl font-bold text-teal-600">
+              <div className="text-center p-4 bg-emerald-50 rounded-xl">
+                <div className="text-2xl font-bold text-emerald-600">
                   ${(prediction.pool_total || 0).toLocaleString()}
                 </div>
                 <div className="text-sm text-gray-600 font-medium">Total Pool</div>
@@ -675,6 +673,83 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
             </motion.div>
           )}
 
+          {/* Settlement Ready Banner - Prominent notification for participants */}
+          {!canPlaceBet && prediction?.user_entry && prediction?.status === 'awaiting_settlement' && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="bg-gradient-to-r from-amber-50 to-orange-50 border-2 border-amber-200 rounded-2xl p-6 mb-6 shadow-lg"
+            >
+              <div className="flex items-center gap-4">
+                <div className="flex-shrink-0">
+                  <div className="w-12 h-12 bg-amber-500 rounded-full flex items-center justify-center">
+                    <AlertTriangle className="w-6 h-6 text-white" />
+                  </div>
+                </div>
+                <div className="flex-1">
+                  <h3 className="text-lg font-bold text-amber-900 mb-1">⚖️ Settlement Ready for Validation</h3>
+                  <p className="text-amber-800 mb-3">
+                    The creator has settled this prediction. Please review and validate the outcome.
+                  </p>
+                  <motion.button
+                    onClick={() => setShowValidationModal(true)}
+                    className="px-6 py-3 bg-amber-500 hover:bg-amber-600 text-white font-semibold rounded-xl transition-colors shadow-md"
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                  >
+                    🔍 Review Settlement
+                  </motion.button>
+                </div>
+              </div>
+            </motion.div>
+          )}
+
+          {/* Settlement Validation Section - Show for participants when prediction is ended */}
+          {!canPlaceBet && prediction?.user_entry && (prediction?.status === 'closed' || prediction?.status === 'awaiting_settlement' || prediction?.status === 'settled') && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.1 }}
+              className="bg-white rounded-2xl p-6 mb-6 shadow-sm border border-gray-100"
+            >
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">Settlement Status</h3>
+              <div className="space-y-4">
+                <div className="bg-gray-50 rounded-lg p-4">
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="text-sm text-gray-600">Your Position:</span>
+                    <span className="font-medium">{prediction.user_entry.option?.label || 'Unknown'}</span>
+                  </div>
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="text-sm text-gray-600">Amount Staked:</span>
+                    <span className="font-medium">${prediction.user_entry.amount?.toLocaleString() || 0}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-gray-600">Status:</span>
+                    <span className={`font-medium px-2 py-1 rounded-full text-xs ${
+                      prediction.user_entry.status === 'won' ? 'bg-emerald-100 text-emerald-800' :
+                      prediction.user_entry.status === 'lost' ? 'bg-red-100 text-red-800' :
+                      prediction.user_entry.status === 'refunded' ? 'bg-blue-100 text-blue-800' :
+                      'bg-yellow-100 text-yellow-800'
+                    }`}>
+                      {prediction.user_entry.status || 'pending'}
+                    </span>
+                  </div>
+                </div>
+                
+                {prediction?.status !== 'settled' && (
+                  <motion.button
+                    onClick={() => setShowValidationModal(true)}
+                    className="w-full py-3 rounded-xl font-semibold text-white transition-all text-lg bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 shadow-lg"
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                  >
+                    View Settlement Details
+                  </motion.button>
+                )}
+              </div>
+            </motion.div>
+          )}
+
           {/* Betting Section - Only show if betting is still open */}
           {canPlaceBet && (
             <motion.div
@@ -693,7 +768,7 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
                     onClick={() => handleOptionSelect(option.id)}
                     className={`w-full p-4 rounded-xl border-2 transition-all ${
                       selectedOption === option.id
-                        ? 'border-teal-500 bg-teal-50 shadow-lg'
+                        ? 'border-emerald-500 bg-emerald-50 shadow-lg'
                         : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
                     }`}
                     whileHover={{ scale: 1.01 }}
@@ -710,7 +785,7 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
                         </div>
                       </div>
                       <div className="text-right ml-4">
-                        <div className="text-2xl font-bold text-teal-600">
+                        <div className="text-2xl font-bold text-emerald-600">
                           {(option.current_odds || 1.0).toFixed(2)}x
                         </div>
                         <div className="text-xs text-gray-500">odds</div>
@@ -732,7 +807,7 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
                     value={stakeAmount}
                     onChange={handleStakeChange}
                     placeholder="0.00"
-                    className="w-full pl-10 pr-4 py-4 border-2 border-gray-200 rounded-xl focus:border-teal-500 focus:outline-none transition-colors text-lg"
+                    className="w-full pl-10 pr-4 py-4 border-2 border-gray-200 rounded-xl focus:border-emerald-500 focus:outline-none transition-colors text-lg"
                   />
                 </div>
                 <div className="flex justify-between text-sm text-gray-500 mt-2">
@@ -748,15 +823,15 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
                     initial={{ opacity: 0, scale: 0.95 }}
                     animate={{ opacity: 1, scale: 1 }}
                     exit={{ opacity: 0, scale: 0.95 }}
-                    className="bg-teal-50 border-2 border-teal-200 rounded-xl p-4 mb-6"
+                    className="bg-emerald-50 border-2 border-emerald-200 rounded-xl p-4 mb-6"
                   >
                     <div className="flex items-center justify-between mb-2">
-                      <span className="text-teal-800 font-semibold">Potential Payout:</span>
-                      <span className="text-teal-800 font-bold text-xl">
+                      <span className="text-emerald-800 font-semibold">Potential Payout:</span>
+                      <span className="text-emerald-800 font-bold text-xl">
                         ${potentialPayout.toFixed(2)}
                       </span>
                     </div>
-                    <div className="text-teal-700 text-sm">
+                    <div className="text-emerald-700 text-sm">
                       Profit: ${Math.max(0, potentialPayout - parseFloat(stakeAmount)).toFixed(2)}
                     </div>
                   </motion.div>
@@ -769,7 +844,7 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
                 disabled={!selectedOption || !stakeAmount || isPlacingBet}
                 className={`w-full py-4 rounded-xl font-semibold text-white transition-all text-lg ${
                   selectedOption && stakeAmount && !isPlacingBet
-                    ? 'bg-teal-500 hover:bg-teal-600 active:bg-green-700 shadow-lg'
+                    ? 'bg-emerald-500 hover:bg-emerald-600 active:bg-emerald-700 shadow-lg'
                     : 'bg-gray-300 cursor-not-allowed'
                 }`}
                 whileHover={selectedOption && stakeAmount && !isPlacingBet ? { scale: 1.02 } : {}}
@@ -879,6 +954,16 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
           predictionId={prediction.id}
           settlementData={settlementData}
           userHasEntry={userHasEntry}
+        />
+      )}
+
+      {/* Settlement Validation Modal */}
+      {showValidationModal && (
+        <SettlementValidationModal
+          isOpen={showValidationModal}
+          onClose={() => setShowValidationModal(false)}
+          predictionId={prediction.id}
+          predictionTitle={prediction.title}
         />
       )}
     </>

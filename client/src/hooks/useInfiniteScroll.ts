@@ -11,6 +11,7 @@ interface UseInfiniteScrollOptions {
   onLoadMore: () => void;
   threshold?: number; // Distance from bottom to trigger load (default: 200px)
   disabled?: boolean;
+  container?: HTMLElement | null; // Container element for scrolling (if null, uses window)
 }
 
 export const useInfiniteScroll = ({
@@ -18,7 +19,8 @@ export const useInfiniteScroll = ({
   loading,
   onLoadMore,
   threshold = 200,
-  disabled = false
+  disabled = false,
+  container = null
 }: UseInfiniteScrollOptions) => {
   const loadingRef = useRef(false);
 
@@ -28,9 +30,21 @@ export const useInfiniteScroll = ({
       return;
     }
 
-    const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
-    const scrollHeight = document.documentElement.scrollHeight;
-    const clientHeight = window.innerHeight || document.documentElement.clientHeight;
+    let scrollTop: number;
+    let scrollHeight: number;
+    let clientHeight: number;
+
+    if (container) {
+      // Container-based scrolling
+      scrollTop = container.scrollTop;
+      scrollHeight = container.scrollHeight;
+      clientHeight = container.clientHeight;
+    } else {
+      // Window-based scrolling
+      scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+      scrollHeight = document.documentElement.scrollHeight;
+      clientHeight = window.innerHeight || document.documentElement.clientHeight;
+    }
 
     const distanceFromBottom = scrollHeight - (scrollTop + clientHeight);
 
@@ -40,7 +54,8 @@ export const useInfiniteScroll = ({
         distanceFromBottom,
         threshold,
         hasNext,
-        loading
+        loading,
+        container: container ? 'container' : 'window'
       });
 
       loadingRef.current = true;
@@ -51,7 +66,7 @@ export const useInfiniteScroll = ({
         loadingRef.current = false;
       }, 1000);
     }
-  }, [disabled, loading, hasNext, threshold, onLoadMore]);
+  }, [disabled, loading, hasNext, threshold, onLoadMore, container]);
 
   useEffect(() => {
     if (disabled) return;
@@ -63,15 +78,25 @@ export const useInfiniteScroll = ({
       timeoutId = setTimeout(handleScroll, 100);
     };
 
-    window.addEventListener('scroll', throttledScroll, { passive: true });
-    window.addEventListener('touchmove', throttledScroll, { passive: true });
+    const scrollElement = container || window;
+    const scrollEventName = container ? 'scroll' : 'scroll';
+    const touchEventName = container ? 'touchmove' : 'touchmove';
+
+    scrollElement.addEventListener(scrollEventName, throttledScroll, { passive: true });
+    
+    // Only add touchmove to window, not container to avoid conflicts
+    if (!container) {
+      window.addEventListener(touchEventName, throttledScroll, { passive: true });
+    }
 
     return () => {
-      window.removeEventListener('scroll', throttledScroll);
-      window.removeEventListener('touchmove', throttledScroll);
+      scrollElement.removeEventListener(scrollEventName, throttledScroll);
+      if (!container) {
+        window.removeEventListener(touchEventName, throttledScroll);
+      }
       clearTimeout(timeoutId);
     };
-  }, [handleScroll, disabled]);
+  }, [handleScroll, disabled, container]);
 
   // Manual trigger function for testing
   const triggerLoadMore = useCallback(() => {

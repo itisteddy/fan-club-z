@@ -44,9 +44,9 @@ export const SettlementPanel: React.FC<SettlementPanelProps> = ({
           title: "Settlement Complete",
           description: "Official outcome has been determined",
           icon: "✅",
-          bgColor: "bg-teal-50",
-          textColor: "text-teal-700",
-          borderColor: "border-teal-200"
+          bgColor: "bg-emerald-50",
+          textColor: "text-emerald-700",
+          borderColor: "border-emerald-200"
         };
       case 'voided':
         return {
@@ -112,7 +112,7 @@ export const SettlementPanel: React.FC<SettlementPanelProps> = ({
             <div className="mt-3">
               <div className="inline-flex items-center gap-2 px-3 py-1 bg-white rounded-full text-sm font-semibold">
                 <span>Outcome:</span>
-                <span className={settlement.outcome === 'YES' ? 'text-teal-600' : 'text-red-600'}>
+                <span className={settlement.outcome === 'YES' ? 'text-emerald-600' : 'text-red-600'}>
                   {settlement.outcome}
                 </span>
               </div>

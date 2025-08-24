@@ -21,6 +21,7 @@ import AuthPage from './pages/auth/AuthPage';
 import AuthCallbackPage from './pages/auth/AuthCallbackPage';
 import PredictionDetailsPage from './pages/PredictionDetailsPage';
 import BottomNavigation from './components/BottomNavigation';
+import ErrorBoundary from './components/ErrorBoundary';
 
 // Simple Loading Component
 const LoadingSpinner: React.FC<{ message?: string }> = ({ message = "Loading..." }) => (
@@ -337,7 +338,7 @@ const PredictionDetailsWrapper: React.FC<{ params: { id: string } }> = ({ params
             <p className="text-gray-600 mb-4">The prediction you're looking for doesn't exist.</p>
             <button
               onClick={handleNavigateBack}
-              className="px-4 py-2 bg-teal-500 text-white rounded-lg hover:bg-teal-600"
+              className="px-4 py-2 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600"
             >
               Go Back
             </button>
@@ -397,8 +398,9 @@ function App() {
   }, [isAuthenticated, loading, initialized, initializeWallet, initializeLikes, initializeCommentStore]);
 
   return (
-    <Router>
-      <Switch>
+    <ErrorBoundary>
+      <Router>
+        <Switch>
         {/* Public auth routes */}
         <Route path="/auth/callback">
           <PageWrapper title="Authentication">
@@ -427,8 +429,9 @@ function App() {
             </MainLayout>
           </OnboardingProvider>
         </AuthGuard>
-      </Switch>
-    </Router>
+        </Switch>
+      </Router>
+    </ErrorBoundary>
   );
 }
 

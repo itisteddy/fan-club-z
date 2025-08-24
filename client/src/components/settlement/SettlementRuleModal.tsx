@@ -110,13 +110,13 @@ export const SettlementRuleModal: React.FC<SettlementRuleModalProps> = ({
               <div>
                 <h4 className="text-sm font-semibold text-gray-900 mb-3">Sources</h4>
                 <div className="space-y-3">
-                  <div className="flex items-center gap-3 p-3 bg-teal-50 border border-teal-200 rounded-lg">
-                    <div className="w-2 h-2 bg-teal-500 rounded-full"></div>
+                  <div className="flex items-center gap-3 p-3 bg-emerald-50 border border-emerald-200 rounded-lg">
+                    <div className="w-2 h-2 bg-emerald-500 rounded-full"></div>
                     <div className="flex-1">
                       <div className="text-sm font-medium text-gray-900">{config.primary_source.name}</div>
                       <div className="text-xs text-gray-600">{config.primary_source.url}</div>
                     </div>
-                    <span className="text-xs bg-teal-600 text-white px-2 py-1 rounded-full font-semibold">
+                    <span className="text-xs bg-emerald-600 text-white px-2 py-1 rounded-full font-semibold">
                       PRIMARY
                     </span>
                   </div>

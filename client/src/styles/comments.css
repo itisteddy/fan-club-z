@@ -48,7 +48,7 @@
 }
 
 .comment-input-group:focus-within {
-  border-color: #00F5D4;
+  border-color: #059669;
   background: white;
 }
 
@@ -56,7 +56,7 @@
   width: 32px;
   height: 32px;
   border-radius: 50%;
-  background: #00F5D4;
+  background: #059669;
   color: white;
   display: flex;
   align-items: center;
@@ -87,7 +87,7 @@
   width: 36px;
   height: 36px;
   border-radius: 50%;
-  background: #00F5D4;
+  background: #059669;
   color: white;
   border: none;
   display: flex;
@@ -99,7 +99,7 @@
 }
 
 .comment-send-btn:hover:not(:disabled) {
-  background: #00F5D4;
+  background: #059669;
   transform: scale(1.05);
 }
 
@@ -293,7 +293,7 @@
 .comment-input:focus,
 .comment-send-btn:focus,
 .comment-action-btn:focus {
-  outline: 2px solid #00F5D4;
+  outline: 2px solid #059669;
   outline-offset: 2px;
 }
 

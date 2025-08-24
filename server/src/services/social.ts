@@ -318,7 +318,7 @@ export class SocialService {
         .select(`
           *,
           creator:users!predictions_creator_id_fkey(id, username, full_name, avatar_url),
-          options:prediction_options(*),
+          options:prediction_options!prediction_options_prediction_id_fkey(*),
           _count:prediction_entries(count)
         `, { count: 'exact' })
         .eq('club_id', clubId)

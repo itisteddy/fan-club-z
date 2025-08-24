@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   User, 
@@ -18,7 +18,7 @@ import {
   Save,
   X,
   ChevronLeft,
-  Toggle,
+  ToggleLeft,
   Lock,
   Mail,
   Phone,
@@ -114,7 +114,7 @@ const AccountSettings: React.FC<{ onBack: () => void }> = ({ onBack }) => {
         position: fixed;
         top: 20px;
         right: 20px;
-        background: #00F5D4;
+        background: #059669;
         color: white;
         padding: 12px 16px;
         border-radius: 8px;
@@ -159,7 +159,7 @@ const AccountSettings: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                   height: '24px',
                   borderRadius: '12px',
                   border: 'none',
-                  background: settings.publicProfile ? '#00F5D4' : '#e5e7eb',
+                  background: settings.publicProfile ? '#059669' : '#e5e7eb',
                   position: 'relative',
                   cursor: isUpdating ? 'not-allowed' : 'pointer',
                   transition: 'background 0.2s',
@@ -195,7 +195,7 @@ const AccountSettings: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                   height: '24px',
                   borderRadius: '12px',
                   border: 'none',
-                  background: settings.showEarnings ? '#00F5D4' : '#e5e7eb',
+                  background: settings.showEarnings ? '#059669' : '#e5e7eb',
                   position: 'relative',
                   cursor: isUpdating ? 'not-allowed' : 'pointer',
                   transition: 'background 0.2s',
@@ -241,7 +241,7 @@ const AccountSettings: React.FC<{ onBack: () => void }> = ({ onBack }) => {
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span style={{ fontSize: '14px', color: '#6b7280' }}>Suspicious Activity</span>
-              <span style={{ fontSize: '14px', fontWeight: '500', color: securityStats.suspiciousActivity > 0 ? '#dc2626' : '#00F5D4' }}>
+              <span style={{ fontSize: '14px', fontWeight: '500', color: securityStats.suspiciousActivity > 0 ? '#dc2626' : '#059669' }}>
                 {securityStats.suspiciousActivity === 0 ? 'None detected' : `${securityStats.suspiciousActivity} incidents`}
               </span>
             </div>
@@ -264,7 +264,7 @@ const AccountSettings: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                 height: '24px',
                 borderRadius: '12px',
                 border: 'none',
-                background: settings.twoFactorEnabled ? '#00F5D4' : '#e5e7eb',
+                background: settings.twoFactorEnabled ? '#059669' : '#e5e7eb',
                 position: 'relative',
                 cursor: isUpdating ? 'not-allowed' : 'pointer',
                 transition: 'background 0.2s',
@@ -423,7 +423,7 @@ const NotificationSettings: React.FC<{ onBack: () => void }> = ({ onBack }) => {
       position: fixed;
       top: 20px;
       right: 20px;
-      background: #00F5D4;
+      background: #059669;
       color: white;
       padding: 12px 16px;
       border-radius: 8px;
@@ -538,7 +538,7 @@ const NotificationSettings: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                   height: '24px',
                   borderRadius: '12px',
                   border: 'none',
-                  background: notifications.pushEnabled ? '#00F5D4' : '#e5e7eb',
+                  background: notifications.pushEnabled ? '#059669' : '#e5e7eb',
                   position: 'relative',
                   cursor: isUpdating ? 'not-allowed' : 'pointer',
                   opacity: isUpdating ? 0.6 : 1
@@ -573,7 +573,7 @@ const NotificationSettings: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                   height: '24px',
                   borderRadius: '12px',
                   border: 'none',
-                  background: notifications.emailEnabled ? '#00F5D4' : '#e5e7eb',
+                  background: notifications.emailEnabled ? '#059669' : '#e5e7eb',
                   position: 'relative',
                   cursor: isUpdating ? 'not-allowed' : 'pointer',
                   opacity: isUpdating ? 0.6 : 1
@@ -614,7 +614,7 @@ const NotificationSettings: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                   height: '24px',
                   borderRadius: '12px',
                   border: 'none',
-                  background: notifications.winLossAlerts ? '#00F5D4' : '#e5e7eb',
+                  background: notifications.winLossAlerts ? '#059669' : '#e5e7eb',
                   position: 'relative',
                   cursor: isUpdating ? 'not-allowed' : 'pointer',
                   opacity: isUpdating ? 0.6 : 1
@@ -649,7 +649,7 @@ const NotificationSettings: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                   height: '24px',
                   borderRadius: '12px',
                   border: 'none',
-                  background: notifications.clubActivity ? '#00F5D4' : '#e5e7eb',
+                  background: notifications.clubActivity ? '#059669' : '#e5e7eb',
                   position: 'relative',
                   cursor: isUpdating ? 'not-allowed' : 'pointer',
                   opacity: isUpdating ? 0.6 : 1
@@ -833,7 +833,7 @@ const SecuritySettings: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                       style={{
                         flex: 1,
                         padding: '8px',
-                        background: isUpdating || !passwordForm.currentPassword || !passwordForm.newPassword || !passwordForm.confirmPassword ? '#9ca3af' : '#00F5D4',
+                        background: isUpdating || !passwordForm.currentPassword || !passwordForm.newPassword || !passwordForm.confirmPassword ? '#9ca3af' : '#059669',
                         color: 'white',
                         border: 'none',
                         borderRadius: '6px',
@@ -933,12 +933,386 @@ const SecuritySettings: React.FC<{ onBack: () => void }> = ({ onBack }) => {
           <div style={{ padding: '12px', background: '#f9fafb', borderRadius: '8px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
               <span style={{ fontWeight: '500', fontSize: '14px' }}>Current Device</span>
-              <span style={{ fontSize: '12px', color: '#00F5D4' }}>Active Now</span>
+              <span style={{ fontSize: '12px', color: '#059669' }}>Active Now</span>
             </div>
             <div style={{ fontSize: '12px', color: '#6b7280' }}>
               MacBook Pro • Chrome • Gainesville, GA
             </div>
           </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Leaderboard component with comprehensive prediction and profit leaderboards
+const LeaderboardView: React.FC<{ onBack: () => void }> = ({ onBack }) => {
+  const [activeTab, setActiveTab] = useState<'predictions' | 'profit' | 'winrate'>('predictions');
+  const [leaderboardData, setLeaderboardData] = useState<LeaderboardUser[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  interface LeaderboardUser {
+    id: string;
+    username: string;
+    avatar_url?: string;
+    full_name?: string;
+    predictions_count: number;
+    total_profit: number;
+    total_invested: number;
+    win_rate: number;
+    total_entries: number;
+    won_entries?: number;
+    rank?: number;
+  }
+
+  // Fetch real leaderboard data from API
+  const fetchLeaderboardData = async (type: 'predictions' | 'profit' | 'winrate') => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      const apiUrl = getApiUrl();
+      const response = await fetch(`${apiUrl}/api/v2/users/leaderboard?type=${type === 'winrate' ? 'accuracy' : type}&limit=50`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch leaderboard: ${response.status}`);
+      }
+
+      const result = await response.json();
+      if (result.error) {
+        throw new Error(result.message || 'Failed to fetch leaderboard');
+      }
+
+      // Add rank to each user
+      const rankedData = (result.data || []).map((user: LeaderboardUser, index: number) => ({
+        ...user,
+        rank: index + 1,
+        won_entries: Math.round((user.win_rate / 100) * user.total_entries) // Calculate from win_rate
+      }));
+
+      setLeaderboardData(rankedData);
+    } catch (err) {
+      console.error('Error fetching leaderboard:', err);
+      setError(err instanceof Error ? err.message : 'Failed to load leaderboard');
+      setLeaderboardData([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Fetch data when component mounts or tab changes
+  useEffect(() => {
+    fetchLeaderboardData(activeTab);
+  }, [activeTab]);
+
+  // Fallback data for empty state
+  const sampleUsers: LeaderboardUser[] = [
+    {
+      id: 'sample-1',
+      username: 'PredictionMaster',
+      predictions_count: 15,
+      total_profit: 2450.75,
+      total_invested: 1200.00,
+      win_rate: 78,
+      total_entries: 23,
+      won_entries: 18,
+      rank: 1
+    },
+    {
+      id: 'sample-2', 
+      username: 'SportsSage',
+      predictions_count: 12,
+      total_profit: 1890.25,
+      total_invested: 950.00,
+      win_rate: 75,
+      total_entries: 16,
+      won_entries: 12,
+      rank: 2
+    },
+    {
+      id: 'sample-3',
+      username: 'TrendSpotter',
+      predictions_count: 18,
+      total_profit: 1650.50,
+      total_invested: 800.00,
+      win_rate: 72,
+      total_entries: 25,
+      won_entries: 18,
+      rank: 3
+    },
+    {
+      id: 'sample-4',
+      username: 'AnalyticsAce',
+      predictions_count: 8,
+      total_profit: 1200.00,
+      total_invested: 600.00,
+      win_rate: 70,
+      total_entries: 10,
+      won_entries: 7,
+      rank: 4
+    },
+    {
+      id: 'sample-5',
+      username: 'DataDriven',
+      predictions_count: 6,
+      total_profit: 980.75,
+      total_invested: 500.00,
+      win_rate: 68,
+      total_entries: 9,
+      won_entries: 6,
+      rank: 5
+    }
+  ];
+
+  const getCurrentLeaderboard = () => {
+    // Use real data if available, otherwise fallback to sample data
+    const dataToUse = leaderboardData.length > 0 ? leaderboardData : sampleUsers;
+    
+    // Data is already sorted by the backend, but we can apply additional filtering
+    if (activeTab === 'winrate') {
+      return dataToUse.filter(u => u.total_entries >= 3);
+    }
+    
+    return dataToUse;
+  };
+  
+  const getRankBadge = (rank: number) => {
+    switch (rank) {
+      case 1: return { emoji: '🏆', color: '#ffd700' };
+      case 2: return { emoji: '🥈', color: '#c0c0c0' };
+      case 3: return { emoji: '🥉', color: '#cd7f32' };
+      default: return { emoji: `#${rank}`, color: '#6b7280' };
+    }
+  };
+  
+  const getStatDisplay = (user: LeaderboardUser, type: 'predictions' | 'profit' | 'winrate') => {
+    switch (type) {
+      case 'predictions':
+        return {
+          primary: user.predictions_count.toString(),
+          secondary: 'predictions created',
+          accent: user.total_entries > 0 ? `${user.total_entries} entries` : 'No entries'
+        };
+      case 'profit':
+        return {
+          primary: `${user.total_profit.toLocaleString()}`,
+          secondary: 'net profit',
+          accent: `${user.total_invested.toLocaleString()} invested`
+        };
+      case 'winrate':
+        return {
+          primary: `${user.win_rate}%`,
+          secondary: 'win rate',
+          accent: `${user.won_entries}/${user.total_entries} won`
+        };
+    }
+  };
+
+  return (
+    <div style={{ minHeight: '100vh', backgroundColor: '#f9fafb' }}>
+      <div style={{ padding: '20px 24px', background: 'white', borderBottom: '1px solid #e5e7eb' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+          <button onClick={onBack} style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
+            <ChevronLeft size={24} style={{ color: '#374151' }} />
+          </button>
+          <h1 style={{ fontSize: '20px', fontWeight: '700', color: '#111827', margin: 0 }}>Leaderboard</h1>
+        </div>
+      </div>
+
+      {/* Tab Navigation */}
+      <div style={{ padding: '16px 24px', background: 'white', borderBottom: '1px solid #e5e7eb' }}>
+        <div style={{ display: 'flex', gap: '4px', background: '#f3f4f6', borderRadius: '12px', padding: '4px' }}>
+          {[{ key: 'predictions', label: 'Predictions' }, { key: 'profit', label: 'Profit' }, { key: 'winrate', label: 'Win Rate' }].map(tab => (
+            <button
+              key={tab.key}
+              onClick={() => setActiveTab(tab.key as any)}
+              style={{
+                flex: 1,
+                padding: '12px 16px',
+                borderRadius: '8px',
+                border: 'none',
+                background: activeTab === tab.key ? 'white' : 'transparent',
+                color: activeTab === tab.key ? '#111827' : '#6b7280',
+                fontWeight: activeTab === tab.key ? '600' : '500',
+                fontSize: '14px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '6px',
+                transition: 'all 0.2s ease',
+                boxShadow: activeTab === tab.key ? '0 1px 3px rgba(0, 0, 0, 0.1)' : 'none'
+              }}
+            >
+              {/* Icon removed (emoji), following standard icon preference */}
+              {tab.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Leaderboard Content */}
+      <div style={{ padding: '0 24px 100px 24px' }}>
+        <div style={{ paddingTop: '16px' }}>
+          {loading ? (
+            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '40px' }}>
+              <div style={{ 
+                width: '32px', 
+                height: '32px', 
+                border: '3px solid #e5e7eb', 
+                borderTop: '3px solid #059669', 
+                borderRadius: '50%',
+                animation: 'spin 1s linear infinite'
+              }} />
+            </div>
+          ) : error ? (
+            <div style={{ 
+              background: 'white', 
+              borderRadius: '12px', 
+              padding: '24px', 
+              textAlign: 'center',
+              border: '1px solid #fecaca'
+            }}>
+              <p style={{ color: '#dc2626', margin: '0 0 12px 0' }}>Failed to load leaderboard</p>
+              <p style={{ color: '#6b7280', fontSize: '14px', margin: '0 0 16px 0' }}>{error}</p>
+              <button
+                onClick={() => fetchLeaderboardData(activeTab)}
+                style={{
+                  background: '#059669',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '8px',
+                  padding: '8px 16px',
+                  cursor: 'pointer'
+                }}
+              >
+                Retry
+              </button>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {getCurrentLeaderboard().map((user, index) => {
+              const rankBadge = getRankBadge(user.rank);
+              const statDisplay = getStatDisplay(user, activeTab);
+              const isTopThree = user.rank <= 3;
+              
+              return (
+                <motion.div
+                  key={`${activeTab}-${user.id}`}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.3, delay: index * 0.05 }}
+                  style={{
+                    background: isTopThree ? 'linear-gradient(135deg, rgba(5, 150, 105, 0.05), rgba(123, 47, 247, 0.05))' : 'white',
+                    border: isTopThree ? '2px solid rgba(5, 150, 105, 0.2)' : '1px solid #e5e7eb',
+                    borderRadius: '16px',
+                    padding: '20px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '16px',
+                    boxShadow: isTopThree ? '0 8px 24px rgba(5, 150, 105, 0.15)' : '0 2px 8px rgba(0, 0, 0, 0.05)',
+                    transition: 'all 0.2s ease',
+                    cursor: 'pointer'
+                  }}
+                  whileHover={{ scale: 1.02, y: -2 }}
+                >
+                  {/* Rank Badge */}
+                  <div style={{
+                    width: '48px',
+                    height: '48px',
+                    borderRadius: '50%',
+                    background: isTopThree ? rankBadge.color : '#f3f4f6',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: isTopThree ? '20px' : '16px',
+                    fontWeight: '700',
+                    color: isTopThree ? 'white' : '#6b7280',
+                    boxShadow: isTopThree ? '0 4px 12px rgba(0, 0, 0, 0.2)' : 'none',
+                    flexShrink: 0
+                  }}>
+                    {user.rank <= 3 ? rankBadge.emoji : user.rank}
+                  </div>
+                  
+                  {/* User Avatar */}
+                  <UserAvatar 
+                    email={user.username}
+                    username={user.username}
+                    avatarUrl={user.avatar_url}
+                    size="md"
+                    className="ring-2 ring-white"
+                  />
+                  
+                  {/* User Info */}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                      <h4 style={{
+                        fontSize: '16px',
+                        fontWeight: '700',
+                        color: '#111827',
+                        margin: 0,
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap'
+                      }}>
+                        {user.full_name || user.username}
+                      </h4>
+                      {isTopThree && (
+                        <div style={{
+                          background: 'linear-gradient(135deg, #059669, #7B2FF7)',
+                          color: 'white',
+                          fontSize: '10px',
+                          fontWeight: '700',
+                          padding: '2px 6px',
+                          borderRadius: '4px',
+                          textTransform: 'uppercase'
+                        }}>
+                          {user.rank === 1 ? 'Champion' : user.rank === 2 ? 'Elite' : 'Pro'}
+                        </div>
+                      )}
+                    </div>
+                    <p style={{
+                      color: '#6b7280',
+                      fontSize: '13px',
+                      margin: 0,
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap'
+                    }}>
+                      @{user.username} • {statDisplay.accent}
+                    </p>
+                  </div>
+                  
+                  {/* Stats */}
+                  <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                    <div style={{
+                      fontSize: '20px',
+                      fontWeight: '700',
+                      color: isTopThree ? '#059669' : '#111827',
+                      marginBottom: '2px'
+                    }}>
+                      {statDisplay.primary}
+                    </div>
+                    <div style={{
+                      fontSize: '11px',
+                      color: '#6b7280',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.5px'
+                    }}>
+                      {statDisplay.secondary}
+                    </div>
+                  </div>
+                </motion.div>
+              );
+            })}
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -1177,21 +1551,21 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigateBack, userId }) => 
       
       // Only update state if it actually changed
       if (viewingOtherUser !== isViewingOther) {
-        setViewingOtherUser(isViewingOther);
+    setViewingOtherUser(isViewingOther);
       }
-      
-      if (isViewingOther) {
+    
+    if (isViewingOther) {
         console.log('👥 Viewing other user profile:', userId);
         // Only fetch if we don't already have this user's data
         if (!profileUser || profileUser.id !== userId) {
-          fetchUserProfile(userId);
+      fetchUserProfile(userId);
         }
-      } else {
+    } else {
         console.log('👤 Viewing own profile');
         // Only update if different
         if (profileUser !== currentUser) {
-          setProfileUser(currentUser);
-        }
+      setProfileUser(currentUser);
+    }
       }
     } catch (error) {
       console.error('❌ Error in profile useEffect:', error);
@@ -1396,7 +1770,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigateBack, userId }) => 
     
     // Safety check to prevent errors when dataUser is null/undefined
     if (!dataUser || !targetUserId) {
-      return {
+    return {
         totalEarnings: 0,
         totalInvested: 0,
         winRate: 0,
@@ -1429,9 +1803,9 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigateBack, userId }) => 
         totalPredictions: userEntries.length + userCreated.length,
         rank: dataUser.rank || 0,
         joinedDate: dataUser.createdAt ? new Date(dataUser.createdAt).toLocaleDateString('en-US', { 
-          year: 'numeric', 
-          month: 'long' 
-        }) : 'Recently',
+        year: 'numeric', 
+        month: 'long' 
+      }) : 'Recently',
         level: activePredictions > 5 ? 'Expert Predictor' : activePredictions > 0 ? 'Active Predictor' : 'New Predictor'
       };
     } catch (error) {
@@ -1663,8 +2037,8 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigateBack, userId }) => 
   // Don't show settings sections when viewing another user's profile
   React.useEffect(() => {
     if (viewingOtherUser && activeSection !== 'overview') {
-      setActiveSection('overview');
-    }
+    setActiveSection('overview');
+  }
   }, [viewingOtherUser, activeSection]);
 
   // Render different sections based on activeSection (only for own profile)
@@ -1684,11 +2058,15 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigateBack, userId }) => 
     return <HelpSupport onBack={() => setActiveSection('overview')} />;
   }
 
+  if (!viewingOtherUser && activeSection === 'leaderboard') {
+    return <LeaderboardView onBack={() => setActiveSection('overview')} />;
+  }
+
   // Show loading state when fetching another user's profile
   if (viewingOtherUser && loadingProfile) {
     return (
       <div style={{ minHeight: '100vh', backgroundColor: '#f9fafb' }}>
-        <div style={{ background: 'linear-gradient(135deg, #00F5D4, #7B2FF7)', minHeight: '300px' }}>
+        <div style={{ background: 'linear-gradient(135deg, #059669, #7B2FF7)', minHeight: '300px' }}>
           <div style={{ height: '44px' }} />
           <div style={{ padding: '20px 16px', position: 'relative', zIndex: 10 }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '40px' }}>
@@ -1722,7 +2100,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigateBack, userId }) => 
             <div style={{
               width: '40px',
               height: '40px',
-              border: '3px solid #00F5D4',
+              border: '3px solid #059669',
               borderTop: '3px solid transparent',
               borderRadius: '50%',
               animation: 'spin 1s linear infinite',
@@ -1737,9 +2115,9 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigateBack, userId }) => 
 
   // Show error state if profileUser is null and we're not loading
   if (viewingOtherUser && !loadingProfile && !profileUser) {
-    return (
-      <div style={{ minHeight: '100vh', backgroundColor: '#f9fafb' }}>
-        <div style={{ background: 'linear-gradient(135deg, #00F5D4, #7B2FF7)', minHeight: '300px' }}>
+  return (
+    <div style={{ minHeight: '100vh', backgroundColor: '#f9fafb' }}>
+        <div style={{ background: 'linear-gradient(135deg, #059669, #7B2FF7)', minHeight: '300px' }}>
           <div style={{ height: '44px' }} />
           <div style={{ padding: '20px 16px', position: 'relative', zIndex: 10 }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '40px' }}>
@@ -1790,7 +2168,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigateBack, userId }) => 
               <button
                 onClick={onNavigateBack}
                 style={{
-                  background: '#00F5D4',
+                  background: '#059669',
                   color: 'white',
                   border: 'none',
                   borderRadius: '12px',
@@ -1813,7 +2191,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigateBack, userId }) => 
     <div style={{ minHeight: '100vh', backgroundColor: '#f9fafb' }}>
       {showLoadingSkeleton && (
         <div className="min-h-screen bg-gray-50">
-          <div className="bg-gradient-to-r from-purple-500 to-teal-600 pt-12 pb-6">
+          <div className="bg-gradient-to-r from-purple-500 to-emerald-600 pt-12 pb-6">
             <div className="px-6">
               <div className="flex items-center gap-4">
                 {onNavigateBack && (
@@ -1840,7 +2218,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigateBack, userId }) => 
       )}
 
       {/* Header with Gradient Background */}
-      <div style={{ background: 'linear-gradient(135deg, #00F5D4, #7B2FF7)', minHeight: '300px' }} data-tour-id="profile-header">
+      <div style={{ background: 'linear-gradient(135deg, #059669, #7B2FF7)', minHeight: '300px' }} data-tour-id="profile-header">
           {/* Decorative elements */}
           <div 
             style={{
@@ -1948,7 +2326,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigateBack, userId }) => 
                         right: '0',
                         width: '28px',
                         height: '28px',
-                        background: '#00F5D4',
+                        background: '#059669',
                         border: '2px solid white',
                         borderRadius: '50%',
                         display: 'flex',
@@ -1996,7 +2374,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigateBack, userId }) => 
                           transition: 'border-color 0.2s',
                           boxSizing: 'border-box'
                         }}
-                        onFocus={(e) => e.target.style.borderColor = '#00F5D4'}
+                        onFocus={(e) => e.target.style.borderColor = '#059669'}
                         onBlur={(e) => e.target.style.borderColor = '#e5e7eb'}
                       />
                       <input
@@ -2015,7 +2393,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigateBack, userId }) => 
                           transition: 'border-color 0.2s',
                           boxSizing: 'border-box'
                         }}
-                        onFocus={(e) => e.target.style.borderColor = '#00F5D4'}
+                        onFocus={(e) => e.target.style.borderColor = '#059669'}
                         onBlur={(e) => e.target.style.borderColor = '#e5e7eb'}
                       />
                     </div>
@@ -2035,7 +2413,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigateBack, userId }) => 
                         boxSizing: 'border-box',
                         transition: 'border-color 0.2s'
                       }}
-                      onFocus={(e) => e.target.style.borderColor = '#00F5D4'}
+                      onFocus={(e) => e.target.style.borderColor = '#059669'}
                       onBlur={(e) => e.target.style.borderColor = '#e5e7eb'}
                     />
                     <textarea
@@ -2054,7 +2432,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigateBack, userId }) => 
                         boxSizing: 'border-box',
                         transition: 'border-color 0.2s'
                       }}
-                      onFocus={(e) => e.target.style.borderColor = '#00F5D4'}
+                      onFocus={(e) => e.target.style.borderColor = '#059669'}
                       onBlur={(e) => e.target.style.borderColor = '#e5e7eb'}
                     />
                   </div>
@@ -2083,7 +2461,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigateBack, userId }) => 
                     onClick={handleSaveProfile}
                     style={{
                       padding: '8px 16px',
-                      background: '#00F5D4',
+                      background: '#059669',
                       color: 'white',
                       border: 'none',
                       borderRadius: '8px',
@@ -2096,7 +2474,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigateBack, userId }) => 
                       transition: 'background-color 0.2s'
                     }}
                     onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#7B2FF7'}
-                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#00F5D4'}
+                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#059669'}
                   >
                     <Save size={16} />
                     Save
@@ -2149,7 +2527,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigateBack, userId }) => 
                     <div style={{ fontSize: '11px', color: '#6b7280' }}>Predictions</div>
                   </div>
                   <div style={{ textAlign: 'center', padding: '6px' }}>
-                    <div style={{ fontSize: '18px', fontWeight: '700', color: '#00F5D4' }}>
+                    <div style={{ fontSize: '18px', fontWeight: '700', color: '#059669' }}>
                       {userStats.winRate}%
                     </div>
                     <div style={{ fontSize: '11px', color: '#6b7280' }}>Win Rate</div>
@@ -2192,7 +2570,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigateBack, userId }) => 
                 style={{
                   width: '40px',
                   height: '40px',
-                  background: 'rgba(16, 185, 129, 0.1)',
+                  background: 'rgba(5, 150, 105, 0.1)',
                   borderRadius: '10px',
                   display: 'flex',
                   alignItems: 'center',
@@ -2200,7 +2578,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigateBack, userId }) => 
                   flexShrink: 0
                 }}
               >
-                <DollarSign size={20} style={{ color: '#00F5D4' }} />
+                <DollarSign size={20} style={{ color: '#059669' }} />
               </div>
               <div style={{ minWidth: 0 }}>
                 <div style={{ fontSize: '16px', fontWeight: '700', color: '#111827' }}>
@@ -2248,9 +2626,39 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigateBack, userId }) => 
             boxShadow: '0 2px 8px rgba(0, 0, 0, 0.05)'
           }}
         >
-          <h3 style={{ fontSize: '18px', fontWeight: '700', color: '#111827', marginBottom: '16px', margin: '0 0 16px 0' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+            <h3 style={{ fontSize: '18px', fontWeight: '700', color: '#111827', margin: 0 }}>
             Achievements
           </h3>
+            {!viewingOtherUser && (
+              <button
+                onClick={() => setActiveSection('leaderboard')}
+                style={{
+                  background: 'rgba(5, 150, 105, 0.1)',
+                  border: '1px solid rgba(5, 150, 105, 0.3)',
+                  borderRadius: '8px',
+                  padding: '6px 12px',
+                  fontSize: '12px',
+                  fontWeight: '600',
+                  color: '#059669',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  transition: 'all 0.2s ease'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = 'rgba(5, 150, 105, 0.15)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = 'rgba(5, 150, 105, 0.1)';
+                }}
+              >
+                <Trophy size={14} />
+                Leaderboard
+              </button>
+            )}
+          </div>
           
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '12px', padding: '0 4px' }}>
             {achievements.map((achievement) => (
@@ -2258,24 +2666,48 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigateBack, userId }) => 
                 key={achievement.id}
                 style={{
                   display: 'flex',
-                  alignItems: 'center',
+                  alignItems: 'flex-start',
                   gap: '8px',
-                  padding: '10px 8px',
-                  borderRadius: '8px',
-                  backgroundColor: achievement.unlocked ? 'rgba(0, 245, 212, 0.05)' : '#f9fafb',
-                  opacity: achievement.unlocked ? 1 : 0.6,
-                  minWidth: 0
+                  padding: '12px 10px',
+                  borderRadius: '10px',
+                  backgroundColor: achievement.unlocked ? 'rgba(5, 150, 105, 0.05)' : '#f9fafb',
+                  border: achievement.unlocked ? '1px solid rgba(5, 150, 105, 0.2)' : '1px solid #e5e7eb',
+                  opacity: achievement.unlocked ? 1 : 0.7,
+                  minWidth: 0,
+                  minHeight: '70px',
+                  transition: 'all 0.2s ease'
                 }}
               >
-                <div style={{ fontSize: '20px', flexShrink: 0 }}>{achievement.icon}</div>
+                <div style={{ fontSize: '20px', flexShrink: 0, paddingTop: '2px' }}>{achievement.icon}</div>
                 <div style={{ flex: 1, minWidth: 0, overflow: 'hidden' }}>
-                  <div style={{ fontSize: '14px', fontWeight: '600', color: '#111827', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  <div style={{ 
+                    fontSize: '13px', 
+                    fontWeight: '600', 
+                    color: '#111827', 
+                    lineHeight: '1.3',
+                    marginBottom: '2px',
+                    wordBreak: 'break-word',
+                    hyphens: 'auto'
+                  }}>
                     {achievement.title}
+                  </div>
+                  <div style={{
+                    fontSize: '11px',
+                    color: '#6b7280',
+                    lineHeight: '1.3',
+                    wordBreak: 'break-word',
+                    hyphens: 'auto',
+                    display: '-webkit-box',
+                    WebkitLineClamp: 2,
+                    WebkitBoxOrient: 'vertical',
+                    overflow: 'hidden'
+                  }}>
+                    {achievement.description}
                   </div>
                 </div>
                 {achievement.unlocked && (
-                  <div style={{ flexShrink: 0 }}>
-                    <Trophy size={16} style={{ color: '#00F5D4' }} />
+                  <div style={{ flexShrink: 0, paddingTop: '2px' }}>
+                    <Trophy size={14} style={{ color: '#059669' }} />
                   </div>
                 )}
               </div>
@@ -2362,74 +2794,74 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigateBack, userId }) => 
         {/* Account Info and Logout - only for own profile */}
         {!viewingOtherUser && (
           <>
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: 0.3 }}
-              style={{
-                background: 'white',
-                borderRadius: '12px',
-                padding: '20px',
-                marginBottom: '16px',
-                boxShadow: '0 2px 8px rgba(0, 0, 0, 0.05)'
-              }}
-            >
-              <h3 style={{ fontSize: '18px', fontWeight: '700', color: '#111827', marginBottom: '16px', margin: '0 0 16px 0' }}>
-                Account Information
-              </h3>
-              
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ fontSize: '14px', color: '#6b7280' }}>Email</span>
-                  <span style={{ fontSize: '14px', fontWeight: '500', color: '#111827' }}>
-                    {currentUser?.email || 'Not provided'}
-                  </span>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ fontSize: '14px', color: '#6b7280' }}>Member Since</span>
-                  <span style={{ fontSize: '14px', fontWeight: '500', color: '#111827' }}>
-                    {userStats.joinedDate}
-                  </span>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ fontSize: '14px', color: '#6b7280' }}>Account Status</span>
-                  <span style={{ fontSize: '14px', fontWeight: '500', color: '#00F5D4' }}>
-                    Active
-                  </span>
-                </div>
-              </div>
-            </motion.div>
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.3 }}
+          style={{
+            background: 'white',
+            borderRadius: '12px',
+            padding: '20px',
+            marginBottom: '16px',
+            boxShadow: '0 2px 8px rgba(0, 0, 0, 0.05)'
+          }}
+        >
+          <h3 style={{ fontSize: '18px', fontWeight: '700', color: '#111827', marginBottom: '16px', margin: '0 0 16px 0' }}>
+            Account Information
+          </h3>
+          
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: '14px', color: '#6b7280' }}>Email</span>
+              <span style={{ fontSize: '14px', fontWeight: '500', color: '#111827' }}>
+                {currentUser?.email || 'Not provided'}
+              </span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: '14px', color: '#6b7280' }}>Member Since</span>
+              <span style={{ fontSize: '14px', fontWeight: '500', color: '#111827' }}>
+                {userStats.joinedDate}
+              </span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: '14px', color: '#6b7280' }}>Account Status</span>
+                  <span style={{ fontSize: '14px', fontWeight: '500', color: '#059669' }}>
+                Active
+              </span>
+            </div>
+          </div>
+        </motion.div>
 
-            <motion.button
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: 0.4 }}
-              style={{
-                width: '100%',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '8px',
-                padding: '16px',
-                background: 'rgba(239, 68, 68, 0.1)',
-                color: '#dc2626',
-                border: 'none',
-                borderRadius: '12px',
-                cursor: 'pointer',
-                fontSize: '16px',
-                fontWeight: '600',
-                marginBottom: '20px',
-                transition: 'background-color 0.2s'
-              }}
-              onClick={handleLogout}
-              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.15)'}
-              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.1)'}
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-            >
-              <LogOut size={20} />
-              <span>Sign Out</span>
-            </motion.button>
+        <motion.button
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.4 }}
+          style={{
+            width: '100%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '8px',
+            padding: '16px',
+            background: 'rgba(239, 68, 68, 0.1)',
+            color: '#dc2626',
+            border: 'none',
+            borderRadius: '12px',
+            cursor: 'pointer',
+            fontSize: '16px',
+            fontWeight: '600',
+            marginBottom: '20px',
+            transition: 'background-color 0.2s'
+          }}
+          onClick={handleLogout}
+          onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.15)'}
+          onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.1)'}
+          whileHover={{ scale: 1.02 }}
+          whileTap={{ scale: 0.98 }}
+        >
+          <LogOut size={20} />
+          <span>Sign Out</span>
+        </motion.button>
           </>
         )}
       </div>

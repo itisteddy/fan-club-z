@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase';
 
 export interface Transaction {
   id: string;
-  type: 'deposit' | 'withdraw' | 'prediction' | 'prediction_lock' | 'prediction_release' | 'win' | 'loss' | 'refund' | 'transfer_in' | 'transfer_out';
+  type: 'deposit' | 'withdraw' | 'prediction' | 'prediction_lock' | 'prediction_release' | 'win' | 'loss' | 'refund' | 'transfer_in' | 'transfer_out' | 'bet_lock' | 'bet_release';
   amount: number;
   description: string;
   date: Date;
@@ -51,9 +51,7 @@ interface WalletState {
 
 export const useWalletStore = create<WalletState>()(
     (set, get) => ({
-      balances: [
-        { currency: 'USD', available: 1000, reserved: 0, total: 1000 }, // Start with $1000 for demo
-      ],
+      balances: [],
       transactions: [],
       isLoading: false,
       error: null,
@@ -195,11 +193,10 @@ export const useWalletStore = create<WalletState>()(
 
         } catch (error) {
           console.error('❌ Error initializing wallet:', error);
-          // Use demo balance as final fallback
           set({
-            balances: [{ currency: 'USD', available: 1000, reserved: 0, total: 1000 }],
+            balances: [{ currency: 'USD', available: 0, reserved: 0, total: 0 }],
             isLoading: false,
-            error: null
+            error: 'Failed to initialize wallet'
           });
         }
       },
@@ -208,7 +205,7 @@ export const useWalletStore = create<WalletState>()(
         await get().initializeWallet();
       },
 
-      // NEW: Lock funds method for predictions
+      // Lock funds method for predictions (creates bet_lock transaction)
       lockFunds: async (amount: number, currency: 'USD' = 'USD') => {
         try {
           // Validate amount
@@ -230,11 +227,11 @@ export const useWalletStore = create<WalletState>()(
           // Create transaction record for locking funds
           const transaction: Transaction = {
             id: `tx_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-            type: 'prediction',
+            type: 'bet_lock',
             amount: amount,
             description: 'Funds locked for prediction',
             date: new Date(),
-            status: 'pending',
+            status: 'completed',
             reference: `LOCK_${Date.now()}`,
             currency: currency,
             fee: 0
@@ -252,7 +249,7 @@ export const useWalletStore = create<WalletState>()(
 
           console.log('✅ Funds locked successfully with transaction record:', amount, currency);
 
-          // Try to update database if user is authenticated
+          // Persist to database if user is authenticated
           try {
             const { data: { user } } = await supabase.auth.getUser();
             if (user) {
@@ -266,6 +263,19 @@ export const useWalletStore = create<WalletState>()(
                   updated_at: new Date().toISOString()
                 }, {
                   onConflict: 'user_id,currency'
+                });
+
+              await supabase
+                .from('wallet_transactions')
+                .insert({
+                  user_id: user.id,
+                  type: transaction.type,
+                  currency: transaction.currency,
+                  amount: transaction.amount,
+                  status: transaction.status,
+                  reference: transaction.reference,
+                  description: transaction.description,
+                  created_at: new Date().toISOString()
                 });
             }
           } catch (dbError) {
@@ -410,6 +420,37 @@ export const useWalletStore = create<WalletState>()(
             error: null
           }));
 
+          // Persist to database
+          try {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (user) {
+              await supabase
+                .from('wallets')
+                .upsert({
+                  user_id: user.id,
+                  currency: currency,
+                  available_balance: newAvailable,
+                  reserved_balance: currentBalance.reserved,
+                  updated_at: new Date().toISOString()
+                }, { onConflict: 'user_id,currency' });
+
+              await supabase
+                .from('wallet_transactions')
+                .insert({
+                  user_id: user.id,
+                  type: transaction.type,
+                  currency: transaction.currency,
+                  amount: transaction.amount,
+                  status: transaction.status,
+                  reference: transaction.reference,
+                  description: transaction.description,
+                  created_at: new Date().toISOString()
+                });
+            }
+          } catch (dbError) {
+            console.error('❌ Failed to persist withdrawal:', dbError);
+          }
+
           console.log('✅ Withdrawal successful:', amount, currency);
           return transaction;
 
@@ -440,10 +481,10 @@ export const useWalletStore = create<WalletState>()(
           const newReserved = currentBalance.reserved + amount;
           const newTotal = newAvailable + newReserved;
 
-          // Create transaction
+          // Create transaction (lock)
           const transaction: Transaction = {
             id: `tx_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-            type: 'prediction',
+            type: 'bet_lock',
             amount: amount,
             description: description,
             date: new Date(),
@@ -465,6 +506,37 @@ export const useWalletStore = create<WalletState>()(
             isLoading: false,
             error: null
           }));
+
+          // Persist to database
+          try {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (user) {
+              await supabase
+                .from('wallets')
+                .upsert({
+                  user_id: user.id,
+                  currency: currency,
+                  available_balance: newAvailable,
+                  reserved_balance: newReserved,
+                  updated_at: new Date().toISOString()
+                }, { onConflict: 'user_id,currency' });
+
+              await supabase
+                .from('wallet_transactions')
+                .insert({
+                  user_id: user.id,
+                  type: transaction.type,
+                  currency: transaction.currency,
+                  amount: transaction.amount,
+                  status: transaction.status,
+                  reference: transaction.reference,
+                  description: transaction.description,
+                  created_at: new Date().toISOString()
+                });
+            }
+          } catch (dbError) {
+            console.error('❌ Failed to persist prediction lock:', dbError);
+          }
 
           console.log('✅ Prediction made successfully:', amount, currency);
           return transaction;
@@ -512,6 +584,38 @@ export const useWalletStore = create<WalletState>()(
             error: null
           }));
 
+          // Persist to database
+          try {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (user) {
+              await supabase
+                .from('wallets')
+                .upsert({
+                  user_id: user.id,
+                  currency: currency,
+                  available_balance: newAvailable,
+                  reserved_balance: newReserved,
+                  updated_at: new Date().toISOString()
+                }, { onConflict: 'user_id,currency' });
+
+              await supabase
+                .from('wallet_transactions')
+                .insert({
+                  user_id: user.id,
+                  type: 'bet_release',
+                  currency: transaction.currency,
+                  amount: transaction.amount,
+                  status: transaction.status,
+                  reference: transaction.reference,
+                  description: transaction.description,
+                  prediction_id: predictionId,
+                  created_at: new Date().toISOString()
+                });
+            }
+          } catch (dbError) {
+            console.error('❌ Failed to persist win:', dbError);
+          }
+
           console.log('✅ Win recorded successfully:', amount, currency);
           return transaction;
 
@@ -556,6 +660,38 @@ export const useWalletStore = create<WalletState>()(
             isLoading: false,
             error: null
           }));
+
+          // Persist to database
+          try {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (user) {
+              await supabase
+                .from('wallets')
+                .upsert({
+                  user_id: user.id,
+                  currency: currency,
+                  available_balance: currentBalance?.available || 0,
+                  reserved_balance: newReserved,
+                  updated_at: new Date().toISOString()
+                }, { onConflict: 'user_id,currency' });
+
+              await supabase
+                .from('wallet_transactions')
+                .insert({
+                  user_id: user.id,
+                  type: 'loss',
+                  currency: transaction.currency,
+                  amount: transaction.amount,
+                  status: transaction.status,
+                  reference: transaction.reference,
+                  description: transaction.description,
+                  prediction_id: predictionId,
+                  created_at: new Date().toISOString()
+                });
+            }
+          } catch (dbError) {
+            console.error('❌ Failed to persist loss:', dbError);
+          }
 
           console.log('✅ Loss recorded successfully:', amount, currency);
           return transaction;
@@ -611,6 +747,38 @@ export const useWalletStore = create<WalletState>()(
             isLoading: false,
             error: null
           }));
+
+          // Persist to database
+          try {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (user) {
+              await supabase
+                .from('wallets')
+                .upsert({
+                  user_id: user.id,
+                  currency: currency,
+                  available_balance: newAvailable,
+                  reserved_balance: currentBalance.reserved,
+                  updated_at: new Date().toISOString()
+                }, { onConflict: 'user_id,currency' });
+
+              await supabase
+                .from('wallet_transactions')
+                .insert({
+                  user_id: user.id,
+                  type: transaction.type,
+                  currency: transaction.currency,
+                  amount: transaction.amount,
+                  status: transaction.status,
+                  reference: transaction.reference,
+                  description: transaction.description,
+                  to_user: toUser,
+                  created_at: new Date().toISOString()
+                });
+            }
+          } catch (dbError) {
+            console.error('❌ Failed to persist transfer:', dbError);
+          }
 
           console.log('✅ Transfer successful:', amount, currency);
           return transaction;

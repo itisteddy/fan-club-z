@@ -37,15 +37,19 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
     getTransactionHistory,
     addFunds, 
     resetDemoBalance,
-    isDemoMode 
+    isDemoMode,
+    initializeWallet 
   } = useWalletStore();
   const { user } = useAuthStore();
   const [, setLocation] = useLocation();
 
-  // Scroll to top when component mounts
+  // Initialize wallet and scroll to top when component mounts
   useEffect(() => {
     scrollToTop({ delay: 200 });
-  }, []);
+    if (user?.id) {
+      initializeWallet();
+    }
+  }, [user?.id, initializeWallet]);
 
   const usdBalance = getBalance('USD') || 0;
   const transactions = getTransactionHistory({ currency: 'USD' }) || [];
@@ -115,13 +119,13 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
   const getTransactionIcon = (type: string) => {
     switch (type) {
       case 'deposit':
-        return <Download size={16} className="text-teal-500" />;
+        return <Download size={16} className="text-emerald-500" />;
       case 'withdrawal':
         return <Upload size={16} className="text-red-500" />;
       case 'prediction':
         return <TrendingUp size={16} className="text-blue-500" />;
       case 'win':
-        return <CheckCircle size={16} className="text-teal-500" />;
+        return <CheckCircle size={16} className="text-emerald-500" />;
       default:
         return <DollarSign size={16} className="text-gray-500" />;
     }
@@ -131,7 +135,7 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
     switch (type) {
       case 'deposit':
       case 'win':
-        return 'text-teal-600';
+        return 'text-emerald-600';
       case 'withdrawal':
       case 'prediction':
         return 'text-red-600';
@@ -192,7 +196,7 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.1 }}
-            className="mx-4 mt-4 bg-gradient-to-br from-purple-500 to-teal-600 rounded-2xl p-6 text-white"
+            className="mx-4 mt-4 bg-gradient-to-br from-purple-500 to-emerald-600 rounded-2xl p-6 text-white"
             data-tour-id="wallet-balance-card"
           >
             <div className="flex items-center justify-between mb-4">
@@ -243,7 +247,7 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
             onClick={() => setActiveTab('overview')}
             className={`flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-all ${
               activeTab === 'overview'
-                ? 'bg-teal-500 text-white'
+                ? 'bg-emerald-500 text-white'
                 : 'text-gray-600 hover:text-gray-900'
             }`}
           >
@@ -253,7 +257,7 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
             onClick={() => setActiveTab('transactions')}
             className={`flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-all ${
               activeTab === 'transactions'
-                ? 'bg-teal-500 text-white'
+                ? 'bg-emerald-500 text-white'
                 : 'text-gray-600 hover:text-gray-900'
             }`}
           >
@@ -277,7 +281,7 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
                 <div className="grid grid-cols-2 gap-4">
                 <div className="bg-white rounded-xl p-4 border border-gray-100">
                   <div className="flex items-center gap-2 mb-2">
-                    <TrendingUp size={16} className="text-teal-500" />
+                    <TrendingUp size={16} className="text-emerald-500" />
                     <span className="text-xs text-gray-500 uppercase tracking-wide">Total Won</span>
                   </div>
                   <div className="text-lg font-bold text-gray-900">
@@ -408,7 +412,7 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
                     onClick={() => setCustomAmount(amount.toString())}
                     className={`py-3 px-4 rounded-lg border-2 text-sm font-medium transition-all ${
                       customAmount === amount.toString()
-                        ? 'border-teal-500 bg-teal-50 text-teal-700'
+                        ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
                         : 'border-gray-200 text-gray-700 hover:border-gray-300'
                     }`}
                   >
@@ -450,7 +454,7 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
                   className={`flex-1 py-3 rounded-lg font-medium transition-colors ${
                     !customAmount || parseFloat(customAmount) <= 0 || isAddingFunds
                       ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                      : 'bg-teal-600 text-white hover:bg-green-700'
+                      : 'bg-emerald-600 text-white hover:bg-green-700'
                   }`}
                 >
                   {isAddingFunds ? (
