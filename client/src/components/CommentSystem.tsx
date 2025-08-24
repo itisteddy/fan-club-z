@@ -4,6 +4,7 @@ import { useCommentsForPrediction } from '../store/unifiedCommentStore';
 import { MessageCircle, Heart, Reply, MoreHorizontal, Flag, Edit, Trash2 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import TappableUsername from './TappableUsername';
+import toast from 'react-hot-toast';
 
 interface CommentSystemProps {
   predictionId: string;
@@ -126,6 +127,12 @@ const CommentSystem: React.FC<CommentSystemProps> = ({ predictionId }) => {
     console.log(`📊 CommentSystem for ${predictionId}: count=${commentCount}, comments.length=${comments.length}`);
   }, [predictionId, commentCount, comments.length]);
 
+  // Client-side pagination for long threads
+  const [visibleCount, setVisibleCount] = useState(10);
+  useEffect(() => {
+    setVisibleCount(Math.min(10, comments.length || 0));
+  }, [comments.length]);
+
   // Handle adding a comment
   const handleAddComment = useCallback(async (parentId?: string) => {
     const content = parentId ? (replyTexts[parentId] || '') : mainCommentText;
@@ -204,18 +211,48 @@ const CommentSystem: React.FC<CommentSystemProps> = ({ predictionId }) => {
     try {
       await editComment(commentId, content);
       setEditingComment(null);
+      toast.success('Comment updated');
     } catch (e) {
       console.error('Failed to edit comment:', e);
+      toast.error('Failed to update comment');
     }
   }, [editTexts, editComment]);
 
-  const confirmDelete = useCallback(async (commentId: string) => {
+  const confirmDelete = useCallback(async (comment: any) => {
     try {
-      await deleteComment(commentId);
+      const deletedSnapshot = { ...comment };
+      await deleteComment(comment.id);
+      toast((t) => (
+        <div className="flex items-center gap-3">
+          <span>Comment deleted</span>
+          <button
+            onClick={async () => {
+              toast.dismiss(t.id);
+              try {
+                // Re-create deleted comment (best-effort restore)
+                await addComment(deletedSnapshot.content, deletedSnapshot.parent_comment_id || undefined, user ? {
+                  id: user.id,
+                  username: user.firstName || user.email?.split('@')[0] || 'Anonymous',
+                  full_name: `${user.firstName} ${user.lastName}`.trim() || user.email?.split('@')[0] || 'Anonymous User',
+                  avatar_url: user.avatar,
+                  is_verified: false
+                } : undefined);
+                toast.success('Comment restored');
+              } catch {
+                toast.error('Unable to restore comment');
+              }
+            }}
+            className="px-2 py-1 text-xs bg-gray-100 hover:bg-gray-200 rounded"
+          >
+            Undo
+          </button>
+        </div>
+      ), { duration: 5000 });
     } catch (e) {
       console.error('Failed to delete comment:', e);
+      toast.error('Failed to delete comment');
     }
-  }, [deleteComment]);
+  }, [deleteComment, addComment, user]);
 
   const startReply = useCallback((commentId: string) => {
     setReplyTo(commentId);
@@ -235,6 +272,10 @@ const CommentSystem: React.FC<CommentSystemProps> = ({ predictionId }) => {
     const [showOptions, setShowOptions] = useState(false);
     const isCurrentlyEditing = editingComment === comment.id;
     const isCurrentlyReplying = replyTo === comment.id;
+
+    const [showReplies, setShowReplies] = useState(true);
+
+    const repliesCount = (comment.replies_count ?? (comment.replies?.length || 0)) || 0;
 
     return (
       <div className={`comment-item ${isReply ? 'ml-8 pl-4 border-l-2 border-gray-100' : ''} p-4 bg-white rounded-lg border border-gray-100 shadow-sm hover:shadow-md transition-shadow`}>
@@ -333,6 +374,15 @@ const CommentSystem: React.FC<CommentSystemProps> = ({ predictionId }) => {
                 </button>
               )}
 
+              {!isReply && repliesCount > 0 && (
+                <button
+                  onClick={() => setShowReplies(!showReplies)}
+                  className="text-gray-500 hover:text-gray-700"
+                >
+                  {showReplies ? `Hide replies (${repliesCount})` : `Show replies (${repliesCount})`}
+                </button>
+              )}
+
               {/* Options menu */}
               <div className="relative">
                 <button
@@ -364,7 +414,7 @@ const CommentSystem: React.FC<CommentSystemProps> = ({ predictionId }) => {
                           <button
                             onClick={() => {
                               setShowOptions(false);
-                              confirmDelete(comment.id);
+                              confirmDelete(comment);
                             }}
                             className="flex items-center w-full px-3 py-2 text-sm text-red-600 hover:bg-red-50"
                           >
@@ -426,7 +476,7 @@ const CommentSystem: React.FC<CommentSystemProps> = ({ predictionId }) => {
             )}
 
             {/* Replies */}
-            {comment.replies && comment.replies.length > 0 && (
+            {showReplies && comment.replies && comment.replies.length > 0 && (
               <div className="mt-3">
                 {comment.replies.map((reply: any, rIndex: number) => (
                   <CommentItem key={reply.id || `${predictionId}-reply-${rIndex}`} comment={reply} isReply />
