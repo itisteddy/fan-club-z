@@ -69,6 +69,8 @@ const CommentSystem: React.FC<CommentSystemProps> = ({ predictionId }) => {
     fetchComments,
     addComment,
     toggleCommentLike,
+    editComment,
+    deleteComment,
     clearError
   } = useCommentsForPrediction(predictionId);
 
@@ -196,6 +198,25 @@ const CommentSystem: React.FC<CommentSystemProps> = ({ predictionId }) => {
     });
   }, []);
 
+  const confirmEdit = useCallback(async (commentId: string) => {
+    const content = (editTexts[commentId] || '').trim();
+    if (!content) return;
+    try {
+      await editComment(commentId, content);
+      setEditingComment(null);
+    } catch (e) {
+      console.error('Failed to edit comment:', e);
+    }
+  }, [editTexts, editComment]);
+
+  const confirmDelete = useCallback(async (commentId: string) => {
+    try {
+      await deleteComment(commentId);
+    } catch (e) {
+      console.error('Failed to delete comment:', e);
+    }
+  }, [deleteComment]);
+
   const startReply = useCallback((commentId: string) => {
     setReplyTo(commentId);
     setReplyTexts(prev => ({ ...prev, [commentId]: '' }));
@@ -268,10 +289,7 @@ const CommentSystem: React.FC<CommentSystemProps> = ({ predictionId }) => {
                     </span>
                     <div className="flex space-x-2">
                       <button
-                        onClick={() => {
-                          // TODO: Implement edit functionality
-                          setEditingComment(null);
-                        }}
+                        onClick={() => confirmEdit(comment.id)}
                         disabled={!(editTexts[comment.id] || '').trim()}
                         className="px-3 py-1 bg-teal-600 text-white text-xs rounded hover:bg-teal-700 disabled:opacity-50 disabled:cursor-not-allowed"
                       >
@@ -346,7 +364,7 @@ const CommentSystem: React.FC<CommentSystemProps> = ({ predictionId }) => {
                           <button
                             onClick={() => {
                               setShowOptions(false);
-                              // TODO: Implement delete functionality
+                              confirmDelete(comment.id);
                             }}
                             className="flex items-center w-full px-3 py-2 text-sm text-red-600 hover:bg-red-50"
                           >

@@ -61,6 +61,12 @@ interface CommentActions {
   // Add a new comment
   addComment: (predictionId: string, content: string, parentCommentId?: string) => Promise<void>;
   
+  // Edit an existing comment
+  editComment: (predictionId: string, commentId: string, content: string) => Promise<void>;
+
+  // Delete a comment
+  deleteComment: (predictionId: string, commentId: string) => Promise<void>;
+
   // Toggle like on a comment
   toggleCommentLike: (commentId: string, predictionId: string) => Promise<void>;
   
@@ -433,6 +439,118 @@ export const useUnifiedCommentStore = create<CommentState & CommentActions>()(
         } catch (error) {
           console.error('❌ Failed to toggle like:', error);
           // Don't revert the optimistic update since it might still work locally
+        }
+      },
+
+      // Edit an existing comment
+      editComment: async (predictionId: string, commentId: string, content: string) => {
+        if (!predictionId?.trim() || !commentId?.trim()) {
+          console.warn('⚠️ Cannot edit comment: invalid parameters');
+          return;
+        }
+
+        if (!content?.trim()) {
+          console.warn('⚠️ Cannot edit comment: empty content');
+          return;
+        }
+
+        try {
+          const response = await fetch(
+            `${API_BASE_URL}/api/v2/social/comments/${commentId}`,
+            {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ content: content.trim() })
+            }
+          );
+
+          if (!response.ok) {
+            throw new Error(`API responded with ${response.status}`);
+          }
+
+          // Update local state
+          set((state) => {
+            const updateContent = (c: UnifiedComment): UnifiedComment => {
+              if (c.id === commentId) {
+                return { ...c, content: content.trim(), is_edited: true, updated_at: new Date().toISOString() };
+              }
+              if (c.replies) {
+                return { ...c, replies: c.replies.map(updateContent) };
+              }
+              return c;
+            };
+
+            return {
+              commentsByPrediction: {
+                ...state.commentsByPrediction,
+                [predictionId]: (state.commentsByPrediction[predictionId] || []).map(updateContent)
+              }
+            };
+          });
+        } catch (error) {
+          console.error('❌ Failed to edit comment:', error);
+          throw error;
+        }
+      },
+
+      // Delete a comment
+      deleteComment: async (predictionId: string, commentId: string) => {
+        if (!predictionId?.trim() || !commentId?.trim()) {
+          console.warn('⚠️ Cannot delete comment: invalid parameters');
+          return;
+        }
+
+        try {
+          const response = await fetch(
+            `${API_BASE_URL}/api/v2/social/comments/${commentId}`,
+            { method: 'DELETE' }
+          );
+
+          if (!response.ok) {
+            throw new Error(`API responded with ${response.status}`);
+          }
+
+          set((state) => {
+            let decreasedTopLevel = false;
+
+            const removeById = (arr: UnifiedComment[]): UnifiedComment[] => {
+              const result: UnifiedComment[] = [];
+              for (const item of arr) {
+                if (item.id === commentId) {
+                  decreasedTopLevel = true;
+                  continue; // skip
+                }
+                if (item.replies && item.replies.length > 0) {
+                  const before = item.replies.length;
+                  const pruned = removeById(item.replies);
+                  const after = pruned.length;
+                  if (after !== before) {
+                    result.push({ ...item, replies: pruned, replies_count: Math.max(0, (item.replies_count || before) - (before - after)) });
+                    continue;
+                  }
+                }
+                result.push(item);
+              }
+              return result;
+            };
+
+            const current = state.commentsByPrediction[predictionId] || [];
+            const updated = removeById(current);
+
+            return {
+              commentsByPrediction: {
+                ...state.commentsByPrediction,
+                [predictionId]: updated
+              },
+              commentCounts: {
+                ...state.commentCounts,
+                [predictionId]: Math.max(0, (state.commentCounts[predictionId] || updated.length) - (decreasedTopLevel ? 1 : 0))
+              }
+            };
+          });
+        } catch (error) {
+          console.error('❌ Failed to delete comment:', error);
+          throw error;
         }
       },
     }),
