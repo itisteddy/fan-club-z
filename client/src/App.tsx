@@ -416,6 +416,7 @@ function App() {
                 <Route path="/" component={DiscoverPageWrapper} />
                 <Route path="/discover" component={DiscoverPageWrapper} />
                 <Route path="/predictions" component={PredictionsPageWrapper} />
+                <Route path="/predictions/:id" component={PredictionDetailsWrapper} />
                 <Route path="/bets" component={PredictionsPageWrapper} />
                 <Route path="/create" component={CreatePredictionPageWrapper} />
                 <Route path="/profile" component={MyProfilePageWrapper} />

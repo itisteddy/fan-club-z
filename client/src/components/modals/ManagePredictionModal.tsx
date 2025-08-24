@@ -561,14 +561,14 @@ const ManagePredictionModal: React.FC<ManagePredictionModalProps> = ({
           </div>
         </div>
 
-      <div className="flex gap-3">
+      <div className="sticky bottom-0 left-0 right-0 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/75 border-t border-gray-100 p-4 flex items-center justify-end">
         <button
-            onClick={handleSaveSettings}
-            disabled={savingSettings}
-          className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50"
+          onClick={handleSaveSettings}
+          disabled={savingSettings}
+          className="inline-flex items-center justify-center gap-2 px-5 py-3 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50"
         >
           {savingSettings ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
-                Save Settings
+          <span>Save Settings</span>
         </button>
       </div>
 
