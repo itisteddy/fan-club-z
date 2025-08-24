@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Check, AlertTriangle, DollarSign, Users, Trophy } from 'lucide-react';
-import { Prediction } from '../../store/predictionStore';
+import { Prediction, PredictionOption, usePredictionStore } from '../../store/predictionStore';
 import useSettlement from '../../hooks/useSettlement';
 import { Button } from '../ui/button';
 import { Textarea } from '../ui/textarea';
@@ -26,6 +26,7 @@ const SettlementModal: React.FC<SettlementModalProps> = ({
   const [proofUrl, setProofUrl] = useState('');
   const [reason, setReason] = useState('');
   const [showConfirmation, setShowConfirmation] = useState(false);
+  const [options, setOptions] = useState<PredictionOption[]>(prediction.options || []);
 
   const { settleManually, isSettling, settlementError, clearError } = useSettlement();
   const { notifySettlementReady } = useNotificationStore();
@@ -77,16 +78,34 @@ const SettlementModal: React.FC<SettlementModalProps> = ({
     onClose();
   };
 
-  // Only log options once when modal opens
+  // Ensure options are loaded even if parent did not pass them yet
+  const { fetchPredictionById } = usePredictionStore();
   React.useEffect(() => {
-    if (!prediction.options || prediction.options.length === 0) {
-      console.warn('⚠️ SettlementModal: No options available for prediction:', prediction.id);
-    } else {
-      console.log('✅ SettlementModal: Found', prediction.options.length, 'options for prediction:', prediction.id);
-    }
-  }, [prediction.id, prediction.options?.length]);
+    let isMounted = true;
+    const ensureOptions = async () => {
+      try {
+        if (prediction.options && prediction.options.length > 0) {
+          if (!isMounted) return;
+          setOptions(prediction.options);
+          console.log('✅ SettlementModal: Using options from props:', prediction.options.length);
+          return;
+        }
+        const full = await fetchPredictionById(String(prediction.id));
+        if (isMounted && full?.options?.length) {
+          setOptions(full.options);
+          console.log('✅ SettlementModal: Loaded options via fetch:', full.options.length);
+        } else if (isMounted) {
+          console.warn('⚠️ SettlementModal: No options available for prediction:', prediction.id);
+        }
+      } catch (err) {
+        console.warn('⚠️ SettlementModal: Failed to ensure options:', err);
+      }
+    };
+    ensureOptions();
+    return () => { isMounted = false; };
+  }, [prediction.id]);
   
-  const selectedOption = prediction.options?.find(opt => opt.id === selectedOptionId);
+  const selectedOption = options.find(opt => opt.id === selectedOptionId);
   const totalPool = prediction.pool_total || 0;
   const participantCount = prediction.participant_count || 0;
   const platformFee = (totalPool * 2.5) / 100;
@@ -120,7 +139,7 @@ const SettlementModal: React.FC<SettlementModalProps> = ({
               </div>
 
               {/* Content */}
-              <div className="p-6 space-y-6">
+              <div className="p-6 space-y-6 pb-24">
                 {/* Prediction Info */}
                 <div className="bg-gray-50 rounded-lg p-4">
                   <h3 className="font-medium text-gray-900 mb-2 line-clamp-2">
@@ -144,7 +163,7 @@ const SettlementModal: React.FC<SettlementModalProps> = ({
                     Select Winning Option *
                   </label>
                   <div className="space-y-2">
-                    {!prediction.options || prediction.options.length === 0 ? (
+                    {options.length === 0 ? (
                       <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
                         <div className="flex items-center gap-2 mb-2">
                           <AlertTriangle className="w-5 h-5 text-yellow-600" />
@@ -163,7 +182,7 @@ const SettlementModal: React.FC<SettlementModalProps> = ({
                         </p>
                       </div>
                     ) : (
-                      prediction.options.map((option) => {
+                      options.map((option) => {
                       const isSelected = selectedOptionId === option.id;
                       const optionStaked = option.total_staked || 0;
                       const percentage = totalPool > 0 ? (optionStaked / totalPool) * 100 : 0;
@@ -246,8 +265,8 @@ const SettlementModal: React.FC<SettlementModalProps> = ({
                 )}
               </div>
 
-              {/* Footer */}
-              <div className="flex items-center justify-end gap-3 p-6 border-t border-gray-100">
+              {/* Footer - sticky above bottom nav */}
+              <div className="sticky bottom-0 left-0 right-0 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/75 border-t border-gray-100 p-4 flex items-center justify-end gap-3">
                 <Button
                   variant="outline"
                   onClick={handleClose}
@@ -338,8 +357,8 @@ const SettlementModal: React.FC<SettlementModalProps> = ({
                 )}
               </div>
 
-              {/* Footer */}
-              <div className="flex items-center justify-end gap-3 p-6 border-t border-gray-100">
+              {/* Footer - sticky above bottom nav */}
+              <div className="sticky bottom-0 left-0 right-0 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/75 border-t border-gray-100 p-4 flex items-center justify-end gap-3">
                 <Button
                   variant="outline"
                   onClick={() => setShowConfirmation(false)}

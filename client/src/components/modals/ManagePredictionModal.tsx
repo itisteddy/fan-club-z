@@ -249,7 +249,7 @@ const ManagePredictionModal: React.FC<ManagePredictionModalProps> = ({
 
   const handleSharePrediction = async () => {
     try {
-      const predictionUrl = `${window.location.origin}/prediction/${prediction.id}`;
+      const predictionUrl = `${window.location.origin}/predictions/${prediction.id}`;
       const shareText = `Check out this prediction: ${prediction.title}`;
       
       // Try native sharing first (mobile devices)

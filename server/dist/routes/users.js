@@ -42,17 +42,21 @@ router.get('/leaderboard', async (req, res) => {
         for (const entry of entries || []) {
             const uid = entry.user_id;
             if (!byUser[uid]) {
-                byUser[uid] = { total_invested: 0, total_profit: 0, total_entries: 0, predictions_count: 0 };
+                byUser[uid] = { total_invested: 0, total_profit: 0, total_entries: 0, won_entries: 0, predictions_count: 0 };
             }
             byUser[uid].total_invested += entry.amount || 0;
             byUser[uid].total_profit += (entry.actual_payout || 0) - (entry.amount || 0);
             byUser[uid].total_entries += 1;
+            // Track won entries
+            if (entry.status === 'won' || (entry.actual_payout && entry.actual_payout > entry.amount)) {
+                byUser[uid].won_entries += 1;
+            }
         }
         // Process created predictions
         for (const pred of created || []) {
             const uid = pred.creator_id;
             if (!byUser[uid]) {
-                byUser[uid] = { total_invested: 0, total_profit: 0, total_entries: 0, predictions_count: 0 };
+                byUser[uid] = { total_invested: 0, total_profit: 0, total_entries: 0, won_entries: 0, predictions_count: 0 };
             }
             byUser[uid].predictions_count = (byUser[uid].predictions_count || 0) + 1;
         }
@@ -75,11 +79,12 @@ router.get('/leaderboard', async (req, res) => {
         // Combine and sort
         const leaderboard = (users || []).map(user => {
             const stats = byUser[user.id];
-            const winRate = stats.total_entries > 0 ? Math.round((stats.total_profit / stats.total_invested) * 100) : 0;
+            // Calculate actual win rate: (won entries / total entries) * 100
+            const winRate = stats.total_entries > 0 ? Math.round((stats.won_entries / stats.total_entries) * 100) : 0;
             return {
                 ...user,
                 ...stats,
-                win_rate: Math.max(0, winRate) // Ensure non-negative
+                win_rate: Math.max(0, Math.min(100, winRate)) // Ensure 0-100 range
             };
         });
         // Sort based on type
