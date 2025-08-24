@@ -696,7 +696,7 @@ const ManagePredictionModal: React.FC<ManagePredictionModalProps> = ({
               </div>
 
               {/* Tab Content */}
-            <div className="p-6 pb-28 max-h-[calc(90vh-200px)] overflow-y-auto [padding-bottom:env(safe-area-inset-bottom)]">
+            <div className="p-6 pb-40 max-h-[calc(90vh-200px)] overflow-y-auto" style={{ paddingBottom: 'max(10rem, env(safe-area-inset-bottom))' }}>
                 {activeTab === 'overview' && <OverviewTab />}
                 {activeTab === 'settings' && <SettingsTab />}
                 {activeTab === 'participants' && <ParticipantsTab />}

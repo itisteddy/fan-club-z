@@ -139,7 +139,7 @@ const SettlementModal: React.FC<SettlementModalProps> = ({
               </div>
 
               {/* Content */}
-              <div className="p-6 space-y-6 pb-28 [padding-bottom:env(safe-area-inset-bottom)]">
+              <div className="p-6 space-y-6 pb-40" style={{ paddingBottom: 'max(10rem, env(safe-area-inset-bottom))' }}>
                 {/* Prediction Info */}
                 <div className="bg-gray-50 rounded-lg p-4">
                   <h3 className="font-medium text-gray-900 mb-2 line-clamp-2">
