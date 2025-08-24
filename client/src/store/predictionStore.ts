@@ -11,7 +11,7 @@ export interface Prediction {
   description?: string;
   category: 'sports' | 'pop_culture' | 'custom' | 'esports' | 'celebrity_gossip' | 'politics';
   type: 'binary' | 'multi_outcome' | 'pool';
-  status: 'pending' | 'open' | 'closed' | 'settled' | 'disputed' | 'cancelled';
+  status: 'pending' | 'open' | 'closed' | 'settled' | 'disputed' | 'cancelled' | 'awaiting_settlement' | 'ended' | 'refunded';
   stake_min: number;
   stake_max?: number;
   pool_total: number;
