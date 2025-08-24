@@ -36,21 +36,50 @@ router.get('/predictions/:predictionId/comments', async (req, res) => {
 router.post('/predictions/:predictionId/comments', async (req, res) => {
   try {
     const { predictionId } = req.params;
-    const { content, userId, parentCommentId } = req.body;
+    const { content, userId, user, parentCommentId, parent_comment_id } = req.body;
 
-    if (!content || !userId) {
+    // Get userId from either userId field or user object
+    const actualUserId = userId || user?.id;
+    const actualParentId = parentCommentId || parent_comment_id;
+
+    console.log('📝 Comment creation request:', {
+      predictionId,
+      content: content?.substring(0, 50) + '...',
+      userId,
+      userObject: user,
+      actualUserId,
+      parentCommentId,
+      parent_comment_id,
+      actualParentId
+    });
+
+    if (!content || !actualUserId) {
+      console.log('❌ Missing required fields:', { 
+        content: !!content, 
+        contentLength: content?.length,
+        userId: !!userId,
+        userObject: !!user,
+        actualUserId: !!actualUserId,
+        fullBody: req.body 
+      });
       return res.status(400).json({
         success: false,
-        error: 'Content and userId are required'
+        error: 'Content and userId are required',
+        debug: {
+          hasContent: !!content,
+          hasUserId: !!userId,
+          hasUserObject: !!user,
+          extractedUserId: actualUserId
+        }
       });
     }
 
-    console.log(`💬 Creating comment for prediction ${predictionId} by user ${userId}`);
+    console.log(`💬 Creating comment for prediction ${predictionId} by user ${actualUserId}`);
 
-    const newComment = await socialService.createComment(userId, {
+    const newComment = await socialService.createComment(actualUserId, {
       prediction_id: predictionId,
       content: content.trim(),
-      parent_comment_id: parentCommentId || null
+      parent_comment_id: actualParentId || null
     });
 
     return res.status(201).json({
