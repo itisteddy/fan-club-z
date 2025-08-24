@@ -189,12 +189,13 @@ export const useUnifiedCommentStore = create<CommentState & CommentActions>()(
 
         const state = get();
         
-        // Check if we've already fetched this prediction recently (within 5 minutes)
+        // Cache policy: allow cache only if it is non-empty and fresh (<= 60s)
         const lastFetch = state.lastFetched[predictionId];
-        const fiveMinutesAgo = Date.now() - (5 * 60 * 1000);
-        
-        if (lastFetch && lastFetch > fiveMinutesAgo && state.commentsByPrediction[predictionId]) {
-          console.log(`⚡ Using cached comments for prediction ${predictionId} (${state.commentsByPrediction[predictionId]?.length || 0} comments)`);
+        const sixtySecondsAgo = Date.now() - (60 * 1000);
+        const cached = state.commentsByPrediction[predictionId];
+        const cachedLength = Array.isArray(cached) ? cached.length : 0;
+        if (lastFetch && lastFetch > sixtySecondsAgo && cachedLength > 0) {
+          console.log(`⚡ Using cached comments for prediction ${predictionId} (${cachedLength} comments)`);
           return;
         }
         
@@ -204,11 +205,7 @@ export const useUnifiedCommentStore = create<CommentState & CommentActions>()(
           return;
         }
 
-        // Check if we're already in the fetched set to prevent double-fetching
-        if (state.fetchedPredictions.has(predictionId) && !state.errors[predictionId]) {
-          console.log(`✅ Comments already fetched for prediction ${predictionId}`);
-          return;
-        }
+        // Do not block refetches purely because we fetched once before; rely on TTL above
 
         console.log(`🔍 Fetching comments for prediction ${predictionId}`);
         

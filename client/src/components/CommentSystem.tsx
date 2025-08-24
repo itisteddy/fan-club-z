@@ -410,8 +410,8 @@ const CommentSystem: React.FC<CommentSystemProps> = ({ predictionId }) => {
             {/* Replies */}
             {comment.replies && comment.replies.length > 0 && (
               <div className="mt-3">
-                {comment.replies.map((reply: any) => (
-                  <CommentItem key={reply.id} comment={reply} isReply />
+                {comment.replies.map((reply: any, rIndex: number) => (
+                  <CommentItem key={reply.id || `${predictionId}-reply-${rIndex}`} comment={reply} isReply />
                 ))}
               </div>
             )}
@@ -494,8 +494,8 @@ const CommentSystem: React.FC<CommentSystemProps> = ({ predictionId }) => {
       {/* Comments list */}
       {!isLoading && (
         <div className="divide-y divide-gray-100">
-          {comments.map((comment) => (
-            <CommentItem key={comment.id} comment={comment} />
+          {comments.map((comment, index) => (
+            <CommentItem key={comment.id || `${predictionId}-comment-${index}`} comment={comment} />
           ))}
         </div>
       )}
