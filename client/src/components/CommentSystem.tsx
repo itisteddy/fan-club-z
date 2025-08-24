@@ -237,7 +237,7 @@ const CommentSystem: React.FC<CommentSystemProps> = ({ predictionId }) => {
                 <span className="text-blue-500 text-xs">✓</span>
               )}
               <span className="text-xs text-gray-500">
-                {formatDistanceToNow(new Date(comment.created_at), { addSuffix: true })}
+                {comment.created_at ? formatDistanceToNow(new Date(comment.created_at), { addSuffix: true }) : 'Recently'}
               </span>
               {comment.is_edited && (
                 <span className="text-xs text-gray-400">(edited)</span>

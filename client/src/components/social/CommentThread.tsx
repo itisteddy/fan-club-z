@@ -124,7 +124,7 @@ export const CommentThread: React.FC<CommentThreadProps> = ({
                   <span className="text-xs text-gray-500">(edited)</span>
                 )}
                 <span className="text-xs text-gray-500">
-                  {formatDistanceToNow(new Date(comment.createdAt), { addSuffix: true })}
+                  {comment.createdAt ? formatDistanceToNow(new Date(comment.createdAt), { addSuffix: true }) : 'Recently'}
                 </span>
               </div>
               

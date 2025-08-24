@@ -105,7 +105,7 @@ const CommentItem = React.memo(function CommentItem({
               )}
             </div>
             <div className="comment-time">
-              {formatDate(comment.created_at)}
+              {comment.created_at ? formatDate(comment.created_at) : 'Recently'}
               {comment.is_edited && (
                 <span className="comment-edited">(edited)</span>
               )}
@@ -341,9 +341,17 @@ const EnhancedCommentSystem: React.FC<EnhancedCommentSystemProps> = ({ predictio
     
     switch (sortBy) {
       case 'newest':
-        return comments.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+        return comments.sort((a, b) => {
+          const dateA = a.created_at ? new Date(a.created_at).getTime() : 0;
+          const dateB = b.created_at ? new Date(b.created_at).getTime() : 0;
+          return dateB - dateA;
+        });
       case 'oldest':
-        return comments.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+        return comments.sort((a, b) => {
+          const dateA = a.created_at ? new Date(a.created_at).getTime() : 0;
+          const dateB = b.created_at ? new Date(b.created_at).getTime() : 0;
+          return dateA - dateB;
+        });
       case 'popular':
         return comments.sort((a, b) => (b.likes_count || 0) - (a.likes_count || 0));
       default:
