@@ -9,6 +9,7 @@ import { toast } from 'react-hot-toast';
 import { getApiUrl } from '../../config';
 import SettlementModal from './SettlementModal';
 import DisputeResolutionModal from './DisputeResolutionModal';
+import EditModal from './EditModal';
 
 interface ManagePredictionModalProps {
   isOpen: boolean;
@@ -190,26 +191,19 @@ const ManagePredictionModal: React.FC<ManagePredictionModalProps> = ({
     setShowEditModal(true);
   };
 
-  const confirmEditPrediction = async () => {
-    if (!editTitle.trim() || editTitle === prediction.title) {
-      setShowEditModal(false);
-      return;
-    }
-
+  const handleEditUpdate = async (updates: { title?: string; description?: string }) => {
     try {
       setUpdating(true);
-      console.log('🔧 Updating prediction title:', prediction.id);
+      console.log('🔧 Updating prediction:', prediction.id, updates);
       
-      await updatePrediction(String(prediction.id), { title: editTitle.trim() });
+      await updatePrediction(String(prediction.id), updates);
       
       // Refresh all data after successful update
       await refreshAllData();
       
-      toast.success('Prediction updated successfully!');
-      setShowEditModal(false);
     } catch (error) {
       console.error('Failed to update prediction:', error);
-      toast.error(error instanceof Error ? error.message : 'Failed to update prediction');
+      throw error; // Re-throw so EditModal can handle the error display
     } finally {
       setUpdating(false);
     }
@@ -719,42 +713,18 @@ const ManagePredictionModal: React.FC<ManagePredictionModalProps> = ({
         />
       )}
 
-      {/* Edit Title Modal */}
+      {/* Edit Modal */}
       {showEditModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.95 }}
-            className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6"
-          >
-            <h3 className="text-xl font-semibold text-gray-900 mb-4">Edit Prediction Title</h3>
-            <input
-              type="text"
-              value={editTitle}
-              onChange={(e) => setEditTitle(e.target.value)}
-              className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-              placeholder="Enter new title..."
-              autoFocus
-            />
-            <div className="flex gap-3 mt-6">
-              <button
-                onClick={() => setShowEditModal(false)}
-                className="flex-1 px-4 py-2 text-gray-700 bg-gray-100 rounded-xl hover:bg-gray-200 transition-colors"
-                disabled={updating}
-              >
-                Cancel
-              </button>
-              <button
-                onClick={confirmEditPrediction}
-                disabled={updating || !editTitle.trim() || editTitle === prediction.title}
-                className="flex-1 px-4 py-2 bg-purple-600 text-white rounded-xl hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              >
-                {updating ? 'Updating...' : 'Update'}
-              </button>
-            </div>
-          </motion.div>
-        </div>
+        <EditModal
+          isOpen={showEditModal}
+          onClose={() => setShowEditModal(false)}
+          prediction={{
+            id: String(prediction.id),
+            title: prediction.title,
+            description: prediction.description || ''
+          }}
+          onUpdate={handleEditUpdate}
+        />
       )}
 
       {/* Close Early Confirmation Modal */}
