@@ -1,7 +1,8 @@
 // Centralized configuration for Fan Club Z
 // Single source of truth for all configuration values
 // Production-compatible version import
-const VERSION = "2.0.67";
+import pkg from '../../package.json';
+const VERSION: string = (pkg as any).version || '0.0.0';
 import { getEnvironmentConfig } from '../lib/environment';
 
 export const APP_CONFIG = {

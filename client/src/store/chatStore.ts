@@ -3,7 +3,8 @@ import { create } from 'zustand';
 import { useAuthStore } from './authStore';
 import { getSocketUrl } from '../lib/environment';
 // Production-compatible version import
-const VERSION = "2.0.67";
+import pkg from '../../package.json';
+const VERSION: string = (pkg as any).version || '0.0.0';
 
 export interface ChatMessage {
   id: string;

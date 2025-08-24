@@ -1,5 +1,5 @@
 // Service Worker for Fan Club Z PWA
-const CACHE_NAME = 'fanclubz-v1.0.0';
+const CACHE_NAME = 'fanclubz-cache';
 const STATIC_ASSETS = [
   '/',
   '/index.html',

@@ -1,7 +1,8 @@
 // Comprehensive version management system
 // Centralized: import VERSION from shared
 // Production-compatible version import
-const SHARED_VERSION = "2.0.67";
+import pkg from '../../package.json';
+const SHARED_VERSION: string = (pkg as any).version || '0.0.0';
 
 const BASE_VERSION = SHARED_VERSION;
 
