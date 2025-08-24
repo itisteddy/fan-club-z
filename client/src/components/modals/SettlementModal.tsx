@@ -266,7 +266,7 @@ const SettlementModal: React.FC<SettlementModalProps> = ({
               </div>
 
               {/* Footer - sticky above bottom nav */}
-              <div className="sticky bottom-0 left-0 right-0 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/75 border-t border-gray-100 p-4 flex items-center justify-end gap-3">
+              <div className="sticky left-0 right-0 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/75 border-t border-gray-100 p-4 flex items-center justify-end gap-3" style={{ bottom: 'max(4rem, env(safe-area-inset-bottom))' }}>
                 <Button
                   variant="outline"
                   onClick={handleClose}
@@ -358,7 +358,7 @@ const SettlementModal: React.FC<SettlementModalProps> = ({
               </div>
 
               {/* Footer - sticky above bottom nav */}
-              <div className="sticky bottom-0 left-0 right-0 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/75 border-t border-gray-100 p-4 flex items-center justify-end gap-3">
+              <div className="sticky left-0 right-0 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/75 border-t border-gray-100 p-4 flex items-center justify-end gap-3" style={{ bottom: 'max(4rem, env(safe-area-inset-bottom))' }}>
                 <Button
                   variant="outline"
                   onClick={() => setShowConfirmation(false)}
