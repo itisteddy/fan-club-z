@@ -647,7 +647,7 @@ const ManagePredictionModal: React.FC<ManagePredictionModalProps> = ({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-          className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4"
+          className="fixed inset-0 bg-black bg-opacity-50 z-[100] flex items-center justify-center p-4"
           onClick={(e) => {
             if (e.target === e.currentTarget) {
               handleClose();
@@ -696,7 +696,7 @@ const ManagePredictionModal: React.FC<ManagePredictionModalProps> = ({
               </div>
 
               {/* Tab Content */}
-            <div className="p-6 max-h-[calc(90vh-200px)] overflow-y-auto">
+            <div className="p-6 pb-28 max-h-[calc(90vh-200px)] overflow-y-auto [padding-bottom:env(safe-area-inset-bottom)]">
                 {activeTab === 'overview' && <OverviewTab />}
                 {activeTab === 'settings' && <SettingsTab />}
                 {activeTab === 'participants' && <ParticipantsTab />}

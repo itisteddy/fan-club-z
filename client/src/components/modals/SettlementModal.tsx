@@ -116,7 +116,7 @@ const SettlementModal: React.FC<SettlementModalProps> = ({
 
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[110] p-4">
         <motion.div
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
@@ -139,7 +139,7 @@ const SettlementModal: React.FC<SettlementModalProps> = ({
               </div>
 
               {/* Content */}
-              <div className="p-6 space-y-6 pb-24">
+              <div className="p-6 space-y-6 pb-28 [padding-bottom:env(safe-area-inset-bottom)]">
                 {/* Prediction Info */}
                 <div className="bg-gray-50 rounded-lg p-4">
                   <h3 className="font-medium text-gray-900 mb-2 line-clamp-2">
