@@ -129,21 +129,21 @@ app.post('/api/v2/admin/seed-database', async (req, res) => {
 const users_1 = __importDefault(require("./routes/users"));
 const predictions_1 = __importDefault(require("./routes/predictions"));
 const prediction_entries_1 = __importDefault(require("./routes/prediction-entries"));
-// import commentsRoutes from './routes/comments'; // Temporarily disabled due to TypeScript errors
+const social_1 = __importDefault(require("./routes/social"));
 const settlement_1 = __importDefault(require("./routes/settlement"));
 const storage_1 = require("./startup/storage");
 // Use routes
 app.use('/api/v2/users', users_1.default);
 app.use('/api/v2/predictions', predictions_1.default);
 app.use('/api/v2/prediction-entries', prediction_entries_1.default);
-// app.use('/api/v2/social', commentsRoutes); // Temporarily disabled
+app.use('/api/v2/social', social_1.default);
 app.use('/api/v2/settlement', settlement_1.default);
 // Debug logging for route registration
 console.log('✅ Routes registered:');
 console.log('  - /api/v2/users');
 console.log('  - /api/v2/predictions');
 console.log('  - /api/v2/prediction-entries');
-// console.log('  - /api/v2/social (comments system)'); // Temporarily disabled
+console.log('  - /api/v2/social (comments system)');
 console.log('  - /api/v2/settlement (manual/auto settlement)');
 // CORS test endpoint
 app.get('/api/v2/test-cors', (req, res) => {

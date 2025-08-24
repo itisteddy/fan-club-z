@@ -107,7 +107,7 @@ app.post('/api/v2/admin/seed-database', async (req, res) => {
 import usersRoutes from './routes/users';
 import predictionsRoutes from './routes/predictions';
 import predictionEntriesRoutes from './routes/prediction-entries';
-// import commentsRoutes from './routes/comments'; // Temporarily disabled due to TypeScript errors
+import socialRoutes from './routes/social';
 import settlementRoutes from './routes/settlement';
 import { ensureAvatarsBucket } from './startup/storage';
 
@@ -115,7 +115,7 @@ import { ensureAvatarsBucket } from './startup/storage';
 app.use('/api/v2/users', usersRoutes);
 app.use('/api/v2/predictions', predictionsRoutes);
 app.use('/api/v2/prediction-entries', predictionEntriesRoutes);
-// app.use('/api/v2/social', commentsRoutes); // Temporarily disabled
+app.use('/api/v2/social', socialRoutes);
 app.use('/api/v2/settlement', settlementRoutes);
 
 // Debug logging for route registration
@@ -123,7 +123,7 @@ console.log('✅ Routes registered:');
 console.log('  - /api/v2/users');
 console.log('  - /api/v2/predictions');
 console.log('  - /api/v2/prediction-entries');
-// console.log('  - /api/v2/social (comments system)'); // Temporarily disabled
+console.log('  - /api/v2/social (comments system)');
 console.log('  - /api/v2/settlement (manual/auto settlement)');
 
 // CORS test endpoint
