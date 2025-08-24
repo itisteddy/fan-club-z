@@ -82,7 +82,12 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
   }, [predictions, currentPredictionId]);
   
   // Initialize comment store after prediction ID is available
-  const { commentCount } = useCommentsForPrediction(stablePredictionId);
+  const { commentCount, fetchComments } = useCommentsForPrediction(stablePredictionId);
+
+  // Debug logging for comment count
+  useEffect(() => {
+    console.log(`📊 PredictionDetailsPage commentCount for ${stablePredictionId}: ${commentCount}`);
+  }, [stablePredictionId, commentCount]);
 
   useEffect(() => {
     const loadPrediction = async () => {
@@ -103,6 +108,10 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
           console.log('✅ Found prediction:', foundPrediction.title);
           setPrediction(foundPrediction);
           
+          // Force refresh comments for this prediction
+          console.log('🔄 Force fetching comments for prediction details page');
+          await fetchComments();
+          
           // Load settlement data if needed
           if (['locked', 'settling', 'settled', 'voided', 'disputed', 'resolved'].includes(foundPrediction.status)) {
             await fetchSettlement(currentPredictionId);
@@ -122,7 +131,7 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
     };
 
     loadPrediction();
-  }, [currentPredictionId, fetchPredictionById, setLocation, fetchSettlement, fetchDisputes, fetchAuditTimeline]);
+  }, [currentPredictionId, fetchPredictionById, setLocation, fetchSettlement, fetchDisputes, fetchAuditTimeline, fetchComments]);
 
   // Update local prediction state when store prediction changes (for real-time updates)
   useEffect(() => {

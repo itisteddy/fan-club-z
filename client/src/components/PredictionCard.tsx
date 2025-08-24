@@ -108,7 +108,11 @@ const PredictionCardContent: React.FC<PredictionCardProps> = ({
   // FIXED: Always prioritize store data over potentially stale prediction data
   const storeLikeCount = getLikeCount(prediction.id);
   const likeCount = storeLikeCount !== undefined && storeLikeCount !== null ? storeLikeCount : (prediction.likes_count || prediction.likes || 0);
-  const commentCount = getCommentCount(prediction.id) || prediction.comments_count || prediction.comments || 0;
+  const storeCommentCount = getCommentCount(prediction.id);
+  const commentCount = storeCommentCount !== undefined && storeCommentCount !== null ? storeCommentCount : (prediction.comments_count || prediction.comments || 0);
+  
+  // Debug logging for comment count sync
+  console.log(`📊 PredictionCard ${prediction.id}: storeCount=${storeCommentCount}, predictionCount=${prediction.comments_count || prediction.comments || 0}, finalCount=${commentCount}`);
 
   // Calculate real data with safe fallbacks
   const entryDeadline = prediction.entry_deadline || prediction.entryDeadline;

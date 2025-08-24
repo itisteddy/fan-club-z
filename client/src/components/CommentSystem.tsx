@@ -117,7 +117,12 @@ const CommentSystem: React.FC<CommentSystemProps> = ({ predictionId }) => {
         setHasAttemptedFetch(false);
       });
     }
-  }, [predictionId, hasAttemptedFetch, isLoading]);
+  }, [predictionId, hasAttemptedFetch, isLoading, fetchComments]);
+
+  // Debug logging to track comment count changes
+  useEffect(() => {
+    console.log(`📊 CommentSystem for ${predictionId}: count=${commentCount}, comments.length=${comments.length}`);
+  }, [predictionId, commentCount, comments.length]);
 
   // Handle adding a comment
   const handleAddComment = useCallback(async (parentId?: string) => {
