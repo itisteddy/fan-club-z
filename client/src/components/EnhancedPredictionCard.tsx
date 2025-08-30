@@ -217,6 +217,17 @@ const EnhancedPredictionCard: React.FC<EnhancedPredictionCardProps> = ({
       whileHover={{ y: -4 }}
       className={`bg-white/95 backdrop-blur-sm rounded-2xl border border-gray-200/50 shadow-xl shadow-gray-900/5 overflow-hidden transition-all duration-300 hover:shadow-2xl hover:shadow-gray-900/10 ${className}`}
     >
+      {/* Image banner (optional) */}
+      {prediction.image_url && (
+        <div className="w-full h-48 bg-gray-100 overflow-hidden">
+          <img
+            src={prediction.image_url}
+            alt="Prediction"
+            className="w-full h-full object-cover"
+            loading="lazy"
+          />
+        </div>
+      )}
       {/* Header */}
       <div className="p-6 pb-4">
         <div className="flex items-start justify-between mb-4">
@@ -329,18 +340,18 @@ const EnhancedPredictionCard: React.FC<EnhancedPredictionCardProps> = ({
                       
                       <div className="text-right">
                         <div className={`text-lg font-bold ${
-                          analysis.confidence === 'high' ? 'text-green-600' :
-                          analysis.confidence === 'medium' ? 'text-blue-600' :
-                          'text-gray-600'
+                          analysis.confidence === 'high' ? 'text-green-600 dark:text-green-400' :
+                          analysis.confidence === 'medium' ? 'text-blue-600 dark:text-blue-400' :
+                          'text-gray-600 dark:text-gray-300'
                         }`}>
                           {analysis.percentage}%
                         </div>
-                        <div className="text-sm text-gray-500">{analysis.odds}x odds</div>
+                        <div className="text-sm text-gray-500 dark:text-gray-300">{analysis.odds}x odds</div>
                       </div>
                     </div>
                     
                     {/* Enhanced progress bar with gradient */}
-                    <div className="mt-3 h-2 bg-gray-200 rounded-full overflow-hidden">
+                    <div className="mt-3 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
                       <motion.div
                         initial={{ width: 0 }}
                         animate={{ width: `${analysis.percentage}%` }}

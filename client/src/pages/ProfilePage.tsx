@@ -41,10 +41,20 @@ interface EditForm {
   bio: string;
 }
 
-const ProfilePage: React.FC = () => {
+interface ProfilePageProps {
+  userId?: string;
+  onNavigateBack?: () => void;
+}
+
+const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onNavigateBack }) => {
   const [, setLocation] = useLocation();
   const { user: currentUser, updateProfile, logout, loading } = useAuthStore();
-  const { predictions, fetchUserPredictions } = usePredictionStore();
+  const { 
+    predictions, 
+    userCreatedPredictions, 
+    fetchUserPredictions, 
+    fetchUserCreatedPredictions 
+  } = usePredictionStore();
   const { balance, refreshWalletData } = useWalletStore();
   const { likedPredictions, likeCounts, initializeLikes } = useLikeStore();
   const { comments, getPredictionComments } = useSocialStore();
@@ -60,9 +70,13 @@ const ProfilePage: React.FC = () => {
   });
 
   // Navigation handlers
-  const onNavigateBack = useCallback(() => {
+  const handleBack = useCallback(() => {
+    if (onNavigateBack) {
+      onNavigateBack();
+      return;
+    }
     setLocation('/discover');
-  }, [setLocation]);
+  }, [setLocation, onNavigateBack]);
 
   const onNavigateToDiscover = useCallback(() => {
     setLocation('/discover');
@@ -90,13 +104,20 @@ const ProfilePage: React.FC = () => {
         setIsLoading(true);
         setShowLoadingSkeleton(true);
 
-        // Fetch all user data in parallel
-        if (currentUser) {
-          await Promise.all([
-            fetchUserPredictions(currentUser.id),
-            refreshWalletData(),
-            initializeLikes()
-          ]);
+        const viewingOtherUser = userId && currentUser?.id !== userId;
+
+        if (viewingOtherUser) {
+          // Minimal load for other user's profile
+          await fetchUserCreatedPredictions(userId!);
+        } else {
+          // Fetch all user data in parallel
+          if (currentUser) {
+            await Promise.all([
+              fetchUserPredictions(currentUser.id),
+              refreshWalletData(),
+              initializeLikes()
+            ]);
+          }
         }
 
         // Initialize edit form with current user data
@@ -120,7 +141,87 @@ const ProfilePage: React.FC = () => {
     };
 
     initializeData();
-  }, [currentUser, fetchUserPredictions, refreshWalletData, initializeLikes]);
+  }, [currentUser, userId, fetchUserPredictions, fetchUserCreatedPredictions, refreshWalletData, initializeLikes]);
+
+  const viewingOtherUser = !!userId && currentUser?.id !== userId;
+
+  // If viewing another user's profile, render a minimal profile page
+  if (viewingOtherUser) {
+    const created = userCreatedPredictions || [];
+    const creatorMeta = created[0]?.creator;
+    const displayName = creatorMeta?.full_name || creatorMeta?.username || 'User';
+    const avatarUrl = creatorMeta?.avatar_url;
+    const createdCount = created.length;
+
+    return (
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+        {/* Header */}
+        <div className="bg-white dark:bg-gray-900 border-b border-gray-100 dark:border-gray-800 sticky top-0 z-10">
+          <div className="h-11" />
+          <div className="px-4 py-1">
+            <div className="flex items-center justify-between mb-1">
+              <button
+                onClick={handleBack}
+                className="w-8 h-8 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+                aria-label="Go back"
+              >
+                <ArrowLeft size={16} />
+              </button>
+              <h1 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Profile</h1>
+              <div className="w-8 h-8" />
+            </div>
+          </div>
+        </div>
+
+        <div className="p-4">
+          {/* Minimal profile card */}
+          <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-sm border border-gray-100 dark:border-gray-700 mb-6">
+            <div className="flex items-center gap-4">
+              <div className="w-16 h-16 rounded-full overflow-hidden bg-gray-200 dark:bg-gray-700 flex items-center justify-center">
+                {avatarUrl ? (
+                  <img src={avatarUrl} alt={displayName} className="w-full h-full object-cover" />
+                ) : (
+                  <span className="text-lg font-bold text-gray-600 dark:text-gray-300">
+                    {(displayName || 'U').charAt(0).toUpperCase()}
+                  </span>
+                )}
+              </div>
+              <div className="flex-1 min-w-0">
+                <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-1">{displayName}</h2>
+                <p className="text-sm text-gray-600 dark:text-gray-300">Created Predictions: {createdCount}</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Created predictions list (minimal) */}
+          <div className="bg-white dark:bg-gray-800 rounded-2xl p-4 shadow-sm border border-gray-100 dark:border-gray-700">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Created Predictions</h3>
+            {created.length === 0 ? (
+              <p className="text-sm text-gray-600 dark:text-gray-300">No predictions yet</p>
+            ) : (
+              <div className="space-y-3">
+                {created.slice(0, 10).map((p) => (
+                  <div key={p.id} className="p-3 rounded-xl bg-gray-50 dark:bg-gray-900 border border-gray-100 dark:border-gray-700 flex items-center justify-between">
+                    <div className="pr-4 min-w-0">
+                      <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{p.title}</p>
+                      <p className="text-xs text-gray-600 dark:text-gray-400">{new Date(p.created_at).toLocaleDateString()}</p>
+                    </div>
+                    <button
+                      onClick={() => setLocation(`/prediction/${p.id}`)}
+                      className="text-emerald-600 dark:text-emerald-400 hover:underline text-sm flex items-center gap-1"
+                    >
+                      View
+                      <Share2 size={14} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   // Handle profile update
   const handleSaveProfile = async () => {
@@ -247,7 +348,7 @@ const ProfilePage: React.FC = () => {
         <div className="px-4 py-1">
           <div className="flex items-center justify-between mb-1">
             <button
-              onClick={onNavigateBack}
+              onClick={handleBack}
               className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center text-gray-700 hover:bg-gray-200 transition-colors"
               aria-label="Go back"
             >

@@ -184,10 +184,18 @@ const CommentSystem: React.FC<CommentSystemProps> = ({ predictionId }) => {
     setShowReplyInput(isOpening);
     setReplyText('');
     
-    // Focus the textarea after state updates
+    // Focus the textarea after state updates and move caret to the end
     if (isOpening) {
       setTimeout(() => {
-        replyTextareaRef.current?.focus();
+        const el = replyTextareaRef.current;
+        if (el) {
+          el.focus();
+          const len = el.value.length;
+          try {
+            el.setSelectionRange(len, len);
+          } catch {}
+          el.scrollTop = el.scrollHeight;
+        }
       }, 100);
     }
   }, [replyingTo]);
@@ -200,10 +208,17 @@ const CommentSystem: React.FC<CommentSystemProps> = ({ predictionId }) => {
           <UserAvatar user={comment.user} size="sm" />
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-1">
-              <span className="font-medium text-slate-900 dark:text-white">{comment.user?.username || 'Anonymous'}</span>
-              <span className="text-xs text-slate-500 dark:text-slate-400">
-                {new Date(comment.created_at).toLocaleDateString()}
+              <span className="font-medium text-slate-900 dark:text-white">
+                {comment.user?.full_name || comment.user?.username || (comment.user_id === user?.id ? ((`${user?.firstName || ''} ${user?.lastName || ''}`.trim() || user?.email?.split('@')[0] || 'You')) : 'User')}
               </span>
+              {(() => {
+                const rawDate = (comment as any).created_at || (comment as any).createdAt || (comment as any).inserted_at;
+                const date = rawDate ? new Date(rawDate) : null;
+                const isValid = date && !isNaN(date.getTime());
+                return isValid ? (
+                  <span className="text-xs text-slate-500 dark:text-slate-400">{date!.toLocaleDateString()}</span>
+                ) : null;
+              })()}
             </div>
             
             <p className="text-slate-700 dark:text-slate-200 mb-3">{comment.content}</p>
@@ -256,9 +271,9 @@ const CommentSystem: React.FC<CommentSystemProps> = ({ predictionId }) => {
               )}
             </div>
 
-            {/* Reply input */}
+            {/* Reply input (nested within comment, single instance) */}
             {showReplyInput && replyingTo === comment.id && (
-              <div className="mt-3 bg-slate-50 dark:bg-slate-800 rounded-lg p-4 -ml-4 -mr-4 w-full max-w-none" style={{ marginLeft: '-1rem', marginRight: '-1rem', width: 'calc(100% + 2rem)' }}>
+              <div className="mt-3 bg-slate-50 dark:bg-slate-800 rounded-lg p-4">
                 <div className="space-y-3">
                   <textarea
                     ref={replyTextareaRef}

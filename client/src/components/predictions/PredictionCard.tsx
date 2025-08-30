@@ -270,6 +270,17 @@ export const PredictionCard: React.FC<PredictionCardProps> = ({
           className="bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer overflow-hidden"
           onClick={handleCardClick}
         >
+          {/* Image banner (if provided) */}
+          {prediction.image_url && (
+            <div className="w-full h-40 bg-gray-100 overflow-hidden">
+              <img
+                src={prediction.image_url}
+                alt="Prediction"
+                className="w-full h-full object-cover"
+                loading="lazy"
+              />
+            </div>
+          )}
           {/* Header Section */}
           <div className="p-4 pb-3">
             <div className="flex items-center justify-between mb-3">
@@ -283,8 +294,9 @@ export const PredictionCard: React.FC<PredictionCardProps> = ({
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    console.log('👤 Navigating to creator profile:', prediction.creator.id);
-                    setLocation(`/profile/${prediction.creator.id}`);
+                    const targetUserId = prediction.creator?.id || prediction.creator_id;
+                    console.log('👤 Navigating to creator profile:', targetUserId);
+                    setLocation(`/profile/${targetUserId}`);
                   }}
                   className="flex items-center gap-1 hover:text-primary transition-colors cursor-pointer"
                 >
@@ -324,16 +336,16 @@ export const PredictionCard: React.FC<PredictionCardProps> = ({
                     e.stopPropagation();
                     handleQuickBet(e);
                   }}
-                  className="bg-gray-50 hover:bg-gray-100 rounded-lg p-3 transition-colors text-left"
+                  className="bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg p-3 transition-colors text-left"
                 >
-                  <div className="font-medium text-sm text-gray-900 mb-1">
+                  <div className="font-medium text-sm text-gray-900 dark:text-gray-100 mb-1">
                     {option.label}
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-xs text-gray-600">
+                    <span className="text-xs text-gray-600 dark:text-gray-300">
                       {option.percentage}%
                     </span>
-                    <span className="text-sm font-semibold text-primary">
+                    <span className="text-sm font-semibold text-primary dark:text-emerald-400">
                       {option.current_odds?.toFixed(1)}x
                     </span>
                   </div>

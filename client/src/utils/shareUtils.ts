@@ -29,9 +29,9 @@ export function createShareContent(
     platform = 'general'
   } = options;
 
-  // Create the prediction URL
+  // Create the prediction URL (ensure it points to the details route)
   const baseUrl = window.location.origin;
-  const url = `${baseUrl}/predictions/${prediction.id}`;
+  const url = `${baseUrl}/prediction/${prediction.id}`;
 
   // Clean and format the title
   const title = prediction.title?.trim() || 'Untitled Prediction';
