@@ -1,9 +1,5 @@
 #!/usr/bin/env node
 "use strict";
-/**
- * Fan Club Z Server Entry Point
- * Simple working version for deployment with settlement support
- */
 var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
     if (k2 === undefined) k2 = k;
     var desc = Object.getOwnPropertyDescriptor(m, k);
@@ -49,15 +45,13 @@ const app = (0, express_1.default)();
 const PORT = config_1.config.server.port || 3001;
 console.log(`🚀 Fan Club Z Server v${shared_1.VERSION} - CORS FIXED - WITH SETTLEMENT`);
 console.log('📡 Starting server with enhanced CORS support and settlement functionality...');
-// Enhanced CORS middleware - Allow all origins for now to fix immediate issue
 app.use((0, cors_1.default)({
-    origin: true, // Allow all origins temporarily
+    origin: true,
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'Origin', 'X-Requested-With', 'Cache-Control'],
     exposedHeaders: ['Content-Range', 'X-Content-Range']
 }));
-// Explicit OPTIONS preflight handler (some hosts require this)
 app.options('*', (req, res) => {
     res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
     res.header('Access-Control-Allow-Credentials', 'true');
@@ -65,13 +59,11 @@ app.options('*', (req, res) => {
     res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, Accept, Origin, X-Requested-With, Cache-Control');
     res.sendStatus(200);
 });
-// Additional CORS headers middleware
 app.use((req, res, next) => {
     res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
     res.header('Access-Control-Allow-Credentials', 'true');
     res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
     res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, Accept, Origin, X-Requested-With, Cache-Control');
-    // Handle preflight requests
     if (req.method === 'OPTIONS') {
         res.status(200).end();
         return;
@@ -79,7 +71,6 @@ app.use((req, res, next) => {
     next();
 });
 app.use(express_1.default.json());
-// Health check endpoint
 app.get('/health', (req, res) => {
     res.status(200).json({
         status: 'OK',
@@ -91,7 +82,6 @@ app.get('/health', (req, res) => {
         settlement: 'enabled'
     });
 });
-// Root endpoint
 app.get('/', (req, res) => {
     res.json({
         message: 'Fan Club Z API Server',
@@ -102,10 +92,8 @@ app.get('/', (req, res) => {
         settlement: 'enabled'
     });
 });
-// Database seeding endpoint (for development/testing)
 app.post('/api/v2/admin/seed-database', async (req, res) => {
     try {
-        // Import and run seeding function
         const { seedDatabase } = await Promise.resolve().then(() => __importStar(require('./scripts/seedDatabase')));
         const result = await seedDatabase();
         res.json({
@@ -125,27 +113,23 @@ app.post('/api/v2/admin/seed-database', async (req, res) => {
         });
     }
 });
-// Import routes
 const users_1 = __importDefault(require("./routes/users"));
 const predictions_1 = __importDefault(require("./routes/predictions"));
 const prediction_entries_1 = __importDefault(require("./routes/prediction-entries"));
 const social_1 = __importDefault(require("./routes/social"));
 const settlement_1 = __importDefault(require("./routes/settlement"));
 const storage_1 = require("./startup/storage");
-// Use routes
 app.use('/api/v2/users', users_1.default);
 app.use('/api/v2/predictions', predictions_1.default);
 app.use('/api/v2/prediction-entries', prediction_entries_1.default);
 app.use('/api/v2/social', social_1.default);
 app.use('/api/v2/settlement', settlement_1.default);
-// Debug logging for route registration
 console.log('✅ Routes registered:');
 console.log('  - /api/v2/users');
 console.log('  - /api/v2/predictions');
 console.log('  - /api/v2/prediction-entries');
 console.log('  - /api/v2/social (comments system)');
 console.log('  - /api/v2/settlement (manual/auto settlement)');
-// CORS test endpoint
 app.get('/api/v2/test-cors', (req, res) => {
     console.log('🧪 CORS test endpoint called - origin:', req.headers.origin);
     res.json({
@@ -155,7 +139,6 @@ app.get('/api/v2/test-cors', (req, res) => {
         version: shared_1.VERSION
     });
 });
-// 404 handler
 app.use('*', (req, res) => {
     console.log(`❌ 404 - Route not found: ${req.originalUrl} - origin:`, req.headers.origin);
     res.status(404).json({
@@ -165,7 +148,6 @@ app.use('*', (req, res) => {
         version: shared_1.VERSION
     });
 });
-// Error handler
 app.use((error, req, res, next) => {
     console.error('🚨 Server error:', error);
     res.status(500).json({
@@ -175,7 +157,6 @@ app.use((error, req, res, next) => {
         version: shared_1.VERSION
     });
 });
-// Start server
 app.listen(PORT, () => {
     console.log(`🚀 Fan Club Z Server started successfully!`);
     console.log(`📡 Environment: ${config_1.config.server.nodeEnv || 'production'}`);
@@ -188,3 +169,4 @@ app.listen(PORT, () => {
     (0, storage_1.ensureAvatarsBucket)();
 });
 exports.default = app;
+//# sourceMappingURL=index.js.map

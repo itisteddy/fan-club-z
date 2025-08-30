@@ -6,9 +6,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.supabase = void 0;
 const supabase_js_1 = require("@supabase/supabase-js");
 const dotenv_1 = __importDefault(require("dotenv"));
-// Load environment variables
 dotenv_1.default.config();
-// Try multiple environment variable names for flexibility
 const supabaseUrl = process.env.SUPABASE_URL ||
     process.env.VITE_SUPABASE_URL ||
     'https://ihtnsyhknvltgrksffun.supabase.co';
@@ -31,3 +29,4 @@ if (!supabaseUrl || !supabaseKey) {
 }
 exports.supabase = (0, supabase_js_1.createClient)(supabaseUrl, supabaseKey);
 exports.default = exports.supabase;
+//# sourceMappingURL=supabase.js.map

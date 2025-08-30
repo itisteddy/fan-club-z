@@ -6,7 +6,6 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.db = exports.supabaseAnon = exports.supabase = void 0;
 const supabase_js_1 = require("@supabase/supabase-js");
 const index_1 = __importDefault(require("./index"));
-// Create Supabase client with service role for server-side operations
 exports.supabase = (0, supabase_js_1.createClient)(index_1.default.supabase.url, index_1.default.supabase.serviceRoleKey, {
     auth: {
         autoRefreshToken: false,
@@ -16,11 +15,8 @@ exports.supabase = (0, supabase_js_1.createClient)(index_1.default.supabase.url,
         schema: 'public',
     },
 });
-// Create Supabase client with anon key for client-side operations
 exports.supabaseAnon = (0, supabase_js_1.createClient)(index_1.default.supabase.url, index_1.default.supabase.anonKey);
-// Database helper functions
 exports.db = {
-    // User operations
     users: {
         async findById(id) {
             const { data, error } = await exports.supabase
@@ -64,7 +60,6 @@ exports.db = {
             return data;
         },
     },
-    // Prediction operations
     predictions: {
         async findById(id) {
             const { data, error } = await exports.supabase
@@ -90,7 +85,6 @@ exports.db = {
           options:prediction_options!prediction_options_prediction_id_fkey(*),
           club:clubs(id, name, avatar_url)
         `, { count: 'exact' });
-            // Apply filters
             if (filters.category) {
                 query = query.eq('category', filters.category);
             }
@@ -106,11 +100,9 @@ exports.db = {
             if (filters.search) {
                 query = query.or(`title.ilike.%${filters.search}%,description.ilike.%${filters.search}%`);
             }
-            // Apply sorting
             const sortColumn = filters.sort || 'created_at';
             const sortOrder = filters.order || 'desc';
             query = query.order(sortColumn, { ascending: sortOrder === 'asc' });
-            // Apply pagination
             const page = pagination.page || 1;
             const limit = pagination.limit || 20;
             const offset = (page - 1) * limit;
@@ -152,7 +144,6 @@ exports.db = {
             return data;
         },
     },
-    // Wallet operations
     wallets: {
         async findByUserId(userId, currency = 'USD') {
             const { data, error } = await exports.supabase
@@ -182,7 +173,6 @@ exports.db = {
         },
         async updateBalance(userId, currency, availableChange, reservedChange = 0) {
             try {
-                // First check if RPC function exists and use it
                 const { data, error } = await exports.supabase.rpc('update_wallet_balance', {
                     user_id: userId,
                     currency_code: currency,
@@ -191,29 +181,24 @@ exports.db = {
                 });
                 if (error) {
                     console.error('RPC function error, falling back to direct update:', error);
-                    // Fallback to direct wallet update
                     return await this.directUpdateBalance(userId, currency, availableChange, reservedChange);
                 }
                 return data;
             }
             catch (rpcError) {
                 console.error('RPC function not available, using direct update:', rpcError);
-                // Fallback to direct wallet update
                 return await this.directUpdateBalance(userId, currency, availableChange, reservedChange);
             }
         },
         async directUpdateBalance(userId, currency, availableChange, reservedChange = 0) {
-            // First, get current wallet or create one
             let wallet = await this.findByUserId(userId, currency);
             if (!wallet) {
-                // Create new wallet
                 wallet = await this.createOrUpdate(userId, currency, {
                     available_balance: Math.max(0, availableChange),
                     reserved_balance: Math.max(0, reservedChange),
                 });
             }
             else {
-                // Update existing wallet
                 const newAvailable = Math.max(0, wallet.available_balance + availableChange);
                 const newReserved = Math.max(0, wallet.reserved_balance + reservedChange);
                 wallet = await this.createOrUpdate(userId, currency, {
@@ -224,7 +209,6 @@ exports.db = {
             return wallet;
         },
     },
-    // Transaction operations
     transactions: {
         async create(transactionData) {
             const { data, error } = await exports.supabase
@@ -276,7 +260,6 @@ exports.db = {
             return data;
         },
     },
-    // Club operations
     clubs: {
         async findById(id) {
             const { data, error } = await exports.supabase
@@ -310,7 +293,6 @@ exports.db = {
             if (filters.visibility) {
                 query = query.eq('visibility', filters.visibility);
             }
-            // Apply pagination
             const page = pagination.page || 1;
             const limit = pagination.limit || 20;
             const offset = (page - 1) * limit;
@@ -343,7 +325,6 @@ exports.db = {
             return data;
         },
     },
-    // Comment operations
     comments: {
         async findByPredictionId(predictionId, pagination = {}) {
             const page = pagination.page || 1;
@@ -389,3 +370,4 @@ exports.db = {
     },
 };
 exports.default = exports.db;
+//# sourceMappingURL=database.js.map

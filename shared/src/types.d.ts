@@ -6,6 +6,108 @@ export type Prettify<T> = {
     [K in keyof T]: T[K];
 } & {};
 export type KeysOfUnion<T> = T extends T ? keyof T : never;
+export interface PaginationQuery {
+    page?: number;
+    limit?: number;
+    sortBy?: string;
+    sortOrder?: 'asc' | 'desc';
+}
+export interface PaginatedResponse<T> {
+    data: T[];
+    pagination: {
+        page: number;
+        limit: number;
+        total: number;
+        totalPages: number;
+        hasNext: boolean;
+        hasPrev: boolean;
+    };
+}
+export interface ApiResponse<T = any> {
+    success: boolean;
+    data?: T;
+    message?: string;
+    error?: string;
+    errors?: Record<string, string[]>;
+}
+export interface Wallet {
+    id: string;
+    user_id: string;
+    balance: number;
+    currency: string;
+    is_active: boolean;
+    created_at: string;
+    updated_at: string;
+}
+export interface WalletTransaction {
+    id: string;
+    wallet_id: string;
+    type: 'deposit' | 'withdrawal' | 'stake' | 'payout' | 'refund' | 'fee';
+    amount: number;
+    currency: string;
+    status: 'pending' | 'completed' | 'failed' | 'cancelled';
+    description?: string;
+    reference_id?: string;
+    metadata?: Record<string, any>;
+    created_at: string;
+    updated_at: string;
+}
+export interface Deposit {
+    id: string;
+    user_id: string;
+    amount: number;
+    currency: string;
+    method: 'card' | 'bank_transfer' | 'crypto' | 'wallet';
+    status: 'pending' | 'completed' | 'failed' | 'cancelled';
+    transaction_id?: string;
+    created_at: string;
+    updated_at: string;
+}
+export interface Withdraw {
+    id: string;
+    user_id: string;
+    amount: number;
+    currency: string;
+    method: 'bank_transfer' | 'crypto' | 'wallet';
+    status: 'pending' | 'completed' | 'failed' | 'cancelled';
+    destination_address?: string;
+    transaction_id?: string;
+    created_at: string;
+    updated_at: string;
+}
+export interface Comment {
+    id: string;
+    prediction_id: string;
+    user_id: string;
+    content: string;
+    parent_comment_id?: string;
+    is_edited: boolean;
+    created_at: string;
+    updated_at: string;
+    user?: {
+        id: string;
+        username?: string;
+        full_name?: string;
+        avatar_url?: string;
+    };
+    replies?: Comment[];
+}
+export interface CreateComment {
+    prediction_id: string;
+    content: string;
+    parent_comment_id?: string;
+}
+export interface Reaction {
+    id: string;
+    user_id: string;
+    prediction_id: string;
+    type: 'like' | 'dislike' | 'love' | 'laugh' | 'wow' | 'sad' | 'angry';
+    created_at: string;
+}
+export interface CreateReaction {
+    prediction_id: string;
+    type: 'like' | 'dislike' | 'love' | 'laugh' | 'wow' | 'sad' | 'angry';
+}
 export interface DatabaseUser {
     id: string;
     email: string;
@@ -84,16 +186,7 @@ export interface CommentMessage extends WebSocketMessage {
     type: 'new_comment';
     payload: {
         prediction_id: string;
-        comment: {
-            id: string;
-            user_id: string;
-            content: string;
-            created_at: string;
-            user: {
-                username: string;
-                avatar_url?: string;
-            };
-        };
+        comment: Comment;
     };
 }
 export interface ReactionMessage extends WebSocketMessage {
@@ -127,9 +220,9 @@ export declare const validatePredictionDeadline: (deadline: string) => boolean;
 export declare const validatePredictionStakeRange: (stakeMin: number, stakeMax?: number) => boolean;
 export declare class AppError extends Error {
     statusCode: number;
-    code?: string | undefined;
-    details?: any | undefined;
-    constructor(message: string, statusCode?: number, code?: string | undefined, details?: any | undefined);
+    code?: string;
+    details?: any;
+    constructor(message: string, statusCode?: number, code?: string, details?: any);
 }
 export declare class ValidationError extends AppError {
     constructor(message: string, details?: any);
@@ -146,3 +239,4 @@ export declare class NotFoundError extends AppError {
 export declare class ConflictError extends AppError {
     constructor(message?: string);
 }
+//# sourceMappingURL=types.d.ts.map

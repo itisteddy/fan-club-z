@@ -15,3 +15,4 @@ export declare const authenticateToken: (req: AuthenticatedRequest, res: Respons
 export declare const optionalAuth: (req: AuthenticatedRequest, res: Response, next: NextFunction) => Promise<void>;
 export declare const authenticate: (req: AuthenticatedRequest, res: Response, next: NextFunction) => Promise<void>;
 export declare const requireAuth: (req: AuthenticatedRequest, res: Response, next: NextFunction) => void | Response<any, Record<string, any>>;
+//# sourceMappingURL=auth.d.ts.map

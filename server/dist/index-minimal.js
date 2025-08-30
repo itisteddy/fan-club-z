@@ -8,13 +8,11 @@ const http_1 = require("http");
 const socket_io_1 = require("socket.io");
 const cors_1 = __importDefault(require("cors"));
 const app = (0, express_1.default)();
-// Simple CORS setup
 app.use((0, cors_1.default)({
     origin: ["http://localhost:3000", "http://localhost:5173", "https://app.fanclubz.app", "https://dev.fanclubz.app"],
     credentials: true
 }));
 app.use(express_1.default.json());
-// Basic health endpoint
 app.get('/health', (req, res) => {
     res.json({
         status: 'ok',
@@ -22,18 +20,14 @@ app.get('/health', (req, res) => {
         websocket: 'enabled'
     });
 });
-// User-created predictions endpoint - fetches real data from database
 app.get('/api/predictions/created/me', (req, res) => {
     console.log('📋 Fetching user created predictions from database');
-    // Get the user ID from the authorization header
     const authHeader = req.headers.authorization;
     let userId = null;
     if (authHeader && authHeader.startsWith('Bearer ')) {
         try {
             const token = authHeader.split(' ')[1];
-            // Accept any Supabase token for now - in production, validate properly
             if (token && token.length > 10) {
-                // For now, use a default user ID since we can't decode Supabase tokens easily
                 userId = '325343a7-0a32-4565-8059-7c0d9d3fed1b';
                 console.log('🔐 Accepting Supabase token, using default user ID:', userId);
             }
@@ -50,7 +44,6 @@ app.get('/api/predictions/created/me', (req, res) => {
         return;
     }
     console.log('🔐 Using user ID:', userId);
-    // Return real predictions from database for this user
     res.json({
         success: true,
         data: [
@@ -137,18 +130,14 @@ app.get('/api/predictions/created/me', (req, res) => {
         }
     });
 });
-// User prediction entries endpoint - fetches real data from database
 app.get('/api/predictions/entries/me', (req, res) => {
     console.log('📋 Fetching user prediction entries from database');
-    // Get the user ID from the authorization header
     const authHeader = req.headers.authorization;
     let userId = null;
     if (authHeader && authHeader.startsWith('Bearer ')) {
         try {
             const token = authHeader.split(' ')[1];
-            // Accept any Supabase token for now - in production, validate properly
             if (token && token.length > 10) {
-                // For now, use a default user ID since we can't decode Supabase tokens easily
                 userId = '325343a7-0a32-4565-8059-7c0d9d3fed1b';
                 console.log('🔐 Accepting Supabase token, using default user ID:', userId);
             }
@@ -165,7 +154,6 @@ app.get('/api/predictions/entries/me', (req, res) => {
         return;
     }
     console.log('🔐 Using user ID:', userId);
-    // Return real prediction entries from database for this user
     res.json({
         success: true,
         data: [
@@ -204,7 +192,6 @@ app.get('/api/predictions/entries/me', (req, res) => {
         }
     });
 });
-// v2 version for compatibility
 app.get('/api/v2/predictions/created/me', (req, res) => {
     console.log('📋 Fetching user created predictions (v2) from database');
     const authHeader = req.headers.authorization;
@@ -230,7 +217,6 @@ app.get('/api/v2/predictions/created/me', (req, res) => {
         });
         return;
     }
-    // Return same real data
     res.json({
         success: true,
         data: [
@@ -317,7 +303,6 @@ app.get('/api/v2/predictions/created/me', (req, res) => {
         }
     });
 });
-// Mock predictions endpoint
 app.get('/api/predictions', (req, res) => {
     console.log('📋 Fetching all predictions');
     res.json({
@@ -350,7 +335,6 @@ app.get('/api/predictions', (req, res) => {
         ]
     });
 });
-// Mock prediction creation endpoint
 app.post('/api/predictions', (req, res) => {
     console.log('📋 Creating new prediction:', req.body);
     res.json({
@@ -362,7 +346,6 @@ app.post('/api/predictions', (req, res) => {
         }
     });
 });
-// Mock prediction detail endpoint
 app.get('/api/predictions/:id', (req, res) => {
     console.log('📋 Fetching prediction:', req.params.id);
     res.json({
@@ -393,7 +376,6 @@ app.get('/api/predictions/:id', (req, res) => {
         }
     });
 });
-// Mock prediction entry endpoint
 app.post('/api/predictions/:id/entries', (req, res) => {
     console.log('📋 Creating entry for prediction:', req.params.id, req.body);
     res.json({
@@ -406,7 +388,6 @@ app.post('/api/predictions/:id/entries', (req, res) => {
         }
     });
 });
-// Mock clubs endpoints
 app.get('/api/clubs', (req, res) => {
     res.json({
         success: true,
@@ -435,7 +416,6 @@ app.get('/api/clubs/:id', (req, res) => {
         }
     });
 });
-// v2 clubs endpoints
 app.get('/api/v2/clubs', (req, res) => {
     res.json({
         success: true,
@@ -511,7 +491,6 @@ app.get('/api/v2/clubs/:id/discussions', (req, res) => {
         ]
     });
 });
-// Mock user profile endpoint
 app.get('/api/user/profile', (req, res) => {
     res.json({
         success: true,
@@ -524,7 +503,6 @@ app.get('/api/user/profile', (req, res) => {
         }
     });
 });
-// Mock wallet endpoints
 app.get('/api/wallet/balance', (req, res) => {
     res.json({
         success: true,
@@ -548,7 +526,6 @@ app.get('/api/wallet/transactions', (req, res) => {
         ]
     });
 });
-// WebSocket setup
 const server = (0, http_1.createServer)(app);
 const io = new socket_io_1.Server(server, {
     cors: {
@@ -586,3 +563,4 @@ server.listen(PORT, () => {
     console.log(`👤 User predictions: http://localhost:${PORT}/api/predictions/created/me`);
 });
 exports.default = app;
+//# sourceMappingURL=index-minimal.js.map

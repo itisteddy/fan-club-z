@@ -7,7 +7,6 @@ const express_1 = __importDefault(require("express"));
 const social_1 = require("../services/social");
 const socialService = new social_1.SocialService();
 const router = express_1.default.Router();
-// Get comments for a prediction
 router.get('/predictions/:predictionId/comments', async (req, res) => {
     try {
         const { predictionId } = req.params;
@@ -30,12 +29,10 @@ router.get('/predictions/:predictionId/comments', async (req, res) => {
         });
     }
 });
-// Create a new comment
 router.post('/predictions/:predictionId/comments', async (req, res) => {
     try {
         const { predictionId } = req.params;
         const { content, userId, user, parentCommentId, parent_comment_id } = req.body;
-        // Get userId from either userId field or user object
         const actualUserId = userId || user?.id;
         const actualParentId = parentCommentId || parent_comment_id;
         console.log('📝 Comment creation request:', {
@@ -88,7 +85,6 @@ router.post('/predictions/:predictionId/comments', async (req, res) => {
         });
     }
 });
-// Like/unlike a comment
 router.post('/comments/:commentId/like', async (req, res) => {
     try {
         const { commentId } = req.params;
@@ -115,7 +111,6 @@ router.post('/comments/:commentId/like', async (req, res) => {
         });
     }
 });
-// Edit a comment
 router.put('/comments/:commentId', async (req, res) => {
     try {
         const { commentId } = req.params;
@@ -142,7 +137,6 @@ router.put('/comments/:commentId', async (req, res) => {
         });
     }
 });
-// Delete a comment
 router.delete('/comments/:commentId', async (req, res) => {
     try {
         const { commentId } = req.params;
@@ -169,7 +163,6 @@ router.delete('/comments/:commentId', async (req, res) => {
         });
     }
 });
-// Health check
 router.get('/health', (req, res) => {
     res.json({
         success: true,
@@ -185,3 +178,4 @@ router.get('/health', (req, res) => {
     });
 });
 exports.default = router;
+//# sourceMappingURL=social.js.map

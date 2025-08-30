@@ -7,13 +7,11 @@ const express_1 = __importDefault(require("express"));
 const database_1 = require("../config/database");
 const shared_1 = require("@fanclubz/shared");
 const router = express_1.default.Router();
-// POST /api/v2/settlement/manual - Manual settlement by creator
 router.post('/manual', async (req, res) => {
     try {
         const { predictionId, winningOptionId, proofUrl, reason } = req.body;
-        const userId = req.body.userId; // In production, this would come from JWT auth
+        const userId = req.body.userId;
         console.log('🔨 Manual settlement requested:', { predictionId, winningOptionId, userId });
-        // Validate required fields
         if (!predictionId || !winningOptionId || !userId) {
             return res.status(400).json({
                 error: 'Validation error',
@@ -21,7 +19,6 @@ router.post('/manual', async (req, res) => {
                 version: shared_1.VERSION
             });
         }
-        // Get prediction details and verify creator
         const { data: prediction, error: predictionError } = await database_1.supabase
             .from('predictions')
             .select('*')
@@ -35,7 +32,6 @@ router.post('/manual', async (req, res) => {
                 version: shared_1.VERSION
             });
         }
-        // Verify user is creator (in production, add proper auth check)
         if (prediction.creator_id !== userId) {
             return res.status(403).json({
                 error: 'Unauthorized',
@@ -43,7 +39,6 @@ router.post('/manual', async (req, res) => {
                 version: shared_1.VERSION
             });
         }
-        // Verify winning option belongs to this prediction
         const { data: winningOption, error: optionError } = await database_1.supabase
             .from('prediction_options')
             .select('*')
@@ -57,7 +52,6 @@ router.post('/manual', async (req, res) => {
                 version: shared_1.VERSION
             });
         }
-        // Get all prediction entries for this prediction
         const { data: allEntries, error: entriesError } = await database_1.supabase
             .from('prediction_entries')
             .select('*')
@@ -70,7 +64,6 @@ router.post('/manual', async (req, res) => {
                 version: shared_1.VERSION
             });
         }
-        // Calculate settlement amounts
         const totalPool = prediction.pool_total || 0;
         const platformFeePercent = prediction.platform_fee_percentage || 2.5;
         const creatorFeePercent = prediction.creator_fee_percentage || 1.0;
@@ -84,10 +77,8 @@ router.post('/manual', async (req, res) => {
             payoutPool,
             totalEntries: allEntries?.length || 0
         });
-        // If no participants, return fees to creator (no payouts)
         if (!allEntries || allEntries.length === 0) {
             console.log('📭 No participants - settling with creator fee only');
-            // Update prediction status to settled
             const { error: updatePredictionError } = await database_1.supabase
                 .from('predictions')
                 .update({
@@ -99,7 +90,6 @@ router.post('/manual', async (req, res) => {
             if (updatePredictionError) {
                 console.error('Error updating prediction status:', updatePredictionError);
             }
-            // Create settlement record
             const { data: settlement, error: settlementError } = await database_1.supabase
                 .from('bet_settlements')
                 .insert({
@@ -126,7 +116,6 @@ router.post('/manual', async (req, res) => {
                 version: shared_1.VERSION
             });
         }
-        // Calculate winners and payouts
         const winners = allEntries.filter(entry => entry.option_id === winningOptionId);
         const winnersCount = winners.length;
         const totalWinningStake = winners.reduce((sum, entry) => sum + (entry.amount || 0), 0);
@@ -135,14 +124,11 @@ router.post('/manual', async (req, res) => {
             totalWinningStake,
             payoutPool
         });
-        // Begin transaction for settlement
         const settlementResults = [];
-        // Process each winner's payout
         for (const winner of winners) {
             const winnerStake = winner.amount || 0;
             const winnerShare = totalWinningStake > 0 ? winnerStake / totalWinningStake : 0;
-            const payout = Math.floor(payoutPool * winnerShare * 100) / 100; // Round to 2 decimals
-            // Update the entry with actual payout
+            const payout = Math.floor(payoutPool * winnerShare * 100) / 100;
             const { error: updateEntryError } = await database_1.supabase
                 .from('prediction_entries')
                 .update({
@@ -153,21 +139,18 @@ router.post('/manual', async (req, res) => {
                 .eq('id', winner.id);
             if (updateEntryError) {
                 console.error('Error updating winner entry:', updateEntryError);
-                continue; // Skip wallet update if entry update failed
+                continue;
             }
-            // Credit winner's wallet with payout
             try {
                 console.log(`💰 Crediting ${payout} USD to winner ${winner.user_id}`);
-                // Update wallet balance
                 await database_1.db.wallets.directUpdateBalance(winner.user_id, 'USD', payout, 0);
-                // Create wallet transaction record
                 await database_1.db.transactions.create({
                     user_id: winner.user_id,
                     type: 'prediction_win',
                     amount: payout,
                     currency: 'USD',
                     status: 'completed',
-                    reference_id: winner.id, // Reference to prediction entry
+                    reference_id: winner.id,
                     description: `Prediction win payout for "${prediction.title}"`,
                     metadata: {
                         prediction_id: predictionId,
@@ -186,10 +169,8 @@ router.post('/manual', async (req, res) => {
             }
             catch (walletError) {
                 console.error(`❌ Error updating wallet for winner ${winner.user_id}:`, walletError);
-                // Continue with other winners even if one fails
             }
         }
-        // Update losing entries
         const losers = allEntries.filter(entry => entry.option_id !== winningOptionId);
         for (const loser of losers) {
             const { error: updateLoserError } = await database_1.supabase
@@ -204,7 +185,6 @@ router.post('/manual', async (req, res) => {
                 console.error('Error updating loser entry:', updateLoserError);
             }
         }
-        // Create settlement record
         const { data: settlement, error: settlementError } = await database_1.supabase
             .from('bet_settlements')
             .insert({
@@ -220,7 +200,6 @@ router.post('/manual', async (req, res) => {
         if (settlementError) {
             console.error('Error creating settlement record:', settlementError);
         }
-        // Update prediction status to settled
         const { error: updatePredictionError } = await database_1.supabase
             .from('predictions')
             .update({
@@ -232,7 +211,6 @@ router.post('/manual', async (req, res) => {
         if (updatePredictionError) {
             console.error('Error updating prediction status:', updatePredictionError);
         }
-        // Record creator payout if there's a fee
         if (creatorFee > 0) {
             const { error: payoutError } = await database_1.supabase
                 .from('creator_payouts')
@@ -249,20 +227,15 @@ router.post('/manual', async (req, res) => {
             }
         }
         console.log('✅ Settlement completed successfully');
-        // Notify each participant individually (no bulk responses)
         console.log('🔔 Sending individual notifications to participants...');
         for (const entry of allEntries) {
             try {
                 const outcome = entry.option_id === winningOptionId ? 'won' : 'lost';
                 const payout = entry.option_id === winningOptionId ? entry.actual_payout : 0;
                 console.log(`📧 Notifying participant ${entry.user_id}: ${outcome} (payout: $${payout})`);
-                // In a real app, you would send individual push notifications, emails, or in-app notifications here
-                // For now, we'll log each individual notification
-                // TODO: Implement actual individual notification system (push notifications, email, etc.)
             }
             catch (notificationError) {
                 console.error(`❌ Failed to notify participant ${entry.user_id}:`, notificationError);
-                // Continue with other notifications even if one fails
             }
         }
         console.log('✅ Individual participant notifications sent');
@@ -291,11 +264,9 @@ router.post('/manual', async (req, res) => {
         });
     }
 });
-// POST /api/v2/settlement/auto-close - Auto-close expired predictions
 router.post('/auto-close', async (req, res) => {
     try {
         console.log('🕐 Auto-closing expired predictions...');
-        // Find all open predictions past their entry deadline
         const { data: expiredPredictions, error: fetchError } = await database_1.supabase
             .from('predictions')
             .select('*')
@@ -318,7 +289,6 @@ router.post('/auto-close', async (req, res) => {
             });
         }
         console.log(`📋 Found ${expiredPredictions.length} expired predictions to close`);
-        // Close all expired predictions
         const { error: updateError } = await database_1.supabase
             .from('predictions')
             .update({
@@ -354,11 +324,9 @@ router.post('/auto-close', async (req, res) => {
         });
     }
 });
-// POST /api/v2/settlement/auto-settle - Auto-settle closed predictions (simplified)
 router.post('/auto-settle', async (req, res) => {
     try {
         console.log('⚖️ Auto-settling closed predictions...');
-        // Find all closed predictions that haven't been settled yet
         const { data: closedPredictions, error: fetchError } = await database_1.supabase
             .from('predictions')
             .select(`
@@ -391,7 +359,6 @@ router.post('/auto-settle', async (req, res) => {
                 console.log(`🔄 Processing prediction: ${prediction.title} (${prediction.id})`);
                 const entries = prediction.entries || [];
                 if (entries.length === 0) {
-                    // No participants - just mark as settled
                     await database_1.supabase
                         .from('predictions')
                         .update({
@@ -408,29 +375,21 @@ router.post('/auto-settle', async (req, res) => {
                     });
                     continue;
                 }
-                // For closed predictions without manual settlement, we should NOT auto-determine winners
-                // Instead, we should either:
-                // 1. Refund all participants if no settlement is provided
-                // 2. Wait for manual settlement by creator
-                // 3. Mark as requiring settlement
                 console.log(`⚠️ Prediction ${prediction.id} is closed but needs manual settlement`);
-                // For now, let's refund all participants since no winner was determined
                 const totalPool = prediction.pool_total || 0;
                 let totalRefunded = 0;
-                // Refund all participants their original stake
                 for (const entry of entries) {
                     const refundAmount = entry.amount || 0;
                     await database_1.supabase
                         .from('prediction_entries')
                         .update({
                         status: 'refunded',
-                        actual_payout: refundAmount, // Return original stake
+                        actual_payout: refundAmount,
                         updated_at: new Date().toISOString()
                     })
                         .eq('id', entry.id);
                     totalRefunded += refundAmount;
                 }
-                // Mark prediction as requiring settlement
                 await database_1.supabase
                     .from('predictions')
                     .update({
@@ -478,13 +437,11 @@ router.post('/auto-settle', async (req, res) => {
         });
     }
 });
-// GET /api/v2/settlement/:predictionId/status - Get settlement status for participants
 router.get('/:predictionId/status', async (req, res) => {
     try {
         const { predictionId } = req.params;
         const userId = req.query.userId;
         console.log(`📋 Getting settlement status for prediction ${predictionId}, user ${userId}`);
-        // Get prediction details
         const { data: prediction, error: predictionError } = await database_1.supabase
             .from('predictions')
             .select(`
@@ -501,7 +458,6 @@ router.get('/:predictionId/status', async (req, res) => {
                 version: shared_1.VERSION
             });
         }
-        // Check if user has an entry in this prediction
         const userEntry = prediction.entries?.find((entry) => entry.user_id === userId);
         if (!userEntry) {
             return res.status(403).json({
@@ -510,7 +466,6 @@ router.get('/:predictionId/status', async (req, res) => {
                 version: shared_1.VERSION
             });
         }
-        // Get settlement proposal if exists
         const { data: settlement, error: settlementError } = await database_1.supabase
             .from('bet_settlements')
             .select('*')
@@ -550,13 +505,11 @@ router.get('/:predictionId/status', async (req, res) => {
         });
     }
 });
-// POST /api/v2/settlement/:predictionId/validate - Participant validates settlement
 router.post('/:predictionId/validate', async (req, res) => {
     try {
         const { predictionId } = req.params;
-        const { userId, action, reason } = req.body; // action: 'accept' | 'dispute'
+        const { userId, action, reason } = req.body;
         console.log(`✅ Settlement validation for prediction ${predictionId}: ${action} by user ${userId}`);
-        // Validate required fields
         if (!userId || !action || !['accept', 'dispute'].includes(action)) {
             return res.status(400).json({
                 error: 'Validation error',
@@ -564,7 +517,6 @@ router.post('/:predictionId/validate', async (req, res) => {
                 version: shared_1.VERSION
             });
         }
-        // Check if user is a participant
         const { data: userEntry, error: entryError } = await database_1.supabase
             .from('prediction_entries')
             .select('*')
@@ -578,7 +530,6 @@ router.post('/:predictionId/validate', async (req, res) => {
                 version: shared_1.VERSION
             });
         }
-        // Record the validation
         const { data: validation, error: validationError } = await database_1.supabase
             .from('settlement_validations')
             .upsert({
@@ -600,9 +551,7 @@ router.post('/:predictionId/validate', async (req, res) => {
                 version: shared_1.VERSION
             });
         }
-        // If this is a dispute, we might want to halt settlement
         if (action === 'dispute') {
-            // Mark prediction as disputed
             await database_1.supabase
                 .from('predictions')
                 .update({
@@ -627,12 +576,9 @@ router.post('/:predictionId/validate', async (req, res) => {
         });
     }
 });
-// POST /api/v2/settlement/auto - Auto settlement (for future use with oracles)
 router.post('/auto', async (req, res) => {
     try {
         const { predictionId, winningOptionId, oracleSource } = req.body;
-        // This would be similar to manual settlement but triggered by external data
-        // For now, return not implemented
         return res.status(501).json({
             error: 'Not implemented',
             message: 'Auto settlement not yet implemented',
@@ -648,7 +594,6 @@ router.post('/auto', async (req, res) => {
         });
     }
 });
-// GET /api/v2/settlement/prediction/:id - Get settlement info for a prediction
 router.get('/prediction/:id', async (req, res) => {
     try {
         const { id } = req.params;
@@ -679,12 +624,10 @@ router.get('/prediction/:id', async (req, res) => {
         });
     }
 });
-// GET /api/v2/settlement/:predictionId/disputes - Get all disputes for a prediction
 router.get('/:predictionId/disputes', async (req, res) => {
     try {
         const { predictionId } = req.params;
         console.log('📋 Fetching disputes for prediction:', predictionId);
-        // Get all disputes for this prediction
         const { data: disputes, error: disputesError } = await database_1.supabase
             .from('settlement_validations')
             .select(`
@@ -729,13 +672,11 @@ router.get('/:predictionId/disputes', async (req, res) => {
         });
     }
 });
-// POST /api/v2/settlement/:predictionId/resolve-disputes - Resolve disputes for a prediction
 router.post('/:predictionId/resolve-disputes', async (req, res) => {
     try {
         const { predictionId } = req.params;
         const { action, reason, newWinningOption, creatorId } = req.body;
         console.log('🔨 Resolving disputes for prediction:', predictionId, 'Action:', action);
-        // Validate required fields
         if (!action || !reason || !creatorId) {
             return res.status(400).json({
                 error: 'Validation error',
@@ -743,7 +684,6 @@ router.post('/:predictionId/resolve-disputes', async (req, res) => {
                 version: shared_1.VERSION
             });
         }
-        // Verify creator ownership
         const { data: prediction, error: predictionError } = await database_1.supabase
             .from('predictions')
             .select('creator_id')
@@ -763,7 +703,6 @@ router.post('/:predictionId/resolve-disputes', async (req, res) => {
                 version: shared_1.VERSION
             });
         }
-        // Update all pending disputes to resolved
         const { error: updateError } = await database_1.supabase
             .from('settlement_validations')
             .update({
@@ -782,17 +721,14 @@ router.post('/:predictionId/resolve-disputes', async (req, res) => {
                 version: shared_1.VERSION
             });
         }
-        // Handle different resolution actions
         let newPredictionStatus = 'settled';
         if (action === 'accept') {
-            // Refund all participants
             console.log('💰 Refunding all participants due to accepted disputes');
-            // Update all prediction entries to refunded
             const { error: refundError } = await database_1.supabase
                 .from('prediction_entries')
                 .update({
                 status: 'refunded',
-                actual_payout: 0 // Will be updated with actual refund amount below
+                actual_payout: 0
             })
                 .eq('prediction_id', predictionId);
             if (refundError) {
@@ -801,18 +737,13 @@ router.post('/:predictionId/resolve-disputes', async (req, res) => {
             newPredictionStatus = 'refunded';
         }
         else if (action === 'revise' && newWinningOption) {
-            // Re-settle with new winning option
             console.log('🔄 Re-settling with new winning option:', newWinningOption);
-            // This would trigger a new settlement process
-            // For now, we'll just update the status
             newPredictionStatus = 'awaiting_settlement';
         }
         else if (action === 'reject') {
-            // Maintain original settlement
             console.log('✋ Maintaining original settlement');
             newPredictionStatus = 'settled';
         }
-        // Update prediction status
         const { error: statusError } = await database_1.supabase
             .from('predictions')
             .update({
@@ -845,3 +776,4 @@ router.post('/:predictionId/resolve-disputes', async (req, res) => {
     }
 });
 exports.default = router;
+//# sourceMappingURL=settlement.js.map

@@ -22,3 +22,4 @@ export interface LoginResponse {
 export interface RefreshTokenResponse {
     tokens: AuthTokens;
 }
+//# sourceMappingURL=auth.d.ts.map

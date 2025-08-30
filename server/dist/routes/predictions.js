@@ -7,20 +7,16 @@ const express_1 = __importDefault(require("express"));
 const database_1 = require("../config/database");
 const shared_1 = require("@fanclubz/shared");
 const router = express_1.default.Router();
-// GET /api/v2/predictions - Get all predictions with pagination
 router.get('/', async (req, res) => {
     try {
         console.log('📡 Predictions endpoint called - origin:', req.headers.origin);
-        // Parse pagination parameters
         const page = parseInt(req.query.page) || 1;
-        const limit = Math.min(parseInt(req.query.limit) || 20, 50); // Max 50 per request
+        const limit = Math.min(parseInt(req.query.limit) || 20, 50);
         const offset = (page - 1) * limit;
-        // Parse filter parameters
         const category = req.query.category;
         const search = req.query.search;
         console.log(`📊 Pagination: page=${page}, limit=${limit}, offset=${offset}`);
         console.log(`🔍 Filters: category=${category}, search=${search}`);
-        // Build query with filters - only show active, open predictions
         let query = database_1.supabase
             .from('predictions')
             .select(`
@@ -29,18 +25,15 @@ router.get('/', async (req, res) => {
         options:prediction_options!prediction_options_prediction_id_fkey(*),
         club:clubs(id, name, avatar_url)
       `, { count: 'exact' })
-            .eq('status', 'open') // Only show open predictions
-            .gt('entry_deadline', new Date().toISOString()) // Only show predictions with future deadlines
+            .eq('status', 'open')
+            .gt('entry_deadline', new Date().toISOString())
             .order('created_at', { ascending: false });
-        // Apply category filter
         if (category && category !== 'all') {
             query = query.eq('category', category);
         }
-        // Apply search filter
         if (search && search.trim()) {
             query = query.or(`title.ilike.%${search}%,description.ilike.%${search}%`);
         }
-        // Apply pagination
         query = query.range(offset, offset + limit - 1);
         const { data: predictions, error, count } = await query;
         if (error) {
@@ -80,11 +73,9 @@ router.get('/', async (req, res) => {
         });
     }
 });
-// GET /api/v2/predictions/stats/platform - Get platform statistics
 router.get('/stats/platform', async (req, res) => {
     try {
         console.log('📊 Platform stats endpoint called - origin:', req.headers.origin);
-        // Get total volume from predictions
         const { data: volumeData, error: volumeError } = await database_1.supabase
             .from('predictions')
             .select('pool_total')
@@ -97,7 +88,6 @@ router.get('/stats/platform', async (req, res) => {
                 version: shared_1.VERSION
             });
         }
-        // Get active predictions count
         const { count: activeCount, error: countError } = await database_1.supabase
             .from('predictions')
             .select('*', { count: 'exact', head: true })
@@ -110,7 +100,6 @@ router.get('/stats/platform', async (req, res) => {
                 version: shared_1.VERSION
             });
         }
-        // Get total users count
         const { count: userCount, error: userError } = await database_1.supabase
             .from('users')
             .select('*', { count: 'exact', head: true });
@@ -122,7 +111,6 @@ router.get('/stats/platform', async (req, res) => {
                 version: shared_1.VERSION
             });
         }
-        // Calculate total volume
         const totalVolume = volumeData?.reduce((sum, pred) => sum + (pred.pool_total || 0), 0) || 0;
         const stats = {
             totalVolume: totalVolume.toFixed(2),
@@ -148,11 +136,9 @@ router.get('/stats/platform', async (req, res) => {
         });
     }
 });
-// GET /api/v2/predictions/trending - Get trending predictions
 router.get('/trending', async (req, res) => {
     try {
         console.log('🔥 Trending predictions endpoint called - origin:', req.headers.origin);
-        // For now, return the same as regular predictions but ordered by activity
         const { data: predictions, error } = await database_1.supabase
             .from('predictions')
             .select(`
@@ -189,7 +175,6 @@ router.get('/trending', async (req, res) => {
         });
     }
 });
-// GET /api/v2/predictions/:id - Get specific prediction
 router.get('/:id', async (req, res) => {
     try {
         const { id } = req.params;
@@ -228,7 +213,6 @@ router.get('/:id', async (req, res) => {
         });
     }
 });
-// GET /api/v2/predictions/created/:userId - Get user's created predictions
 router.get('/created/:userId', async (req, res) => {
     try {
         const { userId } = req.params;
@@ -269,12 +253,10 @@ router.get('/created/:userId', async (req, res) => {
         });
     }
 });
-// POST /api/v2/predictions - Create new prediction
 router.post('/', async (req, res) => {
     try {
         console.log('🎯 Creating new prediction:', req.body);
         const { title, description, category, type, options, entryDeadline, stakeMin, stakeMax, settlementMethod, isPrivate } = req.body;
-        // Validate required fields
         if (!title || !category || !type || !options || !entryDeadline) {
             return res.status(400).json({
                 error: 'Validation error',
@@ -283,13 +265,10 @@ router.post('/', async (req, res) => {
                 details: 'Title, category, type, options, and entryDeadline are required'
             });
         }
-        // Get current user ID from request body (passed from frontend)
-        // In production, this would come from JWT token
         console.log('🔍 Debug - Request body creatorId:', req.body.creatorId);
         console.log('🔍 Debug - Full request body:', JSON.stringify(req.body, null, 2));
         const requestedUserId = req.body.creatorId || '325343a7-0a32-4565-8059-7c0d9d3fed1b';
         console.log('🔍 Debug - Requested userId:', requestedUserId);
-        // Verify user exists in database
         const { data: userExists, error: userError } = await database_1.supabase
             .from('users')
             .select('id')
@@ -297,7 +276,6 @@ router.post('/', async (req, res) => {
             .single();
         if (userError || !userExists) {
             console.log('🔍 Debug - User not found, creating user:', requestedUserId);
-            // Create user if doesn't exist
             const { error: createUserError } = await database_1.supabase
                 .from('users')
                 .insert({
@@ -312,7 +290,6 @@ router.post('/', async (req, res) => {
         }
         const currentUserId = requestedUserId;
         console.log('🔍 Debug - Final currentUserId:', currentUserId);
-        // Create prediction in database (bypass RLS with service role)
         const { data: prediction, error: predictionError } = await database_1.supabase
             .from('predictions')
             .insert({
@@ -346,7 +323,6 @@ router.post('/', async (req, res) => {
                 details: predictionError.message
             });
         }
-        // Create prediction options (and return inserted rows)
         let insertedOptions = [];
         if (options && options.length > 0) {
             const optionData = options.map((option, index) => ({
@@ -361,14 +337,12 @@ router.post('/', async (req, res) => {
                 .select('*');
             if (optionsError) {
                 console.error('❌ Error creating prediction options:', optionsError);
-                // Note: We don't fail here, just log the error
             }
             else if (Array.isArray(createdOptions)) {
                 insertedOptions = createdOptions;
                 console.log('✅ Successfully created', createdOptions.length, 'options for prediction:', prediction.id);
             }
         }
-        // Fetch the complete prediction with options and creator info
         const { data: completePrediction, error: fetchError } = await database_1.supabase
             .from('predictions')
             .select(`
@@ -387,7 +361,6 @@ router.post('/', async (req, res) => {
                 details: fetchError.message
             });
         }
-        // Fallback: if joined fetch returned no options but we inserted them, attach inserted options
         if (completePrediction && Array.isArray(completePrediction.options) && completePrediction.options.length === 0 && insertedOptions.length > 0) {
             console.warn('⚠️ Joined fetch returned no options; attaching inserted options directly');
             completePrediction.options = insertedOptions;
@@ -409,13 +382,11 @@ router.post('/', async (req, res) => {
         });
     }
 });
-// POST /api/v2/predictions/:id/entries - Create prediction entry (place bet)
 router.post('/:id/entries', async (req, res) => {
     try {
         const predictionId = req.params.id;
         const { option_id, amount, user_id } = req.body;
         console.log(`🎲 Creating prediction entry for prediction ${predictionId}:`, { option_id, amount, user_id });
-        // Validate required fields
         if (!option_id || !amount || !user_id) {
             return res.status(400).json({
                 error: 'Validation error',
@@ -423,7 +394,6 @@ router.post('/:id/entries', async (req, res) => {
                 version: shared_1.VERSION
             });
         }
-        // Create prediction entry in database
         const { data: entry, error: entryError } = await database_1.supabase
             .from('prediction_entries')
             .insert({
@@ -432,7 +402,7 @@ router.post('/:id/entries', async (req, res) => {
             user_id: user_id,
             amount: amount,
             status: 'active',
-            potential_payout: amount * 2.0, // Simple calculation for now
+            potential_payout: amount * 2.0,
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString()
         })
@@ -448,7 +418,6 @@ router.post('/:id/entries', async (req, res) => {
             });
         }
         console.log('✅ Prediction entry created successfully:', entry.id);
-        // 1) Update the selected option's total_staked
         const { data: currentOption, error: readOptError } = await database_1.supabase
             .from('prediction_options')
             .select('id,total_staked')
@@ -467,7 +436,6 @@ router.post('/:id/entries', async (req, res) => {
                 console.error('Error updating option total_staked:', updateOptError);
             }
         }
-        // 2) Recalculate pool_total from all options
         const { data: allOptions, error: optionsError } = await database_1.supabase
             .from('prediction_options')
             .select('id,total_staked')
@@ -479,7 +447,6 @@ router.post('/:id/entries', async (req, res) => {
         else {
             poolTotal = (allOptions || []).reduce((sum, opt) => sum + (opt.total_staked || 0), 0);
         }
-        // 3) Recalculate participant_count = number of entries for prediction
         const { count: participantCount, error: countError } = await database_1.supabase
             .from('prediction_entries')
             .select('id', { count: 'exact', head: true })
@@ -487,7 +454,6 @@ router.post('/:id/entries', async (req, res) => {
         if (countError) {
             console.error('Error counting participants:', countError);
         }
-        // 4) Update prediction with new pool_total and participant_count
         const { data: updatedPredictionRow, error: updatePredError } = await database_1.supabase
             .from('predictions')
             .update({
@@ -501,12 +467,10 @@ router.post('/:id/entries', async (req, res) => {
         if (updatePredError) {
             console.error('Error updating prediction totals:', updatePredError);
         }
-        // 5) Recalculate odds for each option: odds = pool_total / option.total_staked (fallback 2.0)
         if (allOptions && allOptions.length > 0) {
             for (const opt of allOptions) {
                 const stake = opt.total_staked || 0;
-                // If there is stake, use pool_total / option_stake; otherwise default to equal-probability baseline (N options)
-                const baseline = allOptions.length > 0 ? allOptions.length : 2; // binary -> 2.0, 3-way -> 3.0, etc.
+                const baseline = allOptions.length > 0 ? allOptions.length : 2;
                 const newOdds = stake > 0 && poolTotal > 0 ? Math.max(1.01, poolTotal / stake) : baseline;
                 const { error: updateOddsError } = await database_1.supabase
                     .from('prediction_options')
@@ -517,7 +481,6 @@ router.post('/:id/entries', async (req, res) => {
                 }
             }
         }
-        // 6) Fetch full prediction with creator and options to return
         const { data: fullPrediction, error: fetchUpdatedError } = await database_1.supabase
             .from('predictions')
             .select(`
@@ -548,13 +511,11 @@ router.post('/:id/entries', async (req, res) => {
         });
     }
 });
-// PUT /api/v2/predictions/:id - Update prediction
 router.put('/:id', async (req, res) => {
     try {
         const { id } = req.params;
         const updates = req.body;
         console.log(`🔄 Updating prediction ${id}:`, updates);
-        // Validate allowed fields
         const allowedFields = ['title', 'description', 'is_private', 'entry_deadline'];
         const filteredUpdates = Object.keys(updates)
             .filter(key => allowedFields.includes(key))
@@ -569,7 +530,6 @@ router.put('/:id', async (req, res) => {
                 version: shared_1.VERSION
             });
         }
-        // Add updated timestamp
         filteredUpdates.updated_at = new Date().toISOString();
         const { data: updated, error } = await database_1.supabase
             .from('predictions')
@@ -602,12 +562,10 @@ router.put('/:id', async (req, res) => {
         });
     }
 });
-// DELETE /api/v2/predictions/:id - Delete prediction
 router.delete('/:id', async (req, res) => {
     try {
         const { id } = req.params;
         console.log(`🗑️ Delete prediction requested for: ${id} - origin:`, req.headers.origin);
-        // Soft delete: mark status as cancelled so it no longer appears in Discover
         const { data: updated, error } = await database_1.supabase
             .from('predictions')
             .update({ status: 'cancelled', updated_at: new Date().toISOString() })
@@ -623,7 +581,6 @@ router.delete('/:id', async (req, res) => {
                 details: error.message
             });
         }
-        // Persistence guard: verify the row now has status cancelled
         const { data: verifyRow, error: verifyError } = await database_1.supabase
             .from('predictions')
             .select('id, status')
@@ -650,7 +607,6 @@ router.delete('/:id', async (req, res) => {
         });
     }
 });
-// Alias: GET /api/v2/predictions/user/:id -> same as users/:id/predictions
 router.get('/user/:id', async (req, res) => {
     try {
         const { id } = req.params;
@@ -691,12 +647,10 @@ router.get('/user/:id', async (req, res) => {
         });
     }
 });
-// POST /api/v2/predictions/:id/close - Close prediction
 router.post('/:id/close', async (req, res) => {
     try {
         const { id } = req.params;
         console.log('🔒 Closing prediction:', id);
-        // Update prediction status to 'closed' in database
         const { data: updatedPrediction, error } = await database_1.supabase
             .from('predictions')
             .update({
@@ -734,12 +688,10 @@ router.post('/:id/close', async (req, res) => {
         });
     }
 });
-// GET /api/v2/predictions/:id/activity - Get prediction activity
 router.get('/:id/activity', async (req, res) => {
     try {
         const { id } = req.params;
         console.log(`📊 Fetching activity for prediction: ${id}`);
-        // Get recent prediction entries (bets placed)
         const { data: entries, error: entriesError } = await database_1.supabase
             .from('prediction_entries')
             .select(`
@@ -761,7 +713,6 @@ router.get('/:id/activity', async (req, res) => {
                 details: entriesError.message
             });
         }
-        // Transform entries into activity items
         const activities = (entries || []).map(entry => {
             const user = Array.isArray(entry.user) ? entry.user[0] : entry.user;
             const option = Array.isArray(entry.option) ? entry.option[0] : entry.option;
@@ -796,7 +747,6 @@ router.get('/:id/activity', async (req, res) => {
         });
     }
 });
-// Helper function to calculate time ago
 function getTimeAgo(timestamp) {
     const now = new Date();
     const past = new Date(timestamp);
@@ -814,7 +764,6 @@ function getTimeAgo(timestamp) {
         return `${diffDays}d ago`;
     return past.toLocaleDateString();
 }
-// GET /api/v2/predictions/:id/participants - Get prediction participants
 router.get('/:id/participants', async (req, res) => {
     try {
         const { id } = req.params;
@@ -840,7 +789,6 @@ router.get('/:id/participants', async (req, res) => {
                 details: error.message
             });
         }
-        // Transform the data to match the expected format
         const participants = (entries || []).map(entry => {
             const user = Array.isArray(entry.user) ? entry.user[0] : entry.user;
             const option = Array.isArray(entry.option) ? entry.option[0] : entry.option;
@@ -871,3 +819,4 @@ router.get('/:id/participants', async (req, res) => {
     }
 });
 exports.default = router;
+//# sourceMappingURL=predictions.js.map

@@ -1,16 +1,11 @@
 #!/usr/bin/env node
 "use strict";
-/**
- * Database Seeding Script for Fan Club Z v2.0.55
- * Seeds the database with sample predictions, users, and options
- */
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.seedDatabase = seedDatabase;
 const database_1 = require("../config/database");
 async function seedDatabase() {
     console.log('🌱 Starting database seeding for Fan Club Z v2.0.55...');
     try {
-        // Sample users
         const sampleUsers = [
             {
                 id: '10000000-0000-0000-0000-000000000001',
@@ -45,7 +40,6 @@ async function seedDatabase() {
                 created_at: new Date().toISOString()
             }
         ];
-        // Sample predictions
         const samplePredictions = [
             {
                 id: '10000000-0000-0000-0000-000000000001',
@@ -168,9 +162,7 @@ async function seedDatabase() {
                 updated_at: new Date().toISOString()
             }
         ];
-        // Sample prediction options
         const sampleOptions = [
-            // Bitcoin prediction options
             {
                 id: '10000000-0000-0000-0000-000000000001',
                 prediction_id: '10000000-0000-0000-0000-000000000001',
@@ -187,7 +179,6 @@ async function seedDatabase() {
                 current_odds: 2.58,
                 percentage: 38.8
             },
-            // Man Utd vs Liverpool options
             {
                 id: '10000000-0000-0000-0000-000000000003',
                 prediction_id: '10000000-0000-0000-0000-000000000002',
@@ -204,7 +195,6 @@ async function seedDatabase() {
                 current_odds: 2.50,
                 percentage: 40.0
             },
-            // Taylor Swift album options
             {
                 id: '10000000-0000-0000-0000-000000000005',
                 prediction_id: '10000000-0000-0000-0000-000000000003',
@@ -221,7 +211,6 @@ async function seedDatabase() {
                 current_odds: 3.00,
                 percentage: 33.3
             },
-            // Ethereum price options
             {
                 id: '10000000-0000-0000-0000-000000000007',
                 prediction_id: '10000000-0000-0000-0000-000000000004',
@@ -238,7 +227,6 @@ async function seedDatabase() {
                 current_odds: 2.50,
                 percentage: 40.0
             },
-            // Lakers NBA Finals options
             {
                 id: '10000000-0000-0000-0000-000000000009',
                 prediction_id: '10000000-0000-0000-0000-000000000005',
@@ -255,7 +243,6 @@ async function seedDatabase() {
                 current_odds: 2.50,
                 percentage: 40.0
             },
-            // Marvel movie options
             {
                 id: '10000000-0000-0000-0000-000000000011',
                 prediction_id: '10000000-0000-0000-0000-000000000006',
@@ -273,7 +260,6 @@ async function seedDatabase() {
                 percentage: 40.0
             }
         ];
-        // Insert users
         console.log('👥 Inserting sample users...');
         for (const user of sampleUsers) {
             const { error } = await database_1.supabase
@@ -283,7 +269,6 @@ async function seedDatabase() {
                 console.error('Error seeding users:', error);
             }
         }
-        // Insert predictions
         console.log('🎯 Inserting sample predictions...');
         for (const prediction of samplePredictions) {
             const { error } = await database_1.supabase
@@ -293,7 +278,6 @@ async function seedDatabase() {
                 console.error('Error seeding predictions:', error);
             }
         }
-        // Insert prediction options
         console.log('📊 Inserting sample prediction options...');
         for (const option of sampleOptions) {
             const { error } = await database_1.supabase
@@ -315,3 +299,4 @@ async function seedDatabase() {
         throw error;
     }
 }
+//# sourceMappingURL=seedDatabase.js.map

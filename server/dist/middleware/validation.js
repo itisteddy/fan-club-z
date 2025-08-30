@@ -8,13 +8,10 @@ const validateRequest = (schema, location = 'body') => {
             let dataToValidate;
             switch (location) {
                 case 'query':
-                    // Convert query string values to appropriate types
                     dataToValidate = { ...req.query };
-                    // Convert numeric query parameters
                     Object.keys(dataToValidate).forEach(key => {
                         const value = dataToValidate[key];
                         if (typeof value === 'string') {
-                            // Try to convert to number if it looks like a number
                             if (!isNaN(Number(value)) && value !== '') {
                                 dataToValidate[key] = Number(value);
                             }
@@ -28,7 +25,6 @@ const validateRequest = (schema, location = 'body') => {
                     dataToValidate = req.body;
             }
             const validatedData = schema.parse(dataToValidate);
-            // Replace the original data with validated data
             switch (location) {
                 case 'query':
                     req.query = validatedData;
@@ -81,12 +77,10 @@ const validateOptionalRequest = (schema, location = 'body') => {
                 default:
                     dataToValidate = req.body;
             }
-            // If no data provided, skip validation
             if (!dataToValidate || Object.keys(dataToValidate).length === 0) {
                 return next();
             }
-            const validatedData = schema.partial().parse(dataToValidate);
-            // Replace the original data with validated data
+            const validatedData = schema.parse(dataToValidate);
             switch (location) {
                 case 'query':
                     req.query = validatedData;
@@ -125,3 +119,4 @@ const validateOptionalRequest = (schema, location = 'body') => {
     };
 };
 exports.validateOptionalRequest = validateOptionalRequest;
+//# sourceMappingURL=validation.js.map

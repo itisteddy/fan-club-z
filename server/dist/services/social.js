@@ -7,13 +7,16 @@ exports.SocialService = void 0;
 const supabase_js_1 = require("@supabase/supabase-js");
 const config_1 = require("../config");
 const logger_1 = __importDefault(require("../utils/logger"));
+const getPaginationParams = (pagination) => {
+    return {
+        page: pagination.page || 1,
+        limit: pagination.limit || 10
+    };
+};
 class SocialService {
     constructor() {
         this.supabase = (0, supabase_js_1.createClient)(config_1.config.supabase.url, config_1.config.supabase.serviceRoleKey);
     }
-    // ============================================================================
-    // CLUBS METHODS
-    // ============================================================================
     async getPublicClubs(pagination, filters = {}) {
         try {
             const { page = 1, limit = 10 } = pagination;
@@ -26,14 +29,12 @@ class SocialService {
           member_count:club_members(count)
         `, { count: 'exact' })
                 .eq('visibility', 'public');
-            // Apply filters
             if (filters.search) {
                 query = query.or(`name.ilike.%${filters.search}%,description.ilike.%${filters.search}%`);
             }
             if (filters.category) {
                 query = query.contains('tags', [filters.category]);
             }
-            // Apply pagination and sorting
             query = query
                 .order('member_count', { ascending: false })
                 .order('created_at', { ascending: false })
@@ -80,7 +81,6 @@ class SocialService {
                 logger_1.default.error('Error creating club:', error);
                 throw new Error('Failed to create club');
             }
-            // Add creator as admin member
             await this.supabase
                 .from('club_members')
                 .insert({
@@ -107,7 +107,7 @@ class SocialService {
                 .eq('id', clubId)
                 .single();
             if (error && error.code === 'PGRST116') {
-                return null; // Club not found
+                return null;
             }
             if (error) {
                 logger_1.default.error('Error fetching club:', error);
@@ -122,7 +122,6 @@ class SocialService {
     }
     async joinClub(userId, clubId) {
         try {
-            // Check if user is already a member
             const { data: existingMember } = await this.supabase
                 .from('club_members')
                 .select('*')
@@ -132,7 +131,6 @@ class SocialService {
             if (existingMember) {
                 throw new Error('Already a member of this club');
             }
-            // Check if club exists and is public
             const club = await this.getClubById(clubId);
             if (!club) {
                 throw new Error('Club not found');
@@ -140,7 +138,6 @@ class SocialService {
             if (club.visibility === 'private') {
                 throw new Error('Cannot join private club without invitation');
             }
-            // Add member
             const { data, error } = await this.supabase
                 .from('club_members')
                 .insert({
@@ -158,7 +155,6 @@ class SocialService {
                 logger_1.default.error('Error joining club:', error);
                 throw new Error('Failed to join club');
             }
-            // Update member count
             await this.supabase
                 .from('clubs')
                 .update({
@@ -175,7 +171,6 @@ class SocialService {
     }
     async leaveClub(userId, clubId) {
         try {
-            // Check if user is owner
             const club = await this.getClubById(clubId);
             if (!club) {
                 throw new Error('Club not found');
@@ -183,7 +178,6 @@ class SocialService {
             if (club.owner_id === userId) {
                 throw new Error('Club owner cannot leave the club');
             }
-            // Remove membership
             const { error } = await this.supabase
                 .from('club_members')
                 .delete()
@@ -193,7 +187,6 @@ class SocialService {
                 logger_1.default.error('Error leaving club:', error);
                 throw new Error('Failed to leave club');
             }
-            // Update member count
             await this.supabase
                 .from('clubs')
                 .update({
@@ -218,7 +211,7 @@ class SocialService {
           user:users(id, username, full_name, avatar_url, reputation_score)
         `, { count: 'exact' })
                 .eq('club_id', clubId)
-                .order('role', { ascending: true }) // admins first
+                .order('role', { ascending: true })
                 .order('joined_at', { ascending: true })
                 .range(offset, offset + limit - 1);
             if (error) {
@@ -330,14 +323,10 @@ class SocialService {
             throw error;
         }
     }
-    // ============================================================================
-    // COMMENTS METHODS (ENHANCED WITH WEBSOCKET & MODERATION)
-    // ============================================================================
     async getPredictionComments(predictionId, pagination, userId) {
         try {
             const { page = 1, limit = 20 } = pagination;
             logger_1.default.info(`Fetching comments for prediction ${predictionId}, page ${page}, limit ${limit}`);
-            // Use the custom function for efficient nested comment retrieval
             const { data, error } = await this.supabase
                 .rpc('get_prediction_comments', {
                 pred_id: predictionId,
@@ -346,10 +335,8 @@ class SocialService {
             });
             if (error) {
                 logger_1.default.error('Error fetching prediction comments with RPC:', error);
-                // Fallback to manual query if RPC fails
                 return await this.getPredictionCommentsManual(predictionId, pagination, userId);
             }
-            // Get total count for pagination
             const { count } = await this.supabase
                 .from('comments')
                 .select('*', { count: 'exact', head: true })
@@ -357,7 +344,6 @@ class SocialService {
                 .is('parent_comment_id', null);
             const total = count || 0;
             const totalPages = Math.ceil(total / limit);
-            // Transform data to match expected format
             const transformedData = (data || []).map((comment) => ({
                 id: comment.id,
                 prediction_id: comment.prediction_id,
@@ -400,12 +386,10 @@ class SocialService {
             throw error;
         }
     }
-    // Fallback manual method
     async getPredictionCommentsManual(predictionId, pagination, userId) {
         try {
             const { page, limit } = pagination;
             const offset = (page - 1) * limit;
-            // Get top-level comments with user info
             const { data: topLevelComments, error: topError, count } = await this.supabase
                 .from('comments')
                 .select(`
@@ -436,7 +420,6 @@ class SocialService {
                     },
                 };
             }
-            // Get replies for all top-level comments
             const commentIds = topLevelComments.map(c => c.id);
             const { data: replies, error: repliesError } = await this.supabase
                 .from('comments')
@@ -450,7 +433,6 @@ class SocialService {
             if (repliesError) {
                 logger_1.default.error('Error fetching replies:', repliesError);
             }
-            // Get like status for current user if provided
             let userLikes = [];
             if (userId) {
                 const { data: likes, error: likesError } = await this.supabase
@@ -466,7 +448,6 @@ class SocialService {
                 }
             }
             const likedCommentIds = new Set(userLikes.map(l => l.comment_id));
-            // Combine comments with replies
             const commentsWithReplies = topLevelComments.map(comment => {
                 const commentReplies = (replies || [])
                     .filter(reply => reply.parent_comment_id === comment.id)
@@ -509,7 +490,6 @@ class SocialService {
     }
     async createComment(userId, commentData) {
         try {
-            // Verify prediction exists
             const { data: prediction, error: predictionError } = await this.supabase
                 .from('predictions')
                 .select('id')
@@ -518,7 +498,6 @@ class SocialService {
             if (predictionError || !prediction) {
                 throw new Error('Prediction not found');
             }
-            // If replying to a comment, verify parent exists
             if (commentData.parent_comment_id) {
                 const { data: parentComment, error: parentError } = await this.supabase
                     .from('comments')
@@ -530,7 +509,6 @@ class SocialService {
                     throw new Error('Parent comment not found');
                 }
             }
-            // Insert the comment
             const { data, error } = await this.supabase
                 .from('comments')
                 .insert({
@@ -557,8 +535,6 @@ class SocialService {
                 replies: [],
             };
             logger_1.default.info(`Comment created successfully: ${data.id}`);
-            // TODO: Send WebSocket notification to prediction subscribers
-            // await this.sendCommentNotification(commentData.prediction_id, enhancedComment);
             return enhancedComment;
         }
         catch (error) {
@@ -589,7 +565,7 @@ class SocialService {
             }
             const enhancedComment = {
                 ...data,
-                is_liked_by_user: false, // TODO: Check actual like status
+                is_liked_by_user: false,
                 is_owned_by_user: true,
                 is_liked: false,
                 is_own: true,
@@ -605,13 +581,12 @@ class SocialService {
     }
     async deleteComment(commentId, userId) {
         try {
-            // Soft delete by marking as deleted instead of removing
             const { error } = await this.supabase
                 .from('comments')
                 .update({
                 is_deleted: true,
                 deleted_at: new Date().toISOString(),
-                content: '[deleted]', // Replace content for privacy
+                content: '[deleted]',
             })
                 .eq('id', commentId)
                 .eq('user_id', userId);
@@ -628,7 +603,6 @@ class SocialService {
     }
     async toggleCommentLike(userId, commentId) {
         try {
-            // Check if like already exists
             const { data: existingLike, error: fetchError } = await this.supabase
                 .from('comment_likes')
                 .select('*')
@@ -640,7 +614,6 @@ class SocialService {
                 throw new Error('Failed to check existing like');
             }
             if (existingLike) {
-                // Remove existing like
                 const { error: deleteError } = await this.supabase
                     .from('comment_likes')
                     .delete()
@@ -652,7 +625,6 @@ class SocialService {
                 logger_1.default.info(`Comment like removed: ${commentId} by ${userId}`);
             }
             else {
-                // Add new like
                 const { error: insertError } = await this.supabase
                     .from('comment_likes')
                     .insert({
@@ -672,7 +644,6 @@ class SocialService {
             throw error;
         }
     }
-    // New method for comment moderation
     async reportComment(commentId, reporterId, reason, description) {
         try {
             const { error } = await this.supabase
@@ -694,12 +665,8 @@ class SocialService {
             throw error;
         }
     }
-    // ============================================================================
-    // REACTIONS METHODS
-    // ============================================================================
     async toggleReaction(userId, reactionData) {
         try {
-            // Check if reaction already exists
             const { data: existingReaction, error: fetchError } = await this.supabase
                 .from('reactions')
                 .select('*')
@@ -712,7 +679,6 @@ class SocialService {
                 throw new Error('Failed to check existing reaction');
             }
             if (existingReaction) {
-                // Remove existing reaction
                 const { error: deleteError } = await this.supabase
                     .from('reactions')
                     .delete()
@@ -724,7 +690,6 @@ class SocialService {
                 return null;
             }
             else {
-                // Add new reaction
                 const { data, error } = await this.supabase
                     .from('reactions')
                     .insert({
@@ -760,7 +725,6 @@ class SocialService {
                 logger_1.default.error('Error fetching prediction reactions:', error);
                 throw new Error('Failed to fetch reactions');
             }
-            // Group reactions by type
             const reactionGroups = (data || []).reduce((acc, reaction) => {
                 if (!acc[reaction.type]) {
                     acc[reaction.type] = [];
@@ -768,7 +732,6 @@ class SocialService {
                 acc[reaction.type].push(reaction);
                 return acc;
             }, {});
-            // Calculate counts
             const reactionCounts = Object.keys(reactionGroups).reduce((acc, type) => {
                 acc[type] = reactionGroups[type]?.length || 0;
                 return acc;
@@ -784,14 +747,10 @@ class SocialService {
             throw error;
         }
     }
-    // ============================================================================
-    // USER ACTIVITY METHODS
-    // ============================================================================
     async getUserActivity(userId, pagination) {
         try {
             const { page, limit } = pagination;
             const offset = (page - 1) * limit;
-            // Get recent comments and reactions
             const [commentsResult, reactionsResult] = await Promise.all([
                 this.supabase
                     .from('comments')
@@ -820,7 +779,6 @@ class SocialService {
                 });
                 throw new Error('Failed to fetch user activity');
             }
-            // Combine and sort activities
             const activities = [
                 ...(commentsResult.data || []).map(comment => ({
                     ...comment,
@@ -831,7 +789,6 @@ class SocialService {
                     activity_type: 'reaction',
                 })),
             ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-            // Apply pagination to combined results
             const paginatedActivities = activities.slice(offset, offset + limit);
             const total = activities.length;
             const totalPages = Math.ceil(total / limit);
@@ -853,15 +810,11 @@ class SocialService {
             throw error;
         }
     }
-    // ============================================================================
-    // LEADERBOARD METHODS
-    // ============================================================================
     async getLeaderboard(options) {
         try {
             const { type, period, clubId, pagination } = options;
             const { page, limit } = pagination;
             const offset = (page - 1) * limit;
-            // Calculate date filter based on period
             let dateFilter = '';
             if (period === 'weekly') {
                 dateFilter = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
@@ -885,15 +838,12 @@ class SocialService {
             prediction:predictions!inner(club_id)
           )
         `, { count: 'exact' });
-            // Apply date filter if specified
             if (dateFilter) {
                 query = query.gte('prediction_entries.created_at', dateFilter);
             }
-            // Apply club filter if specified
             if (type === 'club' && clubId) {
                 query = query.eq('prediction_entries.prediction.club_id', clubId);
             }
-            // Only include users with winning predictions
             query = query.eq('prediction_entries.status', 'won');
             const { data, error, count } = await query
                 .order('reputation_score', { ascending: false })
@@ -902,7 +852,6 @@ class SocialService {
                 logger_1.default.error('Error fetching leaderboard:', error);
                 throw new Error('Failed to fetch leaderboard');
             }
-            // Calculate leaderboard statistics
             const leaderboard = (data || []).map((user, index) => {
                 const winningEntries = user.prediction_entries.filter(entry => entry.status === 'won');
                 const totalWon = winningEntries.reduce((sum, entry) => sum + (entry.actual_payout || 0), 0);
@@ -951,3 +900,4 @@ class SocialService {
     }
 }
 exports.SocialService = SocialService;
+//# sourceMappingURL=social.js.map

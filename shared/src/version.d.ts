@@ -1,4 +1,4 @@
-export declare const VERSION = "2.0.81";
+export declare const VERSION = "2.0.82";
 export declare const BUILD_DATE: string;
 export declare const BUILD_ENV: string;
 export declare const FEATURES: {
@@ -37,3 +37,4 @@ export declare const versionInfo: {
         CLUBS: string;
     };
 };
+//# sourceMappingURL=version.d.ts.map

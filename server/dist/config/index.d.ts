@@ -24,7 +24,7 @@ export declare const config: {
         readonly url: string;
         readonly host: string;
         readonly port: number;
-        readonly password: string | undefined;
+        readonly password: string;
     };
     readonly rateLimit: {
         readonly windowMs: number;
@@ -35,25 +35,25 @@ export declare const config: {
     readonly upload: {
         readonly maxFileSize: number;
         readonly allowedTypes: string[];
-        readonly s3Bucket: string | undefined;
+        readonly s3Bucket: string;
     };
     readonly payment: {
         readonly demoMode: boolean;
         readonly demoSuccessRate: number;
         readonly demoProcessingDelay: number;
         readonly stripe: {
-            readonly secretKey: string | undefined;
-            readonly publishableKey: string | undefined;
-            readonly webhookSecret: string | undefined;
+            readonly secretKey: string;
+            readonly publishableKey: string;
+            readonly webhookSecret: string;
         };
         readonly paystack: {
-            readonly secretKey: string | undefined;
-            readonly publicKey: string | undefined;
+            readonly secretKey: string;
+            readonly publicKey: string;
         };
     };
     readonly kyc: {
         readonly enabled: boolean;
-        readonly providerApiKey: string | undefined;
+        readonly providerApiKey: string;
         readonly basicLimit: number;
         readonly enhancedLimit: number;
     };
@@ -68,16 +68,16 @@ export declare const config: {
     readonly email: {
         readonly provider: string;
         readonly smtp: {
-            readonly host: string | undefined;
+            readonly host: string;
             readonly port: number;
             readonly secure: boolean;
             readonly auth: {
-                readonly user: string | undefined;
-                readonly pass: string | undefined;
+                readonly user: string;
+                readonly pass: string;
             };
         };
         readonly sendgrid: {
-            readonly apiKey: string | undefined;
+            readonly apiKey: string;
         };
         readonly from: {
             readonly name: string;
@@ -87,15 +87,15 @@ export declare const config: {
     readonly blockchain: {
         readonly enabled: boolean;
         readonly network: string;
-        readonly rpcUrl: string | undefined;
-        readonly privateKey: string | undefined;
-        readonly escrowContractAddress: string | undefined;
+        readonly rpcUrl: string;
+        readonly privateKey: string;
+        readonly escrowContractAddress: string;
     };
     readonly analytics: {
         readonly enabled: boolean;
-        readonly googleAnalyticsId: string | undefined;
-        readonly mixpanelToken: string | undefined;
-        readonly apiKey: string | undefined;
+        readonly googleAnalyticsId: string;
+        readonly mixpanelToken: string;
+        readonly apiKey: string;
     };
     readonly logging: {
         readonly level: string;
@@ -126,3 +126,4 @@ export declare const config: {
     };
 };
 export default config;
+//# sourceMappingURL=index.d.ts.map

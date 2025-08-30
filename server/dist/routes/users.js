@@ -7,12 +7,10 @@ const express_1 = __importDefault(require("express"));
 const database_1 = require("../config/database");
 const shared_1 = require("@fanclubz/shared");
 const router = express_1.default.Router();
-// GET /api/v2/users/leaderboard - Get leaderboard data (must be before /:id route)
 router.get('/leaderboard', async (req, res) => {
     try {
         const type = req.query.type || 'predictions';
         const limit = Math.min(parseInt(req.query.limit || '50', 10), 100);
-        // Fetch all entries (recent window can be added later if needed)
         const { data: entries, error: entriesError } = await database_1.supabase
             .from('prediction_entries')
             .select('user_id, amount, actual_payout, status');
@@ -24,7 +22,6 @@ router.get('/leaderboard', async (req, res) => {
                 details: entriesError.message
             });
         }
-        // Fetch created predictions
         const { data: created, error: createdError } = await database_1.supabase
             .from('predictions')
             .select('id, creator_id');
@@ -36,9 +33,7 @@ router.get('/leaderboard', async (req, res) => {
                 details: createdError.message
             });
         }
-        // Aggregate by user
         const byUser = {};
-        // Process entries
         for (const entry of entries || []) {
             const uid = entry.user_id;
             if (!byUser[uid]) {
@@ -47,12 +42,10 @@ router.get('/leaderboard', async (req, res) => {
             byUser[uid].total_invested += entry.amount || 0;
             byUser[uid].total_profit += (entry.actual_payout || 0) - (entry.amount || 0);
             byUser[uid].total_entries += 1;
-            // Track won entries
             if (entry.status === 'won' || (entry.actual_payout && entry.actual_payout > entry.amount)) {
                 byUser[uid].won_entries += 1;
             }
         }
-        // Process created predictions
         for (const pred of created || []) {
             const uid = pred.creator_id;
             if (!byUser[uid]) {
@@ -76,18 +69,15 @@ router.get('/leaderboard', async (req, res) => {
                 details: usersError.message
             });
         }
-        // Combine and sort
         const leaderboard = (users || []).map(user => {
             const stats = byUser[user.id];
-            // Calculate actual win rate: (won entries / total entries) * 100
             const winRate = stats.total_entries > 0 ? Math.round((stats.won_entries / stats.total_entries) * 100) : 0;
             return {
                 ...user,
                 ...stats,
-                win_rate: Math.max(0, Math.min(100, winRate)) // Ensure 0-100 range
+                win_rate: Math.max(0, Math.min(100, winRate))
             };
         });
-        // Sort based on type
         if (type === 'profit') {
             leaderboard.sort((a, b) => b.total_profit - a.total_profit);
         }
@@ -111,12 +101,10 @@ router.get('/leaderboard', async (req, res) => {
         });
     }
 });
-// GET /api/v2/users/:id - Get user profile by ID
 router.get('/:id', async (req, res) => {
     const { id } = req.params;
     console.log(`👤 User profile endpoint called for ID: ${id} - origin:`, req.headers.origin);
     try {
-        // Fetch user profile from Supabase
         const { data: user, error } = await database_1.supabase
             .from('users')
             .select(`
@@ -139,7 +127,6 @@ router.get('/:id', async (req, res) => {
                 details: error.message
             });
         }
-        // Get user's prediction statistics
         const [createdPredictions, participatedPredictions] = await Promise.all([
             database_1.supabase
                 .from('predictions')
@@ -150,24 +137,22 @@ router.get('/:id', async (req, res) => {
                 .select('id, status, amount, actual_payout', { count: 'exact' })
                 .eq('user_id', id)
         ]);
-        // Calculate user statistics
         const stats = {
             predictionsCreated: createdPredictions.count || 0,
             predictionsParticipated: participatedPredictions.count || 0,
             totalVolume: createdPredictions.data?.reduce((sum, pred) => sum + (pred.pool_total || 0), 0) || 0,
             totalInvested: participatedPredictions.data?.reduce((sum, entry) => sum + (entry.amount || 0), 0) || 0,
             totalEarnings: participatedPredictions.data?.reduce((sum, entry) => sum + (entry.actual_payout || 0), 0) || 0,
-            winRate: 0 // Will calculate based on won vs total predictions
+            winRate: 0
         };
-        // Calculate win rate
         const wonPredictions = participatedPredictions.data?.filter(entry => entry.status === 'won').length || 0;
         stats.winRate = stats.predictionsParticipated > 0 ? (wonPredictions / stats.predictionsParticipated) * 100 : 0;
         return res.json({
             data: {
                 ...user,
-                bio: null, // Add default bio since column doesn't exist
-                reputation_score: 0, // Add default reputation score
-                is_verified: false, // Add default verification status
+                bio: null,
+                reputation_score: 0,
+                is_verified: false,
                 stats
             },
             message: 'User profile fetched successfully',
@@ -184,7 +169,6 @@ router.get('/:id', async (req, res) => {
         });
     }
 });
-// GET /api/v2/users/:id/predictions - Get user's created predictions
 router.get('/:id/predictions', async (req, res) => {
     const { id } = req.params;
     console.log(`📊 User predictions endpoint called for ID: ${id} - origin:`, req.headers.origin);
@@ -226,3 +210,4 @@ router.get('/:id/predictions', async (req, res) => {
     }
 });
 exports.default = router;
+//# sourceMappingURL=users.js.map

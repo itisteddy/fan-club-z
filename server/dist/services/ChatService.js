@@ -11,23 +11,19 @@ const config_1 = require("../config");
 class ChatService {
     constructor(httpServer) {
         this.connectedUsers = new Map();
-        this.typingUsers = new Map(); // predictionId -> Set of usernames
+        this.typingUsers = new Map();
         this.httpServer = httpServer;
-        // Configure comprehensive CORS for Socket.IO with Render URLs
         const allowedOrigins = this.getAllowedOrigins();
         logger_1.default.info('🔧 Configuring Socket.IO with CORS origins:', allowedOrigins);
         this.io = new socket_io_1.Server(this.httpServer, {
             cors: {
                 origin: (origin, callback) => {
-                    // Allow requests with no origin (mobile apps, Postman, etc.)
                     if (!origin) {
                         logger_1.default.info('🌐 Socket.IO CORS: Allowing request with no origin');
                         return callback(null, true);
                     }
                     logger_1.default.info(`🌐 Socket.IO CORS: Checking origin: ${origin}`);
-                    // Check if origin is in allowed list
                     const isAllowed = allowedOrigins.includes(origin);
-                    // Also allow any Vercel deployment in development
                     const isVercelDeployment = origin.includes('.vercel.app');
                     const isRenderDeployment = origin.includes('.onrender.com');
                     const isCustomDomain = origin.includes('fanclubz.app');
@@ -42,7 +38,6 @@ class ChatService {
                     }
                     else {
                         logger_1.default.warn(`❌ Socket.IO CORS: Origin blocked - ${origin}`);
-                        // In development, be more permissive
                         if (isDevelopment) {
                             logger_1.default.info('🚧 Socket.IO CORS: Development mode - allowing anyway');
                             callback(null, true);
@@ -56,7 +51,6 @@ class ChatService {
                 credentials: true,
                 allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
             },
-            // Connection settings optimized for Render
             pingTimeout: 60000,
             pingInterval: 25000,
             connectTimeout: 45000,
@@ -64,8 +58,7 @@ class ChatService {
             serveClient: false,
             allowUpgrades: true,
             cookie: false,
-            // Additional Render-specific optimizations
-            maxHttpBufferSize: 1e6, // 1MB
+            maxHttpBufferSize: 1e6,
             httpCompression: true,
             perMessageDeflate: true
         });
@@ -76,25 +69,20 @@ class ChatService {
     getAllowedOrigins() {
         const baseOrigins = process.env.NODE_ENV === 'production'
             ? [
-                // Production origins (single service for free tier)
                 'https://fan-club-z.onrender.com',
-                // Custom domains
                 'https://fanclubz.app',
                 'https://www.fanclubz.app',
                 'https://app.fanclubz.app',
                 'https://dev.fanclubz.app',
-                // Vercel URLs (current deployments)
                 'https://fan-club-z-pw49foj6y-teddys-projects-d67ab22a.vercel.app',
                 'https://fan-club-z-lu5ywnjr0-teddys-projects-d67ab22a.vercel.app',
                 'https://fanclubz-version2-0.vercel.app',
-                // Environment-specific
                 config_1.config.frontend.url,
                 process.env.FRONTEND_URL,
                 process.env.CLIENT_URL,
                 process.env.VITE_APP_URL
             ]
             : [
-                // Development origins
                 'http://localhost:3000',
                 'http://localhost:5173',
                 'http://localhost:3001',
@@ -107,7 +95,6 @@ class ChatService {
                 process.env.CLIENT_URL || 'http://localhost:5173',
                 process.env.VITE_APP_URL || 'http://localhost:5173'
             ];
-        // Add any additional origins from environment
         const additionalOrigins = process.env.WEBSOCKET_ORIGINS?.split(',') || [];
         const corsOrigins = process.env.CORS_ORIGINS?.split(',') || [];
         return [...new Set([...baseOrigins, ...additionalOrigins, ...corsOrigins])].filter(Boolean);
@@ -130,7 +117,6 @@ class ChatService {
             logger_1.default.info(`📍 Origin: ${clientOrigin || 'unknown'}`);
             logger_1.default.info(`🌍 IP: ${forwardedFor || socket.handshake.address}`);
             logger_1.default.info(`🖥️  User Agent: ${userAgent ? userAgent.substring(0, 100) + '...' : 'unknown'}`);
-            // Handle user authentication/identification
             socket.on('authenticate', (userData) => {
                 try {
                     logger_1.default.info(`🔐 Authentication attempt: ${userData.username || 'unknown'} (${socket.id})`);
@@ -147,7 +133,6 @@ class ChatService {
                     };
                     this.connectedUsers.set(socket.id, connectedUser);
                     logger_1.default.info(`✅ User authenticated: ${userData.username} (${socket.id})`);
-                    // Send authentication confirmation IMMEDIATELY
                     socket.emit('authenticated', {
                         success: true,
                         socketId: socket.id,
@@ -156,7 +141,7 @@ class ChatService {
                         timestamp: new Date().toISOString(),
                         serverInfo: {
                             environment: process.env.NODE_ENV,
-                            version: '2.0.0'
+                            version: process.env.npm_package_version || '2.0.81'
                         }
                     });
                 }
@@ -168,7 +153,6 @@ class ChatService {
                     });
                 }
             });
-            // Join prediction room
             socket.on('join_prediction', async (data) => {
                 try {
                     const { predictionId, userId } = data;
@@ -182,18 +166,15 @@ class ChatService {
                         return;
                     }
                     logger_1.default.info(`👥 User ${user.username} joining prediction room: ${predictionId}`);
-                    // Update user's current prediction
                     user.predictionId = predictionId;
                     this.connectedUsers.set(socket.id, user);
                     socket.join(`prediction_${predictionId}`);
-                    // Update participant status in database (with error handling)
                     try {
                         await this.updateParticipantStatus(predictionId, userId, true);
                     }
                     catch (dbError) {
                         logger_1.default.warn('Database operation failed, continuing without participant update:', dbError);
                     }
-                    // Load recent messages for this prediction (with error handling)
                     let messages = [];
                     let participants = [];
                     try {
@@ -205,12 +186,10 @@ class ChatService {
                     }
                     socket.emit('message_history', messages);
                     socket.emit('participants_updated', participants);
-                    // Notify others in the room
                     socket.to(`prediction_${predictionId}`).emit('user_joined', {
                         userId,
                         username: user?.username || 'Unknown'
                     });
-                    // Send join confirmation
                     socket.emit('joined_prediction', {
                         predictionId,
                         messageCount: messages.length,
@@ -228,7 +207,6 @@ class ChatService {
                     });
                 }
             });
-            // Handle new message
             socket.on('send_message', async (data) => {
                 try {
                     const { predictionId, userId, content, username, avatar } = data;
@@ -240,7 +218,6 @@ class ChatService {
                         return;
                     }
                     logger_1.default.info(`📨 New message from ${username} in prediction ${predictionId}: ${content.substring(0, 50)}...`);
-                    // Save message to database (with error handling)
                     let message = null;
                     try {
                         const { data: savedMessage, error } = await supabase_js_1.supabase
@@ -263,7 +240,6 @@ class ChatService {
                     }
                     catch (dbError) {
                         logger_1.default.warn('Database save failed, broadcasting message anyway:', dbError);
-                        // Create a temporary message object for broadcasting
                         message = {
                             id: `temp_${Date.now()}`,
                             prediction_id: predictionId,
@@ -278,7 +254,6 @@ class ChatService {
                             }
                         };
                     }
-                    // Format message for broadcast
                     const messageWithUser = {
                         ...message,
                         user: {
@@ -287,9 +262,7 @@ class ChatService {
                             avatar_url: avatar
                         }
                     };
-                    // Broadcast message to all users in the prediction room
                     this.io.to(`prediction_${predictionId}`).emit('new_message', messageWithUser);
-                    // Remove user from typing list
                     this.removeTypingUser(predictionId, username);
                     logger_1.default.info(`✅ Message broadcast to prediction room: ${predictionId}`);
                 }
@@ -302,12 +275,10 @@ class ChatService {
                     });
                 }
             });
-            // Handle typing indicators
             socket.on('typing_start', (data) => {
                 const { predictionId, username } = data;
                 this.addTypingUser(predictionId, username);
                 socket.to(`prediction_${predictionId}`).emit('user_typing', { username });
-                // Auto-remove after 3 seconds
                 setTimeout(() => {
                     this.removeTypingUser(predictionId, username);
                     socket.to(`prediction_${predictionId}`).emit('user_stop_typing', { username });
@@ -318,7 +289,6 @@ class ChatService {
                 this.removeTypingUser(predictionId, username);
                 socket.to(`prediction_${predictionId}`).emit('user_stop_typing', { username });
             });
-            // Handle message reactions
             socket.on('add_reaction', async (data) => {
                 try {
                     const { messageId, userId, reactionType } = data;
@@ -335,7 +305,6 @@ class ChatService {
                             .single();
                         if (!error && savedReaction) {
                             reaction = savedReaction;
-                            // Get the message's prediction ID to broadcast to the right room
                             const { data: message } = await supabase_js_1.supabase
                                 .from('chat_messages')
                                 .select('prediction_id')
@@ -352,7 +321,6 @@ class ChatService {
                     }
                     catch (dbError) {
                         logger_1.default.warn('Database reaction save failed:', dbError);
-                        // Still emit the reaction for real-time feedback
                         socket.emit('reaction_error', {
                             error: 'Failed to save reaction to database',
                             details: dbError instanceof Error ? dbError.message : 'Unknown error'
@@ -367,23 +335,19 @@ class ChatService {
                     });
                 }
             });
-            // Leave prediction room
             socket.on('leave_prediction', async (data) => {
                 try {
                     const { predictionId } = data;
                     const user = this.connectedUsers.get(socket.id);
                     if (user) {
                         logger_1.default.info(`👋 User ${user.username} leaving prediction room: ${predictionId}`);
-                        // Update participant status (with error handling)
                         try {
                             await this.updateParticipantStatus(predictionId, user.userId, false);
                         }
                         catch (dbError) {
                             logger_1.default.warn('Database participant update failed:', dbError);
                         }
-                        // Remove from typing users
                         this.removeTypingUser(predictionId, user.username);
-                        // Notify others
                         socket.to(`prediction_${predictionId}`).emit('user_left', {
                             userId: user.userId,
                             username: user.username
@@ -402,19 +366,16 @@ class ChatService {
                     });
                 }
             });
-            // Handle ping/pong for connection testing
             socket.on('ping', () => {
                 socket.emit('pong', {
                     timestamp: Date.now(),
                     server: process.env.NODE_ENV === 'production' ? 'render' : 'local'
                 });
             });
-            // Handle disconnect
             socket.on('disconnect', async (reason) => {
                 const user = this.connectedUsers.get(socket.id);
                 if (user) {
                     logger_1.default.info(`🔌 User ${user.username} disconnected: ${socket.id} (reason: ${reason})`);
-                    // Update participant status if they were in a prediction room
                     if (user.predictionId) {
                         try {
                             await this.updateParticipantStatus(user.predictionId, user.userId, false);
@@ -422,9 +383,7 @@ class ChatService {
                         catch (dbError) {
                             logger_1.default.warn('Database cleanup failed on disconnect:', dbError);
                         }
-                        // Remove from typing users
                         this.removeTypingUser(user.predictionId, user.username);
-                        // Notify others in the room
                         socket.to(`prediction_${user.predictionId}`).emit('user_left', {
                             userId: user.userId,
                             username: user.username
@@ -436,26 +395,23 @@ class ChatService {
                     logger_1.default.info(`🔌 Unknown user disconnected: ${socket.id} (reason: ${reason})`);
                 }
             });
-            // Handle connection errors
             socket.on('error', (error) => {
                 logger_1.default.error(`⚠️ Socket error for ${socket.id}:`, error);
             });
-            // Send connection confirmation
             socket.emit('connected', {
                 socketId: socket.id,
                 timestamp: new Date().toISOString(),
-                serverVersion: '2.0.0',
+                serverVersion: process.env.npm_package_version || '2.0.81',
                 environment: process.env.NODE_ENV,
                 platform: process.env.RENDER ? 'render' : 'local'
             });
         });
-        // Log connection statistics periodically
         setInterval(() => {
             const totalConnections = this.io.engine.clientsCount;
             const authenticatedUsers = this.connectedUsers.size;
             const activeRooms = Array.from(this.typingUsers.keys()).length;
             logger_1.default.info(`📊 Connection stats: ${totalConnections} total, ${authenticatedUsers} authenticated, ${activeRooms} active rooms`);
-        }, 60000); // Every minute
+        }, 60000);
     }
     async loadMessageHistory(predictionId) {
         try {
@@ -468,7 +424,7 @@ class ChatService {
                 .eq('prediction_id', predictionId)
                 .is('deleted_at', null)
                 .order('created_at', { ascending: true })
-                .limit(100); // Load last 100 messages
+                .limit(100);
             if (error) {
                 logger_1.default.error('Error loading message history:', error);
                 return [];
@@ -535,13 +491,11 @@ class ChatService {
         }
     }
     setupPeriodicCleanup() {
-        // Clean up inactive connections every 5 minutes
         setInterval(() => {
             const now = new Date();
             const fiveMinutesAgo = new Date(now.getTime() - 5 * 60 * 1000);
             for (const [socketId, user] of this.connectedUsers.entries()) {
                 if (user.joinedAt < fiveMinutesAgo) {
-                    // Check if socket is still connected
                     const socket = this.io.sockets.sockets.get(socketId);
                     if (!socket || !socket.connected) {
                         logger_1.default.info(`🧹 Cleaning up disconnected user: ${user.username}`);
@@ -549,9 +503,8 @@ class ChatService {
                     }
                 }
             }
-        }, 5 * 60 * 1000); // Run every 5 minutes
+        }, 5 * 60 * 1000);
     }
-    // Public methods for external access
     getHttpServer() {
         return this.httpServer;
     }
@@ -575,7 +528,6 @@ class ChatService {
             environment: process.env.NODE_ENV
         };
     }
-    // Method to send system messages
     async sendSystemMessage(predictionId, content) {
         try {
             let message = null;
@@ -584,7 +536,7 @@ class ChatService {
                     .from('chat_messages')
                     .insert({
                     prediction_id: predictionId,
-                    user_id: '00000000-0000-0000-0000-000000000000', // System user ID
+                    user_id: '00000000-0000-0000-0000-000000000000',
                     content,
                     message_type: 'system'
                 })
@@ -596,7 +548,6 @@ class ChatService {
             }
             catch (dbError) {
                 logger_1.default.warn('Database system message save failed:', dbError);
-                // Create temporary message for broadcasting
                 message = {
                     id: `system_${Date.now()}`,
                     prediction_id: predictionId,
@@ -626,3 +577,4 @@ class ChatService {
 }
 exports.ChatService = ChatService;
 exports.default = ChatService;
+//# sourceMappingURL=ChatService.js.map

@@ -1,7 +1,4 @@
 "use strict";
-/**
- * Simple logger utility for Fan Club Z
- */
 Object.defineProperty(exports, "__esModule", { value: true });
 class SimpleLogger {
     log(level, message, ...args) {
@@ -24,3 +21,4 @@ class SimpleLogger {
 }
 const logger = new SimpleLogger();
 exports.default = logger;
+//# sourceMappingURL=logger.js.map

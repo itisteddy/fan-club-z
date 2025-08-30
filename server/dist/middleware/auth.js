@@ -22,9 +22,7 @@ const authenticateToken = async (req, res, next) => {
         }
         const token = authHeader.substring(7);
         try {
-            // Verify JWT token
             const decoded = jsonwebtoken_1.default.verify(token, config_1.config.jwt.secret);
-            // Fetch user from database
             const { data: user, error } = await supabase
                 .from('users')
                 .select('*')
@@ -89,7 +87,6 @@ const optionalAuth = async (req, res, next) => {
             next();
         }
         catch (tokenError) {
-            // For optional auth, we just continue without setting user
             next();
         }
     }
@@ -99,7 +96,6 @@ const optionalAuth = async (req, res, next) => {
     }
 };
 exports.optionalAuth = optionalAuth;
-// Legacy functions for backward compatibility
 exports.authenticate = exports.authenticateToken;
 const requireAuth = (req, res, next) => {
     if (!req.user) {
@@ -111,3 +107,4 @@ const requireAuth = (req, res, next) => {
     return next();
 };
 exports.requireAuth = requireAuth;
+//# sourceMappingURL=auth.js.map

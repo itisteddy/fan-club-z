@@ -75,3 +75,4 @@ export declare const db: {
     };
 };
 export default db;
+//# sourceMappingURL=database.d.ts.map

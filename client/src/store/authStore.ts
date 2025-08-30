@@ -246,15 +246,7 @@ export const useAuthStore = create<AuthState>()(
             
             toast.success(`Welcome back, ${convertedUser?.firstName}!`);
             
-            // Handle redirect after successful login
-            const redirectUrl = localStorage.getItem('authRedirectUrl');
-            if (redirectUrl && redirectUrl !== '/auth') {
-              localStorage.removeItem('authRedirectUrl');
-              // Use setTimeout to ensure state is updated before navigation
-              setTimeout(() => {
-                window.location.href = redirectUrl;
-              }, 100);
-            }
+            // Let the auth state listener handle the redirect to avoid conflicts
           }
 
         } catch (error: any) {
@@ -610,6 +602,18 @@ if (typeof window !== 'undefined' && !authStateChangeListenerSet) {
         lastAuthCheck: now
       });
     }
-    // Deliberately ignore SIGNED_IN, INITIAL_SESSION to prevent re-auth loops
+    // Handle SIGNED_IN event for redirects
+    else if (event === 'SIGNED_IN' && session?.user) {
+      console.log('🔓 User signed in, checking for redirect');
+      const redirectUrl = localStorage.getItem('authRedirectUrl');
+      if (redirectUrl && redirectUrl !== '/auth') {
+        console.log('🔄 Redirecting to:', redirectUrl);
+        localStorage.removeItem('authRedirectUrl');
+        setTimeout(() => {
+          window.location.href = redirectUrl;
+        }, 100);
+      }
+    }
+    // Deliberately ignore INITIAL_SESSION to prevent re-auth loops
   });
 }

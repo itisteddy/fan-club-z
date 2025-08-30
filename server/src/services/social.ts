@@ -3,15 +3,23 @@ import { config } from '../config';
 import logger from '../utils/logger';
 import type { 
   Club, 
-  CreateClub,
-  ClubMember,
+  CreateClub, 
+  ClubMember, 
   Comment, 
-  CreateComment,
+  CreateComment, 
   Reaction, 
   CreateReaction,
   PaginationQuery,
   PaginatedResponse
 } from '@fanclubz/shared';
+
+// Helper function to safely extract pagination parameters
+const getPaginationParams = (pagination: PaginationQuery) => {
+  return {
+    page: pagination.page || 1,
+    limit: pagination.limit || 10
+  };
+};
 
 interface EnhancedComment extends Comment {
   user: {

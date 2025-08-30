@@ -1,12 +1,6 @@
 "use strict";
-// ============================================================================
-// UTILITY TYPES
-// ============================================================================
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ConflictError = exports.NotFoundError = exports.AuthorizationError = exports.AuthenticationError = exports.ValidationError = exports.AppError = exports.validatePredictionStakeRange = exports.validatePredictionDeadline = exports.getAvatarUrl = exports.generateInitials = exports.isValidPassword = exports.isValidEmail = exports.truncateText = exports.slugify = exports.calculatePotentialPayout = exports.calculateOdds = exports.formatTimeRemaining = exports.formatDate = exports.formatCurrency = void 0;
-// ============================================================================
-// UTILITY FUNCTIONS
-// ============================================================================
 const formatCurrency = (amount, currency = 'NGN') => {
     const formatters = {
         NGN: new Intl.NumberFormat('en-NG', {
@@ -34,12 +28,12 @@ const formatCurrency = (amount, currency = 'NGN') => {
     };
     const formatter = formatters[currency] || formatters.NGN;
     if (currency === 'USDT') {
-        return `${formatter.format(amount)} USDT`;
+        return `${formatter?.format(amount)} USDT`;
     }
     if (currency === 'ETH') {
-        return `${formatter.format(amount)} ETH`;
+        return `${formatter?.format(amount)} ETH`;
     }
-    return formatter.format(amount);
+    return formatter?.format(amount) || `${amount} ${currency}`;
 };
 exports.formatCurrency = formatCurrency;
 const formatDate = (dateString) => {
@@ -112,7 +106,6 @@ const isValidEmail = (email) => {
 };
 exports.isValidEmail = isValidEmail;
 const isValidPassword = (password) => {
-    // At least 8 characters, 1 uppercase, 1 lowercase, 1 number
     const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[a-zA-Z\d@$!%*?&]{8,}$/;
     return passwordRegex.test(password);
 };
@@ -134,13 +127,10 @@ const getAvatarUrl = (user) => {
     return `https://ui-avatars.com/api/?name=${encodeURIComponent(initials)}&background=00D084&color=fff&size=128`;
 };
 exports.getAvatarUrl = getAvatarUrl;
-// ============================================================================
-// VALIDATION HELPERS
-// ============================================================================
 const validatePredictionDeadline = (deadline) => {
     const deadlineDate = new Date(deadline);
     const now = new Date();
-    const minDeadline = new Date(now.getTime() + 30 * 60000); // 30 minutes from now
+    const minDeadline = new Date(now.getTime() + 30 * 60000);
     return deadlineDate > minDeadline;
 };
 exports.validatePredictionDeadline = validatePredictionDeadline;
@@ -152,9 +142,6 @@ const validatePredictionStakeRange = (stakeMin, stakeMax) => {
     return true;
 };
 exports.validatePredictionStakeRange = validatePredictionStakeRange;
-// ============================================================================
-// ERROR TYPES
-// ============================================================================
 class AppError extends Error {
     constructor(message, statusCode = 500, code, details) {
         super(message);
@@ -200,3 +187,4 @@ class ConflictError extends AppError {
     }
 }
 exports.ConflictError = ConflictError;
+//# sourceMappingURL=types.js.map

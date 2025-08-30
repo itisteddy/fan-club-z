@@ -7,7 +7,6 @@ const express_1 = __importDefault(require("express"));
 const database_1 = require("../config/database");
 const shared_1 = require("@fanclubz/shared");
 const router = express_1.default.Router();
-// GET /api/v2/prediction-entries/user/:userId - Get user's prediction entries
 router.get('/user/:userId', async (req, res) => {
     try {
         const { userId } = req.params;
@@ -46,11 +45,9 @@ router.get('/user/:userId', async (req, res) => {
         });
     }
 });
-// POST /api/v2/prediction-entries - Create new prediction entry
 router.post('/', async (req, res) => {
     try {
         const { prediction_id, option_id, amount, user_id } = req.body;
-        // Return error - endpoint not implemented yet
         res.status(501).json({
             error: 'Not implemented',
             message: 'Prediction entry creation is not implemented yet',
@@ -66,7 +63,6 @@ router.post('/', async (req, res) => {
         });
     }
 });
-// GET /api/v2/prediction-entries/:id - Get specific prediction entry
 router.get('/:id', async (req, res) => {
     try {
         const { id } = req.params;
@@ -85,3 +81,4 @@ router.get('/:id', async (req, res) => {
     }
 });
 exports.default = router;
+//# sourceMappingURL=prediction-entries.js.map

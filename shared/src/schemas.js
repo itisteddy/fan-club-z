@@ -2,9 +2,6 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.CLUB_VISIBILITY = exports.CLUB_ROLES = exports.REACTION_TYPES = exports.TRANSACTION_TYPES = exports.WALLET_CURRENCIES = exports.PREDICTION_STATUSES = exports.PREDICTION_TYPES = exports.PREDICTION_CATEGORIES = exports.PredictionQuerySchema = exports.PaginationQuerySchema = exports.PaginatedResponseSchema = exports.ApiResponseSchema = exports.NotificationSchema = exports.ClubMemberSchema = exports.CreateClubSchema = exports.ClubSchema = exports.CreateReactionSchema = exports.ReactionSchema = exports.CreateCommentSchema = exports.CommentSchema = exports.WithdrawSchema = exports.DepositSchema = exports.WalletTransactionSchema = exports.WalletSchema = exports.CreatePredictionEntrySchema = exports.PredictionEntrySchema = exports.UpdatePredictionSchema = exports.CreatePredictionSchema = exports.PredictionSchema = exports.PredictionOptionSchema = exports.UpdateUserSchema = exports.LoginUserSchema = exports.RegisterUserSchema = exports.UserSchema = void 0;
 const zod_1 = require("zod");
-// ============================================================================
-// USER SCHEMAS
-// ============================================================================
 exports.UserSchema = zod_1.z.object({
     id: zod_1.z.string().uuid(),
     email: zod_1.z.string().email(),
@@ -41,9 +38,6 @@ exports.UpdateUserSchema = zod_1.z.object({
     avatar_url: zod_1.z.string().url().optional(),
     phone: zod_1.z.string().optional(),
 });
-// ============================================================================
-// PREDICTION SCHEMAS
-// ============================================================================
 exports.PredictionOptionSchema = zod_1.z.object({
     id: zod_1.z.string().uuid(),
     prediction_id: zod_1.z.string().uuid(),
@@ -107,9 +101,6 @@ exports.UpdatePredictionSchema = zod_1.z.object({
     image_url: zod_1.z.string().url().optional(),
     tags: zod_1.z.array(zod_1.z.string()).optional(),
 });
-// ============================================================================
-// PREDICTION ENTRY SCHEMAS
-// ============================================================================
 exports.PredictionEntrySchema = zod_1.z.object({
     id: zod_1.z.string().uuid(),
     prediction_id: zod_1.z.string().uuid(),
@@ -127,9 +118,6 @@ exports.CreatePredictionEntrySchema = zod_1.z.object({
     option_id: zod_1.z.string().uuid(),
     amount: zod_1.z.number().positive(),
 });
-// ============================================================================
-// WALLET SCHEMAS
-// ============================================================================
 exports.WalletSchema = zod_1.z.object({
     id: zod_1.z.string().uuid(),
     user_id: zod_1.z.string().uuid(),
@@ -166,9 +154,6 @@ exports.WithdrawSchema = zod_1.z.object({
     destination: zod_1.z.string(),
     withdrawal_method: zod_1.z.enum(['bank_transfer', 'crypto']).default('bank_transfer'),
 });
-// ============================================================================
-// SOCIAL SCHEMAS
-// ============================================================================
 exports.CommentSchema = zod_1.z.object({
     id: zod_1.z.string().uuid(),
     prediction_id: zod_1.z.string().uuid(),
@@ -195,9 +180,6 @@ exports.CreateReactionSchema = zod_1.z.object({
     prediction_id: zod_1.z.string().uuid(),
     type: zod_1.z.enum(['like', 'cheer', 'fire', 'thinking']),
 });
-// ============================================================================
-// CLUB SCHEMAS
-// ============================================================================
 exports.ClubSchema = zod_1.z.object({
     id: zod_1.z.string().uuid(),
     name: zod_1.z.string().min(1).max(100),
@@ -229,9 +211,6 @@ exports.ClubMemberSchema = zod_1.z.object({
     joined_at: zod_1.z.string().datetime(),
     updated_at: zod_1.z.string().datetime(),
 });
-// ============================================================================
-// NOTIFICATION SCHEMAS
-// ============================================================================
 exports.NotificationSchema = zod_1.z.object({
     id: zod_1.z.string().uuid(),
     user_id: zod_1.z.string().uuid(),
@@ -243,9 +222,6 @@ exports.NotificationSchema = zod_1.z.object({
     created_at: zod_1.z.string().datetime(),
     updated_at: zod_1.z.string().datetime(),
 });
-// ============================================================================
-// API RESPONSE SCHEMAS
-// ============================================================================
 exports.ApiResponseSchema = zod_1.z.object({
     success: zod_1.z.boolean(),
     message: zod_1.z.string().optional(),
@@ -265,9 +241,6 @@ exports.PaginatedResponseSchema = zod_1.z.object({
         hasPrev: zod_1.z.boolean(),
     }),
 });
-// ============================================================================
-// QUERY SCHEMAS
-// ============================================================================
 exports.PaginationQuerySchema = zod_1.z.object({
     page: zod_1.z.number().min(1).default(1),
     limit: zod_1.z.number().min(1).max(100).default(20),
@@ -281,9 +254,6 @@ exports.PredictionQuerySchema = exports.PaginationQuerySchema.extend({
     sort: zod_1.z.enum(['created_at', 'pool_total', 'entry_deadline']).default('created_at'),
     order: zod_1.z.enum(['asc', 'desc']).default('desc'),
 });
-// ============================================================================
-// CONSTANTS
-// ============================================================================
 exports.PREDICTION_CATEGORIES = [
     'sports',
     'pop_culture',
@@ -315,3 +285,4 @@ exports.TRANSACTION_TYPES = [
 exports.REACTION_TYPES = ['like', 'cheer', 'fire', 'thinking'];
 exports.CLUB_ROLES = ['member', 'moderator', 'admin'];
 exports.CLUB_VISIBILITY = ['public', 'private', 'invite_only'];
+//# sourceMappingURL=schemas.js.map
