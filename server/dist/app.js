@@ -20,7 +20,7 @@ const predictions_1 = __importDefault(require("./routes/predictions"));
 const wallet_1 = __importDefault(require("./routes/wallet"));
 const social_1 = __importDefault(require("./routes/social"));
 const clubs_1 = __importDefault(require("./routes/clubs"));
-const comments_1 = __importDefault(require("./routes/comments"));
+// import commentRoutes from './routes/comments';
 const settlement_1 = __importDefault(require("./routes/settlement"));
 // ============================================================================
 // ENVIRONMENT VALIDATION (Critical for Render)
@@ -208,7 +208,7 @@ app.use('/api/v2/wallet', wallet_1.default);
 app.use('/api/v2/social', social_1.default);
 app.use('/api/v2/clubs', clubs_1.default);
 app.use('/api/v2/settlement', settlement_1.default);
-app.use('/api/v2', comments_1.default); // Comment routes handle their own sub-paths
+// app.use('/api/v2', commentRoutes); // Comment routes handle their own sub-paths
 // Legacy routes (for backward compatibility)
 app.use('/api/auth', auth_1.default);
 app.use('/api/predictions', predictions_1.default);
@@ -216,7 +216,7 @@ app.use('/api/wallet', wallet_1.default);
 app.use('/api/social', social_1.default);
 app.use('/api/clubs', clubs_1.default);
 app.use('/api/settlement', settlement_1.default);
-app.use('/api', comments_1.default); // Legacy comment routes
+// app.use('/api', commentRoutes); // Legacy comment routes
 // Debug: Log all registered routes
 logger_1.default.info('🛣️ Registered API routes:');
 logger_1.default.info('- /api/v2/auth (authRoutes)');
@@ -224,7 +224,7 @@ logger_1.default.info('- /api/v2/predictions (predictionRoutes)');
 logger_1.default.info('- /api/v2/wallet (walletRoutes)');
 logger_1.default.info('- /api/v2/social (socialRoutes)');
 logger_1.default.info('- /api/v2/clubs (clubRoutes)');
-logger_1.default.info('- /api/v2 (commentRoutes)');
+// logger.info('- /api/v2 (commentRoutes)');
 logger_1.default.info('- /api/* (legacy routes)');
 logger_1.default.info('✅ All routes registered successfully');
 // ============================================================================

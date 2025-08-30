@@ -1,9 +1,9 @@
 import { Router } from 'express';
 import { authenticateToken } from '../middleware/auth';
 import { validateRequest } from '../middleware/validation';
-import { DepositSchema, WithdrawSchema, PaginationQuerySchema } from '../../../shared/src/schemas';
+import { DepositSchema, WithdrawSchema, PaginationQuerySchema } from '@fanclubz/shared';
 import { WalletService } from '../services/wallet';
-import { logger } from '../utils/logger';
+import logger from '../utils/logger';
 import type { AuthenticatedRequest } from '../types/auth';
 import type { ApiResponse, PaginatedResponse, WalletTransaction, Wallet } from '@fanclubz/shared';
 
