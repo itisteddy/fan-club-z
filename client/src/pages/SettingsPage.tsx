@@ -8,7 +8,7 @@ import { useNotificationStore } from '../store/notificationStore';
 import { showUserError } from '../utils/errorHandler';
 import { toast } from 'react-hot-toast';
 import { LogoutConfirmationModal } from '../components/ui/LogoutConfirmationModal';
-import { APP_VERSION as VERSION } from '../src/lib/version';
+import { APP_VERSION as VERSION } from '../lib/version';
 
 const SettingsPage: React.FC = () => {
   const [, setLocation] = useLocation();
