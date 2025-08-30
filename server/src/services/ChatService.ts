@@ -187,7 +187,7 @@ export class ChatService {
             timestamp: new Date().toISOString(),
             serverInfo: {
               environment: process.env.NODE_ENV,
-              version: '2.0.0'
+              version: process.env.npm_package_version || '2.0.81'
             }
           });
         } catch (error) {
@@ -514,7 +514,7 @@ export class ChatService {
       socket.emit('connected', { 
         socketId: socket.id, 
         timestamp: new Date().toISOString(),
-        serverVersion: '2.0.0',
+        serverVersion: process.env.npm_package_version || '2.0.81',
         environment: process.env.NODE_ENV,
         platform: process.env.RENDER ? 'render' : 'local'
       });

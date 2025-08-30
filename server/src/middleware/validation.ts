@@ -97,7 +97,7 @@ export const validateOptionalRequest = (schema: z.ZodSchema, location: 'body' | 
         return next();
       }
       
-      const validatedData = schema.partial().parse(dataToValidate);
+      const validatedData = schema.parse(dataToValidate);
       
       // Replace the original data with validated data
       switch (location) {
