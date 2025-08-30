@@ -1,0 +1,710 @@
+/* Fan Club Z - Professional Design System v2.0 */
+/* Implementing "Effortless Sophistication" design philosophy */
+
+@layer base {
+  /* Global CSS Custom Properties - Design Tokens */
+  :root {
+    /* Brand Colors */
+    --fcz-primary: 0 208 132;          /* #00D084 */
+    --fcz-primary-hover: 0 200 129;    /* #00C851 */
+    --fcz-primary-deep: 0 168 107;     /* #00A86B */
+    
+    /* Neutral System */
+    --fcz-white: 255 255 255;          /* #FFFFFF */
+    --fcz-ghost: 250 251 252;          /* #FAFBFC */
+    --fcz-gray-50: 248 249 250;        /* #F8F9FA */
+    --fcz-gray-100: 233 236 239;       /* #E9ECEF */
+    --fcz-gray-300: 199 205 212;       /* #C7CDD4 */
+    --fcz-gray-600: 108 117 125;       /* #6C757D */
+    --fcz-gray-900: 33 37 41;          /* #212529 */
+    
+    /* Accent Colors */
+    --fcz-blue: 0 122 255;             /* #007AFF */
+    --fcz-amber: 255 176 32;           /* #FFB020 */
+    --fcz-coral: 255 107 107;          /* #FF6B6B */
+    --fcz-purple: 108 92 231;          /* #6C5CE7 */
+    
+    /* Financial Data Colors */
+    --fcz-gain: 0 200 129;             /* #00C851 */
+    --fcz-loss: 255 68 68;             /* #FF4444 */
+    --fcz-neutral: 108 117 125;        /* #6C757D */
+    --fcz-pending: 255 176 32;         /* #FFB020 */
+    
+    /* Shadow Tokens */
+    --fcz-shadow-card: 0 1px 3px rgba(0, 0, 0, 0.08);
+    --fcz-shadow-elevated: 0 4px 12px rgba(0, 0, 0, 0.15);
+    --fcz-shadow-modal: 0 20px 40px rgba(0, 0, 0, 0.25);
+    --fcz-shadow-fab: 0 8px 16px rgba(0, 208, 132, 0.4);
+    
+    /* Spacing Scale - Professional 8pt Grid */
+    --fcz-space-xs: 0.25rem;   /* 4px */
+    --fcz-space-sm: 0.5rem;    /* 8px */
+    --fcz-space-md: 1rem;      /* 16px */
+    --fcz-space-lg: 1.5rem;    /* 24px */
+    --fcz-space-xl: 2rem;      /* 32px */
+    --fcz-space-2xl: 3rem;     /* 48px */
+    --fcz-space-3xl: 4rem;     /* 64px */
+    
+    /* Border Radius Scale */
+    --fcz-radius-sm: 0.375rem;  /* 6px */
+    --fcz-radius-md: 0.75rem;   /* 12px */
+    --fcz-radius-lg: 1rem;      /* 16px */
+    --fcz-radius-xl: 1.25rem;   /* 20px */
+    --fcz-radius-2xl: 1.5rem;   /* 24px */
+    
+    /* Animation Timing */
+    --fcz-transition-fast: 0.15s;
+    --fcz-transition-normal: 0.25s;
+    --fcz-transition-slow: 0.4s;
+    --fcz-ease-smooth: cubic-bezier(0.4, 0, 0.2, 1);
+    --fcz-ease-snappy: cubic-bezier(0.4, 0, 1, 1);
+  }
+  
+  /* Dark Mode Variables */
+  .dark {
+    --fcz-bg-primary: 26 26 26;        /* #1A1A1A */
+    --fcz-bg-surface: 36 36 36;        /* #242424 */
+    --fcz-border-dark: 51 51 51;       /* #333333 */
+    --fcz-text-primary: 255 255 255;   /* #FFFFFF */
+    --fcz-text-secondary: 176 176 176; /* #B0B0B0 */
+    --fcz-text-muted: 128 128 128;     /* #808080 */
+  }
+  
+  /* Advanced CSS Reset & Base Styles */
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+  
+  html {
+    height: 100%;
+    -webkit-tap-highlight-color: transparent;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    font-feature-settings: "kern" 1, "liga" 1, "calt" 1, "pnum" 1, "tnum" 0, "onum" 1, "lnum" 0, "dlig" 0;
+  }
+  
+  body {
+    height: 100%;
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', 
+                 Roboto, 'Helvetica Neue', Arial, sans-serif;
+    background-color: rgb(var(--fcz-ghost));
+    color: rgb(var(--fcz-gray-900));
+    line-height: 1.5;
+    overflow-x: hidden;
+  }
+  
+  /* Improved Focus Management */
+  :focus {
+    outline: 2px solid rgb(var(--fcz-primary));
+    outline-offset: 2px;
+  }
+  
+  :focus:not(:focus-visible) {
+    outline: none;
+  }
+  
+  /* Enhanced Button Reset */
+  button {
+    font-family: inherit;
+    font-size: inherit;
+    line-height: inherit;
+    cursor: pointer;
+    border: none;
+    background: none;
+    color: inherit;
+    touch-action: manipulation;
+    user-select: none;
+  }
+  
+  /* Link Styling */
+  a {
+    color: rgb(var(--fcz-blue));
+    text-decoration: none;
+    touch-action: manipulation;
+  }
+  
+  a:hover {
+    text-decoration: underline;
+  }
+  
+  /* Image Optimization */
+  img,
+  picture,
+  video,
+  canvas,
+  svg {
+    max-width: 100%;
+    height: auto;
+    vertical-align: middle;
+    font-style: italic;
+    background-repeat: no-repeat;
+    background-size: cover;
+    shape-margin: 0.75rem;
+  }
+  
+  /* Input Styling */
+  input,
+  textarea,
+  select {
+    font-family: inherit;
+    font-size: inherit;
+    line-height: inherit;
+  }
+  
+  /* Table Reset */
+  table {
+    border-collapse: collapse;
+    border-spacing: 0;
+  }
+  
+  /* List Reset */
+  ul,
+  ol {
+    list-style: none;
+  }
+}
+
+@layer components {
+  /* Professional Card System */
+  .fcz-card {
+    @apply bg-white border border-neutral-100 rounded-xl shadow-card;
+    transition: all var(--fcz-transition-normal) var(--fcz-ease-smooth);
+    will-change: transform, box-shadow;
+  }
+  
+  .fcz-card-hover {
+    @apply hover:shadow-card-hover;
+    transform: translateY(0);
+  }
+  
+  .fcz-card-hover:hover {
+    transform: translateY(-2px);
+  }
+  
+  .fcz-card-interactive {
+    @apply fcz-card fcz-card-hover cursor-pointer;
+  }
+  
+  .fcz-card-interactive:active {
+    transform: translateY(0) scale(0.98);
+  }
+  
+  /* Sophisticated Button System */
+  .fcz-btn {
+    @apply inline-flex items-center justify-center touch-target rounded-lg 
+           transition-all duration-fast ease-smooth no-select text-crisp
+           focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+  
+  .fcz-btn-primary {
+    @apply fcz-btn bg-primary-500 text-white hover:bg-primary-600 
+           active:scale-98 disabled:opacity-60 disabled:cursor-not-allowed;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05), 
+                inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  }
+  
+  .fcz-btn-primary:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(0, 208, 132, 0.25),
+                inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  }
+  
+  .fcz-btn-secondary {
+    @apply fcz-btn bg-neutral-100 text-neutral-700 hover:bg-neutral-200
+           border border-neutral-200 hover:border-neutral-300;
+  }
+  
+  .fcz-btn-ghost {
+    @apply fcz-btn text-neutral-600 hover:bg-neutral-50 hover:text-neutral-900;
+  }
+  
+  .fcz-btn-destructive {
+    @apply fcz-btn bg-error-500 text-white hover:bg-error-600;
+  }
+  
+  /* Enhanced Input System */
+  .fcz-input {
+    @apply w-full px-4 py-3 border border-neutral-200 rounded-lg
+           bg-white text-neutral-900 placeholder-neutral-400
+           transition-all duration-normal ease-smooth
+           focus:outline-none focus:border-primary-500 focus:ring-2 
+           focus:ring-primary-500 focus:ring-opacity-20;
+    font-size: 16px; /* Prevent zoom on iOS */
+    min-height: 48px;
+  }
+  
+  .fcz-input:focus {
+    border-color: rgb(var(--fcz-primary));
+    box-shadow: 0 0 0 3px rgba(var(--fcz-primary), 0.1);
+  }
+  
+  .fcz-input-error {
+    @apply border-error-500 focus:border-error-500 focus:ring-error-500;
+  }
+  
+  /* Prediction Card System */
+  .fcz-prediction-card {
+    @apply fcz-card p-6 space-y-4;
+    container-type: inline-size;
+  }
+  
+  .fcz-prediction-card-header {
+    @apply flex items-start justify-between;
+  }
+  
+  .fcz-prediction-card-title {
+    @apply text-lg font-semibold text-neutral-900 leading-tight;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  
+  .fcz-prediction-card-meta {
+    @apply flex items-center gap-2 text-sm text-neutral-500;
+  }
+  
+  .fcz-prediction-card-description {
+    @apply text-neutral-600 text-sm leading-relaxed;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  
+  .fcz-prediction-options {
+    @apply grid gap-3;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  }
+  
+  .fcz-prediction-option {
+    @apply border-2 border-neutral-200 rounded-lg p-4 text-center
+           transition-all duration-fast ease-smooth cursor-pointer
+           hover:border-neutral-300 hover:bg-neutral-25;
+  }
+  
+  .fcz-prediction-option-selected {
+    @apply border-primary-500 bg-primary-50 text-primary-700;
+  }
+  
+  .fcz-prediction-option-label {
+    @apply font-medium text-sm mb-1;
+  }
+  
+  .fcz-prediction-option-odds {
+    @apply text-lg font-bold text-neutral-900;
+  }
+  
+  .fcz-prediction-option-percentage {
+    @apply text-xs text-neutral-500;
+  }
+  
+  /* Stats Bar */
+  .fcz-stats-bar {
+    @apply flex items-center justify-between pt-4 border-t border-neutral-100;
+  }
+  
+  .fcz-stat-item {
+    @apply flex items-center gap-1.5 text-sm;
+  }
+  
+  .fcz-stat-value {
+    @apply font-semibold text-neutral-900;
+  }
+  
+  .fcz-stat-label {
+    @apply text-neutral-500;
+  }
+  
+  /* Pool Total Display - Financial Styling */
+  .fcz-pool-total {
+    @apply inline-flex items-center gap-1 px-2 py-1 rounded-md
+           bg-primary-50 text-primary-700 font-semibold text-sm;
+  }
+  
+  .fcz-pool-total-large {
+    @apply text-lg font-bold text-primary-600 font-mono;
+  }
+  
+  /* Social Engagement Elements */
+  .fcz-social-actions {
+    @apply flex items-center gap-4;
+  }
+  
+  .fcz-social-action {
+    @apply flex items-center gap-1.5 text-neutral-500 hover:text-neutral-700
+           transition-colors duration-fast cursor-pointer touch-target;
+  }
+  
+  .fcz-social-action-active {
+    @apply text-primary-500 hover:text-primary-600;
+  }
+  
+  .fcz-social-count {
+    @apply text-sm font-medium;
+  }
+  
+  /* Avatar System */
+  .fcz-avatar {
+    @apply inline-flex items-center justify-center overflow-hidden
+           bg-neutral-100 text-neutral-600 font-medium select-none;
+    aspect-ratio: 1;
+  }
+  
+  .fcz-avatar-xs {
+    @apply fcz-avatar w-6 h-6 text-xs rounded-md;
+  }
+  
+  .fcz-avatar-sm {
+    @apply fcz-avatar w-8 h-8 text-sm rounded-lg;
+  }
+  
+  .fcz-avatar-md {
+    @apply fcz-avatar w-10 h-10 text-sm rounded-lg;
+  }
+  
+  .fcz-avatar-lg {
+    @apply fcz-avatar w-14 h-14 text-base rounded-xl;
+  }
+  
+  .fcz-avatar-xl {
+    @apply fcz-avatar w-20 h-20 text-lg rounded-2xl;
+  }
+  
+  /* Badge System */
+  .fcz-badge {
+    @apply inline-flex items-center px-2 py-1 text-xs font-semibold 
+           rounded-full uppercase tracking-wider;
+  }
+  
+  .fcz-badge-success {
+    @apply fcz-badge bg-success-100 text-success-800;
+  }
+  
+  .fcz-badge-error {
+    @apply fcz-badge bg-error-100 text-error-800;
+  }
+  
+  .fcz-badge-warning {
+    @apply fcz-badge bg-warning-100 text-warning-800;
+  }
+  
+  .fcz-badge-info {
+    @apply fcz-badge bg-info-100 text-info-800;
+  }
+  
+  .fcz-badge-neutral {
+    @apply fcz-badge bg-neutral-100 text-neutral-600;
+  }
+  
+  /* Loading States */
+  .fcz-skeleton {
+    @apply skeleton-bg rounded animate-pulse;
+  }
+  
+  .fcz-skeleton-text {
+    @apply fcz-skeleton h-4 mb-2;
+  }
+  
+  .fcz-skeleton-title {
+    @apply fcz-skeleton h-6 w-3/4 mb-3;
+  }
+  
+  .fcz-skeleton-avatar {
+    @apply fcz-skeleton w-10 h-10 rounded-lg;
+  }
+  
+  .fcz-skeleton-card {
+    @apply fcz-skeleton h-48 w-full;
+  }
+  
+  /* Loading Spinner */
+  .fcz-spinner {
+    @apply loading-spinner;
+  }
+  
+  .fcz-spinner-lg {
+    @apply w-8 h-8 border-[3px];
+  }
+  
+  /* Modal System */
+  .fcz-modal-overlay {
+    @apply fixed inset-0 bg-black/50 flex items-center justify-center p-4
+           backdrop-blur-sm z-modal-backdrop;
+    animation: fadeIn var(--fcz-transition-normal) var(--fcz-ease-smooth);
+  }
+  
+  .fcz-modal {
+    @apply bg-white rounded-2xl shadow-modal max-w-md w-full max-h-[90vh]
+           overflow-y-auto z-modal;
+    animation: fadeInUp var(--fcz-transition-normal) var(--fcz-ease-smooth);
+  }
+  
+  .fcz-modal-header {
+    @apply flex items-center justify-between p-6 border-b border-neutral-100;
+  }
+  
+  .fcz-modal-title {
+    @apply text-lg font-semibold text-neutral-900;
+  }
+  
+  .fcz-modal-close {
+    @apply fcz-btn-ghost p-2 -mr-2;
+  }
+  
+  .fcz-modal-body {
+    @apply p-6;
+  }
+  
+  .fcz-modal-footer {
+    @apply flex items-center justify-end gap-3 p-6 border-t border-neutral-100;
+  }
+  
+  /* Bottom Sheet */
+  .fcz-bottom-sheet {
+    @apply fixed inset-x-0 bottom-0 bg-white rounded-t-2xl shadow-modal
+           max-h-[90vh] overflow-y-auto z-modal;
+    animation: slideUp var(--fcz-transition-normal) var(--fcz-ease-smooth);
+  }
+  
+  .fcz-bottom-sheet-handle {
+    @apply w-12 h-1 bg-neutral-300 rounded-full mx-auto my-3;
+  }
+  
+  /* Toast Notifications */
+  .fcz-toast {
+    @apply fixed top-4 right-4 bg-white border border-neutral-200 rounded-xl
+           shadow-toast p-4 max-w-md z-toast;
+    animation: slideDown var(--fcz-transition-normal) var(--fcz-ease-smooth);
+  }
+  
+  .fcz-toast-success {
+    @apply border-l-4 border-success-500;
+  }
+  
+  .fcz-toast-error {
+    @apply border-l-4 border-error-500;
+  }
+  
+  .fcz-toast-warning {
+    @apply border-l-4 border-warning-500;
+  }
+  
+  .fcz-toast-info {
+    @apply border-l-4 border-info-500;
+  }
+  
+  /* Navigation System */
+  .fcz-nav-bottom {
+    @apply fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md
+           border-t border-neutral-200 z-fixed;
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  
+  .fcz-nav-items {
+    @apply flex items-center justify-around px-2 py-2;
+  }
+  
+  .fcz-nav-item {
+    @apply flex flex-col items-center justify-center gap-1 p-2 min-w-0
+           text-neutral-500 transition-colors duration-fast touch-target;
+    flex: 1;
+  }
+  
+  .fcz-nav-item-active {
+    @apply text-primary-500;
+  }
+  
+  .fcz-nav-icon {
+    @apply w-6 h-6;
+  }
+  
+  .fcz-nav-label {
+    @apply text-xs font-medium truncate;
+  }
+  
+  /* Floating Action Button */
+  .fcz-fab {
+    @apply fixed bottom-20 right-4 w-14 h-14 bg-primary-500 text-white
+           rounded-full flex items-center justify-center shadow-fab
+           transition-all duration-normal ease-smooth z-fab;
+  }
+  
+  .fcz-fab:hover {
+    @apply bg-primary-600 scale-105;
+    box-shadow: 0 12px 20px rgba(0, 208, 132, 0.5);
+  }
+  
+  .fcz-fab:active {
+    @apply scale-95;
+  }
+  
+  /* Real-time Indicators */
+  .fcz-live-indicator {
+    @apply inline-flex items-center gap-1.5 px-2 py-1 rounded-full
+           bg-error-50 text-error-600 text-xs font-semibold;
+  }
+  
+  .fcz-live-dot {
+    @apply w-2 h-2 bg-error-500 rounded-full;
+    animation: pulse 2s infinite;
+  }
+  
+  /* Trend Indicators */
+  .fcz-trend-up {
+    @apply inline-flex items-center gap-1 text-success-600 font-medium;
+  }
+  
+  .fcz-trend-down {
+    @apply inline-flex items-center gap-1 text-error-600 font-medium;
+  }
+  
+  .fcz-trend-neutral {
+    @apply inline-flex items-center gap-1 text-neutral-500 font-medium;
+  }
+  
+  /* Financial Data Display */
+  .fcz-financial-data {
+    @apply font-mono font-semibold tabular-nums;
+  }
+  
+  .fcz-financial-gain {
+    @apply fcz-financial-data text-success-600;
+  }
+  
+  .fcz-financial-loss {
+    @apply fcz-financial-data text-error-600;
+  }
+  
+  .fcz-financial-neutral {
+    @apply fcz-financial-data text-neutral-600;
+  }
+  
+  .fcz-financial-pending {
+    @apply fcz-financial-data text-warning-600;
+  }
+  
+  /* Responsive Breakpoints */
+  @container (max-width: 640px) {
+    .fcz-prediction-options {
+      grid-template-columns: 1fr;
+    }
+    
+    .fcz-prediction-card {
+      @apply p-4;
+    }
+  }
+  
+  /* Dark Mode Styles */
+  .dark .fcz-card {
+    @apply bg-neutral-800 border-neutral-700;
+  }
+  
+  .dark .fcz-input {
+    @apply bg-neutral-800 border-neutral-700 text-neutral-100;
+  }
+  
+  .dark .fcz-modal {
+    @apply bg-neutral-800;
+  }
+  
+  .dark .fcz-nav-bottom {
+    @apply bg-neutral-800/95 border-neutral-700;
+  }
+  
+  /* Accessibility Enhancements */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+  
+  @media (prefers-contrast: high) {
+    .fcz-card {
+      @apply border-2 border-neutral-400;
+    }
+    
+    .fcz-btn-primary {
+      @apply ring-2 ring-neutral-900 ring-offset-2;
+    }
+  }
+  
+  /* Print Styles */
+  @media print {
+    .fcz-nav-bottom,
+    .fcz-fab,
+    .fcz-toast {
+      @apply hidden;
+    }
+    
+    .fcz-card {
+      @apply shadow-none border-2 border-neutral-400;
+    }
+  }
+}
+
+/* Performance Optimizations */
+@layer utilities {
+  /* Critical Path CSS - Above the fold optimization */
+  .fcz-critical-path {
+    contain: layout style paint;
+    will-change: contents;
+  }
+  
+  /* Intersection Observer Optimization */
+  .fcz-lazy-load {
+    content-visibility: auto;
+    contain-intrinsic-size: 300px;
+  }
+  
+  /* Layout Shift Prevention */
+  .fcz-aspect-square {
+    aspect-ratio: 1;
+  }
+  
+  .fcz-aspect-video {
+    aspect-ratio: 16 / 9;
+  }
+  
+  .fcz-aspect-card {
+    aspect-ratio: 3 / 2;
+  }
+}
+
+/* Modern Scrollbar Styling */
+.fcz-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(var(--fcz-gray-300)) transparent;
+}
+
+.fcz-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.fcz-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.fcz-scrollbar::-webkit-scrollbar-thumb {
+  background: rgb(var(--fcz-gray-300));
+  border-radius: 3px;
+}
+
+.fcz-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgb(var(--fcz-gray-600));
+}
+
+/* Cache Busting - Design System v2.0 - 2025-08-25 */

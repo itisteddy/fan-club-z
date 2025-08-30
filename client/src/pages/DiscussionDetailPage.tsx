@@ -58,6 +58,8 @@ const DiscussionDetailPage: React.FC<DiscussionDetailPageProps> = ({
   const messageInputRef = useRef<HTMLTextAreaElement>(null);
   const optionsMenuRef = useRef<HTMLDivElement>(null);
 
+  useEffect(() => {
+    // Load discussion data
   }, [discussionId]);
 
   // Close options menu when clicking outside

@@ -117,32 +117,9 @@ export const useCreateComment = () => {
           replies: commentResult.replies || [],
         };
       } catch (error) {
-        // Create mock comment for demo purposes
-        console.warn('Comment API not available, creating mock comment:', error);
-        
-        const mockComment: Comment = {
-          id: Date.now().toString(),
-          prediction_id: commentData.prediction_id,
-          user_id: user?.id || 'current-user',
-          content: commentData.content,
-          parent_comment_id: commentData.parent_comment_id,
-          is_edited: false,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-          user: {
-            id: user?.id || 'current-user',
-            username: user?.username || 'You',
-            full_name: user?.full_name || 'Your Name',
-            avatar_url: user?.avatar_url,
-            is_verified: false,
-          },
-          likes_count: 0,
-          is_liked: false,
-          replies_count: 0,
-          replies: [],
-        };
-        
-        return mockComment;
+        // Comment API not available - throw error instead of creating mock data
+        console.error('Comment API not available:', error);
+        throw new Error('Comment system is not available. Please try again later.');
       }
     },
     onSuccess: (newComment) => {

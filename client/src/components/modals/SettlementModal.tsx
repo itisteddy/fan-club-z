@@ -29,7 +29,11 @@ const SettlementModal: React.FC<SettlementModalProps> = ({
   const [options, setOptions] = useState<PredictionOption[]>(prediction.options || []);
 
   const { settleManually, isSettling, settlementError, clearError } = useSettlement();
-  const { notifySettlementReady } = useNotificationStore();
+  // Notification store has been refactored - settlement notifications are handled by backend
+  const notifySettlementReady = () => {
+    // TODO: Implement when real notification system is added
+    console.log('Settlement ready notification would be sent here');
+  };
 
   const handleSubmit = async () => {
     if (!selectedOptionId) {

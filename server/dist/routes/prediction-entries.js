@@ -50,20 +50,10 @@ router.get('/user/:userId', async (req, res) => {
 router.post('/', async (req, res) => {
     try {
         const { prediction_id, option_id, amount, user_id } = req.body;
-        // For now, return mock response
-        res.status(201).json({
-            data: {
-                id: `entry_${Date.now()}`,
-                prediction_id,
-                option_id,
-                amount,
-                user_id,
-                status: 'active',
-                potential_payout: amount * 2, // Mock calculation
-                created_at: new Date().toISOString(),
-                updated_at: new Date().toISOString()
-            },
-            message: 'Prediction entry created successfully',
+        // Return error - endpoint not implemented yet
+        res.status(501).json({
+            error: 'Not implemented',
+            message: 'Prediction entry creation is not implemented yet',
             version: shared_1.VERSION
         });
     }
@@ -71,7 +61,8 @@ router.post('/', async (req, res) => {
         console.error('Error creating prediction entry:', error);
         res.status(500).json({
             error: 'Internal server error',
-            message: 'Failed to create prediction entry'
+            message: 'Failed to create prediction entry',
+            version: shared_1.VERSION
         });
     }
 });

@@ -21,7 +21,7 @@ export declare const UserSchema: z.ZodObject<{
     created_at: string;
     is_active: boolean;
     email: string;
-    kyc_level: "basic" | "enhanced" | "none";
+    kyc_level: "none" | "basic" | "enhanced";
     kyc_status: "pending" | "submitted" | "under_review" | "approved" | "rejected";
     two_fa_enabled: boolean;
     reputation_score: number;
@@ -45,7 +45,7 @@ export declare const UserSchema: z.ZodObject<{
     phone?: string | undefined;
     auth_provider?: "email" | "google" | "apple" | undefined;
     wallet_address?: string | undefined;
-    kyc_level?: "basic" | "enhanced" | "none" | undefined;
+    kyc_level?: "none" | "basic" | "enhanced" | undefined;
     kyc_status?: "pending" | "submitted" | "under_review" | "approved" | "rejected" | undefined;
     two_fa_enabled?: boolean | undefined;
     reputation_score?: number | undefined;
@@ -113,8 +113,8 @@ export declare const PredictionOptionSchema: z.ZodObject<{
     prediction_id: string;
     created_at: string;
     label: string;
-    updated_at: string;
     total_staked: number;
+    updated_at: string;
     current_odds: number;
     is_winning_outcome?: boolean | undefined;
 }, {
@@ -154,18 +154,18 @@ export declare const PredictionSchema: z.ZodObject<{
     updated_at: z.ZodString;
 }, "strip", z.ZodTypeAny, {
     id: string;
-    type: "binary" | "multi_outcome" | "pool";
+    type: "binary" | "pool" | "multi_outcome";
     created_at: string;
     creator_id: string;
     category: "custom" | "sports" | "pop_culture" | "esports" | "celebrity_gossip" | "politics";
-    status: "pending" | "open" | "closed" | "settled" | "disputed" | "cancelled";
+    status: "pending" | "open" | "cancelled" | "closed" | "settled" | "disputed";
+    entry_deadline: string;
     pool_total: number;
     title: string;
-    entry_deadline: string;
+    is_private: boolean;
     updated_at: string;
     stake_min: number;
-    settlement_method: "auto" | "manual";
-    is_private: boolean;
+    settlement_method: "manual" | "auto";
     creator_fee_percentage: number;
     platform_fee_percentage: number;
     tags: string[];
@@ -179,24 +179,24 @@ export declare const PredictionSchema: z.ZodObject<{
     image_url?: string | undefined;
 }, {
     id: string;
-    type: "binary" | "multi_outcome" | "pool";
+    type: "binary" | "pool" | "multi_outcome";
     created_at: string;
     creator_id: string;
     category: "custom" | "sports" | "pop_culture" | "esports" | "celebrity_gossip" | "politics";
-    title: string;
     entry_deadline: string;
+    title: string;
     updated_at: string;
     stake_min: number;
-    settlement_method: "auto" | "manual";
+    settlement_method: "manual" | "auto";
     description?: string | undefined;
-    status?: "pending" | "open" | "closed" | "settled" | "disputed" | "cancelled" | undefined;
+    status?: "pending" | "open" | "cancelled" | "closed" | "settled" | "disputed" | undefined;
     club_id?: string | undefined;
     password_hash?: string | undefined;
     pool_total?: number | undefined;
+    is_private?: boolean | undefined;
     stake_max?: number | undefined;
     settlement_proof_url?: string | undefined;
     settled_outcome_id?: string | undefined;
-    is_private?: boolean | undefined;
     creator_fee_percentage?: number | undefined;
     platform_fee_percentage?: number | undefined;
     sponsor_id?: string | undefined;
@@ -226,16 +226,16 @@ export declare const CreatePredictionSchema: z.ZodObject<{
     image_url: z.ZodOptional<z.ZodString>;
     tags: z.ZodDefault<z.ZodArray<z.ZodString, "many">>;
 }, "strip", z.ZodTypeAny, {
-    type: "binary" | "multi_outcome" | "pool";
+    type: "binary" | "pool" | "multi_outcome";
     options: {
         label: string;
     }[];
     category: "custom" | "sports" | "pop_culture" | "esports" | "celebrity_gossip" | "politics";
-    title: string;
     entry_deadline: string;
-    stake_min: number;
-    settlement_method: "auto" | "manual";
+    title: string;
     is_private: boolean;
+    stake_min: number;
+    settlement_method: "manual" | "auto";
     creator_fee_percentage: number;
     tags: string[];
     description?: string | undefined;
@@ -244,20 +244,20 @@ export declare const CreatePredictionSchema: z.ZodObject<{
     stake_max?: number | undefined;
     image_url?: string | undefined;
 }, {
-    type: "binary" | "multi_outcome" | "pool";
+    type: "binary" | "pool" | "multi_outcome";
     options: {
         label: string;
     }[];
     category: "custom" | "sports" | "pop_culture" | "esports" | "celebrity_gossip" | "politics";
-    title: string;
     entry_deadline: string;
+    title: string;
     stake_min: number;
-    settlement_method: "auto" | "manual";
+    settlement_method: "manual" | "auto";
     description?: string | undefined;
     club_id?: string | undefined;
     password?: string | undefined;
-    stake_max?: number | undefined;
     is_private?: boolean | undefined;
+    stake_max?: number | undefined;
     creator_fee_percentage?: number | undefined;
     image_url?: string | undefined;
     tags?: string[] | undefined;
@@ -271,15 +271,15 @@ export declare const UpdatePredictionSchema: z.ZodObject<{
     tags: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
 }, "strip", z.ZodTypeAny, {
     description?: string | undefined;
-    title?: string | undefined;
     entry_deadline?: string | undefined;
+    title?: string | undefined;
     settlement_proof_url?: string | undefined;
     image_url?: string | undefined;
     tags?: string[] | undefined;
 }, {
     description?: string | undefined;
-    title?: string | undefined;
     entry_deadline?: string | undefined;
+    title?: string | undefined;
     settlement_proof_url?: string | undefined;
     image_url?: string | undefined;
     tags?: string[] | undefined;
@@ -301,8 +301,8 @@ export declare const PredictionEntrySchema: z.ZodObject<{
     created_at: string;
     status: "active" | "won" | "lost" | "refunded";
     user_id: string;
-    option_id: string;
     amount: number;
+    option_id: string;
     updated_at: string;
     potential_payout?: number | undefined;
     actual_payout?: number | undefined;
@@ -311,8 +311,8 @@ export declare const PredictionEntrySchema: z.ZodObject<{
     prediction_id: string;
     created_at: string;
     user_id: string;
-    option_id: string;
     amount: number;
+    option_id: string;
     updated_at: string;
     status?: "active" | "won" | "lost" | "refunded" | undefined;
     potential_payout?: number | undefined;
@@ -324,12 +324,12 @@ export declare const CreatePredictionEntrySchema: z.ZodObject<{
     amount: z.ZodNumber;
 }, "strip", z.ZodTypeAny, {
     prediction_id: string;
-    option_id: string;
     amount: number;
+    option_id: string;
 }, {
     prediction_id: string;
-    option_id: string;
     amount: number;
+    option_id: string;
 }>;
 export declare const WalletSchema: z.ZodObject<{
     id: z.ZodString;
@@ -378,7 +378,7 @@ export declare const WalletTransactionSchema: z.ZodObject<{
 }, "strip", z.ZodTypeAny, {
     currency: "NGN" | "USD" | "USDT" | "ETH";
     id: string;
-    type: "prediction_lock" | "deposit" | "withdraw" | "prediction_release" | "transfer_in" | "transfer_out" | "fee" | "creator_payout";
+    type: "deposit" | "withdraw" | "prediction_lock" | "prediction_release" | "transfer_in" | "transfer_out" | "fee" | "creator_payout";
     created_at: string;
     status: "pending" | "completed" | "failed" | "reversed";
     user_id: string;
@@ -390,7 +390,7 @@ export declare const WalletTransactionSchema: z.ZodObject<{
     related_payout_id?: string | undefined;
 }, {
     id: string;
-    type: "prediction_lock" | "deposit" | "withdraw" | "prediction_release" | "transfer_in" | "transfer_out" | "fee" | "creator_payout";
+    type: "deposit" | "withdraw" | "prediction_lock" | "prediction_release" | "transfer_in" | "transfer_out" | "fee" | "creator_payout";
     created_at: string;
     user_id: string;
     amount: number;
@@ -577,7 +577,7 @@ export declare const ClubMemberSchema: z.ZodObject<{
     id: string;
     club_id: string;
     user_id: string;
-    role: "admin" | "moderator" | "member";
+    role: "member" | "moderator" | "admin";
     joined_at: string;
     updated_at: string;
 }, {
@@ -586,7 +586,7 @@ export declare const ClubMemberSchema: z.ZodObject<{
     user_id: string;
     joined_at: string;
     updated_at: string;
-    role?: "admin" | "moderator" | "member" | undefined;
+    role?: "member" | "moderator" | "admin" | undefined;
 }>;
 export declare const NotificationSchema: z.ZodObject<{
     id: z.ZodString;
@@ -627,14 +627,14 @@ export declare const ApiResponseSchema: z.ZodObject<{
     errors: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodArray<z.ZodString, "many">>>;
 }, "strip", z.ZodTypeAny, {
     success: boolean;
-    message?: string | undefined;
     error?: string | undefined;
+    message?: string | undefined;
     data?: any;
     errors?: Record<string, string[]> | undefined;
 }, {
     success: boolean;
-    message?: string | undefined;
     error?: string | undefined;
+    message?: string | undefined;
     data?: any;
     errors?: Record<string, string[]> | undefined;
 }>;
@@ -708,22 +708,22 @@ export declare const PredictionQuerySchema: z.ZodObject<{
     sort: z.ZodDefault<z.ZodEnum<["created_at", "pool_total", "entry_deadline"]>>;
     order: z.ZodDefault<z.ZodEnum<["asc", "desc"]>>;
 }, "strip", z.ZodTypeAny, {
-    sort: "created_at" | "pool_total" | "entry_deadline";
+    sort: "created_at" | "entry_deadline" | "pool_total";
     limit: number;
     page: number;
     order: "desc" | "asc";
     search?: string | undefined;
     creator_id?: string | undefined;
     category?: "custom" | "sports" | "pop_culture" | "esports" | "celebrity_gossip" | "politics" | undefined;
-    status?: "pending" | "open" | "closed" | "settled" | "disputed" | "cancelled" | undefined;
+    status?: "pending" | "open" | "cancelled" | "closed" | "settled" | "disputed" | undefined;
     club_id?: string | undefined;
 }, {
-    sort?: "created_at" | "pool_total" | "entry_deadline" | undefined;
+    sort?: "created_at" | "entry_deadline" | "pool_total" | undefined;
     limit?: number | undefined;
     search?: string | undefined;
     creator_id?: string | undefined;
     category?: "custom" | "sports" | "pop_culture" | "esports" | "celebrity_gossip" | "politics" | undefined;
-    status?: "pending" | "open" | "closed" | "settled" | "disputed" | "cancelled" | undefined;
+    status?: "pending" | "open" | "cancelled" | "closed" | "settled" | "disputed" | undefined;
     club_id?: string | undefined;
     page?: number | undefined;
     order?: "desc" | "asc" | undefined;

@@ -2,9 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { useAuthStore } from '../../store/authStore';
 import Logo from '../../components/common/Logo';
 import NotificationContainer from '../../components/ui/NotificationContainer';
+import { scrollToTop } from '../../utils/scroll';
 
 const AuthPage: React.FC = () => {
   const { login, register, loginWithOAuth, loading } = useAuthStore();
+  const [redirectTo, setRedirectTo] = useState<string | null>(null);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [firstName, setFirstName] = useState('');
@@ -13,13 +15,21 @@ const AuthPage: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isLoginMode, setIsLoginMode] = useState(true);
-  const [showTestPanel, setShowTestPanel] = useState(false);
+
   const [formErrors, setFormErrors] = useState<{ email?: string; password?: string; firstName?: string; lastName?: string; confirmPassword?: string }>({});
   const [authError, setAuthError] = useState<string | null>(null);
 
-  // Ensure page starts at the top when component mounts
+  // Ensure page starts at the top when component mounts and capture redirect
   useEffect(() => {
-    window.scrollTo({ top: 0, behavior: 'instant' });
+    scrollToTop({ behavior: 'instant' });
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const redirect = params.get('redirect');
+      if (redirect && redirect !== '/auth') {
+        setRedirectTo(redirect);
+        localStorage.setItem('authRedirectUrl', redirect);
+      }
+    } catch {}
   }, []);
 
   // FIXED: Much more permissive email validation for business domains
@@ -94,10 +104,17 @@ const AuthPage: React.FC = () => {
     try {
       if (isLoginMode) {
         await login(email, password);
-        // Success handled by auth store - user will be automatically redirected by App.tsx
       } else {
         await register(email, password, firstName, lastName);
-        // FIXED: Success handled by auth store - user will be automatically logged in and redirected to app
+      }
+
+      // Final safety: explicit redirect if stored
+      const stored = localStorage.getItem('authRedirectUrl');
+      const destination = stored || redirectTo;
+      if (destination && destination !== '/auth') {
+        localStorage.removeItem('authRedirectUrl');
+        window.location.replace(destination);
+        return;
       }
     } catch (error: any) {
       console.error('Auth error:', error);
@@ -134,25 +151,7 @@ const AuthPage: React.FC = () => {
     }
   };
 
-  const handleTestLogin = async (testEmail: string, testPassword: string, testFirstName?: string, testLastName?: string) => {
-    try {
-      setEmail(testEmail);
-      setPassword(testPassword);
-      if (testFirstName) setFirstName(testFirstName);
-      if (testLastName) setLastName(testLastName);
-      setConfirmPassword(testPassword);
-      setAuthError(null);
-      
-      if (isLoginMode) {
-        await login(testEmail, testPassword);
-      } else {
-        await register(testEmail, testPassword, testFirstName || 'Test', testLastName || 'User');
-      }
-    } catch (error: any) {
-      console.error('Test auth error:', error);
-      setAuthError(error.message || 'Test authentication failed');
-    }
-  };
+
 
   const handleSocialAuth = async (provider: 'google' | 'apple') => {
     try {
@@ -175,7 +174,7 @@ const AuthPage: React.FC = () => {
     setLastName('');
     setConfirmPassword('');
     // Scroll to top when switching modes
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    scrollToTop({ behavior: 'smooth' });
   };
 
   const togglePassword = () => setShowPassword(!showPassword);
@@ -188,121 +187,14 @@ const AuthPage: React.FC = () => {
       maxWidth: '100vw',
       background: 'linear-gradient(135deg, #f8fafc 0%, #ffffff 30%, #ecfdf5 70%, #f0fdfa 100%)',
       display: 'flex',
-      alignItems: 'flex-start',
+      alignItems: 'center',
       justifyContent: 'center',
-      padding: '8px',
+      padding: '16px',
       position: 'relative',
       overflow: 'hidden',
       boxSizing: 'border-box'
     }}>
-      {/* Development Test Panel - Only show in development */}
-      {import.meta.env.VITE_DEBUG === 'true' && (
-        <div>
-          <div style={{ position: 'fixed', top: '10px', left: '10px', zIndex: 1001 }}>
-            <button
-              onClick={() => setShowTestPanel(!showTestPanel)}
-              style={{
-                padding: '8px 12px',
-                background: '#374151',
-                color: 'white',
-                border: 'none',
-                borderRadius: '6px',
-                fontSize: '12px',
-                cursor: 'pointer'
-              }}
-            >
-              🧪 Test Mode
-            </button>
-          </div>
 
-          {showTestPanel && (
-            <div style={{
-              position: 'fixed',
-              top: '20px',
-              right: '20px',
-              background: 'rgba(0, 0, 0, 0.9)',
-              color: 'white',
-              padding: '16px',
-              borderRadius: '8px',
-              fontSize: '12px',
-              zIndex: 1000,
-              maxWidth: '280px'
-            }}>
-              <div style={{ marginBottom: '12px', fontWeight: 'bold', color: '#00ff88' }}>🚀 FIXED AUTHENTICATION</div>
-              <div style={{ marginBottom: '8px', fontSize: '10px', color: '#ccc' }}>
-                ✅ Business domains now supported:
-              </div>
-              <button
-                style={{
-                  margin: '4px 0',
-                  padding: '6px 12px',
-                  background: '#00F5D4',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '4px',
-                  cursor: 'pointer',
-                  fontSize: '11px',
-                  width: '100%'
-                }}
-                onClick={() => handleTestLogin('userten@fcz.app', 'test123', 'User', 'Ten')}
-              >
-                {isLoginMode ? '🔑 Login userten@fcz.app' : '📝 Register userten@fcz.app'}
-              </button>
-              <button
-                style={{
-                  margin: '4px 0',
-                  padding: '6px 12px',
-                  background: '#00F5D4',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '4px',
-                  cursor: 'pointer',
-                  fontSize: '11px',
-                  width: '100%'
-                }}
-                onClick={() => handleTestLogin('demo@example.com', 'demo123', 'Demo', 'User')}
-              >
-                {isLoginMode ? '🔑 Login demo@example.com' : '📝 Register demo@example.com'}
-              </button>
-              <button
-                style={{
-                  margin: '4px 0',
-                  padding: '6px 12px',
-                  background: '#00F5D4',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '4px',
-                  cursor: 'pointer',
-                  fontSize: '11px',
-                  width: '100%'
-                }}
-                onClick={() => handleTestLogin('user@gmail.com', 'test123', 'Test', 'Person')}
-              >
-                {isLoginMode ? '🔑 Login user@gmail.com' : '📝 Register user@gmail.com'}
-              </button>
-              <div style={{ margin: '12px 0 8px 0', fontSize: '10px', color: '#00ff88' }}>
-                ✅ ALL email formats now work!
-              </div>
-              <button
-                style={{
-                  margin: '4px 0',
-                  padding: '6px 12px',
-                  background: '#dc2626',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '4px',
-                  cursor: 'pointer',
-                  fontSize: '11px',
-                  width: '100%'
-                }}
-                onClick={() => setShowTestPanel(false)}
-              >
-                ❌ Close
-              </button>
-            </div>
-          )}
-        </div>
-      )}
 
       {/* CSS Animations */}
       <style>
@@ -379,27 +271,24 @@ const AuthPage: React.FC = () => {
         className="auth-card"
         style={{
           width: '100%',
-          maxWidth: 'calc(100vw - 16px)',
-          minHeight: 'calc(100vh - 16px)',
-          backgroundColor: 'rgba(255, 255, 255, 0.95)',
+          maxWidth: '400px',
+          backgroundColor: 'rgba(255, 255, 255, 0.98)',
           backdropFilter: 'blur(20px)',
-          borderRadius: '24px',
-          padding: '24px',
-          boxShadow: '0 25px 50px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(255, 255, 255, 0.2)',
+          borderRadius: '20px',
+          padding: '32px',
+          boxShadow: '0 20px 40px rgba(0, 0, 0, 0.1), 0 0 0 1px rgba(255, 255, 255, 0.2)',
           border: '1px solid rgba(255, 255, 255, 0.3)',
           position: 'relative',
           zIndex: 10,
-          margin: '8px',
-          marginTop: '8px',
           display: 'flex',
           flexDirection: 'column',
-          justifyContent: 'flex-start',
+          justifyContent: 'center',
           boxSizing: 'border-box',
           overflow: 'hidden'
         }}
       >
         {/* Logo section - Updated with FC Logo */}
-        <div style={{ textAlign: 'center', marginBottom: '20px' }}>
+        <div style={{ textAlign: 'center', marginBottom: '20px', position: 'relative' }}>
           <div style={{ 
             display: 'flex', 
             justifyContent: 'center', 
@@ -408,8 +297,27 @@ const AuthPage: React.FC = () => {
           }}>
             <Logo size="xl" variant="icon" />
           </div>
+          <div style={{ position: 'absolute', left: 0, top: 0 }}>
+            <button
+              onClick={() => {
+                const dest = redirectTo || localStorage.getItem('authRedirectUrl') || '/';
+                window.location.href = dest;
+              }}
+              style={{
+                padding: '8px 10px',
+                background: '#f3f4f6',
+                color: '#374151',
+                border: 'none',
+                borderRadius: '10px',
+                cursor: 'pointer'
+              }}
+              aria-label="Back"
+            >
+              ← Back
+            </button>
+          </div>
           <h1 style={{
-          fontSize: '32px',
+          fontSize: '28px',
             fontWeight: 'bold',
             color: '#111827',
             marginBottom: '8px',
@@ -418,16 +326,16 @@ const AuthPage: React.FC = () => {
             WebkitBackgroundClip: 'text',
             WebkitTextFillColor: 'transparent',
             lineHeight: '1.2'
-          }}>{isLoginMode ? 'Welcome Back' : 'Join Fan Club Z'}</h1>
+          }}>{isLoginMode ? 'Sign In' : 'Create Account'}</h1>
           <p style={{
-            fontSize: '16px',
+            fontSize: '14px',
             color: '#6b7280',
             margin: '0',
             lineHeight: '1.5'
           }}>
             {isLoginMode 
-              ? 'Sign in to continue your prediction journey'
-              : 'Create your account and start making predictions'
+              ? 'Access your predictions, wallet, and profile'
+              : 'Start predicting with the community'
             }
           </p>
         </div>

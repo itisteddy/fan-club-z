@@ -18,7 +18,11 @@ const MainLayout: React.FC<MainLayoutProps> = ({
   showNotificationBell = true 
 }) => {
   const [isNotificationCenterOpen, setIsNotificationCenterOpen] = useState(false);
-  const { toasts, removeToast } = useNotificationStore();
+  // Notification store has been refactored - toast notifications are now handled by react-hot-toast
+  const toasts: any[] = []; // TODO: Remove when ToastContainer is no longer needed
+  const removeToast = (id: string) => {
+    // TODO: Remove when ToastContainer is no longer needed
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-100">

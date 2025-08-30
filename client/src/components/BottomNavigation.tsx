@@ -41,11 +41,11 @@ const BottomNavigation: React.FC<BottomNavigationProps> = ({
         left: '0',
         right: '0',
         zIndex: '1000',
-        backgroundColor: 'white',
-        borderTop: '1px solid #e5e7eb',
+        backgroundColor: 'var(--bg-bottom-nav, #ffffff)',
+        borderTop: '1px solid var(--border-primary, #e5e7eb)',
         paddingBottom: 'max(env(safe-area-inset-bottom), 0.5rem)',
         paddingTop: '0.5rem',
-        boxShadow: '0 -4px 20px rgba(0, 0, 0, 0.1)'
+        boxShadow: '0 -4px 20px rgba(0, 0, 0, 0.08)'
       }}
     >
       <nav style={{ padding: '0 1rem', position: 'relative' }}>
@@ -84,7 +84,7 @@ const BottomNavigation: React.FC<BottomNavigationProps> = ({
                 }}
                 onMouseEnter={(e) => {
                   if (!isActive) {
-                    e.currentTarget.style.backgroundColor = '#f9fafb';
+                    e.currentTarget.style.backgroundColor = 'rgba(139, 92, 246, 0.1)';
                   }
                 }}
                 onMouseLeave={(e) => {
@@ -107,7 +107,7 @@ const BottomNavigation: React.FC<BottomNavigationProps> = ({
                 }}>
                   <div style={{
                     transition: 'all 0.2s ease',
-                    color: isActive ? '#7B2FF7' : '#6b7280',
+                    color: isActive ? 'var(--accent-primary, #7B2FF7)' : 'var(--text-tertiary, #6b7280)',
                     transform: isActive ? 'scale(1.1)' : 'scale(1)',
                     display: 'flex',
                     alignItems: 'center',
@@ -115,8 +115,6 @@ const BottomNavigation: React.FC<BottomNavigationProps> = ({
                   }}>
                     <Icon size={20} />
                   </div>
-                  
-                  {/* Active indicator */}
                   {isActive && (
                     <motion.div
                       layoutId="activeTab"
@@ -127,12 +125,12 @@ const BottomNavigation: React.FC<BottomNavigationProps> = ({
                         transform: 'translateX(-50%)',
                         width: '4px',
                         height: '4px',
-                        backgroundColor: '#7B2FF7',
+                        backgroundColor: 'var(--accent-primary, #7B2FF7)',
                         borderRadius: '50%',
-                        boxShadow: '0 0 6px rgba(34, 197, 94, 0.6)'
+                        boxShadow: '0 0 6px rgba(34, 197, 94, 0.4)'
                       }}
                       initial={false}
-                      transition={{ type: "spring", stiffness: 400, damping: 30 }}
+                      transition={{ type: 'spring', stiffness: 400, damping: 30 }}
                     />
                   )}
                 </div>
@@ -140,7 +138,7 @@ const BottomNavigation: React.FC<BottomNavigationProps> = ({
                   fontSize: '11px',
                   fontWeight: isActive ? '600' : '500',
                   transition: 'all 0.2s ease',
-                  color: isActive ? '#7B2FF7' : '#6b7280',
+                  color: isActive ? 'var(--accent-primary, #7B2FF7)' : 'var(--text-tertiary, #6b7280)',
                   textAlign: 'center',
                   lineHeight: '1.2'
                 }}>
@@ -151,7 +149,6 @@ const BottomNavigation: React.FC<BottomNavigationProps> = ({
           })}
         </div>
 
-        {/* Floating Action Button - Only show on Discover page */}
         {showFAB && (
           <motion.button
             initial={{ scale: 0, opacity: 0 }}

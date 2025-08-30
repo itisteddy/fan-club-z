@@ -298,49 +298,6 @@ const ClubCard: React.FC<{
   );
 };
 
-      createdAt: new Date(),
-      updatedAt: new Date(),
-      owner: {
-        username: 'Club Owner',
-        avatarUrl: undefined
-      },
-      isMember: clubData.isJoined || false,
-      memberRole: clubData.isJoined ? 'member' as const : null,
-      activePredictions: 0,
-      stats: {
-        totalPredictions: 0,
-        correctPredictions: 0,
-        totalWinnings: 0,
-        topMembers: 0
-      }
-    };
-    
-    setCurrentClub(extendedClub);
-  }, [clubData, setCurrentClub]);
-  
-  // Create a custom ClubDetailPage that handles navigation properly
-  return (
-    <div className="min-h-screen bg-background">
-      {/* Custom Header with working back button */}
-      <header className="sticky top-0 z-40 bg-card/95 backdrop-blur-subtle border-b border-border">
-        <div className="flex items-center justify-between px-4 py-3">
-          <button
-            onClick={onBack}
-            className="p-2 rounded-xl hover:bg-muted transition-colors"
-          >
-            <ArrowLeft className="w-5 h-5 text-muted-foreground" />
-          </button>
-          <h1 className="text-body-md font-semibold text-foreground">Club Details</h1>
-          <div className="w-10" />
-        </div>
-      </header>
-      
-      {/* Rest of club detail content - hide header to prevent duplicate */}
-      <ClubDetailPage hideHeader={true} />
-    </div>
-  );
-};
-
 const ClubsPage: React.FC<ClubsPageProps> = ({ onNavigateToCreate }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');

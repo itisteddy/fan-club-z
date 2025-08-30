@@ -1,47 +1,143 @@
 import { Request, Response, NextFunction } from 'express';
+import { createClient } from '@supabase/supabase-js';
+import jwt from 'jsonwebtoken';
+import { config } from '../config';
+import logger from '../utils/logger';
+import type { ApiResponse } from '@fanclubz/shared';
 
-/**
- * Simple authentication middleware for Fan Club Z
- * In development, this allows all requests through
- * In production, this would verify JWT tokens
- */
+const supabase = createClient(config.supabase.url, config.supabase.serviceRoleKey);
 
 export interface AuthenticatedRequest extends Request {
   user?: {
     id: string;
     email: string;
     username?: string;
+    full_name?: string;
+    is_verified?: boolean;
+    reputation_score?: number;
+    created_at?: string;
+    updated_at?: string;
   };
 }
 
-export const authenticate = (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
-  // For development, we'll create a mock user
-  // In production, this would verify JWT tokens from headers
-  
-  const authHeader = req.headers.authorization;
-  
-  if (authHeader && authHeader.startsWith('Bearer ')) {
-    // In a real implementation, we'd verify the JWT token here
-    // For now, we'll create a mock user
-    req.user = {
-      id: 'current-user',
-      email: 'user@example.com',
-      username: 'TestUser'
+interface JWTPayload {
+  sub: string;
+  email: string;
+  iat: number;
+  exp: number;
+}
+
+export const authenticateToken = async (
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const authHeader = req.headers.authorization;
+    
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      const response: ApiResponse = {
+        success: false,
+        error: 'Authentication required',
+      };
+      res.status(401).json(response);
+      return;
+    }
+
+    const token = authHeader.substring(7);
+    
+    try {
+      // Verify JWT token
+      const decoded = jwt.verify(token, config.jwt.secret) as JWTPayload;
+      
+      // Fetch user from database
+      const { data: user, error } = await supabase
+        .from('users')
+        .select('*')
+        .eq('id', decoded.sub)
+        .eq('is_active', true)
+        .single();
+      
+      if (error || !user) {
+        logger.warn('User not found or inactive', { userId: decoded.sub });
+        const response: ApiResponse = {
+          success: false,
+          error: 'User not found or inactive',
+        };
+        res.status(401).json(response);
+        return;
+      }
+
+      req.user = user;
+      next();
+    } catch (tokenError) {
+      logger.warn('Invalid token attempt', { 
+        error: tokenError instanceof Error ? tokenError.message : 'Unknown error',
+        token: token.substring(0, 10) + '...' 
+      });
+      const response: ApiResponse = {
+        success: false,
+        error: 'Invalid or expired token',
+      };
+      res.status(401).json(response);
+      return;
+    }
+  } catch (error) {
+    logger.error('Authentication middleware error', error);
+    const response: ApiResponse = {
+      success: false,
+      error: 'Authentication error',
     };
-  } else {
-    // For development, allow unauthenticated requests with a default user
-    req.user = {
-      id: 'anonymous-user',
-      email: 'anonymous@example.com',
-      username: 'Anonymous'
-    };
+    res.status(500).json(response);
+    return;
   }
-  
-  next();
 };
 
+export const optionalAuth = async (
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const authHeader = req.headers.authorization;
+    
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      next();
+      return;
+    }
+
+    const token = authHeader.substring(7);
+    
+    try {
+      const decoded = jwt.verify(token, config.jwt.secret) as JWTPayload;
+      
+      const { data: user, error } = await supabase
+        .from('users')
+        .select('*')
+        .eq('id', decoded.sub)
+        .eq('is_active', true)
+        .single();
+      
+      if (!error && user) {
+        req.user = user;
+      }
+      
+      next();
+    } catch (tokenError) {
+      // For optional auth, we just continue without setting user
+      next();
+    }
+  } catch (error) {
+    logger.error('Optional auth middleware error', error);
+    next();
+  }
+};
+
+// Legacy functions for backward compatibility
+export const authenticate = authenticateToken;
+
 export const requireAuth = (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
-  if (!req.user || req.user.id === 'anonymous-user') {
+  if (!req.user) {
     return res.status(401).json({
       success: false,
       error: 'Authentication required'

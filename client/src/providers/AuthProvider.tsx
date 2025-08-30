@@ -31,19 +31,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   });
 
   const login = async (email: string, password: string) => {
-    setState({
-      user: { email, username: 'demo_user' },
-      isLoading: false,
-      isAuthenticated: true,
-    });
+    // Real authentication would be implemented here
+    throw new Error('Authentication system not implemented');
   };
 
   const register = async (email: string, password: string, username: string) => {
-    setState({
-      user: { email, username },
-      isLoading: false,
-      isAuthenticated: true,
-    });
+    // Real registration would be implemented here
+    throw new Error('Registration system not implemented');
   };
 
   const logout = () => {

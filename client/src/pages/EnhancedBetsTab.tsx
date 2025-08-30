@@ -85,7 +85,7 @@ const BetsTab: React.FC<BetsTabProps> = ({ onNavigateToDiscover }) => {
     { id: 'Completed', label: 'Completed', icon: CheckCircle, count: counts.completed, color: 'purple' }
   ];
 
-  // Enhanced user predictions data with better mock data
+  // Enhanced user predictions data - no mock data
   const getUserPredictions = () => {
     if (!isAuthenticated || !user) {
       return { Active: [], Created: [], Completed: [] };
@@ -110,31 +110,14 @@ const BetsTab: React.FC<BetsTabProps> = ({ onNavigateToDiscover }) => {
           status: 'active',
           participants: prediction?.participant_count || 0,
           confidence: calculateConfidence(prediction),
-          trend: false ? 'up' : 'down',
-          isHot: Math.random() > 0.7
+          trend: 'neutral', // Will be determined by real data
+          isHot: false // Will be determined by real data
         };
       });
 
     const createdPredictions = getUserCreatedPredictions(user.id)
       .map(prediction => {
-        const recentActivity = [
-          {
-            id: '1',
-            type: 'participant_joined' as const,
-            description: 'New participant joined',
-            amount: 75,
-            timestamp: new Date(Date.now() - 2 * 60 * 1000).toISOString(),
-            timeAgo: '2 minutes ago'
-          },
-          {
-            id: '2',
-            type: 'prediction_placed' as const,
-            description: 'Large prediction placed',
-            amount: 200,
-            timestamp: new Date(Date.now() - 15 * 60 * 1000).toISOString(),
-            timeAgo: '15 minutes ago'
-          }
-        ];
+        const recentActivity = []; // No mock data - will be populated by real API
 
         return {
           id: prediction.id,
@@ -144,11 +127,11 @@ const BetsTab: React.FC<BetsTabProps> = ({ onNavigateToDiscover }) => {
           participants: prediction.participant_count || 0,
           timeRemaining: getTimeRemaining(prediction.entry_deadline),
           status: prediction.status,
-          yourCut: 3.5,
+          yourCut: 0, // Will be calculated by real API
           description: prediction.description,
           recentActivity,
-          growth: false ? 'growing' : 'stable',
-          isPopular: Math.random() > 0.6
+          growth: 'stable', // Will be determined by real data
+          isPopular: false // Will be determined by real data
         };
       });
 
@@ -182,8 +165,8 @@ const BetsTab: React.FC<BetsTabProps> = ({ onNavigateToDiscover }) => {
     return Math.round((maxStaked / totalStaked) * 100);
   };
 
-  const mockPredictions = getUserPredictions();
-  const currentPredictions = mockPredictions[activeTab] || [];
+  const userPredictions = getUserPredictions();
+  const currentPredictions = userPredictions[activeTab] || [];
 
   // Enhanced category colors with more vibrant palette
   const getCategoryColor = (category: string) => {
@@ -561,9 +544,9 @@ const BetsTab: React.FC<BetsTabProps> = ({ onNavigateToDiscover }) => {
                     key={tab.id}
                     onClick={() => setActiveTab(tab.id)}
                     className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl font-semibold transition-all duration-300 relative ${
-                      isActive
-                        ? 'bg-white text-gray-900 shadow-lg'
-                        : 'text-gray-600 hover:text-gray-900 hover:bg-white/50'
+                                              isActive
+                          ? 'bg-white dark:bg-gray-800 text-gray-900 dark:text-white shadow-lg'
+                          : 'text-gray-600 dark:text-gray-300'
                     }`}
                     whileHover={{ scale: isActive ? 1 : 1.02 }}
                     whileTap={{ scale: 0.98 }}

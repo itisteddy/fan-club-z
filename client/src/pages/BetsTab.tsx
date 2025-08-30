@@ -3,13 +3,15 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useLocation } from 'wouter';
 import { useAuthStore } from '../store/authStore';
 import { usePredictionStore } from '../store/predictionStore';
+import { scrollToTop } from '../utils/scroll';
 import { 
   TrendingUp, 
   Target, 
   CheckCircle, 
   Plus, 
   Settings,
-  Share2
+  Share2,
+  ArrowLeft
 } from 'lucide-react';
 import ManagePredictionModal from '../components/modals/ManagePredictionModal';
 
@@ -66,7 +68,7 @@ const BetsTab: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNavigateTo
 
   // Scroll to top on mount
   useEffect(() => {
-    window.scrollTo({ behavior: 'instant' });
+    scrollToTop({ behavior: 'instant' });
   }, []);
 
   // Fetch user data
@@ -334,9 +336,26 @@ const BetsTab: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNavigateTo
   if (!isAuthenticated) {
     return (
       <div className="min-h-screen bg-gray-50">
-        <div className="bg-white border-b border-gray-200">
-          <div className="px-6 pt-12 pb-6">
-            <h1 className="text-3xl font-bold text-gray-900 mb-6">My Predictions</h1>
+        {/* Header - Consistent with Wallet page styling */}
+        <div className="bg-white border-b border-gray-100">
+          {/* Status bar spacer */}
+          <div className="h-11" />
+          
+          <div className="px-4 py-1">
+            <div className="flex items-center justify-between mb-1">
+              <button
+                onClick={onNavigateToDiscover}
+                className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center hover:bg-gray-200 transition-colors"
+              >
+                <ArrowLeft size={16} className="text-gray-700" />
+              </button>
+              
+              <div className="text-center">
+                <h1 className="text-lg font-semibold text-gray-900">My Predictions</h1>
+              </div>
+              
+              <div className="w-8" /> {/* Spacer for centering */}
+            </div>
           </div>
         </div>
         <div className="flex flex-col items-center justify-center py-16 px-6">
@@ -380,7 +399,7 @@ const BetsTab: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNavigateTo
         onClick={() => {
           if (tab === 'Created') {
             setLocation('/create');
-            window.scrollTo({ behavior: 'instant' });
+            scrollToTop({ behavior: 'instant' });
           } else {
             onNavigateToDiscover && onNavigateToDiscover();
           }
@@ -596,10 +615,26 @@ const BetsTab: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNavigateTo
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <div className="bg-white border-b border-gray-200">
-        <div className="px-6 pt-12 pb-6">
-          <h1 className="text-3xl font-bold text-gray-900 mb-6">My Predictions</h1>
+      {/* Header - Consistent with Wallet page styling */}
+      <div className="bg-white border-b border-gray-100">
+        {/* Status bar spacer - reduced height */}
+        <div className="h-11" />
+        
+        <div className="px-4 py-1">
+          <div className="flex items-center justify-between mb-1">
+            <button
+              onClick={onNavigateToDiscover}
+              className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center hover:bg-gray-200 transition-colors"
+            >
+              <ArrowLeft size={16} className="text-gray-700" />
+            </button>
+            
+            <div className="text-center">
+              <h1 className="text-lg font-semibold text-gray-900">My Predictions</h1>
+            </div>
+            
+            <div className="w-8" /> {/* Spacer for centering */}
+          </div>
           
           {/* Tabs */}
           <div className="flex space-x-1 bg-gray-100 p-1 rounded-xl" data-tour-id="bets-tabs">
@@ -611,8 +646,8 @@ const BetsTab: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNavigateTo
                   onClick={() => setActiveTab(tab.id)}
                   className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-medium transition-all duration-200 ${
                     activeTab === tab.id
-                      ? 'bg-white text-gray-900 shadow-sm'
-                      : 'text-gray-600 hover:text-gray-900'
+                      ? 'bg-white dark:bg-gray-800 text-gray-900 dark:text-white shadow-sm'
+                      : 'text-gray-600 dark:text-gray-300'
                   }`}
                 >
                   <Icon className="w-4 h-4" />

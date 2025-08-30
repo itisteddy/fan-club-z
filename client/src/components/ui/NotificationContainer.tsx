@@ -1,24 +1,10 @@
 import React from 'react';
-import { useNotificationStore } from '../../store/notificationStore';
-import Notification from './Notification';
 
 const NotificationContainer: React.FC = () => {
-  const { notifications, removeNotification } = useNotificationStore();
-
-  return (
-    <>
-      {notifications.map((notification, index) => (
-        <Notification
-          key={notification.id}
-          type={notification.type}
-          message={notification.message}
-          duration={notification.duration}
-          onClose={() => removeNotification(notification.id)}
-          show={true}
-        />
-      ))}
-    </>
-  );
+  // The notification store has been refactored to only handle settings
+  // Toast notifications are now handled directly by react-hot-toast
+  // This component is kept for potential future use but currently renders nothing
+  return null;
 };
 
 export default NotificationContainer; 

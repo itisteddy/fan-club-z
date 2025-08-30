@@ -1,443 +1,207 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { supabase } from '../lib/supabase';
 
 export interface Notification {
   id: string;
-  type: 'prediction_outcome' | 'comment' | 'payout' | 'market_close' | 'like' | 'follow' | 'general' | 'settlement_ready' | 'settlement_completed';
+  user_id: string;
+  type: 'prediction_settled' | 'comment_received' | 'like_received' | 'follow_received' | 'achievement_earned' | 'system';
   title: string;
   message: string;
-  read: boolean;
-  createdAt: string;
-  data?: any; // Additional data for navigation/actions
+  data?: {
+    prediction_id?: string;
+    comment_id?: string;
+    user_id?: string;
+    amount?: number;
+    achievement_name?: string;
+  };
+  is_read: boolean;
+  created_at: string;
 }
 
-export interface NotificationSettings {
-  predictionOutcomes: boolean;
-  comments: boolean;
-  marketClosing: boolean;
-  payouts: boolean;
-  pushNotifications: boolean;
-  emailNotifications: boolean;
-  frequency: 'immediate' | 'hourly' | 'daily';
-}
-
-export interface ToastNotification {
-  id: string;
-  type: 'success' | 'error' | 'info' | 'warning';
-  title: string;
-  message: string;
-  duration?: number;
-}
-
-interface NotificationStore {
+interface NotificationState {
   notifications: Notification[];
   unreadCount: number;
-  settings: NotificationSettings;
-  toasts: ToastNotification[];
-  
-  // Actions
-  addNotification: (notification: Omit<Notification, 'id' | 'createdAt' | 'read'>) => void;
-  markAsRead: (id: string) => void;
-  markAllAsRead: () => void;
-  deleteNotification: (id: string) => void;
-  clearAllNotifications: () => void;
-  updateSettings: (settings: Partial<NotificationSettings>) => void;
-  
-  // Toast actions
-  addToast: (toast: Omit<ToastNotification, 'id'>) => void;
-  removeToast: (id: string) => void;
-  clearToasts: () => void;
-  
-  // Push notification actions
-  requestPermission: () => Promise<boolean>;
-  subscribeToPush: () => Promise<void>;
-  unsubscribeFromPush: () => Promise<void>;
-  
-  // Utility functions
-  showSuccess: (message: string, title?: string) => void;
-  showError: (message: string, title?: string) => void;
-  
-  // Settlement notification helpers
-  notifySettlementReady: (predictionId: string, predictionTitle: string) => void;
-  notifySettlementCompleted: (predictionId: string, predictionTitle: string, outcome: 'won' | 'lost', payout?: number) => void;
+  loading: boolean;
+  error: string | null;
 }
 
-export const useNotificationStore = create<NotificationStore>()(
-  persist(
-    (set, get) => ({
-      notifications: [],
-      unreadCount: 0,
-      toasts: [],
-      settings: {
-        predictionOutcomes: true,
-        comments: true,
-        marketClosing: true,
-        payouts: true,
-        pushNotifications: true,
-        emailNotifications: false,
-        frequency: 'immediate',
-      },
+interface NotificationActions {
+  initializeNotifications: () => Promise<void>;
+  fetchNotifications: (limit?: number) => Promise<void>;
+  markAsRead: (notificationId: string) => Promise<void>;
+  markAllAsRead: () => Promise<void>;
+  deleteNotification: (notificationId: string) => Promise<void>;
+  clearError: () => void;
+  addNotificationFromRealtime: (notification: Notification) => void;
+}
 
-      addNotification: (notificationData) => {
-        const notification: Notification = {
-          ...notificationData,
-          id: crypto.randomUUID(),
-          createdAt: new Date().toISOString(),
-          read: false,
-        };
+export const useNotificationStore = create<NotificationState & NotificationActions>((set, get) => ({
+  notifications: [],
+  unreadCount: 0,
+  loading: false,
+  error: null,
 
-        set((state) => ({
-          notifications: [notification, ...state.notifications],
-          unreadCount: state.unreadCount + 1,
-        }));
+  initializeNotifications: async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (!user) {
+        console.log('❌ No authenticated user, skipping notification initialization');
+        return;
+      }
 
-        // Show toast for important notifications
-        if (['prediction_outcome', 'payout'].includes(notification.type)) {
-          get().addToast({
-            type: 'success',
-            title: notification.title,
-            message: notification.message,
-            duration: 5000,
-          });
-        }
+      console.log('🔄 Initializing notification store for user:', user.id);
+      await get().fetchNotifications(10); // Load last 10 notifications
 
-        // Send push notification if enabled
-        if (get().settings.pushNotifications) {
-          get().sendPushNotification(notification);
-        }
-      },
-
-      markAsRead: (id) => {
-        set((state) => ({
-          notifications: state.notifications.map((n) =>
-            n.id === id ? { ...n, read: true } : n
-          ),
-          unreadCount: Math.max(0, state.unreadCount - 1),
-        }));
-      },
-
-      markAllAsRead: () => {
-        set((state) => ({
-          notifications: state.notifications.map((n) => ({ ...n, read: true })),
-          unreadCount: 0,
-        }));
-      },
-
-      deleteNotification: (id) => {
-        set((state) => {
-          const notification = state.notifications.find(n => n.id === id);
-          const wasUnread = notification && !notification.read;
-          
-          return {
-            notifications: state.notifications.filter((n) => n.id !== id),
-            unreadCount: wasUnread ? Math.max(0, state.unreadCount - 1) : state.unreadCount,
-          };
-        });
-      },
-
-      clearAllNotifications: () => {
-        set({ notifications: [], unreadCount: 0 });
-      },
-
-      updateSettings: (newSettings) => {
-        set((state) => ({
-          settings: { ...state.settings, ...newSettings },
-        }));
-      },
-
-      addToast: (toastData) => {
-        const toast: ToastNotification = {
-          ...toastData,
-          id: crypto.randomUUID(),
-        };
-
-        set((state) => ({
-          toasts: [...state.toasts, toast],
-        }));
-      },
-
-      removeToast: (id) => {
-        set((state) => ({
-          toasts: state.toasts.filter((t) => t.id !== id),
-        }));
-      },
-
-      clearToasts: () => {
-        set({ toasts: [] });
-      },
-
-      requestPermission: async () => {
-        if (!('Notification' in window)) {
-          console.warn('This browser does not support notifications');
-          return false;
-        }
-
-        if (Notification.permission === 'granted') {
-          return true;
-        }
-
-        if (Notification.permission !== 'denied') {
-          const permission = await Notification.requestPermission();
-          return permission === 'granted';
-        }
-
-        return false;
-      },
-
-      subscribeToPush: async () => {
-        const hasPermission = await get().requestPermission();
-        if (!hasPermission) {
-          throw new Error('Notification permission denied');
-        }
-
-        // TODO: Implement actual push subscription with service worker
-        console.log('Push notifications subscribed');
-        
-        set((state) => ({
-          settings: { ...state.settings, pushNotifications: true },
-        }));
-      },
-
-      unsubscribeFromPush: async () => {
-        // TODO: Implement actual push unsubscription
-        console.log('Push notifications unsubscribed');
-        
-        set((state) => ({
-          settings: { ...state.settings, pushNotifications: false },
-        }));
-      },
-
-      // Helper method to send push notifications
-      sendPushNotification: (notification: Notification) => {
-        if (!('Notification' in window) || Notification.permission !== 'granted') {
-          return;
-        }
-
-        const pushNotification = new Notification(notification.title, {
-          body: notification.message,
-          icon: '/icon-192x192.png',
-          badge: '/icon-badge.png',
-          tag: notification.id,
-          renotify: false,
-        });
-
-        pushNotification.onclick = () => {
-          window.focus();
-          pushNotification.close();
-          
-          // Handle navigation based on notification type
-          if (notification.data?.predictionId) {
-            // Navigate to prediction detail
-            window.location.href = `/predictions/${notification.data.predictionId}`;
-          }
-        };
-
-        // Auto-close after 5 seconds
-        setTimeout(() => {
-          pushNotification.close();
-        }, 5000);
-      },
-
-      // Settlement notification helpers
-      notifySettlementReady: (predictionId: string, predictionTitle: string) => {
-        const { addNotification, addToast } = get();
-        
-        // Add persistent notification
-        addNotification({
-          type: 'settlement_ready',
-          title: 'Settlement Required',
-          message: `"${predictionTitle}" needs your validation. Tap to review the outcome.`,
-          data: { predictionId, action: 'validate_settlement' }
-        });
-        
-        // Show toast notification
-        addToast({
-          type: 'info',
-          title: '⚖️ Settlement Ready',
-          message: `Tap to validate the outcome of "${predictionTitle}"`,
-          duration: 8000,
-        });
-      },
-
-      notifySettlementCompleted: (predictionId: string, predictionTitle: string, outcome: 'won' | 'lost', payout?: number) => {
-        const { addNotification, addToast } = get();
-        
-        const message = outcome === 'won' 
-          ? `You won ${payout ? `$${payout}` : ''} on "${predictionTitle}"!`
-          : `Settlement completed for "${predictionTitle}". Better luck next time!`;
-          
-        // Add persistent notification
-        addNotification({
-          type: 'settlement_completed',
-          title: outcome === 'won' ? 'You Won!' : 'Settlement Complete',
-          message,
-          data: { predictionId, outcome, payout }
-        });
-        
-        // Show toast notification
-        addToast({
-          type: outcome === 'won' ? 'success' : 'info',
-          title: outcome === 'won' ? '🎉 You Won!' : '📋 Settlement Complete',
-          message,
-          duration: outcome === 'won' ? 10000 : 6000,
-        });
-      },
-
-      showSuccess: (message: string, title?: string) => {
-        get().addToast({
-          type: 'success',
-          title: title || 'Success',
-          message,
-          duration: 3000,
-        });
-      },
-
-      showError: (message: string, title?: string) => {
-        get().addToast({
-          type: 'error',
-          title: title || 'Error',
-          message,
-          duration: 5000,
-        });
-      },
-    }),
-    {
-      name: 'fanclubz-notifications',
-      partialize: (state) => ({
-        notifications: state.notifications,
-        settings: state.settings,
-      }),
+    } catch (error) {
+      console.error('❌ Error initializing notifications:', error);
+      set({ error: 'Failed to load notifications' });
     }
-  )
-);
+  },
 
-// Helper functions for common notification types
-export const notificationHelpers = {
-  predictionWin: (predictionTitle: string, amount: number, predictionId: string) =>
-    useNotificationStore.getState().addNotification({
-      type: 'prediction_outcome',
-      title: '🎉 You won!',
-      message: `Your prediction "${predictionTitle}" was correct! You earned $${amount.toFixed(2)}.`,
-      data: { predictionId, amount },
-    }),
+  fetchNotifications: async (limit = 20) => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (!user) {
+        throw new Error('User not authenticated');
+      }
 
-  predictionLoss: (predictionTitle: string, predictionId: string) =>
-    useNotificationStore.getState().addNotification({
-      type: 'prediction_outcome',
-      title: 'Prediction resolved',
-      message: `Your prediction "${predictionTitle}" didn't win this time. Better luck next time!`,
-      data: { predictionId },
-    }),
+      set({ loading: true, error: null });
 
-  newComment: (predictionTitle: string, commenterName: string, predictionId: string) =>
-    useNotificationStore.getState().addNotification({
-      type: 'comment',
-      title: 'New comment',
-      message: `${commenterName} commented on "${predictionTitle}"`,
-      data: { predictionId, commenterName },
-    }),
+      const { data: notifications, error } = await supabase
+        .from('notifications')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(limit);
 
-  marketClosingSoon: (predictionTitle: string, timeLeft: string, predictionId: string) =>
-    useNotificationStore.getState().addNotification({
-      type: 'market_close',
-      title: 'Market closing soon',
-      message: `"${predictionTitle}" closes in ${timeLeft}. Make your final predictions!`,
-      data: { predictionId, timeLeft },
-    }),
+      if (error) {
+        throw error;
+      }
 
-  payoutReceived: (amount: number, transactionId: string) =>
-    useNotificationStore.getState().addNotification({
-      type: 'payout',
-      title: 'Payout received',
-      message: `$${amount.toFixed(2)} has been added to your wallet.`,
-      data: { amount, transactionId },
-    }),
+      const unreadCount = notifications?.filter(n => !n.is_read).length || 0;
 
-  showSuccessToast: (message: string) =>
-    useNotificationStore.getState().addToast({
-      type: 'success',
-      title: 'Success',
-      message,
-      duration: 3000,
-    }),
+      set({ 
+        notifications: notifications || [], 
+        unreadCount,
+        loading: false 
+      });
 
-  showErrorToast: (message: string) =>
-    useNotificationStore.getState().addToast({
-      type: 'error',
-      title: 'Error',
-      message,
-      duration: 5000,
-    }),
+      console.log('✅ Notifications loaded:', {
+        total: notifications?.length || 0,
+        unread: unreadCount
+      });
 
-  showInfoToast: (message: string) =>
-    useNotificationStore.getState().addToast({
-      type: 'info',
-      title: 'Info',
-      message,
-      duration: 4000,
-    }),
-};
+    } catch (error) {
+      console.error('Error fetching notifications:', error);
+      set({ error: 'Failed to fetch notifications', loading: false });
+    }
+  },
 
-// Export the missing functions
-export const showSuccess = (message: string, title?: string) => {
-  useNotificationStore.getState().addToast({
-    type: 'success',
-    title: title || 'Success',
-    message,
-    duration: 3000,
-  });
-};
+  markAsRead: async (notificationId: string) => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (!user) {
+        throw new Error('User not authenticated');
+      }
 
-export const showError = (message: string, title?: string) => {
-  useNotificationStore.getState().addToast({
-    type: 'error',
-    title: title || 'Error',
-    message,
-    duration: 5000,
-  });
-};
+      const { error } = await supabase
+        .from('notifications')
+        .update({ is_read: true })
+        .eq('id', notificationId)
+        .eq('user_id', user.id);
 
-// Settlement notification helpers
-export const notifySettlementReady = (predictionId: string, predictionTitle: string) => {
-  const store = useNotificationStore.getState();
-  
-  // Add persistent notification
-  store.addNotification({
-    type: 'settlement_ready',
-    title: 'Settlement Required',
-    message: `"${predictionTitle}" needs your validation. Tap to review the outcome.`,
-    data: { predictionId, action: 'validate_settlement' }
-  });
-  
-  // Show toast notification
-  store.addToast({
-    type: 'info',
-    title: '⚖️ Settlement Ready',
-    message: `Tap to validate the outcome of "${predictionTitle}"`,
-    duration: 8000,
-  });
-};
+      if (error) {
+        throw error;
+      }
 
-export const notifySettlementCompleted = (predictionId: string, predictionTitle: string, outcome: 'won' | 'lost', payout?: number) => {
-  const store = useNotificationStore.getState();
-  
-  const message = outcome === 'won' 
-    ? `You won ${payout ? `$${payout}` : ''} on "${predictionTitle}"!`
-    : `Settlement completed for "${predictionTitle}". Better luck next time!`;
-    
-  // Add persistent notification
-  store.addNotification({
-    type: 'settlement_completed',
-    title: outcome === 'won' ? 'You Won!' : 'Settlement Complete',
-    message,
-    data: { predictionId, outcome, payout }
-  });
-  
-  // Show toast notification
-  store.addToast({
-    type: outcome === 'won' ? 'success' : 'info',
-    title: outcome === 'won' ? '🎉 You Won!' : '📋 Settlement Complete',
-    message,
-    duration: outcome === 'won' ? 10000 : 6000,
-  });
-};
+      // Update local state
+      set(state => ({
+        notifications: state.notifications.map(n => 
+          n.id === notificationId ? { ...n, is_read: true } : n
+        ),
+        unreadCount: Math.max(0, state.unreadCount - 1)
+      }));
+
+    } catch (error) {
+      console.error('Error marking notification as read:', error);
+      set({ error: 'Failed to mark notification as read' });
+    }
+  },
+
+  markAllAsRead: async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (!user) {
+        throw new Error('User not authenticated');
+      }
+
+      const { error } = await supabase
+        .from('notifications')
+        .update({ is_read: true })
+        .eq('user_id', user.id)
+        .eq('is_read', false);
+
+      if (error) {
+        throw error;
+      }
+
+      // Update local state
+      set(state => ({
+        notifications: state.notifications.map(n => ({ ...n, is_read: true })),
+        unreadCount: 0
+      }));
+
+    } catch (error) {
+      console.error('Error marking all notifications as read:', error);
+      set({ error: 'Failed to mark notifications as read' });
+    }
+  },
+
+  deleteNotification: async (notificationId: string) => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (!user) {
+        throw new Error('User not authenticated');
+      }
+
+      const { error } = await supabase
+        .from('notifications')
+        .delete()
+        .eq('id', notificationId)
+        .eq('user_id', user.id);
+
+      if (error) {
+        throw error;
+      }
+
+      // Update local state
+      set(state => {
+        const notification = state.notifications.find(n => n.id === notificationId);
+        return {
+          notifications: state.notifications.filter(n => n.id !== notificationId),
+          unreadCount: notification?.is_read ? state.unreadCount : Math.max(0, state.unreadCount - 1)
+        };
+      });
+
+    } catch (error) {
+      console.error('Error deleting notification:', error);
+      set({ error: 'Failed to delete notification' });
+    }
+  },
+
+  clearError: () => {
+    set({ error: null });
+  },
+
+  addNotificationFromRealtime: (notification: Notification) => {
+    set(state => ({
+      notifications: [notification, ...state.notifications],
+      unreadCount: state.unreadCount + 1
+    }));
+  }
+}));

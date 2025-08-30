@@ -17,6 +17,10 @@ interface LikeActions {
   refreshLikeCounts: () => Promise<void>;
   // Helper for debugging
   debugLikeState: (predictionId: string) => void;
+  
+  // Real-time update methods
+  addLikeFromRealtime: (predictionId: string, userId: string) => void;
+  removeLikeFromRealtime: (predictionId: string, userId: string) => void;
 }
 
 export const useLikeStore = create<LikeState & LikeActions>((set, get) => ({
@@ -232,6 +236,45 @@ export const useLikeStore = create<LikeState & LikeActions>((set, get) => ({
       allLikeCounts: state.likeCounts,
       loading: state.loading,
       error: state.error
+    });
+  },
+
+  // Real-time update methods
+  addLikeFromRealtime: (predictionId: string, userId: string) => {
+    console.log('❤️ Adding like from real-time:', predictionId, 'user:', userId);
+    
+    // Get current user synchronously to avoid async issues
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (!user || user.id !== userId) {
+        // Only update local state if it's not the current user
+        set(state => ({
+          likeCounts: {
+            ...state.likeCounts,
+            [predictionId]: (state.likeCounts[predictionId] || 0) + 1
+          }
+        }));
+      }
+    }).catch(error => {
+      console.error('Error getting user in addLikeFromRealtime:', error);
+    });
+  },
+
+  removeLikeFromRealtime: (predictionId: string, userId: string) => {
+    console.log('💔 Removing like from real-time:', predictionId, 'user:', userId);
+    
+    // Get current user synchronously to avoid async issues
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (!user || user.id !== userId) {
+        // Only update local state if it's not the current user
+        set(state => ({
+          likeCounts: {
+            ...state.likeCounts,
+            [predictionId]: Math.max(0, (state.likeCounts[predictionId] || 0) - 1)
+          }
+        }));
+      }
+    }).catch(error => {
+      console.error('Error getting user in removeLikeFromRealtime:', error);
     });
   }
 }));

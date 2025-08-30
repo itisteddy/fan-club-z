@@ -27,7 +27,7 @@ const PredictionPlacementModal: React.FC<PredictionPlacementModalProps> = ({
   isOpen,
   onClose,
   onPlacePrediction,
-  userBalance = 1000, // Default balance for demo
+  userBalance = 0, // Real balance should be passed from parent
   preselectedOptionId
 }) => {
   const [selectedOptionId, setSelectedOptionId] = useState<string>(preselectedOptionId || '');
@@ -160,7 +160,7 @@ const PredictionPlacementModal: React.FC<PredictionPlacementModalProps> = ({
                       onClick={() => setSelectedOptionId(option.id)}
                       className={`w-full p-4 rounded-xl border-2 transition-all duration-200 text-left ${
                         isSelected 
-                          ? 'border-teal-400 bg-teal-50 shadow-lg shadow-purple-500/10' 
+                          ? 'border-teal-400 bg-teal-100 shadow-lg shadow-purple-500/10'
                           : 'border-gray-200 hover:border-teal-300 bg-white'
                       }`}
                     >

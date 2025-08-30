@@ -10,6 +10,7 @@ import { getApiUrl } from '../../config';
 import SettlementModal from './SettlementModal';
 import DisputeResolutionModal from './DisputeResolutionModal';
 import EditModal from './EditModal';
+import { createShareContent, shareContent } from '../../utils/shareUtils';
 
 interface ManagePredictionModalProps {
   isOpen: boolean;
@@ -243,43 +244,32 @@ const ManagePredictionModal: React.FC<ManagePredictionModalProps> = ({
 
   const handleSharePrediction = async () => {
     try {
-      const predictionUrl = `${window.location.origin}/predictions/${prediction.id}`;
-      const shareText = `Check out this prediction: ${prediction.title}`;
-      
-      // Try native sharing first (mobile devices)
-      if (navigator.share) {
-        try {
-          await navigator.share({
-            title: prediction.title,
-            text: shareText,
-            url: predictionUrl,
-          });
-          return;
-        } catch (shareError) {
-          // User cancelled or sharing failed, fall back to clipboard
-          console.log('Native sharing cancelled or failed:', shareError);
+      // Create properly formatted share content
+      const shareData = createShareContent(
+        {
+          id: String(prediction.id),
+          title: prediction.title,
+          category: prediction.category,
+          description: prediction.description
+        },
+        {
+          includeDescription: true,
+          includeBranding: true,
+          customPrefix: '🎯 Check out this prediction!'
         }
-      }
-      
-      // Fallback to clipboard
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        await navigator.clipboard.writeText(`${shareText}\n${predictionUrl}`);
-        toast.success('Link copied to clipboard!');
+      );
+
+      // Use the centralized share function
+      const success = await shareContent(shareData, {
+        analyticsCallback: (method, success) => {
+          console.log(`Share via ${method}: ${success ? 'success' : 'failed'}`);
+        }
+      });
+
+      if (success) {
+        toast.success('Prediction shared successfully!');
       } else {
-        // Fallback for older browsers
-        const textArea = document.createElement('textarea');
-        textArea.value = `${shareText}\n${predictionUrl}`;
-        document.body.appendChild(textArea);
-        textArea.select();
-        try {
-          document.execCommand('copy');
-          toast.success('Link copied to clipboard!');
-        } catch (execError) {
-          toast.error('Failed to copy link. Please copy manually.');
-          console.error('execCommand failed:', execError);
-        } finally {
-          document.body.removeChild(textArea);
-        }
+        toast.error('Failed to share prediction');
       }
     } catch (error) {
       console.error('Error sharing prediction:', error);
@@ -464,7 +454,7 @@ const ManagePredictionModal: React.FC<ManagePredictionModalProps> = ({
               <span className="ml-2 text-gray-600">Loading activity...</span>
               </div>
             ) : activityData.length > 0 ? (
-            <div className="space-y-3 max-h-64 overflow-y-auto">
+            <div className="space-y-3">
               {activityData.map((activity, index) => (
                 <div key={`activity-${index}`} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                     <div>
@@ -600,7 +590,7 @@ const ManagePredictionModal: React.FC<ManagePredictionModalProps> = ({
             <span className="ml-2 text-gray-600">Loading participants...</span>
               </div>
             ) : participantData.length > 0 ? (
-          <div className="space-y-3 max-h-96 overflow-y-auto">
+          <div className="space-y-3">
             {participantData.map((participant, index) => (
               <div key={`participant-${index}`} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                   <div className="flex items-center gap-3">
@@ -652,7 +642,7 @@ const ManagePredictionModal: React.FC<ManagePredictionModalProps> = ({
             initial={{ scale: 0.95, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             exit={{ scale: 0.95, opacity: 0 }}
-            className="bg-white rounded-lg w-full max-w-2xl max-h-[90vh] overflow-hidden"
+            className="bg-white rounded-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto"
           >
               {/* Header */}
               <div className="flex items-center justify-between p-6 border-b border-gray-200">
@@ -679,7 +669,7 @@ const ManagePredictionModal: React.FC<ManagePredictionModalProps> = ({
                     className={`flex items-center gap-2 px-6 py-3 text-sm font-medium border-b-2 transition-colors ${
                         activeTab === tab.id
                         ? 'border-purple-500 text-purple-600'
-                        : 'border-transparent text-gray-500 hover:text-gray-700'
+                        : 'border-transparent text-gray-500'
                       }`}
                     >
                       <Icon className="w-4 h-4" />
@@ -690,7 +680,7 @@ const ManagePredictionModal: React.FC<ManagePredictionModalProps> = ({
               </div>
 
               {/* Tab Content */}
-            <div className="p-6 pb-40 max-h-[calc(90vh-200px)] overflow-y-auto" style={{ paddingBottom: 'max(10rem, env(safe-area-inset-bottom))' }}>
+            <div className="p-6 pb-40" style={{ paddingBottom: 'max(10rem, env(safe-area-inset-bottom))' }}>
                 {activeTab === 'overview' && <OverviewTab />}
                 {activeTab === 'settings' && <SettingsTab />}
                 {activeTab === 'participants' && <ParticipantsTab />}

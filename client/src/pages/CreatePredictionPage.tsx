@@ -1,6 +1,7 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronLeft, Plus, X, Calendar, DollarSign, Users, Settings, Sparkles, Check, Globe, Clock, Shield, CheckCircle } from 'lucide-react';
+import { ChevronLeft, Plus, X, Calendar, DollarSign, Users, Settings, Sparkles, Check, Globe, Clock, Shield, CheckCircle, Image as ImageIcon } from 'lucide-react';
+import ImageUpload from '../components/common/ImageUpload';
 import { usePredictionStore } from '../store/predictionStore';
 import { useSettlementStore } from '../store/settlementStore';
 import { useAuthStore } from '../store/authStore';
@@ -46,6 +47,10 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
   const [stakeMax, setStakeMax] = useState('1000');
   const [settlementMethod, setSettlementMethod] = useState('manual');
   const [isPrivate, setIsPrivate] = useState(false);
+  
+  // Image upload state
+  const [selectedImage, setSelectedImage] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
   
   // Settlement configuration state
   const [primarySource, setPrimarySource] = useState<any>(null);
@@ -94,6 +99,23 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
     setOptions(prev => prev.map(option =>
       option.id === id ? { ...option, label } : option
     ));
+  }, []);
+
+  // Image upload handlers
+  const handleImageSelect = useCallback((file: File) => {
+    setSelectedImage(file);
+    
+    // Create preview
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      setImagePreview(e.target?.result as string);
+    };
+    reader.readAsDataURL(file);
+  }, []);
+
+  const handleImageRemove = useCallback(() => {
+    setSelectedImage(null);
+    setImagePreview(null);
   }, []);
 
   const validateStep = useCallback((stepNumber: number): boolean => {
@@ -376,6 +398,22 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
                       placeholder="Provide additional context and rules for your prediction..."
                       rows={4}
                       className="w-full p-4 border-2 border-gray-200 rounded-2xl focus:border-teal-500 focus:outline-none transition-all duration-200 text-gray-900 placeholder-gray-500 resize-none"
+                    />
+                  </div>
+
+                  {/* Image Upload */}
+                  <div className="image-upload-container">
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      Add Image (Optional)
+                    </label>
+                    <ImageUpload
+                      variant="dropzone"
+                      onImageSelect={handleImageSelect}
+                      onImageRemove={handleImageRemove}
+                      selectedImage={selectedImage}
+                      imagePreview={imagePreview}
+                      maxSize={5}
+                      className="w-full"
                     />
                   </div>
 

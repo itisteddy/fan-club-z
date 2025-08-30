@@ -1,5 +1,7 @@
 import { create } from 'zustand';
 import { devtools } from 'zustand/middleware';
+import { uploadImageToStorage } from '../utils/imageUpload';
+import { supabase } from '../lib/supabase';
 
 // Unified comment interface that matches the API response
 export interface UnifiedComment {
@@ -87,6 +89,10 @@ interface CommentActions {
   
   // Initialize the store
   initialize: () => void;
+  
+  // Real-time update methods
+  addCommentFromRealtime: (newComment: UnifiedComment) => void;
+  updateCommentFromRealtime: (updatedComment: UnifiedComment) => void;
 }
 
 import { getEnvironmentConfig } from '../lib/environment';
@@ -150,7 +156,18 @@ export const useUnifiedCommentStore = create<CommentState & CommentActions>()(
         // 1. Check actual loaded comments first (most accurate)
         const actualComments = state.commentsByPrediction[predictionId];
         if (actualComments && Array.isArray(actualComments)) {
-          return actualComments.length;
+          // Count all comments and replies recursively
+          const countCommentsRecursively = (comments: UnifiedComment[]): number => {
+            let count = comments.length;
+            comments.forEach(comment => {
+              if (comment.replies && Array.isArray(comment.replies)) {
+                count += countCommentsRecursively(comment.replies);
+              }
+            });
+            return count;
+          };
+          
+          return countCommentsRecursively(actualComments);
         }
         
         // 2. Fall back to stored count
@@ -244,6 +261,19 @@ export const useUnifiedCommentStore = create<CommentState & CommentActions>()(
             const newFetchedPredictions = new Set(state.fetchedPredictions);
             newFetchedPredictions.add(predictionId);
             
+            // Count all comments and replies recursively
+            const countCommentsRecursively = (comments: UnifiedComment[]): number => {
+              let count = comments.length;
+              comments.forEach(comment => {
+                if (comment.replies && Array.isArray(comment.replies)) {
+                  count += countCommentsRecursively(comment.replies);
+                }
+              });
+              return count;
+            };
+            
+            const totalCommentCount = countCommentsRecursively(comments);
+            
             return {
               commentsByPrediction: {
                 ...state.commentsByPrediction,
@@ -251,7 +281,7 @@ export const useUnifiedCommentStore = create<CommentState & CommentActions>()(
               },
               commentCounts: {
                 ...state.commentCounts,
-                [predictionId]: comments.length
+                [predictionId]: totalCommentCount
               },
               fetchedPredictions: newFetchedPredictions,
               lastFetched: {
@@ -284,7 +314,7 @@ export const useUnifiedCommentStore = create<CommentState & CommentActions>()(
       },
 
       // Add a new comment
-      addComment: async (predictionId: string, content: string, parentCommentId?: string, userData?: any) => {
+      addComment: async (predictionId: string, content: string, parentCommentId?: string, userData?: any, imageFile?: File) => {
         if (!predictionId?.trim()) {
           throw new Error('Cannot add comment: invalid predictionId');
         }
@@ -295,12 +325,33 @@ export const useUnifiedCommentStore = create<CommentState & CommentActions>()(
 
         console.log(`💬 Adding comment to prediction ${predictionId}`);
 
+        // Get current user if userData not provided
+        if (!userData) {
+          const { data: { user }, error } = await supabase.auth.getUser();
+          if (error || !user) {
+            throw new Error('User must be authenticated to comment');
+          }
+          userData = {
+            id: user.id,
+            username: user.user_metadata?.firstName || user.email?.split('@')[0] || 'User',
+            full_name: `${user.user_metadata?.firstName || ''} ${user.user_metadata?.lastName || ''}`.trim() || 'User'
+          };
+        }
+
         set((state) => ({
           submitting: { ...state.submitting, [predictionId]: true },
           errors: { ...state.errors, [predictionId]: null }
         }));
 
         try {
+          // Upload image if provided
+          let imageUrl: string | undefined;
+          if (imageFile) {
+            console.log('📤 Uploading image for comment...');
+            const uploadResult = await uploadImageToStorage(imageFile);
+            imageUrl = uploadResult.url;
+          }
+
           const response = await fetch(
             `${API_BASE_URL}/api/v2/social/predictions/${predictionId}/comments`,
             {
@@ -312,6 +363,7 @@ export const useUnifiedCommentStore = create<CommentState & CommentActions>()(
                 content: content.trim(),
                 parent_comment_id: parentCommentId || null,
                 user: userData || null,
+                image_url: imageUrl || null,
               }),
             }
           );
@@ -340,8 +392,8 @@ export const useUnifiedCommentStore = create<CommentState & CommentActions>()(
                 }
                 return comment;
               });
-              // Don't increment main count for replies
-              newCount = state.commentCounts[predictionId] || 0;
+              // Increment count for replies too since they should count toward total
+              newCount = (state.commentCounts[predictionId] || 0) + 1;
             } else {
               // Add as top-level comment
               updatedComments = [newComment, ...existingComments];
@@ -553,6 +605,57 @@ export const useUnifiedCommentStore = create<CommentState & CommentActions>()(
           throw error;
         }
       },
+
+      // Real-time update methods
+      addCommentFromRealtime: (newComment: UnifiedComment) => {
+        console.log('💬 Adding comment from real-time:', newComment.id);
+        
+        const predictionId = newComment.prediction_id;
+        if (!predictionId) {
+          console.warn('⚠️ Comment missing prediction_id:', newComment);
+          return;
+        }
+
+        set(state => {
+          const existingComments = state.commentsByPrediction[predictionId] || [];
+          const updatedComments = [newComment, ...existingComments];
+          
+          return {
+            commentsByPrediction: {
+              ...state.commentsByPrediction,
+              [predictionId]: updatedComments
+            },
+            commentCounts: {
+              ...state.commentCounts,
+              [predictionId]: (state.commentCounts[predictionId] || 0) + 1
+            }
+          };
+        });
+      },
+
+      updateCommentFromRealtime: (updatedComment: UnifiedComment) => {
+        console.log('💬 Updating comment from real-time:', updatedComment.id);
+        
+        const predictionId = updatedComment.prediction_id;
+        if (!predictionId) {
+          console.warn('⚠️ Comment missing prediction_id:', updatedComment);
+          return;
+        }
+
+        set(state => {
+          const existingComments = state.commentsByPrediction[predictionId] || [];
+          const updatedComments = existingComments.map(comment => 
+            comment.id === updatedComment.id ? { ...comment, ...updatedComment } : comment
+          );
+          
+          return {
+            commentsByPrediction: {
+              ...state.commentsByPrediction,
+              [predictionId]: updatedComments
+            }
+          };
+        });
+      },
     }),
     {
       name: 'unified-comment-store',
@@ -582,12 +685,20 @@ export const useCommentsForPrediction = (predictionId: string) => {
     return store.fetchComments(safePredictionId);
   }, [store.fetchComments, safePredictionId]);
 
-  const addComment = useCallback((content: string, parentCommentId?: string, userData?: any) => {
+  const addComment = useCallback((content: string, parentCommentId?: string, userData?: any, imageFile?: File) => {
     if (!safePredictionId) {
       console.warn('⚠️ Cannot add comment: no prediction ID provided');
       return Promise.resolve();
     }
-    return store.addComment(safePredictionId, content, parentCommentId, userData);
+    return store.addComment(safePredictionId, content, parentCommentId, userData, imageFile);
+  }, [store.addComment, safePredictionId]);
+
+  const addReply = useCallback((parentCommentId: string, content: string, userData?: any, imageFile?: File) => {
+    if (!safePredictionId) {
+      console.warn('⚠️ Cannot add reply: no prediction ID provided');
+      return Promise.resolve();
+    }
+    return store.addComment(safePredictionId, content, parentCommentId, userData, imageFile);
   }, [store.addComment, safePredictionId]);
 
   const toggleCommentLike = useCallback((commentId: string) => {
@@ -614,10 +725,11 @@ export const useCommentsForPrediction = (predictionId: string) => {
         isLoading: false,
         error: null,
         isSubmitting: false,
-        fetchComments,
-        addComment,
-        toggleCommentLike,
-        clearError,
+            fetchComments,
+    addComment,
+    addReply,
+    toggleCommentLike,
+    clearError,
       };
     }
 
@@ -629,6 +741,7 @@ export const useCommentsForPrediction = (predictionId: string) => {
       isSubmitting: store.submitting[safePredictionId] || false,
       fetchComments,
       addComment,
+      addReply,
       toggleCommentLike,
       clearError,
     };
@@ -641,6 +754,7 @@ export const useCommentsForPrediction = (predictionId: string) => {
     store.submitting[safePredictionId],
     fetchComments,
     addComment,
+    addReply,
     toggleCommentLike,
     clearError
   ]);

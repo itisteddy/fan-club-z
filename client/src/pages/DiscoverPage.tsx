@@ -6,153 +6,22 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { TrendingUp, Search, Loader2 } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import PredictionCardSkeleton from '../components/PredictionCardSkeleton';
+import { SearchFilters } from '../components/search/SmartSearchBar';
 import { PlacePredictionModal } from '../components/predictions/PlacePredictionModal';
 import { useInfiniteScroll } from '../hooks/useInfiniteScroll';
+import { scrollToTop } from '../utils/scroll';
 import Logo from '../components/common/Logo';
 import useScrollPreservation from '../hooks/useScrollPreservation';
+import { ShareModal } from '../components/modals/ShareModal';
 
 interface DiscoverPageProps {
   onNavigateToProfile?: () => void;
   onNavigateToPrediction?: (predictionId: string) => void;
 }
 
-// Enhanced Category Filter Component
-const CategoryFilters = React.memo(function CategoryFilters({ 
-  selectedCategory, 
-  onSelect 
-}: {
-  selectedCategory: string;
-  onSelect: (category: string) => void;
-}) {
-  const categories = [
-    { id: 'all', label: 'All', icon: '🌟' },
-    { id: 'sports', label: 'Sports', icon: '⚽' },
-    { id: 'pop_culture', label: 'Pop Culture', icon: '🎬' },
-    { id: 'custom', label: 'Custom', icon: '✨' },
-    { id: 'politics', label: 'Politics', icon: '🗳️' },
-    { id: 'crypto', label: 'Crypto', icon: '₿' },
-    { id: 'tech', label: 'Tech', icon: '💻' },
-    { id: 'finance', label: 'Finance', icon: '📈' }
-  ];
 
-  return (
-    <div className="category-filters bg-white border-b border-gray-100 px-4 py-3" data-tour-id="category-filters">
-      <div className="category-filters-container overflow-x-auto -mx-2 px-2">
-        <div className="category-filters-flex flex gap-2 pb-1">
-          {categories.map((category) => (
-            <motion.button
-              key={category.id}
-              onClick={() => onSelect(category.id)}
-              className={`
-                category-pill flex-shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium
-                transition-all duration-200 whitespace-nowrap
-                ${selectedCategory === category.id
-                  ? 'active bg-purple-500 text-white shadow-sm'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }
-              `}
-              whileTap={{ scale: 0.96 }}
-            >
-              {/* Removed emoji icons in category chips to align with standard iconography preference */}
-              <span>{category.label}</span>
-            </motion.button>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-});
 
-CategoryFilters.displayName = 'CategoryFilters';
 
-// Enhanced Mobile Header Component
-const MobileHeader = React.memo(function MobileHeader({ 
-  user, 
-  stats, 
-  searchQuery, 
-  onSearchChange, 
-  onNavigateToProfile 
-}: {
-  user: any;
-  stats: any;
-  searchQuery: string;
-  onSearchChange: (query: string) => void;
-  onNavigateToProfile: () => void;
-}) {
-  return (
-    <div className="bg-white border-b border-gray-100 sticky top-0 z-50">
-      {/* Status bar spacer */}
-      <div className="h-11" />
-      
-      <div className="px-4 pb-4">
-        {/* Top section with logo */}
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-3">
-            <Logo size="md" variant="icon" />
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">Discover</h1>
-              <p className="text-sm text-gray-600">Find your next winning prediction</p>
-            </div>
-          </div>
-          <button
-            onClick={onNavigateToProfile}
-            className="w-10 h-10 rounded-full bg-gradient-to-r from-purple-400 to-purple-500 flex items-center justify-center text-white font-semibold shadow-lg"
-          >
-            {user?.email?.[0]?.toUpperCase() || 'U'}
-          </button>
-        </div>
-
-        {/* Live market stats */}
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="bg-gradient-to-r from-purple-50 to-emerald-50 rounded-2xl p-4 mb-4"
-        >
-          <div className="flex items-center gap-2 mb-3">
-            <div className="w-2 h-2 bg-purple-500 rounded-full animate-pulse"></div>
-            <span className="text-sm font-medium text-gray-900">LIVE MARKETS</span>
-          </div>
-          <div className="grid grid-cols-3 gap-4">
-            <div className="text-center">
-              <div className="text-lg font-bold text-gray-900">
-                ${stats?.totalVolume || '0'}
-              </div>
-              <div className="text-xs text-gray-600">Volume</div>
-            </div>
-            <div className="text-center">
-              <div className="text-lg font-bold text-gray-900">
-                {stats?.activePredictions || '0'}
-              </div>
-              <div className="text-xs text-gray-600">Live</div>
-            </div>
-            <div className="text-center">
-              <div className="text-lg font-bold text-gray-900">
-                {stats?.totalUsers || '0'}
-              </div>
-              <div className="text-xs text-gray-600">Players</div>
-            </div>
-          </div>
-        </motion.div>
-
-        {/* Search bar */}
-        <div className="relative" data-tour-id="search-bar">
-          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-            <Search className="h-5 w-5 text-gray-400" />
-          </div>
-          <input
-            type="text"
-            placeholder="Search predictions..."
-            value={searchQuery}
-            onChange={(e) => onSearchChange(e.target.value)}
-            className="w-full pl-10 pr-4 py-3 bg-gray-50 border-0 rounded-xl text-gray-900 placeholder-gray-500 focus:bg-white focus:ring-2 focus:ring-purple-500 focus:outline-none transition-all"
-          />
-        </div>
-      </div>
-    </div>
-  );
-});
-
-MobileHeader.displayName = 'MobileHeader';
 
 // Main DiscoverPage Component
 const DiscoverPage = React.memo(function DiscoverPage({ onNavigateToProfile, onNavigateToPrediction }: DiscoverPageProps) {
@@ -170,6 +39,19 @@ const DiscoverPage = React.memo(function DiscoverPage({ onNavigateToProfile, onN
   
   const [selectedPrediction, setSelectedPrediction] = useState<Prediction | null>(null);
   const [isPredictionModalOpen, setIsPredictionModalOpen] = useState(false);
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
+  const [predictionToShare, setPredictionToShare] = useState<Prediction | null>(null);
+  const [searchFilters, setSearchFilters] = useState<SearchFilters>({
+    query: '',
+    category: 'all',
+    status: 'all',
+    sortBy: 'newest',
+    minPool: 0,
+    maxPool: 1000000,
+    timeRange: 'all',
+    hasImage: false,
+    verifiedOnly: false
+  });
   
   // Scroll preservation setup
   const containerRef = useRef<HTMLDivElement>(null);
@@ -180,33 +62,12 @@ const DiscoverPage = React.memo(function DiscoverPage({ onNavigateToProfile, onN
     threshold: 100 // Only save if scrolled more than 100px
   });
 
-  const [platformStats, setPlatformStats] = useState({
-    totalVolume: '0',
-    activePredictions: 0,
-    totalUsers: '0',
-    rawVolume: 0,
-    rawUsers: 0
-  });
-
-  // Fetch platform stats
-  const fetchPlatformStats = useCallback(async () => {
-    try {
-      // Use the same environment API URL logic as the rest of the app
-      const { getApiUrl } = await import('../lib/environment');
-      const response = await fetch(`${getApiUrl()}/api/v2/predictions/stats/platform`);
-      if (response.ok) {
-        const data = await response.json();
-        if (data.success) {
-          setPlatformStats(data.data);
-          console.log('✅ Platform stats fetched:', data.data);
-        }
-      } else {
-        console.error('Failed to fetch platform stats:', response.status);
-      }
-    } catch (error) {
-      console.error('Error fetching platform stats:', error);
-    }
-  }, []);
+  // Use unified platform stats from prediction store
+  const { 
+    platformStats, 
+    fetchPlatformStats: fetchStorePlatformStats, 
+    statsLoading 
+  } = usePredictionStore();
 
   // Setup infinite scroll on container
   useInfiniteScroll({
@@ -228,14 +89,15 @@ const DiscoverPage = React.memo(function DiscoverPage({ onNavigateToProfile, onN
   // Initialize data on mount
   useEffect(() => {
     refreshPredictions();
-    fetchPlatformStats();
-  }, [refreshPredictions, fetchPlatformStats]);
+    fetchStorePlatformStats();
+    scrollToTop({ behavior: 'instant' });
+  }, [refreshPredictions, fetchStorePlatformStats]);
 
-  // Calculate stats
+  // Calculate stats with null safety
   const stats = useMemo(() => ({
-    totalVolume: platformStats.totalVolume,
-    activePredictions: platformStats.activePredictions,
-    totalUsers: platformStats.totalUsers
+    totalVolume: platformStats?.totalVolume || '0',
+    activePredictions: platformStats?.activePredictions || 0,
+    totalUsers: platformStats?.totalUsers || '0'
   }), [platformStats]);
 
   // Backend now handles filtering - no additional filtering needed
@@ -262,6 +124,8 @@ const DiscoverPage = React.memo(function DiscoverPage({ onNavigateToProfile, onN
     setIsPredictionModalOpen(true);
   }, []);
 
+
+
   const handleNavigateToPrediction = useCallback((predictionId: string) => {
     // Save scroll position before navigating
     saveScroll('/discover');
@@ -284,31 +148,11 @@ const DiscoverPage = React.memo(function DiscoverPage({ onNavigateToProfile, onN
   }, [handleNavigateToPrediction, saveScroll]);
 
   const handleShare = useCallback((prediction: Prediction) => {
-    const shareText = `Check out this prediction: ${prediction.title}`;
-    const shareUrl = `${window.location.origin}/prediction/${prediction.id}`;
-    
-    if (navigator.share) {
-      navigator.share({
-        title: prediction.title,
-        text: shareText,
-        url: shareUrl
-      }).catch(console.error);
-    } else {
-      navigator.clipboard.writeText(`${shareText}\n${shareUrl}`)
-        .then(() => toast.success('Link copied to clipboard!'))
-        .catch(() => toast.error('Failed to copy link'));
-    }
+    setPredictionToShare(prediction);
+    setIsShareModalOpen(true);
   }, []);
 
-  const handleSearchChange = useCallback((query: string) => {
-    console.log('🔍 Search query changed:', query);
-    setFilters({ search: query });
-  }, [setFilters]);
 
-  const handleCategorySelect = useCallback((category: string) => {
-    console.log('📂 Category changed:', category);
-    setFilters({ category });
-  }, [setFilters]);
 
   const handleModalClose = useCallback(() => {
     setIsPredictionModalOpen(false);
@@ -381,53 +225,78 @@ const DiscoverPage = React.memo(function DiscoverPage({ onNavigateToProfile, onN
   return (
     <div 
       ref={containerRef} 
-      className="discover-page content-with-bottom-nav" 
+      className="min-h-screen bg-gray-50" 
       data-scroll-container
-      style={{ position: 'relative', zIndex: 1, overflowY: 'auto', height: '100vh' }}
     >
-      {/* Header with proper z-index */}
-      <div className="discover-header">
-        <div className="header-content">
-          <MobileHeader 
-            user={user} 
-            stats={stats} 
-            searchQuery={filters.search}
-            onSearchChange={handleSearchChange}
-            onNavigateToProfile={onNavigateToProfile || (() => {})}
-          />
+      {/* Header - Consistent with other pages */}
+      <div className="bg-white border-b border-gray-100">
+        <div className="h-11" />
+        <div className="px-4 py-1">
+          <div className="flex items-center justify-between mb-1">
+            <div className="flex items-center gap-2">
+              <Logo size="sm" variant="icon" />
+              <div>
+                <h1 className="text-lg font-semibold text-gray-900">Fan Club Z</h1>
+              </div>
+            </div>
+            <div className="w-8 h-8" /> {/* Spacer for balance */}
+          </div>
         </div>
       </div>
 
-      {/* Category filters with explicit positioning */}
-      <div className="category-filters-wrapper" style={{ position: 'relative', zIndex: 45 }}>
-        <CategoryFilters 
-          selectedCategory={filters.category} 
-          onSelect={handleCategorySelect} 
-        />
-      </div>
-
-      {/* Content with proper spacing */}
-      <div className="prediction-cards-container">
-        {/* Section header */}
+      {/* Content Container */}
+      <div className="px-4 py-3">
+        {/* Live market stats */}
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
-          className="px-4 mb-4"
+          className="bg-gradient-to-r from-purple-50 to-emerald-50 dark:from-purple-900/30 dark:to-emerald-900/30 rounded-xl p-3 mb-3"
         >
-          <h2 className="text-xl font-bold text-gray-900 mb-1" data-tour-id="discover-list">
-            {filters.category === 'all' ? 'All Predictions' : `${filters.category} Predictions`}
-            {filters.search && ` - "${filters.search}"`}
-          </h2>
-          {/* Show pagination info instead of static count */}
-          {pagination.total > 0 && (
-            <p className="text-sm text-gray-600">
-              Showing {displayPredictions.length} of {pagination.total} predictions
-              {pagination.hasNext && ' • Scroll for more'}
-            </p>
-          )}
+          <div className="grid grid-cols-3 gap-4">
+            <div className="text-center">
+              <div className="text-base font-bold text-gray-900 dark:text-white">
+                ${stats?.totalVolume || '0'}
+              </div>
+              <div className="text-xs text-gray-600 dark:text-gray-300">Volume</div>
+            </div>
+            <div className="text-center">
+              <div className="text-base font-bold text-gray-900 dark:text-white">
+                {stats?.activePredictions || '0'}
+              </div>
+              <div className="text-xs text-gray-600 dark:text-gray-300">Active</div>
+            </div>
+            <div className="text-center">
+              <div className="text-base font-bold text-gray-900 dark:text-white">
+                {stats?.totalUsers || '0'}
+              </div>
+              <div className="text-xs text-gray-600 dark:text-gray-300">Players</div>
+            </div>
+          </div>
         </motion.div>
 
-        {/* Predictions Grid with infinite scroll */}
+        {/* Simple Search Bar */}
+        <div className="relative mb-3">
+          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+            <Search className="h-4 w-4 text-gray-400" />
+          </div>
+          <input
+            type="text"
+            placeholder="Search predictions, topics..."
+            value={searchFilters.query}
+            onChange={(e) => setSearchFilters(prev => ({ ...prev, query: e.target.value }))}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                setFilters({ search: searchFilters.query });
+              }
+            }}
+            className="w-full pl-9 pr-3 py-2.5 bg-white border border-gray-200 rounded-xl text-gray-900 placeholder-gray-400 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 focus:outline-none transition-all text-sm shadow-sm"
+          />
+        </div>
+
+        {/* Content with proper spacing */}
+        <div className="prediction-cards-container">
+          {/* Predictions Grid with infinite scroll */}
         <div className="space-y-2">
           <AnimatePresence mode="wait">
             {displayPredictions.length > 0 ? (
@@ -530,6 +399,7 @@ const DiscoverPage = React.memo(function DiscoverPage({ onNavigateToProfile, onN
             )}
           </AnimatePresence>
         </div>
+        </div>
       </div>
 
       {/* Prediction Modal */}
@@ -538,6 +408,23 @@ const DiscoverPage = React.memo(function DiscoverPage({ onNavigateToProfile, onN
         isOpen={isPredictionModalOpen}
         onClose={handleModalClose}
       />
+
+      {/* Share Modal */}
+      {predictionToShare && (
+        <ShareModal
+          isOpen={isShareModalOpen}
+          onClose={() => {
+            setIsShareModalOpen(false);
+            setPredictionToShare(null);
+          }}
+          prediction={{
+            id: predictionToShare.id,
+            title: predictionToShare.title,
+            description: predictionToShare.description,
+            category: predictionToShare.category
+          }}
+        />
+      )}
     </div>
   );
 });

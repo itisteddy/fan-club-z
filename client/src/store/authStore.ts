@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { supabase, auth } from '../lib/supabase';
 import toast from 'react-hot-toast';
-import { showSuccess, showError } from './notificationStore';
+
 import type { Provider } from '@supabase/supabase-js';
 
 interface User {
@@ -227,7 +227,7 @@ export const useAuthStore = create<AuthState>()(
             }
             
             set({ loading: false });
-            showError(userMessage);
+            toast.error(userMessage);
             throw new Error(userMessage);
           }
 
@@ -244,7 +244,17 @@ export const useAuthStore = create<AuthState>()(
               lastAuthCheck: Date.now()
             });
             
-            showSuccess(`Welcome back, ${convertedUser?.firstName}!`);
+            toast.success(`Welcome back, ${convertedUser?.firstName}!`);
+            
+            // Handle redirect after successful login
+            const redirectUrl = localStorage.getItem('authRedirectUrl');
+            if (redirectUrl && redirectUrl !== '/auth') {
+              localStorage.removeItem('authRedirectUrl');
+              // Use setTimeout to ensure state is updated before navigation
+              setTimeout(() => {
+                window.location.href = redirectUrl;
+              }, 100);
+            }
           }
 
         } catch (error: any) {
@@ -287,7 +297,7 @@ export const useAuthStore = create<AuthState>()(
             }
             
             set({ loading: false });
-            showError(userMessage);
+            toast.error(userMessage);
             throw new Error(userMessage);
           }
 
@@ -305,7 +315,17 @@ export const useAuthStore = create<AuthState>()(
                 initialized: true,
                 lastAuthCheck: Date.now()
               });
-              showSuccess(`Welcome to Fan Club Z, ${convertedUser?.firstName}!`);
+              toast.success(`Welcome to Fan Club Z, ${convertedUser?.firstName}!`);
+              
+              // Handle redirect after successful registration
+              const redirectUrl = localStorage.getItem('authRedirectUrl');
+              if (redirectUrl && redirectUrl !== '/auth') {
+                localStorage.removeItem('authRedirectUrl');
+                // Use setTimeout to ensure state is updated before navigation
+                setTimeout(() => {
+                  window.location.href = redirectUrl;
+                }, 100);
+              }
             } else {
               // No immediate session, but allow app access
               set({ 
@@ -316,7 +336,7 @@ export const useAuthStore = create<AuthState>()(
                 initialized: true,
                 lastAuthCheck: Date.now()
               });
-              showSuccess(`Welcome to Fan Club Z, ${convertedUser?.firstName}! Please check your email to verify your account.`);
+              toast.success(`Welcome to Fan Club Z, ${convertedUser?.firstName}! Please check your email to verify your account.`);
             }
           }
 
@@ -354,7 +374,7 @@ export const useAuthStore = create<AuthState>()(
           if (error) {
             console.error(`❌ ${provider} OAuth error:`, error.message);
             set({ loading: false });
-            showError(`${provider} sign-in failed. Please try again.`);
+            toast.error(`${provider} sign-in failed. Please try again.`);
             throw new Error(error.message);
           }
 
@@ -376,7 +396,7 @@ export const useAuthStore = create<AuthState>()(
           
           if (error) {
             console.error('❌ OAuth callback error:', error.message);
-            showError('Authentication failed. Please try again.');
+            toast.error('Authentication failed. Please try again.');
             throw new Error(error.message);
           }
 
@@ -394,7 +414,7 @@ export const useAuthStore = create<AuthState>()(
             });
             
             const providerName = convertedUser?.provider?.charAt(0).toUpperCase() + convertedUser?.provider?.slice(1);
-            showSuccess(`Welcome ${convertedUser?.firstName}! Signed in with ${providerName}.`);
+            toast.success(`Welcome ${convertedUser?.firstName}! Signed in with ${providerName}.`);
             
             return convertedUser;
           } else {
@@ -429,7 +449,12 @@ export const useAuthStore = create<AuthState>()(
             lastAuthCheck: 0
           });
           
-          showSuccess('Signed out successfully');
+          toast.success('Signed out successfully');
+          
+          // Redirect to discover page instead of auth page
+          setTimeout(() => {
+            window.location.href = '/';
+          }, 100);
           
         } catch (error: any) {
           console.error('❌ Logout exception:', error.message);
@@ -443,6 +468,11 @@ export const useAuthStore = create<AuthState>()(
             initialized: true,
             lastAuthCheck: 0
           });
+          
+          // Redirect to discover page
+          setTimeout(() => {
+            window.location.href = '/';
+          }, 100);
         }
       },
 
@@ -476,13 +506,13 @@ export const useAuthStore = create<AuthState>()(
               loading: false,
               lastAuthCheck: Date.now()
             });
-            showSuccess('Profile updated successfully!');
+            toast.success('Profile updated successfully!');
           }
 
         } catch (error: any) {
           console.error('❌ Profile update error:', error.message);
           set({ loading: false });
-          showError(error.message || 'Failed to update profile');
+          toast.error(error.message || 'Failed to update profile');
           throw error;
         }
       },
@@ -503,7 +533,7 @@ export const useAuthStore = create<AuthState>()(
           .upload(path, file, { cacheControl: '3600', upsert: true, contentType: file.type });
 
         if (uploadError) {
-          showError('Failed to upload image.');
+          toast.error('Failed to upload image.');
           throw uploadError;
         }
 
@@ -514,7 +544,7 @@ export const useAuthStore = create<AuthState>()(
         // 3) Save to auth user metadata
         const { data: authUpdate, error: authErr } = await supabase.auth.updateUser({ data: { avatar_url: publicUrl } });
         if (authErr) {
-          showError('Failed to save avatar to profile.');
+          toast.error('Failed to save avatar to profile.');
           throw authErr;
         }
 
@@ -524,7 +554,7 @@ export const useAuthStore = create<AuthState>()(
         // 5) Update local state
         const updatedUser = convertSupabaseUser(authUpdate.user);
         set({ user: updatedUser, lastAuthCheck: Date.now() });
-        showSuccess('Profile photo updated.');
+        toast.success('Profile photo updated.');
         return publicUrl;
       },
     }),

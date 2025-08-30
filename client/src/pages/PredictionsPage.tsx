@@ -245,7 +245,7 @@ export const PredictionsPage: React.FC = () => {
                 className={`flex-1 flex items-center justify-center gap-3 py-4 px-6 rounded-xl font-medium transition-all duration-200 ${
                   activeTab === tab.id
                     ? 'bg-white text-primary-green shadow-sm'
-                    : 'text-cool-gray-600 hover:text-cool-gray-900'
+                    : 'text-cool-gray-600'
                 }`}
                 whileTap={{ scale: 0.95 }}
               >

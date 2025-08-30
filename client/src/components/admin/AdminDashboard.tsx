@@ -50,7 +50,7 @@ export const AdminDashboard: React.FC = () => {
       setLoading(false);
     } catch (error) {
       console.error('Error fetching admin stats:', error);
-      // Fallback to mock data
+      // API failed - set zero stats
       setStats({
         pending_settlements: 0,
         open_disputes: 0,

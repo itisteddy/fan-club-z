@@ -12,15 +12,24 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
   isOpen,
   onClose,
 }) => {
-  const {
-    notifications,
-    unreadCount,
-    markAsRead,
-    markAllAsRead,
-    deleteNotification,
-    settings,
-    updateSettings,
-  } = useNotificationStore();
+  // Notification store has been refactored - using static data for now
+  const notifications: any[] = []; // TODO: Implement real notifications when needed
+  const unreadCount = 0; // TODO: Implement real unread count when needed
+  const settings = useNotificationStore((state) => state.settings);
+  const updateSettings = useNotificationStore((state) => state.updateSettings);
+  
+  // Placeholder functions for notification actions
+  const markAsRead = (id: string) => {
+    // TODO: Implement when real notifications are added
+  };
+  
+  const markAllAsRead = () => {
+    // TODO: Implement when real notifications are added
+  };
+  
+  const deleteNotification = (id: string) => {
+    // TODO: Implement when real notifications are added
+  };
 
   const [activeTab, setActiveTab] = useState<'all' | 'unread' | 'settings'>('all');
 
@@ -82,7 +91,7 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
             className={`flex-1 px-4 py-3 text-sm font-medium ${
               activeTab === 'all'
                 ? 'text-teal-600 border-b-2 border-teal-600'
-                : 'text-gray-500 hover:text-gray-700'
+                : 'text-gray-500'
             }`}
             onClick={() => setActiveTab('all')}
           >
@@ -92,7 +101,7 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
             className={`flex-1 px-4 py-3 text-sm font-medium ${
               activeTab === 'unread'
                 ? 'text-teal-600 border-b-2 border-teal-600'
-                : 'text-gray-500 hover:text-gray-700'
+                : 'text-gray-500'
             }`}
             onClick={() => setActiveTab('unread')}
           >
@@ -102,7 +111,7 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
             className={`flex-1 px-4 py-3 text-sm font-medium ${
               activeTab === 'settings'
                 ? 'text-teal-600 border-b-2 border-teal-600'
-                : 'text-gray-500 hover:text-gray-700'
+                : 'text-gray-500'
             }`}
             onClick={() => setActiveTab('settings')}
           >

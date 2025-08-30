@@ -1,0 +1,650 @@
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { useAuthStore } from '../store/authStore';
+import { useCommentsForPrediction } from '../store/unifiedCommentStore';
+import { MessageCircle, Heart, Reply, MoreHorizontal, Flag, Edit, Trash2, User } from 'lucide-react';
+import { formatDistanceToNow } from 'date-fns';
+import TappableUsername from './TappableUsername';
+import UserAvatar from './common/UserAvatar';
+import toast from 'react-hot-toast';
+import { useErrorHandler } from '../utils/errorHandling';
+import ErrorState from './common/ErrorState';
+
+interface CommentSystemProps {
+  predictionId: string;
+}
+
+// Fixed textarea component with proper text direction
+const CommentTextarea: React.FC<{
+  id: string;
+  value: string;
+  onChange: (value: string) => void;
+  placeholder: string;
+  rows?: number;
+  maxLength?: number;
+  autoFocus?: boolean;
+  className?: string;
+  disabled?: boolean;
+  'aria-label'?: string;
+}> = ({ 
+  id,
+  value,
+  onChange,
+  placeholder, 
+  rows = 3, 
+  maxLength = 500, 
+  autoFocus = false, 
+  className = '',
+  disabled = false,
+  'aria-label': ariaLabel
+}) => {
+  const textareaRef = React.useRef<HTMLTextAreaElement>(null);
+
+  React.useEffect(() => {
+    if (textareaRef.current) {
+      const textarea = textareaRef.current;
+      // Force LTR direction on the DOM element
+      textarea.style.direction = 'ltr';
+      textarea.style.unicodeBidi = 'plaintext';
+      textarea.setAttribute('dir', 'ltr');
+    }
+  }, []);
+
+  return (
+    <div style={{ direction: 'ltr' }} dir="ltr" className="comment-textarea-fix">
+      <textarea
+        ref={textareaRef}
+        id={id}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className={`comment-textarea-fix w-full p-3 border border-gray-300 rounded-lg resize-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-colors ${className}`}
+        rows={rows}
+        placeholder={placeholder}
+        maxLength={maxLength}
+        disabled={disabled}
+        autoFocus={autoFocus}
+        aria-label={ariaLabel || placeholder}
+        dir="ltr"
+        style={{ 
+          minHeight: `${rows * 1.5}rem`,
+          fontFamily: 'inherit',
+          direction: 'ltr',
+          textAlign: 'start',
+          unicodeBidi: 'plaintext'
+        }}
+      />
+    </div>
+  );
+};
+
+const CommentSystem: React.FC<CommentSystemProps> = ({ predictionId }) => {
+  const { user } = useAuthStore();
+  const { handleError, handleSuccess, handleWarning } = useErrorHandler();
+  const {
+    comments,
+    commentCount,
+    isLoading,
+    error,
+    isSubmitting,
+    fetchComments,
+    addComment,
+    toggleCommentLike,
+    editComment,
+    deleteComment,
+    clearError
+  } = useCommentsForPrediction(predictionId);
+
+  // Local state for text inputs
+  const [mainCommentText, setMainCommentText] = useState('');
+  const [replyTexts, setReplyTexts] = useState<Record<string, string>>({});
+  const [editTexts, setEditTexts] = useState<Record<string, string>>({});
+  
+  const [replyTo, setReplyTo] = useState<string | null>(null);
+  const [editingComment, setEditingComment] = useState<string | null>(null);
+
+  // Track which predictions have been fetched to prevent repeated fetches
+  const [hasAttemptedFetch, setHasAttemptedFetch] = useState(false);
+  
+  // Stable reference to prediction ID to prevent effect re-runs
+  const stablePredictionId = useRef(predictionId);
+  
+  // Update stable ref only when prediction ID actually changes
+  useEffect(() => {
+    if (stablePredictionId.current !== predictionId) {
+      stablePredictionId.current = predictionId;
+      setHasAttemptedFetch(false); // Reset fetch attempt for new prediction
+    }
+  }, [predictionId]);
+
+  // Load comments on mount - FIXED: Prevent infinite loop
+  useEffect(() => {
+    // Only fetch if:
+    // 1. We have a valid prediction ID
+    // 2. We haven't already attempted to fetch for this prediction
+    // 3. We're not currently loading
+    if (predictionId && 
+        predictionId.trim() &&
+        !hasAttemptedFetch && 
+        !isLoading) {
+      
+      console.log(`🔄 Fetching comments for prediction ${predictionId}`);
+      
+      // Mark as attempted immediately to prevent race conditions
+      setHasAttemptedFetch(true);
+      
+      // Fetch comments with error handling
+      fetchComments().catch(error => {
+        console.error('❌ Failed to fetch comments:', error);
+        // Allow retry on next component mount or prop change
+        setHasAttemptedFetch(false);
+      });
+    }
+  }, [predictionId, hasAttemptedFetch, isLoading, fetchComments]);
+
+  // Debug logging to track comment count changes
+  useEffect(() => {
+    console.log(`📊 CommentSystem for ${predictionId}: count=${commentCount}, comments.length=${comments.length}`);
+  }, [predictionId, commentCount, comments.length]);
+
+  // Client-side pagination for long threads
+  const [visibleCount, setVisibleCount] = useState(10);
+  useEffect(() => {
+    setVisibleCount(Math.min(10, comments.length || 0));
+  }, [comments.length]);
+
+  // Handle adding a comment
+  const handleAddComment = useCallback(async (parentId?: string) => {
+    const content = parentId ? (replyTexts[parentId] || '') : mainCommentText;
+    
+    if (!content.trim()) {
+      handleWarning('Please enter a comment before posting.');
+      return;
+    }
+
+    if (!user) {
+      handleError('You must be signed in to post a comment.');
+      return;
+    }
+
+    try {
+      // Pass user data to the comment creation
+      await addComment(content.trim(), parentId, {
+        id: user.id,
+        username: user.firstName || user.email?.split('@')[0] || 'Anonymous',
+        full_name: `${user.firstName} ${user.lastName}`.trim() || user.email?.split('@')[0] || 'Anonymous User',
+        avatar_url: user.avatar,
+        is_verified: false
+      });
+      
+      // Clear the text input
+      if (parentId) {
+        setReplyTexts(prev => ({ ...prev, [parentId]: '' }));
+        setReplyTo(null);
+        handleSuccess('Reply posted successfully!');
+      } else {
+        setMainCommentText('');
+        handleSuccess('Comment posted successfully!');
+      }
+    } catch (error) {
+      handleError(error instanceof Error ? error : 'Failed to post comment. Please try again.');
+    }
+  }, [user, mainCommentText, replyTexts, addComment, handleError, handleSuccess, handleWarning]);
+
+  // Handle toggling like
+  const handleToggleLike = useCallback(async (commentId: string) => {
+    if (!user) {
+      handleWarning('You must be signed in to like comments.');
+      return;
+    }
+    
+    try {
+      await toggleCommentLike(commentId);
+    } catch (error) {
+      handleError(error instanceof Error ? error : 'Failed to update like. Please try again.');
+    }
+  }, [user, toggleCommentLike, handleError, handleWarning]);
+
+  // Text management helpers
+  const updateReplyText = useCallback((commentId: string, text: string) => {
+    setReplyTexts(prev => ({ ...prev, [commentId]: text }));
+  }, []);
+
+  const updateEditText = useCallback((commentId: string, text: string) => {
+    setEditTexts(prev => ({ ...prev, [commentId]: text }));
+  }, []);
+
+  // Edit and reply management
+  const startEdit = useCallback((commentId: string, currentContent: string) => {
+    setEditingComment(commentId);
+    setEditTexts(prev => ({ ...prev, [commentId]: currentContent }));
+  }, []);
+
+  const cancelEdit = useCallback((commentId: string) => {
+    setEditingComment(null);
+    setEditTexts(prev => {
+      const updated = { ...prev };
+      delete updated[commentId];
+      return updated;
+    });
+  }, []);
+
+  const confirmEdit = useCallback(async (commentId: string) => {
+    const content = (editTexts[commentId] || '').trim();
+    if (!content) {
+      handleWarning('Please enter content before saving your edit.');
+      return;
+    }
+    try {
+      await editComment(commentId, content);
+      setEditingComment(null);
+      handleSuccess('Comment updated successfully!');
+    } catch (error) {
+      handleError(error instanceof Error ? error : 'Failed to update comment. Please try again.');
+    }
+  }, [editTexts, editComment, handleError, handleSuccess, handleWarning]);
+
+  const confirmDelete = useCallback(async (comment: any) => {
+    try {
+      const deletedSnapshot = { ...comment };
+      await deleteComment(comment.id);
+      toast((t) => (
+        <div className="flex items-center gap-3">
+          <span>Comment deleted</span>
+          <button
+            onClick={async () => {
+              toast.dismiss(t.id);
+              try {
+                // Re-create deleted comment (best-effort restore)
+                await addComment(deletedSnapshot.content, deletedSnapshot.parent_comment_id || undefined, user ? {
+                  id: user.id,
+                  username: user.firstName || user.email?.split('@')[0] || 'Anonymous',
+                  full_name: `${user.firstName} ${user.lastName}`.trim() || user.email?.split('@')[0] || 'Anonymous User',
+                  avatar_url: user.avatar,
+                  is_verified: false
+                } : undefined);
+                toast.success('Comment restored');
+              } catch {
+                toast.error('Unable to restore comment');
+              }
+            }}
+            className="px-2 py-1 text-xs bg-gray-100 hover:bg-gray-200 rounded"
+          >
+            Undo
+          </button>
+        </div>
+      ), { duration: 5000 });
+    } catch (e) {
+      console.error('Failed to delete comment:', e);
+      toast.error('Failed to delete comment');
+    }
+  }, [deleteComment, addComment, user]);
+
+  const startReply = useCallback((commentId: string) => {
+    setReplyTo(commentId);
+    setReplyTexts(prev => ({ ...prev, [commentId]: '' }));
+  }, []);
+
+  const cancelReply = useCallback((commentId: string) => {
+    setReplyTo(null);
+    setReplyTexts(prev => {
+      const updated = { ...prev };
+      delete updated[commentId];
+      return updated;
+    });
+  }, []);
+
+  const CommentItem = React.memo(function CommentItem({ comment, isReply = false }: { comment: any; isReply?: boolean }) {
+    const [showOptions, setShowOptions] = useState(false);
+    const isCurrentlyEditing = editingComment === comment.id;
+    const isCurrentlyReplying = replyTo === comment.id;
+
+    const [showReplies, setShowReplies] = useState(true);
+
+    const repliesCount = (comment.replies_count ?? (comment.replies?.length || 0)) || 0;
+    
+    // Get user display name with comprehensive fallbacks
+    const getUserDisplayName = () => {
+      // Try all possible user name sources
+      const sources = [
+        comment.user?.full_name,
+        comment.user?.username, 
+        comment.username,
+        comment.user_name,
+        comment.full_name,
+        comment.author_name,
+        comment.created_by_name
+      ];
+      
+      for (const source of sources) {
+        if (source && typeof source === 'string' && source.trim()) {
+          return source.trim();
+        }
+      }
+      
+      // If all else fails, try to get from auth store for current user
+      try {
+        const { useAuthStore } = require('../../store/authStore');
+        const currentUser = useAuthStore.getState().user;
+        if (currentUser && comment.user_id === currentUser.id) {
+          return currentUser.firstName || currentUser.email?.split('@')[0] || 'User';
+        }
+      } catch {}
+      
+      return 'User';
+    };
+    
+    const displayName = getUserDisplayName();
+
+    return (
+      <div className={`comment-item ${isReply ? 'ml-8 pl-4 border-l-2 border-gray-100' : ''} p-4 bg-white rounded-lg border border-gray-100 shadow-sm hover:shadow-md transition-shadow`}>
+        <div className="flex space-x-3">
+          {/* Always show avatar - either image or initials */}
+          <div className="flex-shrink-0">
+            <UserAvatar
+              email={comment.user?.email || comment.user_email}
+              username={displayName}
+              avatarUrl={comment.user?.avatar_url || comment.avatar_url}
+              size="sm"
+            />
+          </div>
+
+          {/* Comment Content */}
+          <div className="flex-1 min-w-0">
+            {/* Header */}
+            <div className="flex items-center space-x-2 mb-2">
+              <TappableUsername 
+                username={displayName}
+                userId={comment.user?.id || comment.user_id}
+                className="font-semibold text-sm text-gray-900 hover:text-teal-600 transition-colors"
+              />
+              {(comment.user?.is_verified || comment.is_verified) && (
+                <span className="text-blue-500 text-xs">✓</span>
+              )}
+              <span className="text-xs text-gray-500">
+                {comment.created_at ? formatDistanceToNow(new Date(comment.created_at), { addSuffix: true }) : 'Recently'}
+              </span>
+              {comment.is_edited && (
+                <span className="text-xs text-gray-400">(edited)</span>
+              )}
+            </div>
+
+            {/* Content */}
+            <div className="mb-2">
+              {isCurrentlyEditing ? (
+                <div className="space-y-2">
+                  <CommentTextarea
+                    id={`edit-textarea-${comment.id}`}
+                    value={editTexts[comment.id] || comment.content}
+                    onChange={(value) => updateEditText(comment.id, value)}
+                    placeholder="Edit your comment..."
+                    rows={2}
+                    maxLength={500}
+                    autoFocus
+                  />
+                  <div className="flex justify-between items-center">
+                    <span className="text-xs text-gray-500">
+                      {(editTexts[comment.id] || '').length}/500
+                    </span>
+                    <div className="flex space-x-2">
+                      <button
+                        onClick={() => confirmEdit(comment.id)}
+                        disabled={!(editTexts[comment.id] || '').trim()}
+                        className="px-3 py-1 bg-teal-600 text-white text-xs rounded hover:bg-teal-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        Save
+                      </button>
+                      <button
+                        onClick={() => cancelEdit(comment.id)}
+                        className="px-3 py-1 bg-gray-300 text-gray-700 text-xs rounded hover:bg-gray-400"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-sm text-gray-900 whitespace-pre-wrap leading-relaxed">
+                  {comment.content}
+                </p>
+              )}
+            </div>
+
+            {/* Actions */}
+            <div className="flex items-center space-x-4 text-xs">
+              <button
+                onClick={() => handleToggleLike(comment.id)}
+                className={`flex items-center space-x-1 hover:text-red-500 transition-colors ${
+                  comment.is_liked ? 'text-red-500' : 'text-gray-500'
+                }`}
+                aria-label={`${comment.is_liked ? 'Unlike' : 'Like'} comment by ${comment.user?.username || 'Anonymous'}`}
+              >
+                <Heart size={14} className={comment.is_liked ? 'fill-current' : ''} />
+                <span>{comment.likes_count || 0}</span>
+              </button>
+
+              {!isReply && (
+                <button
+                  onClick={() => isCurrentlyReplying ? cancelReply(comment.id) : startReply(comment.id)}
+                  className="flex items-center space-x-1 text-gray-500 hover:text-blue-500 transition-colors"
+                  aria-label={`${isCurrentlyReplying ? 'Cancel reply to' : 'Reply to'} ${comment.user?.username || 'Anonymous'}`}
+                >
+                  <Reply size={14} />
+                  <span>{isCurrentlyReplying ? 'Cancel' : 'Reply'}</span>
+                </button>
+              )}
+
+              {!isReply && repliesCount > 0 && (
+                <button
+                  onClick={() => setShowReplies(!showReplies)}
+                  className="text-gray-500 hover:text-gray-700"
+                >
+                  {showReplies ? `Hide replies (${repliesCount})` : `Show replies (${repliesCount})`}
+                </button>
+              )}
+
+              {/* Options menu */}
+              <div className="relative">
+                <button
+                  onClick={() => setShowOptions(!showOptions)}
+                  className="text-gray-400 hover:text-gray-600 transition-colors p-1"
+                >
+                  <MoreHorizontal size={14} />
+                </button>
+                
+                {showOptions && (
+                  <>
+                    <div 
+                      className="fixed inset-0 z-10" 
+                      onClick={() => setShowOptions(false)}
+                    />
+                    <div className="absolute right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-20 min-w-[120px]">
+                      {comment.is_own ? (
+                        <>
+                          <button
+                            onClick={() => {
+                              startEdit(comment.id, comment.content);
+                              setShowOptions(false);
+                            }}
+                            className="flex items-center w-full px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                          >
+                            <Edit size={14} className="mr-2" />
+                            Edit
+                          </button>
+                          <button
+                            onClick={() => {
+                              setShowOptions(false);
+                              confirmDelete(comment);
+                            }}
+                            className="flex items-center w-full px-3 py-2 text-sm text-red-600 hover:bg-red-50"
+                          >
+                            <Trash2 size={14} className="mr-2" />
+                            Delete
+                          </button>
+                        </>
+                      ) : (
+                        <button
+                          onClick={() => {
+                            setShowOptions(false);
+                            // TODO: Implement report functionality
+                          }}
+                          className="flex items-center w-full px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                        >
+                          <Flag size={14} className="mr-2" />
+                          Report
+                        </button>
+                      )}
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+
+            {/* Reply input */}
+            {isCurrentlyReplying && (
+              <div className="mt-3 space-y-2">
+                <CommentTextarea
+                  id={`reply-textarea-${comment.id}`}
+                  value={replyTexts[comment.id] || ''}
+                  onChange={(value) => updateReplyText(comment.id, value)}
+                  placeholder={`Reply to ${comment.user?.username || comment.username}...`}
+                  rows={2}
+                  maxLength={500}
+                  autoFocus
+                />
+                <div className="flex justify-between items-center">
+                  <span className="text-xs text-gray-500">
+                    {(replyTexts[comment.id] || '').length}/500
+                  </span>
+                  <div className="flex space-x-2">
+                    <button
+                      onClick={() => handleAddComment(comment.id)}
+                      disabled={!(replyTexts[comment.id] || '').trim() || isSubmitting}
+                                              className="px-3 py-1 bg-teal-600 text-white text-xs rounded hover:bg-teal-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {isSubmitting ? 'Replying...' : 'Reply'}
+                    </button>
+                    <button
+                      onClick={() => cancelReply(comment.id)}
+                      className="px-3 py-1 bg-gray-300 text-gray-700 text-xs rounded hover:bg-gray-400"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Replies */}
+            {showReplies && comment.replies && comment.replies.length > 0 && (
+              <div className="mt-3">
+                {comment.replies.map((reply: any, rIndex: number) => (
+                  <CommentItem key={reply.id || `${predictionId}-reply-${rIndex}`} comment={reply} isReply />
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  });
+
+  return (
+    <div 
+      className="comment-system bg-white" 
+      dir="ltr" 
+      style={{ 
+        direction: 'ltr',
+        textAlign: 'left',
+        unicodeBidi: 'plaintext'
+      }}
+    >
+      {/* Header */}
+      <div className="flex items-center justify-between p-4 border-b border-gray-200">
+        <h3 className="text-lg font-semibold flex items-center">
+          <MessageCircle size={20} className="mr-2" />
+          Comments ({commentCount})
+        </h3>
+      </div>
+
+      {/* Error state */}
+      {error && (
+        <div className="p-4">
+          <ErrorState 
+            error={error}
+            onRetry={() => {
+              clearError();
+              fetchComments();
+            }}
+            variant="inline"
+            size="md"
+          />
+        </div>
+      )}
+
+      {/* New comment input */}
+      {user && (
+        <div className="p-4 border-b border-gray-200 bg-gray-50">
+          <div className="w-full">
+            <CommentTextarea
+              id="main-textarea"
+              value={mainCommentText}
+              onChange={setMainCommentText}
+              placeholder="Share your thoughts..."
+              rows={3}
+              maxLength={500}
+            />
+            <div className="flex justify-between items-center mt-3">
+              <span className="text-xs text-gray-500">
+                {mainCommentText.length}/500
+              </span>
+                      <button
+          onClick={() => handleAddComment()}
+          disabled={!mainCommentText.trim() || isSubmitting}
+          className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm font-medium"
+          aria-label={isSubmitting ? 'Posting comment' : 'Post comment'}
+        >
+          {isSubmitting ? 'Posting...' : 'Comment'}
+        </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Login prompt for non-authenticated users */}
+      {!user && (
+        <div className="p-4 border-b border-gray-200 bg-gray-50">
+          <p className="text-gray-600 text-center">
+            Please <span className="text-teal-600 font-medium">sign in</span> to join the conversation
+          </p>
+        </div>
+      )}
+
+      {/* Loading state */}
+      {isLoading && (
+        <div className="p-8 text-center">
+          <div className="w-8 h-8 border-2 border-teal-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading comments...</p>
+        </div>
+      )}
+
+      {/* Comments list */}
+      {!isLoading && (
+        <div className="divide-y divide-gray-100">
+          {comments.map((comment, index) => (
+            <CommentItem key={comment.id || `${predictionId}-comment-${index}`} comment={comment} />
+          ))}
+        </div>
+      )}
+
+      {/* Empty state */}
+      {!isLoading && comments.length === 0 && !error && (
+        <div className="p-8 text-center text-gray-500">
+          <MessageCircle size={48} className="mx-auto mb-4 text-gray-300" />
+          <h4 className="text-lg font-medium mb-2">No comments yet</h4>
+          <p>Be the first to share your thoughts!</p>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default CommentSystem;

@@ -1,0 +1,316 @@
+/* Dark Mode Styles */
+.dark {
+  --bg-primary: #111827;
+  --bg-secondary: #1f2937;
+  --bg-tertiary: #374151;
+  --bg-card: #1f2937;
+  --bg-input: #374151;
+  --bg-header: #1f2937;
+  --bg-bottom-nav: #1f2937;
+  --bg-search: #374151;
+  --bg-category-chips: #374151;
+  --bg-prediction-cards: #1f2937;
+  --bg-floating-button: linear-gradient(135deg, #8b5cf6, #059669);
+  --text-primary: #f9fafb;
+  --text-secondary: #d1d5db;
+  --text-tertiary: #9ca3af;
+  --text-muted: #6b7280;
+  --border-primary: #374151;
+  --border-secondary: #4b5563;
+  --border-input: #4b5563;
+  --accent-primary: #3b82f6;
+  --accent-secondary: #1d4ed8;
+  --accent-success: #10b981;
+  --accent-warning: #f59e0b;
+  --accent-error: #ef4444;
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.5);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.5);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.5);
+}
+
+/* Dark mode for body and main containers */
+.dark body {
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+}
+
+.dark .min-h-screen {
+  background-color: var(--bg-primary);
+}
+
+/* Dark mode for backgrounds */
+.dark .bg-white {
+  background-color: var(--bg-card) !important;
+}
+
+.dark .bg-gray-50 {
+  background-color: var(--bg-secondary) !important;
+}
+
+.dark .bg-gray-100 {
+  background-color: var(--bg-tertiary) !important;
+}
+
+.dark .bg-gray-200 {
+  background-color: var(--bg-tertiary) !important;
+}
+
+/* Dark mode for text colors */
+.dark .text-gray-900 {
+  color: var(--text-primary) !important;
+}
+
+.dark .text-gray-700 {
+  color: var(--text-secondary) !important;
+}
+
+.dark .text-gray-600 {
+  color: var(--text-tertiary) !important;
+}
+
+.dark .text-gray-500 {
+  color: var(--text-muted) !important;
+}
+
+/* Dark mode for borders */
+.dark .border-gray-100 {
+  border-color: var(--border-primary) !important;
+}
+
+.dark .border-gray-200 {
+  border-color: var(--border-secondary) !important;
+}
+
+.dark .border-gray-300 {
+  border-color: var(--border-input) !important;
+}
+
+/* Dark mode for hover states */
+.dark .hover\:bg-gray-100:hover {
+  background-color: var(--bg-tertiary) !important;
+}
+
+.dark .hover\:bg-gray-200:hover {
+  background-color: var(--bg-tertiary) !important;
+}
+
+/* Dark mode for specific components */
+.dark .bg-white.rounded-xl {
+  background-color: var(--bg-card);
+  border-color: var(--border-primary);
+}
+
+.dark .bg-white.rounded-2xl {
+  background-color: var(--bg-prediction-cards);
+}
+
+.dark .bg-white.rounded-xl.shadow-sm {
+  background-color: var(--bg-card);
+  box-shadow: var(--shadow-sm);
+}
+
+.dark .bg-white.rounded-2xl.shadow-sm {
+  background-color: var(--bg-prediction-cards);
+  box-shadow: var(--shadow-sm);
+}
+
+/* Dark mode for header */
+.dark .bg-white.border-b.border-gray-100 {
+  background-color: var(--bg-header);
+  border-color: var(--border-primary);
+}
+
+/* Dark mode for search bar */
+.dark .bg-gray-50.rounded-xl {
+  background-color: var(--bg-search);
+}
+
+.dark .bg-gray-50.rounded-xl.px-4.py-3 {
+  background-color: var(--bg-search);
+}
+
+.dark .bg-gray-50.rounded-xl.px-4.py-3 input {
+  background-color: transparent;
+  color: var(--text-primary);
+}
+
+.dark .bg-gray-50.rounded-xl.px-4.py-3 input::placeholder {
+  color: var(--text-muted);
+}
+
+/* Dark mode for category chips */
+.dark .bg-white.rounded-full {
+  background-color: var(--bg-category-chips);
+  color: var(--text-secondary);
+}
+
+.dark .bg-white.rounded-full.text-gray-700 {
+  background-color: var(--bg-category-chips);
+  color: var(--text-secondary);
+}
+
+.dark .bg-white.rounded-full.px-4.py-2 {
+  background-color: var(--bg-category-chips);
+  color: var(--text-secondary);
+}
+
+.dark .bg-white.rounded-full.text-gray-700:hover {
+  background-color: var(--bg-tertiary);
+}
+
+/* Dark mode for active category chip */
+.dark .bg-blue-500.rounded-full {
+  background-color: var(--accent-primary);
+  color: white;
+}
+
+.dark .bg-blue-500.rounded-full.px-4.py-2 {
+  background-color: var(--accent-primary);
+  color: white;
+}
+
+/* Dark mode for market stats card */
+.dark .bg-gradient-to-br.from-gray-50.to-gray-100 {
+  background: linear-gradient(135deg, var(--bg-secondary), var(--bg-tertiary));
+}
+
+.dark .bg-gradient-to-br.from-gray-50.to-gray-100.rounded-2xl {
+  background: linear-gradient(135deg, var(--bg-secondary), var(--bg-tertiary));
+}
+
+/* Dark mode for bottom navigation */
+.dark .bg-white.border-t.border-gray-100 {
+  background-color: var(--bg-bottom-nav);
+  border-color: var(--border-primary);
+}
+
+.dark .bg-white.border-t.border-gray-100 .text-purple-600 {
+  color: var(--accent-primary);
+}
+
+.dark .bg-white.border-t.border-gray-100 .bg-purple-100 {
+  background-color: rgba(139, 92, 246, 0.1);
+}
+
+/* Dark mode for floating action button */
+.dark .bg-gradient-to-br.from-purple-500.to-emerald-600 {
+  background: var(--bg-floating-button);
+}
+
+.dark .shadow-lg {
+  box-shadow: var(--shadow-lg);
+}
+
+/* Dark mode for inputs */
+.dark input,
+.dark textarea,
+.dark select {
+  background-color: var(--bg-input);
+  border-color: var(--border-input);
+  color: var(--text-primary);
+}
+
+.dark input:focus,
+.dark textarea:focus,
+.dark select:focus {
+  border-color: var(--accent-primary);
+  outline-color: var(--accent-primary);
+}
+
+/* Dark mode for toggles */
+.dark .bg-gray-200 {
+  background-color: var(--bg-tertiary);
+}
+
+.dark .bg-blue-600 {
+  background-color: var(--accent-primary);
+}
+
+/* Dark mode for shadows */
+.dark .shadow-sm {
+  box-shadow: var(--shadow-sm);
+}
+
+.dark .shadow-md {
+  box-shadow: var(--shadow-md);
+}
+
+/* Dark mode for status indicators */
+.dark .bg-emerald-500 {
+  background-color: var(--accent-success);
+}
+
+.dark .bg-red-500 {
+  background-color: var(--accent-error);
+}
+
+.dark .bg-yellow-500 {
+  background-color: var(--accent-warning);
+}
+
+/* Dark mode for progress bars */
+.dark .bg-gray-200.rounded-full {
+  background-color: var(--bg-tertiary);
+}
+
+.dark .bg-green-500 {
+  background-color: var(--accent-success);
+}
+
+.dark .bg-blue-500 {
+  background-color: var(--accent-primary);
+}
+
+/* Dark mode for links */
+.dark .text-blue-600 {
+  color: var(--accent-primary);
+}
+
+.dark .hover\:text-blue-700:hover {
+  color: var(--accent-secondary);
+}
+
+/* Dark mode for form elements */
+.dark .bg-gray-50.rounded-xl.hover\:bg-gray-100 {
+  background-color: var(--bg-secondary);
+}
+
+.dark .bg-gray-50.rounded-xl.hover\:bg-gray-100:hover {
+  background-color: var(--bg-tertiary);
+}
+
+/* Dark mode for danger zone */
+.dark .border-red-100 {
+  border-color: rgba(239, 68, 68, 0.2);
+}
+
+.dark .bg-red-50 {
+  background-color: rgba(239, 68, 68, 0.1);
+}
+
+.dark .hover\:bg-red-100:hover {
+  background-color: rgba(239, 68, 68, 0.2);
+}
+
+/* Dark mode for success states */
+.dark .bg-green-50 {
+  background-color: rgba(16, 185, 129, 0.1);
+}
+
+.dark .border-green-200 {
+  border-color: rgba(16, 185, 129, 0.2);
+}
+
+/* Dark mode for loading states */
+.dark .animate-pulse {
+  background-color: var(--bg-tertiary);
+}
+
+/* Dark mode for icons */
+.dark .text-gray-600 {
+  color: var(--text-tertiary);
+}
+
+.dark .text-gray-400 {
+  color: var(--text-muted);
+}

@@ -296,8 +296,8 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
             onClick={() => setActiveTab(tab.id as any)}
             className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl font-semibold transition-all duration-300 relative ${
               isActive
-                ? 'bg-white text-gray-900 shadow-lg'
-                : 'text-gray-600 hover:text-gray-900 hover:bg-white/50'
+                ? 'bg-white dark:bg-gray-800 text-gray-900 dark:text-white shadow-lg'
+                : 'text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-white/50 dark:hover:bg-gray-700/50'
             }`}
             whileHover={{ scale: isActive ? 1 : 1.02 }}
             whileTap={{ scale: 0.98 }}

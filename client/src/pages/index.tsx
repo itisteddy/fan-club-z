@@ -86,7 +86,7 @@ export const ProfilePage: React.FC = () => {
         <div className="w-24 h-24 bg-primary rounded-full mx-auto mb-4 flex items-center justify-center">
           <span className="text-white text-3xl font-bold">U</span>
         </div>
-        <h2 className="text-xl font-semibold text-foreground mb-2">Demo User</h2>
+        <h2 className="text-xl font-semibold text-foreground mb-2">User Profile</h2>
         <p className="text-muted-foreground">
           Profile customization coming soon
         </p>

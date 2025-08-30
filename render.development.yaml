@@ -1,0 +1,37 @@
+services:
+  - type: web
+    name: fanclubz-dev
+    env: node
+    plan: free
+    branch: development
+    buildCommand: npm install && npm run build:shared && cd server && npm install
+    startCommand: cd server && npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: CLIENT_URL
+        value: https://dev.fanclubz.app
+      - key: FRONTEND_URL
+        value: https://dev.fanclubz.app
+      - key: CORS_ORIGINS
+        value: https://dev.fanclubz.app,https://app.fanclubz.app,https://fanclubz.app
+      - key: WEBSOCKET_ORIGINS
+        value: https://dev.fanclubz.app,https://app.fanclubz.app
+      - key: JWT_SECRET
+        generateValue: true
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false 
+      - key: VITE_SUPABASE_URL
+        sync: false
+      - key: VITE_SUPABASE_ANON_KEY
+        sync: false
+      - key: ENABLE_WEBSOCKET
+        value: true
+      - key: ENABLE_REAL_TIME
+        value: true

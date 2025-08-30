@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Edit3, Loader2, AlertCircle } from 'lucide-react';
 import { toast } from 'react-hot-toast';
+import { showUserError } from '../../utils/errorHandler';
 
 interface EditModalProps {
   isOpen: boolean;
@@ -99,7 +100,7 @@ const EditModal: React.FC<EditModalProps> = ({
       onClose();
     } catch (error) {
       console.error('Failed to update prediction:', error);
-      toast.error(error instanceof Error ? error.message : 'Failed to update prediction');
+      showUserError('EDIT_FAILED', error instanceof Error ? error.message : 'Failed to update prediction');
     } finally {
       setIsUpdating(false);
     }
@@ -133,27 +134,27 @@ const EditModal: React.FC<EditModalProps> = ({
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 20 }}
           transition={{ type: "spring", damping: 25, stiffness: 300 }}
-          className="relative bg-white rounded-3xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-hidden"
+          className="relative bg-white dark:bg-gray-800 rounded-2xl shadow-xl max-w-lg w-full max-h-[90vh] overflow-hidden"
           onKeyDown={handleKeyDown}
         >
           {/* Header */}
-          <div className="flex items-center justify-between p-6 border-b border-gray-100">
+          <div className="flex items-center justify-between p-6 border-b border-gray-100 dark:border-gray-700">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-indigo-600 rounded-xl flex items-center justify-center">
+              <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl flex items-center justify-center">
                 <Edit3 className="w-5 h-5 text-white" />
               </div>
               <div>
-                <h2 className="text-xl font-semibold text-gray-900">Edit Prediction</h2>
-                <p className="text-sm text-gray-500">Update your prediction details</p>
+                <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Edit Prediction</h2>
+                <p className="text-sm text-gray-500 dark:text-gray-400">Update your prediction details</p>
               </div>
             </div>
             
             <button
               onClick={onClose}
               disabled={isUpdating}
-              className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 transition-colors disabled:opacity-50"
+              className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors disabled:opacity-50"
             >
-              <X className="w-5 h-5 text-gray-500" />
+              <X className="w-5 h-5 text-gray-500 dark:text-gray-400" />
             </button>
           </div>
 
@@ -161,7 +162,7 @@ const EditModal: React.FC<EditModalProps> = ({
           <div className="p-6 space-y-6">
             {/* Title Field */}
             <div className="space-y-2">
-              <label className="block text-sm font-medium text-gray-700">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                 Prediction Title *
               </label>
               <input
@@ -169,10 +170,10 @@ const EditModal: React.FC<EditModalProps> = ({
                 type="text"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                className={`w-full px-4 py-3 rounded-xl border-2 transition-all duration-200 focus:outline-none ${
+                className={`w-full px-4 py-3 rounded-xl border-2 transition-all duration-200 focus:outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 ${
                   errors.title
                     ? 'border-red-300 focus:border-red-500 focus:ring-2 focus:ring-red-200'
-                    : 'border-gray-200 focus:border-purple-500 focus:ring-2 focus:ring-purple-200'
+                    : 'border-gray-200 dark:border-gray-600 focus:border-blue-500 focus:ring-2 focus:ring-blue-200'
                 }`}
                 placeholder="Enter prediction title..."
                 disabled={isUpdating}
@@ -184,22 +185,22 @@ const EditModal: React.FC<EditModalProps> = ({
                   {errors.title}
                 </div>
               )}
-              <p className="text-xs text-gray-500">{title.length}/200 characters</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400">{title.length}/200 characters</p>
             </div>
 
             {/* Description Field */}
             <div className="space-y-2">
-              <label className="block text-sm font-medium text-gray-700">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                 Description (Optional)
               </label>
               <textarea
                 ref={descriptionRef}
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                className={`w-full px-4 py-3 rounded-xl border-2 transition-all duration-200 focus:outline-none resize-none ${
+                className={`w-full px-4 py-3 rounded-xl border-2 transition-all duration-200 focus:outline-none resize-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 ${
                   errors.description
                     ? 'border-red-300 focus:border-red-500 focus:ring-2 focus:ring-red-200'
-                    : 'border-gray-200 focus:border-purple-500 focus:ring-2 focus:ring-purple-200'
+                    : 'border-gray-200 dark:border-gray-600 focus:border-blue-500 focus:ring-2 focus:ring-blue-200'
                 }`}
                 placeholder="Add more details about your prediction..."
                 disabled={isUpdating}
@@ -213,16 +214,16 @@ const EditModal: React.FC<EditModalProps> = ({
                   {errors.description}
                 </div>
               )}
-              <p className="text-xs text-gray-500">{description.length}/1000 characters</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400">{description.length}/1000 characters</p>
             </div>
           </div>
 
           {/* Footer */}
-          <div className="flex items-center justify-end gap-3 p-6 bg-gray-50 border-t border-gray-100">
+          <div className="flex items-center justify-end gap-3 p-6 bg-gray-50 dark:bg-gray-700 border-t border-gray-100 dark:border-gray-600">
             <button
               onClick={onClose}
               disabled={isUpdating}
-              className="px-6 py-2.5 text-gray-700 font-medium rounded-xl hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-6 py-2.5 text-gray-700 dark:text-gray-300 font-medium rounded-xl hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Cancel
             </button>
@@ -230,7 +231,7 @@ const EditModal: React.FC<EditModalProps> = ({
             <motion.button
               onClick={handleSave}
               disabled={isUpdating || !title.trim() || !!errors.title || !!errors.description}
-              className="px-6 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-medium rounded-xl shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+              className="px-6 py-2.5 bg-gradient-to-r from-blue-600 to-blue-700 text-white font-medium rounded-xl shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
               whileHover={{ scale: isUpdating ? 1 : 1.02 }}
               whileTap={{ scale: isUpdating ? 1 : 0.98 }}
             >
@@ -248,8 +249,8 @@ const EditModal: React.FC<EditModalProps> = ({
           {/* Keyboard shortcuts hint */}
           <div className="px-6 pb-4">
             <p className="text-xs text-gray-400 text-center">
-              Press <kbd className="px-1.5 py-0.5 bg-gray-100 rounded text-xs">Esc</kbd> to cancel or{' '}
-              <kbd className="px-1.5 py-0.5 bg-gray-100 rounded text-xs">⌘ Enter</kbd> to save
+              Press <kbd className="px-1.5 py-0.5 bg-gray-100 dark:bg-gray-600 rounded text-xs">Esc</kbd> to cancel or{' '}
+              <kbd className="px-1.5 py-0.5 bg-gray-100 dark:bg-gray-600 rounded text-xs">⌘ Enter</kbd> to save
             </p>
           </div>
         </motion.div>

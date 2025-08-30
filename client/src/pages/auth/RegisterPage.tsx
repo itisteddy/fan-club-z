@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuthStore } from '../../store/authStore';
 import Logo from '../../components/common/Logo';
 import toast from 'react-hot-toast';
+import { scrollToTop } from '../../utils/scroll';
 
 export const RegisterPage: React.FC = () => {
   const { register, loading } = useAuthStore();
@@ -19,6 +20,11 @@ export const RegisterPage: React.FC = () => {
     lastName?: string; 
     confirmPassword?: string;
   }>({});
+
+  // Scroll to top when component mounts
+  useEffect(() => {
+    scrollToTop({ behavior: 'instant' });
+  }, []);
 
   const validateForm = () => {
     const errors: { 
@@ -85,18 +91,7 @@ export const RegisterPage: React.FC = () => {
   const togglePassword = () => setShowPassword(!showPassword);
   const toggleConfirmPassword = () => setShowConfirmPassword(!showConfirmPassword);
 
-  const handleTestRegister = async (testEmail: string, testPassword: string, testFirstName: string, testLastName: string) => {
-    try {
-      setEmail(testEmail);
-      setPassword(testPassword);
-      setFirstName(testFirstName);
-      setLastName(testLastName);
-      setConfirmPassword(testPassword);
-      await register(testEmail, testPassword, testFirstName, testLastName);
-    } catch (error: any) {
-      console.error('Test registration error:', error);
-    }
-  };
+
 
   return (
     <div className="bg-white rounded-lg shadow-lg p-6">
@@ -110,28 +105,7 @@ export const RegisterPage: React.FC = () => {
         <p className="text-sm text-gray-500">Create your account and start predicting</p>
       </div>
       
-      {/* Test Mode Panel */}
-      <div className="mb-4 p-3 bg-gray-100 rounded-lg">
-        <p className="text-sm text-gray-600 mb-2">Quick Test Registration:</p>
-        <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={() => handleTestRegister('newuser@example.com', 'test123', 'New', 'User')}
-            className="px-3 py-1 bg-blue-500 text-white text-xs rounded hover:bg-blue-600 transition-colors"
-            disabled={loading}
-          >
-            New User
-          </button>
-          <button
-            type="button"
-            onClick={() => handleTestRegister('testperson@gmail.com', 'test123', 'Test', 'Person')}
-            className="px-3 py-1 bg-purple-500 text-white text-xs rounded hover:bg-purple-600 transition-colors"
-            disabled={loading}
-          >
-            Test Person
-          </button>
-        </div>
-      </div>
+
       
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="grid grid-cols-2 gap-4">

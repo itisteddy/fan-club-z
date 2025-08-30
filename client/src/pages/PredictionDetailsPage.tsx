@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, Clock, Heart, MessageCircle, Share2, TrendingUp, ChevronDown, User, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, Clock, Heart, MessageCircle, Share2, TrendingUp, User, AlertTriangle } from 'lucide-react';
+import { ShareModal } from '../components/modals/ShareModal';
 import { useLocation } from 'wouter';
+import { scrollToTop } from '../utils/scroll';
 import { usePredictionStore } from '../store/predictionStore';
 import { useAuthStore } from '../store/authStore';
 import { useWalletStore } from '../store/walletStore';
@@ -12,6 +14,7 @@ import { useUnifiedCommentStore, useCommentsForPrediction } from '../store/unifi
 import { formatTimeRemaining } from '../lib/utils';
 import CommentSystem from '../components/CommentSystem';
 import TappableUsername from '../components/TappableUsername';
+import { AuthPrompt } from '../components/ui/AuthPrompt';
 import {
   SettlementBadge,
   SettlementPanel,
@@ -37,15 +40,16 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
   const [isPlacingBet, setIsPlacingBet] = useState(false);
   const [prediction, setPrediction] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [showComments, setShowComments] = useState(false);
+
 
   const [showSettlementModal, setShowSettlementModal] = useState(false);
   const [showProofDetails, setShowProofDetails] = useState(false);
   const [showAuditTimeline, setShowAuditTimeline] = useState(false);
   const [showValidationModal, setShowValidationModal] = useState(false);
+  const [showShareModal, setShowShareModal] = useState(false);
+  const [showAuthPrompt, setShowAuthPrompt] = useState(false);
   
-  // Refs for smooth scrolling
-  const commentsRef = useRef<HTMLDivElement>(null);
+  // Ref for engagement section
   const engagementRef = useRef<HTMLDivElement>(null);
   
   const { predictions, fetchPredictions, fetchPredictionById, placePrediction } = usePredictionStore();
@@ -88,6 +92,11 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
   useEffect(() => {
     console.log(`📊 PredictionDetailsPage commentCount for ${stablePredictionId}: ${commentCount}`);
   }, [stablePredictionId, commentCount]);
+
+  // Scroll to top when component mounts
+  useEffect(() => {
+    scrollToTop({ behavior: 'instant' });
+  }, []);
 
   useEffect(() => {
     const loadPrediction = async () => {
@@ -176,7 +185,12 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
 
   const handlePlaceBet = async () => {
     if (!isAuthenticated) {
-      toast.error('Please sign in to place a prediction');
+      try {
+        // Preserve the current page so we can return after auth
+        const destination = window.location.pathname;
+        localStorage.setItem('authRedirectUrl', destination);
+      } catch {}
+      setShowAuthPrompt(true);
       return;
     }
 
@@ -227,63 +241,21 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
     }
   };
 
-  const handleShare = async () => {
+  const handleShare = () => {
     if (!prediction) {
       toast.error('No prediction to share');
       return;
     }
-
-    const shareUrl = `${window.location.origin}/predictions/${prediction.id}`;
-    const shareText = `${prediction.title}\n\nMake your prediction on Fan Club Z!`;
-    
-    // Try native sharing first (mobile devices)
-    if (navigator.share && navigator.canShare) {
-      try {
-        await navigator.share({
-          title: prediction.title,
-          text: shareText,
-          url: shareUrl,
-        });
-        return;
-      } catch (error) {
-        // User cancelled or sharing failed, fall back to clipboard
-        console.log('Native sharing cancelled or failed:', error);
-      }
-    }
-    
-    // Fallback to clipboard
-    try {
-      await navigator.clipboard.writeText(`${shareText}\n${shareUrl}`);
-      toast.success('Link copied to clipboard!');
-    } catch (error) {
-      // Final fallback for older browsers
-      console.error('Clipboard API failed:', error);
-      
-      // Create a temporary textarea to copy text
-      const textArea = document.createElement('textarea');
-      textArea.value = `${shareText}\n${shareUrl}`;
-      textArea.style.position = 'fixed';
-      textArea.style.left = '-999999px';
-      textArea.style.top = '-999999px';
-      document.body.appendChild(textArea);
-      textArea.focus();
-      textArea.select();
-      
-      try {
-        document.execCommand('copy');
-        toast.success('Link copied to clipboard!');
-      } catch (execError) {
-        toast.error('Failed to copy link');
-        console.error('execCommand failed:', execError);
-      } finally {
-        document.body.removeChild(textArea);
-      }
-    }
+    setShowShareModal(true);
   };
 
   const handleLike = async () => {
     if (!isAuthenticated) {
-      toast.error('Please sign in to like this prediction');
+      try {
+        const destination = window.location.pathname;
+        localStorage.setItem('authRedirectUrl', destination);
+      } catch {}
+      setShowAuthPrompt(true);
       return;
     }
     
@@ -295,32 +267,7 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
     }
   };
 
-  const handleCommentsToggle = () => {
-    console.log('💬 Toggling comments from:', showComments, 'to:', !showComments);
-    const newShowComments = !showComments;
-    setShowComments(newShowComments);
-    
-    // Smooth scroll to comments section when opening
-    if (newShowComments) {
-      setTimeout(() => {
-        if (commentsRef.current) {
-          commentsRef.current.scrollIntoView({ 
-            behavior: 'smooth', 
-            block: 'start',
-            inline: 'nearest'
-          });
-        }
-      }, 300); // Wait for animation to start
-    } else {
-      // Scroll back to engagement section when closing
-      if (engagementRef.current) {
-        engagementRef.current.scrollIntoView({ 
-          behavior: 'smooth', 
-          block: 'center'
-        });
-      }
-    }
-  };
+
 
   // Get creator info with fallbacks for different data structures
   const getCreatorInfo = () => {
@@ -360,14 +307,14 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
     return (
       <div className="min-h-screen bg-gray-50">
         <div className="bg-white border-b border-gray-200 sticky top-0 z-10">
-          <div className="px-4 py-4">
+          <div className="px-4 py-1">
             <div className="flex items-center justify-between">
               <button
                 onClick={handleBack}
                 className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors"
               >
-                <ArrowLeft size={20} />
-                <span className="font-medium">Back</span>
+                <ArrowLeft size={16} />
+                <span className="font-medium text-sm">Back</span>
               </button>
             </div>
           </div>
@@ -388,14 +335,14 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
     return (
       <div className="min-h-screen bg-gray-50">
         <div className="bg-white border-b border-gray-200 sticky top-0 z-10">
-          <div className="px-4 py-4">
+          <div className="px-4 py-1">
             <div className="flex items-center justify-between">
               <button
                 onClick={handleBack}
                 className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors"
               >
-                <ArrowLeft size={20} />
-                <span className="font-medium">Back</span>
+                <ArrowLeft size={16} />
+                <span className="font-medium text-sm">Back</span>
               </button>
             </div>
           </div>
@@ -430,23 +377,25 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
   return (
     <>
       <div className="min-h-screen bg-gray-50">
-        {/* Header */}
-        <div className="bg-white border-b border-gray-200 sticky top-0 z-50">
-          <div className="px-4 py-4">
-            <div className="flex items-center justify-between">
+        {/* Header - Consistent with other pages */}
+        <div className="bg-white border-b border-gray-100 sticky top-0 z-50">
+          <div className="h-11" />
+          <div className="px-4 py-1">
+            <div className="flex items-center justify-between mb-1">
               <button
                 onClick={handleBack}
-                className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors"
+                className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center text-gray-700 hover:bg-gray-200 transition-colors"
               >
-                <ArrowLeft size={20} />
-                <span className="font-medium">Back</span>
+                <ArrowLeft size={16} />
               </button>
-              
+              <div className="flex-1 text-center">
+                <h1 className="text-lg font-semibold text-gray-900">Prediction Details</h1>
+              </div>
               <button
                 onClick={handleShare}
-                className="p-2 text-gray-600 hover:text-gray-900 transition-colors rounded-lg hover:bg-gray-100"
+                className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center text-gray-700 hover:bg-gray-200 transition-colors"
               >
-                <Share2 size={20} />
+                <Share2 size={16} />
               </button>
             </div>
           </div>
@@ -777,7 +726,7 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
                     onClick={() => handleOptionSelect(option.id)}
                     className={`w-full p-4 rounded-xl border-2 transition-all ${
                       selectedOption === option.id
-                        ? 'border-emerald-500 bg-emerald-50 shadow-lg'
+                        ? 'border-emerald-500 bg-emerald-100 shadow-lg'
                         : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
                     }`}
                     whileHover={{ scale: 1.01 }}
@@ -786,7 +735,7 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
                     <div className="flex items-center justify-between">
                       <div className="text-left flex-1">
                         <div className="font-semibold text-gray-900 text-lg mb-1">{option.label}</div>
-                        <div className="text-sm text-gray-500">
+                        <div className={`text-sm ${selectedOption === option.id ? 'text-gray-700' : 'text-gray-500'}`}>
                           {prediction.pool_total > 0 ? 
                             `${((option.total_staked / prediction.pool_total) * 100).toFixed(1)}% of pool` : 
                             '0% of pool'
@@ -797,7 +746,7 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
                         <div className="text-2xl font-bold text-emerald-600">
                           {(option.current_odds || 1.0).toFixed(2)}x
                         </div>
-                        <div className="text-xs text-gray-500">odds</div>
+                        <div className={`text-xs ${selectedOption === option.id ? 'text-gray-600' : 'text-gray-500'}`}>odds</div>
                       </div>
                     </div>
                   </motion.button>
@@ -893,21 +842,10 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
                 <span className="font-medium">{getLikeCount(prediction.id)} likes</span>
               </motion.button>
               
-              <motion.button
-                onClick={handleCommentsToggle}
-                className={`flex items-center gap-2 transition-colors ${
-                  showComments ? 'text-blue-500' : 'text-gray-600 hover:text-blue-500'
-                }`}
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-              >
+              <div className="flex items-center gap-2 text-gray-600">
                 <MessageCircle size={20} />
                 <span className="font-medium">{commentCount} comments</span>
-                <ChevronDown 
-                  size={16} 
-                  className={`transition-transform ml-1 ${showComments ? 'rotate-180' : ''}`}
-                />
-              </motion.button>
+              </div>
               
               <div className="flex items-center gap-2 text-gray-600">
                 <TrendingUp size={20} />
@@ -916,29 +854,12 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
             </div>
           </motion.div>
 
-          {/* Comments Section */}
-          <AnimatePresence>
-            {showComments && (
-              <motion.div
-                ref={commentsRef}
-                initial={{ opacity: 0, y: -20, height: 0 }}
-                animate={{ opacity: 1, y: 0, height: 'auto' }}
-                exit={{ opacity: 0, y: -20, height: 0 }}
-                transition={{ duration: 0.4, ease: 'easeInOut' }}
-                className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden mb-6"
-              >
-                <div className="px-6 py-4 border-b border-gray-100 bg-gradient-to-r from-blue-50 to-indigo-50">
-                  <h3 className="text-lg font-bold text-gray-900">Comments</h3>
-                  <p className="text-sm text-gray-600">Join the conversation about this prediction</p>
-                </div>
-                <div className="min-h-[300px] max-h-[600px] overflow-y-auto">
-                  <CommentSystem 
-                    predictionId={stablePredictionId}
-                  />
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
+          {/* Comments Section - Always visible, clean inline design */}
+          <div className="mb-6">
+            <CommentSystem 
+              predictionId={stablePredictionId}
+            />
+          </div>
         </div>
       </div>
 
@@ -950,12 +871,36 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
         onClose={() => setShowSettlementModal(false)}
       />
 
+      {/* Share Modal */}
+      {prediction && (
+        <ShareModal
+          isOpen={showShareModal}
+          onClose={() => setShowShareModal(false)}
+          prediction={{
+            id: prediction.id,
+            title: prediction.title,
+            description: prediction.description,
+            category: prediction.category
+          }}
+        />
+      )}
+
       {/* Dispute Modal */}
       <DisputeModal
         predictionId={prediction?.id || ''}
         isOpen={disputeModalOpen}
         onClose={() => setDisputeModalOpen(false)}
       />
+
+      {/* Auth required for actions */}
+      {showAuthPrompt && (
+        <AuthPrompt 
+          title="Sign in required"
+          message="Sign in to place a prediction or engage with the community."
+          onClose={() => setShowAuthPrompt(false)}
+          intendedDestination={typeof window !== 'undefined' ? window.location.pathname : '/'}
+        />
+      )}
 
       {/* Acceptance Bar - Fixed at bottom */}
       {prediction.status === 'settled' && userHasEntry && settlementData && (

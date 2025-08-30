@@ -66,6 +66,8 @@ export const useCommentStore = create<CommentState & CommentActions>((set, get) 
   fetchComments: async (predictionId: string) => {
     set({ loading: true, error: null });
     try {
+      const { data: { user: currentUser } } = await supabase.auth.getUser();
+      
       const { data: comments, error } = await supabase
         .from('comments')
         .select(`
@@ -79,8 +81,31 @@ export const useCommentStore = create<CommentState & CommentActions>((set, get) 
         throw error;
       }
 
-      // Get current user to check if they liked comments
-      const { data: { user } } = await supabase.auth.getUser();
+      // Get user's liked comments
+      let userLikedComments: string[] = [];
+      if (currentUser && comments && comments.length > 0) {
+        const { data: userLikes } = await supabase
+          .from('comment_likes')
+          .select('comment_id')
+          .eq('user_id', currentUser.id)
+          .in('comment_id', comments.map(c => c.id));
+        
+        userLikedComments = userLikes?.map(like => like.comment_id) || [];
+      }
+
+      // Get like counts for all comments
+      let commentLikeCounts: Record<string, number> = {};
+      if (comments && comments.length > 0) {
+        const { data: likeCounts } = await supabase
+          .from('comment_likes')
+          .select('comment_id, count')
+          .in('comment_id', comments.map(c => c.id))
+          .group('comment_id');
+        
+        commentLikeCounts = Object.fromEntries(
+          likeCounts?.map(item => [item.comment_id, item.count]) || []
+        );
+      }
       
       const commentsWithLikes = comments?.map(comment => ({
         ...comment,
@@ -89,8 +114,8 @@ export const useCommentStore = create<CommentState & CommentActions>((set, get) 
           username: comment.user.username || comment.user.full_name || 'Anonymous',
           avatar_url: comment.user.avatar_url
         },
-        likes_count: 0, // TODO: Implement comment likes count
-        is_liked_by_user: false // TODO: Implement user likes check
+        likes_count: commentLikeCounts[comment.id] || 0,
+        is_liked_by_user: userLikedComments.includes(comment.id)
       })) || [];
 
       set({ comments: commentsWithLikes, loading: false });

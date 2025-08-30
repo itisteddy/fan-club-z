@@ -169,6 +169,11 @@ interface PredictionActions {
   // State management
   clearError: () => void;
   reset: () => void;
+  
+  // Real-time update methods
+  updatePredictionFromRealtime: (updatedPrediction: Prediction) => void;
+  refreshPrediction: (predictionId: string) => Promise<void>;
+  updatePredictionLikeCount: (predictionId: string, delta: number) => void;
 }
 
 const initialState: PredictionState = {
@@ -696,14 +701,13 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
     } catch (error) {
       console.error('❌ Error fetching platform stats:', error);
       
-      // Set fallback stats based on current predictions
-      const { predictions } = get();
+      // Set zero stats when API fails - no mock data
       const fallbackStats: PlatformStats = {
-        totalVolume: predictions.reduce((sum, pred) => sum + (pred.pool_total || 0), 0).toFixed(2),
-        activePredictions: predictions.filter(pred => pred.status === 'open').length,
-        totalUsers: predictions.length > 0 ? '5' : '0', // Fallback user count
-        rawVolume: predictions.reduce((sum, pred) => sum + (pred.pool_total || 0), 0),
-        rawUsers: predictions.length > 0 ? 5 : 0
+        totalVolume: '0',
+        activePredictions: 0,
+        totalUsers: '0',
+        rawVolume: 0,
+        rawUsers: 0
       };
       
       set({
@@ -711,7 +715,7 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
         statsLoading: false
       });
       
-      console.log('📊 Using fallback stats:', fallbackStats);
+      console.log('📊 API failed, using zero stats:', fallbackStats);
     }
   },
 
@@ -963,5 +967,64 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
 
   reset: () => {
     set(initialState);
+  },
+
+  // Real-time update methods
+  updatePredictionFromRealtime: (updatedPrediction: Prediction) => {
+    console.log('🔄 Updating prediction from real-time:', updatedPrediction.id);
+    
+    set(state => ({
+      predictions: state.predictions.map(pred => 
+        pred.id === updatedPrediction.id ? { ...pred, ...updatedPrediction } : pred
+      ),
+      trendingPredictions: state.trendingPredictions.map(pred => 
+        pred.id === updatedPrediction.id ? { ...pred, ...updatedPrediction } : pred
+      ),
+      userPredictions: state.userPredictions.map(pred => 
+        pred.id === updatedPrediction.id ? { ...pred, ...updatedPrediction } : pred
+      ),
+      createdPredictions: state.createdPredictions.map(pred => 
+        pred.id === updatedPrediction.id ? { ...pred, ...updatedPrediction } : pred
+      ),
+      userCreatedPredictions: state.userCreatedPredictions.map(pred => 
+        pred.id === updatedPrediction.id ? { ...pred, ...updatedPrediction } : pred
+      )
+    }));
+  },
+
+  refreshPrediction: async (predictionId: string) => {
+    try {
+      console.log('🔄 Refreshing prediction:', predictionId);
+      
+      const response = await apiClient.get(`/api/v2/predictions/${predictionId}`);
+      if (response.data) {
+        const updatedPrediction = response.data;
+        get().updatePredictionFromRealtime(updatedPrediction);
+      }
+    } catch (error) {
+      console.error('❌ Error refreshing prediction:', error);
+    }
+  },
+
+  updatePredictionLikeCount: (predictionId: string, delta: number) => {
+    console.log('❤️ Updating like count for prediction:', predictionId, 'delta:', delta);
+    
+    set(state => ({
+      predictions: state.predictions.map(pred => 
+        pred.id === predictionId ? { ...pred, likes_count: Math.max(0, (pred.likes_count || 0) + delta) } : pred
+      ),
+      trendingPredictions: state.trendingPredictions.map(pred => 
+        pred.id === predictionId ? { ...pred, likes_count: Math.max(0, (pred.likes_count || 0) + delta) } : pred
+      ),
+      userPredictions: state.userPredictions.map(pred => 
+        pred.id === predictionId ? { ...pred, likes_count: Math.max(0, (pred.likes_count || 0) + delta) } : pred
+      ),
+      createdPredictions: state.createdPredictions.map(pred => 
+        pred.id === predictionId ? { ...pred, likes_count: Math.max(0, (pred.likes_count || 0) + delta) } : pred
+      ),
+      userCreatedPredictions: state.userCreatedPredictions.map(pred => 
+        pred.id === predictionId ? { ...pred, likes_count: Math.max(0, (pred.likes_count || 0) + delta) } : pred
+      )
+    }));
   }
 }));

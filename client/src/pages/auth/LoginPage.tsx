@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuthStore } from '../../store/authStore';
 import Logo from '../../components/common/Logo';
 import toast from 'react-hot-toast';
+import { scrollToTop } from '../../utils/scroll';
 
 export const LoginPage: React.FC = () => {
   const { login, loading } = useAuthStore();
@@ -9,6 +10,11 @@ export const LoginPage: React.FC = () => {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [formErrors, setFormErrors] = useState<{ email?: string; password?: string }>({});
+
+  // Scroll to top when component mounts
+  useEffect(() => {
+    scrollToTop({ behavior: 'instant' });
+  }, []);
 
   const validateForm = () => {
     const errors: { email?: string; password?: string } = {};
@@ -47,15 +53,7 @@ export const LoginPage: React.FC = () => {
 
   const togglePassword = () => setShowPassword(!showPassword);
 
-  const handleTestLogin = async (testEmail: string, testPassword: string) => {
-    try {
-      setEmail(testEmail);
-      setPassword(testPassword);
-      await login(testEmail, testPassword);
-    } catch (error: any) {
-      console.error('Test login error:', error);
-    }
-  };
+
 
   return (
     <div className="bg-white rounded-lg shadow-lg p-6">
@@ -69,28 +67,7 @@ export const LoginPage: React.FC = () => {
         <p className="text-sm text-gray-500">Predict the future, earn rewards</p>
       </div>
       
-      {/* Test Mode Panel */}
-      <div className="mb-4 p-3 bg-gray-100 rounded-lg">
-        <p className="text-sm text-gray-600 mb-2">Quick Test Login:</p>
-        <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={() => handleTestLogin('demo@example.com', 'demo123')}
-            className="px-3 py-1 bg-blue-500 text-white text-xs rounded hover:bg-blue-600 transition-colors"
-            disabled={loading}
-          >
-            Demo User
-          </button>
-          <button
-            type="button"
-            onClick={() => handleTestLogin('user@gmail.com', 'test123')}
-            className="px-3 py-1 bg-purple-500 text-white text-xs rounded hover:bg-purple-600 transition-colors"
-            disabled={loading}
-          >
-            Test User
-          </button>
-        </div>
-      </div>
+
       
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>

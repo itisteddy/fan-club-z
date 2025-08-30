@@ -11,7 +11,8 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
   onClick,
   className = ''
 }) => {
-  const { unreadCount } = useNotificationStore();
+  // Notification store has been refactored - using static count for now
+  const unreadCount = 0; // Real notification count will be implemented with notification store
   const [isAnimating, setIsAnimating] = useState(false);
 
   useEffect(() => {

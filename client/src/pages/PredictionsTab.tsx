@@ -315,8 +315,8 @@ const PredictionsTab: React.FC<PredictionsTabProps> = ({ onNavigateToDiscover })
                   onClick={() => setActiveTab(tab.id)}
                   className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-medium transition-all duration-200 ${
                     activeTab === tab.id
-                      ? 'bg-white text-gray-900 shadow-sm'
-                      : 'text-gray-600 hover:text-gray-900'
+                      ? 'bg-white dark:bg-gray-800 text-gray-900 dark:text-white shadow-sm'
+                      : 'text-gray-600 dark:text-gray-300'
                   }`}
                 >
                   <Icon className="w-4 h-4" />

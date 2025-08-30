@@ -195,31 +195,9 @@ export const ClubDetailPage: React.FC<ClubDetailPageProps> = ({ onBack, hideHead
     );
   }
 
-  // Mock data for demonstration - in real app this would come from the store
-  const recentPredictions = [
-    {
-      id: '1',
-      title: 'Will Arsenal beat Tottenham in the North London Derby?',
-      creator: 'ArsenalFan2024',
-      participants: 89,
-      pool: 25400,
-      timeLeft: '3d 12h'
-    },
-    {
-      id: '2', 
-      title: 'Will Saka score in the next match?',
-      creator: 'GunnersPride',
-      participants: 67,
-      pool: 18900,
-      timeLeft: '1d 8h'
-    }
-  ];
-
-  const topMembers = [
-    { name: 'ArsenalLegend', wins: 23, avatar: null },
-    { name: 'GunnerForLife', wins: 19, avatar: null },
-    { name: 'RedArmy', wins: 17, avatar: null }
-  ];
+  // No mock data - will be populated by real API
+  const recentPredictions: any[] = [];
+  const topMembers: any[] = [];
 
   // Check if user can manage the club
   const canManageClub = currentClub.ownerId === user?.id || currentClub.memberRole === 'admin';

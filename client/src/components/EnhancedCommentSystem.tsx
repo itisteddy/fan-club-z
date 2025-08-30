@@ -19,7 +19,7 @@ interface CommentItemProps {
 
 const EMOJI_REACTIONS = ['👍', '❤️', '😂', '😮', '😢', '😡'];
 
-const CommentItem = React.memo(function CommentItem({ 
+const CommentItem: React.FC<CommentItemProps> = React.memo(({ 
   comment, 
   depth = 0, 
   onReply, 

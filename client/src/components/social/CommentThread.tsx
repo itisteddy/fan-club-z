@@ -285,7 +285,7 @@ export const CommentThread: React.FC<CommentThreadProps> = ({
   return (
     <div className="fixed inset-0 z-[10000] bg-black bg-opacity-50" onClick={onClose}>
       <div 
-        className="fixed inset-x-0 bottom-0 bg-white rounded-t-lg max-h-[80vh] overflow-hidden"
+        className="fixed inset-x-0 bottom-0 bg-white rounded-t-lg max-h-[90vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -304,7 +304,7 @@ export const CommentThread: React.FC<CommentThreadProps> = ({
         </div>
 
         {/* Comments List */}
-        <div className="flex-1 overflow-y-auto p-4 max-h-96">
+        <div className="p-4">
           {topLevelComments.length === 0 ? (
             <div className="text-center py-8">
               <MessageCircle className="w-12 h-12 text-gray-300 mx-auto mb-3" />

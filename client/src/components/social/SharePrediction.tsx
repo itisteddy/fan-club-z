@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { Share2, Copy, Check, Twitter, MessageCircle, Download, Link } from 'lucide-react';
 import { usePredictionStore } from '../../store/predictionStore';
-import { notificationHelpers } from '../../store/notificationStore';
+import toast from 'react-hot-toast';
+import { createShareContent, shareContent, createPlatformShareUrl } from '../../utils/shareUtils';
 
 interface SharePredictionProps {
   predictionId: string;
@@ -23,21 +24,32 @@ export const SharePrediction: React.FC<SharePredictionProps> = ({
     signups: 0,
   });
 
-  const shareUrl = `${window.location.origin}/predictions/${predictionId}`;
-  const shareText = `Check out this prediction: "${predictionTitle}" on Fan Club Z!`;
+  // Create properly formatted share content
+  const shareData = createShareContent(
+    {
+      id: predictionId,
+      title: predictionTitle,
+      category: 'custom' // Default category, could be enhanced to get actual category
+    },
+    {
+      includeDescription: true,
+      includeBranding: true,
+      customPrefix: '🎯 Check out this prediction!'
+    }
+  );
 
   const handleCopyLink = async () => {
     try {
-      await navigator.clipboard.writeText(shareUrl);
+      await navigator.clipboard.writeText(shareData.fullMessage);
       setCopied(true);
-      notificationHelpers.showSuccessToast('Link copied to clipboard');
+      toast.success('Prediction copied to clipboard!');
       
       setTimeout(() => setCopied(false), 2000);
       
       // Track share event
       trackShare('copy_link');
     } catch (error) {
-      notificationHelpers.showErrorToast('Failed to copy link');
+      toast.error('Failed to copy prediction');
     }
   };
 
@@ -47,19 +59,19 @@ export const SharePrediction: React.FC<SharePredictionProps> = ({
   };
 
   const shareToTwitter = () => {
-    const twitterUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}&url=${encodeURIComponent(shareUrl)}`;
+    const twitterUrl = createPlatformShareUrl(shareData, 'twitter');
     window.open(twitterUrl, '_blank');
     trackShare('twitter');
   };
 
   const shareToWhatsApp = () => {
-    const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(`${shareText} ${shareUrl}`)}`;
+    const whatsappUrl = createPlatformShareUrl(shareData, 'whatsapp');
     window.open(whatsappUrl, '_blank');
     trackShare('whatsapp');
   };
 
   const shareToTelegram = () => {
-    const telegramUrl = `https://t.me/share/url?url=${encodeURIComponent(shareUrl)}&text=${encodeURIComponent(shareText)}`;
+    const telegramUrl = createPlatformShareUrl(shareData, 'telegram');
     window.open(telegramUrl, '_blank');
     trackShare('telegram');
   };
@@ -68,9 +80,9 @@ export const SharePrediction: React.FC<SharePredictionProps> = ({
     if (navigator.share) {
       try {
         await navigator.share({
-          title: 'Fan Club Z Prediction',
-          text: shareText,
-          url: shareUrl,
+          title: shareData.title,
+          text: shareData.text,
+          url: shareData.url,
         });
         trackShare('native_share');
       } catch (error) {
@@ -82,7 +94,7 @@ export const SharePrediction: React.FC<SharePredictionProps> = ({
   const downloadAsImage = () => {
     // This would generate a shareable image of the prediction
     // For now, we'll show a placeholder
-    notificationHelpers.showInfoToast('Image download feature coming soon!');
+    toast.success('Image download feature coming soon!');
     trackShare('download_image');
   };
 
@@ -91,9 +103,10 @@ export const SharePrediction: React.FC<SharePredictionProps> = ({
   return (
     <div className="fixed inset-0 z-[10500] bg-black bg-opacity-50" onClick={onClose}>
       <div 
-        className="fixed inset-x-0 bottom-0 bg-white rounded-t-lg p-6"
+        className="fixed inset-x-0 bottom-0 bg-white rounded-t-lg max-h-[90vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
+        <div className="p-6">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-2">
@@ -110,8 +123,16 @@ export const SharePrediction: React.FC<SharePredictionProps> = ({
 
         {/* Preview */}
         <div className="bg-gray-50 rounded-lg p-4 mb-6">
-          <h4 className="font-medium text-gray-900 mb-2">{predictionTitle}</h4>
-          <p className="text-sm text-gray-600">fanclubz.com</p>
+          <div className="flex items-start gap-3">
+            <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg flex items-center justify-center">
+              <span className="text-white font-bold text-sm">🎯</span>
+            </div>
+            <div className="flex-1">
+              <h4 className="font-semibold text-gray-900 mb-1">{predictionTitle}</h4>
+              <p className="text-sm text-gray-600 mb-2">Make your prediction and compete with friends!</p>
+              <p className="text-xs text-gray-500 font-mono">{shareData.url}</p>
+            </div>
+          </div>
         </div>
 
         {/* Share Options */}
@@ -165,7 +186,7 @@ export const SharePrediction: React.FC<SharePredictionProps> = ({
             onClick={shareToTelegram}
             className="flex items-center justify-center gap-3 p-4 border border-gray-200 rounded-lg hover:bg-blue-50 transition-colors"
           >
-            <Send className="w-5 h-5 text-blue-500" />
+            <MessageCircle className="w-5 h-5 text-blue-500" />
             <span className="font-medium text-gray-900">Telegram</span>
           </button>
 
@@ -204,6 +225,7 @@ export const SharePrediction: React.FC<SharePredictionProps> = ({
             <Link className="w-3 h-3 inline mr-1" />
             Shared links are public and can be viewed by anyone. Personal information is not shared.
           </p>
+        </div>
         </div>
       </div>
     </div>

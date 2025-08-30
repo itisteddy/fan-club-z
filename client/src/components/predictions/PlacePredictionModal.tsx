@@ -200,7 +200,7 @@ export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
                           className={cn(
                             "cursor-pointer transition-all border-2",
                             selectedOptionId === option.id 
-                              ? "border-teal-500 bg-teal-50" 
+                              ? "border-teal-500 bg-teal-100" 
                               : "border-gray-200 hover:border-gray-300"
                           )}
                           onClick={() => setSelectedOptionId(option.id)}
@@ -209,7 +209,7 @@ export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
                             <div className="flex items-center justify-between">
                               <div className="flex-1">
                                 <div className="font-medium text-gray-900">{option.label}</div>
-                                <div className="text-sm text-gray-500">
+                                <div className={`text-sm ${selectedOptionId === option.id ? 'text-gray-700' : 'text-gray-500'}`}>
                                   {percentage.toFixed(1)}%
                                 </div>
                               </div>

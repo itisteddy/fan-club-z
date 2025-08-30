@@ -1,0 +1,426 @@
+/* Professional Trading Design System for Fan Club Z */
+
+/* Root Variables - Clean Professional Palette */
+:root {
+  /* Primary Colors - Sophisticated Blues and Greens */
+  --fc-primary-50: #f0f9ff;
+  --fc-primary-100: #e0f2fe;
+  --fc-primary-200: #bae6fd;
+  --fc-primary-300: #7dd3fc;
+  --fc-primary-400: #38bdf8;
+  --fc-primary-500: #0ea5e9;
+  --fc-primary-600: #0284c7;
+  --fc-primary-700: #0369a1;
+  --fc-primary-800: #075985;
+  --fc-primary-900: #0c4a6e;
+
+  /* Success/Profit Colors */
+  --fc-success-50: #f0fdf4;
+  --fc-success-100: #dcfce7;
+  --fc-success-200: #bbf7d0;
+  --fc-success-300: #86efac;
+  --fc-success-400: #4ade80;
+  --fc-success-500: #22c55e;
+  --fc-success-600: #16a34a;
+  --fc-success-700: #15803d;
+  --fc-success-800: #166534;
+  --fc-success-900: #14532d;
+
+  /* Danger/Loss Colors */
+  --fc-danger-50: #fef2f2;
+  --fc-danger-100: #fee2e2;
+  --fc-danger-200: #fecaca;
+  --fc-danger-300: #fca5a5;
+  --fc-danger-400: #f87171;
+  --fc-danger-500: #ef4444;
+  --fc-danger-600: #dc2626;
+  --fc-danger-700: #b91c1c;
+  --fc-danger-800: #991b1b;
+  --fc-danger-900: #7f1d1d;
+
+  /* Neutral Colors - Professional Gray Scale */
+  --fc-neutral-50: #fafafa;
+  --fc-neutral-100: #f5f5f5;
+  --fc-neutral-200: #e5e5e5;
+  --fc-neutral-300: #d4d4d4;
+  --fc-neutral-400: #a3a3a3;
+  --fc-neutral-500: #737373;
+  --fc-neutral-600: #525252;
+  --fc-neutral-700: #404040;
+  --fc-neutral-800: #262626;
+  --fc-neutral-900: #171717;
+
+  /* Typography Scale */
+  --fc-font-xs: 0.75rem;      /* 12px */
+  --fc-font-sm: 0.875rem;     /* 14px */
+  --fc-font-base: 1rem;       /* 16px */
+  --fc-font-lg: 1.125rem;     /* 18px */
+  --fc-font-xl: 1.25rem;      /* 20px */
+  --fc-font-2xl: 1.5rem;      /* 24px */
+  --fc-font-3xl: 1.875rem;    /* 30px */
+
+  /* Spacing Scale */
+  --fc-space-1: 0.25rem;      /* 4px */
+  --fc-space-2: 0.5rem;       /* 8px */
+  --fc-space-3: 0.75rem;      /* 12px */
+  --fc-space-4: 1rem;         /* 16px */
+  --fc-space-5: 1.25rem;      /* 20px */
+  --fc-space-6: 1.5rem;       /* 24px */
+  --fc-space-8: 2rem;         /* 32px */
+  --fc-space-10: 2.5rem;      /* 40px */
+  --fc-space-12: 3rem;        /* 48px */
+  --fc-space-16: 4rem;        /* 64px */
+
+  /* Border Radius */
+  --fc-radius-sm: 0.375rem;   /* 6px */
+  --fc-radius-md: 0.5rem;     /* 8px */
+  --fc-radius-lg: 0.75rem;    /* 12px */
+  --fc-radius-xl: 1rem;       /* 16px */
+
+  /* Shadows - Subtle Professional Depth */
+  --fc-shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --fc-shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+  --fc-shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+  --fc-shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+}
+
+/* Base Professional Styles */
+.fc-body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  background-color: var(--fc-neutral-50);
+  color: var(--fc-neutral-900);
+  line-height: 1.5;
+  font-size: var(--fc-font-base);
+}
+
+/* Professional Card System */
+.fc-card {
+  background: white;
+  border: 1px solid var(--fc-neutral-200);
+  border-radius: var(--fc-radius-lg);
+  box-shadow: var(--fc-shadow-sm);
+  transition: all 0.2s ease;
+}
+
+.fc-card:hover {
+  border-color: var(--fc-neutral-300);
+  box-shadow: var(--fc-shadow-md);
+}
+
+.fc-card-header {
+  padding: var(--fc-space-6);
+  border-bottom: 1px solid var(--fc-neutral-100);
+  font-weight: 600;
+  font-size: var(--fc-font-lg);
+  color: var(--fc-neutral-800);
+}
+
+.fc-card-body {
+  padding: var(--fc-space-6);
+}
+
+.fc-card-compact {
+  padding: var(--fc-space-4);
+}
+
+/* Button System - Professional Style */
+.fc-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--fc-space-2);
+  padding: var(--fc-space-3) var(--fc-space-4);
+  border-radius: var(--fc-radius-md);
+  font-weight: 500;
+  font-size: var(--fc-font-sm);
+  line-height: 1;
+  transition: all 0.15s ease;
+  cursor: pointer;
+  border: 1px solid transparent;
+  text-decoration: none;
+  position: relative;
+  overflow: hidden;
+}
+
+.fc-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Primary Button */
+.fc-btn-primary {
+  background: var(--fc-primary-600);
+  color: white;
+  border-color: var(--fc-primary-600);
+}
+
+.fc-btn-primary:hover:not(:disabled) {
+  background: var(--fc-primary-700);
+  border-color: var(--fc-primary-700);
+  transform: translateY(-1px);
+  box-shadow: var(--fc-shadow-md);
+}
+
+/* Success Button */
+.fc-btn-success {
+  background: var(--fc-success-600);
+  color: white;
+  border-color: var(--fc-success-600);
+}
+
+.fc-btn-success:hover:not(:disabled) {
+  background: var(--fc-success-700);
+  border-color: var(--fc-success-700);
+  transform: translateY(-1px);
+}
+
+/* Danger Button */
+.fc-btn-danger {
+  background: var(--fc-danger-600);
+  color: white;
+  border-color: var(--fc-danger-600);
+}
+
+.fc-btn-danger:hover:not(:disabled) {
+  background: var(--fc-danger-700);
+  border-color: var(--fc-danger-700);
+  transform: translateY(-1px);
+}
+
+/* Secondary Button */
+.fc-btn-secondary {
+  background: var(--fc-neutral-100);
+  color: var(--fc-neutral-700);
+  border-color: var(--fc-neutral-200);
+}
+
+.fc-btn-secondary:hover:not(:disabled) {
+  background: var(--fc-neutral-200);
+  border-color: var(--fc-neutral-300);
+  transform: translateY(-1px);
+}
+
+/* Outline Button */
+.fc-btn-outline {
+  background: transparent;
+  color: var(--fc-primary-600);
+  border-color: var(--fc-primary-600);
+}
+
+.fc-btn-outline:hover:not(:disabled) {
+  background: var(--fc-primary-50);
+  transform: translateY(-1px);
+}
+
+/* Button Sizes */
+.fc-btn-sm {
+  padding: var(--fc-space-2) var(--fc-space-3);
+  font-size: var(--fc-font-xs);
+}
+
+.fc-btn-lg {
+  padding: var(--fc-space-4) var(--fc-space-6);
+  font-size: var(--fc-font-base);
+}
+
+/* Input System */
+.fc-input {
+  width: 100%;
+  padding: var(--fc-space-3) var(--fc-space-4);
+  border: 1px solid var(--fc-neutral-300);
+  border-radius: var(--fc-radius-md);
+  font-size: var(--fc-font-sm);
+  background: white;
+  transition: all 0.15s ease;
+}
+
+.fc-input:focus {
+  outline: none;
+  border-color: var(--fc-primary-500);
+  box-shadow: 0 0 0 3px var(--fc-primary-100);
+}
+
+.fc-input::placeholder {
+  color: var(--fc-neutral-400);
+}
+
+/* Typography */
+.fc-text-xs { font-size: var(--fc-font-xs); }
+.fc-text-sm { font-size: var(--fc-font-sm); }
+.fc-text-base { font-size: var(--fc-font-base); }
+.fc-text-lg { font-size: var(--fc-font-lg); }
+.fc-text-xl { font-size: var(--fc-font-xl); }
+.fc-text-2xl { font-size: var(--fc-font-2xl); }
+.fc-text-3xl { font-size: var(--fc-font-3xl); }
+
+.fc-font-medium { font-weight: 500; }
+.fc-font-semibold { font-weight: 600; }
+.fc-font-bold { font-weight: 700; }
+
+/* Colors */
+.fc-text-primary { color: var(--fc-primary-600); }
+.fc-text-success { color: var(--fc-success-600); }
+.fc-text-danger { color: var(--fc-danger-600); }
+.fc-text-neutral { color: var(--fc-neutral-600); }
+.fc-text-muted { color: var(--fc-neutral-400); }
+
+/* Market Data Display - Trading Style */
+.fc-market-card {
+  background: white;
+  border: 1px solid var(--fc-neutral-200);
+  border-radius: var(--fc-radius-xl);
+  padding: var(--fc-space-6);
+  box-shadow: var(--fc-shadow-sm);
+  transition: all 0.2s ease;
+}
+
+.fc-market-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--fc-shadow-lg);
+  border-color: var(--fc-primary-200);
+}
+
+.fc-price-display {
+  font-size: var(--fc-font-2xl);
+  font-weight: 700;
+  color: var(--fc-neutral-900);
+  line-height: 1.2;
+}
+
+.fc-price-change {
+  font-size: var(--fc-font-sm);
+  font-weight: 500;
+  padding: var(--fc-space-1) var(--fc-space-2);
+  border-radius: var(--fc-radius-sm);
+}
+
+.fc-price-up {
+  color: var(--fc-success-700);
+  background: var(--fc-success-50);
+}
+
+.fc-price-down {
+  color: var(--fc-danger-700);
+  background: var(--fc-danger-50);
+}
+
+/* Layout Utilities */
+.fc-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 var(--fc-space-6);
+}
+
+.fc-grid {
+  display: grid;
+  gap: var(--fc-space-6);
+}
+
+.fc-grid-2 { grid-template-columns: repeat(2, 1fr); }
+.fc-grid-3 { grid-template-columns: repeat(3, 1fr); }
+.fc-grid-4 { grid-template-columns: repeat(4, 1fr); }
+
+@media (max-width: 768px) {
+  .fc-grid-2,
+  .fc-grid-3,
+  .fc-grid-4 {
+    grid-template-columns: 1fr;
+  }
+}
+
+.fc-flex {
+  display: flex;
+  gap: var(--fc-space-4);
+}
+
+.fc-flex-between {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.fc-flex-center {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+/* Spacing Utilities */
+.fc-mb-1 { margin-bottom: var(--fc-space-1); }
+.fc-mb-2 { margin-bottom: var(--fc-space-2); }
+.fc-mb-3 { margin-bottom: var(--fc-space-3); }
+.fc-mb-4 { margin-bottom: var(--fc-space-4); }
+.fc-mb-6 { margin-bottom: var(--fc-space-6); }
+.fc-mb-8 { margin-bottom: var(--fc-space-8); }
+
+.fc-mt-1 { margin-top: var(--fc-space-1); }
+.fc-mt-2 { margin-top: var(--fc-space-2); }
+.fc-mt-3 { margin-top: var(--fc-space-3); }
+.fc-mt-4 { margin-top: var(--fc-space-4); }
+.fc-mt-6 { margin-top: var(--fc-space-6); }
+.fc-mt-8 { margin-top: var(--fc-space-8); }
+
+/* Professional Status Indicators */
+.fc-status {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--fc-space-1);
+  padding: var(--fc-space-1) var(--fc-space-2);
+  border-radius: var(--fc-radius-sm);
+  font-size: var(--fc-font-xs);
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.025em;
+}
+
+.fc-status-active {
+  color: var(--fc-success-700);
+  background: var(--fc-success-50);
+  border: 1px solid var(--fc-success-200);
+}
+
+.fc-status-closed {
+  color: var(--fc-neutral-600);
+  background: var(--fc-neutral-100);
+  border: 1px solid var(--fc-neutral-200);
+}
+
+.fc-status-settled {
+  color: var(--fc-primary-700);
+  background: var(--fc-primary-50);
+  border: 1px solid var(--fc-primary-200);
+}
+
+/* Animations */
+@keyframes fc-fade-in {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fc-slide-up {
+  from { transform: translateY(100%); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+.fc-animate-fade-in {
+  animation: fc-fade-in 0.3s ease-out;
+}
+
+.fc-animate-slide-up {
+  animation: fc-slide-up 0.4s ease-out;
+}
+
+/* Responsive Design */
+@media (max-width: 640px) {
+  .fc-container {
+    padding: 0 var(--fc-space-4);
+  }
+  
+  .fc-card-body {
+    padding: var(--fc-space-4);
+  }
+  
+  .fc-market-card {
+    padding: var(--fc-space-4);
+  }
+}
