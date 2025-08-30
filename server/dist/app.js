@@ -157,7 +157,7 @@ app.get('/health', (req, res) => {
         timestamp: new Date().toISOString(),
         uptime: process.uptime(),
         environment: process.env.NODE_ENV || 'development',
-        version: process.env.npm_package_version || '2.0.0',
+        version: process.env.npm_package_version || '0.0.0',
         port: config_1.config.server.port,
         websocket: 'enabled'
     });

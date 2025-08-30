@@ -37,6 +37,7 @@ const SettingsPage: React.FC = () => {
   // Navigation handlers
   const onNavigateBack = useCallback(() => {
     setLocation('/profile');
+    scrollToTop({ behavior: 'instant' });
   }, [setLocation]);
 
   const handleLogout = () => {
@@ -126,6 +127,7 @@ This action cannot be undone.`;
 
   const handleEditProfile = () => {
     setLocation('/profile');
+    scrollToTop({ behavior: 'instant' });
     toast.success('Navigate to profile page to edit your details');
   };
 

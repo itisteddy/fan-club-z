@@ -1,11 +1,14 @@
 "use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
 const auth_1 = require("../middleware/auth");
 const validation_1 = require("../middleware/validation");
-const schemas_1 = require("../../../shared/src/schemas");
+const shared_1 = require("@fanclubz/shared");
 const wallet_1 = require("../services/wallet");
-const logger_1 = require("../utils/logger");
+const logger_1 = __importDefault(require("../utils/logger"));
 const router = (0, express_1.Router)();
 const walletService = new wallet_1.WalletService();
 // ============================================================================
@@ -27,7 +30,7 @@ router.get('/balance', auth_1.authenticateToken, async (req, res) => {
         res.json(response);
     }
     catch (error) {
-        logger_1.logger.error('Error fetching wallet balances:', error);
+        logger_1.default.error('Error fetching wallet balances:', error);
         const response = {
             success: false,
             error: 'Failed to fetch wallet balances',
@@ -61,7 +64,7 @@ router.get('/balance/:currency', auth_1.authenticateToken, async (req, res) => {
         res.json(response);
     }
     catch (error) {
-        logger_1.logger.error('Error fetching wallet balance:', error);
+        logger_1.default.error('Error fetching wallet balance:', error);
         const response = {
             success: false,
             error: 'Failed to fetch wallet balance',
@@ -76,7 +79,7 @@ router.get('/balance/:currency', auth_1.authenticateToken, async (req, res) => {
  * POST /api/v2/wallet/deposit
  * Initiate a deposit (demo implementation)
  */
-router.post('/deposit', auth_1.authenticateToken, (0, validation_1.validateRequest)(schemas_1.DepositSchema), async (req, res) => {
+router.post('/deposit', auth_1.authenticateToken, (0, validation_1.validateRequest)(shared_1.DepositSchema), async (req, res) => {
     try {
         const userId = req.user.id;
         const depositData = req.body;
@@ -89,7 +92,7 @@ router.post('/deposit', auth_1.authenticateToken, (0, validation_1.validateReque
         res.json(response);
     }
     catch (error) {
-        logger_1.logger.error('Error initiating deposit:', error);
+        logger_1.default.error('Error initiating deposit:', error);
         const response = {
             success: false,
             error: error instanceof Error ? error.message : 'Failed to initiate deposit',
@@ -120,7 +123,7 @@ router.post('/deposit/confirm', auth_1.authenticateToken, async (req, res) => {
         res.json(response);
     }
     catch (error) {
-        logger_1.logger.error('Error confirming deposit:', error);
+        logger_1.default.error('Error confirming deposit:', error);
         const response = {
             success: false,
             error: error instanceof Error ? error.message : 'Failed to confirm deposit',
@@ -135,7 +138,7 @@ router.post('/deposit/confirm', auth_1.authenticateToken, async (req, res) => {
  * POST /api/v2/wallet/withdraw
  * Initiate a withdrawal (demo implementation)
  */
-router.post('/withdraw', auth_1.authenticateToken, (0, validation_1.validateRequest)(schemas_1.WithdrawSchema), async (req, res) => {
+router.post('/withdraw', auth_1.authenticateToken, (0, validation_1.validateRequest)(shared_1.WithdrawSchema), async (req, res) => {
     try {
         const userId = req.user.id;
         const withdrawalData = req.body;
@@ -148,7 +151,7 @@ router.post('/withdraw', auth_1.authenticateToken, (0, validation_1.validateRequ
         res.json(response);
     }
     catch (error) {
-        logger_1.logger.error('Error initiating withdrawal:', error);
+        logger_1.default.error('Error initiating withdrawal:', error);
         const response = {
             success: false,
             error: error instanceof Error ? error.message : 'Failed to initiate withdrawal',
@@ -179,7 +182,7 @@ router.post('/withdraw/confirm', auth_1.authenticateToken, async (req, res) => {
         res.json(response);
     }
     catch (error) {
-        logger_1.logger.error('Error confirming withdrawal:', error);
+        logger_1.default.error('Error confirming withdrawal:', error);
         const response = {
             success: false,
             error: error instanceof Error ? error.message : 'Failed to confirm withdrawal',
@@ -194,7 +197,7 @@ router.post('/withdraw/confirm', auth_1.authenticateToken, async (req, res) => {
  * GET /api/v2/wallet/transactions
  * Get user's transaction history with pagination
  */
-router.get('/transactions', auth_1.authenticateToken, (0, validation_1.validateRequest)(schemas_1.PaginationQuerySchema, 'query'), async (req, res) => {
+router.get('/transactions', auth_1.authenticateToken, (0, validation_1.validateRequest)(shared_1.PaginationQuerySchema, 'query'), async (req, res) => {
     try {
         const userId = req.user.id;
         const { page, limit } = req.query;
@@ -213,7 +216,7 @@ router.get('/transactions', auth_1.authenticateToken, (0, validation_1.validateR
         res.json(response);
     }
     catch (error) {
-        logger_1.logger.error('Error fetching transaction history:', error);
+        logger_1.default.error('Error fetching transaction history:', error);
         const response = {
             success: false,
             error: 'Failed to fetch transaction history',
@@ -245,7 +248,7 @@ router.get('/transactions/:id', auth_1.authenticateToken, async (req, res) => {
         res.json(response);
     }
     catch (error) {
-        logger_1.logger.error('Error fetching transaction details:', error);
+        logger_1.default.error('Error fetching transaction details:', error);
         const response = {
             success: false,
             error: 'Failed to fetch transaction details',
@@ -301,7 +304,7 @@ router.post('/transfer', auth_1.authenticateToken, async (req, res) => {
         res.json(response);
     }
     catch (error) {
-        logger_1.logger.error('Error processing transfer:', error);
+        logger_1.default.error('Error processing transfer:', error);
         const response = {
             success: false,
             error: error instanceof Error ? error.message : 'Failed to process transfer',
@@ -328,7 +331,7 @@ router.get('/stats', auth_1.authenticateToken, async (req, res) => {
         res.json(response);
     }
     catch (error) {
-        logger_1.logger.error('Error fetching wallet stats:', error);
+        logger_1.default.error('Error fetching wallet stats:', error);
         const response = {
             success: false,
             error: 'Failed to fetch wallet statistics',

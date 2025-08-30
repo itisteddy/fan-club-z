@@ -1,36 +1,39 @@
 "use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.seedDatabase = seedDatabase;
 const supabase_js_1 = require("@supabase/supabase-js");
 const config_1 = require("../config");
-const logger_1 = require("../utils/logger");
+const logger_1 = __importDefault(require("../utils/logger"));
 const supabase = (0, supabase_js_1.createClient)(config_1.config.supabase.url, config_1.config.supabase.serviceRoleKey);
 async function seedDatabase() {
     try {
-        logger_1.logger.info('Starting database seeding...');
+        logger_1.default.info('Starting database seeding...');
         // Check if data already exists
         const { data: existingUsers } = await supabase
             .from('users')
             .select('id')
             .limit(1);
         if (existingUsers && existingUsers.length > 0) {
-            logger_1.logger.info('Database already seeded, skipping...');
+            logger_1.default.info('Database already seeded, skipping...');
             return;
         }
         // Get real users from Supabase Auth
-        logger_1.logger.info('Fetching real users from Supabase Auth...');
+        logger_1.default.info('Fetching real users from Supabase Auth...');
         const { data: authUsers, error: authError } = await supabase.auth.admin.listUsers();
         if (authError) {
-            logger_1.logger.error('Error fetching auth users:', authError);
+            logger_1.default.error('Error fetching auth users:', authError);
             throw authError;
         }
         if (!authUsers.users || authUsers.users.length === 0) {
-            logger_1.logger.warn('No users found in Supabase Auth. Please run create-test-users.ts first.');
+            logger_1.default.warn('No users found in Supabase Auth. Please run create-test-users.ts first.');
             return;
         }
-        logger_1.logger.info(`Found ${authUsers.users.length} users in Supabase Auth`);
+        logger_1.default.info(`Found ${authUsers.users.length} users in Supabase Auth`);
         // Create user profiles for auth users
-        logger_1.logger.info('Creating user profiles...');
+        logger_1.default.info('Creating user profiles...');
         const userProfiles = authUsers.users.map(user => ({
             id: user.id,
             email: user.email,
@@ -44,11 +47,11 @@ async function seedDatabase() {
             .from('users')
             .insert(userProfiles);
         if (usersError) {
-            logger_1.logger.error('Error creating user profiles:', usersError);
+            logger_1.default.error('Error creating user profiles:', usersError);
             throw usersError;
         }
         // Create wallets for users
-        logger_1.logger.info('Creating wallets...');
+        logger_1.default.info('Creating wallets...');
         const wallets = userProfiles.flatMap(user => [
             {
                 user_id: user.id,
@@ -67,11 +70,11 @@ async function seedDatabase() {
             .from('wallets')
             .insert(wallets);
         if (walletsError) {
-            logger_1.logger.error('Error creating wallets:', walletsError);
+            logger_1.default.error('Error creating wallets:', walletsError);
             throw walletsError;
         }
         // Create contextually meaningful clubs
-        logger_1.logger.info('Creating clubs...');
+        logger_1.default.info('Creating clubs...');
         const clubs = [
             {
                 id: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
@@ -123,11 +126,11 @@ async function seedDatabase() {
             .from('clubs')
             .insert(clubs);
         if (clubsError) {
-            logger_1.logger.error('Error creating clubs:', clubsError);
+            logger_1.default.error('Error creating clubs:', clubsError);
             throw clubsError;
         }
         // Add club memberships
-        logger_1.logger.info('Creating club memberships...');
+        logger_1.default.info('Creating club memberships...');
         const clubMemberships = [
             // Owners as admins
             ...clubs.map(club => ({
@@ -161,11 +164,11 @@ async function seedDatabase() {
             .from('club_members')
             .insert(clubMemberships);
         if (membershipsError) {
-            logger_1.logger.error('Error creating club memberships:', membershipsError);
+            logger_1.default.error('Error creating club memberships:', membershipsError);
             throw membershipsError;
         }
         // Create contextually meaningful predictions
-        logger_1.logger.info('Creating predictions...');
+        logger_1.default.info('Creating predictions...');
         const predictions = [
             {
                 id: 'pred1111-1111-1111-1111-111111111111',
@@ -247,11 +250,11 @@ async function seedDatabase() {
             .from('predictions')
             .insert(predictions);
         if (predictionsError) {
-            logger_1.logger.error('Error creating predictions:', predictionsError);
+            logger_1.default.error('Error creating predictions:', predictionsError);
             throw predictionsError;
         }
         // Create prediction options with realistic odds
-        logger_1.logger.info('Creating prediction options...');
+        logger_1.default.info('Creating prediction options...');
         const predictionOptions = [
             // Premier League prediction
             {
@@ -341,11 +344,11 @@ async function seedDatabase() {
             .from('prediction_options')
             .insert(predictionOptions);
         if (optionsError) {
-            logger_1.logger.error('Error creating prediction options:', optionsError);
+            logger_1.default.error('Error creating prediction options:', optionsError);
             throw optionsError;
         }
         // Update prediction pool totals
-        logger_1.logger.info('Updating prediction pool totals...');
+        logger_1.default.info('Updating prediction pool totals...');
         for (const prediction of predictions) {
             const totalPool = predictionOptions
                 .filter(option => option.prediction_id === prediction.id)
@@ -356,7 +359,7 @@ async function seedDatabase() {
                 .eq('id', prediction.id);
         }
         // Create meaningful comments
-        logger_1.logger.info('Creating comments...');
+        logger_1.default.info('Creating comments...');
         const comments = [
             {
                 prediction_id: 'pred1111-1111-1111-1111-111111111111',
@@ -383,11 +386,11 @@ async function seedDatabase() {
             .from('comments')
             .insert(comments);
         if (commentsError) {
-            logger_1.logger.error('Error creating comments:', commentsError);
+            logger_1.default.error('Error creating comments:', commentsError);
             throw commentsError;
         }
         // Create reactions
-        logger_1.logger.info('Creating reactions...');
+        logger_1.default.info('Creating reactions...');
         const reactions = [
             {
                 prediction_id: 'pred1111-1111-1111-1111-111111111111',
@@ -414,11 +417,11 @@ async function seedDatabase() {
             .from('reactions')
             .insert(reactions);
         if (reactionsError) {
-            logger_1.logger.error('Error creating reactions:', reactionsError);
+            logger_1.default.error('Error creating reactions:', reactionsError);
             throw reactionsError;
         }
         // Create wallet transactions
-        logger_1.logger.info('Creating transactions...');
+        logger_1.default.info('Creating transactions...');
         const transactions = userProfiles.flatMap((user, index) => [
             {
                 user_id: user.id,
@@ -443,24 +446,24 @@ async function seedDatabase() {
             .from('wallet_transactions')
             .insert(transactions);
         if (transactionsError) {
-            logger_1.logger.error('Error creating transactions:', transactionsError);
+            logger_1.default.error('Error creating transactions:', transactionsError);
             throw transactionsError;
         }
-        logger_1.logger.info('✅ Database seeding completed successfully!');
+        logger_1.default.info('✅ Database seeding completed successfully!');
         // Log summary
-        logger_1.logger.info('📊 Seeding Summary:');
-        logger_1.logger.info(`- ${userProfiles.length} user profiles created`);
-        logger_1.logger.info(`- ${userProfiles.length * 2} wallets created`);
-        logger_1.logger.info(`- ${clubs.length} clubs created`);
-        logger_1.logger.info(`- ${clubMemberships.length} club memberships created`);
-        logger_1.logger.info(`- ${predictions.length} predictions created`);
-        logger_1.logger.info(`- ${predictionOptions.length} prediction options created`);
-        logger_1.logger.info(`- ${comments.length} comments created`);
-        logger_1.logger.info(`- ${reactions.length} reactions created`);
-        logger_1.logger.info(`- ${transactions.length} transactions created`);
+        logger_1.default.info('📊 Seeding Summary:');
+        logger_1.default.info(`- ${userProfiles.length} user profiles created`);
+        logger_1.default.info(`- ${userProfiles.length * 2} wallets created`);
+        logger_1.default.info(`- ${clubs.length} clubs created`);
+        logger_1.default.info(`- ${clubMemberships.length} club memberships created`);
+        logger_1.default.info(`- ${predictions.length} predictions created`);
+        logger_1.default.info(`- ${predictionOptions.length} prediction options created`);
+        logger_1.default.info(`- ${comments.length} comments created`);
+        logger_1.default.info(`- ${reactions.length} reactions created`);
+        logger_1.default.info(`- ${transactions.length} transactions created`);
     }
     catch (error) {
-        logger_1.logger.error('❌ Error seeding database:', error);
+        logger_1.default.error('❌ Error seeding database:', error);
         throw error;
     }
 }
@@ -468,11 +471,11 @@ async function seedDatabase() {
 if (require.main === module) {
     seedDatabase()
         .then(() => {
-        logger_1.logger.info('✅ Seeding completed');
+        logger_1.default.info('✅ Seeding completed');
         process.exit(0);
     })
         .catch((error) => {
-        logger_1.logger.error('❌ Seeding failed:', error);
+        logger_1.default.error('❌ Seeding failed:', error);
         process.exit(1);
     });
 }

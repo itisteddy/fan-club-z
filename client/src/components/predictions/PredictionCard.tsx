@@ -272,13 +272,18 @@ export const PredictionCard: React.FC<PredictionCardProps> = ({
         >
           {/* Image banner (if provided) */}
           {prediction.image_url && (
-            <div className="w-full h-40 bg-gray-100 overflow-hidden">
+            <div className="w-full h-48 bg-gray-100 dark:bg-gray-800 overflow-hidden relative">
               <img
                 src={prediction.image_url}
-                alt="Prediction"
-                className="w-full h-full object-cover"
+                alt={`Image for prediction: ${prediction.title}`}
+                className="w-full h-full object-cover transition-transform duration-300 hover:scale-105"
                 loading="lazy"
+                onError={(e) => {
+                  console.warn('Failed to load prediction image:', prediction.image_url);
+                  e.currentTarget.style.display = 'none';
+                }}
               />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent pointer-events-none" />
             </div>
           )}
           {/* Header Section */}
@@ -296,14 +301,19 @@ export const PredictionCard: React.FC<PredictionCardProps> = ({
                     e.stopPropagation();
                     const targetUserId = prediction.creator?.id || prediction.creator_id;
                     console.log('👤 Navigating to creator profile:', targetUserId);
-                    setLocation(`/profile/${targetUserId}`);
+                    if (targetUserId) {
+                      setLocation(`/profile/${targetUserId}`);
+                      scrollToTop({ behavior: 'instant' });
+                    } else {
+                      console.warn('No creator ID available for navigation');
+                    }
                   }}
                   className="flex items-center gap-1 hover:text-primary transition-colors cursor-pointer"
                 >
-                  <span className="font-medium text-sm text-gray-900">
-                    {prediction.creator.username}
+                  <span className="font-medium text-sm text-gray-900 dark:text-gray-100">
+                    {prediction.creator?.username || prediction.creator?.full_name || 'Creator'}
                   </span>
-                  {prediction.creator.is_verified && (
+                  {prediction.creator?.is_verified && (
                     <CheckCircle size={12} className="text-primary" />
                   )}
                 </button>
@@ -336,16 +346,16 @@ export const PredictionCard: React.FC<PredictionCardProps> = ({
                     e.stopPropagation();
                     handleQuickBet(e);
                   }}
-                  className="bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg p-3 transition-colors text-left"
+                  className="bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg p-3 transition-colors text-left border border-gray-200 dark:border-gray-600"
                 >
-                  <div className="font-medium text-sm text-gray-900 dark:text-gray-100 mb-1">
+                  <div className="font-medium text-sm text-gray-900 dark:text-white mb-1">
                     {option.label}
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-xs text-gray-600 dark:text-gray-300">
+                    <span className="text-xs text-gray-600 dark:text-gray-200">
                       {option.percentage}%
                     </span>
-                    <span className="text-sm font-semibold text-primary dark:text-emerald-400">
+                    <span className="text-sm font-semibold text-primary dark:text-emerald-300">
                       {option.current_odds?.toFixed(1)}x
                     </span>
                   </div>

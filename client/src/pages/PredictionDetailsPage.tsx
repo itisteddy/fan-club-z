@@ -451,13 +451,18 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
 
             {/* Primary image (if any) */}
             {prediction.image_url && (
-              <div className="mb-6 overflow-hidden rounded-2xl border border-gray-100 bg-gray-50">
+              <div className="mb-6 overflow-hidden rounded-2xl border border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 relative group">
                 <img
                   src={prediction.image_url}
-                  alt="Prediction"
-                  className="w-full max-h-[360px] object-cover"
+                  alt={`Image for prediction: ${prediction.title}`}
+                  className="w-full max-h-[400px] object-cover transition-transform duration-300 group-hover:scale-105"
                   loading="lazy"
+                  onError={(e) => {
+                    console.warn('Failed to load prediction image:', prediction.image_url);
+                    e.currentTarget.style.display = 'none';
+                  }}
                 />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
               </div>
             )}
 
@@ -739,15 +744,15 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
                     className={`w-full p-4 rounded-xl border-2 transition-all ${
                       selectedOption === option.id
                         ? 'border-emerald-500 bg-emerald-100 dark:bg-emerald-900/40 shadow-lg'
-                        : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-500 hover:bg-gray-50 dark:hover:bg-gray-800'
+                        : 'border-gray-200 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-500 hover:bg-gray-50 dark:hover:bg-gray-700'
                     }`}
                     whileHover={{ scale: 1.01 }}
                     whileTap={{ scale: 0.99 }}
                   >
                     <div className="flex items-center justify-between">
                       <div className="text-left flex-1">
-                        <div className="font-semibold text-gray-900 dark:text-gray-100 text-lg mb-1">{option.label}</div>
-                        <div className={`text-sm ${selectedOption === option.id ? 'text-gray-700 dark:text-gray-300' : 'text-gray-500 dark:text-gray-400'}`}>
+                        <div className="font-semibold text-gray-900 dark:text-white text-lg mb-1">{option.label}</div>
+                        <div className={`text-sm ${selectedOption === option.id ? 'text-gray-700 dark:text-gray-200' : 'text-gray-500 dark:text-gray-300'}`}>
                           {prediction.pool_total > 0 ? 
                             `${((option.total_staked / prediction.pool_total) * 100).toFixed(1)}% of pool` : 
                             '0% of pool'
@@ -755,10 +760,10 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
                         </div>
                       </div>
                       <div className="text-right ml-4">
-                        <div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">
+                        <div className="text-2xl font-bold text-emerald-600 dark:text-emerald-300">
                           {(option.current_odds || 1.0).toFixed(2)}x
                         </div>
-                        <div className={`text-xs ${selectedOption === option.id ? 'text-gray-600 dark:text-gray-400' : 'text-gray-500 dark:text-gray-400'}`}>odds</div>
+                        <div className={`text-xs ${selectedOption === option.id ? 'text-gray-600 dark:text-gray-300' : 'text-gray-500 dark:text-gray-300'}`}>odds</div>
                       </div>
                     </div>
                   </motion.button>

@@ -219,13 +219,18 @@ const EnhancedPredictionCard: React.FC<EnhancedPredictionCardProps> = ({
     >
       {/* Image banner (optional) */}
       {prediction.image_url && (
-        <div className="w-full h-48 bg-gray-100 overflow-hidden">
+        <div className="w-full h-56 bg-gray-100 dark:bg-gray-800 overflow-hidden relative">
           <img
             src={prediction.image_url}
-            alt="Prediction"
-            className="w-full h-full object-cover"
+            alt={`Image for prediction: ${prediction.title}`}
+            className="w-full h-full object-cover transition-transform duration-300 hover:scale-105"
             loading="lazy"
+            onError={(e) => {
+              console.warn('Failed to load prediction image:', prediction.image_url);
+              e.currentTarget.style.display = 'none';
+            }}
           />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent pointer-events-none" />
         </div>
       )}
       {/* Header */}
@@ -327,7 +332,7 @@ const EnhancedPredictionCard: React.FC<EnhancedPredictionCardProps> = ({
                           {getTrendIcon(option)}
                         </div>
                         <span className={`font-semibold transition-colors ${
-                          isSelected ? 'text-green-700' : 'text-gray-900 group-hover:text-green-700'
+                          isSelected ? 'text-green-700 dark:text-green-300' : 'text-gray-900 dark:text-gray-100 group-hover:text-green-700 dark:group-hover:text-green-300'
                         }`}>
                           {option.label}
                         </span>

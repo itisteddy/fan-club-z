@@ -58,6 +58,7 @@ const CommunityPage: React.FC = () => {
 
   const handleUserClick = (userId: string) => {
     setLocation(`/profile/${userId}`);
+    scrollToTop({ behavior: 'instant' });
   };
 
   const handleFollowChange = (userId: string, isFollowing: boolean) => {

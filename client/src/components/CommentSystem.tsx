@@ -186,17 +186,23 @@ const CommentSystem: React.FC<CommentSystemProps> = ({ predictionId }) => {
     
     // Focus the textarea after state updates and move caret to the end
     if (isOpening) {
+      // Use multiple timeouts to ensure DOM updates complete
       setTimeout(() => {
         const el = replyTextareaRef.current;
         if (el) {
           el.focus();
-          const len = el.value.length;
-          try {
-            el.setSelectionRange(len, len);
-          } catch {}
-          el.scrollTop = el.scrollHeight;
+          // Ensure cursor is at the end
+          requestAnimationFrame(() => {
+            const len = el.value.length;
+            try {
+              el.setSelectionRange(len, len);
+              el.scrollTop = el.scrollHeight;
+            } catch (e) {
+              console.warn('Could not set cursor position:', e);
+            }
+          });
         }
-      }, 100);
+      }, 150);
     }
   }, [replyingTo]);
 
@@ -209,7 +215,18 @@ const CommentSystem: React.FC<CommentSystemProps> = ({ predictionId }) => {
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-1">
               <span className="font-medium text-slate-900 dark:text-white">
-                {comment.user?.full_name || comment.user?.username || (comment.user_id === user?.id ? ((`${user?.firstName || ''} ${user?.lastName || ''}`.trim() || user?.email?.split('@')[0] || 'You')) : 'User')}
+                {(() => {
+                  // Handle different user data structures
+                  if (comment.user?.full_name) return comment.user.full_name;
+                  if (comment.user?.username) return comment.user.username;
+                  if (comment.user_id === user?.id) {
+                    // Current user's comment
+                    const fullName = `${user?.firstName || ''} ${user?.lastName || ''}`.trim();
+                    return fullName || user?.email?.split('@')[0] || 'You';
+                  }
+                  // Fallback for other users
+                  return 'User';
+                })()}
               </span>
               {(() => {
                 const rawDate = (comment as any).created_at || (comment as any).createdAt || (comment as any).inserted_at;
@@ -221,7 +238,7 @@ const CommentSystem: React.FC<CommentSystemProps> = ({ predictionId }) => {
               })()}
             </div>
             
-            <p className="text-slate-700 dark:text-slate-200 mb-3">{comment.content}</p>
+            <p className="text-slate-700 dark:text-slate-100 mb-3">{comment.content}</p>
             
             {/* Show image if comment has one */}
             {comment.image_url && (
@@ -273,8 +290,11 @@ const CommentSystem: React.FC<CommentSystemProps> = ({ predictionId }) => {
 
             {/* Reply input (nested within comment, single instance) */}
             {showReplyInput && replyingTo === comment.id && (
-              <div className="mt-3 bg-slate-50 dark:bg-slate-800 rounded-lg p-4">
+              <div className="mt-4 bg-slate-50 dark:bg-slate-800 rounded-lg p-4 border-l-4 border-blue-500">
                 <div className="space-y-3">
+                  <div className="text-xs text-slate-600 dark:text-slate-400 mb-2">
+                    Replying to {comment.user?.username || comment.user?.full_name || 'User'}
+                  </div>
                   <textarea
                     ref={replyTextareaRef}
                     value={replyText}
@@ -283,10 +303,9 @@ const CommentSystem: React.FC<CommentSystemProps> = ({ predictionId }) => {
                       if (e.key === 'Enter' && !e.shiftKey) {
                         e.preventDefault();
                         handleSubmitReply(comment.id);
-                        setShowReplyInput(false);
                       }
                     }}
-                    placeholder={`Reply to ${comment.user?.username || 'Anonymous'}...`}
+                    placeholder={`Write your reply...`}
                     rows={3}
                     className="w-full px-4 py-3 text-sm bg-white dark:bg-slate-700 dark:text-white border border-slate-200 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all resize-none"
                     style={{ minHeight: '80px' }}
@@ -301,8 +320,11 @@ const CommentSystem: React.FC<CommentSystemProps> = ({ predictionId }) => {
                       <button
                         onClick={() => handleSubmitReply(comment.id)}
                         disabled={!replyText.trim() || isSubmitting}
-                        className="px-4 py-2 bg-gradient-to-br from-purple-500 to-emerald-600 text-white text-sm rounded-lg hover:from-purple-600 hover:to-emerald-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="px-4 py-2 bg-gradient-to-br from-purple-500 to-emerald-600 text-white text-sm rounded-lg hover:from-purple-600 hover:to-emerald-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                       >
+                        {isSubmitting ? (
+                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        ) : null}
                         Reply
                       </button>
                       <button
