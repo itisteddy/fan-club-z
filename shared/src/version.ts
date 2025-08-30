@@ -1,4 +1,4 @@
-export const VERSION = "2.0.80";
+export const VERSION = "2.0.81";
 export const BUILD_DATE = new Date().toISOString();
 export const BUILD_ENV = process.env.NODE_ENV || "development";
 

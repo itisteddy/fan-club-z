@@ -207,6 +207,10 @@ const PredictionCardContent: React.FC<PredictionCardProps> = ({
     
     // Navigate to prediction details page
     setLocation(`/prediction/${prediction.id}`);
+    // Ensure page starts at top
+    setTimeout(() => {
+      window.scrollTo({ top: 0, behavior: 'instant' });
+    }, 50);
   };
 
   const formatTimeRemaining = () => {
@@ -222,12 +226,30 @@ const PredictionCardContent: React.FC<PredictionCardProps> = ({
     return (
       <>
         <motion.div
-          className={`bg-white rounded-xl shadow-sm border border-gray-100 p-4 cursor-pointer ${className}`}
+          className={`bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden cursor-pointer ${className}`}
           whileHover={{ scale: 1.02, y: -2 }}
           whileTap={{ scale: 0.98 }}
           onClick={handleCardClick}
         >
-          {/* Header */}
+          {/* Image banner (if provided) */}
+          {prediction.image_url && (
+            <div className="w-full h-48 bg-gray-100 dark:bg-gray-800 overflow-hidden relative">
+              <img
+                src={prediction.image_url}
+                alt={`Image for prediction: ${prediction.title}`}
+                className="w-full h-full object-cover transition-transform duration-300 hover:scale-105"
+                loading="lazy"
+                onError={(e) => {
+                  console.warn('Failed to load prediction image:', prediction.image_url);
+                  e.currentTarget.style.display = 'none';
+                }}
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent pointer-events-none" />
+            </div>
+          )}
+          
+          <div className="p-4">
+            {/* Header */}
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
               <UserAvatar email={prediction.creator?.email} username={prediction.creator?.username} avatarUrl={prediction.creator?.avatar_url} size="sm" />
@@ -235,10 +257,10 @@ const PredictionCardContent: React.FC<PredictionCardProps> = ({
                 <TappableUsername 
                   username={prediction.creator?.username || prediction.creator?.full_name || 'Anonymous'}
                   userId={prediction.creator?.id || 'anonymous'}
-                  className="font-medium text-gray-900 text-sm hover:text-blue-600"
+                  className="font-medium text-gray-900 dark:text-gray-100 text-sm hover:text-blue-600 dark:hover:text-blue-400"
                   showAt={true}
                 />
-                <div className="text-xs text-gray-500">{formatTimeRemaining()}</div>
+                <div className="text-xs text-gray-500 dark:text-gray-400">{formatTimeRemaining()}</div>
               </div>
             </div>
             <span className={`px-2 py-1 rounded-full text-xs font-medium ${
@@ -255,7 +277,7 @@ const PredictionCardContent: React.FC<PredictionCardProps> = ({
 
           {/* Title */}
           <h3 
-            className="font-semibold text-gray-900 mb-2 line-clamp-2 cursor-pointer options-clickable"
+            className="font-semibold text-gray-900 dark:text-gray-100 mb-2 line-clamp-2 cursor-pointer options-clickable"
             onClick={(e) => {
               e.stopPropagation();
               onPredict && onPredict();
@@ -267,7 +289,7 @@ const PredictionCardContent: React.FC<PredictionCardProps> = ({
           {/* Pool Info */}
           <div className="flex items-center justify-between text-sm">
             <div 
-              className="flex items-center gap-2 text-gray-600 cursor-pointer options-clickable"
+              className="flex items-center gap-2 text-gray-600 dark:text-gray-300 cursor-pointer options-clickable"
               onClick={(e) => {
                 e.stopPropagation();
                 onPredict && onPredict();
@@ -283,22 +305,23 @@ const PredictionCardContent: React.FC<PredictionCardProps> = ({
                   e.stopPropagation();
                   handleLike();
                 }}
-                className={`flex items-center gap-1 ${isLiked ? 'text-red-500' : 'text-gray-400'} hover:text-red-500 transition-colors`}
+                className={`flex items-center gap-1 ${isLiked ? 'text-red-500' : 'text-gray-400 dark:text-gray-500'} hover:text-red-500 transition-colors`}
               >
                 <Heart className={`w-4 h-4 ${isLiked ? 'fill-current' : ''}`} />
-                <span className="text-gray-600">{likeCount}</span>
+                <span className="text-gray-600 dark:text-gray-300">{likeCount}</span>
               </button>
               <button
                 onClick={(e) => {
                   e.stopPropagation();
                   handleComment();
                 }}
-                className="flex items-center gap-1 text-gray-400 hover:text-blue-500 transition-colors"
+                className="flex items-center gap-1 text-gray-400 dark:text-gray-500 hover:text-blue-500 transition-colors"
               >
                 <MessageCircle className="w-4 h-4" />
-                <span className="text-gray-600">{commentCount}</span>
+                <span className="text-gray-600 dark:text-gray-300">{commentCount}</span>
               </button>
             </div>
+          </div>
           </div>
         </motion.div>
 
@@ -415,13 +438,29 @@ const PredictionCardContent: React.FC<PredictionCardProps> = ({
   return (
     <>
       <motion.div
-        className={`bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden cursor-pointer ${className}`}
+        className={`bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden cursor-pointer ${className}`}
         whileHover={{ scale: 1.01, y: -2 }}
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         onClick={handleCardClick}
         transition={{ duration: 0.3 }}
       >
+        {/* Image banner (if provided) */}
+        {prediction.image_url && (
+          <div className="w-full h-48 bg-gray-100 dark:bg-gray-800 overflow-hidden relative">
+            <img
+              src={prediction.image_url}
+              alt={`Image for prediction: ${prediction.title}`}
+              className="w-full h-full object-cover transition-transform duration-300 hover:scale-105"
+              loading="lazy"
+              onError={(e) => {
+                console.warn('Failed to load prediction image:', prediction.image_url);
+                e.currentTarget.style.display = 'none';
+              }}
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent pointer-events-none" />
+          </div>
+        )}
         {/* Header */}
         <div className="p-4 pb-0">
           <div className="flex items-center justify-between mb-3">
@@ -433,10 +472,10 @@ const PredictionCardContent: React.FC<PredictionCardProps> = ({
                 <TappableUsername 
                   username={prediction.creator?.username || prediction.creator?.full_name || 'Anonymous'}
                   userId={prediction.creator?.id || 'anonymous'}
-                  className="font-medium text-gray-900 hover:text-blue-600"
+                  className="font-medium text-gray-900 dark:text-gray-100 hover:text-blue-600 dark:hover:text-blue-400"
                   showAt={true}
                 />
-                <div className="text-sm text-gray-500">
+                <div className="text-sm text-gray-500 dark:text-gray-400">
                   {prediction.created_at ? new Date(prediction.created_at).toLocaleDateString() : 'Recently'}
                 </div>
               </div>
