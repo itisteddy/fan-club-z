@@ -95,6 +95,10 @@ const PublicLayout: React.FC<{ children: React.ReactNode }> = memo(({ children }
       case 'bets':
         // Require auth for bets/predictions
         if (!isAuthenticated) {
+          // Store intended destination for redirect after auth
+          try {
+            localStorage.setItem('authRedirectUrl', '/predictions');
+          } catch {}
           navigate('/auth');
           return;
         }
@@ -103,6 +107,9 @@ const PublicLayout: React.FC<{ children: React.ReactNode }> = memo(({ children }
       case 'profile':
         // Require auth for profile
         if (!isAuthenticated) {
+          try {
+            localStorage.setItem('authRedirectUrl', '/profile');
+          } catch {}
           navigate('/auth');
           return;
         }
@@ -111,6 +118,9 @@ const PublicLayout: React.FC<{ children: React.ReactNode }> = memo(({ children }
       case 'wallet':
         // Require auth for wallet
         if (!isAuthenticated) {
+          try {
+            localStorage.setItem('authRedirectUrl', '/wallet');
+          } catch {}
           navigate('/auth');
           return;
         }
@@ -128,6 +138,9 @@ const PublicLayout: React.FC<{ children: React.ReactNode }> = memo(({ children }
   const handleFABClick = useCallback(() => {
     // Require auth for creating predictions
     if (!isAuthenticated) {
+      try {
+        localStorage.setItem('authRedirectUrl', '/create');
+      } catch {}
       navigate('/auth');
       return;
     }

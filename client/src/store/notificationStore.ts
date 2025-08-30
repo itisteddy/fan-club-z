@@ -36,8 +36,8 @@ interface NotificationActions {
 }
 
 export const useNotificationStore = create<NotificationState & NotificationActions>((set, get) => ({
-  notifications: [],
-  unreadCount: 0,
+      notifications: [],
+      unreadCount: 0,
   loading: false,
   error: null,
 
