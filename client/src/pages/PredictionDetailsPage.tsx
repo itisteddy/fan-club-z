@@ -234,7 +234,7 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
     }
 
     const shareUrl = `${window.location.origin}/prediction/${prediction.id}`;
-    const shareText = `${prediction.title}\n\nMake your prediction on Fan Club Z!`;
+    const shareText = `${prediction.title}\n\nMake your prediction on the platform!`;
     
     // Try native sharing first (mobile devices)
     if (navigator.share && navigator.canShare) {
@@ -342,8 +342,8 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
     
     return {
       id: 'unknown',
-      username: 'Fan Club Z',
-      displayName: 'Fan Club Z'
+      username: 'Platform',
+      displayName: 'Platform'
     };
   };
 

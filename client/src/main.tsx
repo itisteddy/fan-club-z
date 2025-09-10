@@ -6,7 +6,7 @@ import './index.css'
 import { APP_VERSION, BUILD_TIMESTAMP } from './lib/version.ts'
 
 // Centralized version management
-console.log(`🚀 Fan Club Z ${APP_VERSION} - CONSOLIDATED ARCHITECTURE - SINGLE SOURCE OF TRUTH`)
+console.log(`🚀 Prediction Platform ${APP_VERSION} - CONSOLIDATED ARCHITECTURE - SINGLE SOURCE OF TRUTH`)
 
 // Global error handler for unhandled promise rejections
 window.addEventListener('unhandledrejection', (event) => {
@@ -33,5 +33,5 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
   </React.StrictMode>,
 )
 
-console.log(`✅ Fan Club Z ${APP_VERSION} - Application started successfully`);
+console.log(`✅ Prediction Platform ${APP_VERSION} - Application started successfully`);
 console.log('🚀 Build timestamp:', BUILD_TIMESTAMP);

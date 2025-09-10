@@ -34,7 +34,7 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   },
   global: {
     headers: {
-      'X-Client-Info': 'fanclubz-web@1.0.0',
+      'X-Client-Info': 'prediction-platform-web@1.0.0',
     },
   },
 });
@@ -68,7 +68,7 @@ export const auth = {
         options: {
           data: userData,
           emailRedirectTo: import.meta.env.PROD 
-            ? 'https://app.fanclubz.app/auth/callback'
+            ? 'https://app.platform.com/auth/callback'
             : `${window.location.origin}/auth/callback`,
         },
       });
@@ -148,7 +148,7 @@ export const clientDb = {
             *,
             creator:users!creator_id(id, username, full_name, avatar_url),
             options:prediction_options!prediction_options_prediction_id_fkey(*),
-            club:clubs(id, name, avatar_url)
+            // club:clubs(id, name, avatar_url) - removed
           `);
 
         if (filters.category) {
@@ -186,7 +186,7 @@ export const clientDb = {
             *,
             creator:users!creator_id(id, username, full_name, avatar_url),
             options:prediction_options!prediction_options_prediction_id_fkey(*),
-            club:clubs(id, name, avatar_url)
+            // club:clubs(id, name, avatar_url) - removed
           `)
           .eq('id', id)
           .single();
@@ -305,63 +305,7 @@ export const clientDb = {
     },
   },
 
-  clubs: {
-    async getAll(filters: any = {}) {
-      try {
-        let query = supabase
-          .from('clubs')
-          .select(`
-            *,
-            owner:users!owner_id(id, username, full_name, avatar_url)
-          `);
-
-        if (filters.search) {
-          query = query.or(`name.ilike.%${filters.search}%,description.ilike.%${filters.search}%`);
-        }
-
-        const { data, error } = await query
-          .order('member_count', { ascending: false })
-          .limit(filters.limit || 20);
-
-        if (error && !error.message.includes('relation') && !error.message.includes('does not exist')) {
-          console.error('Database error in clubs.getAll:', error);
-        }
-
-        return { data, error };
-      } catch (error: any) {
-        console.error('Exception in clubs.getAll:', error);
-        return { data: null, error: { message: error.message || 'An unexpected error occurred' } };
-      }
-    },
-
-    async getById(id: string) {
-      try {
-        const { data, error } = await supabase
-          .from('clubs')
-          .select(`
-            *,
-            owner:users!owner_id(id, username, full_name, avatar_url),
-            members:club_members(
-              id,
-              role,
-              joined_at,
-              user:users(id, username, full_name, avatar_url)
-            )
-          `)
-          .eq('id', id)
-          .single();
-
-        if (error && !error.message.includes('relation') && !error.message.includes('does not exist')) {
-          console.error('Database error in clubs.getById:', error);
-        }
-
-        return { data, error };
-      } catch (error: any) {
-        console.error('Exception in clubs.getById:', error);
-        return { data: null, error: { message: error.message || 'An unexpected error occurred' } };
-      }
-    },
-  },
+  // clubs: removed - not part of this version
 
   comments: {
     async getByPredictionId(predictionId: string, limit: number = 20) {

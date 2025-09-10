@@ -389,7 +389,7 @@ const NotificationSettings: React.FC<{ onBack: () => void }> = ({ onBack }) => {
     emailEnabled: true,
     predictionUpdates: true,
     winLossAlerts: true,
-    clubActivity: true,
+    communityActivity: true,
     socialInteractions: false,
     marketingEmails: false,
     weeklyDigest: true
@@ -638,18 +638,18 @@ const NotificationSettings: React.FC<{ onBack: () => void }> = ({ onBack }) => {
 
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div>
-                <div style={{ fontWeight: '500', fontSize: '14px' }}>Club Activity</div>
-                <div style={{ fontSize: '12px', color: '#6b7280' }}>Activity from clubs you've joined</div>
+                <div style={{ fontWeight: '500', fontSize: '14px' }}>Community Activity</div>
+                <div style={{ fontSize: '12px', color: '#6b7280' }}>Activity from the community</div>
               </div>
               <button
-                onClick={() => toggleNotification('clubActivity')}
+                onClick={() => toggleNotification('communityActivity')}
                 disabled={isUpdating}
                 style={{
                   width: '44px',
                   height: '24px',
                   borderRadius: '12px',
                   border: 'none',
-                  background: notifications.clubActivity ? '#059669' : '#e5e7eb',
+                  background: notifications.communityActivity ? '#059669' : '#e5e7eb',
                   position: 'relative',
                   cursor: isUpdating ? 'not-allowed' : 'pointer',
                   opacity: isUpdating ? 0.6 : 1
@@ -663,7 +663,7 @@ const NotificationSettings: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                     background: 'white',
                     position: 'absolute',
                     top: '2px',
-                    left: notifications.clubActivity ? '22px' : '2px',
+                    left: notifications.communityActivity ? '22px' : '2px',
                     transition: 'left 0.2s',
                     boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)'
                   }}
@@ -1349,7 +1349,7 @@ const HelpSupport: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                 cursor: 'pointer',
                 textAlign: 'left'
               }}
-              onClick={() => window.open('https://help.fanclubz.com/faq', '_blank') || alert('FAQ section will open in a new window')}
+              onClick={() => window.open('https://help.platform.com/faq', '_blank') || alert('FAQ section will open in a new window')}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                 <HelpCircle size={20} style={{ color: '#6b7280' }} />
@@ -1371,7 +1371,7 @@ const HelpSupport: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                 cursor: 'pointer',
                 textAlign: 'left'
               }}
-              onClick={() => window.open('mailto:support@fanclubz.com')}
+              onClick={() => window.open('mailto:support@platform.com')}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                 <Mail size={20} style={{ color: '#6b7280' }} />
