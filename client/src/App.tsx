@@ -60,6 +60,11 @@ AuthGuard.displayName = 'AuthGuard';
 const MainLayout: React.FC<{ children: React.ReactNode }> = memo(({ children }) => {
   const [location, navigate] = useLocation();
   
+  // Scroll to top on route change (mobile UX best practice)
+  useEffect(() => {
+    scrollToTop({ behavior: 'instant' });
+  }, [location]);
+  
   const getCurrentTab = useCallback(() => {
     const path = location.toLowerCase();
     if (path === '/' || path === '/discover') return 'discover';
@@ -408,28 +413,32 @@ function App() {
           </PageWrapper>
         </Route>
         
-        {/* Protected app routes */}
-        <AuthGuard>
-          <OnboardingProvider>
-            <MainLayout>
-              <Switch>
-                <Route path="/" component={DiscoverPageWrapper} />
-                <Route path="/discover" component={DiscoverPageWrapper} />
-                <Route path="/predictions" component={PredictionsPageWrapper} />
-                <Route path="/predictions/:id" component={PredictionDetailsWrapper} />
-                <Route path="/bets" component={PredictionsPageWrapper} />
-                <Route path="/create" component={CreatePredictionPageWrapper} />
-                <Route path="/profile" component={MyProfilePageWrapper} />
-                <Route path="/profile/:userId" component={UserProfilePageWrapper} />
-                <Route path="/wallet" component={WalletPageWrapper} />
-                <Route path="/prediction/:id" component={PredictionDetailsWrapper} />
+        {/* Public routes - no auth required */}
+        <MainLayout>
+          <Switch>
+            <Route path="/" component={DiscoverPageWrapper} />
+            <Route path="/discover" component={DiscoverPageWrapper} />
+            <Route path="/prediction/:id" component={PredictionDetailsWrapper} />
+            <Route path="/predictions/:id" component={PredictionDetailsWrapper} />
+            
+            {/* Protected routes - require auth */}
+            <AuthGuard>
+              <OnboardingProvider>
+                <Switch>
+                  <Route path="/predictions" component={PredictionsPageWrapper} />
+                  <Route path="/bets" component={PredictionsPageWrapper} />
+                  <Route path="/create" component={CreatePredictionPageWrapper} />
+                  <Route path="/profile" component={MyProfilePageWrapper} />
+                  <Route path="/profile/:userId" component={UserProfilePageWrapper} />
+                  <Route path="/wallet" component={WalletPageWrapper} />
+                </Switch>
+              </OnboardingProvider>
+            </AuthGuard>
 
-                {/* Fallback */}
-                <Route component={DiscoverPageWrapper} />
-              </Switch>
-            </MainLayout>
-          </OnboardingProvider>
-        </AuthGuard>
+            {/* Fallback */}
+            <Route component={DiscoverPageWrapper} />
+          </Switch>
+        </MainLayout>
         </Switch>
       </Router>
     </ErrorBoundary>
