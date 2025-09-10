@@ -123,7 +123,7 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = memo(({ children }) 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col" data-scroll-container>
       {/* Main Content */}
-      <main className="flex-1 pb-20">
+      <main className="flex-1 overflow-y-auto pb-20">
         <Suspense fallback={<LoadingSpinner message="Loading page..." />}>
           {children}
         </Suspense>

@@ -383,7 +383,7 @@ const DiscoverPage = React.memo(function DiscoverPage({ onNavigateToProfile, onN
       ref={containerRef} 
       className="discover-page content-with-bottom-nav" 
       data-scroll-container
-      style={{ position: 'relative', zIndex: 1, overflowY: 'auto', height: '100vh' }}
+      style={{ position: 'relative', zIndex: 1 }}
     >
       {/* Header with proper z-index */}
       <div className="discover-header">
