@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuthStore } from '../store/authStore';
 import { useCommentsForPrediction } from '../store/unifiedCommentStore';
-import { MessageCircle, Heart, Reply, MoreHorizontal, Flag, Edit, Trash2 } from 'lucide-react';
+import { MessageCircle, Heart, Reply, MoreHorizontal, Flag, Edit, Trash2, Send } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import TappableUsername from './TappableUsername';
 import toast from 'react-hot-toast';
@@ -82,6 +82,7 @@ const CommentSystem: React.FC<CommentSystemProps> = ({ predictionId }) => {
   
   const [replyTo, setReplyTo] = useState<string | null>(null);
   const [editingComment, setEditingComment] = useState<string | null>(null);
+  const [sortBy, setSortBy] = useState<'new' | 'top'>('new');
 
   // Track which predictions have been fetched to prevent repeated fetches
   const [hasAttemptedFetch, setHasAttemptedFetch] = useState(false);
@@ -132,6 +133,25 @@ const CommentSystem: React.FC<CommentSystemProps> = ({ predictionId }) => {
   useEffect(() => {
     setVisibleCount(Math.min(10, comments.length || 0));
   }, [comments.length]);
+
+  // Sort comments based on selected sort option
+  const sortedComments = React.useMemo(() => {
+    if (!comments || comments.length === 0) return [];
+    
+    const sorted = [...comments];
+    if (sortBy === 'top') {
+      // Sort by likes count (descending), then by creation date (descending)
+      return sorted.sort((a, b) => {
+        const aLikes = a.likes_count || 0;
+        const bLikes = b.likes_count || 0;
+        if (aLikes !== bLikes) return bLikes - aLikes;
+        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+      });
+    } else {
+      // Sort by creation date (descending) - newest first
+      return sorted.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    }
+  }, [comments, sortBy]);
 
   // Handle adding a comment
   const handleAddComment = useCallback(async (parentId?: string) => {
@@ -460,9 +480,19 @@ const CommentSystem: React.FC<CommentSystemProps> = ({ predictionId }) => {
                     <button
                       onClick={() => handleAddComment(comment.id)}
                       disabled={!(replyTexts[comment.id] || '').trim() || isSubmitting}
-                                              className="px-3 py-1 bg-teal-600 text-white text-xs rounded hover:bg-teal-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="flex items-center gap-1 px-3 py-1 bg-emerald-500 text-white text-xs rounded hover:bg-emerald-600 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      {isSubmitting ? 'Replying...' : 'Reply'}
+                      {isSubmitting ? (
+                        <>
+                          <div className="w-3 h-3 border border-white border-t-transparent rounded-full animate-spin" />
+                          Replying...
+                        </>
+                      ) : (
+                        <>
+                          <Send size={12} />
+                          Reply
+                        </>
+                      )}
                     </button>
                     <button
                       onClick={() => cancelReply(comment.id)}
@@ -497,6 +527,32 @@ const CommentSystem: React.FC<CommentSystemProps> = ({ predictionId }) => {
           <MessageCircle size={20} className="mr-2" />
           Comments ({commentCount})
         </h3>
+        
+        {/* Sorting controls */}
+        {commentCount > 0 && (
+          <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
+            <button
+              onClick={() => setSortBy('new')}
+              className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${
+                sortBy === 'new' 
+                  ? 'bg-white text-gray-900 shadow-sm' 
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              New
+            </button>
+            <button
+              onClick={() => setSortBy('top')}
+              className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${
+                sortBy === 'top' 
+                  ? 'bg-white text-gray-900 shadow-sm' 
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              Top
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Error banner */}
@@ -533,9 +589,19 @@ const CommentSystem: React.FC<CommentSystemProps> = ({ predictionId }) => {
               <button
                 onClick={() => handleAddComment()}
                 disabled={!mainCommentText.trim() || isSubmitting}
-                className="px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm font-medium"
+                className="flex items-center gap-2 px-4 py-2 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm font-medium"
               >
-                {isSubmitting ? 'Posting...' : 'Comment'}
+                {isSubmitting ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    Posting...
+                  </>
+                ) : (
+                  <>
+                    <Send size={16} />
+                    Post
+                  </>
+                )}
               </button>
             </div>
           </div>
@@ -562,7 +628,7 @@ const CommentSystem: React.FC<CommentSystemProps> = ({ predictionId }) => {
       {/* Comments list */}
       {!isLoading && (
         <div className="divide-y divide-gray-100">
-          {comments.map((comment, index) => (
+          {sortedComments.map((comment, index) => (
             <CommentItem key={comment.id || `${predictionId}-comment-${index}`} comment={comment} />
           ))}
         </div>

@@ -236,7 +236,24 @@ export const useUnifiedCommentStore = create<CommentState & CommentActions>()(
           }
 
           const data = await response.json();
-          const comments: UnifiedComment[] = data.comments || [];
+          
+          // Handle multiple response formats safely
+          let rawComments: any[] = [];
+          
+          if (Array.isArray(data)) {
+            rawComments = data;
+          } else if (data && typeof data === 'object') {
+            // Try different possible response structures
+            rawComments = data.comments || data.items || data.data || data.results || [];
+          }
+          
+          // Ensure we have an array
+          if (!Array.isArray(rawComments)) {
+            console.warn('Invalid response format for comments, using empty array:', data);
+            rawComments = [];
+          }
+          
+          const comments: UnifiedComment[] = rawComments;
 
           console.log(`✅ Loaded ${comments.length} comments for prediction ${predictionId}`);
 
