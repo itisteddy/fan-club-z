@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { scrollToTop } from '../../utils/scroll';
+import { useRequireAuth } from '../../hooks/useRequireAuth';
 
 const navigationItems = [
   {
@@ -22,29 +23,34 @@ const navigationItems = [
     label: 'Discover',
     icon: Sparkles,
     path: '/discover',
+    requiresAuth: false,
   },
   {
     id: 'predictions',
     label: 'My Bets',
     icon: ChartLine,
     path: '/predictions',
+    requiresAuth: true,
   },
   {
     id: 'wallet',
     label: 'Wallet',
     icon: Wallet,
     path: '/wallet',
+    requiresAuth: true,
   },
   {
     id: 'profile',
     label: 'Profile',
     icon: UserGroup,
     path: '/profile',
+    requiresAuth: true,
   },
 ];
 
 export const BottomNavigation: React.FC = () => {
   const [location, setLocation] = useLocation();
+  const { requireAuth, isAuthenticated } = useRequireAuth();
 
   const isActive = (path: string) => {
     if (path === '/discover') {
@@ -53,9 +59,16 @@ export const BottomNavigation: React.FC = () => {
     return location.startsWith(path);
   };
 
-  const handleNavigation = (path: string) => {
-    setLocation(path);
-    // Always scroll to top when navigating (UI/UX best practice)
+  const handleNavigation = (item: typeof navigationItems[0]) => {
+    if (item.requiresAuth && !isAuthenticated) {
+      requireAuth(() => {
+        setLocation(item.path);
+        scrollToTop({ behavior: 'instant' });
+      }, `access-${item.id}`);
+      return;
+    }
+    
+    setLocation(item.path);
     scrollToTop({ behavior: 'instant' });
   };
 
@@ -75,7 +88,7 @@ export const BottomNavigation: React.FC = () => {
             return (
               <motion.button
                 key={item.id}
-                onClick={() => handleNavigation(item.path)}
+                onClick={() => handleNavigation(item)}
                 className="relative flex flex-col items-center justify-center p-2 min-w-[60px] group"
                 whileTap={{ scale: 0.9 }}
                 whileHover={{ scale: 1.05 }}
@@ -111,7 +124,7 @@ export const BottomNavigation: React.FC = () => {
           return (
             <motion.button
               key={item.id}
-              onClick={() => setLocation(item.path)}
+              onClick={() => handleNavigation(item)}
               className="relative flex flex-col items-center justify-center p-3 min-w-[60px] group"
               whileTap={{ scale: 0.95 }}
               whileHover={{ scale: 1.05 }}
