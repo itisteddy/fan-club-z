@@ -10,6 +10,8 @@ import NotificationContainer from './components/ui/NotificationContainer';
 import PWAInstallManager from './components/PWAInstallManager';
 import PageWrapper from './components/PageWrapper';
 import { OnboardingProvider } from './components/onboarding/OnboardingProvider';
+import { AuthSheetProvider } from './components/auth/AuthSheetProvider';
+import AuthSheet from './components/auth/AuthSheet';
 
 // Import all page components
 import DiscoverPage from './pages/DiscoverPage';
@@ -17,7 +19,7 @@ import CreatePredictionPage from './pages/CreatePredictionPage';
 import BetsTab from './pages/BetsTab';
 import ProfilePage from './pages/ProfilePage';
 import WalletPage from './pages/WalletPage';
-import AuthPage from './pages/auth/AuthPage';
+// import AuthPage from './pages/auth/AuthPage'; // Removed - using bottom sheet auth
 import AuthCallbackPage from './pages/auth/AuthCallbackPage';
 import PredictionDetailsPage from './pages/PredictionDetailsPage';
 import BottomNavigation from './components/BottomNavigation';
@@ -404,8 +406,9 @@ function App() {
 
   return (
     <ErrorBoundary>
-      <Router>
-        <Switch>
+      <AuthSheetProvider>
+        <Router>
+          <Switch>
         {/* Public auth routes */}
         <Route path="/auth/callback">
           <PageWrapper title="Authentication">
@@ -440,7 +443,11 @@ function App() {
           </Switch>
         </MainLayout>
         </Switch>
-      </Router>
+        </Router>
+        
+        {/* Global Auth Sheet */}
+        <AuthSheet />
+      </AuthSheetProvider>
     </ErrorBoundary>
   );
 }

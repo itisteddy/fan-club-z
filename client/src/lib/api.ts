@@ -1,20 +1,5 @@
-import { createClient } from '@supabase/supabase-js';
-
-// Supabase configuration (optional for now)
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-
-// Only initialize Supabase if we have real credentials
-let supabase = null;
-if (supabaseUrl && supabaseAnonKey && !supabaseUrl.includes('demo')) {
-  try {
-    supabase = createClient(supabaseUrl, supabaseAnonKey);
-  } catch (error) {
-    console.warn('Supabase not configured, using demo mode');
-  }
-}
-
-export { supabase };
+// Use the singleton Supabase client
+import { supabase } from './supabase';
 
 // API configuration
 import { getApiUrl } from './environment';
