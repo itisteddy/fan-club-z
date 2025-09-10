@@ -30,23 +30,16 @@ const navigationItems = [
     path: '/predictions',
   },
   {
-    id: 'create',
-    label: 'Create',
-    icon: PlusCircle,
-    path: '/create',
-    isSpecial: true,
-  },
-  {
-    id: 'clubs',
-    label: 'Clubs',
-    icon: UserGroup,
-    path: '/clubs',
-  },
-  {
     id: 'wallet',
     label: 'Wallet',
     icon: Wallet,
     path: '/wallet',
+  },
+  {
+    id: 'profile',
+    label: 'Profile',
+    icon: UserGroup,
+    path: '/profile',
   },
 ];
 
