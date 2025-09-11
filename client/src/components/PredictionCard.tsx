@@ -10,6 +10,7 @@ import TappableUsername from './TappableUsername';
 import ErrorBoundary from './ErrorBoundary';
 import toast from 'react-hot-toast';
 import UserAvatar from './common/UserAvatar';
+import { logger } from '../lib/logger';
 
 interface PredictionCardProps {
   prediction: Prediction;
@@ -44,7 +45,7 @@ const PredictionCardContent: React.FC<PredictionCardProps> = ({
 }) => {
   // Early return with error boundary if prediction is invalid
   if (!prediction || !prediction.id) {
-    console.warn('⚠️ PredictionCard: Invalid prediction data received:', prediction);
+    logger.warn('⚠️ PredictionCard: Invalid prediction data received:', prediction);
     return <PredictionCardErrorFallback error="Invalid prediction data" />;
   }
 
@@ -64,7 +65,7 @@ const PredictionCardContent: React.FC<PredictionCardProps> = ({
       const { toggleLike, checkIfLiked, getLikeCount } = useLikeStore();
       return { toggleLike, checkIfLiked, getLikeCount };
     } catch (error) {
-      console.warn('Error accessing like store:', error);
+      logger.warn('Error accessing like store:', error);
       return {
         toggleLike: async () => {},
         checkIfLiked: () => false,
@@ -78,7 +79,7 @@ const PredictionCardContent: React.FC<PredictionCardProps> = ({
       const { getCommentCount } = useUnifiedCommentStore();
       return { getCommentCount };
     } catch (error) {
-      console.warn('Error accessing comment store:', error);
+      logger.warn('Error accessing comment store:', error);
       return { getCommentCount: () => 0 };
     }
   };
@@ -111,8 +112,7 @@ const PredictionCardContent: React.FC<PredictionCardProps> = ({
   const storeCommentCount = getCommentCount(prediction.id);
   const commentCount = storeCommentCount !== undefined && storeCommentCount !== null ? storeCommentCount : (prediction.comments_count || prediction.comments || 0);
   
-  // Debug logging for comment count sync
-  console.log(`📊 PredictionCard ${prediction.id}: storeCount=${storeCommentCount}, predictionCount=${prediction.comments_count || prediction.comments || 0}, finalCount=${commentCount}`);
+  // Removed per-card debug logging to reduce console spam
 
   // Calculate real data with safe fallbacks
   const entryDeadline = prediction.entry_deadline || prediction.entryDeadline;
@@ -142,14 +142,14 @@ const PredictionCardContent: React.FC<PredictionCardProps> = ({
   const handleLike = async () => {
     if (isLiking) return;
     
-    console.log('❤️ Like clicked:', prediction.id, '- Before:', { isLiked, likeCount });
+    logger.debug('❤️ Like clicked:', prediction.id);
     
     try {
       setIsLiking(true);
       await toggleLike(prediction.id);
       if (customOnLike) customOnLike();
     } catch (error) {
-      console.error('❌ Error toggling like:', error);
+      logger.error('❌ Error toggling like:', error);
       toast.error('Failed to update like');
     } finally {
       setIsLiking(false);
@@ -187,7 +187,7 @@ const PredictionCardContent: React.FC<PredictionCardProps> = ({
       
       if (customOnShare) customOnShare();
     } catch (error) {
-      console.error('Error sharing:', error);
+      logger.error('Error sharing:', error);
       toast.error('Failed to share');
     }
   };

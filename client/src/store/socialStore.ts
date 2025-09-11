@@ -30,16 +30,7 @@ interface Comment {
   replies?: Comment[];
 }
 
-interface Club {
-  id: string;
-  name: string;
-  description?: string;
-  owner_id: string;
-  visibility: 'public' | 'private' | 'invite_only';
-  member_count: number;
-  created_at: string;
-  updated_at: string;
-}
+// Club interface removed - not part of this version
 
 interface CommentNotification {
   id: string;
@@ -70,10 +61,7 @@ interface SocialStore {
   notifications: CommentNotification[];
   unreadNotifications: number;
   
-  // Clubs
-  clubs: Club[];
-  userClubs: Club[];
-  loadingClubs: boolean;
+  // Clubs removed - not part of this version
   
   // Methods
   getPredictionComments: (predictionId: string) => Promise<Comment[]>;
@@ -97,16 +85,7 @@ interface SocialStore {
   markNotificationAsRead: (notificationId: string) => Promise<void>;
   markAllNotificationsAsRead: () => Promise<void>;
   
-  // Club methods
-  getClubs: () => Promise<Club[]>;
-  getUserClubs: () => Promise<Club[]>;
-  createClub: (data: {
-    name: string;
-    description?: string;
-    visibility: 'public' | 'private' | 'invite_only';
-  }) => Promise<Club>;
-  joinClub: (clubId: string) => Promise<void>;
-  leaveClub: (clubId: string) => Promise<void>;
+  // Club methods removed - not part of this version
 }
 
 export const useSocialStore = create<SocialStore>((set, get) => ({
@@ -116,9 +95,7 @@ export const useSocialStore = create<SocialStore>((set, get) => ({
   commentThreads: {},
   notifications: [],
   unreadNotifications: 0,
-  clubs: [],
-  userClubs: [],
-  loadingClubs: false,
+  // Clubs state removed - not part of this version
 
   // Enhanced comment methods with nested replies support
   getPredictionComments: async (predictionId: string) => {
@@ -713,140 +690,7 @@ export const useSocialStore = create<SocialStore>((set, get) => ({
       console.error('Failed to mark all notifications as read:', error);
       throw error;
     }
-  },
-
-  // Club methods (existing implementation)
-  getClubs: async () => {
-    set({ loadingClubs: true });
-    try {
-      const { data, error } = await supabase
-        .from('clubs')
-        .select('*')
-        .eq('visibility', 'public')
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-
-      set({ clubs: data || [], loadingClubs: false });
-      return data || [];
-    } catch (error) {
-      console.error('Failed to get clubs:', error);
-      set({ loadingClubs: false });
-      throw error;
-    }
-  },
-
-  getUserClubs: async () => {
-    try {
-      const { data: user } = await supabase.auth.getUser();
-      if (!user.user) throw new Error('Not authenticated');
-
-      const { data, error } = await supabase
-        .from('club_members')
-        .select(`
-          club:clubs (*)
-        `)
-        .eq('user_id', user.user.id);
-
-      if (error) throw error;
-
-      const clubs = (data || []).map(item => item.club).filter(Boolean);
-      set({ userClubs: clubs });
-      return clubs;
-    } catch (error) {
-      console.error('Failed to get user clubs:', error);
-      throw error;
-    }
-  },
-
-  createClub: async (data) => {
-    try {
-      const { data: user } = await supabase.auth.getUser();
-      if (!user.user) throw new Error('Not authenticated');
-
-      const { data: club, error } = await supabase
-        .from('clubs')
-        .insert({
-          ...data,
-          owner_id: user.user.id
-        })
-        .select()
-        .single();
-
-      if (error) throw error;
-
-      // Add creator as admin member
-      await supabase
-        .from('club_members')
-        .insert({
-          club_id: club.id,
-          user_id: user.user.id,
-          role: 'admin'
-        });
-
-      set(state => ({
-        clubs: [club, ...state.clubs],
-        userClubs: [club, ...state.userClubs]
-      }));
-
-      return club;
-    } catch (error) {
-      console.error('Failed to create club:', error);
-      throw error;
-    }
-  },
-
-  joinClub: async (clubId: string) => {
-    try {
-      const { data: user } = await supabase.auth.getUser();
-      if (!user.user) throw new Error('Not authenticated');
-
-      const { error } = await supabase
-        .from('club_members')
-        .insert({
-          club_id: clubId,
-          user_id: user.user.id,
-          role: 'member'
-        });
-
-      if (error) throw error;
-
-      // Update member count
-      await supabase
-        .from('clubs')
-        .update({ 
-          member_count: supabase.sql`member_count + 1`
-        })
-        .eq('id', clubId);
-    } catch (error) {
-      console.error('Failed to join club:', error);
-      throw error;
-    }
-  },
-
-  leaveClub: async (clubId: string) => {
-    try {
-      const { data: user } = await supabase.auth.getUser();
-      if (!user.user) throw new Error('Not authenticated');
-
-      const { error } = await supabase
-        .from('club_members')
-        .delete()
-        .eq('club_id', clubId)
-        .eq('user_id', user.user.id);
-
-      if (error) throw error;
-
-      // Update member count
-      await supabase
-        .from('clubs')
-        .update({ 
-          member_count: supabase.sql`GREATEST(member_count - 1, 0)`
-        })
-        .eq('id', clubId);
-    } catch (error) {
-      console.error('Failed to leave club:', error);
-      throw error;
-    }
   }
+
+  // Club methods removed - not part of this version
 }));

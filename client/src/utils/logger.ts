@@ -1,60 +1,25 @@
-/**
- * Production-safe logger utility
- * Automatically disables console logs in production builds
- */
+type Level = 'debug' | 'info' | 'warn' | 'error';
 
-const isDevelopment = import.meta.env.DEV;
-const isDebugMode = import.meta.env.VITE_DEBUG === 'true';
+const enabled = import.meta.env.MODE === 'development';
+let last: Record<string, number> = {};
 
-export const logger = {
-  log: (...args: any[]) => {
-    if (isDevelopment || isDebugMode) {
-      console.log(...args);
-    }
-  },
+export const log = (level: Level, key: string, ...args: any[]) => {
+  if (!enabled) return;
   
-  info: (...args: any[]) => {
-    if (isDevelopment || isDebugMode) {
-      console.info(...args);
-    }
-  },
+  const now = Date.now();
   
-  warn: (...args: any[]) => {
-    // Always show warnings
-    console.warn(...args);
-  },
-  
-  error: (...args: any[]) => {
-    // Always show errors
-    console.error(...args);
-  },
-  
-  debug: (...args: any[]) => {
-    if (isDebugMode) {
-      console.debug(...args);
-    }
-  },
-  
-  // Production-safe success logging
-  success: (...args: any[]) => {
-    if (isDevelopment || isDebugMode) {
-      console.log('✅', ...args);
-    }
-  },
-  
-  // Production-safe API logging
-  api: (...args: any[]) => {
-    if (isDevelopment || isDebugMode) {
-      console.log('📡', ...args);
-    }
-  },
-  
-  // Production-safe store logging
-  store: (...args: any[]) => {
-    if (isDevelopment || isDebugMode) {
-      console.log('🏪', ...args);
-    }
+  if (level === 'debug') {
+    // Simple throttle for debug logs
+    if (now - (last[key] || 0) < 750) return;
+    last[key] = now;
   }
+  
+  // eslint-disable-next-line no-console
+  console[level](`[${key}]`, ...args);
 };
 
-export default logger;
+// Convenience methods
+export const debug = (key: string, ...args: any[]) => log('debug', key, ...args);
+export const info = (key: string, ...args: any[]) => log('info', key, ...args);
+export const warn = (key: string, ...args: any[]) => log('warn', key, ...args);
+export const error = (key: string, ...args: any[]) => log('error', key, ...args);

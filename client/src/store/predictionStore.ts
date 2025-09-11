@@ -3,6 +3,8 @@ import { supabase } from '../lib/supabase';
 import { getApiUrl } from '../config';
 import { useAuthStore } from './authStore';
 import { apiClient } from '../lib/apiUtils';
+import { logger } from '../lib/logger';
+import { computeActiveStats } from '../lib/predictionStats';
 
 export interface Prediction {
   id: string;
@@ -20,7 +22,7 @@ export interface Prediction {
   is_private: boolean;
   creator_fee_percentage: number;
   platform_fee_percentage: number;
-  club_id?: string;
+  // club_id removed - not part of this version
   image_url?: string;
   tags: string[];
   created_at: string;
@@ -142,6 +144,9 @@ interface PredictionActions {
   createPrediction: (predictionData: any) => Promise<Prediction>;
   placePrediction: (predictionId: string, optionId: string, amount: number, userId?: string) => Promise<void>;
   
+  // Active stats selector
+  selectActiveStats: () => { volume: number; liveCount: number; players: number };
+  
   // User-specific data fetching
   fetchUserPredictionEntries: (userId: string) => Promise<void>;
   fetchUserCreatedPredictions: (userId: string) => Promise<void>;
@@ -215,7 +220,7 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
     
     // Cache for 30 seconds for first page only
     if (!append && page === 1 && currentTime - lastFetchTime < 30000 && currentPredictions.length > 0) {
-      console.log('📋 Using cached predictions');
+      logger.debug('📋 Using cached predictions');
       return;
     }
     
@@ -226,7 +231,7 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
     });
     
     try {
-      console.log(`📡 Fetching predictions: page=${page}, category=${category}, search=${search}, append=${append}`);
+      logger.debug(`📡 Fetching predictions: page=${page}, category=${category}, search=${search}, append=${append}`);
       
       const queryParams = new URLSearchParams({
         page: page.toString(),
@@ -243,7 +248,15 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
       const newPredictions = data.data || [];
       const pagination = data.pagination || {};
       
-      console.log(`✅ Predictions fetched successfully: ${newPredictions.length} items (${pagination.total} total)`);
+      logger.info(`✅ Predictions fetched successfully: ${newPredictions.length} items (${pagination.total} total)`);
+      
+      // Debug summary for dev mode
+      if (import.meta.env.DEV) {
+        logger.debug('📊 Prediction store updated:', {
+          totalPredictions: newPredictions.length,
+          predictionIds: newPredictions.map(p => p.id).slice(0, 5)
+        });
+      }
 
       set(state => ({ 
         predictions: append ? [...state.predictions, ...newPredictions] : newPredictions,
@@ -263,7 +276,7 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
       }));
 
     } catch (error) {
-      console.error('❌ Error fetching predictions:', error);
+      logger.error('❌ Error fetching predictions:', error);
       set({
         loading: false,
         loadingMore: false,
@@ -278,11 +291,11 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
     const { pagination, loadingMore } = get();
     
     if (loadingMore || !pagination.hasNext) {
-      console.log('📋 Load more skipped:', { loadingMore, hasNext: pagination.hasNext });
+      logger.debug('📋 Load more skipped:', { loadingMore, hasNext: pagination.hasNext });
       return;
     }
     
-    console.log(`📋 Loading more predictions: page ${pagination.page + 1}`);
+    logger.debug(`📋 Loading more predictions: page ${pagination.page + 1}`);
     await get().fetchPredictions({ 
       page: pagination.page + 1, 
       append: true 
@@ -294,7 +307,7 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
     const currentFilters = get().filters;
     const updatedFilters = { ...currentFilters, ...newFilters };
     
-    console.log('🔍 Setting filters:', updatedFilters);
+    logger.debug('🔍 Setting filters:', updatedFilters);
     
     set(state => ({
       filters: updatedFilters,
@@ -311,7 +324,7 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
 
   // Reset pagination to initial state
   resetPagination: () => {
-    console.log('🔄 Resetting pagination');
+    logger.debug('🔄 Resetting pagination');
     set(state => ({
       pagination: { ...initialState.pagination },
       filters: { ...initialState.filters },
@@ -326,7 +339,7 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
     
     // If not forced and we've fetched recently, use cache
     if (!force && currentTime - lastFetchTime < 10000) {
-      console.log('📋 Using cached predictions (refresh)');
+      logger.debug('📋 Using cached predictions (refresh)');
       return;
     }
     
@@ -339,9 +352,9 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
     
     try {
       await get().fetchPredictions();
-      console.log('🔄 Predictions refreshed successfully');
+      logger.info('🔄 Predictions refreshed successfully');
     } catch (error) {
-      console.error('❌ Error refreshing predictions:', error);
+      logger.error('❌ Error refreshing predictions:', error);
       throw error;
     }
   },
@@ -365,10 +378,10 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
         error: null
       });
       
-      console.log('✅ Trending predictions fetched:', trendingPredictions.length);
+      logger.info('✅ Trending predictions fetched:', trendingPredictions.length);
 
     } catch (error) {
-      console.error('❌ Error fetching trending predictions:', error);
+      logger.error('❌ Error fetching trending predictions:', error);
         set({ 
           loading: false,
         error: error instanceof Error ? error.message : 'Failed to fetch trending predictions'
@@ -396,7 +409,7 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
       });
 
     } catch (error) {
-      console.error('❌ Error fetching user predictions:', error);
+      logger.error('❌ Error fetching user predictions:', error);
       set({ 
         loading: false,
         error: error instanceof Error ? error.message : 'Failed to fetch user predictions'
@@ -424,7 +437,7 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
       });
 
     } catch (error) {
-      console.error('❌ Error fetching created predictions:', error);
+      logger.error('❌ Error fetching created predictions:', error);
       set({
         loading: false,
         error: error instanceof Error ? error.message : 'Failed to fetch created predictions'
@@ -434,22 +447,22 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
 
   fetchPredictionById: async (id: string) => {
     try {
-      console.log(`🔍 Fetching prediction by ID: ${id}`);
+      logger.debug(`🔍 Fetching prediction by ID: ${id}`);
       
       // First check if it's already in the store and has options
       const { predictions } = get();
       const existing = predictions.find(p => p.id === id);
       if (existing && existing.options && existing.options.length > 0) {
-        console.log('✅ Found prediction in store with options:', existing.title, existing.options.length);
+        logger.debug('✅ Found prediction in store with options:', existing.title, existing.options.length);
         return existing;
       }
       
       // Fetch directly from the specific prediction endpoint to ensure we get options
-      console.log('🌐 Fetching prediction directly from API:', id);
+      logger.debug('🌐 Fetching prediction directly from API:', id);
       const response = await fetch(`${getApiUrl()}/api/v2/predictions/${id}`);
       
       if (!response.ok) {
-        console.error(`❌ Failed to fetch prediction ${id}:`, response.status);
+        logger.error(`❌ Failed to fetch prediction ${id}:`, response.status);
         return null;
       }
       
@@ -457,8 +470,8 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
       const prediction = data.data;
       
       if (prediction) {
-        console.log('✅ Fetched prediction from API:', prediction.title);
-        console.log('🔍 Prediction options:', prediction.options?.length || 0);
+        logger.debug('✅ Fetched prediction from API:', prediction.title);
+        logger.debug('🔍 Prediction options:', prediction.options?.length || 0);
         
         // Update the store with the fetched prediction
         set(state => ({
@@ -472,15 +485,15 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
       
       // Fallback: try to find in store without options requirement
       if (existing) {
-        console.log('⚠️ Using existing prediction without options:', existing.title);
+        logger.warn('⚠️ Using existing prediction without options:', existing.title);
         return existing;
       }
       
-      console.log('❌ Prediction not found:', id);
+      logger.warn('❌ Prediction not found:', id);
       return null;
 
     } catch (error) {
-      console.error('❌ Error fetching prediction by ID:', error);
+      logger.error('❌ Error fetching prediction by ID:', error);
       return null;
     }
   },
@@ -541,14 +554,14 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
           }, 1000);
         }
     } catch (error) {
-        console.warn('⚠️ Failed to refresh user created predictions:', error);
+        logger.warn('⚠️ Failed to refresh user created predictions:', error);
       }
 
-      console.log('✅ Prediction created successfully:', newPrediction.id);
+      logger.info('✅ Prediction created successfully:', newPrediction.id);
       return newPrediction;
 
     } catch (error) {
-      console.error('❌ Error creating prediction:', error);
+      logger.error('❌ Error creating prediction:', error);
       set({ 
         loading: false,
         error: error instanceof Error ? error.message : 'Failed to create prediction'
@@ -571,9 +584,9 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
       const description = `Bet on "${option?.label || 'Unknown'}" in "${prediction?.title || 'Unknown Prediction'}"`;
       
       // Lock funds in wallet first
-      console.log('🔄 Locking wallet funds before prediction placement...');
+      logger.debug('🔄 Locking wallet funds before prediction placement...');
       await walletStore.makePrediction(amount, description, predictionId);
-      console.log('✅ Wallet funds locked successfully');
+      logger.debug('✅ Wallet funds locked successfully');
       
       const response = await fetch(`${getApiUrl()}/api/v2/predictions/${predictionId}/entries`, {
         method: 'POST',
@@ -597,7 +610,7 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
       
       // Use the full updated prediction object returned by the server
       if (data.prediction) {
-        console.log('📊 Updating prediction with server data:', {
+        logger.debug('📊 Updating prediction with server data:', {
           id: data.prediction.id,
           pool_total: data.prediction.pool_total,
           participant_count: data.prediction.participant_count,
@@ -654,15 +667,15 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
         }));
       }
 
-      console.log('✅ Prediction placed successfully with updated data');
+      logger.info('✅ Prediction placed successfully with updated data');
       
       // Refresh wallet to show updated transactions
-      console.log('🔄 Refreshing wallet data after prediction placement...');
+      logger.debug('🔄 Refreshing wallet data after prediction placement...');
       await walletStore.initializeWallet();
-      console.log('✅ Wallet refreshed');
+      logger.debug('✅ Wallet refreshed');
 
     } catch (error) {
-      console.error('❌ Error placing prediction:', error);
+      logger.error('❌ Error placing prediction:', error);
       set({
         loading: false,
         error: error instanceof Error ? error.message : 'Failed to place prediction'
@@ -675,7 +688,7 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
     set({ statsLoading: true });
     
     try {
-      console.log('📊 Fetching platform stats with retry logic...');
+      logger.debug('📊 Fetching platform stats with retry logic...');
       
       const data = await apiClient.get('/api/v2/predictions/stats/platform', {
         timeout: 8000,
@@ -688,13 +701,13 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
           statsLoading: false
         });
         
-        console.log('✅ Platform stats fetched:', data.data);
+        logger.info('✅ Platform stats fetched:', data.data);
       } else {
         throw new Error('Invalid stats response format');
       }
 
     } catch (error) {
-      console.error('❌ Error fetching platform stats:', error);
+      logger.error('❌ Error fetching platform stats:', error);
       
       // Set fallback stats based on current predictions
       const { predictions } = get();
@@ -711,7 +724,7 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
         statsLoading: false
       });
       
-      console.log('📊 Using fallback stats:', fallbackStats);
+      logger.debug('📊 Using fallback stats:', fallbackStats);
     }
   },
 
@@ -735,7 +748,7 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
   // User-specific data fetching methods
   fetchUserPredictionEntries: async (userId: string) => {
     try {
-      console.log('📋 Fetching user prediction entries with retry logic for:', userId);
+      logger.debug('📋 Fetching user prediction entries with retry logic for:', userId);
       
       const data = await apiClient.get(`/api/v2/prediction-entries/user/${userId}`, {
         timeout: 10000,
@@ -745,17 +758,17 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
       const userPredictionEntries = data.data || [];
 
       set({ userPredictionEntries });
-      console.log('✅ User prediction entries fetched:', userPredictionEntries.length);
+      logger.info('✅ User prediction entries fetched:', userPredictionEntries.length);
 
     } catch (error) {
-      console.error('❌ Error fetching user prediction entries:', error);
+      logger.error('❌ Error fetching user prediction entries:', error);
       // Don't set error state for this, just log it
     }
   },
 
   fetchUserCreatedPredictions: async (userId: string) => {
     try {
-      console.log('📋 Fetching user created predictions with retry logic for:', userId);
+      logger.debug('📋 Fetching user created predictions with retry logic for:', userId);
       
       const data = await apiClient.get(`/api/v2/predictions/created/${userId}`, {
         timeout: 10000,
@@ -765,10 +778,10 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
       const userCreatedPredictions = data.data || [];
 
       set({ userCreatedPredictions });
-      console.log('✅ User created predictions fetched:', userCreatedPredictions.length);
+      logger.info('✅ User created predictions fetched:', userCreatedPredictions.length);
       
     } catch (error) {
-      console.error('❌ Error fetching user created predictions:', error);
+      logger.error('❌ Error fetching user created predictions:', error);
       // Don't set error state for this, just log it
     }
   },
@@ -789,7 +802,7 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
   // Prediction management methods
   updatePrediction: async (predictionId: string, updates: any) => {
     try {
-      console.log('🔄 Updating prediction:', predictionId, updates);
+      logger.debug('🔄 Updating prediction:', predictionId, updates);
       
       const response = await fetch(`${getApiUrl()}/api/v2/predictions/${predictionId}`, {
         method: 'PUT',
@@ -817,17 +830,17 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
         )
       }));
 
-      console.log('✅ Prediction updated successfully');
+      logger.info('✅ Prediction updated successfully');
       
     } catch (error) {
-      console.error('❌ Error updating prediction:', error);
+      logger.error('❌ Error updating prediction:', error);
       throw error;
     }
   },
 
   deletePrediction: async (predictionId: string) => {
     try {
-      console.log('🗑️ Deleting prediction:', predictionId);
+      logger.debug('🗑️ Deleting prediction:', predictionId);
       
       const response = await fetch(`${getApiUrl()}/api/v2/predictions/${predictionId}`, {
         method: 'DELETE',
@@ -861,20 +874,20 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
           await get().fetchUserPredictionEntries(user.id);
         }
       } catch (refreshError) {
-        console.warn('⚠️ Post-delete refresh had an issue:', refreshError);
+        logger.warn('⚠️ Post-delete refresh had an issue:', refreshError);
       }
 
-      console.log('✅ Prediction deleted successfully');
+      logger.info('✅ Prediction deleted successfully');
 
     } catch (error) {
-      console.error('❌ Error deleting prediction:', error);
+      logger.error('❌ Error deleting prediction:', error);
       throw error;
     }
   },
 
   closePrediction: async (predictionId: string) => {
     try {
-      console.log('🔒 Closing prediction:', predictionId);
+      logger.debug('🔒 Closing prediction:', predictionId);
       
       const response = await fetch(`${getApiUrl()}/api/v2/predictions/${predictionId}/close`, {
         method: 'POST',
@@ -901,17 +914,17 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
         )
       }));
 
-      console.log('✅ Prediction closed successfully');
+      logger.info('✅ Prediction closed successfully');
 
     } catch (error) {
-      console.error('❌ Error closing prediction:', error);
+      logger.error('❌ Error closing prediction:', error);
       throw error;
     }
   },
 
   fetchPredictionActivity: async (predictionId: string) => {
     try {
-      console.log('📋 Fetching prediction activity:', predictionId);
+      logger.debug('📋 Fetching prediction activity:', predictionId);
       
       const response = await fetch(`${getApiUrl()}/api/v2/predictions/${predictionId}/activity`, {
         method: 'GET',
@@ -922,7 +935,7 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
       });
 
       if (!response.ok) {
-        console.warn(`Activity endpoint not available: ${response.statusText}`);
+        logger.warn(`Activity endpoint not available: ${response.statusText}`);
         return []; // Return empty array if endpoint doesn't exist yet
       }
 
@@ -930,14 +943,14 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
       return data.data || [];
 
     } catch (error) {
-      console.warn('Activity endpoint not implemented yet:', error);
+      logger.debug('Activity endpoint not implemented yet:', error);
       return []; // Return empty array for now
     }
   },
 
   fetchPredictionParticipants: async (predictionId: string) => {
     try {
-      console.log('📋 Fetching prediction participants:', predictionId);
+      logger.debug('📋 Fetching prediction participants:', predictionId);
       
       const response = await fetch(`${getApiUrl()}/api/v2/predictions/${predictionId}/participants`, {
         method: 'GET',
@@ -948,7 +961,7 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
       });
 
       if (!response.ok) {
-        console.warn(`Participants endpoint not available: ${response.statusText}`);
+        logger.warn(`Participants endpoint not available: ${response.statusText}`);
         return []; // Return empty array if endpoint doesn't exist yet
       }
 
@@ -956,12 +969,18 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
       return data.data || [];
       
     } catch (error) {
-      console.warn('Participants endpoint not implemented yet:', error);
+      logger.debug('Participants endpoint not implemented yet:', error);
       return []; // Return empty array for now
     }
   },
 
   reset: () => {
     set(initialState);
+  },
+
+  // Active stats selector (memoized)
+  selectActiveStats: () => {
+    const { predictions } = get();
+    return computeActiveStats(predictions);
   }
 }));

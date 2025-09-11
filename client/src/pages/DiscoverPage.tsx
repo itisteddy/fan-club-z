@@ -8,8 +8,12 @@ import { useAuthStore } from '../store/authStore';
 import PredictionCardSkeleton from '../components/PredictionCardSkeleton';
 import { PlacePredictionModal } from '../components/predictions/PlacePredictionModal';
 import { useInfiniteScroll } from '../hooks/useInfiniteScroll';
-import Logo from '../components/common/Logo';
+import UserAvatar from '../components/common/UserAvatar';
+import MobileHeader from '../components/layout/MobileHeader';
+import { LiveSummaryCard } from '../components/LiveSummaryCard';
+import { SearchBar } from '../components/SearchBar';
 import useScrollPreservation from '../hooks/useScrollPreservation';
+import { logger } from '../lib/logger';
 
 interface DiscoverPageProps {
   onNavigateToProfile?: () => void;
@@ -36,9 +40,9 @@ const CategoryFilters = React.memo(function CategoryFilters({
   ];
 
   return (
-    <div className="category-filters bg-white border-b border-gray-100 px-4 py-3" data-tour-id="category-filters">
-      <div className="category-filters-container overflow-x-auto -mx-2 px-2">
-        <div className="category-filters-flex flex gap-2 pb-1">
+    <div className="category-filters" data-tour-id="category-filters">
+      <div className="category-filters-container overflow-x-auto">
+        <div className="category-filters-flex flex gap-2">
           {categories.map((category) => (
             <motion.button
               key={category.id}
@@ -64,95 +68,6 @@ const CategoryFilters = React.memo(function CategoryFilters({
 });
 
 CategoryFilters.displayName = 'CategoryFilters';
-
-// Enhanced Mobile Header Component
-const MobileHeader = React.memo(function MobileHeader({ 
-  user, 
-  stats, 
-  searchQuery, 
-  onSearchChange, 
-  onNavigateToProfile 
-}: {
-  user: any;
-  stats: any;
-  searchQuery: string;
-  onSearchChange: (query: string) => void;
-  onNavigateToProfile: () => void;
-}) {
-  return (
-    <div className="bg-white border-b border-gray-100 sticky top-0 z-50">
-      {/* Status bar spacer */}
-      <div className="h-11" />
-      
-      <div className="px-4 pb-4">
-        {/* Top section with logo */}
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-3">
-            <Logo size="md" variant="icon" />
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">Discover</h1>
-              <p className="text-sm text-gray-600">Find your next winning prediction</p>
-            </div>
-          </div>
-          <button
-            onClick={onNavigateToProfile}
-            className="w-10 h-10 rounded-full bg-gradient-to-r from-purple-400 to-purple-500 flex items-center justify-center text-white font-semibold shadow-lg"
-          >
-            {user?.email?.[0]?.toUpperCase() || 'U'}
-          </button>
-        </div>
-
-        {/* Live market stats */}
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="bg-gradient-to-r from-purple-50 to-emerald-50 rounded-2xl p-4 mb-4"
-        >
-          <div className="flex items-center gap-2 mb-3">
-            <div className="w-2 h-2 bg-purple-500 rounded-full animate-pulse"></div>
-            <span className="text-sm font-medium text-gray-900">LIVE MARKETS</span>
-          </div>
-          <div className="grid grid-cols-3 gap-4">
-            <div className="text-center">
-              <div className="text-lg font-bold text-gray-900">
-                ${stats?.totalVolume || '0'}
-              </div>
-              <div className="text-xs text-gray-600">Volume</div>
-            </div>
-            <div className="text-center">
-              <div className="text-lg font-bold text-gray-900">
-                {stats?.activePredictions || '0'}
-              </div>
-              <div className="text-xs text-gray-600">Live</div>
-            </div>
-            <div className="text-center">
-              <div className="text-lg font-bold text-gray-900">
-                {stats?.totalUsers || '0'}
-              </div>
-              <div className="text-xs text-gray-600">Players</div>
-            </div>
-          </div>
-        </motion.div>
-
-        {/* Search bar */}
-        <div className="relative" data-tour-id="search-bar">
-          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-            <Search className="h-5 w-5 text-gray-400" />
-          </div>
-          <input
-            type="text"
-            placeholder="Search predictions..."
-            value={searchQuery}
-            onChange={(e) => onSearchChange(e.target.value)}
-            className="w-full pl-10 pr-4 py-3 bg-gray-50 border-0 rounded-xl text-gray-900 placeholder-gray-500 focus:bg-white focus:ring-2 focus:ring-purple-500 focus:outline-none transition-all"
-          />
-        </div>
-      </div>
-    </div>
-  );
-});
-
-MobileHeader.displayName = 'MobileHeader';
 
 // Main DiscoverPage Component
 const DiscoverPage = React.memo(function DiscoverPage({ onNavigateToProfile, onNavigateToPrediction }: DiscoverPageProps) {
@@ -180,40 +95,14 @@ const DiscoverPage = React.memo(function DiscoverPage({ onNavigateToProfile, onN
     threshold: 100 // Only save if scrolled more than 100px
   });
 
-  const [platformStats, setPlatformStats] = useState({
-    totalVolume: '0',
-    activePredictions: 0,
-    totalUsers: '0',
-    rawVolume: 0,
-    rawUsers: 0
-  });
-
-  // Fetch platform stats
-  const fetchPlatformStats = useCallback(async () => {
-    try {
-      // Use the same environment API URL logic as the rest of the app
-      const { getApiUrl } = await import('../lib/environment');
-      const response = await fetch(`${getApiUrl()}/api/v2/predictions/stats/platform`);
-      if (response.ok) {
-        const data = await response.json();
-        if (data.success) {
-          setPlatformStats(data.data);
-          console.log('✅ Platform stats fetched:', data.data);
-        }
-      } else {
-        console.error('Failed to fetch platform stats:', response.status);
-      }
-    } catch (error) {
-      console.error('Error fetching platform stats:', error);
-    }
-  }, []);
+  // Platform stats removed - now computed from active predictions in LiveSummaryCard
 
   // Setup infinite scroll on container
   useInfiniteScroll({
     hasNext: pagination.hasNext,
     loading: loadingMore,
     onLoadMore: () => {
-      console.log('🔄 Infinite scroll triggered in DiscoverPage:', {
+      logger.debug('🔄 Infinite scroll triggered in DiscoverPage:', {
         hasNext: pagination.hasNext,
         loading: loadingMore,
         currentPage: pagination.page,
@@ -228,28 +117,22 @@ const DiscoverPage = React.memo(function DiscoverPage({ onNavigateToProfile, onN
   // Initialize data on mount
   useEffect(() => {
     refreshPredictions();
-    fetchPlatformStats();
-  }, [refreshPredictions, fetchPlatformStats]);
+  }, [refreshPredictions]);
 
-  // Calculate stats
-  const stats = useMemo(() => ({
-    totalVolume: platformStats.totalVolume,
-    activePredictions: platformStats.activePredictions,
-    totalUsers: platformStats.totalUsers
-  }), [platformStats]);
+  // Stats now computed inside LiveSummaryCard
 
   // Backend now handles filtering - no additional filtering needed
   const displayPredictions = useMemo(() => {
     if (!predictions || !Array.isArray(predictions)) {
-      console.log('🔍 DiscoverPage Debug - No valid predictions array:', predictions);
+      logger.warn('🔍 DiscoverPage Debug - No valid predictions array:', predictions);
       return [];
     }
     
-    console.log(`🔍 DiscoverPage Debug - Displaying ${predictions.length} predictions`);
+    logger.debug(`🔍 DiscoverPage Debug - Displaying ${predictions.length} predictions`);
     return predictions.filter(prediction => {
       // Safety check for prediction object only
       if (!prediction || !prediction.id || !prediction.title) {
-        console.warn('⚠️ DiscoverPage: Invalid prediction object:', prediction);
+        logger.warn('⚠️ DiscoverPage: Invalid prediction object:', prediction);
         return false;
       }
       return true;
@@ -301,12 +184,12 @@ const DiscoverPage = React.memo(function DiscoverPage({ onNavigateToProfile, onN
   }, []);
 
   const handleSearchChange = useCallback((query: string) => {
-    console.log('🔍 Search query changed:', query);
+    logger.debug('🔍 Search query changed:', query);
     setFilters({ search: query });
   }, [setFilters]);
 
   const handleCategorySelect = useCallback((category: string) => {
-    console.log('📂 Category changed:', category);
+    logger.debug('📂 Category changed:', category);
     setFilters({ category });
   }, [setFilters]);
 
@@ -379,56 +262,58 @@ const DiscoverPage = React.memo(function DiscoverPage({ onNavigateToProfile, onN
   }
 
   return (
-    <div 
-      ref={containerRef} 
-      className="discover-page content-with-bottom-nav" 
-      data-scroll-container
-      style={{ position: 'relative', zIndex: 1 }}
-    >
-      {/* Header with proper z-index */}
-      <div className="discover-header">
-        <div className="header-content">
-          <MobileHeader 
-            user={user} 
-            stats={stats} 
+    <div className="flex flex-col min-h-dvh">
+      <MobileHeader 
+        title="Discover" 
+      />
+      
+      <main 
+        ref={containerRef}
+        className="flex-1 overflow-y-auto"
+        data-scroll-container
+      >
+        {/* Live Summary Card */}
+        <section className="px-5 pt-3">
+          <LiveSummaryCard />
+        </section>
+
+        {/* Search Bar and Category Chips */}
+        <section className="px-5 pt-4">
+          <SearchBar 
             searchQuery={filters.search}
             onSearchChange={handleSearchChange}
-            onNavigateToProfile={onNavigateToProfile || (() => {})}
           />
-        </div>
-      </div>
+          <div className="mt-3">
+            <CategoryFilters 
+              selectedCategory={filters.category} 
+              onSelect={handleCategorySelect} 
+            />
+          </div>
+        </section>
 
-      {/* Category filters with explicit positioning */}
-      <div className="category-filters-wrapper" style={{ position: 'relative', zIndex: 45 }}>
-        <CategoryFilters 
-          selectedCategory={filters.category} 
-          onSelect={handleCategorySelect} 
-        />
-      </div>
+        {/* Predictions Content */}
+        <section className="px-5 pb-safe pt-4">
+          {/* Section header */}
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mb-4"
+          >
+            <h2 className="text-xl font-bold text-gray-900 mb-1" data-tour-id="discover-list">
+              {filters.category === 'all' ? 'All Predictions' : `${filters.category} Predictions`}
+              {filters.search && ` - "${filters.search}"`}
+            </h2>
+            {/* Show pagination info instead of static count */}
+            {pagination.total > 0 && (
+              <p className="text-sm text-gray-600">
+                Showing {displayPredictions.length} of {pagination.total} predictions
+                {pagination.hasNext && ' • Scroll for more'}
+              </p>
+            )}
+          </motion.div>
 
-      {/* Content with proper spacing */}
-      <div className="prediction-cards-container">
-        {/* Section header */}
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="px-4 mb-4"
-        >
-          <h2 className="text-xl font-bold text-gray-900 mb-1" data-tour-id="discover-list">
-            {filters.category === 'all' ? 'All Predictions' : `${filters.category} Predictions`}
-            {filters.search && ` - "${filters.search}"`}
-          </h2>
-          {/* Show pagination info instead of static count */}
-          {pagination.total > 0 && (
-            <p className="text-sm text-gray-600">
-              Showing {displayPredictions.length} of {pagination.total} predictions
-              {pagination.hasNext && ' • Scroll for more'}
-            </p>
-          )}
-        </motion.div>
-
-        {/* Predictions Grid with infinite scroll */}
-        <div className="space-y-2">
+          {/* Predictions Grid with infinite scroll */}
+          <div className="space-y-3">
           <AnimatePresence mode="wait">
             {displayPredictions.length > 0 ? (
               <>
@@ -473,7 +358,7 @@ const DiscoverPage = React.memo(function DiscoverPage({ onNavigateToProfile, onN
                   >
                     <button
                       onClick={() => {
-                        console.log('🔄 Manual load more triggered');
+                        logger.debug('🔄 Manual load more triggered');
                         loadMorePredictions();
                       }}
                       className="bg-purple-500 text-white px-4 py-2 rounded-lg font-medium hover:bg-purple-600 transition-colors"
@@ -529,8 +414,9 @@ const DiscoverPage = React.memo(function DiscoverPage({ onNavigateToProfile, onN
               </motion.div>
             )}
           </AnimatePresence>
-        </div>
-      </div>
+          </div>
+        </section>
+      </main>
 
       {/* Prediction Modal */}
       <PlacePredictionModal

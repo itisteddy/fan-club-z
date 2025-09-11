@@ -1,0 +1,63 @@
+import React from 'react';
+import { ArrowLeft } from 'lucide-react';
+
+interface MobileHeaderProps {
+  title?: string;
+  showBack?: boolean;
+  onBack?: () => void;
+  right?: React.ReactNode;
+  elevated?: boolean;
+  className?: string;
+}
+
+const MobileHeader: React.FC<MobileHeaderProps> = ({
+  title,
+  showBack = false,
+  onBack,
+  right,
+  elevated = false,
+  className = ''
+}) => {
+  const handleBack = () => {
+    if (onBack) {
+      onBack();
+    } else if (typeof window !== 'undefined' && window.history.length > 1) {
+      window.history.back();
+    }
+  };
+
+  return (
+    <header 
+      className={`sticky top-0 z-40 h-14 px-4 bg-white border-b border-gray-100 ${
+        elevated ? 'shadow-sm' : ''
+      } ${className}`}
+    >
+      <div className="flex h-full items-center justify-between max-w-md mx-auto">
+        <div className="flex items-center gap-2 flex-1 min-w-0">
+          {showBack && (
+            <button
+              onClick={handleBack}
+              className="p-2 -ml-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
+              aria-label="Go back"
+            >
+              <ArrowLeft className="w-5 h-5" />
+            </button>
+          )}
+          {title && (
+            <h1 className="text-lg font-semibold text-gray-900 tracking-tight truncate">
+              {title}
+            </h1>
+          )}
+        </div>
+        
+        {right && (
+          <div className="flex items-center gap-2 ml-2">
+            {right}
+          </div>
+        )}
+      </div>
+    </header>
+  );
+};
+
+export default MobileHeader;

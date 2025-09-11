@@ -3,18 +3,23 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useLocation } from 'wouter';
 import { useAuthStore } from '../store/authStore';
 import { usePredictionStore } from '../store/predictionStore';
+import { useRequireAuth } from '../hooks/useRequireAuth';
+import EmptyState from '../components/common/EmptyState';
+import { AuthCTA } from '../components/auth/AuthCTA';
 import { 
   TrendingUp, 
   Target, 
   CheckCircle, 
   Plus, 
   Settings,
-  Share2
+  Share2,
+  ArrowLeft
 } from 'lucide-react';
 import ManagePredictionModal from '../components/modals/ManagePredictionModal';
+import MobileHeader from '../components/layout/MobileHeader';
 
 // Production BetsTab Component - Extracted from production bundle
-const BetsTab: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNavigateToDiscover }) => {
+const BetsTab: React.FC<{ onNavigateToDiscover?: () => void, onNavigateBack?: () => void }> = ({ onNavigateToDiscover, onNavigateBack }) => {
   const [, setLocation] = useLocation();
   const { 
     predictions, 
@@ -25,6 +30,33 @@ const BetsTab: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNavigateTo
     loading 
   } = usePredictionStore();
   const { user, isAuthenticated } = useAuthStore();
+  const requireAuth = useRequireAuth();
+
+  // Handle non-blocking auth - show sign-in prompt if not authenticated
+  if (!user) {
+    return (
+      <div className="flex flex-col min-h-dvh">
+        <MobileHeader 
+          title="My Predictions" 
+          showBack={!!onNavigateBack}
+          onBack={onNavigateBack}
+        />
+          
+        <main className="flex-1 overflow-y-auto">
+          <AuthCTA
+            icon="target"
+            title="Sign in to view your predictions"
+            subtitle="Track your active predictions, winnings, and prediction history."
+            onGoogle={async () => {
+              await requireAuth();
+            }}
+            testId="bets-auth-cta"
+          />
+        </main>
+      </div>
+    );
+  }
+
 
   const [activeTab, setActiveTab] = useState("Active");
   const [showManageModal, setShowManageModal] = useState(false);
@@ -361,38 +393,45 @@ const BetsTab: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNavigateTo
     );
   }
 
-  // Empty state component
-  const EmptyState = ({ tab }: { tab: string }) => (
-    <div className="flex flex-col items-center justify-center py-16 px-6">
-      <div className="w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center mb-6">
-        {tab === 'Active' && <TrendingUp className="w-10 h-10 text-gray-400" />}
-        {tab === 'Created' && <Target className="w-10 h-10 text-gray-400" />}
-        {tab === 'Completed' && <CheckCircle className="w-10 h-10 text-gray-400" />}
-      </div>
-      <h3 className="text-xl font-semibold text-gray-900 mb-2">No {tab.toLowerCase()} predictions</h3>
-      <p className="text-gray-600 text-center mb-8 max-w-sm">
-        {tab === 'Active' && "You haven't made any predictions yet. Start by exploring trending topics!"}
-        {tab === 'Created' && "You haven't created any predictions yet. Share your insights with the community!"}
-        {tab === 'Completed' && "Your prediction history will appear here once you complete some predictions."}
-      </p>
-      <motion.button
-        className="bg-emerald-500 hover:bg-emerald-600 text-white px-8 py-3 rounded-xl font-medium transition-all duration-200 flex items-center gap-2"
-        onClick={() => {
-          if (tab === 'Created') {
-            setLocation('/create');
-            window.scrollTo({ behavior: 'instant' });
-          } else {
-            onNavigateToDiscover && onNavigateToDiscover();
-          }
-        }}
-        whileHover={{ scale: 1.05 }}
-        whileTap={{ scale: 0.95 }}
-      >
-        <Plus className="w-5 h-5" />
-        {tab === 'Created' ? 'Create Prediction' : 'Explore Predictions'}
-      </motion.button>
-    </div>
-  );
+  // Tab-specific empty state component
+  const TabEmptyState = ({ tab }: { tab: string }) => {
+    const getIcon = () => {
+      if (tab === 'Active') return <TrendingUp className="w-10 h-10 text-gray-400" />;
+      if (tab === 'Created') return <Target className="w-10 h-10 text-gray-400" />;
+      if (tab === 'Completed') return <CheckCircle className="w-10 h-10 text-gray-400" />;
+      return null;
+    };
+    
+    const getTitle = () => `No ${tab.toLowerCase()} predictions`;
+    
+    const getDescription = () => {
+      if (tab === 'Active') return "You haven't made any predictions yet. Start by exploring trending topics!";
+      if (tab === 'Created') return "You haven't created any predictions yet. Share your insights with the community!";
+      if (tab === 'Completed') return "Your prediction history will appear here once you complete some predictions.";
+      return '';
+    };
+    
+    const getPrimaryCta = () => tab === 'Created' ? 'Create Prediction' : 'Explore Predictions';
+    
+    const handlePrimary = () => {
+      if (tab === 'Created') {
+        setLocation('/create');
+        window.scrollTo({ behavior: 'instant' });
+      } else {
+        onNavigateToDiscover && onNavigateToDiscover();
+      }
+    };
+    
+    return (
+      <EmptyState
+        icon={getIcon()}
+        title={getTitle()}
+        description={getDescription()}
+        primaryCta={getPrimaryCta()}
+        onPrimary={handlePrimary}
+      />
+    );
+  };
 
   // Active prediction card
   const ActivePredictionCard = ({ prediction }: { prediction: any }) => (
@@ -595,14 +634,17 @@ const BetsTab: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNavigateTo
   );
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <div className="bg-white border-b border-gray-200">
-        <div className="px-6 pt-12 pb-6">
-          <h1 className="text-3xl font-bold text-gray-900 mb-6">My Predictions</h1>
-          
+    <div className="flex flex-col min-h-dvh">
+      <MobileHeader 
+        title="My Predictions" 
+        showBack={!!onNavigateBack}
+        onBack={onNavigateBack}
+      />
+      
+      <main className="flex-1 overflow-y-auto">
+        <div className="px-5 py-4">
           {/* Tabs */}
-          <div className="flex space-x-1 bg-gray-100 p-1 rounded-xl" data-tour-id="bets-tabs">
+          <div className="flex space-x-1 bg-gray-100 p-1 rounded-xl mb-6" data-tour-id="bets-tabs">
             {tabs.map(tab => {
               const Icon = tab.icon;
               return (
@@ -631,10 +673,8 @@ const BetsTab: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNavigateTo
             })}
           </div>
         </div>
-      </div>
-
-      {/* Content */}
-      <div className="px-6 py-6">
+        
+        <div className="px-5">
         {loading ? (
           <div className="flex items-center justify-center py-16">
             <div className="w-8 h-8 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
@@ -665,9 +705,10 @@ const BetsTab: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNavigateTo
             )}
           </div>
         ) : (
-          <EmptyState tab={activeTab} />
+          <TabEmptyState tab={activeTab} />
         )}
-      </div>
+        </div>
+      </main>
 
       {/* Manage Prediction Modal */}
       {selectedPrediction && (

@@ -1,17 +1,16 @@
-import { useAuthStore } from '../store/authStore';
 import { useAuthSheet } from '../components/auth/AuthSheetProvider';
+import { useAuthStore } from '../store/authStore';
 
-export const useRequireAuth = () => {
-  const { isAuthenticated } = useAuthStore();
+export function useRequireAuth() {
   const { openSheet } = useAuthSheet();
-
-  const requireAuth = (callback: () => void, reason: string = 'This action requires authentication') => {
-    if (!isAuthenticated) {
-      openSheet({ reason });
-      return;
-    }
-    callback();
+  const user = useAuthStore(s => s.user);
+  
+  return async () => {
+    if (user) return true;
+    
+    await openSheet('auth-required');
+    
+    // Check if user authenticated after sheet interaction
+    return !!useAuthStore.getState().user;
   };
-
-  return { requireAuth, isAuthenticated };
-};
+}

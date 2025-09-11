@@ -1,6 +1,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Home, TrendingUp, User, Wallet, Plus } from 'lucide-react';
+import { Home, LineChart, User, Wallet, Plus, Trophy } from 'lucide-react';
+import { useLocation } from 'wouter';
 
 interface BottomNavigationProps {
   activeTab?: string;
@@ -17,7 +18,8 @@ const BottomNavigation: React.FC<BottomNavigationProps> = ({
 }) => {
   const tabs = [
     { id: 'discover', label: 'Discover', icon: Home },
-    { id: 'bets', label: 'My Bets', icon: TrendingUp },
+    { id: 'bets', label: 'My Bets', icon: LineChart },
+    { id: 'leaderboard', label: 'Rankings', icon: Trophy },
     { id: 'wallet', label: 'Wallet', icon: Wallet },
     { id: 'profile', label: 'Profile', icon: User },
   ];

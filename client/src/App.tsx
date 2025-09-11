@@ -19,8 +19,9 @@ import CreatePredictionPage from './pages/CreatePredictionPage';
 import BetsTab from './pages/BetsTab';
 import ProfilePage from './pages/ProfilePage';
 import WalletPage from './pages/WalletPage';
-// import AuthPage from './pages/auth/AuthPage'; // Removed - using bottom sheet auth
+import LeaderboardPage from './pages/LeaderboardPage';
 import AuthCallbackPage from './pages/auth/AuthCallbackPage';
+import AuthSheetRoute from './pages/auth/AuthSheetRoute';
 import PredictionDetailsPage from './pages/PredictionDetailsPage';
 import BottomNavigation from './components/BottomNavigation';
 import ErrorBoundary from './components/ErrorBoundary';
@@ -35,29 +36,6 @@ const LoadingSpinner: React.FC<{ message?: string }> = ({ message = "Loading..."
   </div>
 );
 
-// Simplified Auth Guard
-const AuthGuard: React.FC<{ children: React.ReactNode }> = memo(({ children }) => {
-  const { isAuthenticated, loading, initialized, initializeAuth } = useAuthStore();
-  
-  useEffect(() => {
-    if (!initialized && !loading) {
-      initializeAuth();
-    }
-  }, [initialized, loading, initializeAuth]);
-  
-  if (!initialized || (loading && !isAuthenticated)) {
-    return <LoadingSpinner message="Authenticating..." />;
-  }
-  
-  if (!isAuthenticated) {
-    return <AuthPage />;
-  }
-  
-  return <>{children}</>;
-});
-
-AuthGuard.displayName = 'AuthGuard';
-
 // Enhanced Main Layout Component with scroll preservation
 const MainLayout: React.FC<{ children: React.ReactNode }> = memo(({ children }) => {
   const [location, navigate] = useLocation();
@@ -71,6 +49,7 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = memo(({ children }) 
     const path = location.toLowerCase();
     if (path === '/' || path === '/discover') return 'discover';
     if (path === '/bets' || path === '/predictions') return 'bets';
+    if (path === '/leaderboard') return 'leaderboard';
     if (path === '/profile') return 'profile';
     if (path === '/wallet') return 'wallet';
     return 'discover';
@@ -94,6 +73,9 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = memo(({ children }) 
         break;
       case 'bets':
         navigate('/predictions');
+        break;
+      case 'leaderboard':
+        navigate('/leaderboard');
         break;
       case 'profile':
         navigate('/profile');
@@ -319,6 +301,21 @@ const WalletPageWrapper: React.FC = () => {
   );
 };
 
+const LeaderboardPageWrapper: React.FC = () => {
+  const [location, navigate] = useLocation();
+  
+  const handleNavigateBack = useCallback(() => {
+    saveScrollPosition(location);
+    navigate('/');
+  }, [navigate, location]);
+
+  return (
+    <PageWrapper title="Leaderboard">
+      <LeaderboardPage onNavigateBack={handleNavigateBack} />
+    </PageWrapper>
+  );
+};
+
 const PredictionDetailsWrapper: React.FC<{ params: { id: string } }> = ({ params }) => {
   const [location, navigate] = useLocation();
   
@@ -409,40 +406,41 @@ function App() {
       <AuthSheetProvider>
         <Router>
           <Switch>
-        {/* Public auth routes */}
-        <Route path="/auth/callback">
-          <PageWrapper title="Authentication">
-            <AuthCallbackPage />
-          </PageWrapper>
-        </Route>
-        
-        {/* Public routes - no auth required */}
-        <MainLayout>
-          <Switch>
-            <Route path="/" component={DiscoverPageWrapper} />
-            <Route path="/discover" component={DiscoverPageWrapper} />
-            <Route path="/prediction/:id" component={PredictionDetailsWrapper} />
-            <Route path="/predictions/:id" component={PredictionDetailsWrapper} />
+            {/* Auth routes */}
+            <Route path="/auth" component={AuthSheetRoute} />
+            <Route path="/auth/callback">
+              <PageWrapper title="Authentication">
+                <AuthCallbackPage />
+              </PageWrapper>
+            </Route>
             
-            {/* Protected routes - require auth */}
-            <AuthGuard>
-              <OnboardingProvider>
-                <Switch>
-                  <Route path="/predictions" component={PredictionsPageWrapper} />
-                  <Route path="/bets" component={PredictionsPageWrapper} />
-                  <Route path="/create" component={CreatePredictionPageWrapper} />
-                  <Route path="/profile" component={MyProfilePageWrapper} />
-                  <Route path="/profile/:userId" component={UserProfilePageWrapper} />
-                  <Route path="/wallet" component={WalletPageWrapper} />
-                </Switch>
-              </OnboardingProvider>
-            </AuthGuard>
+            {/* Main app with navigation */}
+            <MainLayout>
+              <Switch>
+                {/* Public routes - accessible without auth */}
+                <Route path="/" component={DiscoverPageWrapper} />
+                <Route path="/discover" component={DiscoverPageWrapper} />
+                <Route path="/prediction/:id" component={PredictionDetailsWrapper} />
+                <Route path="/predictions/:id" component={PredictionDetailsWrapper} />
+                
+                {/* Auth-optional routes - accessible but show sign-in prompts when needed */}
+                <OnboardingProvider>
+                  <Switch>
+                    <Route path="/predictions" component={PredictionsPageWrapper} />
+                    <Route path="/bets" component={PredictionsPageWrapper} />
+                    <Route path="/create" component={CreatePredictionPageWrapper} />
+                    <Route path="/leaderboard" component={LeaderboardPageWrapper} />
+                    <Route path="/profile" component={MyProfilePageWrapper} />
+                    <Route path="/profile/:userId" component={UserProfilePageWrapper} />
+                    <Route path="/wallet" component={WalletPageWrapper} />
+                  </Switch>
+                </OnboardingProvider>
 
-            {/* Fallback */}
-            <Route component={DiscoverPageWrapper} />
+                {/* Fallback */}
+                <Route component={DiscoverPageWrapper} />
+              </Switch>
+            </MainLayout>
           </Switch>
-        </MainLayout>
-        </Switch>
         </Router>
         
         {/* Global Auth Sheet */}
