@@ -5,14 +5,18 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+// Standardized USD formatter for the platform
+export const formatUsd = (amount: number): string => {
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  }).format(amount);
+};
+
 export const formatCurrency = (amount: number, currency: string = 'USD'): string => {
   const formatters: Record<string, Intl.NumberFormat> = {
-    NGN: new Intl.NumberFormat('en-NG', {
-      style: 'currency',
-      currency: 'NGN',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 2,
-    }),
     USD: new Intl.NumberFormat('en-US', {
       style: 'currency',
       currency: 'USD',

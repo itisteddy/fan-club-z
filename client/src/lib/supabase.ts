@@ -264,7 +264,7 @@ export const clientDb = {
   },
 
   wallets: {
-    async getBalance(userId: string, currency: string = 'NGN') {
+    async getBalance(userId: string, currency: string = 'USD') {
       try {
         const { data, error } = await supabase
           .from('wallets')
