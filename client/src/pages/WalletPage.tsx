@@ -36,8 +36,6 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
     getBalance,
     getTransactionHistory,
     addFunds, 
-    resetDemoBalance,
-    isDemoMode,
     initializeWallet 
   } = useWalletStore();
   const { user } = useAuthStore();
@@ -81,10 +79,11 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
     setIsResetting(true);
     
     try {
-      await resetDemoBalance();
-      toast.success('Demo balance reset successfully!');
+      // Reset to initial state by reinitializing wallet
+      await initializeWallet();
+      toast.success('Wallet reset successfully!');
     } catch (error) {
-      toast.error('Failed to reset demo balance. Please try again.');
+      toast.error('Failed to reset wallet. Please try again.');
     } finally {
       setIsResetting(false);
     }
@@ -162,9 +161,6 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
             
             <div className="text-center">
               <h1 className="text-xl font-bold text-gray-900">Wallet</h1>
-              {isDemoMode && (
-                <p className="text-xs text-gray-500 mt-1">Demo Mode</p>
-              )}
             </div>
             
             <div className="w-10" /> {/* Spacer for centering */}
@@ -172,24 +168,6 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
         </div>
       </div>
 
-      {/* Demo Mode Banner */}
-      {isDemoMode && (
-        <motion.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="mx-4 mt-4 bg-gradient-to-r from-blue-500 to-blue-600 rounded-xl p-4"
-        >
-          <div className="flex items-center gap-3">
-            <AlertCircle size={20} className="text-white" />
-            <div className="flex-1">
-              <h3 className="text-white font-semibold text-sm">Demo Funds</h3>
-              <p className="text-blue-100 text-xs">
-                This is a demo wallet. All transactions are simulated.
-              </p>
-            </div>
-          </div>
-          </motion.div>
-      )}
 
           {/* Balance Card */}
           <motion.div
@@ -221,22 +199,20 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
           >
             Add Funds
           </button>
-          {isDemoMode && (
-            <button
-              onClick={handleResetDemo}
-              disabled={isResetting}
-              className="flex-1 bg-white bg-opacity-20 hover:bg-opacity-30 rounded-lg py-2 px-3 text-sm font-medium transition-all disabled:opacity-50"
-            >
-              {isResetting ? (
-                <div className="flex items-center justify-center gap-2">
-                  <RefreshCw size={14} className="animate-spin" />
-                  Resetting...
-                </div>
-              ) : (
-                'Reset Demo'
-              )}
-            </button>
-          )}
+          <button
+            onClick={handleResetDemo}
+            disabled={isResetting}
+            className="flex-1 bg-white bg-opacity-20 hover:bg-opacity-30 rounded-lg py-2 px-3 text-sm font-medium transition-all disabled:opacity-50"
+          >
+            {isResetting ? (
+              <div className="flex items-center justify-center gap-2">
+                <RefreshCw size={14} className="animate-spin" />
+                Resetting...
+              </div>
+            ) : (
+              'Reset Wallet'
+            )}
+          </button>
             </div>
           </motion.div>
 
@@ -402,7 +378,7 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
               className="bg-white rounded-2xl w-full max-w-sm p-6"
               onClick={(e) => e.stopPropagation()}
             >
-              <h3 className="text-lg font-bold text-gray-900 mb-4">Add Demo Funds</h3>
+              <h3 className="text-lg font-bold text-gray-900 mb-4">Add Funds</h3>
               
               {/* Quick amounts */}
               <div className="grid grid-cols-2 gap-3 mb-4">

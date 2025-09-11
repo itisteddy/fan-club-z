@@ -615,6 +615,22 @@ export const useCommentsForPrediction = (predictionId: string) => {
     return store.toggleCommentLike(commentId, safePredictionId);
   }, [store.toggleCommentLike, safePredictionId]);
 
+  const editComment = useCallback((commentId: string, content: string) => {
+    if (!safePredictionId) {
+      console.warn('⚠️ Cannot edit comment: no prediction ID provided');
+      return Promise.resolve();
+    }
+    return store.editComment(safePredictionId, commentId, content);
+  }, [store.editComment, safePredictionId]);
+
+  const deleteComment = useCallback((commentId: string) => {
+    if (!safePredictionId) {
+      console.warn('⚠️ Cannot delete comment: no prediction ID provided');
+      return Promise.resolve();
+    }
+    return store.deleteComment(safePredictionId, commentId);
+  }, [store.deleteComment, safePredictionId]);
+
   const clearError = useCallback(() => {
     if (!safePredictionId) {
       return;
@@ -634,6 +650,8 @@ export const useCommentsForPrediction = (predictionId: string) => {
         fetchComments,
         addComment,
         toggleCommentLike,
+        editComment,
+        deleteComment,
         clearError,
       };
     }
@@ -647,6 +665,8 @@ export const useCommentsForPrediction = (predictionId: string) => {
       fetchComments,
       addComment,
       toggleCommentLike,
+      editComment,
+      deleteComment,
       clearError,
     };
   }, [
@@ -659,6 +679,8 @@ export const useCommentsForPrediction = (predictionId: string) => {
     fetchComments,
     addComment,
     toggleCommentLike,
+    editComment,
+    deleteComment,
     clearError
   ]);
 };
