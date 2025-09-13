@@ -297,26 +297,6 @@ const ClubCard: React.FC<{
     </motion.div>
   );
 };
-
-      createdAt: new Date(),
-      updatedAt: new Date(),
-      owner: {
-        username: 'Club Owner',
-        avatarUrl: undefined
-      },
-      isMember: clubData.isJoined || false,
-      memberRole: clubData.isJoined ? 'member' as const : null,
-      activePredictions: 0,
-      stats: {
-        totalPredictions: 0,
-        correctPredictions: 0,
-        totalWinnings: 0,
-        topMembers: 0
-      }
-    };
-    
-    setCurrentClub(extendedClub);
-  }, [clubData, setCurrentClub]);
   
   // Create a custom ClubDetailPage that handles navigation properly
   return (
@@ -339,7 +319,6 @@ const ClubCard: React.FC<{
       <ClubDetailPage hideHeader={true} />
     </div>
   );
-};
 
 const ClubsPage: React.FC<ClubsPageProps> = ({ onNavigateToCreate }) => {
   const [searchQuery, setSearchQuery] = useState('');
