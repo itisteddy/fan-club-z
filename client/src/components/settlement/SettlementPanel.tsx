@@ -1,6 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { useSettlementStore } from '../../store/settlementStore';
-import { Settlement } from '../../../../shared/schema';
+// Stub type for Settlement since settlement functionality is not implemented
+interface Settlement {
+  id: string;
+  prediction_id: string;
+  winning_option_id: string;
+  settled_by: string;
+  settlement_reason: string;
+  created_at: string;
+  status: 'pending' | 'completed' | 'disputed';
+}
 
 interface SettlementPanelProps {
   predictionId: string;

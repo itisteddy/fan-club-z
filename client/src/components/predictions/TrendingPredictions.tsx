@@ -1,5 +1,5 @@
 import React from 'react';
-import { PredictionCard } from './PredictionCard';
+import PredictionCard from '../PredictionCard';
 import { Prediction } from '../../store/predictionStore';
 
 interface TrendingPredictionsProps {
@@ -14,7 +14,7 @@ export const TrendingPredictions: React.FC<TrendingPredictionsProps> = ({ predic
           <PredictionCard
             key={prediction.id}
             prediction={prediction}
-            variant="horizontal"
+            variant="default"
           />
         ))}
       </div>

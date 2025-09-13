@@ -33,7 +33,7 @@ export const CommentThread: React.FC<CommentThreadProps> = ({
   onClose,
 }) => {
   const { user } = useAuthStore();
-  const { comments, addComment, toggleLike, deleteComment, editComment } = useSocialStore();
+  const { getAllComments, addComment, toggleLike, deleteComment, editComment } = useSocialStore();
   
   const [newComment, setNewComment] = useState('');
   const [replyTo, setReplyTo] = useState<string | null>(null);
@@ -41,11 +41,12 @@ export const CommentThread: React.FC<CommentThreadProps> = ({
   const [editContent, setEditContent] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const predictionComments = comments.filter(c => c.predictionId === predictionId);
-  const topLevelComments = predictionComments.filter(c => !c.parentId);
+  const allComments = getAllComments();
+  const predictionComments = allComments.filter(c => c.prediction_id === predictionId);
+  const topLevelComments = predictionComments.filter(c => !c.parent_id);
 
   const getReplies = (commentId: string): Comment[] => {
-    return predictionComments.filter(c => c.parentId === commentId);
+    return predictionComments.filter(c => c.parent_id === commentId);
   };
 
   const handleSubmitComment = async () => {

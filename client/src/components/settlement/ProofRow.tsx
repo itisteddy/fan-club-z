@@ -1,5 +1,12 @@
 import React from 'react';
-import { SettlementProof } from '../../../../shared/schema';
+// Stub type for SettlementProof since settlement functionality is not implemented
+interface SettlementProof {
+  id: string;
+  settlement_id: string;
+  proof_type: 'url' | 'text' | 'image';
+  proof_value: string;
+  created_at: string;
+}
 
 interface ProofRowProps {
   proof: SettlementProof;

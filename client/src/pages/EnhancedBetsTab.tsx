@@ -96,16 +96,16 @@ const BetsTab: React.FC<BetsTabProps> = ({ onNavigateToDiscover }) => {
     const activePredictions = userEntries
       .filter(entry => entry.status === 'active')
       .map(entry => {
-        const prediction = predictions.find(p => p.id === entry.predictionId);
-        const option = prediction?.options.find(o => o.id === entry.optionId);
+        const prediction = predictions.find(p => p.id === entry.prediction_id);
+        const option = prediction?.options.find(o => o.id === entry.option_id);
         return {
           id: entry.id,
           title: prediction?.title || 'Unknown Prediction',
           category: prediction?.category || 'General',
           position: option?.label || 'Unknown',
           stake: entry.amount,
-          potentialReturn: entry.potentialPayout || 0,
-          odds: `${((entry.potentialPayout || 0) / entry.amount).toFixed(2)}x`,
+          potentialReturn: entry.potential_payout || 0,
+          odds: `${((entry.potential_payout || 0) / entry.amount).toFixed(2)}x`,
           timeRemaining: getTimeRemaining(prediction?.entry_deadline),
           status: 'active',
           participants: prediction?.participant_count || 0,

@@ -9,24 +9,19 @@ import {
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { scrollToTop } from '../utils/scroll';
-import { useClubStore } from '../store/clubStore';
 
 interface CreateDiscussionPageProps {
-  clubId: string;
-  clubName: string;
   onNavigateBack?: () => void;
 }
 
 const CreateDiscussionPage: React.FC<CreateDiscussionPageProps> = ({ 
-  clubId, 
-  clubName, 
   onNavigateBack 
 }) => {
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitSuccess, setSubmitSuccess] = useState(false);
-  const { createDiscussion } = useClubStore();
+  // Discussion creation functionality removed - no longer using clubs
 
   // Scroll to top when component mounts
   React.useEffect(() => {
@@ -66,45 +61,35 @@ const CreateDiscussionPage: React.FC<CreateDiscussionPageProps> = ({
 
     setIsSubmitting(true);
     try {
+      // Discussion creation functionality removed - no longer using clubs
       console.log('Creating discussion with data:', {
-        clubId,
         title: title.trim(),
         content: content.trim()
       });
-
-      const createdDiscussion = await createDiscussion(
-        clubId,
-        title.trim(),
-        content.trim()
-      );
       
-      if (createdDiscussion) {
-        console.log('Discussion created successfully:', createdDiscussion);
-        toast.success('🎉 Discussion created successfully!');
-        setSubmitSuccess(true);
+      // Simulate success for now
+      toast.success('🎉 Discussion creation coming soon!');
+      setSubmitSuccess(true);
+      
+      // Navigate back after success
+      setTimeout(() => {
+        // Reset form
+        setTitle('');
+        setContent('');
+        setSubmitSuccess(false);
+        setIsSubmitting(false);
         
-        // Navigate back after success
-        setTimeout(() => {
-          // Reset form
-          setTitle('');
-          setContent('');
-          setSubmitSuccess(false);
-          setIsSubmitting(false);
-          
-          // Navigate back
-          if (onNavigateBack) {
-            onNavigateBack();
-          }
-        }, 2000);
-      } else {
-        throw new Error('Failed to create discussion');
-      }
+        // Navigate back
+        if (onNavigateBack) {
+          onNavigateBack();
+        }
+      }, 2000);
     } catch (error) {
       console.error('Failed to create discussion:', error);
       toast.error('Failed to create discussion. Please try again.');
       setIsSubmitting(false);
     }
-  }, [clubId, title, content, validateForm, onNavigateBack, createDiscussion]);
+  }, [title, content, validateForm, onNavigateBack]);
 
   // Success View
   if (submitSuccess) {
@@ -120,7 +105,7 @@ const CreateDiscussionPage: React.FC<CreateDiscussionPageProps> = ({
           </div>
           <h2 className="text-2xl font-bold text-gray-900 mb-4">Discussion Created!</h2>
           <p className="text-gray-600 mb-6">
-            Your discussion "{title}" has been successfully created in {clubName}.
+            Your discussion "{title}" has been successfully created.
           </p>
           <div className="text-sm text-teal-600 font-medium">Redirecting back...</div>
         </motion.div>
@@ -148,7 +133,7 @@ const CreateDiscussionPage: React.FC<CreateDiscussionPageProps> = ({
             <MessageSquare className="w-6 h-6 text-white" />
           </div>
           <h2 className="text-lg font-semibold text-white mb-1">Create New Discussion</h2>
-          <p className="text-purple-100 text-sm">Share your thoughts with {clubName} members</p>
+          <p className="text-purple-100 text-sm">Share your thoughts with the community</p>
         </div>
       </div>
 

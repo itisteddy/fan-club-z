@@ -1,6 +1,16 @@
 import React, { useState } from 'react';
 import { useSettlementStore } from '../../store/settlementStore';
-import { Dispute } from '../../../../shared/schema';
+// Stub type for Dispute since settlement functionality is not implemented
+interface Dispute {
+  id: string;
+  settlement_id: string;
+  disputed_by: string;
+  dispute_reason: string;
+  status: 'open' | 'resolved' | 'dismissed';
+  created_at: string;
+  resolved_at?: string;
+  resolved_by?: string;
+}
 
 interface DisputeModalProps {
   predictionId: string;

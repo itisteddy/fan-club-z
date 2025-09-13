@@ -8,8 +8,6 @@ import {
   Users, 
   Wallet,
   Search,
-  ChartLine,
-  UserGroup,
   PlusCircle,
   Sparkles
 } from 'lucide-react';
@@ -26,7 +24,7 @@ const navigationItems = [
   {
     id: 'predictions',
     label: 'My Bets',
-    icon: ChartLine,
+    icon: TrendingUp,
     path: '/predictions',
   },
   {
@@ -35,12 +33,6 @@ const navigationItems = [
     icon: PlusCircle,
     path: '/create',
     isSpecial: true,
-  },
-  {
-    id: 'clubs',
-    label: 'Clubs',
-    icon: UserGroup,
-    path: '/clubs',
   },
   {
     id: 'wallet',

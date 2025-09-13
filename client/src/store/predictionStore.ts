@@ -20,7 +20,6 @@ export interface Prediction {
   is_private: boolean;
   creator_fee_percentage: number;
   platform_fee_percentage: number;
-  club_id?: string;
   image_url?: string;
   tags: string[];
   created_at: string;

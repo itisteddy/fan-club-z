@@ -38,21 +38,6 @@ export const CreatePredictionPage: React.FC = () => {
   );
 };
 
-export const ClubsPage: React.FC = () => {
-  return (
-    <div className="p-4" style={{ minHeight: '100vh', paddingBottom: 'calc(5rem + env(safe-area-inset-bottom))' }}>
-      <h1 className="text-2xl font-bold text-foreground mb-6">Clubs</h1>
-      
-      <div className="text-center py-12">
-        <div className="text-6xl mb-4">👥</div>
-        <h2 className="text-xl font-semibold text-foreground mb-2">Join Communities</h2>
-        <p className="text-muted-foreground">
-          Connect with like-minded predictors
-        </p>
-      </div>
-    </div>
-  );
-};
 
 export const WalletPage: React.FC = () => {
   return (
@@ -104,11 +89,3 @@ export const PredictionDetailPage: React.FC = () => {
   );
 };
 
-export const ClubDetailPage: React.FC = () => {
-  return (
-    <div className="p-4" style={{ minHeight: '100vh', paddingBottom: 'calc(5rem + env(safe-area-inset-bottom))' }}>
-      <h1 className="text-2xl font-bold text-foreground mb-6">Club Details</h1>
-      <p className="text-muted-foreground">Club details coming soon</p>
-    </div>
-  );
-};

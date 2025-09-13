@@ -19,8 +19,9 @@
     "noFallthroughCasesInSwitch": true,
     "noUncheckedIndexedAccess": true,
     "exactOptionalPropertyTypes": false,
-    "baseUrl": ".",
+    "baseUrl": "./src",
     "paths": {
+      "@/*": ["*"],
       "@fanclubz/shared": ["../shared/dist"],
       "@fanclubz/shared/*": ["../shared/dist/*"]
     }

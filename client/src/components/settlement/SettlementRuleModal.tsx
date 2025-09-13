@@ -1,6 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { useSettlementStore } from '../../store/settlementStore';
-import { SettlementConfig } from '../../../../shared/schema';
+// Stub type for SettlementConfig since settlement functionality is not implemented
+interface SettlementConfig {
+  id: string;
+  prediction_id: string;
+  source_type: 'manual' | 'api' | 'automated';
+  source_url?: string;
+  source_selector?: string;
+  created_at: string;
+  updated_at: string;
+}
 
 interface SettlementRuleModalProps {
   predictionId?: string;

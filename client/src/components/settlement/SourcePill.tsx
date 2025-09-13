@@ -1,5 +1,13 @@
 import React from 'react';
-import { SettlementSource } from '../../../../shared/schema';
+// Stub type for SettlementSource since settlement functionality is not implemented
+interface SettlementSource {
+  id: string;
+  name: string;
+  type: 'manual' | 'api' | 'automated';
+  url?: string;
+  selector?: string;
+  created_at: string;
+}
 
 interface SourcePillProps {
   source: SettlementSource;

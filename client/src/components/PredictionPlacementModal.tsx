@@ -78,7 +78,7 @@ const PredictionPlacementModal: React.FC<PredictionPlacementModalProps> = ({
 
   const quickAmounts = [10, 25, 50, 100];
   const canAfford = numericAmount <= userBalance;
-  const meetsMinimum = numericAmount >= prediction.stakeMin;
+  const meetsMinimum = numericAmount >= prediction.stake_min;
   const isValidAmount = canAfford && meetsMinimum && numericAmount > 0;
 
   if (!isOpen) return null;
@@ -127,7 +127,7 @@ const PredictionPlacementModal: React.FC<PredictionPlacementModalProps> = ({
                 </div>
                 <div className="flex items-center gap-1">
                   <Users size={14} />
-                  <span>{prediction.participantCount || 0} predictors</span>
+                  <span>{prediction.participant_count || 0} predictors</span>
                 </div>
                 <div className="flex items-center gap-1">
                   <Clock size={14} />
@@ -253,7 +253,7 @@ const PredictionPlacementModal: React.FC<PredictionPlacementModalProps> = ({
                 {amount && !meetsMinimum && canAfford && (
                   <div className="flex items-center gap-2 mt-2 text-amber-600">
                     <Info size={16} />
-                    <span className="text-sm">Minimum amount: ${prediction.stakeMin}</span>
+                    <span className="text-sm">Minimum amount: ${prediction.stake_min}</span>
                   </div>
                 )}
               </motion.div>
@@ -306,7 +306,7 @@ const PredictionPlacementModal: React.FC<PredictionPlacementModalProps> = ({
                 >
                   <div className="text-sm text-gray-600 space-y-2">
                     <p><strong>Pool Impact:</strong> Your prediction will represent {totalPool > 0 ? ((numericAmount / (totalPool + numericAmount)) * 100).toFixed(1) : 0}% of total pool</p>
-                    <p><strong>Settlement:</strong> {prediction.settlementMethod === 'auto' ? 'Automatic' : 'Manual'} settlement</p>
+                    <p><strong>Settlement:</strong> {prediction.settlement_method === 'auto' ? 'Automatic' : 'Manual'} settlement</p>
                     <p><strong>Category:</strong> {prediction.category}</p>
                   </div>
                 </motion.div>

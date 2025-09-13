@@ -7,13 +7,12 @@ import { LoadingScreen } from './LoadingScreen';
 
 // Import pages directly
 import DiscoverPage from '../pages/DiscoverPage';
-import PredictionsPage from '../pages/PredictionsPage';
+import { PredictionsPage } from '../pages/PredictionsPage';
 import CreatePredictionPage from '../pages/CreatePredictionPage';
-import ClubsPage from '../pages/ClubsPage';
 import WalletPage from '../pages/WalletPage';
 import ProfilePage from '../pages/ProfilePage';
-import PredictionDetailPage from '../pages/PredictionDetailPage';
-import ClubDetailPage from '../pages/ClubDetailPage';
+import { RegisterPage } from '../pages/auth/RegisterPage';
+import { LoginPage } from '../pages/auth/LoginPage';
 
 export const Router: React.FC = () => {
   const { isAuthenticated, isLoading } = useAuth();
@@ -37,16 +36,13 @@ export const Router: React.FC = () => {
   return (
     <MainLayout>
       <Switch>
-        <Route path="/" component={DiscoverPage} />
-        <Route path="/discover" component={DiscoverPage} />
-        <Route path="/predictions" component={PredictionsPage} />
-        <Route path="/create" component={CreatePredictionPage} />
-        <Route path="/clubs" component={ClubsPage} />
-        <Route path="/wallet" component={WalletPage} />
-        <Route path="/profile" component={ProfilePage} />
-        <Route path="/prediction/:id" component={PredictionDetailPage} />
-        <Route path="/club/:id" component={ClubDetailPage} />
-        <Route component={DiscoverPage} />
+        <Route path="/" component={() => <DiscoverPage />} />
+        <Route path="/discover" component={() => <DiscoverPage />} />
+        <Route path="/predictions" component={() => <PredictionsPage />} />
+        <Route path="/create" component={() => <CreatePredictionPage />} />
+        <Route path="/wallet" component={() => <WalletPage />} />
+        <Route path="/profile" component={() => <ProfilePage />} />
+        <Route component={() => <DiscoverPage />} />
       </Switch>
     </MainLayout>
   );
