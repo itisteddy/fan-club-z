@@ -10,6 +10,7 @@ import { PlacePredictionModal } from '../components/predictions/PlacePredictionM
 import { useInfiniteScroll } from '../hooks/useInfiniteScroll';
 import Logo from '../components/common/Logo';
 import useScrollPreservation from '../hooks/useScrollPreservation';
+import { useLiveStats } from '../hooks/useLiveStats';
 
 interface DiscoverPageProps {
   onNavigateToProfile?: () => void;
@@ -69,12 +70,16 @@ CategoryFilters.displayName = 'CategoryFilters';
 const MobileHeader = React.memo(function MobileHeader({ 
   user, 
   stats, 
+  statsLoading,
+  lastUpdated,
   searchQuery, 
   onSearchChange, 
   onNavigateToProfile 
 }: {
   user: any;
   stats: any;
+  statsLoading: boolean;
+  lastUpdated: Date | null;
   searchQuery: string;
   onSearchChange: (query: string) => void;
   onNavigateToProfile: () => void;
@@ -108,26 +113,33 @@ const MobileHeader = React.memo(function MobileHeader({
           animate={{ opacity: 1, y: 0 }}
           className="bg-gradient-to-r from-purple-50 to-emerald-50 rounded-2xl p-4 mb-4"
         >
-          <div className="flex items-center gap-2 mb-3">
-            <div className="w-2 h-2 bg-purple-500 rounded-full animate-pulse"></div>
-            <span className="text-sm font-medium text-gray-900">LIVE MARKETS</span>
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <div className={`w-2 h-2 rounded-full ${statsLoading ? 'bg-gray-400 animate-pulse' : 'bg-purple-500 animate-pulse'}`}></div>
+              <span className="text-sm font-medium text-gray-900">LIVE MARKETS</span>
+            </div>
+            {lastUpdated && (
+              <div className="text-xs text-gray-500">
+                {new Date(lastUpdated).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+              </div>
+            )}
           </div>
           <div className="grid grid-cols-3 gap-4">
             <div className="text-center">
-              <div className="text-lg font-bold text-gray-900">
-                ${stats?.totalVolume || '0'}
+              <div className={`text-lg font-bold ${statsLoading ? 'text-gray-400' : 'text-gray-900'}`}>
+                {statsLoading ? '...' : `$${stats?.totalVolume || '0.00'}`}
               </div>
               <div className="text-xs text-gray-600">Volume</div>
             </div>
             <div className="text-center">
-              <div className="text-lg font-bold text-gray-900">
-                {stats?.activePredictions || '0'}
+              <div className={`text-lg font-bold ${statsLoading ? 'text-gray-400' : 'text-gray-900'}`}>
+                {statsLoading ? '...' : (stats?.activePredictions || 0).toLocaleString()}
               </div>
               <div className="text-xs text-gray-600">Live</div>
             </div>
             <div className="text-center">
-              <div className="text-lg font-bold text-gray-900">
-                {stats?.totalUsers || '0'}
+              <div className={`text-lg font-bold ${statsLoading ? 'text-gray-400' : 'text-gray-900'}`}>
+                {statsLoading ? '...' : (stats?.totalUsers || '0')}
               </div>
               <div className="text-xs text-gray-600">Players</div>
             </div>
@@ -180,33 +192,12 @@ const DiscoverPage = React.memo(function DiscoverPage({ onNavigateToProfile, onN
     threshold: 100 // Only save if scrolled more than 100px
   });
 
-  const [platformStats, setPlatformStats] = useState({
-    totalVolume: '0',
-    activePredictions: 0,
-    totalUsers: '0',
-    rawVolume: 0,
-    rawUsers: 0
+  // Use live stats hook with automatic refresh
+  const { stats: platformStats, loading: statsLoading, error: statsError, lastUpdated } = useLiveStats({
+    intervalMs: 25000, // 25 seconds (between 20-30s requirement)
+    enableFocusUpdates: true,
+    enableIntervalUpdates: true
   });
-
-  // Fetch platform stats
-  const fetchPlatformStats = useCallback(async () => {
-    try {
-      // Use the same environment API URL logic as the rest of the app
-      const { getApiUrl } = await import('../lib/environment');
-      const response = await fetch(`${getApiUrl()}/api/v2/predictions/stats/platform`);
-      if (response.ok) {
-        const data = await response.json();
-        if (data.success) {
-          setPlatformStats(data.data);
-          console.log('✅ Platform stats fetched:', data.data);
-        }
-      } else {
-        console.error('Failed to fetch platform stats:', response.status);
-      }
-    } catch (error) {
-      console.error('Error fetching platform stats:', error);
-    }
-  }, []);
 
   // Setup infinite scroll on container
   useInfiniteScroll({
@@ -228,10 +219,10 @@ const DiscoverPage = React.memo(function DiscoverPage({ onNavigateToProfile, onN
   // Initialize data on mount
   useEffect(() => {
     refreshPredictions();
-    fetchPlatformStats();
-  }, [refreshPredictions, fetchPlatformStats]);
+    // Live stats are automatically fetched by useLiveStats hook
+  }, [refreshPredictions]);
 
-  // Calculate stats
+  // Calculate stats (already formatted by useLiveStats hook)
   const stats = useMemo(() => ({
     totalVolume: platformStats.totalVolume,
     activePredictions: platformStats.activePredictions,
@@ -391,6 +382,8 @@ const DiscoverPage = React.memo(function DiscoverPage({ onNavigateToProfile, onN
           <MobileHeader 
             user={user} 
             stats={stats} 
+            statsLoading={statsLoading}
+            lastUpdated={lastUpdated}
             searchQuery={filters.search}
             onSearchChange={handleSearchChange}
             onNavigateToProfile={onNavigateToProfile || (() => {})}
