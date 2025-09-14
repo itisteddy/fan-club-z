@@ -209,7 +209,7 @@ class SocialService {
     }
     async getClubMembers(clubId, pagination) {
         try {
-            const { page, limit } = pagination;
+            const { page = 1, limit = 20 } = pagination;
             const offset = (page - 1) * limit;
             const { data, error, count } = await this.supabase
                 .from('club_members')
@@ -228,7 +228,6 @@ class SocialService {
             const total = count || 0;
             const totalPages = Math.ceil(total / limit);
             return {
-                success: true,
                 data: data || [],
                 pagination: {
                     page,
@@ -247,7 +246,7 @@ class SocialService {
     }
     async getClubPredictions(clubId, pagination) {
         try {
-            const { page, limit } = pagination;
+            const { page = 1, limit = 20 } = pagination;
             const offset = (page - 1) * limit;
             const { data, error, count } = await this.supabase
                 .from('predictions')
@@ -267,7 +266,6 @@ class SocialService {
             const total = count || 0;
             const totalPages = Math.ceil(total / limit);
             return {
-                success: true,
                 data: data || [],
                 pagination: {
                     page,
@@ -286,7 +284,7 @@ class SocialService {
     }
     async getUserClubs(userId, pagination) {
         try {
-            const { page, limit } = pagination;
+            const { page = 1, limit = 20 } = pagination;
             const offset = (page - 1) * limit;
             const { data, error, count } = await this.supabase
                 .from('club_members')
@@ -313,15 +311,14 @@ class SocialService {
             const total = count || 0;
             const totalPages = Math.ceil(total / limit);
             return {
-                success: true,
-                data: clubs,
+                data: [], // Clubs removed for 2.0.77
                 pagination: {
                     page,
                     limit,
-                    total,
-                    totalPages,
-                    hasNext: page < totalPages,
-                    hasPrev: page > 1,
+                    total: 0,
+                    totalPages: 0,
+                    hasNext: false,
+                    hasPrev: false,
                 },
             };
         }
@@ -403,7 +400,7 @@ class SocialService {
     // Fallback manual method
     async getPredictionCommentsManual(predictionId, pagination, userId) {
         try {
-            const { page, limit } = pagination;
+            const { page = 1, limit = 20 } = pagination;
             const offset = (page - 1) * limit;
             // Get top-level comments with user info
             const { data: topLevelComments, error: topError, count } = await this.supabase
@@ -424,7 +421,6 @@ class SocialService {
             if (!topLevelComments || topLevelComments.length === 0) {
                 logger_1.default.info('No comments found for prediction');
                 return {
-                    success: true,
                     data: [],
                     pagination: {
                         page,
@@ -490,7 +486,6 @@ class SocialService {
             const totalPages = Math.ceil(total / limit);
             logger_1.default.info(`Successfully fetched ${commentsWithReplies.length} comments with manual method`);
             return {
-                success: true,
                 data: commentsWithReplies,
                 pagination: {
                     page,
@@ -765,7 +760,7 @@ class SocialService {
                 if (!acc[reaction.type]) {
                     acc[reaction.type] = [];
                 }
-                acc[reaction.type].push(reaction);
+                acc[reaction.type]?.push(reaction);
                 return acc;
             }, {});
             // Calculate counts
@@ -789,7 +784,7 @@ class SocialService {
     // ============================================================================
     async getUserActivity(userId, pagination) {
         try {
-            const { page, limit } = pagination;
+            const { page = 1, limit = 20 } = pagination;
             const offset = (page - 1) * limit;
             // Get recent comments and reactions
             const [commentsResult, reactionsResult] = await Promise.all([
@@ -836,7 +831,6 @@ class SocialService {
             const total = activities.length;
             const totalPages = Math.ceil(total / limit);
             return {
-                success: true,
                 data: paginatedActivities,
                 pagination: {
                     page,
@@ -859,7 +853,7 @@ class SocialService {
     async getLeaderboard(options) {
         try {
             const { type, period, clubId, pagination } = options;
-            const { page, limit } = pagination;
+            const { page = 1, limit = 20 } = pagination;
             const offset = (page - 1) * limit;
             // Calculate date filter based on period
             let dateFilter = '';
@@ -932,7 +926,6 @@ class SocialService {
             const total = count || 0;
             const totalPages = Math.ceil(total / limit);
             return {
-                success: true,
                 data: leaderboard,
                 pagination: {
                     page,

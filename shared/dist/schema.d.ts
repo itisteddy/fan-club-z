@@ -1,30 +1,16 @@
 export interface User {
     id: string;
-    username?: string;
+    username: string;
     full_name?: string;
     avatar_url?: string;
     email?: string;
     created_at?: string;
     updated_at?: string;
     is_verified?: boolean;
-}
-export interface Club {
-    id: string;
-    name: string;
-    description?: string;
-    owner_id: string;
-    visibility: 'public' | 'private';
-    created_at: string;
-    updated_at: string;
-    member_count?: number;
-}
-export interface ClubMember {
-    id: string;
-    club_id: string;
-    user_id: string;
-    role: 'admin' | 'member';
-    joined_at: string;
-    user?: User;
+    displayName?: string;
+    avatarUrl?: string;
+    reputation?: number;
+    walletCurrency?: 'USD' | 'NGN' | 'USDC' | string;
 }
 export interface Prediction {
     id: string;
