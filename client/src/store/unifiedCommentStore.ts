@@ -587,7 +587,7 @@ export const useCommentsForPrediction = (predictionId: string) => {
       console.warn('⚠️ Cannot add comment: no prediction ID provided');
       return Promise.resolve();
     }
-    return store.addComment(safePredictionId, content, parentCommentId, userData);
+    return store.addComment(safePredictionId, content, parentCommentId);
   }, [store.addComment, safePredictionId]);
 
   const toggleCommentLike = useCallback((commentId: string) => {

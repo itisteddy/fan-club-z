@@ -46,8 +46,8 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
     getBalance, 
     getTransactionHistory, 
     addFunds, 
-    resetDemoBalance,
-    isDemoMode 
+    // resetDemoBalance, // Removed for 2.0.77
+    // isDemoMode // Removed for 2.0.77 
   } = useWalletStore();
   const { user } = useAuthStore();
   const [, setLocation] = useLocation();
@@ -109,7 +109,7 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
     setIsResetting(true);
     
     try {
-      await resetDemoBalance();
+      // await resetDemoBalance(); // Removed for 2.0.77
       toast.success('Demo balance reset successfully!');
     } catch (error) {
       toast.error('Failed to reset demo balance');
@@ -175,12 +175,11 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
               </div>
               <div>
                 <p className="text-teal-100 text-sm font-medium">Total Balance</p>
-                {isDemoMode && (
+                {/* {isDemoMode && ( */}
                   <span className="inline-flex items-center gap-1 text-xs bg-white/20 px-2 py-1 rounded-full">
                     <Zap className="w-3 h-3" />
                     Demo Mode
                   </span>
-                )}
               </div>
             </div>
             
@@ -232,7 +231,7 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
             <motion.button
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
-              onClick={() => toast.info('Withdrawal coming soon!')}
+              onClick={() => toast.success('Withdrawal coming soon!')}
               className="flex items-center justify-center gap-2 bg-white/20 hover:bg-white/30 rounded-xl py-3 transition-all duration-200"
             >
               <Download className="w-4 h-4" />
@@ -574,7 +573,7 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
               </div>
 
               {/* Demo Mode Reset */}
-              {isDemoMode && (
+              {/* {isDemoMode && ( */}
                 <motion.div
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
@@ -612,7 +611,6 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
                     </motion.button>
                   </div>
                 </motion.div>
-              )}
             </motion.div>
           )}
 

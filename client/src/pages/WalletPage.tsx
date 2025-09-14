@@ -36,8 +36,8 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
     getBalance,
     getTransactionHistory,
     addFunds, 
-    resetDemoBalance,
-    isDemoMode,
+    // resetDemoBalance, // Removed for 2.0.77
+    // isDemoMode, // Removed for 2.0.77
     initializeWallet 
   } = useWalletStore();
   const { user } = useAuthStore();
@@ -81,7 +81,7 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
     setIsResetting(true);
     
     try {
-      await resetDemoBalance();
+      // await resetDemoBalance(); // Removed for 2.0.77
       toast.success('Demo balance reset successfully!');
     } catch (error) {
       toast.error('Failed to reset demo balance. Please try again.');
@@ -162,9 +162,8 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
             
             <div className="text-center">
               <h1 className="text-xl font-bold text-gray-900">Wallet</h1>
-              {isDemoMode && (
+              {/* {isDemoMode && ( */}
                 <p className="text-xs text-gray-500 mt-1">Demo Mode</p>
-              )}
             </div>
             
             <div className="w-10" /> {/* Spacer for centering */}
@@ -173,7 +172,7 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
       </div>
 
       {/* Demo Mode Banner */}
-      {isDemoMode && (
+      {/* {isDemoMode && ( */}
         <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -189,7 +188,6 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
             </div>
           </div>
           </motion.div>
-      )}
 
           {/* Balance Card */}
           <motion.div
@@ -221,7 +219,7 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
           >
             Add Funds
           </button>
-          {isDemoMode && (
+          {/* {isDemoMode && ( */}
             <button
               onClick={handleResetDemo}
               disabled={isResetting}
@@ -236,7 +234,6 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
                 'Reset Demo'
               )}
             </button>
-          )}
             </div>
           </motion.div>
 
@@ -376,7 +373,7 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
                       <Clock size={32} className="text-gray-400 mx-auto mb-3" />
                       <p className="text-gray-500">No transactions yet</p>
                       <p className="text-gray-400 text-sm mt-1">Start making predictions to see your activity</p>
-                      </div>
+                    </div>
                   )}
                 </div>
               </div>

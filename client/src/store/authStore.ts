@@ -2,27 +2,11 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { supabase, auth } from '../lib/supabase';
 import toast from 'react-hot-toast';
+import { User } from '../types/user';
 import { showSuccess, showError } from './notificationStore';
 import type { Provider } from '@supabase/supabase-js';
 
-interface User {
-  id: string;
-  firstName: string;
-  lastName: string;
-  email: string;
-  phone?: string;
-  avatar?: string;
-  bio?: string;
-  provider?: string; // Added provider tracking
-  totalEarnings?: number;
-  totalInvested?: number;
-  winRate?: number;
-  activePredictions?: number;
-  totalPredictions?: number;
-  rank?: number;
-  level?: string;
-  createdAt?: string;
-}
+// Using the canonical User type from ../types/user
 
 interface AuthState {
   isAuthenticated: boolean;
@@ -73,21 +57,17 @@ const convertSupabaseUser = (supabaseUser: any): User | null => {
   
   return {
     id: supabaseUser.id,
+    username: metadata.username || metadata.user_name || firstName.toLowerCase() || 'user',
+    full_name: metadata.full_name || `${firstName} ${lastName}`.trim(),
+    avatar_url: avatar,
     email: supabaseUser.email || '',
-    firstName,
-    lastName,
-    phone: supabaseUser.phone,
-    avatar,
-    provider: appMetadata.provider || 'email',
-    bio: metadata.bio,
-    totalEarnings: metadata.totalEarnings || 0,
-    totalInvested: metadata.totalInvested || 0,
-    winRate: metadata.winRate || 0,
-    activePredictions: metadata.activePredictions || 0,
-    totalPredictions: metadata.totalPredictions || 0,
-    rank: metadata.rank || 0,
-    level: metadata.level || 'New Predictor',
-    createdAt: supabaseUser.created_at || new Date().toISOString()
+    created_at: supabaseUser.created_at || new Date().toISOString(),
+    updated_at: supabaseUser.updated_at || new Date().toISOString(),
+    is_verified: metadata.is_verified || false,
+    displayName: metadata.displayName || `${firstName} ${lastName}`.trim(),
+    avatarUrl: avatar,
+    reputation: metadata.reputation || 0,
+    walletCurrency: metadata.walletCurrency || 'USD'
   };
 };
 
@@ -127,7 +107,7 @@ export const useAuthStore = create<AuthState>()(
         if (state.isAuthenticated && state.user && state.token && (now - state.lastAuthCheck < 300000)) { // 5 minutes
           // Only log once per session for cached auth
           if (!state.initialized) {
-            console.log('✅ Using cached auth state for:', state.user.firstName);
+            console.log('✅ Using cached auth state for:', state.user.username);
           }
           set({ 
             loading: false, 
@@ -168,7 +148,7 @@ export const useAuthStore = create<AuthState>()(
           if (session?.user) {
             const convertedUser = convertSupabaseUser(session.user);
             if (!state.initialized) {
-              console.log('✅ Found active session for:', convertedUser?.firstName);
+              console.log('✅ Found active session for:', convertedUser?.username);
             }
             
             set({ 
@@ -233,7 +213,7 @@ export const useAuthStore = create<AuthState>()(
 
           if (data.user && data.session) {
             const convertedUser = convertSupabaseUser(data.user);
-            console.log('✅ Login successful for:', convertedUser?.firstName);
+            console.log('✅ Login successful for:', convertedUser?.username);
             
             set({ 
               isAuthenticated: true, 
@@ -244,7 +224,7 @@ export const useAuthStore = create<AuthState>()(
               lastAuthCheck: Date.now()
             });
             
-            showSuccess(`Welcome back, ${convertedUser?.firstName}!`);
+            showSuccess(`Welcome back, ${convertedUser?.username}!`);
           }
 
         } catch (error: any) {
@@ -293,7 +273,7 @@ export const useAuthStore = create<AuthState>()(
 
           if (data.user) {
             const convertedUser = convertSupabaseUser(data.user);
-            console.log('✅ Registration successful for:', convertedUser?.firstName);
+            console.log('✅ Registration successful for:', convertedUser?.username);
             
             // If we have a session, log them in immediately
             if (data.session) {
@@ -305,7 +285,7 @@ export const useAuthStore = create<AuthState>()(
                 initialized: true,
                 lastAuthCheck: Date.now()
               });
-              showSuccess(`Welcome to Fan Club Z, ${convertedUser?.firstName}!`);
+              showSuccess(`Welcome to Fan Club Z, ${convertedUser?.username}!`);
             } else {
               // No immediate session, but allow app access
               set({ 
@@ -316,7 +296,7 @@ export const useAuthStore = create<AuthState>()(
                 initialized: true,
                 lastAuthCheck: Date.now()
               });
-              showSuccess(`Welcome to Fan Club Z, ${convertedUser?.firstName}! Please check your email to verify your account.`);
+              showSuccess(`Welcome to Fan Club Z, ${convertedUser?.username}! Please check your email to verify your account.`);
             }
           }
 
@@ -368,7 +348,7 @@ export const useAuthStore = create<AuthState>()(
         }
       },
 
-      handleOAuthCallback: async () => {
+      handleOAuthCallback: async (): Promise<void> => {
         try {
           console.log('🔄 Handling OAuth callback...');
           
@@ -382,7 +362,7 @@ export const useAuthStore = create<AuthState>()(
 
           if (data.session?.user) {
             const convertedUser = convertSupabaseUser(data.session.user);
-            console.log('✅ OAuth authentication successful for:', convertedUser?.firstName);
+            console.log('✅ OAuth authentication successful for:', convertedUser?.username);
             
             set({ 
               isAuthenticated: true, 
@@ -393,10 +373,10 @@ export const useAuthStore = create<AuthState>()(
               lastAuthCheck: Date.now()
             });
             
-            const providerName = convertedUser?.provider?.charAt(0).toUpperCase() + convertedUser?.provider?.slice(1);
-            showSuccess(`Welcome ${convertedUser?.firstName}! Signed in with ${providerName}.`);
+            const providerName = 'OAuth';
+            showSuccess(`Welcome ${convertedUser?.username}! Signed in with ${providerName}.`);
             
-            return convertedUser;
+            return; // Return void for 2.0.77
           } else {
             throw new Error('No user session found after OAuth callback');
           }
@@ -459,9 +439,8 @@ export const useAuthStore = create<AuthState>()(
 
           const { data, error } = await supabase.auth.updateUser({
             data: {
-              firstName: profileData.firstName || currentUser.firstName,
-              lastName: profileData.lastName || currentUser.lastName,
-              bio: profileData.bio !== undefined ? profileData.bio : currentUser.bio
+              full_name: profileData.full_name || currentUser.full_name,
+              username: profileData.username || currentUser.username
             }
           });
 
@@ -519,7 +498,7 @@ export const useAuthStore = create<AuthState>()(
         }
 
         // 4) Mirror to public users table for fast reads
-        await clientDb.users.updateProfile(userId, { avatar_url: publicUrl });
+        // await clientDb.users.updateProfile(userId, { avatar_url: publicUrl }); // Removed for 2.0.77
 
         // 5) Update local state
         const updatedUser = convertSupabaseUser(authUpdate.user);

@@ -7,8 +7,7 @@ import { useAuthStore } from '../store/authStore';
 import { useLocation } from 'wouter';
 import toast from 'react-hot-toast';
 import { scrollToTop } from '../utils/scroll';
-import { SourcePill } from '../components/settlement/SourcePill';
-import { RulePreview } from '../components/settlement/RulePreview';
+// Settlement components removed for 2.0.77
 
 interface PredictionOption {
   id: string;

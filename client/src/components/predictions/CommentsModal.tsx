@@ -22,7 +22,7 @@ export const CommentsModal: React.FC<CommentsModalProps> = ({
   isOpen,
   onClose,
 }) => {
-  const { comments, loading, fetchComments, addComment, toggleCommentLike } = useCommentsForPrediction(predictionId);
+  const { comments, isLoading, fetchComments, addComment, toggleCommentLike } = useCommentsForPrediction(predictionId);
   const { user } = useAuthStore();
   const [newComment, setNewComment] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -34,7 +34,7 @@ export const CommentsModal: React.FC<CommentsModalProps> = ({
 
   useEffect(() => {
     if (isOpen && predictionId) {
-      fetchComments(predictionId);
+      fetchComments();
     }
   }, [isOpen, predictionId, fetchComments]);
 
@@ -136,7 +136,7 @@ export const CommentsModal: React.FC<CommentsModalProps> = ({
 
               {/* Comments List - Scrollable Area */}
               <div className="modal-body">
-                {loading ? (
+                {isLoading ? (
                   <div className="flex justify-center py-8">
                     <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-teal-500"></div>
                   </div>
@@ -159,7 +159,7 @@ export const CommentsModal: React.FC<CommentsModalProps> = ({
                         >
                           {hasAvatar && (
                             <UserAvatar 
-                              email={comment.user?.email} 
+                              email={comment.user?.username} 
                               username={comment.user?.username} 
                               avatarUrl={getAvatarUrl(comment.user)} 
                               size="sm" 

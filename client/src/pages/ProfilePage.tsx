@@ -444,7 +444,7 @@ const NotificationSettings: React.FC<{ onBack: () => void }> = ({ onBack }) => {
     // Handle push notification permission
     if (key === 'pushEnabled' && !notifications.pushEnabled && permissionStatus !== 'granted') {
       await requestNotificationPermission();
-      if (permissionStatus !== 'granted') return;
+      if ((permissionStatus as string) !== 'granted') return; // Check if notification permission is granted
     }
 
     setIsUpdating(true);
@@ -1508,10 +1508,9 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigateBack, userId }) => 
   const [profileUser, setProfileUser] = useState<any>(null);
   const [loadingProfile, setLoadingProfile] = useState(false);
   const [editForm, setEditForm] = useState({
-    firstName: currentUser?.firstName || '',
-    lastName: currentUser?.lastName || '',
-    email: currentUser?.email || '',
-    bio: currentUser?.bio || ''
+    full_name: currentUser?.full_name || '',
+    username: currentUser?.username || '',
+    email: currentUser?.email || ''
   });
 
   // Early safety guard to prevent rendering before data is ready
@@ -1910,20 +1909,18 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigateBack, userId }) => 
   const handleSaveProfile = () => {
     updateProfile({
       ...currentUser,
-      firstName: editForm.firstName,
-      lastName: editForm.lastName,
-      email: editForm.email,
-      bio: editForm.bio
+       full_name: editForm.full_name,
+       username: editForm.username,
+       email: editForm.email
     });
     setIsEditing(false);
   };
 
   const handleCancelEdit = () => {
     setEditForm({
-      firstName: currentUser?.firstName || '',
-      lastName: currentUser?.lastName || '',
-      email: currentUser?.email || '',
-      bio: currentUser?.bio || ''
+      full_name: currentUser?.full_name || '',
+      username: currentUser?.username || '',
+      email: currentUser?.email || ''
     });
     setIsEditing(false);
   };
@@ -2318,7 +2315,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigateBack, userId }) => 
               >
                 <div style={{ display: 'flex', alignItems: 'flex-start', gap: '16px', marginBottom: '16px' }}>
                   <div style={{ position: 'relative', flexShrink: 0 }}>
-                    <UserAvatar email={editForm.email} avatarUrl={currentUser?.avatar} size="xl" className="ring-4 ring-white" />
+                    <UserAvatar email={editForm.email} avatarUrl={currentUser?.avatar_url} size="xl" className="ring-4 ring-white" />
                     <button 
                       style={{
                         position: 'absolute',
@@ -2361,8 +2358,8 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigateBack, userId }) => 
                       <input
                         type="text"
                         placeholder="First Name"
-                        value={editForm.firstName}
-                        onChange={(e) => setEditForm({ ...editForm, firstName: e.target.value })}
+                         value={editForm.full_name}
+                         onChange={(e) => setEditForm({ ...editForm, full_name: e.target.value })}
                         style={{
                           width: '100%',
                           padding: '10px 12px',
@@ -2380,8 +2377,8 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigateBack, userId }) => 
                       <input
                         type="text"
                         placeholder="Last Name"
-                        value={editForm.lastName}
-                        onChange={(e) => setEditForm({ ...editForm, lastName: e.target.value })}
+                         value={editForm.username}
+                         onChange={(e) => setEditForm({ ...editForm, username: e.target.value })}
                         style={{
                           width: '100%',
                           padding: '10px 12px',
@@ -2418,8 +2415,8 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigateBack, userId }) => 
                     />
                     <textarea
                       placeholder="Bio (optional)"
-                      value={editForm.bio}
-                      onChange={(e) => setEditForm({ ...editForm, bio: e.target.value })}
+                       value={editForm.email}
+                       onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
                       style={{
                         width: '100%',
                         padding: '8px 10px',

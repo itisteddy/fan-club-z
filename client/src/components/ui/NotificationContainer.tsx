@@ -10,9 +10,9 @@ const NotificationContainer: React.FC = () => {
       {notifications.map((notification, index) => (
         <Notification
           key={notification.id}
-          type={notification.type}
+          type="info" // Default type for 2.0.77
           message={notification.message}
-          duration={notification.duration}
+          duration={5000} // Default duration
           onClose={() => removeNotification(notification.id)}
           show={true}
         />

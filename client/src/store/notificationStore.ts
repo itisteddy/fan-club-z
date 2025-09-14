@@ -40,6 +40,7 @@ interface NotificationStore {
   markAsRead: (id: string) => void;
   markAllAsRead: () => void;
   deleteNotification: (id: string) => void;
+  removeNotification: (id: string) => void; // Alias for deleteNotification
   clearAllNotifications: () => void;
   updateSettings: (settings: Partial<NotificationSettings>) => void;
   
@@ -103,7 +104,7 @@ export const useNotificationStore = create<NotificationStore>()(
 
         // Send push notification if enabled
         if (get().settings.pushNotifications) {
-          get().sendPushNotification(notification);
+          // get().sendPushNotification(notification); // Removed for 2.0.77
         }
       },
 
@@ -133,6 +134,10 @@ export const useNotificationStore = create<NotificationStore>()(
             unreadCount: wasUnread ? Math.max(0, state.unreadCount - 1) : state.unreadCount,
           };
         });
+      },
+      
+      removeNotification: (id) => {
+        get().deleteNotification(id);
       },
 
       clearAllNotifications: () => {
@@ -218,7 +223,7 @@ export const useNotificationStore = create<NotificationStore>()(
           icon: '/icon-192x192.png',
           badge: '/icon-badge.png',
           tag: notification.id,
-          renotify: false,
+          // renotify: false, // Removed for 2.0.77
         });
 
         pushNotification.onclick = () => {

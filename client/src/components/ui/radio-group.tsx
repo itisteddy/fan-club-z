@@ -69,7 +69,6 @@ export const RadioGroupItem = React.forwardRef<HTMLInputElement, RadioGroupItemP
           className
         )}
         onClick={() => onValueChange(value)}
-        {...props}
       >
         {isSelected && (
           <div className="flex items-center justify-center">
@@ -77,7 +76,7 @@ export const RadioGroupItem = React.forwardRef<HTMLInputElement, RadioGroupItemP
           </div>
         )}
         <input
-          ref={ref}
+          ref={ref as React.Ref<HTMLInputElement>}
           type="radio"
           value={value}
           checked={isSelected}

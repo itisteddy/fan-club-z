@@ -10,12 +10,12 @@ import {
   Compass, 
   Wallet,
   CheckCircle,
-  Skip,
+  SkipForward,
   Play
 } from 'lucide-react';
 
 // Types
-interface OnboardingStep {
+export interface OnboardingStep {
   id: string;
   title: string;
   description: string;
@@ -656,7 +656,7 @@ export const WelcomeModal: React.FC<WelcomeModalProps> = ({
                   onClick={onSkip}
                   className="w-full text-gray-500 hover:text-gray-700 py-2 px-4 rounded-xl font-medium transition-colors flex items-center justify-center gap-1"
                 >
-                  <Skip className="w-4 h-4" />
+                  <SkipForward className="w-4 h-4" />
                   Skip for now
                 </button>
               </div>

@@ -12,17 +12,7 @@ import { useUnifiedCommentStore, useCommentsForPrediction } from '../store/unifi
 import { formatTimeRemaining } from '../lib/utils';
 import CommentSystem from '../components/CommentSystem';
 import TappableUsername from '../components/TappableUsername';
-import {
-  SettlementBadge,
-  SettlementPanel,
-  SettlementRuleModal,
-  AcceptanceBar,
-  ProofRow,
-  AuditTimeline,
-  DisputeCard,
-  DisputeModal,
-  TimezoneChip
-} from '../components/settlement';
+// Settlement components removed for 2.0.77
 import toast from 'react-hot-toast';
 
 interface PredictionDetailsPageProps {
@@ -487,12 +477,7 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
               </div>
               
               {/* Settlement Badge */}
-              {prediction.settlement?.method && (
-                <SettlementBadge 
-                  method={prediction.settlement.method}
-                  badges={prediction.settlement.badges}
-                />
-              )}
+              {/* Settlement badge removed for 2.0.77 */}
             </div>
 
             {/* Title */}
@@ -556,10 +541,7 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
                     {formatTimeRemaining(prediction.entry_deadline)} remaining
                   </div>
                   <div className="text-sm text-orange-500">
-                    <TimezoneChip 
-                      timezone={prediction.settlement?.timezone || 'UTC'}
-                      timestamp={prediction.entry_deadline}
-                    />
+                    {/* Timezone chip removed for 2.0.77 */}
                   </div>
                 </div>
               </div>
@@ -574,10 +556,7 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
                     Locked at
                   </div>
                   <div className="text-sm">
-                    <TimezoneChip 
-                      timezone={prediction.settlement?.timezone || 'UTC'}
-                      timestamp={prediction.lock_time}
-                    />
+                    {/* Timezone chip removed for 2.0.77 */}
                   </div>
                 </div>
               </div>
@@ -592,11 +571,7 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
               transition={{ delay: 0.05 }}
               className="mb-6"
             >
-              <SettlementPanel 
-                predictionId={prediction.id}
-                state={prediction.status}
-                userHasEntry={userHasEntry}
-              />
+              {/* Settlement panel removed for 2.0.77 */}
             </motion.div>
           )}
 
@@ -619,7 +594,7 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
                   </button>
                 </div>
                 
-                <ProofRow proof={settlementData.proof} />
+                {/* Proof row removed for 2.0.77 */}
                 
                 {showProofDetails && (
                   <div className="mt-4 pt-4 border-t border-gray-100">
@@ -649,7 +624,9 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
                 <h3 className="text-lg font-bold text-gray-900 mb-4">Disputes</h3>
                 <div className="space-y-4">
                   {disputeList.map((dispute) => (
-                    <DisputeCard key={dispute.id} dispute={dispute} />
+                    <div key={dispute.id}>
+                      {/* Dispute card removed for 2.0.77 */}
+                    </div>
                   ))}
                 </div>
               </div>
@@ -676,7 +653,9 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
                 </div>
                 
                 {showAuditTimeline && (
-                  <AuditTimeline events={auditEvents} />
+                  <div>
+                    {/* Audit timeline removed for 2.0.77 */}
+                  </div>
                 )}
               </div>
             </motion.div>
@@ -943,27 +922,14 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
       </div>
 
       {/* Settlement Rule Modal */}
-      <SettlementRuleModal
-        predictionId={prediction?.id}
-        settlement={prediction?.settlement}
-        isOpen={showSettlementModal}
-        onClose={() => setShowSettlementModal(false)}
-      />
+      {/* Settlement rule modal removed for 2.0.77 */}
 
       {/* Dispute Modal */}
-      <DisputeModal
-        predictionId={prediction?.id || ''}
-        isOpen={disputeModalOpen}
-        onClose={() => setDisputeModalOpen(false)}
-      />
+      {/* Dispute modal removed for 2.0.77 */}
 
       {/* Acceptance Bar - Fixed at bottom */}
       {prediction.status === 'settled' && userHasEntry && settlementData && (
-        <AcceptanceBar
-          predictionId={prediction.id}
-          settlementData={settlementData}
-          userHasEntry={userHasEntry}
-        />
+        {/* Acceptance bar removed for 2.0.77 */}
       )}
 
       {/* Settlement Validation Modal */}

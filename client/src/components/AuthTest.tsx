@@ -61,9 +61,9 @@ const AuthTest: React.FC = () => {
       <h3 style={{ margin: '0 0 16px 0', color: '#111827' }}>Authenticated User</h3>
       
       <div style={{ marginBottom: '16px' }}>
-        {user?.avatar && (
+        {user?.avatar_url && (
           <img 
-            src={user.avatar} 
+            src={user.avatar_url} 
             alt="Avatar" 
             style={{
               width: '60px',
@@ -74,9 +74,9 @@ const AuthTest: React.FC = () => {
           />
         )}
         <div style={{ fontSize: '14px', color: '#6b7280', lineHeight: '1.5' }}>
-          <p><strong>Name:</strong> {user?.firstName} {user?.lastName}</p>
+          <p><strong>Name:</strong> {user?.full_name}</p>
           <p><strong>Email:</strong> {user?.email}</p>
-          <p><strong>Provider:</strong> {user?.provider}</p>
+          <p><strong>Username:</strong> {user?.username}</p>
           <p><strong>ID:</strong> {user?.id}</p>
         </div>
       </div>
