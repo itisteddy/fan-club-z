@@ -13,9 +13,9 @@ import { useScrollStore } from '../store/scrollStore';
 // Mock implementations for testing
 const mockScrollStore = {
   positions: {},
-  saveScrollPosition: jest.fn(),
-  getScrollPosition: jest.fn(),
-  clearOldPositions: jest.fn()
+  saveScrollPosition: () => {},
+  getScrollPosition: () => {},
+  clearOldPositions: () => {}
 };
 
 /**

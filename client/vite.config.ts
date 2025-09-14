@@ -48,6 +48,9 @@ export default defineConfig({
       '@fanclubz/shared': path.resolve(__dirname, '../shared/src'),
     },
   },
+  optimizeDeps: {
+    force: true, // Force dependency optimization in development
+  },
   server: {
     port: 5173,
     host: true,

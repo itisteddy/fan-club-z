@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Clock, Heart, MessageCircle, Share2, TrendingUp, ChevronDown, User, AlertTriangle } from 'lucide-react';
+import { Clock, Heart, MessageCircle, Share2, TrendingUp, ChevronDown, User, AlertTriangle, ArrowLeft } from 'lucide-react';
 import { useLocation } from 'wouter';
 import { usePredictionStore } from '../store/predictionStore';
 import { useAuthStore } from '../store/authStore';

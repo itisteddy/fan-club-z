@@ -268,14 +268,15 @@ const CommentSystem: React.FC<CommentSystemProps> = ({ predictionId }) => {
             <div className="mb-2">
               {isCurrentlyEditing ? (
                 <div className="space-y-2">
-                  <IsolatedTextarea
+                  <textarea
                     id={`edit-textarea-${comment.id}`}
                     value={editTexts[comment.id] || comment.content}
-                    onValueChange={(value) => updateEditText(comment.id, value)}
+                    onChange={(e) => updateEditText(comment.id, e.target.value)}
                     placeholder="Edit your comment..."
                     rows={2}
                     maxLength={500}
                     autoFocus
+                    className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent resize-none"
                   />
                   <div className="flex justify-between items-center">
                     <span className="text-xs text-gray-500">

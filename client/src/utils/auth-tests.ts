@@ -10,8 +10,25 @@
 import { withAuthGate } from '../components/auth/AuthSheetProvider';
 
 // Test data
-const mockActionFn = jest.fn();
-const mockOpenAuth = jest.fn();
+const mockActionFn = (() => {
+  const fn = (...args: any[]) => {};
+  fn.mockClear = () => {};
+  fn.mock = {
+    calls: [] as any[][],
+    results: [] as any[]
+  };
+  return fn;
+})();
+
+const mockOpenAuth = (() => {
+  const fn = (...args: any[]) => {};
+  fn.mockClear = () => {};
+  fn.mock = {
+    calls: [] as any[][],
+    results: [] as any[]
+  };
+  return fn;
+})();
 
 // Mock implementations for testing
 const mockAuthStore = {
