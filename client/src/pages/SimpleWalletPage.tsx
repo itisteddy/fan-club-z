@@ -5,7 +5,7 @@ import { useWalletStore } from '../store/walletStore';
 import { useAuthStore } from '../store/authStore';
 
 const SimpleWalletPage: React.FC = () => {
-  const { balance, transactions, loading, initializeWallet } = useWalletStore();
+  const { balance, transactions, initializeWallet } = useWalletStore();
   const { user } = useAuthStore();
 
   // Initialize wallet data when component mounts

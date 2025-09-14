@@ -157,7 +157,7 @@ export const LoginPage: React.FC = () => {
             href="#" 
             onClick={(e) => {
               e.preventDefault();
-              toast.info('Password reset functionality will be available soon!');
+              toast.success('Password reset functionality will be available soon!');
             }} 
             className="text-sm text-primary hover:underline"
           >

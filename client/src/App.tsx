@@ -14,7 +14,7 @@ import { OnboardingProvider } from './components/onboarding/OnboardingProvider';
 // Import all page components
 import DiscoverPage from './pages/DiscoverPage';
 import CreatePredictionPage from './pages/CreatePredictionPage';
-import BetsTab from './pages/BetsTab';
+import { PredictionsPage } from './pages/index';
 import ProfilePage from './pages/ProfilePage';
 import WalletPage from './pages/WalletPage';
 import AuthPage from './pages/auth/AuthPage';
@@ -188,7 +188,7 @@ const PredictionsPageWrapper: React.FC = () => {
 
   return (
     <PageWrapper title="My Predictions">
-      <BetsTab onNavigateToDiscover={handleNavigateToDiscover} />
+      <PredictionsPage />
     </PageWrapper>
   );
 };

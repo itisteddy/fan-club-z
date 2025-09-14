@@ -132,8 +132,8 @@ export class PWAManager {
 
   private trackInstallation() {
     // Track installation analytics
-    if (typeof gtag !== 'undefined') {
-      gtag('event', 'pwa_install', {
+    if (typeof window.gtag !== 'undefined') {
+      window.gtag('event', 'pwa_install', {
         event_category: 'engagement',
         event_label: 'app_install'
       });
@@ -174,7 +174,7 @@ export class PWAManager {
         userVisibleOnly: true,
         applicationServerKey: this.urlBase64ToUint8Array(
           process.env.VITE_VAPID_PUBLIC_KEY || ''
-        )
+        ) as unknown as ArrayBuffer
       });
 
       // Send subscription to server

@@ -569,7 +569,7 @@ export const OnboardingSystem: React.FC<OnboardingSystemProps> = ({
   // Calculate tooltip position when target rect changes
   useEffect(() => {
     if (targetRect && tooltipRef.current) {
-      const tooltipRect = { width: 380, height: 200 }; // Estimated size
+      const tooltipRect = new DOMRect(0, 0, 380, 200); // Estimated size
       let position = calculateOptimalPosition(
         targetRect,
         tooltipRect,

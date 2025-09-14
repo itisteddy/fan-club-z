@@ -31,6 +31,7 @@ export interface Prediction {
     avatar_url?: string;
     is_verified: boolean;
     full_name?: string;
+    email?: string;
   };
   participant_count: number;
   likes_count: number;

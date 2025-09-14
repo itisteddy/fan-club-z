@@ -3,7 +3,8 @@ import { useLocation } from 'wouter';
 import { 
   EnhancedOnboardingSystem, 
   WelcomeModal, 
-  useEnhancedOnboarding
+  useEnhancedOnboarding,
+  type OnboardingStep
 } from './EnhancedOnboardingSystem';
 import { 
   Compass, 
@@ -34,14 +35,14 @@ interface OnboardingContextValue {
 const OnboardingContext = createContext<OnboardingContextValue | undefined>(undefined);
 
 // Fixed tour configurations with proper target IDs
-const FULL_TOUR_STEPS = [
+const FULL_TOUR_STEPS: OnboardingStep[] = [
   // Welcome & Discover Tab
   {
     id: 'welcome-discover',
     title: 'Welcome to Discover',
     description: 'This is where you\'ll find trending predictions and explore new markets. Scroll down to see all available predictions.',
     target: 'discover-list',
-    placement: 'center',
+    placement: 'center' as const,
     icon: <Compass className="w-5 h-5" />,
     delay: 500
   },
@@ -52,7 +53,7 @@ const FULL_TOUR_STEPS = [
     title: 'Search Predictions',
     description: 'Use the search bar to find specific topics, events, or types of predictions that interest you.',
     target: 'search-bar',
-    placement: 'bottom',
+    placement: 'bottom' as const,
     icon: <Search className="w-5 h-5" />
   },
   
@@ -62,7 +63,7 @@ const FULL_TOUR_STEPS = [
     title: 'Browse by Category',
     description: 'Filter predictions by category - Sports, Pop Culture, Tech, Finance, and more. Find what you\'re passionate about.',
     target: 'category-filters',
-    placement: 'bottom',
+    placement: 'bottom' as const,
     icon: <Filter className="w-5 h-5" />
   },
   
@@ -72,7 +73,7 @@ const FULL_TOUR_STEPS = [
     title: 'Create Your Own',
     description: 'Ready to share your insights? Tap the plus button to create your own prediction and invite others to participate.',
     target: 'create-fab',
-    placement: 'left',
+    placement: 'left' as const,
     icon: <Plus className="w-5 h-5" />
   },
   
@@ -82,7 +83,7 @@ const FULL_TOUR_STEPS = [
     title: 'Track Your Predictions',
     description: 'View all your active predictions, ones you\'ve created, and your completed predictions with results.',
     target: 'tab-bets',
-    placement: 'top',
+    placement: 'top' as const,
     icon: <TrendingUp className="w-5 h-5" />,
     onNext: () => {
       // Navigate to predictions page
@@ -97,7 +98,7 @@ const FULL_TOUR_STEPS = [
     title: 'Organize Your Activity',
     description: 'Switch between Active (ongoing), Created (your predictions), and Completed (finished) to stay organized.',
     target: 'bets-tabs',
-    placement: 'bottom',
+    placement: 'bottom' as const,
     icon: <BarChart3 className="w-5 h-5" />
   },
   
@@ -107,7 +108,7 @@ const FULL_TOUR_STEPS = [
     title: 'Manage Your Wallet',
     description: 'Keep track of your balance, view transaction history, and manage your funds securely.',
     target: 'tab-wallet',
-    placement: 'top',
+    placement: 'top' as const,
     icon: <Wallet className="w-5 h-5" />,
     onNext: () => {
       const navigate = (window as any).__router_navigate;
@@ -121,7 +122,7 @@ const FULL_TOUR_STEPS = [
     title: 'Your Balance',
     description: 'Your current balance is displayed here. In demo mode, you can add test funds to try out predictions.',
     target: 'wallet-balance',
-    placement: 'bottom',
+    placement: 'bottom' as const,
     icon: <Wallet className="w-5 h-5" />
   },
   
@@ -131,7 +132,7 @@ const FULL_TOUR_STEPS = [
     title: 'Your Profile',
     description: 'Access your settings, view achievements, manage notifications, and track your performance stats.',
     target: 'tab-profile',
-    placement: 'top',
+    placement: 'top' as const,
     icon: <User className="w-5 h-5" />,
     onNext: () => {
       const navigate = (window as any).__router_navigate;
@@ -145,18 +146,18 @@ const FULL_TOUR_STEPS = [
     title: 'Complete Your Profile',
     description: 'Take a moment to complete your profile information and adjust your preferences for the best experience.',
     target: 'profile-header',
-    placement: 'bottom',
+    placement: 'bottom' as const,
     icon: <Settings className="w-5 h-5" />
   }
 ];
 
-const QUICK_TOUR_STEPS = [
+const QUICK_TOUR_STEPS: OnboardingStep[] = [
   {
     id: 'quick-discover',
     title: 'Discover Predictions',
     description: 'Browse and participate in predictions from the community.',
     target: 'tab-discover',
-    placement: 'top',
+    placement: 'top' as const,
     icon: <Compass className="w-5 h-5" />
   },
   {
@@ -164,7 +165,7 @@ const QUICK_TOUR_STEPS = [
     title: 'Create Predictions',
     description: 'Share your insights by creating your own predictions.',
     target: 'create-fab',
-    placement: 'left',
+    placement: 'left' as const,
     icon: <Plus className="w-5 h-5" />
   },
   {
@@ -172,7 +173,7 @@ const QUICK_TOUR_STEPS = [
     title: 'Track Progress',
     description: 'Monitor your active and completed predictions.',
     target: 'tab-bets',
-    placement: 'top',
+    placement: 'top' as const,
     icon: <TrendingUp className="w-5 h-5" />
   },
   {
@@ -180,7 +181,7 @@ const QUICK_TOUR_STEPS = [
     title: 'Manage Funds',
     description: 'View your balance and transaction history.',
     target: 'tab-wallet',
-    placement: 'top',
+    placement: 'top' as const,
     icon: <Wallet className="w-5 h-5" />
   }
 ];

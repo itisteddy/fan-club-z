@@ -149,7 +149,9 @@ const CommentModal: React.FC<CommentModalProps> = ({
       <ModalErrorBoundary 
         onClose={onClose}
         error="Unable to load comments. Invalid prediction data."
-      />
+      >
+        <div>Error loading comments</div>
+      </ModalErrorBoundary>
     );
   }
 

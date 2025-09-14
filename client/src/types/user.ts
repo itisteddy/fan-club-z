@@ -1,13 +1,17 @@
 // Canonical User type for Fan Club Z
 export interface User {
   id: string;
-  username?: string;
+  username: string;
   full_name?: string;
   avatar_url?: string;
   email?: string;
   created_at?: string;
   updated_at?: string;
   is_verified?: boolean;
+  displayName?: string;
+  avatarUrl?: string;
+  reputation?: number;
+  walletCurrency?: 'USD' | 'NGN' | 'USDC' | string;
 }
 
 // Extended user types for specific contexts

@@ -150,9 +150,9 @@ const CommentSystem: React.FC<CommentSystemProps> = ({ predictionId }) => {
       // Pass user data to the comment creation
       await addComment(content.trim(), parentId, {
         id: user.id,
-        username: user.firstName || user.email?.split('@')[0] || 'Anonymous',
-        full_name: `${user.firstName} ${user.lastName}`.trim() || user.email?.split('@')[0] || 'Anonymous User',
-        avatar_url: user.avatar,
+        username: user.username || user.email?.split('@')[0] || 'Anonymous',
+        full_name: user.full_name || user.email?.split('@')[0] || 'Anonymous User',
+        avatar_url: user.avatar_url,
         is_verified: false
       });
       
@@ -232,9 +232,9 @@ const CommentSystem: React.FC<CommentSystemProps> = ({ predictionId }) => {
                 // Re-create deleted comment (best-effort restore)
                 await addComment(deletedSnapshot.content, deletedSnapshot.parent_comment_id || undefined, user ? {
                   id: user.id,
-                  username: user.firstName || user.email?.split('@')[0] || 'Anonymous',
-                  full_name: `${user.firstName} ${user.lastName}`.trim() || user.email?.split('@')[0] || 'Anonymous User',
-                  avatar_url: user.avatar,
+                  username: user.username || user.email?.split('@')[0] || 'Anonymous',
+                  full_name: user.full_name || user.email?.split('@')[0] || 'Anonymous User',
+                  avatar_url: user.avatar_url,
                   is_verified: false
                 } : undefined);
                 toast.success('Comment restored');

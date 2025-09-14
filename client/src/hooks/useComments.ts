@@ -104,16 +104,15 @@ export const useCreateComment = () => {
           is_edited: commentResult.is_edited || false,
           created_at: commentResult.created_at,
           updated_at: commentResult.updated_at,
-          user: {
-            id: commentResult.user_id,
-            username: commentResult.username || user?.username || 'You',
-            full_name: commentResult.username || user?.full_name || 'Your Name',
-            avatar_url: commentResult.avatar_url || user?.avatar_url,
-            is_verified: commentResult.is_verified || false,
-          },
-          likes_count: commentResult.likes_count || 0,
-          is_liked: commentResult.is_liked || false,
-          replies_count: commentResult.replies_count || 0,
+            user: {
+              id: commentResult.user_id,
+              username: commentResult.username || user?.username || 'You',
+              full_name: commentResult.username || user?.full_name || 'Your Name',
+              avatar_url: commentResult.avatar_url || user?.avatar_url,
+            },
+          // likes_count: commentResult.likes_count || 0, // Removed for 2.0.77
+          // is_liked: commentResult.is_liked || false, // Removed for 2.0.77
+          // replies_count: commentResult.replies_count || 0, // Removed for 2.0.77
           replies: commentResult.replies || [],
         };
       } catch (error) {
@@ -134,11 +133,10 @@ export const useCreateComment = () => {
             username: user?.username || 'You',
             full_name: user?.full_name || 'Your Name',
             avatar_url: user?.avatar_url,
-            is_verified: false,
           },
-          likes_count: 0,
-          is_liked: false,
-          replies_count: 0,
+          // likes_count: 0, // Removed for 2.0.77
+          // is_liked: false, // Removed for 2.0.77
+          // replies_count: 0, // Removed for 2.0.77
           replies: [],
         };
         
@@ -161,7 +159,7 @@ export const useCreateComment = () => {
                   return {
                     ...comment,
                     replies: [newComment, ...(comment.replies || [])],
-                    replies_count: (comment.replies_count || 0) + 1,
+                    // replies_count: (comment.replies_count || 0) + 1, // Removed for 2.0.77
                   };
                 }
                 return comment;
@@ -287,8 +285,8 @@ export const useToggleCommentLike = () => {
             if (comment.id === commentId) {
               return {
                 ...comment,
-                is_liked: result.liked,
-                likes_count: result.likes_count,
+                // is_liked: result.liked, // Removed for 2.0.77
+                // likes_count: result.likes_count, // Removed for 2.0.77
               };
             }
             if (comment.replies && comment.replies.length > 0) {

@@ -265,7 +265,7 @@ export class SocialService {
     pagination: PaginationQuery
   ): Promise<PaginatedResponse<ClubMember>> {
     try {
-      const { page, limit } = pagination;
+      const { page = 1, limit = 20 } = pagination;
       const offset = (page - 1) * limit;
 
       const { data, error, count } = await this.supabase
@@ -288,7 +288,6 @@ export class SocialService {
       const totalPages = Math.ceil(total / limit);
 
       return {
-        success: true,
         data: data || [],
         pagination: {
           page,
@@ -310,7 +309,7 @@ export class SocialService {
     pagination: PaginationQuery
   ): Promise<PaginatedResponse<any>> {
     try {
-      const { page, limit } = pagination;
+      const { page = 1, limit = 20 } = pagination;
       const offset = (page - 1) * limit;
 
       const { data, error, count } = await this.supabase
@@ -334,7 +333,6 @@ export class SocialService {
       const totalPages = Math.ceil(total / limit);
 
       return {
-        success: true,
         data: data || [],
         pagination: {
           page,
@@ -356,7 +354,7 @@ export class SocialService {
     pagination: PaginationQuery
   ): Promise<PaginatedResponse<Club>> {
     try {
-      const { page, limit } = pagination;
+      const { page = 1, limit = 20 } = pagination;
       const offset = (page - 1) * limit;
 
       const { data, error, count } = await this.supabase
@@ -388,15 +386,14 @@ export class SocialService {
       const totalPages = Math.ceil(total / limit);
 
       return {
-        success: true,
-        data: clubs,
+        data: [], // Clubs removed for 2.0.77
         pagination: {
           page,
           limit,
-          total,
-          totalPages,
-          hasNext: page < totalPages,
-          hasPrev: page > 1,
+          total: 0,
+          totalPages: 0,
+          hasNext: false,
+          hasPrev: false,
         },
       };
     } catch (error) {
@@ -496,7 +493,7 @@ export class SocialService {
     userId?: string
   ): Promise<PaginatedResponse<EnhancedComment>> {
     try {
-      const { page, limit } = pagination;
+      const { page = 1, limit = 20 } = pagination;
       const offset = (page - 1) * limit;
 
       // Get top-level comments with user info
@@ -520,7 +517,6 @@ export class SocialService {
       if (!topLevelComments || topLevelComments.length === 0) {
         logger.info('No comments found for prediction');
         return {
-          success: true,
           data: [],
           pagination: {
             page,
@@ -596,7 +592,6 @@ export class SocialService {
       logger.info(`Successfully fetched ${commentsWithReplies.length} comments with manual method`);
 
       return {
-        success: true,
         data: commentsWithReplies as EnhancedComment[],
         pagination: {
           page,
@@ -906,7 +901,7 @@ export class SocialService {
         if (!acc[reaction.type]) {
           acc[reaction.type] = [];
         }
-        acc[reaction.type].push(reaction);
+        acc[reaction.type]?.push(reaction);
         return acc;
       }, {} as Record<string, any[]>);
 
@@ -936,7 +931,7 @@ export class SocialService {
     pagination: PaginationQuery
   ): Promise<PaginatedResponse<any>> {
     try {
-      const { page, limit } = pagination;
+      const { page = 1, limit = 20 } = pagination;
       const offset = (page - 1) * limit;
 
       // Get recent comments and reactions
@@ -989,7 +984,6 @@ export class SocialService {
       const totalPages = Math.ceil(total / limit);
 
       return {
-        success: true,
         data: paginatedActivities,
         pagination: {
           page,
@@ -1018,7 +1012,7 @@ export class SocialService {
   }): Promise<PaginatedResponse<any>> {
     try {
       const { type, period, clubId, pagination } = options;
-      const { page, limit } = pagination;
+      const { page = 1, limit = 20 } = pagination;
       const offset = (page - 1) * limit;
 
       // Calculate date filter based on period
@@ -1101,7 +1095,6 @@ export class SocialService {
       const totalPages = Math.ceil(total / limit);
 
       return {
-        success: true,
         data: leaderboard,
         pagination: {
           page,
