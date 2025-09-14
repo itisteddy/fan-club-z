@@ -15,6 +15,7 @@ import {
   ChevronUp
 } from 'lucide-react';
 import { MinimalBackButton } from '../components/common/BackButton';
+import { CommentComposer } from '../components/common/CommentComposer';
 
 interface DiscussionDetailPageProps {
   discussionId?: string;
@@ -324,38 +325,18 @@ const DiscussionDetailPage: React.FC<DiscussionDetailPageProps> = ({
               YU
             </div>
             <div className="flex-1">
-              <textarea
-                ref={messageInputRef}
-                value={newMessage}
-                onChange={handleTextareaChange}
-                onKeyPress={handleKeyPress}
-                placeholder="Write a thoughtful reply..."
-                className="w-full p-3 border border-gray-200 rounded-xl resize-none focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all duration-200 min-h-[80px]"
-                style={{ maxHeight: '120px' }}
+              <CommentComposer
+                onSubmit={async (content) => {
+                  setNewMessage(content);
+                  await handleSubmitComment();
+                }}
+                placeholder="Share your thoughts…"
+                maxLength={500}
+                disabled={isSubmitting}
+                submitButtonText="Reply"
+                isSubmitting={isSubmitting}
+                className="w-full"
               />
-              <div className="flex justify-between items-center mt-3">
-                <div className="text-xs text-gray-500">
-                  {newMessage.length > 0 && `${newMessage.length} characters`}
-                </div>
-                <motion.button
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                  onClick={handleSubmitComment}
-                  disabled={!newMessage.trim() || isSubmitting}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-xl font-semibold transition-all duration-200 ${
-                    !newMessage.trim() || isSubmitting
-                      ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                      : 'bg-purple-500 text-white hover:bg-purple-600 shadow-lg shadow-purple-500/25'
-                  }`}
-                >
-                  {isSubmitting ? (
-                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  ) : (
-                    <Send size={16} />
-                  )}
-                  <span>{isSubmitting ? 'Posting...' : 'Reply'}</span>
-                </motion.button>
-              </div>
             </div>
           </div>
         </motion.div>

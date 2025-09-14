@@ -8,6 +8,7 @@ import { useUnifiedCommentStore, useCommentsForPrediction } from '../../store/un
 import { useAuthStore } from '../../store/authStore';
 import { withAuthGate } from '../auth/AuthSheetProvider';
 import { generateInitials, getAvatarUrl } from '../../lib/utils';
+import { CommentComposer } from '../common/CommentComposer';
 import toast from 'react-hot-toast';
 
 interface CommentsModalProps {
@@ -189,35 +190,19 @@ export const CommentsModal: React.FC<CommentsModalProps> = ({
               </div>
 
               {/* Comment Input - Always Visible at Bottom */}
-              <div className="modal-footer">
-                <div className="flex gap-3">
-                  <div className="flex-1 flex gap-3">
-                    <Input
-                      value={newComment}
-                      onChange={(e) => setNewComment(e.target.value)}
-                      placeholder="Add a comment..."
-                      className="flex-1 text-sm border-gray-200 rounded-full focus:ring-2 focus:ring-green-500/20"
-                      onKeyPress={(e) => {
-                        if (e.key === 'Enter' && !e.shiftKey) {
-                          e.preventDefault();
-                          handleSubmitComment();
-                        }
-                      }}
-                    />
-                    <Button
-                      onClick={handleSubmitComment}
-                      disabled={!newComment.trim() || isSubmitting}
-                      size="sm"
-                      className="rounded-full px-4 bg-teal-500 hover:bg-teal-600"
-                    >
-                      {isSubmitting ? (
-                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                      ) : (
-                        <Send size={14} />
-                      )}
-                    </Button>
-                  </div>
-                </div>
+              <div className="modal-footer p-4">
+                <CommentComposer
+                  onSubmit={async (content) => {
+                    await addComment(predictionId, content);
+                    setNewComment('');
+                  }}
+                  placeholder="Share your thoughts…"
+                  maxLength={500}
+                  disabled={isSubmitting}
+                  submitButtonText="Post"
+                  isSubmitting={isSubmitting}
+                  className="w-full"
+                />
               </div>
             </motion.div>
           </div>

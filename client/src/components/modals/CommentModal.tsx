@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { X, MessageCircle, Heart, Send } from 'lucide-react';
 import { useCommentsForPrediction } from '../../store/unifiedCommentStore';
 import { useAuthStore } from '../../store/authStore';
+import { CommentComposer } from '../common/CommentComposer';
 import toast from 'react-hot-toast';
 import type { Prediction } from '../../store/predictionStore';
 import TappableUsername from '../TappableUsername';
@@ -297,31 +298,18 @@ const CommentModal: React.FC<CommentModalProps> = ({
             {/* Comment Input */}
             {user ? (
               <div className="p-4 border-t border-gray-100 bg-white sticky bottom-0">
-                <div className="flex gap-3">
-                  <div className="flex-1 flex gap-2">
-                    <input
-                      type="text"
-                      value={newComment}
-                      onChange={(e) => setNewComment(e.target.value)}
-                      onKeyPress={(e) => {
-                        if (e.key === 'Enter' && !e.shiftKey) {
-                          e.preventDefault();
-                          handleSubmitComment();
-                        }
-                      }}
-                      placeholder="Write a comment..."
-                      className="flex-1 px-4 py-2 bg-gray-100 rounded-full focus:ring-2 focus:ring-green-500 focus:bg-white focus:outline-none transition-all text-sm"
-                      disabled={isSubmitting}
-                    />
-                    <button
-                      onClick={handleSubmitComment}
-                      disabled={!newComment.trim() || isSubmitting}
-                      className="w-8 h-8 rounded-full bg-teal-500 text-white flex items-center justify-center hover:bg-teal-600 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
-                    >
-                      <Send size={14} />
-                    </button>
-                  </div>
-                </div>
+                <CommentComposer
+                  onSubmit={async (content) => {
+                    await addComment(content);
+                    setNewComment('');
+                  }}
+                  placeholder="Share your thoughts…"
+                  maxLength={500}
+                  disabled={isSubmitting}
+                  submitButtonText="Post"
+                  isSubmitting={isSubmitting}
+                  className="w-full"
+                />
               </div>
             ) : (
               <div className="p-4 border-t border-gray-100 bg-gray-50 text-center">

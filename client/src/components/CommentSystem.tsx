@@ -4,60 +4,13 @@ import { useCommentsForPrediction } from '../store/unifiedCommentStore';
 import { MessageCircle, Heart, Reply, MoreHorizontal, Flag, Edit, Trash2 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import TappableUsername from './TappableUsername';
+import { CommentComposer } from './common/CommentComposer';
 import toast from 'react-hot-toast';
 
 interface CommentSystemProps {
   predictionId: string;
 }
 
-// Completely isolated textarea component that manages its own state internally
-const IsolatedTextarea: React.FC<{
-  id: string;
-  value: string;
-  onValueChange: (value: string) => void;
-  placeholder: string;
-  rows?: number;
-  maxLength?: number;
-  autoFocus?: boolean;
-  className?: string;
-  disabled?: boolean;
-}> = ({ 
-  id,
-  value,
-  onValueChange,
-  placeholder, 
-  rows = 3, 
-  maxLength = 500, 
-  autoFocus = false, 
-  className = '',
-  disabled = false 
-}) => {
-  const handleChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    onValueChange(e.target.value);
-  }, [onValueChange]);
-
-  return (
-    <textarea
-      id={id}
-      value={value}
-      onChange={handleChange}
-      className={`w-full p-3 border border-gray-300 rounded-lg resize-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-colors ${className}`}
-      rows={rows}
-      placeholder={placeholder}
-      maxLength={maxLength}
-      disabled={disabled}
-      autoFocus={autoFocus}
-      spellCheck={false}
-      autoComplete="off"
-      autoCorrect="off"
-      autoCapitalize="off"
-      style={{ 
-        minHeight: `${rows * 1.5}rem`,
-        fontFamily: 'inherit'
-      }}
-    />
-  );
-};
 
 const CommentSystem: React.FC<CommentSystemProps> = ({ predictionId }) => {
   const { user } = useAuthStore();
@@ -442,36 +395,24 @@ const CommentSystem: React.FC<CommentSystemProps> = ({ predictionId }) => {
 
             {/* Reply input */}
             {isCurrentlyReplying && (
-              <div className="mt-3 space-y-2">
-                <IsolatedTextarea
-                  id={`reply-textarea-${comment.id}`}
-                  value={replyTexts[comment.id] || ''}
-                  onValueChange={(value) => updateReplyText(comment.id, value)}
-                  placeholder={`Reply to ${comment.user?.username || comment.username}...`}
-                  rows={2}
+              <div className="mt-3">
+                <CommentComposer
+                  onSubmit={async (content) => {
+                    await addComment(content, comment.id);
+                    setReplyTexts(prev => ({ ...prev, [comment.id]: '' }));
+                    setReplyTo(null);
+                  }}
+                  placeholder="Reply to @username…"
+                  replyTo={comment.user?.username || comment.username}
                   maxLength={500}
+                  disabled={isSubmitting}
                   autoFocus
+                  showCancelButton
+                  submitButtonText="Reply"
+                  isSubmitting={isSubmitting}
+                  onCancel={() => cancelReply(comment.id)}
+                  className="w-full"
                 />
-                <div className="flex justify-between items-center">
-                  <span className="text-xs text-gray-500">
-                    {(replyTexts[comment.id] || '').length}/500
-                  </span>
-                  <div className="flex space-x-2">
-                    <button
-                      onClick={() => handleAddComment(comment.id)}
-                      disabled={!(replyTexts[comment.id] || '').trim() || isSubmitting}
-                                              className="px-3 py-1 bg-teal-600 text-white text-xs rounded hover:bg-teal-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      {isSubmitting ? 'Replying...' : 'Reply'}
-                    </button>
-                    <button
-                      onClick={() => cancelReply(comment.id)}
-                      className="px-3 py-1 bg-gray-300 text-gray-700 text-xs rounded hover:bg-gray-400"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                </div>
               </div>
             )}
 
@@ -517,28 +458,18 @@ const CommentSystem: React.FC<CommentSystemProps> = ({ predictionId }) => {
       {/* New comment input */}
       {user && (
         <div className="p-4 border-b border-gray-200 bg-gray-50">
-          <div className="w-full">
-            <IsolatedTextarea
-              id="main-textarea"
-              value={mainCommentText}
-              onValueChange={setMainCommentText}
-              placeholder="Share your thoughts..."
-              rows={3}
-              maxLength={500}
-            />
-            <div className="flex justify-between items-center mt-3">
-              <span className="text-xs text-gray-500">
-                {mainCommentText.length}/500
-              </span>
-              <button
-                onClick={() => handleAddComment()}
-                disabled={!mainCommentText.trim() || isSubmitting}
-                className="px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm font-medium"
-              >
-                {isSubmitting ? 'Posting...' : 'Comment'}
-              </button>
-            </div>
-          </div>
+          <CommentComposer
+            onSubmit={async (content) => {
+              await addComment(content);
+              setMainCommentText('');
+            }}
+            placeholder="Share your thoughts…"
+            maxLength={500}
+            disabled={isSubmitting}
+            submitButtonText="Post"
+            isSubmitting={isSubmitting}
+            className="w-full"
+          />
         </div>
       )}
 
