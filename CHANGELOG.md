@@ -2,14 +2,20 @@
 
 All notable changes to Fan Club Z will be documented in this file.
 
-## 2.0.77 – TS zero, UX consistency, cleanup
+## 2.0.77 – Content-first auth, TS zero, UX consistency
 
 ### 🎯 Major Achievements
+- **Content-first authentication**: Public pages load without auth barriers
+- **Action-level auth gating**: Write actions trigger auth sheet with resume-after-auth
 - **Zero TypeScript errors**: Resolved all 187 TypeScript compilation errors
 - **Production-ready build**: Clean build with no compilation warnings
 - **UX consistency**: Unified design language across all components
 
 ### 🔧 Technical Improvements
+- **Auth Architecture**: Implemented AuthSheetProvider with withAuthGate for seamless auth gating
+- **Route Protection**: Public routes (discover, prediction details, user profiles) accessible without auth
+- **Resume-After-Auth**: Actions automatically resume after successful authentication
+- **Service Worker**: Version 2.0.77 with cache busting to prevent stale auth gates
 - **Type Safety**: Unified User type across codebase (username, full_name, avatar_url)
 - **Code Cleanup**: Removed unused files and out-of-scope features
   - Removed clubs functionality (not part of v2.0.77)
