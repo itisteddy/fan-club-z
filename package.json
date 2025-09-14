@@ -24,6 +24,7 @@
     "lint": "npm run lint --workspaces --if-present",
     "lint:client": "npm run lint --workspace=@fanclubz/client",
     "lint:server": "npm run lint --workspace=@fanclubz/server",
+    "typecheck": "npm run type-check --workspace=@fanclubz/client",
     "db:setup": "npm run db:setup --workspace=@fanclubz/server",
     "db:migrate": "npm run db:migrate --workspace=@fanclubz/server",
     "db:seed": "npm run db:seed --workspace=@fanclubz/server",
@@ -39,7 +40,9 @@
     "version:patch": "node scripts/version-bump.js patch",
     "version:minor": "node scripts/version-bump.js minor",
     "version:major": "node scripts/version-bump.js major",
-    "version:verify": "node scripts/verify-versions.js"
+    "version:verify": "node scripts/verify-versions.js",
+    "smoke:staging": "node e2e/smoke.staging.mjs",
+    "smoke:prod": "node e2e/smoke.production.mjs"
   },
   "devDependencies": {
     "concurrently": "^8.2.2",

@@ -75,7 +75,7 @@ export class PWAManager {
       
       if (response.ok) {
         const versionData = await response.json();
-        const currentVersion = versionData.version || '2.0.77';
+        const currentVersion = versionData.version || 'unknown';
         const storedVersion = localStorage.getItem('app-version');
         
         if (storedVersion && storedVersion !== currentVersion) {
