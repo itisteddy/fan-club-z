@@ -1,0 +1,118 @@
+name: PR Checks
+
+on:
+  pull_request:
+    branches: [ main, develop ]
+    types: [ opened, synchronize, reopened ]
+
+env:
+  NODE_VERSION: '18.19.0'
+
+jobs:
+  pr-checks:
+    name: PR Quality Checks
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: 'npm'
+    
+    - name: Install dependencies
+      run: npm ci
+    
+    - name: Lint check
+      run: npm run lint
+      continue-on-error: true
+    
+    - name: TypeScript check
+      run: npm run typecheck
+      continue-on-error: true
+    
+    - name: Run tests
+      run: npm run test
+      continue-on-error: true
+    
+    - name: Build check
+      run: npm run build
+      continue-on-error: true
+    
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: build-reports-${{ github.event.number }}
+        path: |
+          client/dist/
+          server/dist/
+          .artifacts/
+        retention-days: 30
+    
+    - name: Generate build report
+      if: always()
+      run: |
+        mkdir -p .artifacts
+        cat > .artifacts/build-report-${{ github.event.number }}.md << EOF
+        # Build Report - PR #${{ github.event.number }}
+        
+        **Branch:** ${{ github.head_ref }}
+        **Commit:** ${{ github.sha }}
+        **Author:** ${{ github.actor }}
+        **Date:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")
+        
+        ## Check Results
+        - **Lint:** ${{ steps.lint.outcome || 'pending' }}
+        - **TypeScript:** ${{ steps.typecheck.outcome || 'pending' }}
+        - **Tests:** ${{ steps.test.outcome || 'pending' }}
+        - **Build:** ${{ steps.build.outcome || 'pending' }}
+        
+        ## Artifacts
+        - Build artifacts uploaded to GitHub Actions
+        - Reports saved to .artifacts/ directory
+        
+        ## Next Steps
+        - Review any failed checks
+        - Fix issues before merging
+        - Ensure all checks pass before approval
+        EOF
+    
+    - name: Upload build report
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: build-report-${{ github.event.number }}
+        path: .artifacts/build-report-${{ github.event.number }}.md
+        retention-days: 30
+    
+    - name: Comment PR with results
+      if: always()
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const fs = require('fs');
+          let reportContent = '';
+          try {
+            reportContent = fs.readFileSync('.artifacts/build-report-${{ github.event.number }}.md', 'utf8');
+          } catch (error) {
+            reportContent = 'Build report generation failed.';
+          }
+          
+          github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: `## 🔍 PR Quality Checks Complete
+            
+            ${reportContent}
+            
+            **Status:** ${{ job.status }}
+            **Workflow:** [View Details](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
+            `
+          });

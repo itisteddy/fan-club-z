@@ -1,115 +1,139 @@
 #!/usr/bin/env node
 
-const CLIENT_URL = 'http://localhost:5173';
-const API_URL = 'https://fan-club-z.onrender.com'; // Using production API for staging smoke
+/**
+ * Staging Smoke Tests
+ * Basic health checks for staging deployment
+ */
 
-console.log('🧪 Fan Club Z v2.0.77 Staging Smoke Test');
-console.log(`Client: ${CLIENT_URL}`);
-console.log(`API: ${API_URL}`);
+import { chromium } from 'playwright';
 
-const results = {
-  passed: 0,
-  failed: 0,
-  errors: []
-};
+const STAGING_URL = process.env.STAGING_URL || 'https://fanclubz-staging.vercel.app';
 
-function assert(condition, message) {
-  if (condition) {
-    console.log(`✅ ${message}`);
-    results.passed++;
-  } else {
-    console.log(`❌ ${message}`);
-    results.failed++;
-    results.errors.push(message);
-  }
-}
-
-async function fetchWithTimeout(url, options = {}, timeout = 10000) {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), timeout);
+async function smokeTest() {
+  console.log('🧪 Starting staging smoke tests...');
+  console.log(`🎯 Testing: ${STAGING_URL}`);
+  
+  let browser;
+  let passed = 0;
+  let failed = 0;
   
   try {
-    const response = await fetch(url, {
-      ...options,
-      signal: controller.signal
-    });
-    clearTimeout(timeoutId);
-    return response;
-  } catch (error) {
-    clearTimeout(timeoutId);
-    throw error;
-  }
-}
-
-async function runSmokeTest() {
-  try {
-    // 1. Discover loads (200), no red console errors
-    console.log('\n📡 Testing Discover page...');
-    const discoverResponse = await fetchWithTimeout(`${CLIENT_URL}/`);
-    assert(discoverResponse.ok, 'Discover page loads (200)');
+    browser = await chromium.launch({ headless: true });
+    const page = await browser.newPage();
     
-    const discoverHtml = await discoverResponse.text();
-    assert(discoverHtml.includes('Fan Club Z'), 'Page contains app title');
-    assert(!discoverHtml.includes('₦'), 'No NGN currency symbols found');
-    assert(discoverHtml.includes('USD') || discoverHtml.includes('$'), 'USD currency present');
-
-    // 2. Content-first: predictions list visible while logged out
-    console.log('\n📋 Testing content-first loading...');
-    assert(discoverHtml.includes('prediction') || discoverHtml.includes('Loading'), 'Predictions content or loading state visible');
-
-    // 3. API health check
-    console.log('\n🔗 Testing API connectivity...');
+    // Test 1: Home page loads
+    console.log('📄 Testing staging home page load...');
     try {
-      const apiResponse = await fetchWithTimeout(`${API_URL}/api/v2/predictions/stats/platform`, { timeout: 5000 });
-      assert(apiResponse.ok, 'API health check passes');
+      await page.goto(STAGING_URL, { waitUntil: 'networkidle', timeout: 30000 });
+      const title = await page.title();
+      if (title && title.includes('Fan Club Z')) {
+        console.log('✅ Staging home page loads successfully');
+        passed++;
+      } else {
+        console.log('❌ Staging home page title incorrect:', title);
+        failed++;
+      }
     } catch (error) {
-      console.log(`⚠️ API health check failed: ${error.message} (continuing with client-only tests)`);
+      console.log('❌ Staging home page failed to load:', error.message);
+      failed++;
     }
-
-    // 4. Check for auth gating elements (minified HTML may not contain these strings)
-    console.log('\n🔐 Testing auth gating elements...');
-    assert(true, 'Auth elements check skipped (minified HTML)');
-
-    // 5. Check for Live Markets elements (minified HTML may not contain these strings)
-    console.log('\n📊 Testing Live Markets elements...');
-    assert(true, 'Live Markets elements check skipped (minified HTML)');
-
-    // 6. Check for consistent header elements
-    console.log('\n🎨 Testing header consistency...');
-    assert(!discoverHtml.includes('back-arrow') || !discoverHtml.includes('Back'), 'No back arrow on Discover page');
-
-    // 7. Check for PWA elements
-    console.log('\n📱 Testing PWA elements...');
-    assert(discoverHtml.includes('manifest') || discoverHtml.includes('service-worker'), 'PWA elements present');
-
-    // 8. Check for no hardcoded versions
-    console.log('\n🔍 Testing version management...');
-    assert(!discoverHtml.includes('2.0.76') && !discoverHtml.includes('2.0.75'), 'No hardcoded previous versions');
-    assert(!discoverHtml.includes('version=') || discoverHtml.includes('package.json'), 'Version read from package.json');
-
+    
+    // Test 2: API health check
+    console.log('🔍 Testing staging API health...');
+    try {
+      const response = await page.request.get(`${STAGING_URL}/api/health`);
+      if (response.ok()) {
+        console.log('✅ Staging API health check passed');
+        passed++;
+      } else {
+        console.log('❌ Staging API health check failed:', response.status());
+        failed++;
+      }
+    } catch (error) {
+      console.log('❌ Staging API health check error:', error.message);
+      failed++;
+    }
+    
+    // Test 3: Static assets load
+    console.log('📦 Testing staging static assets...');
+    try {
+      const response = await page.request.get(`${STAGING_URL}/manifest.json`);
+      if (response.ok()) {
+        console.log('✅ Staging static assets load successfully');
+        passed++;
+      } else {
+        console.log('❌ Staging static assets failed to load:', response.status());
+        failed++;
+      }
+    } catch (error) {
+      console.log('❌ Staging static assets error:', error.message);
+      failed++;
+    }
+    
+    // Test 4: No console errors
+    console.log('🐛 Checking for console errors...');
+    const errors = [];
+    page.on('console', msg => {
+      if (msg.type() === 'error') {
+        errors.push(msg.text());
+      }
+    });
+    
+    await page.goto(STAGING_URL, { waitUntil: 'networkidle', timeout: 30000 });
+    await page.waitForTimeout(2000);
+    
+    if (errors.length === 0) {
+      console.log('✅ No console errors found');
+      passed++;
+    } else {
+      console.log('❌ Console errors found:', errors.length);
+      errors.forEach(error => console.log('  -', error));
+      failed++;
+    }
+    
+    // Test 5: Basic functionality
+    console.log('🔧 Testing basic functionality...');
+    try {
+      // Check if main navigation elements are present
+      const discoverLink = await page.locator('text=Discover').count();
+      const profileLink = await page.locator('text=Profile').count();
+      
+      if (discoverLink > 0 || profileLink > 0) {
+        console.log('✅ Basic navigation elements present');
+        passed++;
+      } else {
+        console.log('❌ Basic navigation elements missing');
+        failed++;
+      }
+    } catch (error) {
+      console.log('❌ Basic functionality test error:', error.message);
+      failed++;
+    }
+    
   } catch (error) {
-    console.log(`❌ Smoke test failed with error: ${error.message}`);
-    results.failed++;
-    results.errors.push(`Test execution error: ${error.message}`);
+    console.error('❌ Staging smoke test setup failed:', error.message);
+    failed++;
+  } finally {
+    if (browser) {
+      await browser.close();
+    }
   }
-
-  // Summary
-  console.log('\n📊 Smoke Test Results:');
-  console.log(`✅ Passed: ${results.passed}`);
-  console.log(`❌ Failed: ${results.failed}`);
   
-  if (results.errors.length > 0) {
-    console.log('\n🚨 Errors:');
-    results.errors.forEach(error => console.log(`  - ${error}`));
+  console.log('\n📊 Staging Smoke Test Results:');
+  console.log(`✅ Passed: ${passed}`);
+  console.log(`❌ Failed: ${failed}`);
+  console.log(`📈 Success Rate: ${((passed / (passed + failed)) * 100).toFixed(1)}%`);
+  
+  if (failed > 0) {
+    console.log('\n🚨 Staging smoke tests failed!');
+    process.exit(1);
+  } else {
+    console.log('\n🎉 All staging smoke tests passed!');
+    process.exit(0);
   }
-
-  return results.failed === 0;
 }
 
-// Run the test
-runSmokeTest().then(success => {
-  process.exit(success ? 0 : 1);
-}).catch(error => {
-  console.error('Test runner error:', error);
+smokeTest().catch(error => {
+  console.error('❌ Staging smoke test failed:', error);
   process.exit(1);
 });

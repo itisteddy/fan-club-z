@@ -1,0 +1,61 @@
+{
+  "version": 2,
+  "installCommand": "cd client && npm install --no-workspaces",
+  "buildCommand": "cd client && npm run build",
+  "outputDirectory": "client/dist",
+  "build": {
+    "env": {
+      "NODE_VERSION": "18.19.0"
+    }
+  },
+  "rewrites": [
+    {
+      "source": "/api/(.*)",
+      "destination": "https://fanclubz-staging.onrender.com/api/$1"
+    },
+    {
+      "source": "/download",
+      "destination": "/download/index.html"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "X-Frame-Options",
+          "value": "DENY"
+        },
+        {
+          "key": "X-XSS-Protection",
+          "value": "1; mode=block"
+        },
+        {
+          "key": "Strict-Transport-Security",
+          "value": "max-age=31536000; includeSubDomains"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "strict-origin-when-cross-origin"
+        }
+      ]
+    }
+  ],
+  "env": {
+    "VITE_API_URL": "https://fanclubz-staging.onrender.com",
+    "VITE_WS_URL": "wss://fanclubz-staging.onrender.com",
+    "VITE_ENVIRONMENT": "staging",
+    "VITE_DEBUG": "true",
+    "VITE_SUPABASE_URL": "https://ihtnsyhknvltgrksffun.supabase.co",
+    "VITE_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlodG5zeWhrbnZsdGdya3NmZnVuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTM2NzA2MzYsImV4cCI6MjA2OTI0NjYzNn0.ZmoZ5cGVHfhDwTvkmaw9LSVHm_awoyMOTyQKewr7rYo"
+  },
+  "regions": ["iad1"]
+}

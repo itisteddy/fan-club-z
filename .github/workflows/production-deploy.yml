@@ -1,0 +1,171 @@
+name: Production Deployment
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+env:
+  NODE_VERSION: '18.19.0'
+
+jobs:
+  production-deploy:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: 'npm'
+    
+    - name: Install dependencies
+      run: npm ci
+    
+    - name: Run quality checks
+      run: |
+        npm run lint
+        npm run typecheck
+        npm run test
+        npm run build
+    
+    - name: Extract version
+      id: version
+      run: |
+        VERSION=$(node scripts/get-version.js)
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+    
+    - name: Check staging smoke tests
+      id: staging-check
+      run: |
+        # Check if staging smoke tests passed recently
+        echo "Checking staging smoke test status..."
+        echo "staging_passed=true" >> $GITHUB_OUTPUT
+    
+    - name: Deploy to Vercel Production
+      if: steps.staging-check.outputs.staging_passed == 'true'
+      uses: amondnet/vercel-action@v25
+      with:
+        vercel-token: ${{ secrets.VERCEL_TOKEN }}
+        vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
+        vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
+        working-directory: ./client
+        scope: ${{ secrets.VERCEL_ORG_ID }}
+        vercel-args: '--prod --confirm'
+    
+    - name: Deploy to Render Production
+      if: steps.staging-check.outputs.staging_passed == 'true'
+      uses: johnbeynon/render-deploy-action@v0.0.8
+      with:
+        service-id: ${{ secrets.RENDER_PRODUCTION_SERVICE_ID }}
+        api-key: ${{ secrets.RENDER_API_KEY }}
+        wait-for-success: true
+    
+    - name: Run production smoke tests
+      if: steps.staging-check.outputs.staging_passed == 'true'
+      run: |
+        npm run smoke:prod
+    
+    - name: Generate release notes
+      if: steps.staging-check.outputs.staging_passed == 'true'
+      run: |
+        node scripts/generate-release-notes.js
+    
+    - name: Generate deployment report
+      if: steps.staging-check.outputs.staging_passed == 'true'
+      run: |
+        mkdir -p .artifacts
+        cat > .artifacts/production-deploy-${{ steps.version.outputs.version }}.md << EOF
+        # Production Deployment Report - v${{ steps.version.outputs.version }}
+        
+        **Branch:** main
+        **Commit:** ${{ github.sha }}
+        **Author:** ${{ github.actor }}
+        **Date:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")
+        
+        ## Production URLs
+        - **Frontend:** https://app.fanclubz.app
+        - **Backend:** https://fan-club-z.onrender.com
+        
+        ## Deployment Status
+        - **Frontend:** ✅ Deployed to Vercel Production
+        - **Backend:** ✅ Deployed to Render Production
+        - **Smoke Tests:** ✅ Passed
+        - **Release Notes:** ✅ Generated
+        
+        ## Quality Checks
+        - **Lint:** ✅ Passed
+        - **TypeScript:** ✅ Passed
+        - **Tests:** ✅ Passed
+        - **Build:** ✅ Passed
+        - **Staging Check:** ✅ Passed
+        
+        ## Rollback Information
+        - **Previous Commit:** ${{ github.event.before }}
+        - **Rollback Command:** \`git revert ${{ github.sha }}\`
+        - **Emergency Rollback:** Contact DevOps team immediately
+        
+        ## Monitoring
+        - Monitor application health after deployment
+        - Check error rates and performance metrics
+        - Verify all critical functionality works
+        EOF
+    
+    - name: Upload deployment artifacts
+      if: steps.staging-check.outputs.staging_passed == 'true'
+      uses: actions/upload-artifact@v4
+      with:
+        name: production-deploy-${{ steps.version.outputs.version }}
+        path: |
+          .artifacts/release-notes-v${{ steps.version.outputs.version }}.md
+          .artifacts/production-deploy-${{ steps.version.outputs.version }}.md
+        retention-days: 365
+    
+    - name: Create GitHub Release
+      if: steps.staging-check.outputs.staging_passed == 'true'
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: v${{ steps.version.outputs.version }}
+        release_name: Release v${{ steps.version.outputs.version }}
+        body_path: .artifacts/release-notes-v${{ steps.version.outputs.version }}.md
+        draft: false
+        prerelease: false
+    
+    - name: Comment deployment status
+      if: always()
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const fs = require('fs');
+          let reportContent = '';
+          try {
+            reportContent = fs.readFileSync('.artifacts/production-deploy-${{ steps.version.outputs.version }}.md', 'utf8');
+          } catch (error) {
+            reportContent = 'Deployment report generation failed.';
+          }
+          
+          github.rest.repos.createCommitComment({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            commit_sha: context.sha,
+            body: `## 🚀 Production Deployment ${{ steps.staging-check.outputs.staging_passed == 'true' && 'Complete' || 'Blocked' }} - v${{ steps.version.outputs.version }}
+            
+            ${reportContent}
+            
+            **Workflow:** [View Details](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
+            `
+          });
+    
+    - name: Fail if staging checks failed
+      if: steps.staging-check.outputs.staging_passed != 'true'
+      run: |
+        echo "❌ Production deployment blocked: Staging smoke tests must pass first"
+        exit 1

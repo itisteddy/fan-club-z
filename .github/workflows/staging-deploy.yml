@@ -1,0 +1,129 @@
+name: Staging Deployment
+
+on:
+  push:
+    branches: [ 'release/*' ]
+  workflow_dispatch:
+
+env:
+  NODE_VERSION: '18.19.0'
+
+jobs:
+  staging-deploy:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: 'npm'
+    
+    - name: Install dependencies
+      run: npm ci
+    
+    - name: Run quality checks
+      run: |
+        npm run lint
+        npm run typecheck
+        npm run test
+        npm run build
+    
+    - name: Extract version
+      id: version
+      run: |
+        VERSION=$(node scripts/get-version.js)
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+        echo "branch=${GITHUB_REF#refs/heads/}" >> $GITHUB_OUTPUT
+    
+    - name: Deploy to Vercel Staging
+      uses: amondnet/vercel-action@v25
+      with:
+        vercel-token: ${{ secrets.VERCEL_TOKEN }}
+        vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
+        vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
+        working-directory: ./client
+        scope: ${{ secrets.VERCEL_ORG_ID }}
+        alias-domains: |
+          fanclubz-staging-${{ steps.version.outputs.version }}.vercel.app
+        vercel-args: '--prod --confirm'
+    
+    - name: Deploy to Render Staging
+      uses: johnbeynon/render-deploy-action@v0.0.8
+      with:
+        service-id: ${{ secrets.RENDER_STAGING_SERVICE_ID }}
+        api-key: ${{ secrets.RENDER_API_KEY }}
+        wait-for-success: true
+    
+    - name: Run staging smoke tests
+      run: |
+        npm run smoke:staging
+    
+    - name: Generate deployment report
+      run: |
+        mkdir -p .artifacts
+        cat > .artifacts/staging-deploy-${{ steps.version.outputs.version }}.md << EOF
+        # Staging Deployment Report - v${{ steps.version.outputs.version }}
+        
+        **Branch:** ${{ steps.version.outputs.branch }}
+        **Commit:** ${{ github.sha }}
+        **Author:** ${{ github.actor }}
+        **Date:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")
+        
+        ## Deployment URLs
+        - **Frontend (Vercel):** https://fanclubz-staging-${{ steps.version.outputs.version }}.vercel.app
+        - **Backend (Render):** https://fanclubz-staging-${{ steps.version.outputs.version }}.onrender.com
+        
+        ## Deployment Status
+        - **Frontend:** ✅ Deployed to Vercel
+        - **Backend:** ✅ Deployed to Render
+        - **Smoke Tests:** ✅ Passed
+        
+        ## Quality Checks
+        - **Lint:** ✅ Passed
+        - **TypeScript:** ✅ Passed
+        - **Tests:** ✅ Passed
+        - **Build:** ✅ Passed
+        
+        ## Next Steps
+        - Staging environment is ready for testing
+        - Run manual tests on staging URLs
+        - Proceed to production deployment if tests pass
+        EOF
+    
+    - name: Upload deployment report
+      uses: actions/upload-artifact@v4
+      with:
+        name: staging-deploy-${{ steps.version.outputs.version }}
+        path: .artifacts/staging-deploy-${{ steps.version.outputs.version }}.md
+        retention-days: 90
+    
+    - name: Comment deployment status
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const fs = require('fs');
+          let reportContent = '';
+          try {
+            reportContent = fs.readFileSync('.artifacts/staging-deploy-${{ steps.version.outputs.version }}.md', 'utf8');
+          } catch (error) {
+            reportContent = 'Deployment report generation failed.';
+          }
+          
+          github.rest.repos.createCommitComment({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            commit_sha: context.sha,
+            body: `## 🚀 Staging Deployment Complete - v${{ steps.version.outputs.version }}
+            
+            ${reportContent}
+            
+            **Workflow:** [View Details](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
+            `
+          });
