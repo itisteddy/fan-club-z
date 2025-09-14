@@ -1,0 +1,88 @@
+client/src/components/modals/ChatModal.tsx(81,58): error TS2339: Property 'username' does not exist on type 'User'.
+client/src/components/modals/CommentModal.tsx(149,8): error TS2741: Property 'children' is missing in type '{ onClose: () => void; error: string; }' but required in type '{ children: ReactNode; onClose: () => void; error?: string; }'.
+client/src/components/onboarding/FixedOnboardingProvider.tsx(284,7): error TS2322: Type '{ id: string; title: string; description: string; target: string; placement: string; icon: Element; }[]' is not assignable to type 'OnboardingStep[]'.
+  Type '{ id: string; title: string; description: string; target: string; placement: string; icon: JSX.Element; }' is not assignable to type 'OnboardingStep'.
+    Types of property 'placement' are incompatible.
+      Type 'string' is not assignable to type '"top" | "center" | "bottom" | "left" | "right"'.
+client/src/components/onboarding/OnboardingSystem.tsx(575,9): error TS2345: Argument of type '{ width: number; height: number; }' is not assignable to parameter of type 'DOMRect'.
+  Type '{ width: number; height: number; }' is missing the following properties from type 'DOMRect': x, y, bottom, left, and 3 more.
+client/src/components/PredictionCard.tsx(233,54): error TS2339: Property 'email' does not exist on type '{ id: string; username: string; avatar_url?: string; is_verified: boolean; full_name?: string; }'.
+client/src/components/predictions/CommentsModal.tsx(25,21): error TS2339: Property 'loading' does not exist on type '{ comments: UnifiedComment[]; commentCount: number; isLoading: boolean; error: string; isSubmitting: boolean; fetchComments: () => Promise<void>; addComment: (content: string, parentCommentId?: string, userData?: any) => Promise<...>; toggleCommentLike: (commentId: string) => Promise<...>; editComment: (commentId: s...'.
+client/src/components/predictions/CommentsModal.tsx(37,21): error TS2554: Expected 0 arguments, but got 1.
+client/src/components/predictions/CommentsModal.tsx(162,52): error TS2339: Property 'email' does not exist on type '{ id: string; username: string; full_name?: string; avatar_url?: string; is_verified: boolean; }'.
+client/src/components/social/CommentThread.tsx(46,62): error TS2339: Property 'parent_id' does not exist on type 'Comment'.
+client/src/components/social/CommentThread.tsx(49,5): error TS2719: Type 'Comment[]' is not assignable to type 'Comment[]'. Two different types with this name exist, but they are unrelated.
+  Type 'Comment' is missing the following properties from type 'Comment': predictionId, userId, username, createdAt, and 3 more.
+client/src/components/social/CommentThread.tsx(49,45): error TS2339: Property 'parent_id' does not exist on type 'Comment'.
+client/src/components/social/CommentThread.tsx(58,9): error TS2561: Object literal may only specify known properties, but 'predictionId' does not exist in type '{ prediction_id: string; content: string; parent_comment_id?: string; }'. Did you mean to write 'prediction_id'?
+client/src/components/social/CommentThread.tsx(318,52): error TS2740: Type 'Comment' is missing the following properties from type 'Comment': predictionId, userId, username, createdAt, and 3 more.
+client/src/components/social/CommentThread.tsx(330,25): error TS2339: Property 'username' does not exist on type 'User'.
+client/src/components/ui/NotificationContainer.tsx(6,26): error TS2339: Property 'removeNotification' does not exist on type 'NotificationStore'.
+client/src/components/ui/NotificationContainer.tsx(13,11): error TS2322: Type '"prediction_outcome" | "comment" | "payout" | "market_close" | "like" | "follow" | "general" | "settlement_ready" | "settlement_completed"' is not assignable to type '"error" | "success" | "info" | "warning"'.
+  Type '"prediction_outcome"' is not assignable to type '"error" | "success" | "info" | "warning"'.
+client/src/components/ui/NotificationContainer.tsx(15,34): error TS2339: Property 'duration' does not exist on type 'Notification'.
+client/src/components/ui/radio-group.tsx(66,9): error TS2322: Type 'HTMLInputTypeAttribute' is not assignable to type '"reset" | "submit" | "button"'.
+  Type '"number"' is not assignable to type '"reset" | "submit" | "button"'.
+client/src/components/ui/radio-group.tsx(71,9): error TS2322: Type 'MouseEventHandler<HTMLInputElement>' is not assignable to type 'MouseEventHandler<HTMLButtonElement>'.
+  Type 'HTMLInputElement' is not assignable to type 'HTMLButtonElement'.
+    Types of property 'type' are incompatible.
+      Type 'string' is not assignable to type '"reset" | "submit" | "button"'.
+client/src/components/wallet/DepositModal.tsx(22,11): error TS2339: Property 'deposit' does not exist on type 'WalletState'.
+client/src/components/wallet/WithdrawModal.tsx(24,64): error TS2339: Property 'available_balance' does not exist on type 'WalletBalance'.
+client/src/components/wallet/WithdrawModal.tsx(51,22): error TS2345: Argument of type 'string' is not assignable to parameter of type 'number'.
+client/src/hooks/useComments.ts(109,55): error TS2339: Property 'username' does not exist on type 'User'.
+client/src/hooks/useComments.ts(110,56): error TS2339: Property 'full_name' does not exist on type 'User'.
+client/src/hooks/useComments.ts(111,59): error TS2339: Property 'avatar_url' does not exist on type 'User'.
+client/src/hooks/useComments.ts(112,13): error TS2353: Object literal may only specify known properties, and 'is_verified' does not exist in type '{ id: string; username?: string; full_name?: string; avatar_url?: string; }'.
+client/src/hooks/useComments.ts(134,29): error TS2339: Property 'username' does not exist on type 'User'.
+client/src/hooks/useComments.ts(135,30): error TS2339: Property 'full_name' does not exist on type 'User'.
+client/src/hooks/useComments.ts(136,31): error TS2339: Property 'avatar_url' does not exist on type 'User'.
+client/src/hooks/useComments.ts(137,13): error TS2353: Object literal may only specify known properties, and 'is_verified' does not exist in type '{ id: string; username?: string; full_name?: string; avatar_url?: string; }'.
+client/src/hooks/useComments.ts(164,45): error TS2339: Property 'replies_count' does not exist on type 'Comment'.
+client/src/hooks/useComments.ts(290,17): error TS2353: Object literal may only specify known properties, and 'is_liked' does not exist in type 'Comment'.
+client/src/pages/auth/LoginPage.tsx(160,21): error TS2339: Property 'info' does not exist on type '{ (message: Message, opts?: Partial<Pick<Toast, "id" | "duration" | "icon" | "style" | "className" | "position" | "ariaProps" | "iconTheme" | "toasterId" | "removeDelay">>): string; ... 8 more ...; promise<T>(promise: Promise<...> | (() => Promise<...>), msgs: { ...; }, opts?: DefaultToastOptions): Promise<...>; }'.
+client/src/pages/BetDetailPage.tsx(18,39): error TS18047: 'params' is possibly 'null'.
+client/src/pages/BetDetailPage.tsx(55,18): error TS2339: Property 'creator' does not exist on type 'Bet'.
+client/src/pages/BetDetailPage.tsx(57,26): error TS2339: Property 'creator' does not exist on type 'Bet'.
+client/src/pages/BetDetailPage.tsx(58,26): error TS2339: Property 'creator' does not exist on type 'Bet'.
+client/src/pages/BetDetailPage.tsx(65,45): error TS2339: Property 'creator' does not exist on type 'Bet'.
+client/src/pages/BetDetailPage.tsx(70,20): error TS2339: Property 'creator' does not exist on type 'Bet'.
+client/src/pages/BetDetailPage.tsx(74,63): error TS2339: Property 'creator' does not exist on type 'Bet'.
+client/src/pages/BetDetailPage.tsx(77,53): error TS2339: Property 'category' does not exist on type 'Bet'.
+client/src/pages/BetDetailPage.tsx(81,49): error TS2339: Property 'title' does not exist on type 'Bet'.
+client/src/pages/BetDetailPage.tsx(93,16): error TS2339: Property 'options' does not exist on type 'Bet'.
+client/src/pages/CreatePredictionPage.tsx(10,28): error TS2307: Cannot find module '../components/settlement/SourcePill' or its corresponding type declarations.
+client/src/pages/CreatePredictionPage.tsx(11,29): error TS2307: Cannot find module '../components/settlement/RulePreview' or its corresponding type declarations.
+client/src/pages/EnhancedWalletPage.tsx(49,5): error TS2339: Property 'resetDemoBalance' does not exist on type 'WalletState'.
+client/src/pages/EnhancedWalletPage.tsx(50,5): error TS2339: Property 'isDemoMode' does not exist on type 'WalletState'.
+client/src/pages/EnhancedWalletPage.tsx(235,36): error TS2339: Property 'info' does not exist on type '{ (message: Message, opts?: Partial<Pick<Toast, "id" | "duration" | "icon" | "style" | "className" | "position" | "ariaProps" | "iconTheme" | "toasterId" | "removeDelay">>): string; ... 8 more ...; promise<T>(promise: Promise<...> | (() => Promise<...>), msgs: { ...; }, opts?: DefaultToastOptions): Promise<...>; }'.
+client/src/pages/PredictionDetailsPage.tsx(25,8): error TS2307: Cannot find module '../components/settlement' or its corresponding type declarations.
+client/src/pages/ProfilePage.tsx(447,11): error TS2367: This comparison appears to be unintentional because the types '"default" | "denied"' and '"granted"' have no overlap.
+client/src/pages/SimpleWalletPage.tsx(8,34): error TS2339: Property 'loading' does not exist on type 'WalletState'.
+client/src/pages/WalletPage.tsx(39,5): error TS2339: Property 'resetDemoBalance' does not exist on type 'WalletState'.
+client/src/pages/WalletPage.tsx(40,5): error TS2339: Property 'isDemoMode' does not exist on type 'WalletState'.
+client/src/store/authStore.ts(371,7): error TS2322: Type '() => Promise<User>' is not assignable to type '() => Promise<void>'.
+  Type 'Promise<User>' is not assignable to type 'Promise<void>'.
+    Type 'User' is not assignable to type 'void'.
+client/src/store/authStore.ts(522,15): error TS2304: Cannot find name 'clientDb'.
+client/src/store/chatStore.ts(128,34): error TS2339: Property 'username' does not exist on type 'User'.
+client/src/store/chatStore.ts(142,24): error TS2339: Property 'username' does not exist on type 'User'.
+client/src/store/chatStore.ts(166,24): error TS2339: Property 'username' does not exist on type 'User'.
+client/src/store/chatStore.ts(167,22): error TS2339: Property 'avatar_url' does not exist on type 'User'.
+client/src/store/chatStore.ts(221,24): error TS2339: Property 'username' does not exist on type 'User'.
+client/src/store/chatStore.ts(222,22): error TS2339: Property 'avatar_url' does not exist on type 'User'.
+client/src/store/chatStore.ts(345,24): error TS2339: Property 'username' does not exist on type 'User'.
+client/src/store/chatStore.ts(504,22): error TS2339: Property 'username' does not exist on type 'User'.
+client/src/store/chatStore.ts(505,20): error TS2339: Property 'avatar_url' does not exist on type 'User'.
+client/src/store/chatStore.ts(555,22): error TS2339: Property 'username' does not exist on type 'User'.
+client/src/store/chatStore.ts(567,22): error TS2339: Property 'username' does not exist on type 'User'.
+client/src/store/notificationStore.ts(106,17): error TS2339: Property 'sendPushNotification' does not exist on type 'NotificationStore'.
+client/src/store/notificationStore.ts(221,11): error TS2353: Object literal may only specify known properties, and 'renotify' does not exist in type 'NotificationOptions'.
+client/src/store/unifiedCommentStore.ts(590,73): error TS2554: Expected 2-3 arguments, but got 4.
+client/src/utils/pwa.ts(175,9): error TS2322: Type 'Uint8Array<ArrayBufferLike>' is not assignable to type 'string | BufferSource'.
+  Type 'Uint8Array<ArrayBufferLike>' is not assignable to type 'ArrayBufferView<ArrayBuffer>'.
+    Types of property 'buffer' are incompatible.
+      Type 'ArrayBufferLike' is not assignable to type 'ArrayBuffer'.
+        Type 'SharedArrayBuffer' is not assignable to type 'ArrayBuffer'.
+          Types of property '[Symbol.toStringTag]' are incompatible.
+            Type '"SharedArrayBuffer"' is not assignable to type '"ArrayBuffer"'.
