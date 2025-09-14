@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, Clock, Heart, MessageCircle, Share2, TrendingUp, ChevronDown, User, AlertTriangle } from 'lucide-react';
+import { Clock, Heart, MessageCircle, Share2, TrendingUp, ChevronDown, User, AlertTriangle } from 'lucide-react';
 import { useLocation } from 'wouter';
 import { usePredictionStore } from '../store/predictionStore';
 import { useAuthStore } from '../store/authStore';
@@ -13,6 +13,7 @@ import { withAuthGate } from '../components/auth/AuthSheetProvider';
 import { formatTimeRemaining } from '../lib/utils';
 import CommentSystem from '../components/CommentSystem';
 import TappableUsername from '../components/TappableUsername';
+import { BackButton } from '../components/common/BackButton';
 // Settlement components removed for 2.0.77
 import toast from 'react-hot-toast';
 
@@ -423,13 +424,7 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
         <div className="bg-white border-b border-gray-200 sticky top-0 z-50">
           <div className="px-4 py-4">
             <div className="flex items-center justify-between">
-              <button
-                onClick={handleBack}
-                className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors"
-              >
-                <ArrowLeft size={20} />
-                <span className="font-medium">Back</span>
-              </button>
+              <BackButton onClick={handleBack} />
               
               <button
                 onClick={handleShare}

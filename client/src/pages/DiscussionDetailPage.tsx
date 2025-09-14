@@ -1,7 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
-  ArrowLeft, 
   Send, 
   Heart, 
   MessageCircle, 
@@ -15,6 +14,7 @@ import {
   ChevronDown,
   ChevronUp
 } from 'lucide-react';
+import { MinimalBackButton } from '../components/common/BackButton';
 
 interface DiscussionDetailPageProps {
   discussionId?: string;
@@ -195,14 +195,7 @@ const DiscussionDetailPage: React.FC<DiscussionDetailPageProps> = ({
       <div className="sticky top-0 z-40 bg-white/95 backdrop-blur-sm border-b border-gray-200">
         <div className="flex items-center justify-between px-4 py-3">
           <div className="flex items-center gap-3">
-            <motion.button
-              whileHover={{ scale: 1.1 }}
-              whileTap={{ scale: 0.9 }}
-              onClick={onBack}
-              className="p-2 rounded-xl hover:bg-gray-100 transition-colors"
-            >
-              <ArrowLeft size={20} className="text-gray-600" />
-            </motion.button>
+            <MinimalBackButton onClick={onBack || (() => {})} />
             <h1 className="text-lg font-semibold text-gray-900 line-clamp-1">
               {discussion.title}
             </h1>

@@ -4,6 +4,7 @@ import { ProfileErrorBoundary } from './ErrorBoundary';
 import ProfilePage from '../pages/ProfilePage';
 import PageWrapper from './PageWrapper';
 import { useAuthStore } from '../store/authStore';
+import { StyledBackButton } from './common/BackButton';
 
 interface ProfileRouteProps {
   // No props needed - we'll extract everything from the URL
@@ -80,14 +81,7 @@ const ProfileRoute: React.FC<ProfileRouteProps> = () => {
           <div className="bg-gradient-to-r from-purple-500 to-teal-600 pt-12 pb-6">
             <div className="px-6">
               <div className="flex items-center gap-4">
-                <button
-                  onClick={handleNavigateBack}
-                  className="bg-white/20 p-2 rounded-lg backdrop-blur-sm"
-                >
-                  <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                  </svg>
-                </button>
+                <StyledBackButton onClick={handleNavigateBack} />
                 <h1 className="text-white text-2xl font-bold">Profile</h1>
               </div>
             </div>
