@@ -8,6 +8,7 @@ import { Prediction } from '../../store/predictionStore';
 import { useWalletStore } from '../../store/walletStore';
 import { usePredictionStore } from '../../store/predictionStore';
 import { useAuthStore } from '../../store/authStore';
+import { withAuthGate } from '../auth/AuthSheetProvider';
 import toast from 'react-hot-toast';
 
 interface PlacePredictionModalProps {
@@ -74,7 +75,7 @@ export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
 
   const quickAmounts = [5, 10, 25, 50, 100, 250];
 
-  const handleSubmit = async () => {
+  const handleSubmitInternal = async () => {
     if (!selectedOptionId) {
       toast.error('Please select a prediction option (Yes or No)');
       return;
@@ -100,11 +101,6 @@ export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
       return;
     }
 
-    if (!user?.id) {
-      toast.error('You must be logged in to place predictions');
-      return;
-    }
-
     setIsLoading(true);
     try {
       // Lock funds in wallet first
@@ -124,6 +120,9 @@ export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
       setIsLoading(false);
     }
   };
+
+  // Gate the submit action behind authentication
+  const handleSubmit = withAuthGate('place_prediction', handleSubmitInternal);
 
   return (
     <AnimatePresence mode="wait" initial={false}>

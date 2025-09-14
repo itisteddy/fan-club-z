@@ -1,9 +1,10 @@
-// Service Worker for Fan Club Z PWA
-const CACHE_NAME = 'fanclubz-cache';
+// Service Worker for Fan Club Z PWA v2.0.77
+const CACHE_NAME = 'fanclubz-cache-v2.0.77';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
   '/manifest.json',
+  '/version.json',
   '/icons/icon-192x192.png',
   '/icons/icon-512x512.png'
 ];
@@ -40,6 +41,14 @@ self.addEventListener('activate', (event) => {
         self.clients.claim();
       })
   );
+});
+
+// Handle messages from main thread
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    console.log('PWA: Received skip waiting message');
+    self.skipWaiting();
+  }
 });
 
 // Fetch event - serve from cache when offline

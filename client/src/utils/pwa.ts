@@ -35,7 +35,13 @@ export class PWAManager {
   private async registerServiceWorker() {
     if ('serviceWorker' in navigator) {
       try {
-        const registration = await navigator.serviceWorker.register('/sw.js');
+        // Check for version updates first
+        await this.checkForVersionUpdate();
+        
+        const registration = await navigator.serviceWorker.register('/sw.js', {
+          scope: '/',
+          updateViaCache: 'none' // Always check for updates
+        });
         console.log('Service Worker registered successfully:', registration);
         
         // Handle service worker updates
@@ -53,6 +59,41 @@ export class PWAManager {
       } catch (error) {
         console.error('Service Worker registration failed:', error);
       }
+    }
+  }
+
+  private async checkForVersionUpdate() {
+    try {
+      // Fetch current version from package.json or version endpoint
+      const response = await fetch('/version.json', { 
+        cache: 'no-cache',
+        headers: { 'Cache-Control': 'no-cache' }
+      });
+      
+      if (response.ok) {
+        const versionData = await response.json();
+        const currentVersion = versionData.version || '2.0.77';
+        const storedVersion = localStorage.getItem('app-version');
+        
+        if (storedVersion && storedVersion !== currentVersion) {
+          console.log(`Version update detected: ${storedVersion} → ${currentVersion}`);
+          // Clear auth cache to prevent stale auth gates
+          localStorage.removeItem('fanclubz-auth-storage');
+          sessionStorage.clear();
+          
+          // Update stored version
+          localStorage.setItem('app-version', currentVersion);
+          
+          // Force service worker update
+          if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+            navigator.serviceWorker.controller.postMessage({ type: 'SKIP_WAITING' });
+          }
+        } else if (!storedVersion) {
+          localStorage.setItem('app-version', currentVersion);
+        }
+      }
+    } catch (error) {
+      console.log('Version check failed, continuing with normal flow:', error);
     }
   }
 

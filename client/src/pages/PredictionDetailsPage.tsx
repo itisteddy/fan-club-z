@@ -9,6 +9,7 @@ import { useSettlementStore } from '../store/settlementStore';
 import SettlementValidationModal from '../components/modals/SettlementValidationModal';
 import { useLikeStore } from '../store/likeStore';
 import { useUnifiedCommentStore, useCommentsForPrediction } from '../store/unifiedCommentStore';
+import { withAuthGate } from '../components/auth/AuthSheetProvider';
 import { formatTimeRemaining } from '../lib/utils';
 import CommentSystem from '../components/CommentSystem';
 import TappableUsername from '../components/TappableUsername';
@@ -271,12 +272,7 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
     }
   };
 
-  const handleLike = async () => {
-    if (!isAuthenticated) {
-      toast.error('Please sign in to like this prediction');
-      return;
-    }
-    
+  const handleLikeInternal = async () => {
     try {
       await toggleLike(prediction.id);
       toast.success(checkIfLiked(prediction.id) ? 'Liked prediction!' : 'Removed like');
@@ -284,6 +280,9 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
       toast.error('Failed to update like');
     }
   };
+
+  // Gate the like action behind authentication
+  const handleLike = withAuthGate('like', handleLikeInternal);
 
   const handleCommentsToggle = () => {
     console.log('💬 Toggling comments from:', showComments, 'to:', !showComments);

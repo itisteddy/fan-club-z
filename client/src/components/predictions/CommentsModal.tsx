@@ -6,6 +6,7 @@ import { Input } from '../ui/input';
 import UserAvatar from '../common/UserAvatar';
 import { useUnifiedCommentStore, useCommentsForPrediction } from '../../store/unifiedCommentStore';
 import { useAuthStore } from '../../store/authStore';
+import { withAuthGate } from '../auth/AuthSheetProvider';
 import { generateInitials, getAvatarUrl } from '../../lib/utils';
 import toast from 'react-hot-toast';
 
@@ -42,14 +43,9 @@ export const CommentsModal: React.FC<CommentsModalProps> = ({
     scrollToBottom();
   }, [comments]);
 
-  const handleSubmitComment = async () => {
+  const handleSubmitCommentInternal = async () => {
     if (!newComment.trim()) {
       toast.error('Please enter a comment');
-      return;
-    }
-
-    if (!user) {
-      toast.error('Please sign in to comment');
       return;
     }
 
@@ -66,7 +62,7 @@ export const CommentsModal: React.FC<CommentsModalProps> = ({
     }
   };
 
-  const handleLikeComment = async (commentId: string) => {
+  const handleLikeCommentInternal = async (commentId: string) => {
     try {
       await toggleCommentLike(commentId);
       toast.success('Like updated!');
@@ -74,6 +70,10 @@ export const CommentsModal: React.FC<CommentsModalProps> = ({
       toast.error('Failed to update like');
     }
   };
+
+  // Gate actions behind authentication
+  const handleSubmitComment = withAuthGate('comment', handleSubmitCommentInternal);
+  const handleLikeComment = withAuthGate('like', handleLikeCommentInternal);
 
   const formatTimeAgo = (dateString: string) => {
     const date = new Date(dateString);

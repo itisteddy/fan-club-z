@@ -1,0 +1,10 @@
+{
+  "version": "2.0.77",
+  "buildTime": "2024-01-14T12:00:00Z",
+  "features": [
+    "content-first-auth",
+    "auth-sheet-gating",
+    "resume-after-auth",
+    "version-detection"
+  ]
+}

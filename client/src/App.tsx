@@ -10,6 +10,7 @@ import NotificationContainer from './components/ui/NotificationContainer';
 import PWAInstallManager from './components/PWAInstallManager';
 import PageWrapper from './components/PageWrapper';
 import { OnboardingProvider } from './components/onboarding/OnboardingProvider';
+import { AuthSheetProvider, useAuthSheet } from './components/auth/AuthSheetProvider';
 
 // Import all page components
 import DiscoverPage from './pages/DiscoverPage';
@@ -33,9 +34,9 @@ const LoadingSpinner: React.FC<{ message?: string }> = ({ message = "Loading..."
   </div>
 );
 
-// Simplified Auth Guard
-const AuthGuard: React.FC<{ children: React.ReactNode }> = memo(({ children }) => {
-  const { isAuthenticated, loading, initialized, initializeAuth } = useAuthStore();
+// Content-First Auth Initializer (no blocking)
+const AuthInitializer: React.FC<{ children: React.ReactNode }> = memo(({ children }) => {
+  const { loading, initialized, initializeAuth } = useAuthStore();
   
   useEffect(() => {
     if (!initialized && !loading) {
@@ -43,18 +44,16 @@ const AuthGuard: React.FC<{ children: React.ReactNode }> = memo(({ children }) =
     }
   }, [initialized, loading, initializeAuth]);
   
-  if (!initialized || (loading && !isAuthenticated)) {
-    return <LoadingSpinner message="Authenticating..." />;
+  // Show loading only during initial auth check, not for unauthenticated users
+  if (!initialized && loading) {
+    return <LoadingSpinner message="Loading..." />;
   }
   
-  if (!isAuthenticated) {
-    return <AuthPage />;
-  }
-  
+  // Always render children - auth gating happens at action level
   return <>{children}</>;
 });
 
-AuthGuard.displayName = 'AuthGuard';
+AuthInitializer.displayName = 'AuthInitializer';
 
 // Enhanced Main Layout Component with scroll preservation
 const MainLayout: React.FC<{ children: React.ReactNode }> = memo(({ children }) => {
@@ -289,12 +288,36 @@ const MyProfilePageWrapper: React.FC = () => {
   }, [navigate, location]);
 
   return (
-    <PageWrapper title="My Profile">
-      <ProfilePage 
-        onNavigateBack={handleNavigateBack} 
-      />
-    </PageWrapper>
+    <ProtectedRoute>
+      <PageWrapper title="My Profile">
+        <ProfilePage 
+          onNavigateBack={handleNavigateBack} 
+        />
+      </PageWrapper>
+    </ProtectedRoute>
   );
+};
+
+// Protected Route Wrapper
+const ProtectedRoute: React.FC<{ children: React.ReactNode; fallback?: React.ReactNode }> = ({ children, fallback }) => {
+  const { isAuthenticated } = useAuthStore();
+  const { openAuth } = useAuthSheet();
+  const [location] = useLocation();
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      openAuth({
+        reason: 'wallet',
+        returnTo: location
+      });
+    }
+  }, [isAuthenticated, openAuth, location]);
+
+  if (!isAuthenticated) {
+    return fallback || <LoadingSpinner message="Redirecting to sign in..." />;
+  }
+
+  return <>{children}</>;
 };
 
 const WalletPageWrapper: React.FC = () => {
@@ -306,9 +329,11 @@ const WalletPageWrapper: React.FC = () => {
   }, [navigate, location]);
 
   return (
-    <PageWrapper title="Wallet">
-      <WalletPage onNavigateBack={handleNavigateBack} />
-    </PageWrapper>
+    <ProtectedRoute>
+      <PageWrapper title="Wallet">
+        <WalletPage onNavigateBack={handleNavigateBack} />
+      </PageWrapper>
+    </ProtectedRoute>
   );
 };
 
@@ -400,37 +425,42 @@ function App() {
   return (
     <ErrorBoundary>
       <Router>
-        <Switch>
-        {/* Public auth routes */}
-        <Route path="/auth/callback">
-          <PageWrapper title="Authentication">
-            <AuthCallbackPage />
-          </PageWrapper>
-        </Route>
-        
-        {/* Protected app routes */}
-        <AuthGuard>
-          <OnboardingProvider>
-            <MainLayout>
-              <Switch>
-                <Route path="/" component={DiscoverPageWrapper} />
-                <Route path="/discover" component={DiscoverPageWrapper} />
-                <Route path="/predictions" component={PredictionsPageWrapper} />
-                <Route path="/predictions/:id" component={PredictionDetailsWrapper} />
-                <Route path="/bets" component={PredictionsPageWrapper} />
-                <Route path="/create" component={CreatePredictionPageWrapper} />
-                <Route path="/profile" component={MyProfilePageWrapper} />
-                <Route path="/profile/:userId" component={UserProfilePageWrapper} />
-                <Route path="/wallet" component={WalletPageWrapper} />
-                <Route path="/prediction/:id" component={PredictionDetailsWrapper} />
+        <AuthSheetProvider>
+          <AuthInitializer>
+            <Switch>
+            {/* Public auth routes */}
+            <Route path="/auth/callback">
+              <PageWrapper title="Authentication">
+                <AuthCallbackPage />
+              </PageWrapper>
+            </Route>
+            
+            {/* Content-first app routes */}
+            <OnboardingProvider>
+              <MainLayout>
+                <Switch>
+                  {/* Public routes - accessible without auth */}
+                  <Route path="/" component={DiscoverPageWrapper} />
+                  <Route path="/discover" component={DiscoverPageWrapper} />
+                  <Route path="/prediction/:id" component={PredictionDetailsWrapper} />
+                  <Route path="/profile/:userId" component={UserProfilePageWrapper} />
+                  
+                  {/* Protected routes - require auth */}
+                  <Route path="/predictions" component={PredictionsPageWrapper} />
+                  <Route path="/predictions/:id" component={PredictionDetailsWrapper} />
+                  <Route path="/bets" component={PredictionsPageWrapper} />
+                  <Route path="/create" component={CreatePredictionPageWrapper} />
+                  <Route path="/profile" component={MyProfilePageWrapper} />
+                  <Route path="/wallet" component={WalletPageWrapper} />
 
-                {/* Fallback */}
-                <Route component={DiscoverPageWrapper} />
-              </Switch>
-            </MainLayout>
-          </OnboardingProvider>
-        </AuthGuard>
-        </Switch>
+                  {/* Fallback */}
+                  <Route component={DiscoverPageWrapper} />
+                </Switch>
+              </MainLayout>
+            </OnboardingProvider>
+            </Switch>
+          </AuthInitializer>
+        </AuthSheetProvider>
       </Router>
     </ErrorBoundary>
   );
