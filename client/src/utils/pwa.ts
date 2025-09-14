@@ -22,8 +22,11 @@ export class PWAManager {
   }
 
   private init() {
-    // Register service worker
-    this.registerServiceWorker();
+    // dev-skip: ensure no SW registration in dev
+    if (import.meta.env.PROD) {
+      // Register service worker
+      this.registerServiceWorker();
+    }
     
     // Check if app is already installed
     this.checkInstallStatus();

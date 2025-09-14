@@ -77,6 +77,7 @@ export default defineConfig({
   },
   optimizeDeps: {
     include: ['react', 'react-dom', 'zustand', '@tanstack/react-query'],
+    force: true,
   },
   esbuild: {
     target: 'es2022',
