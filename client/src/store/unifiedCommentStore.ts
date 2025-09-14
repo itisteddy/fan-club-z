@@ -22,6 +22,8 @@ export interface UnifiedComment {
   is_liked: boolean;
   replies_count: number;
   replies?: UnifiedComment[];
+  // Stable sort key for maintaining order across navigation
+  sort_key?: string;
 }
 
 interface CommentCounts {
@@ -92,6 +94,23 @@ interface CommentActions {
 import { getEnvironmentConfig } from '../lib/environment';
 
 const API_BASE_URL = getEnvironmentConfig().apiUrl;
+
+// Generate stable sort key for comments to maintain order across navigation
+const generateSortKey = (comment: any): string => {
+  // Use created_at timestamp as primary sort key, with ID as tiebreaker
+  const timestamp = new Date(comment.created_at).getTime();
+  return `${timestamp.toString().padStart(15, '0')}-${comment.id}`;
+};
+
+// Sort comments with stable ordering
+const sortCommentsStable = (comments: UnifiedComment[]): UnifiedComment[] => {
+  return [...comments].sort((a, b) => {
+    // Use sort_key if available, otherwise generate one
+    const sortKeyA = a.sort_key || generateSortKey(a);
+    const sortKeyB = b.sort_key || generateSortKey(b);
+    return sortKeyA.localeCompare(sortKeyB);
+  });
+};
 
 export const useUnifiedCommentStore = create<CommentState & CommentActions>()(
   devtools(
@@ -236,9 +255,32 @@ export const useUnifiedCommentStore = create<CommentState & CommentActions>()(
           }
 
           const data = await response.json();
-          const comments: UnifiedComment[] = data.comments || [];
+          const rawComments: UnifiedComment[] = data.comments || [];
 
-          console.log(`✅ Loaded ${comments.length} comments for prediction ${predictionId}`);
+          // Add stable sort keys and sort comments
+          const commentsWithSortKeys = rawComments.map(comment => ({
+            ...comment,
+            sort_key: comment.sort_key || generateSortKey(comment)
+          }));
+
+          // Process replies with sort keys
+          const processedComments = commentsWithSortKeys.map(comment => ({
+            ...comment,
+            replies: comment.replies ? 
+              comment.replies.map(reply => ({
+                ...reply,
+                sort_key: reply.sort_key || generateSortKey(reply)
+              })).sort((a, b) => {
+                const sortKeyA = a.sort_key || generateSortKey(a);
+                const sortKeyB = b.sort_key || generateSortKey(b);
+                return sortKeyA.localeCompare(sortKeyB);
+              }) : undefined
+          }));
+
+          // Sort main comments with stable ordering
+          const sortedComments = sortCommentsStable(processedComments);
+
+          console.log(`✅ Loaded ${sortedComments.length} comments for prediction ${predictionId}`);
 
           set((state) => {
             const newFetchedPredictions = new Set(state.fetchedPredictions);
@@ -247,11 +289,11 @@ export const useUnifiedCommentStore = create<CommentState & CommentActions>()(
             return {
               commentsByPrediction: {
                 ...state.commentsByPrediction,
-                [predictionId]: comments
+                [predictionId]: sortedComments
               },
               commentCounts: {
                 ...state.commentCounts,
-                [predictionId]: comments.length
+                [predictionId]: sortedComments.length
               },
               fetchedPredictions: newFetchedPredictions,
               lastFetched: {
@@ -320,7 +362,13 @@ export const useUnifiedCommentStore = create<CommentState & CommentActions>()(
             throw new Error(`API responded with ${response.status}`);
           }
 
-          const newComment: UnifiedComment = await response.json();
+          const rawNewComment: UnifiedComment = await response.json();
+          
+          // Add sort key to new comment
+          const newComment: UnifiedComment = {
+            ...rawNewComment,
+            sort_key: generateSortKey(rawNewComment)
+          };
 
           set((state) => {
             const existingComments = state.commentsByPrediction[predictionId] || [];
@@ -332,9 +380,17 @@ export const useUnifiedCommentStore = create<CommentState & CommentActions>()(
               // Add as reply to existing comment
               updatedComments = existingComments.map(comment => {
                 if (comment.id === parentCommentId) {
+                  const updatedReplies = [newComment, ...(comment.replies || [])];
+                  // Sort replies with stable ordering
+                  const sortedReplies = updatedReplies.sort((a, b) => {
+                    const sortKeyA = a.sort_key || generateSortKey(a);
+                    const sortKeyB = b.sort_key || generateSortKey(b);
+                    return sortKeyA.localeCompare(sortKeyB);
+                  });
+                  
                   return {
                     ...comment,
-                    replies: [newComment, ...(comment.replies || [])],
+                    replies: sortedReplies,
                     replies_count: (comment.replies_count || 0) + 1
                   };
                 }
@@ -343,8 +399,9 @@ export const useUnifiedCommentStore = create<CommentState & CommentActions>()(
               // Don't increment main count for replies
               newCount = state.commentCounts[predictionId] || 0;
             } else {
-              // Add as top-level comment
-              updatedComments = [newComment, ...existingComments];
+              // Add as top-level comment and sort
+              const allComments = [newComment, ...existingComments];
+              updatedComments = sortCommentsStable(allComments);
               newCount = (state.commentCounts[predictionId] || 0) + 1;
             }
 

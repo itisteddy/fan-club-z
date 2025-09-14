@@ -414,7 +414,7 @@ const DiscussionDetailPage: React.FC<DiscussionDetailPageProps> = ({
                           initial={{ opacity: 0, height: 0 }}
                           animate={{ opacity: 1, height: 'auto' }}
                           exit={{ opacity: 0, height: 0 }}
-                          className="mt-4 pl-4 border-l-2 border-gray-100 space-y-3"
+                          className="mt-4 ml-6 pl-3 space-y-3"
                         >
                           {comment.replies.map((reply) => (
                             <div key={reply.id} className="flex items-start gap-3">

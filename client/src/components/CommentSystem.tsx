@@ -231,7 +231,7 @@ const CommentSystem: React.FC<CommentSystemProps> = ({ predictionId }) => {
     const repliesCount = (comment.replies_count ?? (comment.replies?.length || 0)) || 0;
 
     return (
-      <div className={`comment-item ${isReply ? 'ml-8 pl-4 border-l-2 border-gray-100' : ''} p-4 bg-white rounded-lg border border-gray-100 shadow-sm hover:shadow-md transition-shadow`}>
+      <div className={`comment-item ${isReply ? 'ml-6 pl-3' : ''} p-4 bg-white rounded-lg border border-gray-100 shadow-sm hover:shadow-md transition-shadow`}>
         <div className="flex space-x-3">
           {/* Only show avatar if user has an actual avatar URL */}
           {comment.user?.avatar_url && (
@@ -403,7 +403,7 @@ const CommentSystem: React.FC<CommentSystemProps> = ({ predictionId }) => {
                     setReplyTo(null);
                   }}
                   placeholder="Reply to @username…"
-                  replyTo={comment.user?.username || comment.username}
+                  replyTo={comment.user?.username || comment.username || 'Anonymous'}
                   maxLength={500}
                   disabled={isSubmitting}
                   autoFocus
