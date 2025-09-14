@@ -1,5 +1,5 @@
 import React from 'react';
-import { AlertTriangle, RefreshCw, Home } from 'lucide-react';
+import { AlertTriangle, RefreshCw, Home, ArrowLeft } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 interface ErrorBoundaryState {
@@ -63,14 +63,26 @@ const DefaultErrorFallback: React.FC<{ error?: Error; resetError: () => void }> 
   error, 
   resetError 
 }) => {
+  const handleGoBack = () => {
+    resetError();
+    // Use browser back to preserve route history
+    if (window.history.length > 1) {
+      window.history.back();
+    } else {
+      // Fallback to home if no history
+      window.location.href = '/';
+    }
+  };
+
   const handleGoHome = () => {
     resetError();
-    // Navigate to home
+    // Navigate to home without losing route state
     window.location.href = '/';
   };
 
   const handleRefresh = () => {
     resetError();
+    // Refresh the current page to retry
     window.location.reload();
   };
 
@@ -107,7 +119,7 @@ const DefaultErrorFallback: React.FC<{ error?: Error; resetError: () => void }> 
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
             onClick={handleRefresh}
-            className="flex items-center justify-center gap-2 w-full bg-teal-600 text-white py-3 px-4 rounded-xl font-semibold hover:bg-green-700 transition-colors"
+            className="flex items-center justify-center gap-2 w-full bg-emerald-500 text-white py-3 px-4 rounded-xl font-semibold hover:bg-emerald-600 transition-all duration-200 shadow-sm"
           >
             <RefreshCw className="w-4 h-4" />
             Try Again
@@ -116,8 +128,18 @@ const DefaultErrorFallback: React.FC<{ error?: Error; resetError: () => void }> 
           <motion.button
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
+            onClick={handleGoBack}
+            className="flex items-center justify-center gap-2 w-full bg-gray-100 text-gray-700 py-3 px-4 rounded-xl font-semibold hover:bg-gray-200 transition-all duration-200"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            Go Back
+          </motion.button>
+          
+          <motion.button
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
             onClick={handleGoHome}
-            className="flex items-center justify-center gap-2 w-full bg-gray-100 text-gray-700 py-3 px-4 rounded-xl font-semibold hover:bg-gray-200 transition-colors"
+            className="flex items-center justify-center gap-2 w-full bg-gray-50 text-gray-600 py-3 px-4 rounded-xl font-medium hover:bg-gray-100 transition-all duration-200"
           >
             <Home className="w-4 h-4" />
             Go to Home

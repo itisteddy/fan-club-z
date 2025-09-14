@@ -166,12 +166,8 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
     }
   };
 
-  const handlePlaceBet = async () => {
-    if (!isAuthenticated) {
-      toast.error('Please sign in to place a prediction');
-      return;
-    }
-
+  // Internal function for placing bet (gated behind auth)
+  const handlePlaceBetInternal = async () => {
     if (!selectedOption) {
       toast.error('Please select an option');
       return;
@@ -218,6 +214,9 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
       setIsPlacingBet(false);
     }
   };
+
+  // Gate the place bet action behind authentication
+  const handlePlaceBet = withAuthGate('place_prediction', handlePlaceBetInternal);
 
   const handleShare = async () => {
     if (!prediction) {
@@ -397,7 +396,7 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
             <p className="text-gray-600 mb-4">The prediction you're looking for doesn't exist or has been removed.</p>
             <button
               onClick={() => setLocation('/discover')}
-              className="bg-emerald-500 text-white px-6 py-2 rounded-lg hover:bg-emerald-600 transition-colors"
+              className="px-6 py-3 bg-emerald-500 text-white font-semibold rounded-xl hover:bg-emerald-600 transition-all duration-200 shadow-sm"
             >
               Browse Predictions
             </button>
@@ -428,7 +427,7 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
               
               <button
                 onClick={handleShare}
-                className="p-2 text-gray-600 hover:text-gray-900 transition-colors rounded-lg hover:bg-gray-100"
+                className="p-2 text-gray-600 hover:text-gray-900 transition-all duration-200 rounded-xl hover:bg-gray-100"
               >
                 <Share2 size={20} />
               </button>
@@ -493,7 +492,7 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
                   <span className="text-sm font-medium text-gray-700">Settlement Rule:</span>
                   <button
                     onClick={() => setShowSettlementModal(true)}
-                    className="text-sm text-blue-600 hover:text-blue-800 font-medium"
+                    className="text-sm text-blue-600 hover:text-blue-800 font-medium transition-colors duration-200"
                   >
                     View full rule
                   </button>
@@ -582,7 +581,7 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
                   <h3 className="text-lg font-bold text-gray-900">Settlement Proof</h3>
                   <button
                     onClick={() => setShowProofDetails(!showProofDetails)}
-                    className="text-sm text-blue-600 hover:text-blue-800 font-medium"
+                    className="text-sm text-blue-600 hover:text-blue-800 font-medium transition-colors duration-200"
                   >
                     {showProofDetails ? 'Hide details' : 'Show details'}
                   </button>
@@ -640,7 +639,7 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
                   <h3 className="text-lg font-bold text-gray-900">Audit Timeline</h3>
                   <button
                     onClick={() => setShowAuditTimeline(!showAuditTimeline)}
-                    className="text-sm text-blue-600 hover:text-blue-800 font-medium"
+                    className="text-sm text-blue-600 hover:text-blue-800 font-medium transition-colors duration-200"
                   >
                     {showAuditTimeline ? 'Hide timeline' : 'Show timeline'}
                   </button>
@@ -675,7 +674,7 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
                   </p>
                   <motion.button
                     onClick={() => setShowValidationModal(true)}
-                    className="px-6 py-3 bg-amber-500 hover:bg-amber-600 text-white font-semibold rounded-xl transition-colors shadow-md"
+                    className="px-6 py-3 bg-amber-500 hover:bg-amber-600 text-white font-semibold rounded-xl transition-all duration-200 shadow-sm"
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
                   >
@@ -721,7 +720,7 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
                 {prediction?.status !== 'settled' && (
                   <motion.button
                     onClick={() => setShowValidationModal(true)}
-                    className="w-full py-3 rounded-xl font-semibold text-white transition-all text-lg bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 shadow-lg"
+                    className="w-full py-3 rounded-xl font-semibold text-white transition-all duration-200 text-lg bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 shadow-sm"
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
                   >
@@ -748,9 +747,9 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
                   <motion.button
                     key={option.id}
                     onClick={() => handleOptionSelect(option.id)}
-                    className={`w-full p-4 rounded-xl border-2 transition-all ${
+                    className={`w-full p-4 rounded-xl border-2 transition-all duration-200 ${
                       selectedOption === option.id
-                        ? 'border-emerald-500 bg-emerald-50 shadow-lg'
+                        ? 'border-emerald-500 bg-emerald-50 shadow-sm'
                         : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
                     }`}
                     whileHover={{ scale: 1.01 }}
@@ -824,9 +823,9 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
               <motion.button
                 onClick={handlePlaceBet}
                 disabled={!selectedOption || !stakeAmount || isPlacingBet}
-                className={`w-full py-4 rounded-xl font-semibold text-white transition-all text-lg ${
+                className={`w-full py-4 rounded-xl font-semibold text-white transition-all duration-200 text-lg ${
                   selectedOption && stakeAmount && !isPlacingBet
-                    ? 'bg-emerald-500 hover:bg-emerald-600 active:bg-emerald-700 shadow-lg'
+                    ? 'bg-emerald-500 hover:bg-emerald-600 active:bg-emerald-700 shadow-sm'
                     : 'bg-gray-300 cursor-not-allowed'
                 }`}
                 whileHover={selectedOption && stakeAmount && !isPlacingBet ? { scale: 1.02 } : {}}
@@ -856,7 +855,7 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
             <div className="flex items-center gap-6">
               <motion.button
                 onClick={handleLike}
-                className={`flex items-center gap-2 transition-colors ${
+                className={`flex items-center gap-2 transition-all duration-200 ${
                   checkIfLiked(prediction.id) ? 'text-red-500' : 'text-gray-600 hover:text-red-500'
                 }`}
                 whileHover={{ scale: 1.05 }}
@@ -868,7 +867,7 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
               
               <motion.button
                 onClick={handleCommentsToggle}
-                className={`flex items-center gap-2 transition-colors ${
+                className={`flex items-center gap-2 transition-all duration-200 ${
                   showComments ? 'text-blue-500' : 'text-gray-600 hover:text-blue-500'
                 }`}
                 whileHover={{ scale: 1.05 }}
