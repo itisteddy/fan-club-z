@@ -16,7 +16,7 @@ const AriaUtils = { announce: (message: string) => console.log('Announce:', mess
 import { AppHeader } from '../components/layout/AppHeader';
 import PredictionActionPanel from '../components/prediction/PredictionActionPanel';
 import PredictionDetailsTabs from '../components/prediction/PredictionDetailsTabs';
-import Comments from '../components/comments/Comments';
+import { CommentsSection } from '../features/comments';
 import LoadingState from '../components/ui/LoadingState';
 import ErrorBanner from '../components/ui/ErrorBanner';
 import EmptyState from '../components/ui/EmptyState';
@@ -439,7 +439,7 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
                   data-qa="comments-section"
                   className="p-6"
                 >
-                  <Comments predictionId={predictionId} />
+                  <CommentsSection predictionId={predictionId} />
                 </motion.div>
               )}
 
@@ -459,7 +459,7 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
                       <Users className="w-12 h-12 mx-auto mb-4 text-gray-300" />
                       <p>Activity feed coming soon</p>
                       <p className="text-sm mt-2">
-                        Track predictions, settlements, and community engagement
+                        Track predictions and settlements
                       </p>
                     </div>
                   </div>
