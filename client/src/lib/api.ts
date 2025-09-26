@@ -1,8 +1,11 @@
 import { createClient } from '@supabase/supabase-js';
 
+// Import environment helpers
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from '@/utils/environment';
+
 // Supabase configuration (optional for now)
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+const supabaseUrl = SUPABASE_URL;
+const supabaseAnonKey = SUPABASE_ANON_KEY;
 
 // Only initialize Supabase if we have real credentials
 let supabase = null;
@@ -17,7 +20,7 @@ if (supabaseUrl && supabaseAnonKey && !supabaseUrl.includes('demo')) {
 export { supabase };
 
 // API configuration
-import { getApiUrl } from './environment';
+import { getApiUrl } from '@/utils/environment';
 export const API_BASE_URL = getApiUrl();
 export const API_VERSION = 'v2';
 export const API_URL = `${API_BASE_URL}/api/${API_VERSION}`;

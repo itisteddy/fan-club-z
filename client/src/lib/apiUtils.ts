@@ -15,6 +15,7 @@ interface RetryOptions {
 interface FetchOptions extends RequestInit {
   timeout?: number;
   retryOptions?: RetryOptions;
+  abortController?: AbortController;
 }
 
 const DEFAULT_RETRY_OPTIONS: RetryOptions = {

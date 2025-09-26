@@ -6,7 +6,7 @@ console.log('🧪 Testing WebSocket connection...');
 // Test the connection
 const testConnection = () => {
   // Use the same configuration as the chatStore
-  const serverUrl = import.meta.env?.VITE_API_URL || 'http://localhost:3001';
+  const serverUrl = 'http://localhost:3001'; // Fallback for test script
   console.log('🔗 Connecting to:', serverUrl);
   
   // Try to connect using Socket.IO (if available)

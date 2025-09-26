@@ -1,0 +1,51 @@
+{
+  "extends": [
+    "@typescript-eslint/recommended",
+    "plugin:react/recommended",
+    "plugin:react-hooks/recommended"
+  ],
+  "parser": "@typescript-eslint/parser",
+  "parserOptions": {
+    "ecmaVersion": 2022,
+    "sourceType": "module",
+    "ecmaFeatures": {
+      "jsx": true
+    }
+  },
+  "plugins": ["@typescript-eslint", "react", "react-hooks"],
+  "rules": {
+    "no-restricted-properties": [
+      "error", 
+      {
+        "object": "process",
+        "property": "env",
+        "message": "Use import.meta.env (Vite) or env helpers from @/utils/environment. Server-only code can use process.env in vite.config or node scripts."
+      }
+    ],
+    "no-restricted-syntax": [
+      "error",
+      {
+        "selector": "MemberExpression[object.name='process'][property.name='env']",
+        "message": "Do not use process.env in client code. Use environment helpers from @/utils/environment instead."
+      },
+      {
+        "selector": "MemberExpression[object.object.property.name='meta'][object.property.name='env']",
+        "message": "Do not use import.meta.env directly. Use environment helpers from @/utils/environment for consistent typed access."
+      }
+    ]
+  },
+  "overrides": [
+    {
+      "files": ["vite.config.*", "scripts/**", "../server/**"],
+      "rules": { 
+        "no-restricted-properties": "off", 
+        "no-restricted-syntax": "off" 
+      }
+    }
+  ],
+  "settings": {
+    "react": {
+      "version": "detect"
+    }
+  }
+}

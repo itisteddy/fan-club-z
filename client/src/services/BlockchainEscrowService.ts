@@ -45,7 +45,8 @@ const ESCROW_ABI = [
 ] as const;
 
 // Contract address on Polygon (this would be the deployed contract address)
-const ESCROW_CONTRACT_ADDRESS = process.env.VITE_ESCROW_CONTRACT_ADDRESS as `0x${string}` || '0x0000000000000000000000000000000000000000';
+import { ESCROW_CONTRACT_ADDRESS as ENV_ESCROW_ADDRESS } from '@/utils/environment';
+const ESCROW_CONTRACT_ADDRESS = (ENV_ESCROW_ADDRESS as `0x${string}`) || '0x0000000000000000000000000000000000000000';
 
 interface EscrowStatus {
   isLocked: boolean;

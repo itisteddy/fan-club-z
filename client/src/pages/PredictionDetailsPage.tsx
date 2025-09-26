@@ -1,16 +1,15 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, Clock, Heart, MessageCircle, Share2, TrendingUp, ChevronDown, User, AlertTriangle } from 'lucide-react';
-import { useLocation } from 'wouter';
+import { ArrowLeft, Clock, Share2, User, AlertTriangle } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { usePredictionStore } from '../store/predictionStore';
 import { useAuthStore } from '../store/authStore';
 import { useWalletStore } from '../store/walletStore';
 import { useSettlementStore } from '../store/settlementStore';
 import SettlementValidationModal from '../components/modals/SettlementValidationModal';
-import { useLikeStore } from '../store/likeStore';
-import { useUnifiedCommentStore, useCommentsForPrediction } from '../store/unifiedCommentStore';
 import { formatTimeRemaining } from '../lib/utils';
-import CommentSystem from '../components/CommentSystem';
+// Import components
+import Comments from '../components/comments/Comments';
 import TappableUsername from '../components/TappableUsername';
 import {
   SettlementBadge,
@@ -31,27 +30,21 @@ interface PredictionDetailsPageProps {
 }
 
 const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictionId, onNavigateBack }) => {
-  const [, setLocation] = useLocation();
+  const navigate = useNavigate();
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
   const [stakeAmount, setStakeAmount] = useState<string>('');
   const [isPlacingBet, setIsPlacingBet] = useState(false);
   const [prediction, setPrediction] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [showComments, setShowComments] = useState(false);
 
   const [showSettlementModal, setShowSettlementModal] = useState(false);
   const [showProofDetails, setShowProofDetails] = useState(false);
   const [showAuditTimeline, setShowAuditTimeline] = useState(false);
   const [showValidationModal, setShowValidationModal] = useState(false);
   
-  // Refs for smooth scrolling
-  const commentsRef = useRef<HTMLDivElement>(null);
-  const engagementRef = useRef<HTMLDivElement>(null);
-  
   const { predictions, fetchPredictions, fetchPredictionById, placePrediction } = usePredictionStore();
   const { isAuthenticated, user } = useAuthStore();
   const { getBalance } = useWalletStore();
-  const { checkIfLiked, getLikeCount, toggleLike } = useLikeStore();
   const { 
     settlements, 
     disputes, 
@@ -80,21 +73,13 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
     if (!currentPredictionId) return null;
     return predictions.find(p => p.id === currentPredictionId) || null;
   }, [predictions, currentPredictionId]);
-  
-  // Initialize comment store after prediction ID is available
-  const { commentCount, fetchComments } = useCommentsForPrediction(stablePredictionId);
-
-  // Debug logging for comment count
-  useEffect(() => {
-    console.log(`📊 PredictionDetailsPage commentCount for ${stablePredictionId}: ${commentCount}`);
-  }, [stablePredictionId, commentCount]);
 
   useEffect(() => {
     const loadPrediction = async () => {
       if (!currentPredictionId) {
-        console.log('❌ No prediction ID found');
-        setLocation('/discover');
-        return;
+      console.log('❌ No prediction ID found');
+      navigate('/discover');
+      return;
       }
 
       console.log('🔍 Loading prediction with ID:', currentPredictionId);
@@ -108,9 +93,7 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
           console.log('✅ Found prediction:', foundPrediction.title);
           setPrediction(foundPrediction);
           
-          // Force refresh comments for this prediction
-          console.log('🔄 Force fetching comments for prediction details page');
-          await fetchComments();
+          // Comments will be handled by the new CommentsSection component
           
           // Load settlement data if needed
           if (['locked', 'settling', 'settled', 'voided', 'disputed', 'resolved'].includes(foundPrediction.status)) {
@@ -131,7 +114,7 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
     };
 
     loadPrediction();
-  }, [currentPredictionId, fetchPredictionById, setLocation, fetchSettlement, fetchDisputes, fetchAuditTimeline, fetchComments]);
+  }, [currentPredictionId, fetchPredictionById, navigate, fetchSettlement, fetchDisputes, fetchAuditTimeline]);
 
   // Update local prediction state when store prediction changes (for real-time updates)
   useEffect(() => {
@@ -152,11 +135,11 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
         if (window.history.length > 1) {
           window.history.back();
         } else {
-          setLocation('/discover');
+          navigate('/discover');
         }
       } catch (error) {
         console.error('Navigation error:', error);
-        setLocation('/discover');
+        navigate('/discover');
       }
     }
   };
@@ -281,46 +264,7 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
     }
   };
 
-  const handleLike = async () => {
-    if (!isAuthenticated) {
-      toast.error('Please sign in to like this prediction');
-      return;
-    }
-    
-    try {
-      await toggleLike(prediction.id);
-      toast.success(checkIfLiked(prediction.id) ? 'Liked prediction!' : 'Removed like');
-    } catch (error) {
-      toast.error('Failed to update like');
-    }
-  };
 
-  const handleCommentsToggle = () => {
-    console.log('💬 Toggling comments from:', showComments, 'to:', !showComments);
-    const newShowComments = !showComments;
-    setShowComments(newShowComments);
-    
-    // Smooth scroll to comments section when opening
-    if (newShowComments) {
-      setTimeout(() => {
-        if (commentsRef.current) {
-          commentsRef.current.scrollIntoView({ 
-            behavior: 'smooth', 
-            block: 'start',
-            inline: 'nearest'
-          });
-        }
-      }, 300); // Wait for animation to start
-    } else {
-      // Scroll back to engagement section when closing
-      if (engagementRef.current) {
-        engagementRef.current.scrollIntoView({ 
-          behavior: 'smooth', 
-          block: 'center'
-        });
-      }
-    }
-  };
 
   // Get creator info with fallbacks for different data structures
   const getCreatorInfo = () => {
@@ -358,62 +302,66 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
   // Loading state
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50">
-        <div className="bg-white border-b border-gray-200 sticky top-0 z-10">
-          <div className="px-4 py-4">
-            <div className="flex items-center justify-between">
+      <>
+        <div className="bg-white border-b border-gray-200 sticky top-0 z-30">
+          <div className="px-4 py-4 flex items-center justify-between">
+            <div className="flex items-center gap-3">
               <button
                 onClick={handleBack}
-                className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors"
+                className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+                aria-label="Go back"
               >
-                <ArrowLeft size={20} />
-                <span className="font-medium">Back</span>
+                <ArrowLeft className="w-5 h-5 text-gray-600" />
               </button>
+              <h1 className="text-xl font-bold text-gray-900">Loading...</h1>
             </div>
           </div>
         </div>
-        
-        <div className="flex items-center justify-center py-20">
-          <div className="text-center">
-            <div className="w-8 h-8 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-            <p className="text-gray-600">Loading prediction...</p>
+        <div className="min-h-screen bg-gray-50">
+          <div className="flex items-center justify-center py-20">
+            <div className="text-center">
+              <div className="w-8 h-8 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+              <p className="text-gray-600">Loading prediction...</p>
+            </div>
           </div>
         </div>
-      </div>
+      </>
     );
   }
 
   // Error state
   if (!prediction) {
     return (
-      <div className="min-h-screen bg-gray-50">
-        <div className="bg-white border-b border-gray-200 sticky top-0 z-10">
-          <div className="px-4 py-4">
-            <div className="flex items-center justify-between">
+      <>
+        <div className="bg-white border-b border-gray-200 sticky top-0 z-30">
+          <div className="px-4 py-4 flex items-center justify-between">
+            <div className="flex items-center gap-3">
               <button
                 onClick={handleBack}
-                className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors"
+                className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+                aria-label="Go back"
               >
-                <ArrowLeft size={20} />
-                <span className="font-medium">Back</span>
+                <ArrowLeft className="w-5 h-5 text-gray-600" />
+              </button>
+              <h1 className="text-xl font-bold text-gray-900">Not Found</h1>
+            </div>
+          </div>
+        </div>
+        <div className="min-h-screen bg-gray-50">
+          <div className="flex items-center justify-center py-20">
+            <div className="text-center">
+              <h2 className="text-xl font-bold text-gray-900 mb-2">Prediction Not Found</h2>
+              <p className="text-gray-600 mb-4">The prediction you're looking for doesn't exist or has been removed.</p>
+              <button
+                onClick={() => navigate('/discover')}
+                className="bg-emerald-500 text-white px-6 py-2 rounded-lg hover:bg-emerald-600 transition-colors"
+              >
+                Browse Predictions
               </button>
             </div>
           </div>
         </div>
-        
-        <div className="flex items-center justify-center py-20">
-          <div className="text-center">
-            <h2 className="text-xl font-bold text-gray-900 mb-2">Prediction Not Found</h2>
-            <p className="text-gray-600 mb-4">The prediction you're looking for doesn't exist or has been removed.</p>
-            <button
-              onClick={() => setLocation('/discover')}
-              className="bg-emerald-500 text-white px-6 py-2 rounded-lg hover:bg-emerald-600 transition-colors"
-            >
-              Browse Predictions
-            </button>
-          </div>
-        </div>
-      </div>
+      </>
     );
   }
 
@@ -429,28 +377,30 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
 
   return (
     <>
-      <div className="min-h-screen bg-gray-50">
-        {/* Header */}
-        <div className="bg-white border-b border-gray-200 sticky top-0 z-50">
-          <div className="px-4 py-4">
-            <div className="flex items-center justify-between">
-              <button
-                onClick={handleBack}
-                className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors"
-              >
-                <ArrowLeft size={20} />
-                <span className="font-medium">Back</span>
-              </button>
-              
-              <button
-                onClick={handleShare}
-                className="p-2 text-gray-600 hover:text-gray-900 transition-colors rounded-lg hover:bg-gray-100"
-              >
-                <Share2 size={20} />
-              </button>
-            </div>
+      {/* Unified Header with Back button and Share action */}
+      <div className="bg-white border-b border-gray-200 sticky top-0 z-30">
+        <div className="px-4 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={handleBack}
+              className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+              aria-label="Go back"
+            >
+              <ArrowLeft className="w-5 h-5 text-gray-600" />
+            </button>
+            <h1 className="text-xl font-bold text-gray-900">Prediction Details</h1>
           </div>
+          <button
+            onClick={handleShare}
+            className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+            aria-label="Share prediction"
+          >
+            <Share2 className="w-5 h-5 text-gray-600" />
+          </button>
         </div>
+      </div>
+      
+      <div className="min-h-screen bg-gray-50">
 
         {/* Content */}
         <div className="px-4 py-6 max-w-2xl mx-auto pb-24">
@@ -871,74 +821,15 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictio
             </motion.div>
           )}
 
-          {/* Engagement Section - Using real like/comment counts */}
+          {/* Comments Section - New unified implementation */}
           <motion.div
-            ref={engagementRef}
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2 }}
-            className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 mb-6"
+            className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden mb-6"
           >
-            <h3 className="text-lg font-bold text-gray-900 mb-4">Community Engagement</h3>
-            <div className="flex items-center gap-6">
-              <motion.button
-                onClick={handleLike}
-                className={`flex items-center gap-2 transition-colors ${
-                  checkIfLiked(prediction.id) ? 'text-red-500' : 'text-gray-600 hover:text-red-500'
-                }`}
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-              >
-                <Heart size={20} fill={checkIfLiked(prediction.id) ? 'currentColor' : 'none'} />
-                <span className="font-medium">{getLikeCount(prediction.id)} likes</span>
-              </motion.button>
-              
-              <motion.button
-                onClick={handleCommentsToggle}
-                className={`flex items-center gap-2 transition-colors ${
-                  showComments ? 'text-blue-500' : 'text-gray-600 hover:text-blue-500'
-                }`}
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-              >
-                <MessageCircle size={20} />
-                <span className="font-medium">{commentCount} comments</span>
-                <ChevronDown 
-                  size={16} 
-                  className={`transition-transform ml-1 ${showComments ? 'rotate-180' : ''}`}
-                />
-              </motion.button>
-              
-              <div className="flex items-center gap-2 text-gray-600">
-                <TrendingUp size={20} />
-                <span className="font-medium">{prediction.participant_count || 0} participants</span>
-              </div>
-            </div>
+            <Comments predictionId={stablePredictionId} />
           </motion.div>
-
-          {/* Comments Section */}
-          <AnimatePresence>
-            {showComments && (
-              <motion.div
-                ref={commentsRef}
-                initial={{ opacity: 0, y: -20, height: 0 }}
-                animate={{ opacity: 1, y: 0, height: 'auto' }}
-                exit={{ opacity: 0, y: -20, height: 0 }}
-                transition={{ duration: 0.4, ease: 'easeInOut' }}
-                className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden mb-6"
-              >
-                <div className="px-6 py-4 border-b border-gray-100 bg-gradient-to-r from-blue-50 to-indigo-50">
-                  <h3 className="text-lg font-bold text-gray-900">Comments</h3>
-                  <p className="text-sm text-gray-600">Join the conversation about this prediction</p>
-                </div>
-                <div className="min-h-[300px] max-h-[600px] overflow-y-auto">
-                  <CommentSystem 
-                    predictionId={stablePredictionId}
-                  />
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
         </div>
       </div>
 

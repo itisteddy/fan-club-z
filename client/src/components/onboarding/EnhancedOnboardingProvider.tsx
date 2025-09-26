@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useCallback, useEffect, useState } from 'react';
 import { useLocation } from 'wouter';
+import { isDev } from '@/utils/environment';
 import { 
   EnhancedOnboardingSystem, 
   WelcomeModal, 
@@ -353,7 +354,7 @@ export const OnboardingDebugPanel: React.FC = () => {
     resetOnboarding
   } = useOnboarding();
 
-  if (process.env.NODE_ENV !== 'development') {
+  if (!isDev) {
     return null;
   }
 

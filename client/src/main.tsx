@@ -1,7 +1,12 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
+import { BrowserRouter } from 'react-router-dom'
 import App from './App.tsx'
 import ErrorBoundary from './components/ErrorBoundary.tsx'
+import { NetworkStatusProvider } from './providers/NetworkStatusProvider'
+import { SupabaseProvider } from './providers/SupabaseProvider'
+import { AuthSessionProvider } from './providers/AuthSessionProvider'
+import { ErrorHandlingProvider } from './components/ErrorHandlingProvider'
 import './index.css'
 import { APP_VERSION, BUILD_TIMESTAMP } from './lib/version.ts'
 
@@ -24,11 +29,23 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <ErrorBoundary
       onError={(error, errorInfo) => {
-        console.error('React Error Boundary triggered:', error, errorInfo);
+        if (import.meta.env.DEV) {
+          console.error('React Error Boundary triggered:', error, errorInfo);
+        }
         // You can add error reporting service here (e.g., Sentry)
       }}
     >
-      <App />
+      <ErrorHandlingProvider>
+        <NetworkStatusProvider>
+          <SupabaseProvider>
+            <AuthSessionProvider>
+              <BrowserRouter>
+                <App />
+              </BrowserRouter>
+            </AuthSessionProvider>
+          </SupabaseProvider>
+        </NetworkStatusProvider>
+      </ErrorHandlingProvider>
     </ErrorBoundary>
   </React.StrictMode>,
 )

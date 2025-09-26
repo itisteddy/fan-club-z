@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Heart, MessageCircle, Share, TrendingUp, Clock, Users } from 'lucide-react';
-import { useLocation } from 'wouter';
+import { useNavigate } from 'react-router-dom';
 import { Prediction, PredictionEntry } from '../store/predictionStore';
 import { useLikeStore } from '../store/likeStore';
 import { useUnifiedCommentStore } from '../store/unifiedCommentStore';
@@ -48,7 +48,7 @@ const PredictionCardContent: React.FC<PredictionCardProps> = ({
     return <PredictionCardErrorFallback error="Invalid prediction data" />;
   }
 
-  const [, setLocation] = useLocation();
+  const navigate = useNavigate();
   const [mounted, setMounted] = useState(false);
   const [commentModalOpen, setCommentModalOpen] = useState(false);
   const [isLiking, setIsLiking] = useState(false);
@@ -105,15 +105,11 @@ const PredictionCardContent: React.FC<PredictionCardProps> = ({
 
   // Get real-time data from stores with safe fallbacks
   const isLiked = checkIfLiked(prediction.id) || false;
-  // FIXED: Always prioritize store data over potentially stale prediction data
   const storeLikeCount = getLikeCount(prediction.id);
   const likeCount = storeLikeCount !== undefined && storeLikeCount !== null ? storeLikeCount : (prediction.likes_count || prediction.likes || 0);
   const storeCommentCount = getCommentCount(prediction.id);
   const commentCount = storeCommentCount !== undefined && storeCommentCount !== null ? storeCommentCount : (prediction.comments_count || prediction.comments || 0);
   
-  // Debug logging for comment count sync
-  console.log(`📊 PredictionCard ${prediction.id}: storeCount=${storeCommentCount}, predictionCount=${prediction.comments_count || prediction.comments || 0}, finalCount=${commentCount}`);
-
   // Calculate real data with safe fallbacks
   const entryDeadline = prediction.entry_deadline || prediction.entryDeadline;
   const timeRemaining = entryDeadline ? Math.max(0, new Date(entryDeadline).getTime() - Date.now()) : 0;
@@ -139,10 +135,18 @@ const PredictionCardContent: React.FC<PredictionCardProps> = ({
     }).format(amount);
   };
 
-  const handleLike = async () => {
-    if (isLiking) return;
+  const formatTimeRemaining = () => {
+    if (timeRemaining <= 0) return 'Closed';
+    if (hoursRemaining < 1) return `${Math.ceil(timeRemaining / (1000 * 60))}m left`;
+    if (hoursRemaining < 24) return `${hoursRemaining}h left`;
+    const daysRemaining = Math.floor(hoursRemaining / 24);
+    return `${daysRemaining}d left`;
+  };
+
+  const handleLike = async (e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent card navigation
     
-    console.log('❤️ Like clicked:', prediction.id, '- Before:', { isLiked, likeCount });
+    if (isLiking) return;
     
     try {
       setIsLiking(true);
@@ -156,16 +160,19 @@ const PredictionCardContent: React.FC<PredictionCardProps> = ({
     }
   };
 
-  const handleComment = () => {
+  const handleComment = (e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent card navigation
     setCommentModalOpen(true);
     if (customOnComment) customOnComment();
   };
 
-  const handleShare = async () => {
+  const handleShare = async (e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent card navigation
+    
     try {
       const shareData = {
-        title: prediction.title,
-        text: `Check out this prediction: ${prediction.title}`,
+        title: prediction.question || prediction.title,
+        text: `Check out this prediction: ${prediction.question || prediction.title}`,
         url: `${window.location.origin}/prediction/${prediction.id}`
       };
 
@@ -192,335 +199,117 @@ const PredictionCardContent: React.FC<PredictionCardProps> = ({
     }
   };
 
+  const handlePredict = (e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent card navigation
+    if (onPredict) onPredict();
+  };
+
   const handleCardClick = (e: React.MouseEvent) => {
     // Don't navigate if clicking on interactive elements
     const target = e.target as HTMLElement;
     if (target.closest('button') || 
         target.closest('a') || 
-        target.closest('.interactive') ||
-        target.closest('.options-clickable') ||
-        target.closest('[data-clickable="true"]') ||
-        target.closest('.predict-button') ||
-        e.defaultPrevented) {
+        target.closest('.interactive')) {
       return;
     }
     
-    // Navigate to prediction details page
-    setLocation(`/prediction/${prediction.id}`);
-  };
-
-  const formatTimeRemaining = () => {
-    if (timeRemaining <= 0) return 'Ended';
-    if (hoursRemaining >= 24) {
-      const days = Math.floor(hoursRemaining / 24);
-      return `${days}d left`;
-    }
-    return `${hoursRemaining}h left`;
-  };
-  
-  if (variant === 'compact') {
-    return (
-      <>
-        <motion.div
-          className={`bg-white rounded-xl shadow-sm border border-gray-100 p-4 cursor-pointer ${className}`}
-          whileHover={{ scale: 1.02, y: -2 }}
-          whileTap={{ scale: 0.98 }}
-          onClick={handleCardClick}
-        >
-          {/* Header */}
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2">
-              <UserAvatar email={prediction.creator?.email} username={prediction.creator?.username} avatarUrl={prediction.creator?.avatar_url} size="sm" />
-              <div>
-                <TappableUsername 
-                  username={prediction.creator?.username || prediction.creator?.full_name || 'Anonymous'}
-                  userId={prediction.creator?.id || 'anonymous'}
-                  className="font-medium text-gray-900 text-sm hover:text-blue-600"
-                  showAt={true}
-                />
-                <div className="text-xs text-gray-500">{formatTimeRemaining()}</div>
-              </div>
-            </div>
-            <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-              prediction.category === 'sports' ? 'bg-red-100 text-red-700' :
-              prediction.category === 'pop_culture' ? 'bg-purple-100 text-purple-700' :
-              prediction.category === 'esports' ? 'bg-yellow-100 text-yellow-700' :
-              prediction.category === 'politics' ? 'bg-blue-100 text-blue-700' :
-              prediction.category === 'celebrity_gossip' ? 'bg-pink-100 text-pink-700' :
-              'bg-emerald-100 text-emerald-700'
-            }`}>
-              {prediction.category?.replace('_', ' ') || 'General'}
-            </span>
-          </div>
-
-          {/* Title */}
-          <h3 
-            className="font-semibold text-gray-900 mb-2 line-clamp-2 cursor-pointer options-clickable"
-            onClick={(e) => {
-              e.stopPropagation();
-              onPredict && onPredict();
-            }}
-          >
-            {prediction.title}
-          </h3>
-          
-          {/* Pool Info */}
-          <div className="flex items-center justify-between text-sm">
-            <div 
-              className="flex items-center gap-2 text-gray-600 cursor-pointer options-clickable"
-              onClick={(e) => {
-                e.stopPropagation();
-                onPredict && onPredict();
-              }}
-            >
-              <span className="font-medium">{formatCurrency(totalPool)}</span>
-              <span>•</span>
-              <span>{Array.isArray(prediction.options) ? prediction.options.length : 0} options</span>
-            </div>
-            <div className="flex items-center gap-3">
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleLike();
-                }}
-                className={`flex items-center gap-1 ${isLiked ? 'text-red-500' : 'text-gray-400'} hover:text-red-500 transition-colors`}
-              >
-                <Heart className={`w-4 h-4 ${isLiked ? 'fill-current' : ''}`} />
-                <span className="text-gray-600">{likeCount}</span>
-              </button>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleComment();
-                }}
-                className="flex items-center gap-1 text-gray-400 hover:text-blue-500 transition-colors"
-              >
-                <MessageCircle className="w-4 h-4" />
-                <span className="text-gray-600">{commentCount}</span>
-              </button>
-            </div>
-          </div>
-        </motion.div>
-
-        <CommentModal
-          prediction={prediction}
-          isOpen={commentModalOpen}
-          onClose={() => setCommentModalOpen(false)}
-        />
-      </>
-    );
-  }
-
-  if (variant === 'user-entry') {
-    const hasEntry = !!entry;
-    const userChoice = entry?.option_id;
-    const potentialPayout = entry?.potential_payout || 0;
-    const actualPayout = entry?.actual_payout || 0;
-    const status = entry?.status || prediction.status;
+    console.log('🔗 PredictionCard: Navigating to prediction details:', prediction.id);
     
-    return (
-      <>
-        <motion.div
-          className={`bg-white rounded-xl shadow-sm border-l-4 ${
-            status === 'won' ? 'border-emerald-500' :
-            status === 'lost' ? 'border-red-500' :
-            status === 'settled' ? 'border-gray-500' :
-            'border-blue-500'
-          } p-4 cursor-pointer ${className}`}
-          whileHover={{ scale: 1.01, y: -2 }}
-          onClick={handleCardClick}
-        >
-          {/* Header */}
-          <div className="flex items-center justify-between mb-3">
-            <div>
-              <h3 className="font-semibold text-gray-900 text-base line-clamp-1">
-                {prediction.title}
-              </h3>
-              <div className="flex items-center gap-2 mt-1">
-                <span className={`px-2 py-0.5 rounded text-xs font-medium ${
-                  status === 'won' ? 'bg-emerald-100 text-emerald-700' :
-                  status === 'lost' ? 'bg-red-100 text-red-700' :
-                  status === 'settled' ? 'bg-gray-100 text-gray-700' :
-                  'bg-blue-100 text-blue-700'
-                }`}>
-                  {status?.toUpperCase()}
-                </span>
-                <Clock className="w-3 h-3 text-gray-400" />
-                <span className="text-xs text-gray-500">{formatTimeRemaining()}</span>
-              </div>
-            </div>
-          </div>
+    // Navigate to prediction details page using react-router-dom
+    navigate(`/prediction/${prediction.id}`);
+  };
 
-          {/* User's Position */}
-          {hasEntry && (
-            <div className="bg-gray-50 rounded-lg p-3 mb-3">
-              <div className="text-xs text-gray-600 mb-1">Your Position</div>
-              <div className="font-semibold text-gray-900">
-                {prediction.options?.find(o => o.id === userChoice)?.label || 'Option selected'}
-              </div>
-              <div className="text-sm text-gray-600 mt-1">
-                Stake: {formatCurrency(entry?.amount || 0)} • 
-                {status === 'won' ? ` Won: ${formatCurrency(actualPayout)}` :
-                 status === 'lost' ? ' Lost' :
-                 ` Potential: ${formatCurrency(potentialPayout)}`}
-              </div>
-            </div>
-          )}
-
-          {/* Social Actions */}
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <button
-                onClick={handleLike}
-                disabled={isLiking}
-                className={`flex items-center gap-1 ${isLiked ? 'text-red-500' : 'text-gray-500'} hover:text-red-500 transition-colors`}
-              >
-                <Heart className={`w-4 h-4 ${isLiked ? 'fill-current' : ''}`} />
-                <span className="text-sm">{likeCount}</span>
-              </button>
-              <button
-                onClick={handleComment}
-                className="flex items-center gap-1 text-gray-500 hover:text-blue-500 transition-colors"
-              >
-                <MessageCircle className="w-4 h-4" />
-                <span className="text-sm">{commentCount}</span>
-              </button>
-              <button
-                onClick={handleShare}
-                className="flex items-center gap-1 text-gray-500 hover:text-emerald-500 transition-colors"
-              >
-                <Share className="w-4 h-4" />
-                <span className="text-sm">Share</span>
-              </button>
-            </div>
-            <button
-              onClick={onPredict}
-              className="px-4 py-2 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 text-sm font-medium transition-colors"
-            >
-              View Details
-            </button>
-          </div>
-        </motion.div>
-
-        <CommentModal
-          prediction={prediction}
-          isOpen={commentModalOpen}
-          onClose={() => setCommentModalOpen(false)}
-        />
-      </>
-    );
-  }
-
-  // Default variant
   return (
     <>
       <motion.div
-        className={`bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden cursor-pointer ${className}`}
-        whileHover={{ scale: 1.01, y: -2 }}
+        className={`bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden cursor-pointer ${className}`}
+        whileHover={{ scale: 1.02, boxShadow: '0 8px 25px rgba(0, 0, 0, 0.1)' }}
+        whileTap={{ scale: 0.98 }}
+        onClick={handleCardClick}
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        onClick={handleCardClick}
         transition={{ duration: 0.3 }}
       >
         {/* Header */}
-        <div className="p-4 pb-0">
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-gradient-to-r from-purple-400 to-purple-600 flex items-center justify-center text-white font-bold">
-                {prediction.creator?.username?.slice(0, 2).toUpperCase() || 'FC'}
-              </div>
-              <div>
-                <TappableUsername 
-                  username={prediction.creator?.username || prediction.creator?.full_name || 'Anonymous'}
-                  userId={prediction.creator?.id || 'anonymous'}
-                  className="font-medium text-gray-900 hover:text-blue-600"
-                  showAt={true}
+        <div className="p-4">
+          <div className="flex items-center gap-3 mb-3">
+            {/* Only show creator info if we actually have a real creator */}
+            {prediction.creator?.firstName || prediction.creator?.email ? (
+              <>
+                <UserAvatar
+                  email={prediction.creator?.email}
+                  username={prediction.creator?.firstName || prediction.creator?.email?.split('@')[0]}
+                  avatarUrl={prediction.creator?.avatar}
+                  size="sm"
                 />
-                <div className="text-sm text-gray-500">
-                  {prediction.created_at ? new Date(prediction.created_at).toLocaleDateString() : 'Recently'}
+                <div className="flex-1 min-w-0">
+                  <TappableUsername
+                    username={prediction.creator?.firstName || prediction.creator?.email?.split('@')[0]}
+                    className="font-medium text-gray-900"
+                  />
+                  <p className="text-sm text-gray-500">
+                    {new Date(prediction.created_at).toLocaleDateString('en-US', {
+                      month: 'short',
+                      day: 'numeric',
+                      hour: 'numeric',
+                      minute: '2-digit'
+                    })}
+                  </p>
                 </div>
+              </>
+            ) : (
+              // If no real creator info, just show date without any user info
+              <div className="flex-1">
+                <p className="text-sm text-gray-500">
+                  {new Date(prediction.created_at).toLocaleDateString('en-US', {
+                    month: 'short',
+                    day: 'numeric',
+                    hour: 'numeric',
+                    minute: '2-digit'
+                  })}
+                </p>
               </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                prediction.category === 'sports' ? 'bg-red-100 text-red-700' :
-                prediction.category === 'pop_culture' ? 'bg-purple-100 text-purple-700' :
-                prediction.category === 'esports' ? 'bg-yellow-100 text-yellow-700' :
-                prediction.category === 'politics' ? 'bg-blue-100 text-blue-700' :
-                prediction.category === 'celebrity_gossip' ? 'bg-pink-100 text-pink-700' :
-                'bg-emerald-100 text-emerald-700'
-              }`}>
-                {prediction.category?.replace('_', ' ') || 'General'}
-              </span>
-              {isClosingSoon && (
-                <span className="px-2 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-700">
-                  Closing Soon
+            )}
+            {prediction.category && (
+              <div className="flex-shrink-0">
+                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                  {prediction.category}
                 </span>
-              )}
-            </div>
+              </div>
+            )}
           </div>
-          
-          <h3 className="text-xl font-semibold text-gray-900 mb-2 leading-tight">
-            {prediction.title}
+
+          {/* Question */}
+          <h3 className="text-lg font-semibold text-gray-900 mb-3 line-clamp-2">
+            {prediction.question || prediction.title}
           </h3>
-          
-          {prediction.description && (
-            <p className="text-gray-600 text-sm mb-4 line-clamp-2">
-              {prediction.description}
-            </p>
-          )}
-        </div>
-        
-        {/* Options */}
-        <div className="px-4 mb-4">
-          <div className="bg-gray-50 rounded-xl p-4">
-            <div className="flex items-center justify-between mb-3">
-              <h4 className="text-sm font-semibold text-gray-900">Options</h4>
-              <span className="text-xs text-gray-500">{Array.isArray(prediction.options) ? prediction.options.length : 0} choices</span>
-            </div>
-            
-            <div className="space-y-2">
-              {(prediction.options || []).slice(0, 3).map((option, index) => {
+
+          {/* Options (if available) */}
+          {prediction.options && prediction.options.length > 0 && (
+            <div className="space-y-2 mb-4">
+              {prediction.options.map((option, index) => {
                 const optionStaked = option.total_staked || option.totalStaked || 0;
-                const optionCount = Array.isArray(prediction.options) ? prediction.options.length : 0;
-                const percentage = totalPool > 0 ? (optionStaked / totalPool) * 100 : (optionCount > 0 ? 100 / optionCount : 0);
-                // Use server-calculated odds first, fallback to local calculation
-                const odds = option.current_odds || (optionStaked > 0 ? Math.max(totalPool / optionStaked, 1.01) : optionCount || 2);
+                const percentage = totalPool > 0 ? Math.round((optionStaked / totalPool) * 100) : 0;
                 
                 return (
-                  <motion.button
-                    key={option.id}
-                    className="w-full p-3 rounded-lg border-2 border-gray-200 bg-white hover:border-emerald-300 hover:bg-emerald-50 transition-all group"
-                    whileHover={{ scale: 1.01 }}
-                    whileTap={{ scale: 0.99 }}
-                    onClick={() => onPredict && onPredict()}
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex-1 text-left">
-                        <div className="font-medium text-gray-900 group-hover:text-emerald-700">
-                          {option.label}
-                        </div>
-                        <div className="text-sm text-gray-500">
-                          {percentage.toFixed(0)}% • {formatCurrency(optionStaked)}
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <div className="text-lg font-bold text-emerald-600">
-                          {odds.toFixed(1)}x
-                        </div>
-                      </div>
+                  <div key={index} className="relative">
+                    <div 
+                      className="absolute inset-0 bg-emerald-100 rounded-lg"
+                      style={{ width: `${percentage}%` }}
+                    />
+                    <div className="relative px-3 py-2 flex items-center justify-between">
+                      <span className="text-sm font-medium text-gray-900">
+                        {option.text || option.option}
+                      </span>
+                      <span className="text-sm font-semibold text-emerald-600">
+                        {percentage}%
+                      </span>
                     </div>
-                  </motion.button>
+                  </div>
                 );
               })}
-              
-              {((prediction.options?.length || 0) > 3) && (
-                <div className="text-center text-sm text-gray-500">
-                  +{(prediction.options?.length || 0) - 3} more options available
-                </div>
-              )}
             </div>
-          </div>
+          )}
         </div>
 
         {/* Stats */}
@@ -559,7 +348,7 @@ const PredictionCardContent: React.FC<PredictionCardProps> = ({
               <motion.button
                 onClick={handleLike}
                 disabled={isLiking}
-                className={`flex items-center gap-2 ${isLiked ? 'text-red-500' : 'text-gray-600'} hover:text-red-500 transition-colors`}
+                className={`flex items-center gap-2 ${isLiked ? 'text-red-500' : 'text-gray-600'} hover:text-red-500 transition-colors interactive`}
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
               >
@@ -568,7 +357,7 @@ const PredictionCardContent: React.FC<PredictionCardProps> = ({
               </motion.button>
               <motion.button
                 onClick={handleComment}
-                className="flex items-center gap-2 text-gray-600 hover:text-blue-500 transition-colors"
+                className="flex items-center gap-2 text-gray-600 hover:text-blue-500 transition-colors interactive"
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
               >
@@ -577,7 +366,7 @@ const PredictionCardContent: React.FC<PredictionCardProps> = ({
               </motion.button>
               <motion.button
                 onClick={handleShare}
-                className="flex items-center gap-2 text-gray-600 hover:text-emerald-500 transition-colors"
+                className="flex items-center gap-2 text-gray-600 hover:text-emerald-500 transition-colors interactive"
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
               >
@@ -586,8 +375,8 @@ const PredictionCardContent: React.FC<PredictionCardProps> = ({
               </motion.button>
             </div>
             <motion.button
-              onClick={onPredict}
-              className="bg-gradient-to-r from-purple-600 to-emerald-600 text-white px-6 py-2 rounded-lg font-medium shadow-sm"
+              onClick={handlePredict}
+              className="bg-gradient-to-r from-purple-600 to-emerald-600 text-white px-6 py-2 rounded-lg font-medium shadow-sm interactive"
               whileHover={{ scale: 1.02, boxShadow: '0 8px 25px rgba(123, 47, 247, 0.25)' }}
               whileTap={{ scale: 0.98 }}
             >
@@ -609,7 +398,6 @@ const PredictionCardContent: React.FC<PredictionCardProps> = ({
 
 // Main component wrapped in error boundary
 const PredictionCard: React.FC<PredictionCardProps> = (props) => {
-  // Use default fallback signature to satisfy ErrorBoundary prop typing
   return (
     <ErrorBoundary>
       <PredictionCardContent {...props} />

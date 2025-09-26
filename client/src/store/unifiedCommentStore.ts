@@ -1,647 +1,704 @@
 import { create } from 'zustand';
 import { devtools } from 'zustand/middleware';
+import { apiClient } from '../lib/api'; // Use the correct apiClient
+import { useAuthStore } from './authStore';
+import { qaLog } from '../utils/devQa';
 
-// Unified comment interface that matches the API response
-export interface UnifiedComment {
+// Comment interface matching API response
+export interface Comment {
   id: string;
-  prediction_id: string;
-  user_id: string;
-  content: string;
-  parent_comment_id?: string;
-  is_edited: boolean;
-  created_at: string;
-  updated_at: string;
-  user: {
-    id: string;
-    username: string;
+  predictionId: string;
+  user: { 
+    id: string; 
+    username: string; 
     full_name?: string;
+    avatarUrl?: string; 
     avatar_url?: string;
-    is_verified: boolean;
+    is_verified?: boolean;
   };
-  likes_count: number;
-  is_liked: boolean;
-  replies_count: number;
-  replies?: UnifiedComment[];
+  text: string;
+  content?: string; // Server uses 'content' field
+  createdAt: string;
+  created_at?: string; // Server uses 'created_at'
+  updatedAt: string;
+  updated_at?: string; // Server uses 'updated_at'
+  edited: boolean;
+  is_edited?: boolean; // Server uses 'is_edited'
+  isDeleted: boolean;
+  likeCount?: number;
+  likes_count?: number; // Server uses 'likes_count'
+  likedByMe?: boolean;
+  is_liked?: boolean; // Server uses 'is_liked'
 }
 
-interface CommentCounts {
-  [predictionId: string]: number;
+export type Status = 'idle' | 'loading' | 'loaded' | 'paginating' | 
+                     'network_error' | 'server_error' | 'client_error' | 'parse_error';
+
+interface PredictionCommentsState {
+  items: Comment[];          // last good data only
+  nextCursor?: string | null;
+  status: Status;
+  posting?: boolean;
+  draft?: string;           // session-persisted
+  highlightedId?: string;   // #comment-id
 }
 
-interface CommentState {
-  // Comments storage - organized by prediction ID
-  commentsByPrediction: Record<string, UnifiedComment[]>;
-  
-  // Comment counts for quick access (used in UI cards)
-  commentCounts: CommentCounts;
-  
-  // Loading states
-  loading: Record<string, boolean>;
-  
-  // Error states
-  errors: Record<string, string | null>;
-  
-  // Submission states
-  submitting: Record<string, boolean>;
-  
-  // Track which predictions have been fetched to prevent refetching
-  fetchedPredictions: Set<string>;
-  
-  // Last fetch timestamps to enable cache invalidation
-  lastFetched: Record<string, number>;
-  
-  // Initialization state
-  initialized: boolean;
+interface CommentsState {
+  byPrediction: {
+    [predictionId: string]: PredictionCommentsState;
+  };
 }
 
-interface CommentActions {
-  // Fetch comments for a prediction
+interface CommentsActions {
+  // Main actions
   fetchComments: (predictionId: string) => Promise<void>;
-  
-  // Add a new comment
-  addComment: (predictionId: string, content: string, parentCommentId?: string) => Promise<void>;
-  
-  // Edit an existing comment
-  editComment: (predictionId: string, commentId: string, content: string) => Promise<void>;
-
-  // Delete a comment
+  addComment: (predictionId: string, text: string) => Promise<void>;
+  editComment: (predictionId: string, commentId: string, text: string) => Promise<void>;
   deleteComment: (predictionId: string, commentId: string) => Promise<void>;
-
-  // Toggle like on a comment
-  toggleCommentLike: (commentId: string, predictionId: string) => Promise<void>;
+  loadMore: (predictionId: string) => Promise<void>;
   
-  // Get comment count for a prediction
+  // UI state
+  setDraft: (predictionId: string, draft: string) => void;
+  clearDraft: (predictionId: string) => void;
+  setHighlighted: (predictionId: string, commentId: string | undefined) => void;
+  
+  // Getters
+  getComments: (predictionId: string) => Comment[];
   getCommentCount: (predictionId: string) => number;
-  
-  // Get comments for a prediction
-  getComments: (predictionId: string) => UnifiedComment[];
-  
-  // Clear error for a prediction
-  clearError: (predictionId: string) => void;
-  
-  // Initialize comment counts from predictions data
-  initializeCommentCounts: (counts: CommentCounts) => void;
-  
-  // Update comment count for a prediction
-  updateCommentCount: (predictionId: string, count: number) => void;
-  
-  // Initialize the store
-  initialize: () => void;
+  getStatus: (predictionId: string) => Status;
+  getDraft: (predictionId: string) => string;
+  isPosting: (predictionId: string) => boolean;
+  hasMore: (predictionId: string) => boolean;
 }
 
-import { getEnvironmentConfig } from '../lib/environment';
+// Transform server comment to client format
+const transformComment = (serverComment: any): Comment => {
+  return {
+    id: serverComment.id,
+    predictionId: serverComment.prediction_id,
+    user: {
+      id: serverComment.user?.id || serverComment.user_id,
+      username: serverComment.user?.username || 'Anonymous',
+      full_name: serverComment.user?.full_name,
+      avatarUrl: serverComment.user?.avatar_url,
+      avatar_url: serverComment.user?.avatar_url,
+      is_verified: serverComment.user?.is_verified || false,
+    },
+    text: serverComment.content || serverComment.text || '',
+    content: serverComment.content,
+    createdAt: serverComment.created_at || serverComment.createdAt || new Date().toISOString(),
+    created_at: serverComment.created_at,
+    updatedAt: serverComment.updated_at || serverComment.updatedAt || new Date().toISOString(),
+    updated_at: serverComment.updated_at,
+    edited: serverComment.is_edited || serverComment.edited || false,
+    is_edited: serverComment.is_edited,
+    isDeleted: serverComment.is_deleted || false,
+    likeCount: serverComment.likes_count || serverComment.likeCount || 0,
+    likes_count: serverComment.likes_count,
+    likedByMe: serverComment.is_liked || serverComment.likedByMe || false,
+    is_liked: serverComment.is_liked,
+  };
+};
 
-const API_BASE_URL = getEnvironmentConfig().apiUrl;
+// Classify errors based on response
+function classifyError(error: any): Status {
+  if (!error) return 'network_error';
+  
+  if (error.name === 'TypeError' || error.message?.includes('Failed to fetch')) {
+    return 'network_error';
+  }
+  
+  if (error.status >= 500) {
+    return 'server_error';
+  }
+  
+  if (error.status >= 400 && error.status < 500) {
+    return 'client_error';
+  }
+  
+  if (error.name === 'SyntaxError' || error.message?.includes('JSON')) {
+    return 'parse_error';
+  }
+  
+  return 'network_error';
+}
 
-export const useUnifiedCommentStore = create<CommentState & CommentActions>()(
+export const useUnifiedCommentStore = create<CommentsState & CommentsActions>()(
   devtools(
     (set, get) => ({
-      // Initial state
-      commentsByPrediction: {},
-      commentCounts: {},
-      loading: {},
-      errors: {},
-      submitting: {},
-      fetchedPredictions: new Set(),
-      lastFetched: {},
-      initialized: false,
+      byPrediction: {},
 
-      // Initialize the store
-      initialize: () => {
-        const state = get();
-        if (!state.initialized) {
-          console.log('🔧 Initializing unified comment store');
-          set({ initialized: true });
-        }
-      },
-
-      // Initialize comment counts from external data (like predictions)
-      initializeCommentCounts: (counts: CommentCounts) => {
-        console.log('🔧 Initializing comment counts:', counts);
-        set((state) => ({
-          commentCounts: { ...state.commentCounts, ...counts }
-        }));
-      },
-
-      // Update comment count for a prediction
-      updateCommentCount: (predictionId: string, count: number) => {
-        if (!predictionId?.trim()) {
-          console.warn('⚠️ Cannot update comment count: invalid predictionId');
-          return;
-        }
-        
-        console.log(`📊 Updating comment count for ${predictionId}: ${count}`);
-        set((state) => ({
-          commentCounts: {
-            ...state.commentCounts,
-            [predictionId]: count
-          }
-        }));
-      },
-
-      // Get comment count for a prediction (with fallbacks)
-      getCommentCount: (predictionId: string) => {
-        if (!predictionId?.trim()) {
-          return 0;
-        }
-
-        const state = get();
-        
-        // 1. Check actual loaded comments first (most accurate)
-        const actualComments = state.commentsByPrediction[predictionId];
-        if (actualComments && Array.isArray(actualComments)) {
-          return actualComments.length;
-        }
-        
-        // 2. Fall back to stored count
-        if (state.commentCounts[predictionId] !== undefined) {
-          return state.commentCounts[predictionId];
-        }
-        
-        // 3. Default to 0
-        return 0;
-      },
-
-      // Get comments for a prediction
+      // Getters
       getComments: (predictionId: string) => {
-        if (!predictionId?.trim()) {
-          return [];
-        }
-
-        const state = get();
-        return state.commentsByPrediction[predictionId] || [];
+        const state = get().byPrediction[predictionId];
+        return state?.items || [];
       },
 
-      // Clear error for a prediction
-      clearError: (predictionId: string) => {
-        if (!predictionId?.trim()) {
-          return;
-        }
-
-        set((state) => ({
-          errors: {
-            ...state.errors,
-            [predictionId]: null
-          }
-        }));
+      getCommentCount: (predictionId: string) => {
+        const state = get().byPrediction[predictionId];
+        return state?.items?.length || 0;
       },
 
-      // Fetch comments for a prediction
+      getStatus: (predictionId: string) => {
+        const state = get().byPrediction[predictionId];
+        return state?.status || 'idle';
+      },
+
+      getDraft: (predictionId: string) => {
+        const state = get().byPrediction[predictionId];
+        return state?.draft || '';
+      },
+
+      isPosting: (predictionId: string) => {
+        const state = get().byPrediction[predictionId];
+        return state?.posting || false;
+      },
+
+      hasMore: (predictionId: string) => {
+        const state = get().byPrediction[predictionId];
+        return state?.nextCursor !== null;
+      },
+
+      // Fetch initial comments
       fetchComments: async (predictionId: string) => {
         if (!predictionId?.trim()) {
-          console.warn('⚠️ Cannot fetch comments: invalid predictionId');
+          qaLog('fetchComments: invalid predictionId');
           return;
         }
 
-        const state = get();
-        
-        // Cache policy: allow cache only if it is non-empty and fresh (<= 60s)
-        const lastFetch = state.lastFetched[predictionId];
-        const sixtySecondsAgo = Date.now() - (60 * 1000);
-        const cached = state.commentsByPrediction[predictionId];
-        const cachedLength = Array.isArray(cached) ? cached.length : 0;
-        if (lastFetch && lastFetch > sixtySecondsAgo && cachedLength > 0) {
-          console.log(`⚡ Using cached comments for prediction ${predictionId} (${cachedLength} comments)`);
-          return;
-        }
-        
-        // Check if we're already loading this prediction
-        if (state.loading[predictionId]) {
-          console.log(`⏳ Already loading comments for prediction ${predictionId}`);
-          return;
+        const currentState = get().byPrediction[predictionId];
+        if (currentState?.status === 'loading') {
+          return; // Already loading
         }
 
-        // Do not block refetches purely because we fetched once before; rely on TTL above
+        qaLog(`Fetching comments for ${predictionId}`);
 
-        console.log(`🔍 Fetching comments for prediction ${predictionId}`);
-        
         set((state) => ({
-          loading: { ...state.loading, [predictionId]: true },
-          errors: { ...state.errors, [predictionId]: null }
+          byPrediction: {
+            ...state.byPrediction,
+            [predictionId]: {
+              ...state.byPrediction[predictionId],
+              status: 'loading',
+            },
+          },
         }));
 
         try {
-          const response = await fetch(
-            `${API_BASE_URL}/api/v2/social/predictions/${predictionId}/comments`,
-            {
-              method: 'GET',
-              headers: {
-                'Content-Type': 'application/json',
-              },
-            }
-          );
-
-          if (!response.ok) {
-            throw new Error(`API responded with ${response.status}`);
+          // Try the social endpoint first, then the comments endpoint
+          let response;
+          try {
+            response = await apiClient.get(`/social/predictions/${predictionId}/comments?page=1&limit=20`);
+          } catch (socialError) {
+            qaLog('Social endpoint failed, trying comments endpoint:', socialError);
+            response = await apiClient.get(`/comments/predictions/${predictionId}/comments?page=1&limit=20`);
+          }
+          
+          // Handle different response formats
+          let items: Comment[] = [];
+          let nextCursor = null;
+          
+          if (response.data && Array.isArray(response.data)) {
+            // New social service format
+            items = response.data.map(transformComment);
+            nextCursor = response.pagination?.hasNext ? 'next' : null;
+          } else if (response.comments && Array.isArray(response.comments)) {
+            // Comments service format
+            items = response.comments.map(transformComment);
+            nextCursor = response.hasMore ? 'next' : null;
+          } else if (Array.isArray(response)) {
+            // Direct array format
+            items = response.map(transformComment);
           }
 
-          const data = await response.json();
-          const comments: UnifiedComment[] = data.comments || [];
+          qaLog(`Fetched ${items.length} comments for ${predictionId}`);
 
-          console.log(`✅ Loaded ${comments.length} comments for prediction ${predictionId}`);
-
-          set((state) => {
-            const newFetchedPredictions = new Set(state.fetchedPredictions);
-            newFetchedPredictions.add(predictionId);
-            
-            return {
-              commentsByPrediction: {
-                ...state.commentsByPrediction,
-                [predictionId]: comments
-              },
-              commentCounts: {
-                ...state.commentCounts,
-                [predictionId]: comments.length
-              },
-              fetchedPredictions: newFetchedPredictions,
-              lastFetched: {
-                ...state.lastFetched,
-                [predictionId]: Date.now()
-              },
-              loading: { ...state.loading, [predictionId]: false }
-            };
-          });
-
-        } catch (error) {
-          console.error('❌ Failed to fetch comments:', error);
-          
           set((state) => ({
-            commentsByPrediction: {
-              ...state.commentsByPrediction,
-              [predictionId]: []
+            byPrediction: {
+              ...state.byPrediction,
+              [predictionId]: {
+                ...state.byPrediction[predictionId],
+                items,
+                nextCursor,
+                status: 'loaded',
+              },
             },
-            commentCounts: {
-              ...state.commentCounts,
-              [predictionId]: 0
+          }));
+
+        } catch (error: any) {
+          // Handle 404 as empty comments (no error state)
+          if (error.status === 404) {
+            qaLog(`No comments found for ${predictionId} (404)`);
+            set((state) => ({
+              byPrediction: {
+                ...state.byPrediction,
+                [predictionId]: {
+                  ...state.byPrediction[predictionId],
+                  items: [],
+                  nextCursor: null,
+                  status: 'loaded',
+                },
+              },
+            }));
+            return;
+          }
+          
+          const errorStatus = classifyError(error);
+          qaLog(`Failed to fetch comments for ${predictionId}:`, error);
+
+          set((state) => ({
+            byPrediction: {
+              ...state.byPrediction,
+              [predictionId]: {
+                ...state.byPrediction[predictionId],
+                items: state.byPrediction[predictionId]?.items || [], // Keep last good data
+                status: errorStatus,
+              },
             },
-            loading: { ...state.loading, [predictionId]: false },
-            errors: { 
-              ...state.errors, 
-              [predictionId]: 'Failed to load comments. Please try again later.' 
-            }
           }));
         }
       },
 
-      // Add a new comment
-      addComment: async (predictionId: string, content: string, parentCommentId?: string, userData?: any) => {
+      // Load more comments (pagination)
+      loadMore: async (predictionId: string) => {
         if (!predictionId?.trim()) {
-          throw new Error('Cannot add comment: invalid predictionId');
+          return;
         }
 
-        if (!content?.trim()) {
-          throw new Error('Comment content cannot be empty');
+        const currentState = get().byPrediction[predictionId];
+        if (!currentState?.nextCursor || currentState?.status === 'paginating') {
+          return; // No more data or already loading
         }
 
-        console.log(`💬 Adding comment to prediction ${predictionId}`);
+        qaLog(`Loading more comments for ${predictionId}`);
 
         set((state) => ({
-          submitting: { ...state.submitting, [predictionId]: true },
-          errors: { ...state.errors, [predictionId]: null }
+          byPrediction: {
+            ...state.byPrediction,
+            [predictionId]: {
+              ...state.byPrediction[predictionId],
+              status: 'paginating',
+            },
+          },
         }));
 
         try {
-          const response = await fetch(
-            `${API_BASE_URL}/api/v2/social/predictions/${predictionId}/comments`,
-            {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({
-                content: content.trim(),
-                parent_comment_id: parentCommentId || null,
-                user: userData || null,
-              }),
-            }
-          );
-
-          if (!response.ok) {
-            throw new Error(`API responded with ${response.status}`);
+          // Calculate next page
+          const currentPage = Math.ceil((currentState.items?.length || 0) / 20) + 1;
+          
+          let response;
+          try {
+            response = await apiClient.get(`/social/predictions/${predictionId}/comments?page=${currentPage}&limit=20`);
+          } catch (socialError) {
+            response = await apiClient.get(`/comments/predictions/${predictionId}/comments?page=${currentPage}&limit=20`);
+          }
+          
+          let newItems: Comment[] = [];
+          let nextCursor = null;
+          
+          if (response.data && Array.isArray(response.data)) {
+            newItems = response.data.map(transformComment);
+            nextCursor = response.pagination?.hasNext ? 'next' : null;
+          } else if (response.comments && Array.isArray(response.comments)) {
+            newItems = response.comments.map(transformComment);
+            nextCursor = response.hasMore ? 'next' : null;
           }
 
-          const newComment: UnifiedComment = await response.json();
+          qaLog(`Loaded ${newItems.length} more comments for ${predictionId}`);
 
-          set((state) => {
-            const existingComments = state.commentsByPrediction[predictionId] || [];
-            
-            let updatedComments: UnifiedComment[];
-            let newCount: number;
-            
-            if (parentCommentId) {
-              // Add as reply to existing comment
-              updatedComments = existingComments.map(comment => {
-                if (comment.id === parentCommentId) {
-                  return {
-                    ...comment,
-                    replies: [newComment, ...(comment.replies || [])],
-                    replies_count: (comment.replies_count || 0) + 1
-                  };
-                }
-                return comment;
-              });
-              // Don't increment main count for replies
-              newCount = state.commentCounts[predictionId] || 0;
-            } else {
-              // Add as top-level comment
-              updatedComments = [newComment, ...existingComments];
-              newCount = (state.commentCounts[predictionId] || 0) + 1;
-            }
-
-            return {
-              commentsByPrediction: {
-                ...state.commentsByPrediction,
-                [predictionId]: updatedComments
-              },
-              commentCounts: {
-                ...state.commentCounts,
-                [predictionId]: newCount
-              },
-              submitting: { ...state.submitting, [predictionId]: false }
-            };
-          });
-
-          console.log(`✅ Added comment to prediction ${predictionId}`);
-
-        } catch (error) {
-          console.error('❌ Failed to add comment:', error);
-          
           set((state) => ({
-            submitting: { ...state.submitting, [predictionId]: false },
-            errors: { 
-              ...state.errors, 
-              [predictionId]: 'Failed to post comment. Please try again.' 
-            }
-          }));
-          
-          throw error;
-        }
-      },
-
-      // Toggle like on a comment
-      toggleCommentLike: async (commentId: string, predictionId: string) => {
-        if (!commentId?.trim() || !predictionId?.trim()) {
-          console.warn('⚠️ Cannot toggle comment like: invalid parameters');
-          return;
-        }
-
-        try {
-          // Optimistically update the UI first
-          set((state) => {
-            const comments = state.commentsByPrediction[predictionId] || [];
-            
-            const updateCommentLike = (comment: UnifiedComment): UnifiedComment => {
-              if (comment.id === commentId) {
-                return {
-                  ...comment,
-                  is_liked: !comment.is_liked,
-                  likes_count: comment.is_liked ? 
-                    Math.max(0, comment.likes_count - 1) : 
-                    comment.likes_count + 1
-                };
-              }
-              
-              if (comment.replies) {
-                return {
-                  ...comment,
-                  replies: comment.replies.map(updateCommentLike)
-                };
-              }
-              
-              return comment;
-            };
-
-            return {
-              commentsByPrediction: {
-                ...state.commentsByPrediction,
-                [predictionId]: comments.map(updateCommentLike)
-              }
-            };
-          });
-
-          // Then try to sync with the server
-          const response = await fetch(
-            `${API_BASE_URL}/api/v2/social/comments/${commentId}/like`,
-            {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
+            byPrediction: {
+              ...state.byPrediction,
+              [predictionId]: {
+                ...state.byPrediction[predictionId],
+                items: [...(state.byPrediction[predictionId]?.items || []), ...newItems],
+                nextCursor,
+                status: 'loaded',
               },
-            }
-          );
+            },
+          }));
 
-          if (!response.ok) {
-            console.warn('❌ Failed to sync like with server, but UI updated optimistically');
-          } else {
-            console.log('✅ Like synced with server');
-          }
+        } catch (error: any) {
+          const errorStatus = classifyError(error);
+          qaLog(`Failed to load more comments for ${predictionId}:`, error);
 
-        } catch (error) {
-          console.error('❌ Failed to toggle like:', error);
-          // Don't revert the optimistic update since it might still work locally
+          set((state) => ({
+            byPrediction: {
+              ...state.byPrediction,
+              [predictionId]: {
+                ...state.byPrediction[predictionId],
+                status: errorStatus,
+              },
+            },
+          }));
         }
       },
 
-      // Edit an existing comment
-      editComment: async (predictionId: string, commentId: string, content: string) => {
-        if (!predictionId?.trim() || !commentId?.trim()) {
-          console.warn('⚠️ Cannot edit comment: invalid parameters');
-          return;
+      // Add new comment
+      addComment: async (predictionId: string, text: string) => {
+        if (!predictionId?.trim() || !text?.trim()) {
+          throw new Error('Invalid input');
         }
 
-        if (!content?.trim()) {
-          console.warn('⚠️ Cannot edit comment: empty content');
-          return;
+        const trimmedText = text.trim();
+        if (trimmedText.length > 280) {
+          throw new Error('Comment too long');
         }
+
+        qaLog(`Adding comment to ${predictionId}:`, trimmedText);
+
+        set((state) => ({
+          byPrediction: {
+            ...state.byPrediction,
+            [predictionId]: {
+              ...state.byPrediction[predictionId],
+              posting: true,
+            },
+          },
+        }));
+
+        // Create optimistic comment with current user info
+        const { user } = useAuthStore.getState();
+        const tempId = `temp_${Date.now()}`;
+        const optimisticComment: Comment = {
+          id: tempId,
+          predictionId,
+          user: { 
+            id: user?.id || 'demo-user', 
+            username: user?.username || 'You', 
+            full_name: user?.full_name,
+            avatarUrl: user?.avatar_url,
+            is_verified: user?.is_verified || false
+          },
+          text: trimmedText,
+          content: trimmedText,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          edited: false,
+          isDeleted: false,
+          likeCount: 0,
+          likedByMe: false,
+        };
+
+        // Add optimistic comment
+        set((state) => {
+          const currentItems = state.byPrediction[predictionId]?.items || [];
+          return {
+            byPrediction: {
+              ...state.byPrediction,
+              [predictionId]: {
+                ...state.byPrediction[predictionId],
+                items: [optimisticComment, ...currentItems],
+              },
+            },
+          };
+        });
 
         try {
-          const response = await fetch(
-            `${API_BASE_URL}/api/v2/social/comments/${commentId}`,
-            {
-              method: 'PUT',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ content: content.trim() })
-            }
-          );
-
-          if (!response.ok) {
-            throw new Error(`API responded with ${response.status}`);
+          // Try social endpoint first, then comments endpoint
+          let response;
+          try {
+            response = await apiClient.post(`/social/predictions/${predictionId}/comments`, {
+              content: trimmedText,
+              userId: user?.id || 'demo-user',
+              user: user
+            });
+          } catch (socialError) {
+            qaLog('Social endpoint failed, trying comments endpoint:', socialError);
+            response = await apiClient.post(`/comments/predictions/${predictionId}/comments`, {
+              content: trimmedText,
+              user: user
+            });
           }
 
-          // Update local state
-          set((state) => {
-            const updateContent = (c: UnifiedComment): UnifiedComment => {
-              if (c.id === commentId) {
-                return { ...c, content: content.trim(), is_edited: true, updated_at: new Date().toISOString() };
-              }
-              if (c.replies) {
-                return { ...c, replies: c.replies.map(updateContent) };
-              }
-              return c;
-            };
+          // Handle different response formats
+          let serverComment: Comment;
+          if (response.data) {
+            serverComment = transformComment(response.data);
+          } else if (response.success && response.data) {
+            serverComment = transformComment(response.data);
+          } else {
+            serverComment = transformComment(response);
+          }
 
-            return {
-              commentsByPrediction: {
-                ...state.commentsByPrediction,
-                [predictionId]: (state.commentsByPrediction[predictionId] || []).map(updateContent)
-              }
-            };
-          });
-        } catch (error) {
-          console.error('❌ Failed to edit comment:', error);
+          qaLog(`Comment added successfully for ${predictionId}`);
+
+          // Replace optimistic comment with server response
+          set((state) => ({
+            byPrediction: {
+              ...state.byPrediction,
+              [predictionId]: {
+                ...state.byPrediction[predictionId],
+                items: state.byPrediction[predictionId]?.items.map(item =>
+                  item.id === tempId ? serverComment : item
+                ) || [serverComment],
+                posting: false,
+                draft: '', // Clear draft on success
+              },
+            },
+          }));
+
+          // Clear draft from session storage
+          try {
+            sessionStorage.removeItem(`fcz_comment_draft_${predictionId}`);
+          } catch (e) {
+            // Ignore storage errors
+          }
+
+        } catch (error: any) {
+          qaLog(`Failed to add comment for ${predictionId}:`, error);
+
+          // Remove optimistic comment and restore state
+          set((state) => ({
+            byPrediction: {
+              ...state.byPrediction,
+              [predictionId]: {
+                ...state.byPrediction[predictionId],
+                items: state.byPrediction[predictionId]?.items.filter(item => item.id !== tempId) || [],
+                posting: false,
+              },
+            },
+          }));
+
           throw error;
         }
       },
 
-      // Delete a comment
+      // Edit comment
+      editComment: async (predictionId: string, commentId: string, text: string) => {
+        if (!predictionId?.trim() || !commentId?.trim() || !text?.trim()) {
+          throw new Error('Invalid input');
+        }
+
+        const trimmedText = text.trim();
+        if (trimmedText.length > 280) {
+          throw new Error('Comment too long');
+        }
+
+        qaLog(`Editing comment ${commentId} in ${predictionId}`);
+
+        // Store original for rollback
+        const originalComment = get().byPrediction[predictionId]?.items.find(c => c.id === commentId);
+        if (!originalComment) {
+          throw new Error('Comment not found');
+        }
+
+        // Optimistic update
+        set((state) => ({
+          byPrediction: {
+            ...state.byPrediction,
+            [predictionId]: {
+              ...state.byPrediction[predictionId],
+              items: state.byPrediction[predictionId]?.items.map(item =>
+                item.id === commentId
+                  ? { ...item, text: trimmedText, edited: true, updatedAt: new Date().toISOString() }
+                  : item
+              ) || [],
+            },
+          },
+        }));
+
+        try {
+          // Try social endpoint first, then comments endpoint
+          let response;
+          try {
+            response = await apiClient.put(`/social/comments/${commentId}`, {
+              content: trimmedText
+            });
+          } catch (socialError) {
+            response = await apiClient.put(`/comments/${commentId}`, {
+              content: trimmedText
+            });
+          }
+
+          let updatedComment: Comment;
+          if (response.data) {
+            updatedComment = transformComment(response.data);
+          } else {
+            updatedComment = transformComment(response);
+          }
+
+          set((state) => ({
+            byPrediction: {
+              ...state.byPrediction,
+              [predictionId]: {
+                ...state.byPrediction[predictionId],
+                items: state.byPrediction[predictionId]?.items.map(item =>
+                  item.id === commentId ? updatedComment : item
+                ) || [],
+              },
+            },
+          }));
+
+        } catch (error: any) {
+          qaLog(`Failed to edit comment ${commentId}:`, error);
+
+          // Rollback
+          set((state) => ({
+            byPrediction: {
+              ...state.byPrediction,
+              [predictionId]: {
+                ...state.byPrediction[predictionId],
+                items: state.byPrediction[predictionId]?.items.map(item =>
+                  item.id === commentId ? originalComment : item
+                ) || [],
+              },
+            },
+          }));
+
+          throw error;
+        }
+      },
+
+      // Delete comment
       deleteComment: async (predictionId: string, commentId: string) => {
         if (!predictionId?.trim() || !commentId?.trim()) {
-          console.warn('⚠️ Cannot delete comment: invalid parameters');
-          return;
+          throw new Error('Invalid input');
         }
 
-        try {
-          const response = await fetch(
-            `${API_BASE_URL}/api/v2/social/comments/${commentId}`,
-            { method: 'DELETE' }
-          );
+        qaLog(`Deleting comment ${commentId} from ${predictionId}`);
 
-          if (!response.ok) {
-            throw new Error(`API responded with ${response.status}`);
+        // Store original for rollback
+        const originalItems = get().byPrediction[predictionId]?.items || [];
+        const commentToDelete = originalItems.find(c => c.id === commentId);
+        if (!commentToDelete) {
+          throw new Error('Comment not found');
+        }
+
+        // Optimistic delete
+        set((state) => ({
+          byPrediction: {
+            ...state.byPrediction,
+            [predictionId]: {
+              ...state.byPrediction[predictionId],
+              items: state.byPrediction[predictionId]?.items.filter(item => item.id !== commentId) || [],
+            },
+          },
+        }));
+
+        try {
+          // Try social endpoint first, then comments endpoint
+          try {
+            await apiClient.delete(`/social/comments/${commentId}`);
+          } catch (socialError) {
+            await apiClient.delete(`/comments/${commentId}`);
           }
 
-          set((state) => {
-            let decreasedTopLevel = false;
+          qaLog(`Comment ${commentId} deleted successfully`);
 
-            const removeById = (arr: UnifiedComment[]): UnifiedComment[] => {
-              const result: UnifiedComment[] = [];
-              for (const item of arr) {
-                if (item.id === commentId) {
-                  decreasedTopLevel = true;
-                  continue; // skip
-                }
-                if (item.replies && item.replies.length > 0) {
-                  const before = item.replies.length;
-                  const pruned = removeById(item.replies);
-                  const after = pruned.length;
-                  if (after !== before) {
-                    result.push({ ...item, replies: pruned, replies_count: Math.max(0, (item.replies_count || before) - (before - after)) });
-                    continue;
-                  }
-                }
-                result.push(item);
-              }
-              return result;
-            };
+        } catch (error: any) {
+          qaLog(`Failed to delete comment ${commentId}:`, error);
 
-            const current = state.commentsByPrediction[predictionId] || [];
-            const updated = removeById(current);
-
-            return {
-              commentsByPrediction: {
-                ...state.commentsByPrediction,
-                [predictionId]: updated
+          // Rollback
+          set((state) => ({
+            byPrediction: {
+              ...state.byPrediction,
+              [predictionId]: {
+                ...state.byPrediction[predictionId],
+                items: originalItems,
               },
-              commentCounts: {
-                ...state.commentCounts,
-                [predictionId]: Math.max(0, (state.commentCounts[predictionId] || updated.length) - (decreasedTopLevel ? 1 : 0))
-              }
-            };
-          });
-        } catch (error) {
-          console.error('❌ Failed to delete comment:', error);
+            },
+          }));
+
           throw error;
+        }
+      },
+
+      // Set draft with session persistence
+      setDraft: (predictionId: string, draft: string) => {
+        set((state) => ({
+          byPrediction: {
+            ...state.byPrediction,
+            [predictionId]: {
+              ...state.byPrediction[predictionId],
+              draft,
+            },
+          },
+        }));
+
+        // Persist to session storage with debouncing
+        try {
+          if (draft.trim()) {
+            sessionStorage.setItem(`fcz_comment_draft_${predictionId}`, draft);
+          } else {
+            sessionStorage.removeItem(`fcz_comment_draft_${predictionId}`);
+          }
+        } catch (e) {
+          // Ignore storage errors
+        }
+      },
+
+      clearDraft: (predictionId: string) => {
+        set((state) => ({
+          byPrediction: {
+            ...state.byPrediction,
+            [predictionId]: {
+              ...state.byPrediction[predictionId],
+              draft: '',
+            },
+          },
+        }));
+
+        try {
+          sessionStorage.removeItem(`fcz_comment_draft_${predictionId}`);
+        } catch (e) {
+          // Ignore storage errors
+        }
+      },
+
+      setHighlighted: (predictionId: string, commentId: string | undefined) => {
+        set((state) => ({
+          byPrediction: {
+            ...state.byPrediction,
+            [predictionId]: {
+              ...state.byPrediction[predictionId],
+              highlightedId: commentId,
+            },
+          },
+        }));
+
+        // Auto-clear highlight after 1.5s
+        if (commentId) {
+          setTimeout(() => {
+            set((state) => ({
+              byPrediction: {
+                ...state.byPrediction,
+                [predictionId]: {
+                  ...state.byPrediction[predictionId],
+                  highlightedId: undefined,
+                },
+              },
+            }));
+          }, 1500);
         }
       },
     }),
     {
-      name: 'unified-comment-store',
-      partialize: (state) => ({
-        commentCounts: state.commentCounts, // Persist only comment counts
-        initialized: state.initialized,
-      }),
+      name: 'fcz-unified-comments',
+      partialize: (state) => ({}), // Don't persist to localStorage - using sessionStorage for drafts
     }
   )
 );
 
-import { useCallback, useMemo } from 'react';
-
-// Helper hook to get comment data for a specific prediction
+// Hook for convenient access to a specific prediction's comments
 export const useCommentsForPrediction = (predictionId: string) => {
   const store = useUnifiedCommentStore();
-
-  // Stabilize the prediction ID to prevent unnecessary re-renders
-  const safePredictionId = useMemo(() => predictionId?.trim() || '', [predictionId]);
   
-  // Memoize the functions to prevent useEffect dependencies from changing
-  const fetchComments = useCallback(() => {
-    if (!safePredictionId) {
-      console.warn('⚠️ Cannot fetch comments: no prediction ID provided');
-      return Promise.resolve();
-    }
-    return store.fetchComments(safePredictionId);
-  }, [store.fetchComments, safePredictionId]);
-
-  const addComment = useCallback((content: string, parentCommentId?: string, userData?: any) => {
-    if (!safePredictionId) {
-      console.warn('⚠️ Cannot add comment: no prediction ID provided');
-      return Promise.resolve();
-    }
-    return store.addComment(safePredictionId, content, parentCommentId, userData);
-  }, [store.addComment, safePredictionId]);
-
-  const toggleCommentLike = useCallback((commentId: string) => {
-    if (!safePredictionId) {
-      console.warn('⚠️ Cannot toggle like: no prediction ID provided');
-      return Promise.resolve();
-    }
-    return store.toggleCommentLike(commentId, safePredictionId);
-  }, [store.toggleCommentLike, safePredictionId]);
-
-  const clearError = useCallback(() => {
-    if (!safePredictionId) {
-      return;
-    }
-    store.clearError(safePredictionId);
-  }, [store.clearError, safePredictionId]);
-  
-  // Return memoized object to prevent unnecessary re-renders
-  return useMemo(() => {
-    if (!safePredictionId) {
-      return {
-        comments: [],
-        commentCount: 0,
-        isLoading: false,
-        error: null,
-        isSubmitting: false,
-        fetchComments,
-        addComment,
-        toggleCommentLike,
-        clearError,
-      };
-    }
-
-    return {
-      comments: store.getComments(safePredictionId),
-      commentCount: store.getCommentCount(safePredictionId),
-      isLoading: store.loading[safePredictionId] || false,
-      error: store.errors[safePredictionId] || null,
-      isSubmitting: store.submitting[safePredictionId] || false,
-      fetchComments,
-      addComment,
-      toggleCommentLike,
-      clearError,
-    };
-  }, [
-    safePredictionId,
-    store.commentsByPrediction[safePredictionId],
-    store.commentCounts[safePredictionId],
-    store.loading[safePredictionId],
-    store.errors[safePredictionId],
-    store.submitting[safePredictionId],
-    fetchComments,
-    addComment,
-    toggleCommentLike,
-    clearError
-  ]);
+  return {
+    comments: store.getComments(predictionId),
+    commentCount: store.getCommentCount(predictionId),
+    status: store.getStatus(predictionId),
+    draft: store.getDraft(predictionId),
+    isPosting: store.isPosting(predictionId),
+    hasMore: store.hasMore(predictionId),
+    
+    // Actions
+    fetchComments: () => store.fetchComments(predictionId),
+    loadMore: () => store.loadMore(predictionId),
+    addComment: (text: string) => store.addComment(predictionId, text),
+    editComment: (commentId: string, text: string) => store.editComment(predictionId, commentId, text),
+    deleteComment: (commentId: string) => store.deleteComment(predictionId, commentId),
+    setDraft: (draft: string) => store.setDraft(predictionId, draft),
+    clearDraft: () => store.clearDraft(predictionId),
+    setHighlighted: (commentId: string | undefined) => store.setHighlighted(predictionId, commentId),
+  };
 };

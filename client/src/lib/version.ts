@@ -2,6 +2,7 @@
 // Centralized: import VERSION from shared
 // Production-compatible version import
 import pkg from '../../package.json';
+import { mode, isProd } from '@/utils/environment';
 const SHARED_VERSION: string = (pkg as any).version || '0.0.0';
 
 const BASE_VERSION = SHARED_VERSION;
@@ -59,8 +60,8 @@ export class VersionManager {
       version: this.currentVersion,
       buildTime: new Date().toISOString(),
       cacheBuster: `v${this.currentVersion}-${new Date().toISOString().split('T')[0]}-auto`,
-      environment: import.meta.env.MODE,
-      isProduction: import.meta.env.PROD
+      environment: mode,
+      isProduction: isProd
     };
   }
 }

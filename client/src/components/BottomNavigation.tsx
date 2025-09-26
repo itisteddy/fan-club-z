@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Home, TrendingUp, User, Wallet, Plus } from 'lucide-react';
+import { Home, TrendingUp, Trophy, User, Wallet, Plus } from 'lucide-react';
 
 interface BottomNavigationProps {
   activeTab?: string;
@@ -18,6 +18,7 @@ const BottomNavigation: React.FC<BottomNavigationProps> = ({
   const tabs = [
     { id: 'discover', label: 'Discover', icon: Home },
     { id: 'bets', label: 'My Bets', icon: TrendingUp },
+    { id: 'leaderboard', label: 'Rankings', icon: Trophy },
     { id: 'wallet', label: 'Wallet', icon: Wallet },
     { id: 'profile', label: 'Profile', icon: User },
   ];
@@ -53,7 +54,7 @@ const BottomNavigation: React.FC<BottomNavigationProps> = ({
           display: 'flex', 
           alignItems: 'center', 
           justifyContent: 'space-around',
-          maxWidth: '400px',
+          maxWidth: '500px',
           margin: '0 auto',
           position: 'relative'
         }}>
@@ -72,7 +73,7 @@ const BottomNavigation: React.FC<BottomNavigationProps> = ({
                   flexDirection: 'column',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  padding: '8px 4px',
+                  padding: '6px 4px',
                   minWidth: '0',
                   flex: '1',
                   position: 'relative',
@@ -100,10 +101,10 @@ const BottomNavigation: React.FC<BottomNavigationProps> = ({
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  marginBottom: '6px',
+                  marginBottom: '4px',
                   marginTop: '2px',
-                  width: '24px',
-                  height: '24px'
+                  width: '20px',
+                  height: '20px'
                 }}>
                   <div style={{
                     transition: 'all 0.2s ease',
@@ -113,7 +114,7 @@ const BottomNavigation: React.FC<BottomNavigationProps> = ({
                     alignItems: 'center',
                     justifyContent: 'center'
                   }}>
-                    <Icon size={20} />
+                    <Icon size={18} />
                   </div>
                   
                   {/* Active indicator */}
@@ -122,14 +123,14 @@ const BottomNavigation: React.FC<BottomNavigationProps> = ({
                       layoutId="activeTab"
                       style={{
                         position: 'absolute',
-                        top: '-6px',
+                        top: '-4px',
                         left: '50%',
                         transform: 'translateX(-50%)',
                         width: '4px',
                         height: '4px',
                         backgroundColor: '#7B2FF7',
                         borderRadius: '50%',
-                        boxShadow: '0 0 6px rgba(34, 197, 94, 0.6)'
+                        boxShadow: '0 0 6px rgba(123, 47, 247, 0.6)'
                       }}
                       initial={false}
                       transition={{ type: "spring", stiffness: 400, damping: 30 }}
@@ -137,7 +138,7 @@ const BottomNavigation: React.FC<BottomNavigationProps> = ({
                   )}
                 </div>
                 <span style={{
-                  fontSize: '11px',
+                  fontSize: '10px',
                   fontWeight: isActive ? '600' : '500',
                   transition: 'all 0.2s ease',
                   color: isActive ? '#7B2FF7' : '#6b7280',

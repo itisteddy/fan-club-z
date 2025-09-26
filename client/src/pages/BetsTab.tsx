@@ -2,16 +2,23 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useLocation } from 'wouter';
 import { useAuthStore } from '../store/authStore';
+import { useAuthSession } from '../providers/AuthSessionProvider';
 import { usePredictionStore } from '../store/predictionStore';
+import { openAuthGate } from '../auth/authGateAdapter';
+import SignedOutGateCard from '../components/auth/SignedOutGateCard';
 import { 
   TrendingUp, 
   Target, 
   CheckCircle, 
   Plus, 
   Settings,
-  Share2
+  Share2,
+  Users,
+  Clock,
+  DollarSign
 } from 'lucide-react';
 import ManagePredictionModal from '../components/modals/ManagePredictionModal';
+import { cn } from '../utils/cn';
 
 // Production BetsTab Component - Extracted from production bundle
 const BetsTab: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNavigateToDiscover }) => {
@@ -24,7 +31,21 @@ const BetsTab: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNavigateTo
     getUserPredictionEntries, 
     loading 
   } = usePredictionStore();
-  const { user, isAuthenticated } = useAuthStore();
+  const { user: storeUser, isAuthenticated: storeAuthenticated } = useAuthStore();
+  const { user: sessionUser, initialized: sessionInitialized } = useAuthSession();
+  
+  // Use session as source of truth for authentication, fallback to store
+  const isAuthenticated = sessionUser ? true : storeAuthenticated;
+  const user = sessionUser ? {
+    id: sessionUser.id,
+    firstName: sessionUser.user_metadata?.firstName || sessionUser.user_metadata?.first_name || sessionUser.user_metadata?.full_name?.split(' ')[0] || 'User',
+    lastName: sessionUser.user_metadata?.lastName || sessionUser.user_metadata?.last_name || sessionUser.user_metadata?.full_name?.split(' ').slice(1).join(' ') || '',
+    email: sessionUser.email || '',
+    phone: sessionUser.phone,
+    avatar: sessionUser.user_metadata?.avatar_url || sessionUser.user_metadata?.picture,
+    provider: sessionUser.app_metadata?.provider || 'email',
+    createdAt: sessionUser.created_at
+  } : storeUser;
 
   const [activeTab, setActiveTab] = useState("Active");
   const [showManageModal, setShowManageModal] = useState(false);
@@ -139,7 +160,7 @@ const BetsTab: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNavigateTo
 
   const counts = getCounts();
 
-  // Tab configuration
+  // Tab configuration with proper icon spacing
   const tabs = [
     { id: 'Active', label: 'Active', icon: TrendingUp, count: counts.active },
     { id: 'Created', label: 'Created', icon: Target, count: counts.created },
@@ -339,60 +360,141 @@ const BetsTab: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNavigateTo
             <h1 className="text-3xl font-bold text-gray-900 mb-6">My Predictions</h1>
           </div>
         </div>
-        <div className="flex flex-col items-center justify-center py-16 px-6">
-          <div className="w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center mb-6">
-            <Target className="w-10 h-10 text-gray-400" />
-          </div>
-          <h3 className="text-xl font-semibold text-gray-900 mb-2">Sign in to view your predictions</h3>
-          <p className="text-gray-600 text-center mb-8 max-w-sm">
-            Create an account or sign in to track your predictions, manage your portfolio, and engage with the community.
-          </p>
-          <motion.button
-            className="bg-emerald-500 hover:bg-emerald-600 text-white px-8 py-3 rounded-xl font-medium transition-all duration-200 flex items-center gap-2"
-            onClick={() => { onNavigateToDiscover && onNavigateToDiscover(); }}
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-          >
-            <Plus className="w-5 h-5" />
-            Explore Predictions
-          </motion.button>
-        </div>
+        <SignedOutGateCard
+          title="Sign in to view your predictions"
+          body="See your portfolio, performance, and history."
+          primaryLabel="Sign In"
+          onPrimary={async () => {
+            try {
+              const result = await openAuthGate({ intent: 'view_my_bets' });
+              if (result.status === 'success') {
+                // BetsTab will automatically re-render when auth succeeds
+              }
+            } catch (error) {
+              console.error('Auth gate error:', error);
+            }
+          }}
+          secondaryLabel="Explore Predictions"
+          onSecondary={() => onNavigateToDiscover && onNavigateToDiscover()}
+        />
       </div>
     );
   }
 
-  // Empty state component
-  const EmptyState = ({ tab }: { tab: string }) => (
-    <div className="flex flex-col items-center justify-center py-16 px-6">
-      <div className="w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center mb-6">
-        {tab === 'Active' && <TrendingUp className="w-10 h-10 text-gray-400" />}
-        {tab === 'Created' && <Target className="w-10 h-10 text-gray-400" />}
-        {tab === 'Completed' && <CheckCircle className="w-10 h-10 text-gray-400" />}
-      </div>
-      <h3 className="text-xl font-semibold text-gray-900 mb-2">No {tab.toLowerCase()} predictions</h3>
-      <p className="text-gray-600 text-center mb-8 max-w-sm">
-        {tab === 'Active' && "You haven't made any predictions yet. Start by exploring trending topics!"}
-        {tab === 'Created' && "You haven't created any predictions yet. Share your insights with the community!"}
-        {tab === 'Completed' && "Your prediction history will appear here once you complete some predictions."}
-      </p>
-      <motion.button
-        className="bg-emerald-500 hover:bg-emerald-600 text-white px-8 py-3 rounded-xl font-medium transition-all duration-200 flex items-center gap-2"
-        onClick={() => {
-          if (tab === 'Created') {
-            setLocation('/create');
-            window.scrollTo({ behavior: 'instant' });
-          } else {
-            onNavigateToDiscover && onNavigateToDiscover();
-          }
-        }}
-        whileHover={{ scale: 1.05 }}
-        whileTap={{ scale: 0.95 }}
+  // Contextual empty state component
+  const EmptyState = ({ tab }: { tab: string }) => {
+    const emptyStateConfig = {
+      'Active': {
+        icon: TrendingUp,
+        title: 'No active predictions',
+        description: "You haven't placed any bets yet. Start by exploring trending topics and making your first prediction!",
+        buttonText: 'Discover Predictions',
+        buttonColor: 'from-emerald-500 to-emerald-600',
+        iconBg: 'bg-emerald-100',
+        iconColor: 'text-emerald-500'
+      },
+      'Created': {
+        icon: Target,
+        title: 'No predictions created',
+        description: "Share your insights with the community! Create predictions and earn fees when others participate.",
+        buttonText: 'Create Prediction',
+        buttonColor: 'from-blue-500 to-blue-600',
+        iconBg: 'bg-blue-100',
+        iconColor: 'text-blue-500'
+      },
+      'Completed': {
+        icon: CheckCircle,
+        title: 'No completed predictions',
+        description: "Your prediction history and earnings will appear here as you complete predictions.",
+        buttonText: 'Browse Active Predictions',
+        buttonColor: 'from-purple-500 to-purple-600',
+        iconBg: 'bg-purple-100',
+        iconColor: 'text-purple-500'
+      }
+    };
+
+    const config = emptyStateConfig[tab];
+    const Icon = config.icon;
+
+    return (
+      <motion.div 
+        className="flex flex-col items-center justify-center py-20 px-6"
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, delay: 0.1 }}
       >
-        <Plus className="w-5 h-5" />
-        {tab === 'Created' ? 'Create Prediction' : 'Explore Predictions'}
-      </motion.button>
-    </div>
-  );
+        {/* Animated Icon */}
+        <motion.div 
+          className={cn(
+            "w-20 h-20 rounded-full flex items-center justify-center mb-6",
+            config.iconBg
+          )}
+          initial={{ scale: 0 }}
+          animate={{ scale: 1 }}
+          transition={{ 
+            type: "spring", 
+            stiffness: 260, 
+            damping: 20,
+            delay: 0.2 
+          }}
+        >
+          <motion.div
+            initial={{ rotateY: -180 }}
+            animate={{ rotateY: 0 }}
+            transition={{ delay: 0.4, duration: 0.6 }}
+          >
+            <Icon className={cn("w-10 h-10", config.iconColor)} />
+          </motion.div>
+        </motion.div>
+
+        {/* Title */}
+        <motion.h3 
+          className="text-xl font-bold text-gray-900 mb-3 text-center"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.3 }}
+        >
+          {config.title}
+        </motion.h3>
+
+        {/* Description */}
+        <motion.p 
+          className="text-gray-600 text-center mb-8 max-w-md leading-relaxed"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.4 }}
+        >
+          {config.description}
+        </motion.p>
+
+        {/* Action Button */}
+        <motion.button
+          className={cn(
+            "bg-gradient-to-r text-white px-8 py-3 rounded-xl font-semibold",
+            "transition-all duration-200 flex items-center gap-2 shadow-lg",
+            "hover:shadow-xl hover:scale-105 active:scale-95",
+            `${config.buttonColor}`
+          )}
+          onClick={() => {
+            if (tab === 'Created') {
+              setLocation('/create');
+              window.scrollTo({ behavior: 'instant' });
+            } else {
+              onNavigateToDiscover && onNavigateToDiscover();
+            }
+          }}
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.5 }}
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+        >
+          <Plus className="w-5 h-5" />
+          {config.buttonText}
+        </motion.button>
+      </motion.div>
+    );
+  };
 
   // Active prediction card
   const ActivePredictionCard = ({ prediction }: { prediction: any }) => (
@@ -446,25 +548,31 @@ const BetsTab: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNavigateTo
       </div>
       
       <div className="flex items-center justify-between text-sm text-gray-500">
-        <span>{prediction.participants} participants</span>
-        <span className={`font-medium ${
-          prediction.timeRemaining.includes('Closed') || 
-          prediction.timeRemaining.includes('Settled') || 
-          prediction.timeRemaining.includes('Disputed') || 
-          prediction.timeRemaining.includes('Ended') ? 'text-red-600' :
-          prediction.timeRemaining.includes('Awaiting') ? 'text-yellow-600' :
-          'text-amber-600'
-        }`}>
-          {(prediction.timeRemaining.includes('h') || prediction.timeRemaining.includes('d')) && 
-           !prediction.timeRemaining.includes('Closed') && 
-           !prediction.timeRemaining.includes('Ended') && 
-           !prediction.timeRemaining.includes('Settled') && 
-           !prediction.timeRemaining.includes('Disputed') && 
-           !prediction.timeRemaining.includes('Awaiting') ? 
-            `${prediction.timeRemaining} left` : 
-            prediction.timeRemaining
-          }
-        </span>
+        <div className="flex items-center gap-1">
+          <Users className="w-4 h-4" />
+          <span>{prediction.participants} participants</span>
+        </div>
+        <div className="flex items-center gap-1">
+          <Clock className="w-4 h-4" />
+          <span className={`font-medium ${
+            prediction.timeRemaining.includes('Closed') || 
+            prediction.timeRemaining.includes('Settled') || 
+            prediction.timeRemaining.includes('Disputed') || 
+            prediction.timeRemaining.includes('Ended') ? 'text-red-600' :
+            prediction.timeRemaining.includes('Awaiting') ? 'text-yellow-600' :
+            'text-amber-600'
+          }`}>
+            {(prediction.timeRemaining.includes('h') || prediction.timeRemaining.includes('d')) && 
+             !prediction.timeRemaining.includes('Closed') && 
+             !prediction.timeRemaining.includes('Ended') && 
+             !prediction.timeRemaining.includes('Settled') && 
+             !prediction.timeRemaining.includes('Disputed') && 
+             !prediction.timeRemaining.includes('Awaiting') ? 
+              `${prediction.timeRemaining} left` : 
+              prediction.timeRemaining
+            }
+          </span>
+        </div>
       </div>
     </div>
   );
@@ -504,24 +612,27 @@ const BetsTab: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNavigateTo
       </div>
       
       <div className="flex items-center justify-between">
-        <span className={`text-sm ${
-          prediction.timeRemaining.includes('Closed') || 
-          prediction.timeRemaining.includes('Settled') || 
-          prediction.timeRemaining.includes('Disputed') || 
-          prediction.timeRemaining.includes('Ended') ? 'text-red-600' :
-          prediction.timeRemaining.includes('Awaiting') ? 'text-yellow-600' :
-          'text-gray-500'
-        }`}>
-          {(prediction.timeRemaining.includes('h') || prediction.timeRemaining.includes('d')) && 
-           !prediction.timeRemaining.includes('Closed') && 
-           !prediction.timeRemaining.includes('Ended') && 
-           !prediction.timeRemaining.includes('Settled') && 
-           !prediction.timeRemaining.includes('Disputed') && 
-           !prediction.timeRemaining.includes('Awaiting') ? 
-            `Closes in ${prediction.timeRemaining}` : 
-            prediction.timeRemaining
-          }
-        </span>
+        <div className="flex items-center gap-1 text-sm">
+          <Clock className="w-4 h-4" />
+          <span className={`${
+            prediction.timeRemaining.includes('Closed') || 
+            prediction.timeRemaining.includes('Settled') || 
+            prediction.timeRemaining.includes('Disputed') || 
+            prediction.timeRemaining.includes('Ended') ? 'text-red-600' :
+            prediction.timeRemaining.includes('Awaiting') ? 'text-yellow-600' :
+            'text-gray-500'
+          }`}>
+            {(prediction.timeRemaining.includes('h') || prediction.timeRemaining.includes('d')) && 
+             !prediction.timeRemaining.includes('Closed') && 
+             !prediction.timeRemaining.includes('Ended') && 
+             !prediction.timeRemaining.includes('Settled') && 
+             !prediction.timeRemaining.includes('Disputed') && 
+             !prediction.timeRemaining.includes('Awaiting') ? 
+              `Closes in ${prediction.timeRemaining}` : 
+              prediction.timeRemaining
+            }
+          </span>
+        </div>
         <button
           onClick={() => {
             setSelectedPrediction(prediction);
@@ -588,45 +699,69 @@ const BetsTab: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNavigateTo
       </div>
       
       <div className="flex items-center justify-between text-sm text-gray-500">
-        <span>{prediction.participants} participants</span>
+        <div className="flex items-center gap-1">
+          <Users className="w-4 h-4" />
+          <span>{prediction.participants} participants</span>
+        </div>
         <span>Settled {prediction.settledAt}</span>
       </div>
     </div>
   );
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <div className="bg-white border-b border-gray-200">
+    <div className="min-h-screen bg-gray-50 pb-[calc(5rem+env(safe-area-inset-bottom))]">
+      {/* Consistent Header with proper spacing */}
+      <div className="bg-white border-b border-gray-100 sticky top-0 z-30">
+        {/* Main Header */}
         <div className="px-6 pt-12 pb-6">
-          <h1 className="text-3xl font-bold text-gray-900 mb-6">My Predictions</h1>
-          
-          {/* Tabs */}
-          <div className="flex space-x-1 bg-gray-100 p-1 rounded-xl" data-tour-id="bets-tabs">
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">My Predictions</h1>
+          <p className="text-gray-600">
+            Track your active bets, created predictions, and completed results
+          </p>
+        </div>
+        
+        {/* Sticky Sub-tabs with fixed icon positioning */}
+        <div className="px-6 py-4 bg-white border-t border-gray-50">
+          <div className="flex space-x-1 bg-gray-100 p-1 rounded-xl">
             {tabs.map(tab => {
               const Icon = tab.icon;
               return (
-                <button
+                <motion.button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
-                  className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-medium transition-all duration-200 ${
+                  className={cn(
+                    "flex-1 flex items-center justify-center gap-2 px-3 py-3 rounded-lg min-h-[3rem]",
+                    "font-medium transition-all duration-200 relative",
                     activeTab === tab.id
                       ? 'bg-white text-gray-900 shadow-sm'
-                      : 'text-gray-600 hover:text-gray-900'
-                  }`}
-                >
-                  <Icon className="w-4 h-4" />
-                  <span>{tab.label}</span>
-                  {tab.count > 0 && (
-                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                      activeTab === tab.id 
-                        ? 'bg-emerald-100 text-emerald-700' 
-                        : 'bg-gray-200 text-gray-600'
-                    }`}>
-                      {tab.count}
-                    </span>
+                      : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
                   )}
-                </button>
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                >
+                  <div className="flex items-center gap-2">
+                    <Icon className="w-5 h-5 flex-shrink-0" />
+                    <span className="text-sm font-medium">{tab.label}</span>
+                    <AnimatePresence>
+                      {tab.count > 0 && (
+                        <motion.span
+                          className={cn(
+                            "px-2 py-0.5 rounded-full text-xs font-bold",
+                            activeTab === tab.id 
+                              ? 'bg-emerald-100 text-emerald-700' 
+                              : 'bg-gray-200 text-gray-600'
+                          )}
+                          initial={{ scale: 0, opacity: 0 }}
+                          animate={{ scale: 1, opacity: 1 }}
+                          exit={{ scale: 0, opacity: 0 }}
+                          transition={{ type: "spring", stiffness: 400, damping: 25 }}
+                        >
+                          {tab.count > 99 ? '99+' : tab.count}
+                        </motion.span>
+                      )}
+                    </AnimatePresence>
+                  </div>
+                </motion.button>
               );
             })}
           </div>

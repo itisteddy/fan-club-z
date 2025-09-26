@@ -28,6 +28,8 @@ import { useAuthStore } from '../store/authStore';
 import { useLocation } from 'wouter';
 import { scrollToTop } from '../utils/scroll';
 import toast from 'react-hot-toast';
+import { openAuthGate } from '../auth/authGateAdapter';
+import SignedOutGateCard from '../components/auth/SignedOutGateCard';
 
 interface WalletPageProps {
   onNavigateBack?: () => void;
@@ -49,7 +51,7 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
     resetDemoBalance,
     isDemoMode 
   } = useWalletStore();
-  const { user } = useAuthStore();
+  const { user, isAuthenticated } = useAuthStore();
   const [, setLocation] = useLocation();
 
   // Scroll to top when component mounts
@@ -479,6 +481,35 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
       )}
     </AnimatePresence>
   );
+
+  // Show auth gate if user is not authenticated
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <div className="bg-white border-b border-gray-200">
+          <div className="px-6 pt-12 pb-6">
+            {onNavigateBack && (
+              <motion.button
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.9 }}
+                onClick={onNavigateBack}
+                className="w-10 h-10 bg-gray-100 hover:bg-gray-200 rounded-xl flex items-center justify-center transition-colors mb-4"
+              >
+                <ArrowLeft className="w-5 h-5 text-gray-600" />
+              </motion.button>
+            )}
+            <h1 className="text-3xl font-bold text-gray-900 mb-6">Wallet</h1>
+          </div>
+        </div>
+        <SignedOutGateCard
+          title="Sign in to view your wallet"
+          body="See your balance, deposits, and transactions."
+          primaryLabel="Sign In"
+          onPrimary={() => openAuthGate({ intent: 'view_wallet' })}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-white">

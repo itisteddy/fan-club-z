@@ -1,0 +1,32 @@
+/* Header styles */
+.header-shadow {
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1), 0 1px 2px rgba(0, 0, 0, 0.06);
+  transition: box-shadow 0.15s ease-in-out;
+}
+
+.header-no-shadow {
+  box-shadow: none;
+  transition: box-shadow 0.15s ease-in-out;
+}
+
+/* Safe area support for notched devices */
+@supports (padding: env(safe-area-inset-top)) {
+  .header-safe-area {
+    padding-top: env(safe-area-inset-top);
+  }
+}
+
+/* Header action buttons */
+.header-action {
+  @apply p-2 rounded-lg text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-colors;
+  @apply focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2;
+}
+
+.header-action-primary {
+  @apply bg-emerald-500 text-white hover:bg-emerald-600;
+  @apply focus:ring-emerald-500;
+}
+
+.header-action-ghost {
+  @apply text-gray-400 hover:text-gray-600 hover:bg-gray-100;
+}

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuthStore } from '../store/authStore';
 import { useCommentsForPrediction } from '../store/unifiedCommentStore';
+import { openAuthGate } from '../auth/authGateAdapter';
 import { MessageCircle, Heart, Reply, MoreHorizontal, Flag, Edit, Trash2 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import TappableUsername from './TappableUsername';
@@ -64,16 +65,36 @@ const CommentSystem: React.FC<CommentSystemProps> = ({ predictionId }) => {
   const {
     comments,
     commentCount,
-    isLoading,
-    error,
-    isSubmitting,
+    status,
+    isPosting,
+    hasMore,
     fetchComments,
     addComment,
-    toggleCommentLike,
     editComment,
-    deleteComment,
-    clearError
+    deleteComment
   } = useCommentsForPrediction(predictionId);
+
+  // Helper function to get error messages
+  const getErrorMessage = (status: string): string => {
+    switch (status) {
+      case 'network_error':
+        return 'Network error. Please check your connection and try again.';
+      case 'server_error':
+        return 'Server error. Please try again later.';
+      case 'client_error':
+        return 'Something went wrong. Please try again.';
+      case 'parse_error':
+        return 'Unable to process response. Please try again.';
+      default:
+        return 'An error occurred. Please try again.';
+    }
+  };
+
+  // Derived states from status
+  const isLoading = status === 'loading';
+  const isSubmitting = status === 'posting' || isPosting;
+  const error = ['network_error', 'server_error', 'client_error', 'parse_error'].includes(status) 
+    ? getErrorMessage(status) : null;
 
   // Local state for text inputs
   const [mainCommentText, setMainCommentText] = useState('');
@@ -168,18 +189,15 @@ const CommentSystem: React.FC<CommentSystemProps> = ({ predictionId }) => {
     }
   }, [user, mainCommentText, replyTexts, addComment]);
 
-  // Handle toggling like
+  // Handle toggling like (placeholder - not implemented in store)
   const handleToggleLike = useCallback(async (commentId: string) => {
     if (!user) {
       return;
     }
     
-    try {
-      await toggleCommentLike(commentId);
-    } catch (error) {
-      console.error('Failed to toggle like:', error);
-    }
-  }, [user, toggleCommentLike]);
+    // TODO: Implement like functionality in the comment store
+    console.log('Like toggle not implemented yet:', commentId);
+  }, [user]);
 
   // Text management helpers
   const updateReplyText = useCallback((commentId: string, text: string) => {
@@ -359,9 +377,10 @@ const CommentSystem: React.FC<CommentSystemProps> = ({ predictionId }) => {
                 className={`flex items-center space-x-1 hover:text-red-500 transition-colors ${
                   comment.is_liked ? 'text-red-500' : 'text-gray-500'
                 }`}
+                title="Like functionality coming soon"
               >
                 <Heart size={14} className={comment.is_liked ? 'fill-current' : ''} />
-                <span>{comment.likes_count || 0}</span>
+                <span>{comment.likes_count || comment.likeCount || 0}</span>
               </button>
 
               {!isReply && (
@@ -505,10 +524,13 @@ const CommentSystem: React.FC<CommentSystemProps> = ({ predictionId }) => {
           <div className="flex items-center justify-between">
             <div className="text-red-800 text-sm">{error}</div>
             <button
-              onClick={clearError}
+              onClick={() => {
+                // Retry by fetching comments again
+                fetchComments();
+              }}
               className="text-red-600 hover:text-red-800 text-sm"
             >
-              Dismiss
+              Retry
             </button>
           </div>
         </div>
@@ -545,9 +567,36 @@ const CommentSystem: React.FC<CommentSystemProps> = ({ predictionId }) => {
       {/* Login prompt for non-authenticated users */}
       {!user && (
         <div className="p-4 border-b border-gray-200 bg-gray-50">
-          <p className="text-gray-600 text-center">
-            Please <span className="text-teal-600 font-medium">sign in</span> to join the conversation
-          </p>
+          <div className="text-center">
+            <p className="text-gray-600 mb-3">
+              Sign in to join the conversation
+            </p>
+            <button
+              onClick={async () => {
+                try {
+                  const result = await openAuthGate({ 
+                    intent: 'comment_prediction', 
+                    payload: { predictionId } 
+                  });
+                  if (result.status === 'success') {
+                    // Comment system will automatically re-render when auth succeeds
+                    // Focus the textarea after auth completes
+                    setTimeout(() => {
+                      const textarea = document.querySelector('#main-textarea') as HTMLTextAreaElement;
+                      if (textarea) {
+                        textarea.focus();
+                      }
+                    }, 100);
+                  }
+                } catch (error) {
+                  console.error('Auth gate error:', error);
+                }
+              }}
+              className="px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors text-sm font-medium"
+            >
+              Sign In to Comment
+            </button>
+          </div>
         </div>
       )}
 

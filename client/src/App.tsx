@@ -1,26 +1,68 @@
-import React, { useEffect, useCallback, memo, Suspense } from 'react';
-import { Router, Route, Switch, useLocation } from 'wouter';
+import React, { useEffect, useCallback, memo, Suspense, lazy } from 'react';
+import { Routes, Route, useLocation, useNavigate, useParams } from 'react-router-dom';
+import { FCZ_UNIFIED_CARDS } from './utils/environment';
 import { useWalletStore } from './store/walletStore';
 import { useAuthStore } from './store/authStore';
 import { useLikeStore } from './store/likeStore';
 import { useUnifiedCommentStore } from './store/unifiedCommentStore';
+import { restorePendingAuth } from './auth/authGateAdapter';
+import { useAuthSession } from './providers/AuthSessionProvider';
+import AuthGateModal from './components/auth/AuthGateModal';
 import { Toaster } from 'react-hot-toast';
 import { scrollToTop, saveScrollPosition, markNavigationAsIntentional } from './utils/scroll';
 import NotificationContainer from './components/ui/NotificationContainer';
 import PWAInstallManager from './components/PWAInstallManager';
 import PageWrapper from './components/PageWrapper';
 import { OnboardingProvider } from './components/onboarding/OnboardingProvider';
+import MobileShell from './components/layout/MobileShell';
+import { NetworkStatusProvider } from './providers/NetworkStatusProvider';
+import PageLoadingSpinner from './components/ui/PageLoadingSpinner';
+
+// Lazy-loaded pages for code splitting
+const LazyDiscoverPage = lazy(() => import('./pages/DiscoverPage'));
+const LazyPredictionsPage = lazy(() => import('./pages/PredictionsPage'));
+const LazyCreatePredictionPage = lazy(() => import('./pages/CreatePredictionPage'));
+const LazyProfilePage = lazy(() => import('./pages/ProfilePage'));
+const LazyWalletPage = lazy(() => import('./pages/WalletPage'));
+const LazyPredictionDetailsPageV2 = lazy(() => import('./pages/PredictionDetailsPageV2'));
+const LazyProfilePageV2 = lazy(() => import('./pages/ProfilePageV2'));
+const LazyWalletPageV2 = lazy(() => import('./pages/WalletPageV2'));
+const LazyUnifiedLeaderboardPage = lazy(() => import('./pages/UnifiedLeaderboardPage'));
+
+// Temporary Auth Test Button - Will remove after testing
+const AuthTestButton: React.FC = () => {
+  const { user, signOut } = useAuthSession();
+  const { user: authStoreUser, isAuthenticated: authStoreAuth } = useAuthStore();
+  
+  if (user) {
+    return (
+      <div className="bg-green-500 text-white px-4 py-2 rounded-lg shadow-lg flex flex-col gap-2">
+        <div className="text-sm">✅ Session: {user.email}</div>
+        <div className="text-sm">🏪 Store Auth: {authStoreAuth ? '✅' : '❌'}</div>
+        <div className="text-sm">🏪 Store User: {authStoreUser?.email || 'None'}</div>
+        <button 
+          onClick={() => signOut()}
+          className="bg-red-500 hover:bg-red-600 px-2 py-1 rounded text-xs"
+        >
+          Sign Out
+        </button>
+      </div>
+    );
+  }
+  
+  return (
+    <button
+      onClick={() => import('./auth/authGateAdapter').then(m => m.openAuthGate({ intent: 'edit_profile' }))}
+      className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg shadow-lg"
+    >
+      🧪 Test Sign In
+    </button>
+  );
+};
 
 // Import all page components
-import DiscoverPage from './pages/DiscoverPage';
-import CreatePredictionPage from './pages/CreatePredictionPage';
-import BetsTab from './pages/BetsTab';
-import ProfilePage from './pages/ProfilePage';
-import WalletPage from './pages/WalletPage';
-import AuthPage from './pages/auth/AuthPage';
-import AuthCallbackPage from './pages/auth/AuthCallbackPage';
-import PredictionDetailsPage from './pages/PredictionDetailsPage';
-import BottomNavigation from './components/BottomNavigation';
+// These imports are now lazy-loaded above
+import StableBottomNavigation from './components/navigation/StableBottomNavigation';
 import ErrorBoundary from './components/ErrorBoundary';
 
 // Simple Loading Component
@@ -33,41 +75,21 @@ const LoadingSpinner: React.FC<{ message?: string }> = ({ message = "Loading..."
   </div>
 );
 
-// Simplified Auth Guard
-const AuthGuard: React.FC<{ children: React.ReactNode }> = memo(({ children }) => {
-  const { isAuthenticated, loading, initialized, initializeAuth } = useAuthStore();
-  
-  useEffect(() => {
-    if (!initialized && !loading) {
-      initializeAuth();
-    }
-  }, [initialized, loading, initializeAuth]);
-  
-  if (!initialized || (loading && !isAuthenticated)) {
-    return <LoadingSpinner message="Authenticating..." />;
-  }
-  
-  if (!isAuthenticated) {
-    return <AuthPage />;
-  }
-  
-  return <>{children}</>;
-});
-
-AuthGuard.displayName = 'AuthGuard';
 
 // Enhanced Main Layout Component with scroll preservation
 const MainLayout: React.FC<{ children: React.ReactNode }> = memo(({ children }) => {
-  const [location, navigate] = useLocation();
+  const location = useLocation();
+  const navigate = useNavigate();
   
   const getCurrentTab = useCallback(() => {
-    const path = location.toLowerCase();
+    const path = location.pathname.toLowerCase();
     if (path === '/' || path === '/discover') return 'discover';
     if (path === '/bets' || path === '/predictions') return 'bets';
+    if (path === '/leaderboard') return 'leaderboard';
     if (path === '/profile') return 'profile';
     if (path === '/wallet') return 'wallet';
     return 'discover';
-  }, [location]);
+  }, [location.pathname]);
 
   const handleTabChange = useCallback((tab: string) => {
     // Prevent infinite loops by checking if we're already on the target route
@@ -75,7 +97,7 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = memo(({ children }) 
     if (currentTab === tab) return;
     
     // Save current scroll position before navigating
-    saveScrollPosition(location);
+    saveScrollPosition(location.pathname);
     
     // Mark as intentional navigation to prevent auto-scroll-restore
     markNavigationAsIntentional();
@@ -87,6 +109,9 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = memo(({ children }) 
         break;
       case 'bets':
         navigate('/predictions');
+        break;
+      case 'leaderboard':
+        navigate('/leaderboard');
         break;
       case 'profile':
         navigate('/profile');
@@ -106,24 +131,24 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = memo(({ children }) 
 
   const handleFABClick = useCallback(() => {
     // Save current scroll position
-    saveScrollPosition(location);
+    saveScrollPosition(location.pathname);
     markNavigationAsIntentional();
     navigate('/create');
-  }, [navigate, location]);
+  }, [navigate, location.pathname]);
 
   const showFAB = getCurrentTab() === 'discover';
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col" data-scroll-container>
       {/* Main Content */}
-      <main className="flex-1 pb-20">
+      <main className="flex-1 pb-[calc(5rem+env(safe-area-inset-bottom))]">
         <Suspense fallback={<LoadingSpinner message="Loading page..." />}>
           {children}
         </Suspense>
       </main>
 
-      {/* Bottom Navigation */}
-      <BottomNavigation
+      {/* Stable Bottom Navigation */}
+      <StableBottomNavigation
         activeTab={getCurrentTab()}
         onTabChange={handleTabChange}
         showFAB={showFAB}
@@ -153,48 +178,111 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = memo(({ children }) 
 
 MainLayout.displayName = 'MainLayout';
 
+// Bootstrap effects component for auth adapter and sync
+const BootstrapEffects: React.FC = () => {
+  const { user: sessionUser, session, initialized: sessionInitialized } = useAuthSession();
+  const { initializeAuth, isAuthenticated: storeAuthenticated, initialized: storeInitialized, user: storeUser } = useAuthStore();
+  
+  // Sync AuthSession with AuthStore
+  useEffect(() => {
+    if (sessionInitialized) {
+      // Always sync session state to store when session is initialized
+      if (sessionUser && session) {
+        const currentStoreUser = useAuthStore.getState().user;
+        const currentStoreAuth = useAuthStore.getState().isAuthenticated;
+        
+        // Only update if there's a meaningful change
+        if (!currentStoreAuth || !currentStoreUser || currentStoreUser.id !== sessionUser.id) {
+          console.log('🔄 Syncing session user to auth store...', sessionUser.email);
+          
+          // Convert session user to store format
+          const convertedUser = {
+            id: sessionUser.id,
+            firstName: sessionUser.user_metadata?.firstName || sessionUser.user_metadata?.first_name || sessionUser.user_metadata?.full_name?.split(' ')[0] || 'User',
+            lastName: sessionUser.user_metadata?.lastName || sessionUser.user_metadata?.last_name || sessionUser.user_metadata?.full_name?.split(' ').slice(1).join(' ') || '',
+            email: sessionUser.email || '',
+            phone: sessionUser.phone,
+            avatar: sessionUser.user_metadata?.avatar_url || sessionUser.user_metadata?.picture,
+            provider: sessionUser.app_metadata?.provider || 'email',
+            createdAt: sessionUser.created_at
+          };
+          
+          // Update the auth store state directly
+          useAuthStore.setState({
+            isAuthenticated: true,
+            user: convertedUser,
+            token: session.access_token,
+            loading: false,
+            initialized: true,
+            lastAuthCheck: Date.now()
+          });
+          
+          console.log('✅ Auth store synced with session user:', convertedUser.firstName);
+        }
+      }
+      // If no session user but store thinks we're authenticated, clear the store
+      else if (!sessionUser && storeAuthenticated) {
+        console.log('🔄 No session user, clearing auth store...');
+        
+        useAuthStore.setState({
+          isAuthenticated: false,
+          user: null,
+          token: null,
+          lastAuthCheck: 0
+        });
+      }
+    }
+  }, [sessionUser, session, sessionInitialized, storeAuthenticated]);
+  
+  useEffect(() => {
+    // Restore any pending auth state from session storage
+    restorePendingAuth();
+  }, []);
+  
+  return null;
+};
+
 // Enhanced Page Wrapper Components with scroll preservation
 const DiscoverPageWrapper: React.FC = () => {
-  const [location, navigate] = useLocation();
+  const location = useLocation();
+  const navigate = useNavigate();
   
   const handleNavigateToProfile = useCallback(() => {
-    saveScrollPosition(location);
+    saveScrollPosition(location.pathname);
     navigate('/profile');
-  }, [navigate, location]);
+  }, [navigate, location.pathname]);
 
   const handleNavigateToPrediction = useCallback((predictionId: string) => {
     // Save scroll position before navigating to details
-    saveScrollPosition(location);
+    saveScrollPosition(location.pathname);
     navigate(`/prediction/${predictionId}`);
-  }, [navigate, location]);
+  }, [navigate, location.pathname]);
 
   return (
-    <PageWrapper title="Discover">
-      <DiscoverPage 
+      <LazyDiscoverPage 
         onNavigateToProfile={handleNavigateToProfile}
         onNavigateToPrediction={handleNavigateToPrediction}
       />
-    </PageWrapper>
   );
 };
 
 const PredictionsPageWrapper: React.FC = () => {
-  const [location, navigate] = useLocation();
+  const location = useLocation();
+  const navigate = useNavigate();
   
   const handleNavigateToDiscover = useCallback(() => {
-    saveScrollPosition(location);
+    saveScrollPosition(location.pathname);
     navigate('/');
-  }, [navigate, location]);
+  }, [navigate, location.pathname]);
 
   return (
-    <PageWrapper title="My Predictions">
-      <BetsTab onNavigateToDiscover={handleNavigateToDiscover} />
-    </PageWrapper>
+      <LazyPredictionsPage onNavigateToDiscover={handleNavigateToDiscover} />
   );
 };
 
 const CreatePredictionPageWrapper: React.FC = () => {
-  const [location, navigate] = useLocation();
+  const location = useLocation();
+  const navigate = useNavigate();
   
   const handleNavigateBack = useCallback(() => {
     // Don't save scroll position when going back from create
@@ -204,7 +292,7 @@ const CreatePredictionPageWrapper: React.FC = () => {
 
   return (
     <PageWrapper title="Create Prediction">
-      <CreatePredictionPage 
+      <LazyCreatePredictionPage 
         onNavigateBack={handleNavigateBack}
       />
     </PageWrapper>
@@ -212,8 +300,10 @@ const CreatePredictionPageWrapper: React.FC = () => {
 };
 
 // Component for viewing other users' profiles with proper param extraction
-const UserProfilePageWrapper: React.FC<{ params: { userId: string } }> = ({ params }) => {
-  const [location, navigate] = useLocation();
+const UserProfilePageWrapper: React.FC = () => {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const { userId } = useParams<{ userId: string }>();
   
   const handleNavigateBack = useCallback(() => {
     if (window.history.length > 1) {
@@ -226,14 +316,13 @@ const UserProfilePageWrapper: React.FC<{ params: { userId: string } }> = ({ para
   }, [navigate]);
 
   // Validate and clean the userId parameter
-  const userId = React.useMemo(() => {
-    const rawUserId = params?.userId;
-    if (!rawUserId) {
+  const validatedUserId = React.useMemo(() => {
+    if (!userId) {
       console.warn('⚠️ No userId provided in profile route');
       return undefined;
     }
     
-    const cleanUserId = rawUserId.trim();
+    const cleanUserId = userId.trim();
     if (!cleanUserId) {
       console.warn('⚠️ Empty userId in profile route');
       return undefined;
@@ -254,10 +343,10 @@ const UserProfilePageWrapper: React.FC<{ params: { userId: string } }> = ({ para
     
     console.warn('⚠️ Invalid userId format:', cleanUserId);
     return undefined;
-  }, [params?.userId]);
+  }, [userId]);
 
   // If no valid userId, redirect to own profile
-  if (!userId) {
+  if (!validatedUserId) {
     React.useEffect(() => {
       console.warn('⚠️ Invalid userId in profile route, redirecting to own profile');
       markNavigationAsIntentional();
@@ -267,13 +356,13 @@ const UserProfilePageWrapper: React.FC<{ params: { userId: string } }> = ({ para
     return <LoadingSpinner message="Redirecting..." />;
   }
 
-  console.log('🔍 UserProfilePageWrapper rendering with userId:', userId);
+  console.log('🔍 UserProfilePageWrapper rendering with userId:', validatedUserId);
 
   return (
     <PageWrapper title="User Profile">
-      <ProfilePage 
+      <LazyProfilePage 
         onNavigateBack={handleNavigateBack} 
-        userId={userId} 
+        userId={validatedUserId} 
       />
     </PageWrapper>
   );
@@ -281,16 +370,17 @@ const UserProfilePageWrapper: React.FC<{ params: { userId: string } }> = ({ para
 
 // Wrapper for current user profile
 const MyProfilePageWrapper: React.FC = () => {
-  const [location, navigate] = useLocation();
+  const location = useLocation();
+  const navigate = useNavigate();
   
   const handleNavigateBack = useCallback(() => {
-    saveScrollPosition(location);
+    saveScrollPosition(location.pathname);
     navigate('/');
-  }, [navigate, location]);
+  }, [navigate, location.pathname]);
 
   return (
     <PageWrapper title="My Profile">
-      <ProfilePage 
+      <LazyProfilePage 
         onNavigateBack={handleNavigateBack} 
       />
     </PageWrapper>
@@ -298,22 +388,28 @@ const MyProfilePageWrapper: React.FC = () => {
 };
 
 const WalletPageWrapper: React.FC = () => {
-  const [location, navigate] = useLocation();
+  const location = useLocation();
+  const navigate = useNavigate();
   
   const handleNavigateBack = useCallback(() => {
-    saveScrollPosition(location);
+    saveScrollPosition(location.pathname);
     navigate('/');
-  }, [navigate, location]);
+  }, [navigate, location.pathname]);
 
   return (
     <PageWrapper title="Wallet">
-      <WalletPage onNavigateBack={handleNavigateBack} />
+      <LazyWalletPage onNavigateBack={handleNavigateBack} />
     </PageWrapper>
   );
 };
 
-const PredictionDetailsWrapper: React.FC<{ params: { id: string } }> = ({ params }) => {
-  const [location, navigate] = useLocation();
+const LeaderboardPageWrapper: React.FC = () => {
+  return <PageWrapper title="Leaderboard"><LazyUnifiedLeaderboardPage /></PageWrapper>;
+};
+
+const PredictionDetailsRouteWrapper: React.FC = () => {
+  const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
   
   const handleNavigateBack = useCallback(() => {
     // Use browser back to restore previous scroll position automatically
@@ -329,57 +425,61 @@ const PredictionDetailsWrapper: React.FC<{ params: { id: string } }> = ({ params
     }
   }, [navigate]);
 
-  if (!params?.id) {
+  if (!id) {
     return (
-      <PageWrapper title="Error">
-        <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-          <div className="text-center">
-            <h2 className="text-xl font-semibold text-gray-900 mb-2">Prediction Not Found</h2>
-            <p className="text-gray-600 mb-4">The prediction you're looking for doesn't exist.</p>
-            <button
-              onClick={handleNavigateBack}
-              className="px-4 py-2 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600"
-            >
-              Go Back
-            </button>
-          </div>
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">Prediction Not Found</h2>
+          <p className="text-gray-600 mb-4">The prediction you're looking for doesn't exist.</p>
+          <button
+            onClick={handleNavigateBack}
+            className="px-4 py-2 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600"
+          >
+            Go Back
+          </button>
         </div>
-      </PageWrapper>
+      </div>
     );
   }
 
-  return (
-    <PageWrapper title="Prediction Details">
-      <PredictionDetailsPage 
-        predictionId={params.id}
-        onNavigateBack={handleNavigateBack}
-      />
-    </PageWrapper>
-  );
+  return <LazyPredictionDetailsPageV2 predictionId={id} />;
 };
 
 // Main App Component with improved error handling
 function App() {
   const { initializeWallet } = useWalletStore();
-  const { initializeAuth, isAuthenticated, loading, initialized } = useAuthStore();
+  const { initializeAuth, loading: storeLoading, initialized: storeInitialized } = useAuthStore();
   const { initializeLikes } = useLikeStore();
-  const { initialize: initializeCommentStore } = useUnifiedCommentStore();
+  
+  // Use session provider as source of truth for authentication
+  const { user: sessionUser, loading: sessionLoading, initialized: sessionInitialized } = useAuthSession();
+  
+  // Determine overall loading and auth state
+  const loading = sessionLoading || storeLoading;
+  const isAuthenticated = !!sessionUser;
+  const initialized = sessionInitialized && storeInitialized;
 
-  // Initialize auth once on app start
+  // Initialize auth store but let session provider be source of truth
   useEffect(() => {
-    if (!initialized && !loading) {
+    if (!storeInitialized && !storeLoading && sessionInitialized) {
       try {
-        console.log('App: Initializing auth...');
-        initializeAuth();
+        console.log('App: Initializing auth store...');
+        // If session already has user, don't call initializeAuth as it might conflict
+        if (sessionUser) {
+          // Let the sync effect above handle the auth store update
+          console.log('App: Session user exists, sync will handle auth store');
+        } else {
+          initializeAuth();
+        }
       } catch (error) {
         console.error('Auth initialization failed:', error);
       }
     }
-  }, [initializeAuth, initialized, loading]);
+  }, [initializeAuth, storeInitialized, storeLoading, sessionInitialized, sessionUser]);
 
   // Initialize wallet and social features after auth is ready
   useEffect(() => {
-    if (isAuthenticated && !loading && initialized) {
+    if (isAuthenticated && !loading && sessionInitialized) {
       try {
         console.log('App: Initializing wallet and social features...');
         
@@ -388,51 +488,75 @@ function App() {
         
         // Initialize social engagement features
         initializeLikes();
-        initializeCommentStore();
         
         console.log('✅ All stores initialized successfully');
       } catch (error) {
         console.error('Store initialization failed:', error);
       }
     }
-  }, [isAuthenticated, loading, initialized, initializeWallet, initializeLikes, initializeCommentStore]);
+  }, [isAuthenticated, loading, sessionInitialized, initializeWallet, initializeLikes]);
+  
+  // Ensure auth store is marked as initialized when session is ready
+  useEffect(() => {
+    if (sessionInitialized && !useAuthStore.getState().initialized) {
+      console.log('App: Marking auth store as initialized to match session state');
+      useAuthStore.setState({ initialized: true, loading: false });
+    }
+  }, [sessionInitialized]);
 
   return (
-    <ErrorBoundary>
-      <Router>
-        <Switch>
-        {/* Public auth routes */}
-        <Route path="/auth/callback">
-          <PageWrapper title="Authentication">
-            <AuthCallbackPage />
-          </PageWrapper>
-        </Route>
-        
-        {/* Protected app routes */}
-        <AuthGuard>
-          <OnboardingProvider>
-            <MainLayout>
-              <Switch>
-                <Route path="/" component={DiscoverPageWrapper} />
-                <Route path="/discover" component={DiscoverPageWrapper} />
-                <Route path="/predictions" component={PredictionsPageWrapper} />
-                <Route path="/predictions/:id" component={PredictionDetailsWrapper} />
-                <Route path="/bets" component={PredictionsPageWrapper} />
-                <Route path="/create" component={CreatePredictionPageWrapper} />
-                <Route path="/profile" component={MyProfilePageWrapper} />
-                <Route path="/profile/:userId" component={UserProfilePageWrapper} />
-                <Route path="/wallet" component={WalletPageWrapper} />
-                <Route path="/prediction/:id" component={PredictionDetailsWrapper} />
+    <NetworkStatusProvider>
+      <OnboardingProvider>
+        <MobileShell>
+        <MainLayout>
+          <Suspense fallback={<PageLoadingSpinner />}>
+            <Routes>
+              <Route path="/" element={<DiscoverPageWrapper />} />
+              <Route path="/discover" element={<DiscoverPageWrapper />} />
+              <Route path="/predictions" element={<PredictionsPageWrapper />} />
+              <Route path="/predictions/:id" element={<PredictionDetailsRouteWrapper />} />
+              <Route path="/bets" element={<PredictionsPageWrapper />} />
+              <Route path="/leaderboard" element={<LeaderboardPageWrapper />} />
+              <Route path="/create" element={<CreatePredictionPageWrapper />} />
+              <Route path="/profile" element={
+                FCZ_UNIFIED_CARDS
+                  ? <PageWrapper title="Profile"><LazyProfilePageV2 /></PageWrapper>
+                  : <MyProfilePageWrapper />
+              } />
+              <Route path="/profile/:userId" element={
+                FCZ_UNIFIED_CARDS
+                  ? <PageWrapper title="Profile"><LazyProfilePageV2 /></PageWrapper>
+                  : <UserProfilePageWrapper />
+              } />
+              <Route path="/wallet" element={
+                FCZ_UNIFIED_CARDS
+                  ? <PageWrapper title="Wallet"><LazyWalletPageV2 /></PageWrapper>
+                  : <WalletPageWrapper />
+              } />
+              <Route path="/rankings" element={<LeaderboardPageWrapper />} />
+              <Route path="/prediction/:id" element={<PredictionDetailsRouteWrapper />} />
 
-                {/* Fallback */}
-                <Route component={DiscoverPageWrapper} />
-              </Switch>
-            </MainLayout>
-          </OnboardingProvider>
-        </AuthGuard>
-        </Switch>
-      </Router>
-    </ErrorBoundary>
+              {/* Fallback */}
+              <Route path="*" element={<DiscoverPageWrapper />} />
+            </Routes>
+          </Suspense>
+        </MainLayout>
+        </MobileShell>
+        
+        {/* Auth Gate Modal */}
+        <AuthGateModal />
+        
+        {/* Bootstrap Effects */}
+        <BootstrapEffects />
+        
+        {/* Temporary Auth Test Button - Will remove after testing */}
+        {import.meta.env.DEV && (
+          <div className="fixed bottom-20 right-4 z-50">
+            <AuthTestButton />
+          </div>
+        )}
+      </OnboardingProvider>
+    </NetworkStatusProvider>
   );
 }
 

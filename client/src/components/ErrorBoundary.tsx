@@ -26,8 +26,10 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
   }
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
-    // Log error details
-    console.error('ErrorBoundary caught an error:', error, errorInfo);
+    // Log error details only in development
+    if (import.meta.env.DEV) {
+      console.error('ErrorBoundary caught an error:', error, errorInfo);
+    }
     
     this.setState({
       error,
@@ -93,7 +95,7 @@ const DefaultErrorFallback: React.FC<{ error?: Error; resetError: () => void }> 
           </p>
         </div>
 
-        {error && process.env.NODE_ENV === 'development' && (
+        {error && import.meta.env.DEV && (
           <div className="mb-6 p-4 bg-gray-100 rounded-lg text-left">
             <h3 className="font-semibold text-sm text-gray-800 mb-2">Error Details:</h3>
             <pre className="text-xs text-gray-600 whitespace-pre-wrap">
