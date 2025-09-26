@@ -1,21 +1,13 @@
 {
   "version": 2,
-  "installCommand": "cd client && npm install --no-workspaces",
-  "buildCommand": "cd client && npm run build",
+  "buildCommand": "cd client && pnpm install --frozen-lockfile && pnpm build",
   "outputDirectory": "client/dist",
-  "build": {
-    "env": {
-      "NODE_VERSION": "18.19.0"
-    }
-  },
+  "installCommand": "pnpm install --frozen-lockfile",
+  "framework": null,
   "rewrites": [
     {
       "source": "/api/(.*)",
-      "destination": "https://fan-club-z.onrender.com/api/$1"
-    },
-    {
-      "source": "/download",
-      "destination": "/download/index.html"
+      "destination": "https://fan-club-z.onrender.com/$1"
     },
     {
       "source": "/(.*)",
@@ -27,35 +19,32 @@
       "source": "/(.*)",
       "headers": [
         {
+          "key": "X-Frame-Options",
+          "value": "SAMEORIGIN"
+        },
+        {
           "key": "X-Content-Type-Options",
           "value": "nosniff"
-        },
-        {
-          "key": "X-Frame-Options",
-          "value": "DENY"
-        },
-        {
-          "key": "X-XSS-Protection",
-          "value": "1; mode=block"
-        },
-        {
-          "key": "Strict-Transport-Security",
-          "value": "max-age=31536000; includeSubDomains"
         },
         {
           "key": "Referrer-Policy",
           "value": "strict-origin-when-cross-origin"
         }
       ]
+    },
+    {
+      "source": "/assets/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, immutable, max-age=31536000"
+        }
+      ]
     }
   ],
   "env": {
-    "VITE_API_URL": "https://fan-club-z.onrender.com",
-    "VITE_WS_URL": "wss://fan-club-z.onrender.com",
-    "VITE_ENVIRONMENT": "production",
-    "VITE_DEBUG": "false",
-    "VITE_SUPABASE_URL": "https://ihtnsyhknvltgrksffun.supabase.co",
-    "VITE_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlodG5zeWhrbnZsdGdya3NmZnVuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTM2NzA2MzYsImV4cCI6MjA2OTI0NjYzNn0.ZmoZ5cGVHfhDwTvkmaw9LSVHm_awoyMOTyQKewr7rYo"
-  },
-  "regions": ["iad1"]
+    "VITE_API_BASE": "/api",
+    "VITE_IMAGES_FEATURE_FLAG": "false", 
+    "VITE_IMAGES_PROVIDER": "none"
+  }
 }
