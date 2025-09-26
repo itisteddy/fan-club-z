@@ -7,6 +7,8 @@ import { useLikeStore } from './store/likeStore';
 import { useUnifiedCommentStore } from './store/unifiedCommentStore';
 import { restorePendingAuth } from './auth/authGateAdapter';
 import { useAuthSession } from './providers/AuthSessionProvider';
+import { SupabaseProvider } from './providers/SupabaseProvider';
+import { AuthSessionProvider } from './providers/AuthSessionProvider';
 import AuthGateModal from './components/auth/AuthGateModal';
 import { Toaster } from 'react-hot-toast';
 import { scrollToTop, saveScrollPosition, markNavigationAsIntentional } from './utils/scroll';
@@ -446,7 +448,8 @@ const PredictionDetailsRouteWrapper: React.FC = () => {
 };
 
 // Main App Component with improved error handling
-function App() {
+// Main App Content - requires providers to be available
+const AppContent: React.FC = () => {
   const { initializeWallet } = useWalletStore();
   const { initializeAuth, loading: storeLoading, initialized: storeInitialized } = useAuthStore();
   const { initializeLikes } = useLikeStore();
@@ -505,10 +508,9 @@ function App() {
   }, [sessionInitialized]);
 
   return (
-    <NetworkStatusProvider>
-      <OnboardingProvider>
-        <MobileShell>
-        <MainLayout>
+        <OnboardingProvider>
+          <MobileShell>
+            <MainLayout>
           <Suspense fallback={<PageLoadingSpinner />}>
             <Routes>
               <Route path="/" element={<DiscoverPageWrapper />} />
@@ -540,22 +542,34 @@ function App() {
               <Route path="*" element={<DiscoverPageWrapper />} />
             </Routes>
           </Suspense>
-        </MainLayout>
-        </MobileShell>
-        
-        {/* Auth Gate Modal */}
-        <AuthGateModal />
-        
-        {/* Bootstrap Effects */}
-        <BootstrapEffects />
-        
-        {/* Temporary Auth Test Button - Will remove after testing */}
-        {import.meta.env.DEV && (
-          <div className="fixed bottom-20 right-4 z-50">
-            <AuthTestButton />
-          </div>
-        )}
-      </OnboardingProvider>
+            </MainLayout>
+          </MobileShell>
+          
+          {/* Auth Gate Modal */}
+          <AuthGateModal />
+          
+          {/* Bootstrap Effects */}
+          <BootstrapEffects />
+          
+          {/* Temporary Auth Test Button - Will remove after testing */}
+          {import.meta.env.DEV && (
+            <div className="fixed bottom-20 right-4 z-50">
+              <AuthTestButton />
+            </div>
+          )}
+        </OnboardingProvider>
+  );
+};
+
+// Root App Component with proper provider nesting
+function App() {
+  return (
+    <NetworkStatusProvider>
+      <SupabaseProvider>
+        <AuthSessionProvider>
+          <AppContent />
+        </AuthSessionProvider>
+      </SupabaseProvider>
     </NetworkStatusProvider>
   );
 }

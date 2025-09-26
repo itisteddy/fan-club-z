@@ -100,6 +100,5 @@ export default defineConfig(({ mode }) => {
   },
   esbuild: {
     target: 'es2022',
-  },
-  };
+  }
 });
