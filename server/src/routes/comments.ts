@@ -1,7 +1,11 @@
 import express from 'express';
 import { supabase } from '../config/database';
+import { optionalAuth } from '../middleware/auth';
 
 const router = express.Router();
+
+// Apply auth middleware to all routes
+router.use(optionalAuth);
 
 // Simple logger function
 const log = (message: string, ...args: any[]) => {
@@ -10,14 +14,15 @@ const log = (message: string, ...args: any[]) => {
 
 // Test route to verify the router is working
 router.get('/test', (req, res) => {
-  log('Comment test route hit');
+  log('Comment test route hit by user:', req.user?.username);
   res.json({ 
     message: 'Comment routes are working!', 
     timestamp: new Date().toISOString(),
     method: req.method,
     path: req.path,
     baseUrl: req.baseUrl,
-    originalUrl: req.originalUrl
+    originalUrl: req.originalUrl,
+    user: req.user
   });
 });
 
@@ -26,14 +31,15 @@ router.get('/health', (req, res) => {
   res.json({
     status: 'Comment service is running',
     timestamp: new Date().toISOString(),
+    user: req.user,
     routes: [
       'GET /test',
       'GET /health', 
       'GET /predictions/:predictionId/comments',
       'POST /predictions/:predictionId/comments',
-      'POST /comments/:commentId/like',
-      'PUT /comments/:commentId',
-      'DELETE /comments/:commentId'
+      'POST /:commentId/like',
+      'PUT /:commentId',
+      'DELETE /:commentId'
     ]
   });
 });
@@ -53,9 +59,10 @@ router.get('/predictions/:predictionId/comments', async (req, res) => {
       .from('comments')
       .select(`
         *,
-        user:users(id, username, full_name, avatar_url, is_verified)
+        user:users!comments_user_id_fkey(id, username, full_name, avatar_url, is_verified)
       `, { count: 'exact' })
       .eq('prediction_id', predictionId)
+      .eq('is_deleted', false)
       .is('parent_comment_id', null) // Only top-level comments
       .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1);
@@ -97,7 +104,7 @@ router.post('/predictions/:predictionId/comments', async (req, res) => {
     const { predictionId } = req.params;
     const { content, parent_comment_id } = req.body;
     
-    log(`Creating comment for prediction ${predictionId}`);
+    log(`Creating comment for prediction ${predictionId} by user ${req.user?.id}`);
     log('Request body:', JSON.stringify(req.body));
 
     // Basic validation
@@ -117,29 +124,28 @@ router.post('/predictions/:predictionId/comments', async (req, res) => {
       });
     }
 
-    // Get user info from request (in production, this would come from auth middleware)
-    const userInfo = req.body.user || {
-      id: 'current-user',
-      username: 'Anonymous',
-      full_name: 'Anonymous User',
-      avatar_url: null,
-      is_verified: false
-    };
+    if (!req.user) {
+      return res.status(401).json({
+        success: false,
+        error: 'User not authenticated'
+      });
+    }
 
     // Insert comment into database
     const { data: newComment, error } = await supabase
       .from('comments')
       .insert({
         content: content.trim(),
-        user_id: userInfo.id,
+        user_id: req.user.id,
         prediction_id: predictionId,
         parent_comment_id: parent_comment_id || null,
+        is_deleted: false,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       })
       .select(`
         *,
-        user:users(id, username, full_name, avatar_url, is_verified)
+        user:users!comments_user_id_fkey(id, username, full_name, avatar_url, is_verified)
       `)
       .single();
 
@@ -154,7 +160,10 @@ router.post('/predictions/:predictionId/comments', async (req, res) => {
 
     log(`Comment persisted in database: ${newComment.id}`);
 
-    res.status(201).json(newComment);
+    res.status(201).json({
+      success: true,
+      data: newComment
+    });
 
   } catch (error) {
     log('Error in create comment route:', error);
@@ -166,18 +175,80 @@ router.post('/predictions/:predictionId/comments', async (req, res) => {
   }
 });
 
-
-
 // Like/unlike a comment
-router.post('/comments/:commentId/like', async (req, res) => {
+router.post('/:commentId/like', async (req, res) => {
   try {
     const { commentId } = req.params;
     
-    log(`Like toggled for comment ${commentId}`);
+    if (!req.user) {
+      return res.status(401).json({
+        success: false,
+        error: 'User not authenticated'
+      });
+    }
+    
+    log(`Like toggled for comment ${commentId} by user ${req.user.id}`);
 
-    // Return default values
-    const liked = Math.random() > 0.5; // Random for demo
-    const likes_count = Math.floor(Math.random() * 10);
+    // Check if like already exists
+    const { data: existingLike, error: fetchError } = await supabase
+      .from('comment_likes')
+      .select('*')
+      .eq('comment_id', commentId)
+      .eq('user_id', req.user.id)
+      .single();
+
+    if (fetchError && fetchError.code !== 'PGRST116') {
+      log('Error checking existing like:', fetchError);
+      return res.status(500).json({
+        success: false,
+        error: 'Database error checking like'
+      });
+    }
+
+    let liked = false;
+    
+    if (existingLike) {
+      // Remove existing like
+      const { error: deleteError } = await supabase
+        .from('comment_likes')
+        .delete()
+        .eq('id', existingLike.id);
+
+      if (deleteError) {
+        log('Error removing like:', deleteError);
+        return res.status(500).json({
+          success: false,
+          error: 'Failed to remove like'
+        });
+      }
+      liked = false;
+    } else {
+      // Add new like
+      const { error: insertError } = await supabase
+        .from('comment_likes')
+        .insert({
+          comment_id: commentId,
+          user_id: req.user.id,
+          type: 'like'
+        });
+
+      if (insertError) {
+        log('Error creating like:', insertError);
+        return res.status(500).json({
+          success: false,
+          error: 'Failed to create like'
+        });
+      }
+      liked = true;
+    }
+
+    // Get updated like count
+    const { data: likeCount, error: countError } = await supabase
+      .from('comment_likes')
+      .select('*', { count: 'exact', head: true })
+      .eq('comment_id', commentId);
+
+    const likes_count = likeCount?.length || 0;
 
     log(`Like result: liked=${liked}, likes_count=${likes_count}`);
 
@@ -185,7 +256,7 @@ router.post('/comments/:commentId/like', async (req, res) => {
       success: true,
       liked, 
       likes_count,
-      message: 'Like functionality working!'
+      message: 'Like toggled successfully'
     });
 
   } catch (error) {
@@ -199,10 +270,17 @@ router.post('/comments/:commentId/like', async (req, res) => {
 });
 
 // Edit comment endpoint
-router.put('/comments/:commentId', async (req, res) => {
+router.put('/:commentId', async (req, res) => {
   try {
     const { commentId } = req.params;
     const { content } = req.body;
+    
+    if (!req.user) {
+      return res.status(401).json({
+        success: false,
+        error: 'User not authenticated'
+      });
+    }
     
     log(`Editing comment ${commentId} with content: ${content}`);
     
@@ -221,34 +299,43 @@ router.put('/comments/:commentId', async (req, res) => {
       });
     }
 
-    // Update in memory
-    let found = false;
-    for (const predictionId in commentsStorage) {
-      const comment = findCommentById(commentsStorage[predictionId], commentId);
-      if (comment) {
-        comment.content = content.trim();
-        comment.updated_at = new Date().toISOString();
-        comment.is_edited = true;
-        found = true;
-        break;
-      }
+    // Update in database
+    const { data: updatedComment, error } = await supabase
+      .from('comments')
+      .update({
+        content: content.trim(),
+        is_edited: true,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', commentId)
+      .eq('user_id', req.user.id)
+      .eq('is_deleted', false)
+      .select(`
+        *,
+        user:users!comments_user_id_fkey(id, username, full_name, avatar_url, is_verified)
+      `)
+      .single();
+
+    if (error) {
+      log('Database error updating comment:', error);
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to update comment',
+        details: error.message
+      });
     }
 
-    if (found) {
-      res.json({
-        success: true,
-        id: commentId,
-        content: content.trim(),
-        updated_at: new Date().toISOString(),
-        is_edited: true,
-        message: 'Comment updated in memory'
-      });
-    } else {
-      res.status(404).json({
+    if (!updatedComment) {
+      return res.status(404).json({
         success: false,
-        error: 'Comment not found'
+        error: 'Comment not found or not authorized to edit'
       });
     }
+
+    res.json({
+      success: true,
+      data: updatedComment
+    });
 
   } catch (error) {
     log('Error in edit comment route:', error);
@@ -261,52 +348,43 @@ router.put('/comments/:commentId', async (req, res) => {
 });
 
 // Delete comment endpoint
-router.delete('/comments/:commentId', async (req, res) => {
+router.delete('/:commentId', async (req, res) => {
   try {
     const { commentId } = req.params;
     
-    log(`Deleting comment ${commentId}`);
-
-    // Delete from memory
-    let found = false;
-    for (const predictionId in commentsStorage) {
-      const comments = commentsStorage[predictionId];
-      
-      // Remove from top-level comments
-      const topLevelIndex = comments.findIndex(c => c.id === commentId);
-      if (topLevelIndex !== -1) {
-        comments.splice(topLevelIndex, 1);
-        found = true;
-        break;
-      }
-      
-      // Remove from replies
-      for (const comment of comments) {
-        if (comment.replies) {
-          const replyIndex = comment.replies.findIndex((r: any) => r.id === commentId);
-          if (replyIndex !== -1) {
-            comment.replies.splice(replyIndex, 1);
-            comment.replies_count = comment.replies.length;
-            found = true;
-            break;
-          }
-        }
-      }
-      
-      if (found) break;
-    }
-
-    if (found) {
-      res.json({
-        success: true,
-        message: 'Comment deleted from memory'
-      });
-    } else {
-      res.status(404).json({
+    if (!req.user) {
+      return res.status(401).json({
         success: false,
-        error: 'Comment not found'
+        error: 'User not authenticated'
       });
     }
+    
+    log(`Deleting comment ${commentId} by user ${req.user.id}`);
+
+    // Soft delete in database
+    const { error } = await supabase
+      .from('comments')
+      .update({
+        is_deleted: true,
+        deleted_at: new Date().toISOString(),
+        content: '[deleted]'
+      })
+      .eq('id', commentId)
+      .eq('user_id', req.user.id);
+
+    if (error) {
+      log('Database error deleting comment:', error);
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to delete comment',
+        details: error.message
+      });
+    }
+
+    res.json({
+      success: true,
+      message: 'Comment deleted successfully'
+    });
 
   } catch (error) {
     log('Error in delete comment route:', error);
@@ -319,33 +397,46 @@ router.delete('/comments/:commentId', async (req, res) => {
 });
 
 // Get comment replies (for lazy loading)
-router.get('/comments/:commentId/replies', async (req, res) => {
+router.get('/:commentId/replies', async (req, res) => {
   try {
     const { commentId } = req.params;
     const page = parseInt(req.query.page as string) || 1;
     const limit = parseInt(req.query.limit as string) || 10;
+    const offset = (page - 1) * limit;
     
     log(`Fetching replies for comment ${commentId}, page ${page}, limit ${limit}`);
 
-    // Find the comment and return its replies
-    let replies: any[] = [];
-    for (const predictionId in commentsStorage) {
-      const comment = findCommentById(commentsStorage[predictionId], commentId);
-      if (comment && comment.replies) {
-        replies = comment.replies;
-        break;
-      }
+    const { data: replies, error, count } = await supabase
+      .from('comments')
+      .select(`
+        *,
+        user:users!comments_user_id_fkey(id, username, full_name, avatar_url, is_verified)
+      `, { count: 'exact' })
+      .eq('parent_comment_id', commentId)
+      .eq('is_deleted', false)
+      .order('created_at', { ascending: true })
+      .range(offset, offset + limit - 1);
+
+    if (error) {
+      log('Database error fetching replies:', error);
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to fetch replies'
+      });
     }
 
+    const total = count || 0;
+    const totalPages = Math.ceil(total / limit);
+
     res.json({
-      data: replies,
+      data: replies || [],
       pagination: {
         page,
         limit,
-        total: replies.length,
-        totalPages: Math.ceil(replies.length / limit),
-        hasNext: false,
-        hasPrev: false
+        total,
+        totalPages,
+        hasNext: page < totalPages,
+        hasPrev: page > 1
       }
     });
 
@@ -359,22 +450,31 @@ router.get('/comments/:commentId/replies', async (req, res) => {
   }
 });
 
-// Debug endpoint to view stored comments
-router.get('/debug/storage', (req, res) => {
-  res.json({
-    storage: commentsStorage,
-    total_predictions: Object.keys(commentsStorage).length,
-    total_comments: Object.values(commentsStorage).reduce((sum, comments) => sum + comments.length, 0)
-  });
-});
-
-// Add route-level logging middleware
-router.use((req, res, next) => {
-  log(`Incoming request: ${req.method} ${req.originalUrl}`);
-  log(`Base URL: ${req.baseUrl}, Path: ${req.path}`);
-  log(`Params:`, req.params);
-  log(`Query:`, req.query);
-  next();
+// Debug endpoint to view database schema
+router.get('/debug/schema', async (req, res) => {
+  try {
+    // Test comment insertion to see what columns are available
+    const { error } = await supabase
+      .from('comments')
+      .select('*')
+      .limit(1);
+    
+    if (error) {
+      res.json({
+        error: error.message,
+        details: error.details,
+        hint: error.hint,
+        code: error.code
+      });
+    } else {
+      res.json({ message: 'Comments table is accessible' });
+    }
+  } catch (error) {
+    res.status(500).json({
+      error: 'Schema check failed',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
 });
 
 // Catch-all for debugging - IMPORTANT: This should be LAST
@@ -387,16 +487,17 @@ router.all('*', (req, res) => {
   log('- Method:', req.method);
   log('- Params:', req.params);
   log('- Query:', req.query);
+  log('- User:', req.user?.username);
   log('Available routes:');
   log('- GET /test');
   log('- GET /health');
   log('- GET /predictions/:predictionId/comments');
   log('- POST /predictions/:predictionId/comments');
-  log('- POST /comments/:commentId/like');
-  log('- PUT /comments/:commentId');
-  log('- DELETE /comments/:commentId');
-  log('- GET /comments/:commentId/replies');
-  log('- GET /debug/storage');
+  log('- POST /:commentId/like');
+  log('- PUT /:commentId');
+  log('- DELETE /:commentId');
+  log('- GET /:commentId/replies');
+  log('- GET /debug/schema');
   
   res.status(404).json({
     success: false,
@@ -404,16 +505,17 @@ router.all('*', (req, res) => {
     baseUrl: req.baseUrl,
     path: req.path,
     method: req.method,
+    user: req.user,
     availableRoutes: [
       'GET /test',
       'GET /health',
       'GET /predictions/:predictionId/comments',
       'POST /predictions/:predictionId/comments',
-      'POST /comments/:commentId/like',
-      'PUT /comments/:commentId',
-      'DELETE /comments/:commentId',
-      'GET /comments/:commentId/replies',
-      'GET /debug/storage'
+      'POST /:commentId/like',
+      'PUT /:commentId',
+      'DELETE /:commentId',
+      'GET /:commentId/replies',
+      'GET /debug/schema'
     ]
   });
 });

@@ -412,7 +412,7 @@ router.post('/auto-settle', async (req, res) => {
       .from('predictions')
       .select(`
         *,
-        options:prediction_options!prediction_options_prediction_id_fkey(*),
+        options:prediction_options!prediction_options_prediction_id_fkey(*)
         entries:prediction_entries(*)
       `)
       .eq('status', 'closed')
@@ -559,7 +559,7 @@ router.get('/:predictionId/status', async (req, res) => {
       .from('predictions')
       .select(`
         *,
-        options:prediction_options!prediction_options_prediction_id_fkey(*),
+        options:prediction_options!prediction_options_prediction_id_fkey(*)
         entries:prediction_entries(*)
       `)
       .eq('id', predictionId)

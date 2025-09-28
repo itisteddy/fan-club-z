@@ -1,0 +1,49 @@
+name: Deploy to Vercel (Prod)
+on:
+  push:
+    branches: [ "main" ]
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # Hard stop if app code changes sneaked into this infra-only PR
+      - name: Ensure no app code changed in this workflow (guardrail)
+        run: |
+          if git diff --name-only HEAD~1 HEAD | egrep -q '^(src/|components/|styles/|public/)'; then
+            echo "❌ App code changes detected in production deploy path. Abort."
+            exit 1
+          fi
+
+      - name: Install Vercel CLI
+        run: npm i -g vercel@latest
+
+      - name: Link to Vercel project (existing)
+        run: vercel pull --yes --environment=production
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+
+      - name: Build (if framework requires) – optional
+        run: |
+          if [ -f package-lock.json ]; then npm ci; else yarn --frozen-lockfile; fi
+          # If needed: npm run build
+        env:
+          # The CLI will hydrate envs pulled above
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+      - name: Deploy to Production
+        run: vercel deploy --prod --prebuilt --confirm
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
