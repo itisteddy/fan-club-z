@@ -28,8 +28,7 @@ router.get('/', async (req, res) => {
       .select(`
         *,
         creator:users!creator_id(id, username, full_name, avatar_url),
-        options:prediction_options!prediction_options_prediction_id_fkey(*),
-        club:clubs(id, name, avatar_url)
+        options:prediction_options!prediction_options_prediction_id_fkey(*)
       `, { count: 'exact' })
       .eq('status', 'open') // Only show open predictions
       .gt('entry_deadline', new Date().toISOString()) // Only show predictions with future deadlines
@@ -179,8 +178,7 @@ router.get('/trending', async (req, res) => {
       .select(`
         *,
         creator:users!creator_id(id, username, full_name, avatar_url),
-        options:prediction_options!prediction_options_prediction_id_fkey(*),
-        club:clubs(id, name, avatar_url)
+        options:prediction_options!prediction_options_prediction_id_fkey(*)
       `)
       .eq('status', 'open')
       .order('participant_count', { ascending: false })
@@ -224,8 +222,7 @@ router.get('/:id', async (req, res) => {
       .select(`
         *,
         creator:users!creator_id(id, username, full_name, avatar_url),
-        options:prediction_options!prediction_options_prediction_id_fkey(*),
-        club:clubs(id, name, avatar_url)
+        options:prediction_options!prediction_options_prediction_id_fkey(*)
       `)
       .eq('id', id)
       .single();
@@ -269,8 +266,7 @@ router.get('/created/:userId', async (req, res) => {
       .select(`
         *,
         creator:users!creator_id(id, username, full_name, avatar_url),
-        options:prediction_options!prediction_options_prediction_id_fkey(*),
-        club:clubs(id, name, avatar_url)
+        options:prediction_options!prediction_options_prediction_id_fkey(*)
       `)
       .eq('creator_id', userId)
       .neq('status', 'cancelled')
@@ -745,8 +741,7 @@ router.get('/user/:id', async (req, res) => {
       .select(`
         *,
         creator:users!creator_id(id, username, full_name, avatar_url),
-        options:prediction_options!prediction_options_prediction_id_fkey(*),
-        club:clubs(id, name, avatar_url)
+        options:prediction_options!prediction_options_prediction_id_fkey(*)
       `)
       .eq('creator_id', id)
       .neq('status', 'cancelled')

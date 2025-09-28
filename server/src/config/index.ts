@@ -87,7 +87,6 @@ export const config = {
   // Feature Flags
   features: {
     socialFeatures: process.env.ENABLE_SOCIAL_FEATURES !== 'false',
-    clubs: process.env.ENABLE_CLUBS !== 'false',
     realTime: process.env.ENABLE_REAL_TIME !== 'false',
     pushNotifications: process.env.ENABLE_PUSH_NOTIFICATIONS === 'true',
     analytics: process.env.ENABLE_ANALYTICS === 'true',

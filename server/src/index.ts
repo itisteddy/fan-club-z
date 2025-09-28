@@ -109,6 +109,7 @@ import predictionsRoutes from './routes/predictions';
 import predictionEntriesRoutes from './routes/prediction-entries';
 import socialRoutes from './routes/social';
 import settlementRoutes from './routes/settlement';
+import commentsRoutes from './routes/comments';
 import { ensureAvatarsBucket } from './startup/storage';
 
 // Use routes
@@ -117,14 +118,16 @@ app.use('/api/v2/predictions', predictionsRoutes);
 app.use('/api/v2/prediction-entries', predictionEntriesRoutes);
 app.use('/api/v2/social', socialRoutes);
 app.use('/api/v2/settlement', settlementRoutes);
+app.use('/api/v2/comments', commentsRoutes);
 
 // Debug logging for route registration
 console.log('✅ Routes registered:');
 console.log('  - /api/v2/users');
 console.log('  - /api/v2/predictions');
 console.log('  - /api/v2/prediction-entries');
-console.log('  - /api/v2/social (comments system)');
+console.log('  - /api/v2/social (enhanced comments system)');
 console.log('  - /api/v2/settlement (manual/auto settlement)');
+console.log('  - /api/v2/comments (direct comments API)');
 
 // CORS test endpoint
 app.get('/api/v2/test-cors', (req, res) => {
