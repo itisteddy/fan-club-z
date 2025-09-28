@@ -1,4 +1,4 @@
-import React, { useEffect, useCallback, memo, Suspense } from 'react';
+import React, { useEffect, useCallback, Suspense } from 'react';
 import { Router, Route, Switch, useLocation } from 'wouter';
 import { useWalletStore } from './store/walletStore';
 import { useAuthStore } from './store/authStore';
@@ -33,8 +33,8 @@ const LoadingSpinner: React.FC<{ message?: string }> = ({ message = "Loading..."
   </div>
 );
 
-// Simplified Auth Guard
-const AuthGuard: React.FC<{ children: React.ReactNode }> = memo(({ children }) => {
+// Auth Guard for Protected Routes Only
+const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { isAuthenticated, loading, initialized, initializeAuth } = useAuthStore();
   
   useEffect(() => {
@@ -43,38 +43,35 @@ const AuthGuard: React.FC<{ children: React.ReactNode }> = memo(({ children }) =
     }
   }, [initialized, loading, initializeAuth]);
   
-  if (!initialized || (loading && !isAuthenticated)) {
+  if (!initialized || loading) {
     return <LoadingSpinner message="Authenticating..." />;
   }
   
   if (!isAuthenticated) {
-    return <AuthPage />;
+    return (
+      <PageWrapper title="Sign In Required">
+        <AuthPage />
+      </PageWrapper>
+    );
   }
   
   return <>{children}</>;
-});
+};
 
-AuthGuard.displayName = 'AuthGuard';
-
-// Enhanced Main Layout Component with scroll preservation
-const MainLayout: React.FC<{ children: React.ReactNode }> = memo(({ children }) => {
+// Main Layout with Navigation
+const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [location, navigate] = useLocation();
   
   const getCurrentTab = useCallback(() => {
-    const path = location.toLowerCase();
-    if (path === '/' || path === '/discover') return 'discover';
-    if (path === '/bets' || path === '/predictions') return 'bets';
-    if (path === '/profile') return 'profile';
-    if (path === '/wallet') return 'wallet';
+    if (location === '/' || location === '/discover') return 'discover';
+    if (location.startsWith('/predictions') || location.startsWith('/bets')) return 'bets';
+    if (location.startsWith('/profile')) return 'profile';
+    if (location.startsWith('/wallet')) return 'wallet';
     return 'discover';
   }, [location]);
 
   const handleTabChange = useCallback((tab: string) => {
-    // Prevent infinite loops by checking if we're already on the target route
-    const currentTab = getCurrentTab();
-    if (currentTab === tab) return;
-    
-    // Save current scroll position before navigating
+    // Save current scroll position before navigation
     saveScrollPosition(location);
     
     // Mark as intentional navigation to prevent auto-scroll-restore
@@ -129,15 +126,9 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = memo(({ children }) 
         showFAB={showFAB}
         onFABClick={handleFABClick}
       />
-
-      {/* Notifications */}
-      <NotificationContainer />
       
-      {/* PWA Install Manager */}
-      <PWAInstallManager />
-      
-      {/* Toast Notifications */}
-      <Toaster
+      {/* Global Components */}
+      <Toaster 
         position="top-center"
         toastOptions={{
           duration: 4000,
@@ -147,206 +138,63 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = memo(({ children }) 
           },
         }}
       />
+      <NotificationContainer />
+      <PWAInstallManager />
     </div>
   );
-});
-
-MainLayout.displayName = 'MainLayout';
-
-// Enhanced Page Wrapper Components with scroll preservation
-const DiscoverPageWrapper: React.FC = () => {
-  const [location, navigate] = useLocation();
-  
-  const handleNavigateToProfile = useCallback(() => {
-    saveScrollPosition(location);
-    navigate('/profile');
-  }, [navigate, location]);
-
-  const handleNavigateToPrediction = useCallback((predictionId: string) => {
-    // Save scroll position before navigating to details
-    saveScrollPosition(location);
-    navigate(`/prediction/${predictionId}`);
-  }, [navigate, location]);
-
-  return (
-    <PageWrapper title="Discover">
-      <DiscoverPage 
-        onNavigateToProfile={handleNavigateToProfile}
-        onNavigateToPrediction={handleNavigateToPrediction}
-      />
-    </PageWrapper>
-  );
 };
 
-const PredictionsPageWrapper: React.FC = () => {
-  const [location, navigate] = useLocation();
-  
-  const handleNavigateToDiscover = useCallback(() => {
-    saveScrollPosition(location);
-    navigate('/');
-  }, [navigate, location]);
+// Page Wrappers
+const DiscoverPageWrapper: React.FC = () => (
+  <PageWrapper title="Discover">
+    <DiscoverPage />
+  </PageWrapper>
+);
 
-  return (
-    <PageWrapper title="My Predictions">
-      <BetsTab onNavigateToDiscover={handleNavigateToDiscover} />
+const PredictionsPageWrapper: React.FC = () => (
+  <ProtectedRoute>
+    <PageWrapper title="My Bets">
+      <BetsTab onNavigateToDiscover={() => window.location.href = '/'} />
     </PageWrapper>
-  );
-};
+  </ProtectedRoute>
+);
 
-const CreatePredictionPageWrapper: React.FC = () => {
-  const [location, navigate] = useLocation();
-  
-  const handleNavigateBack = useCallback(() => {
-    // Don't save scroll position when going back from create
-    markNavigationAsIntentional();
-    navigate('/');
-  }, [navigate]);
-
-  return (
+const CreatePredictionPageWrapper: React.FC = () => (
+  <ProtectedRoute>
     <PageWrapper title="Create Prediction">
-      <CreatePredictionPage 
-        onNavigateBack={handleNavigateBack}
-      />
+      <CreatePredictionPage />
     </PageWrapper>
-  );
-};
+  </ProtectedRoute>
+);
 
-// Component for viewing other users' profiles with proper param extraction
-const UserProfilePageWrapper: React.FC<{ params: { userId: string } }> = ({ params }) => {
-  const [location, navigate] = useLocation();
-  
-  const handleNavigateBack = useCallback(() => {
-    if (window.history.length > 1) {
-      // Use browser back to restore previous scroll position
-      window.history.back();
-    } else {
-      markNavigationAsIntentional();
-      navigate('/');
-    }
-  }, [navigate]);
-
-  // Validate and clean the userId parameter
-  const userId = React.useMemo(() => {
-    const rawUserId = params?.userId;
-    if (!rawUserId) {
-      console.warn('⚠️ No userId provided in profile route');
-      return undefined;
-    }
-    
-    const cleanUserId = rawUserId.trim();
-    if (!cleanUserId) {
-      console.warn('⚠️ Empty userId in profile route');
-      return undefined;
-    }
-    
-    // Basic UUID validation
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    if (uuidRegex.test(cleanUserId)) {
-      console.log('✅ Valid UUID userId:', cleanUserId);
-      return cleanUserId;
-    }
-    
-    // If not UUID but has content, could be username (for backward compatibility)
-    if (cleanUserId.length > 2) {
-      console.log('⚠️ Non-UUID userId (might be username):', cleanUserId);
-      return cleanUserId;
-    }
-    
-    console.warn('⚠️ Invalid userId format:', cleanUserId);
-    return undefined;
-  }, [params?.userId]);
-
-  // If no valid userId, redirect to own profile
-  if (!userId) {
-    React.useEffect(() => {
-      console.warn('⚠️ Invalid userId in profile route, redirecting to own profile');
-      markNavigationAsIntentional();
-      navigate('/profile');
-    }, [navigate]);
-    
-    return <LoadingSpinner message="Redirecting..." />;
-  }
-
-  console.log('🔍 UserProfilePageWrapper rendering with userId:', userId);
-
-  return (
-    <PageWrapper title="User Profile">
-      <ProfilePage 
-        onNavigateBack={handleNavigateBack} 
-        userId={userId} 
-      />
-    </PageWrapper>
-  );
-};
-
-// Wrapper for current user profile
-const MyProfilePageWrapper: React.FC = () => {
-  const [location, navigate] = useLocation();
-  
-  const handleNavigateBack = useCallback(() => {
-    saveScrollPosition(location);
-    navigate('/');
-  }, [navigate, location]);
-
-  return (
+const MyProfilePageWrapper: React.FC = () => (
+  <ProtectedRoute>
     <PageWrapper title="My Profile">
-      <ProfilePage 
-        onNavigateBack={handleNavigateBack} 
-      />
+      <ProfilePage />
     </PageWrapper>
-  );
-};
+  </ProtectedRoute>
+);
 
-const WalletPageWrapper: React.FC = () => {
-  const [location, navigate] = useLocation();
-  
-  const handleNavigateBack = useCallback(() => {
-    saveScrollPosition(location);
-    navigate('/');
-  }, [navigate, location]);
-
-  return (
+const WalletPageWrapper: React.FC = () => (
+  <ProtectedRoute>
     <PageWrapper title="Wallet">
-      <WalletPage onNavigateBack={handleNavigateBack} />
+      <WalletPage />
     </PageWrapper>
-  );
-};
+  </ProtectedRoute>
+);
 
 const PredictionDetailsWrapper: React.FC<{ params: { id: string } }> = ({ params }) => {
-  const [location, navigate] = useLocation();
+  const [, navigate] = useLocation();
   
   const handleNavigateBack = useCallback(() => {
-    // Use browser back to restore previous scroll position automatically
-    console.log('🔙 Navigating back from prediction details');
-    
+    // Check if there's history to go back to
     if (window.history.length > 1) {
-      // Browser back will automatically restore scroll position via our scroll manager
       window.history.back();
     } else {
       // Fallback to discover page
-      markNavigationAsIntentional();
       navigate('/');
     }
   }, [navigate]);
-
-  if (!params?.id) {
-    return (
-      <PageWrapper title="Error">
-        <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-          <div className="text-center">
-            <h2 className="text-xl font-semibold text-gray-900 mb-2">Prediction Not Found</h2>
-            <p className="text-gray-600 mb-4">The prediction you're looking for doesn't exist.</p>
-            <button
-              onClick={handleNavigateBack}
-              className="px-4 py-2 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600"
-            >
-              Go Back
-            </button>
-          </div>
-        </div>
-      </PageWrapper>
-    );
-  }
 
   return (
     <PageWrapper title="Prediction Details">
@@ -358,18 +206,18 @@ const PredictionDetailsWrapper: React.FC<{ params: { id: string } }> = ({ params
   );
 };
 
-// Main App Component with improved error handling
+// Main App Component - Content First Architecture
 function App() {
   const { initializeWallet } = useWalletStore();
   const { initializeAuth, isAuthenticated, loading, initialized } = useAuthStore();
   const { initializeLikes } = useLikeStore();
   const { initialize: initializeCommentStore } = useUnifiedCommentStore();
 
-  // Initialize auth once on app start
+  // Initialize auth in background (non-blocking)
   useEffect(() => {
     if (!initialized && !loading) {
       try {
-        console.log('App: Initializing auth...');
+        console.log('App: Initializing auth in background...');
         initializeAuth();
       } catch (error) {
         console.error('Auth initialization failed:', error);
@@ -377,7 +225,7 @@ function App() {
     }
   }, [initializeAuth, initialized, loading]);
 
-  // Initialize wallet and social features after auth is ready
+  // Initialize wallet and social features after auth is ready (if authenticated)
   useEffect(() => {
     if (isAuthenticated && !loading && initialized) {
       try {
@@ -401,35 +249,35 @@ function App() {
     <ErrorBoundary>
       <Router>
         <Switch>
-        {/* Public auth routes */}
-        <Route path="/auth/callback">
-          <PageWrapper title="Authentication">
-            <AuthCallbackPage />
-          </PageWrapper>
-        </Route>
-        
-        {/* Protected app routes */}
-        <AuthGuard>
+          {/* Public auth routes */}
+          <Route path="/auth/callback">
+            <PageWrapper title="Authentication">
+              <AuthCallbackPage />
+            </PageWrapper>
+          </Route>
+          
+          {/* Content-First Routes */}
           <OnboardingProvider>
             <MainLayout>
               <Switch>
+                {/* PUBLIC ROUTES - No authentication required */}
                 <Route path="/" component={DiscoverPageWrapper} />
                 <Route path="/discover" component={DiscoverPageWrapper} />
-                <Route path="/predictions" component={PredictionsPageWrapper} />
+                <Route path="/prediction/:id" component={PredictionDetailsWrapper} />
                 <Route path="/predictions/:id" component={PredictionDetailsWrapper} />
+
+                {/* PROTECTED ROUTES - Authentication required */}
+                <Route path="/predictions" component={PredictionsPageWrapper} />
                 <Route path="/bets" component={PredictionsPageWrapper} />
                 <Route path="/create" component={CreatePredictionPageWrapper} />
                 <Route path="/profile" component={MyProfilePageWrapper} />
-                <Route path="/profile/:userId" component={UserProfilePageWrapper} />
                 <Route path="/wallet" component={WalletPageWrapper} />
-                <Route path="/prediction/:id" component={PredictionDetailsWrapper} />
 
-                {/* Fallback */}
+                {/* Fallback to Discover (public) */}
                 <Route component={DiscoverPageWrapper} />
               </Switch>
             </MainLayout>
           </OnboardingProvider>
-        </AuthGuard>
         </Switch>
       </Router>
     </ErrorBoundary>
