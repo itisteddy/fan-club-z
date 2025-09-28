@@ -1,7 +1,7 @@
 {
   "version": 2,
-  "buildCommand": "pnpm install --frozen-lockfile && pnpm build",
-  "outputDirectory": "dist",
+  "buildCommand": "cd client && pnpm install --frozen-lockfile && pnpm build",
+  "outputDirectory": "client/dist",
   "installCommand": "pnpm install --frozen-lockfile",
   "framework": "vite",
   "rewrites": [
