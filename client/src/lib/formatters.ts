@@ -20,6 +20,39 @@ export function formatNumberShort(
   }).format(n);
 }
 
+// Additional formatters for wallet and other components
+export const formatCurrency = (amount: number, options?: { compact?: boolean; showSign?: boolean; currency?: string }): string => {
+  const { compact = true, showSign = false, currency = 'USD' } = options || {};
+  
+  if (compact) {
+    const formatter = new Intl.NumberFormat(undefined, {
+      style: 'currency',
+      currency,
+      notation: 'compact',
+      maximumFractionDigits: 1,
+    });
+    const formatted = formatter.format(amount);
+    return showSign && amount > 0 ? `+${formatted}` : formatted;
+  }
+  
+  const formatter = new Intl.NumberFormat(undefined, {
+    style: 'currency',
+    currency,
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  });
+  const formatted = formatter.format(amount);
+  return showSign && amount > 0 ? `+${formatted}` : formatted;
+};
+
+export const formatLargeNumber = (n: number): string => {
+  return new Intl.NumberFormat(undefined, { notation: 'compact', maximumFractionDigits: 1 }).format(n);
+};
+
+export const formatPercentage = (value: number, decimals: number = 1): string => {
+  return `${value.toFixed(decimals)}%`;
+};
+
 export function formatDurationShort(seconds: number): string {
   const s = Math.max(0, Math.floor(seconds));
   const year = 365 * 24 * 3600;
