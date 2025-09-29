@@ -1,12 +1,26 @@
-export const formatCurrency = (n: number | string, opts?: Intl.NumberFormatOptions) => {
+export const formatCurrency = (n: number | string, opts?: { compact?: boolean; showSign?: boolean; currency?: string }) => {
   const num = typeof n === "string" ? Number(n) : n;
-  return new Intl.NumberFormat(undefined, {
+  const { compact = true, showSign = false, currency = 'USD' } = opts || {};
+  
+  if (compact) {
+    const formatter = new Intl.NumberFormat(undefined, {
+      style: "currency",
+      currency,
+      notation: "compact",
+      maximumFractionDigits: 1,
+    });
+    const formatted = formatter.format(num || 0);
+    return showSign && num > 0 ? `+${formatted}` : formatted;
+  }
+  
+  const formatter = new Intl.NumberFormat(undefined, {
     style: "currency",
-    currency: "USD",
-    notation: "compact",
-    maximumFractionDigits: 1,
-    ...opts,
-  }).format(num || 0);
+    currency,
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  });
+  const formatted = formatter.format(num || 0);
+  return showSign && num > 0 ? `+${formatted}` : formatted;
 };
 
 export const formatNumber = (n: number | string, opts?: Intl.NumberFormatOptions) => {
