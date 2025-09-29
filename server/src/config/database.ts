@@ -95,8 +95,7 @@ export const db = {
         .select(`
           *,
           creator:users!creator_id(id, username, full_name, avatar_url),
-          options:prediction_options!prediction_options_prediction_id_fkey(*),
-          club:clubs(id, name, avatar_url)
+          options:prediction_options!prediction_options_prediction_id_fkey(*)
         `, { count: 'exact' });
       
       // Apply filters
@@ -112,9 +111,6 @@ export const db = {
         query = query.eq('creator_id', filters.creator_id);
       }
       
-      if (filters.club_id) {
-        query = query.eq('club_id', filters.club_id);
-      }
       
       if (filters.search) {
         query = query.or(`title.ilike.%${filters.search}%,description.ilike.%${filters.search}%`);
