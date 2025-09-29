@@ -1,0 +1,445 @@
+client/src/App.tsx:4:import { useWalletStore } from './store/walletStore';
+client/src/App.tsx:12:import AuthGateModal from './components/auth/AuthGateModal';
+client/src/App.tsx:20:import { NetworkStatusProvider } from './providers/NetworkStatusProvider';
+client/src/App.tsx:27:const LazyProfilePage = lazy(() => import('./pages/ProfilePage'));
+client/src/App.tsx:28:const LazyWalletPage = lazy(() => import('./pages/WalletPage'));
+client/src/App.tsx:29:const LazyPredictionDetailsPageV2 = lazy(() => import('./pages/PredictionDetailsPageV2'));
+client/src/App.tsx:30:const LazyProfilePageV2 = lazy(() => import('./pages/ProfilePageV2'));
+client/src/App.tsx:31:const LazyWalletPageV2 = lazy(() => import('./pages/WalletPageV2'));
+client/src/App.tsx:222:  const handleNavigateToProfile = useCallback(() => {
+client/src/App.tsx:235:        onNavigateToProfile={handleNavigateToProfile}
+client/src/App.tsx:275:const UserProfilePageWrapper: React.FC = () => {
+client/src/App.tsx:331:  console.log('🔍 UserProfilePageWrapper rendering with userId:', validatedUserId);
+client/src/App.tsx:334:    <PageWrapper title="User Profile">
+client/src/App.tsx:335:      <LazyProfilePage 
+client/src/App.tsx:344:const MyProfilePageWrapper: React.FC = () => {
+client/src/App.tsx:354:    <PageWrapper title="My Profile">
+client/src/App.tsx:355:      <LazyProfilePage 
+client/src/App.tsx:362:const WalletPageWrapper: React.FC = () => {
+client/src/App.tsx:372:    <PageWrapper title="Wallet">
+client/src/App.tsx:373:      <LazyWalletPage onNavigateBack={handleNavigateBack} />
+client/src/App.tsx:382:const PredictionDetailsRouteWrapper: React.FC = () => {
+client/src/App.tsx:417:  return <LazyPredictionDetailsPageV2 predictionId={id} />;
+client/src/App.tsx:423:  const { initializeWallet } = useWalletStore();
+client/src/App.tsx:460:        initializeWallet();
+client/src/App.tsx:470:  }, [isAuthenticated, loading, sessionInitialized, initializeWallet, initializeLikes]);
+client/src/App.tsx:489:              <Route path="/predictions/:id" element={<PredictionDetailsRouteWrapper />} />
+client/src/App.tsx:495:                  ? <PageWrapper title="Profile"><LazyProfilePageV2 /></PageWrapper>
+client/src/App.tsx:496:                  : <MyProfilePageWrapper />
+client/src/App.tsx:500:                  ? <PageWrapper title="Profile"><LazyProfilePageV2 /></PageWrapper>
+client/src/App.tsx:501:                  : <UserProfilePageWrapper />
+client/src/App.tsx:505:                  ? <PageWrapper title="Wallet"><LazyWalletPageV2 /></PageWrapper>
+client/src/App.tsx:506:                  : <WalletPageWrapper />
+client/src/App.tsx:509:              <Route path="/prediction/:id" element={<PredictionDetailsRouteWrapper />} />
+client/src/App.tsx:519:          <AuthGateModal />
+client/src/App.tsx:531:    <NetworkStatusProvider>
+client/src/App.tsx:537:    </NetworkStatusProvider>
+client/src/main.tsx:6:import { NetworkStatusProvider } from './providers/NetworkStatusProvider'
+client/src/main.tsx:39:        <NetworkStatusProvider>
+client/src/main.tsx:47:        </NetworkStatusProvider>
+client/src/auth/useAuthGate.ts:14: * Used by AuthGateModal and any components that need to react to auth gate state
+client/src/auth/authGateTest.ts:8:  async testWalletIntent() {
+client/src/auth/authGateTest.ts:12:      console.log('✅ Wallet auth result:', result);
+client/src/auth/authGateTest.ts:14:      console.error('❌ Wallet auth error:', error);
+client/src/auth/useAuthAdapter.ts:3:import { useNetworkStatus } from '../providers/NetworkStatusProvider';
+client/src/auth/authGateAdapter.ts:171:      // Wallet will automatically reload its data when user becomes authenticated
+client/src/providers/NetworkStatusProvider.tsx:13:    throw new Error('useNetworkStatus must be used within a NetworkStatusProvider');
+client/src/providers/NetworkStatusProvider.tsx:18:interface NetworkStatusProviderProps {
+client/src/providers/NetworkStatusProvider.tsx:22:export const NetworkStatusProvider: React.FC<NetworkStatusProviderProps> = ({ children }) => {
+client/src/features/images/PredictionCardImage.tsx:5:export interface PredictionCardImageProps extends Omit<AutoImageProps, 'aspect' | 'rounded'> {
+client/src/features/images/PredictionCardImage.tsx:9:export const PredictionCardImage: React.FC<PredictionCardImageProps> = ({
+client/src/features/images/index.ts:4:export { PredictionCardImage } from './PredictionCardImage';
+client/src/features/images/index.ts:12:export type { PredictionCardImageProps } from './PredictionCardImage';
+client/src/tests/testPlan.md:42:#### **Wallet & Transactions**
+client/src/stores/walletStore.ts:4:  WalletSummary, 
+client/src/stores/walletStore.ts:6:  validateWalletSummary,
+client/src/stores/walletStore.ts:22:interface WalletState {
+client/src/stores/walletStore.ts:25:  walletSummary: WalletSummary | null;
+client/src/stores/walletStore.ts:39:export const useWalletStore = create<WalletState>()(
+client/src/stores/walletStore.ts:55:          qaLog('Wallet store: Already loading, skipping');
+client/src/stores/walletStore.ts:59:        qaLog('Wallet store: Loading wallet summary', { userId });
+client/src/stores/walletStore.ts:67:          const result: ApiResult<WalletSummary> = await get(
+client/src/stores/walletStore.ts:73:            const issues = validateWalletSummary(result.data);
+client/src/stores/walletStore.ts:75:              qaError('Wallet store: Schema validation failed', issues);
+client/src/stores/walletStore.ts:86:            qaLog('Wallet store: Summary loaded successfully', result.data);
+client/src/stores/walletStore.ts:122:            qaError('Wallet store: Load failed', { kind: result.kind, error: errorMessage });
+client/src/stores/walletStore.ts:133:          qaError('Wallet store: Unexpected error', error);
+client/src/stores/walletStore.ts:147:        qaLog('Wallet store: Loading transactions', { userId, limit });
+client/src/stores/walletStore.ts:163:              qaError('Wallet store: Schema validation failed', issues);
+client/src/stores/walletStore.ts:174:            qaLog('Wallet store: Transactions loaded successfully', { 
+client/src/stores/walletStore.ts:212:            qaError('Wallet store: Load failed', { kind: result.kind, error: errorMessage });
+client/src/stores/walletStore.ts:223:          qaError('Wallet store: Unexpected error', error);
+client/src/stores/walletStore.ts:235:        qaLog('Wallet store: Adding funds', { userId, amount, currency });
+client/src/stores/walletStore.ts:244:            qaLog('Wallet store: Funds added successfully', result.data);
+client/src/stores/walletStore.ts:251:            qaError('Wallet store: Add funds failed', { kind: result.kind });
+client/src/stores/walletStore.ts:255:          qaError('Wallet store: Add funds unexpected error', error);
+client/src/stores/walletStore.ts:264:        qaLog('Wallet store: Refreshing wallet data', { userId });
+client/src/stores/walletStore.ts:272:        qaLog('Wallet store: Clearing state');
+client/src/stores/walletStore.ts:283:        qaLog('Wallet store: Setting error', error);
+client/src/utils/deepLinking.ts:44:  // Profile: /profile/:userId
+client/src/utils/deepLinking.ts:108:export const generateProfileUrl = (userId: string, baseUrl?: string): string => {
+client/src/utils/navigation.ts:79:  { id: 'wallet', label: 'Wallet', path: '/wallet', requiresAuth: true },
+client/src/utils/navigation.ts:80:  { id: 'profile', label: 'Profile', path: '/profile', requiresAuth: true },
+client/src/utils/featureFlags.ts:60:        description: 'Enable consistent card design across Profile and Wallet',
+client/src/utils/featureFlags.ts:352:export const isPredictionDetailsV2Enabled = () => featureFlags.isEnabled('PREDICTION_DETAILS_V2');
+client/src/styles/z-index-fixes.css:91:/* Wallet Modals */
+client/src/components/ui/Skeleton.tsx:1:import React from "react"; import { motion } from "framer-motion"; const Skeleton: React.FC<{ className?: string; width?: string | number; height?: string | number; }> = ({ className = "", width, height }) => { const style: React.CSSProperties = {}; if (width) style.width = typeof width === "number" ? `${width}px` : width; if (height) style.height = typeof height === "number" ? `${height}px` : height; return ( <motion.div className={`bg-gray-200 rounded-md ${className}`} style={style} animate={{ opacity: [0.5, 1, 0.5] }} transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }} /> ); }; export const PredictionCardSkeleton: React.FC = () => ( <div className="mx-4 mb-4"> <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden" style={{ minHeight: "160px" }}> <div className="p-4 pb-3"> <Skeleton height={20} width="90%" className="mb-2" /> <Skeleton height={16} width="70%" className="mb-3" /> <div className="flex gap-2 mb-3"> <div className="flex-1 bg-gray-50 rounded-lg p-2"> <Skeleton height={14} width="60%" className="mb-1" /> <Skeleton height={12} width="40%" /> </div> <div className="flex-1 bg-gray-50 rounded-lg p-2"> <Skeleton height={14} width="60%" className="mb-1" /> <Skeleton height={12} width="40%" /> </div> </div> </div> <div className="px-4 pb-4 flex items-center justify-between"> <div className="flex items-center gap-4"> <Skeleton height={12} width={50} /> <Skeleton height={12} width={30} /> </div> <Skeleton height={32} width={80} /> </div> </div> </div> ); export default Skeleton;
+client/src/components/auth/AuthGateModal.tsx:6:import { useNetworkStatus } from '../../providers/NetworkStatusProvider';
+client/src/components/auth/AuthGateModal.tsx:10:const AuthGateModal: React.FC = () => {
+client/src/components/auth/AuthGateModal.tsx:247: export default AuthGateModal;
+client/src/components/PredictionCard.tsx:13:interface PredictionCardProps {
+client/src/components/PredictionCard.tsx:24:const PredictionCardErrorFallback: React.FC<{ error?: string }> = ({ error }) => (
+client/src/components/PredictionCard.tsx:33:const PredictionCardContent: React.FC<PredictionCardProps> = ({
+client/src/components/PredictionCard.tsx:44:    console.warn('⚠️ PredictionCard: Invalid prediction data received:', prediction);
+client/src/components/PredictionCard.tsx:45:    return <PredictionCardErrorFallback error="Invalid prediction data" />;
+client/src/components/PredictionCard.tsx:233:const PredictionCard: React.FC<PredictionCardProps> = (props) => {
+client/src/components/PredictionCard.tsx:236:      <PredictionCardContent {...props} />
+client/src/components/PredictionCard.tsx:241:export default PredictionCard;
+client/src/components/layout/MobileShell.tsx:67:          title: 'Wallet',
+client/src/components/layout/MobileShell.tsx:82:          title: 'Profile',
+client/src/components/layout/AppHeader.tsx:5:  title?: string;                // e.g., "Discover", "My Bets", "Wallet"
+client/src/components/cards/DensePredictionCard.tsx:11:interface DensePredictionCardProps {
+client/src/components/cards/DensePredictionCard.tsx:17:const DensePredictionCard: React.FC<DensePredictionCardProps> = ({
+client/src/components/cards/DensePredictionCard.tsx:231:export default DensePredictionCard;
+client/src/components/prediction/PredictionDetailsWrapper.tsx:16:interface PredictionDetailsWrapperProps {
+client/src/components/prediction/PredictionDetailsWrapper.tsx:20:const PredictionDetailsWrapper: React.FC<PredictionDetailsWrapperProps> = ({ children }) => {
+client/src/components/prediction/PredictionDetailsWrapper.tsx:26:    context: 'PredictionDetailsWrapper',
+client/src/components/prediction/PredictionDetailsWrapper.tsx:35:    qaLog('[PredictionDetailsWrapper] Navigating back');
+client/src/components/prediction/PredictionDetailsWrapper.tsx:48:    qaLog('[PredictionDetailsWrapper] Navigating to home');
+client/src/components/prediction/PredictionDetailsWrapper.tsx:55:      qaLog('[PredictionDetailsWrapper] No prediction ID provided');
+client/src/components/prediction/PredictionDetailsWrapper.tsx:63:      qaLog('[PredictionDetailsWrapper] Invalid prediction ID format:', id);
+client/src/components/prediction/PredictionDetailsWrapper.tsx:73:      qaLog('[PredictionDetailsWrapper] Loading prediction:', id);
+client/src/components/prediction/PredictionDetailsWrapper.tsx:76:      qaLog('[PredictionDetailsWrapper] fetchPredictionById result:', predictionData);
+client/src/components/prediction/PredictionDetailsWrapper.tsx:79:        qaLog('[PredictionDetailsWrapper] No prediction data returned');
+client/src/components/prediction/PredictionDetailsWrapper.tsx:87:        qaLog('[PredictionDetailsWrapper] Creator missing for prediction:', id);
+client/src/components/prediction/PredictionDetailsWrapper.tsx:93:      qaLog('[PredictionDetailsWrapper] Setting prediction state:', predictionData);
+client/src/components/prediction/PredictionDetailsWrapper.tsx:102:      qaLog('[PredictionDetailsWrapper] Error loading prediction:', error);
+client/src/components/prediction/PredictionDetailsWrapper.tsx:206:  qaLog('[PredictionDetailsWrapper] Render state:', { 
+client/src/components/prediction/PredictionDetailsWrapper.tsx:216:  qaLog('[PredictionDetailsWrapper] About to check prediction condition:', { 
+client/src/components/prediction/PredictionDetailsWrapper.tsx:223:    qaLog('[PredictionDetailsWrapper] Showing not found state - prediction is falsy');
+client/src/components/prediction/PredictionDetailsWrapper.tsx:322:export default PredictionDetailsWrapper;
+client/src/components/prediction/PredictionDetailsHeader.tsx:7:interface PredictionDetailsHeaderProps {
+client/src/components/prediction/PredictionDetailsHeader.tsx:24:const PredictionDetailsHeader: React.FC<PredictionDetailsHeaderProps> = ({
+client/src/components/prediction/PredictionDetailsHeader.tsx:149:export default PredictionDetailsHeader;
+client/src/components/prediction/__tests__/PredictionDetailsWrapper.test.tsx:5:import PredictionDetailsWrapper from '../PredictionDetailsWrapper';
+client/src/components/prediction/__tests__/PredictionDetailsWrapper.test.tsx:59:describe('PredictionDetailsWrapper', () => {
+client/src/components/prediction/__tests__/PredictionDetailsWrapper.test.tsx:87:        <PredictionDetailsWrapper>
+client/src/components/prediction/__tests__/PredictionDetailsWrapper.test.tsx:89:        </PredictionDetailsWrapper>
+client/src/components/prediction/__tests__/PredictionDetailsWrapper.test.tsx:107:        <PredictionDetailsWrapper>
+client/src/components/prediction/__tests__/PredictionDetailsWrapper.test.tsx:109:        </PredictionDetailsWrapper>
+client/src/components/prediction/__tests__/PredictionDetailsWrapper.test.tsx:129:        <PredictionDetailsWrapper>
+client/src/components/prediction/__tests__/PredictionDetailsWrapper.test.tsx:131:        </PredictionDetailsWrapper>
+client/src/components/prediction/__tests__/PredictionDetailsWrapper.test.tsx:151:        <PredictionDetailsWrapper>
+client/src/components/prediction/__tests__/PredictionDetailsWrapper.test.tsx:153:        </PredictionDetailsWrapper>
+client/src/components/prediction/__tests__/PredictionDetailsWrapper.test.tsx:173:        <PredictionDetailsWrapper>
+client/src/components/prediction/__tests__/PredictionDetailsWrapper.test.tsx:175:        </PredictionDetailsWrapper>
+client/src/components/prediction/__tests__/PredictionDetailsWrapper.test.tsx:204:        <PredictionDetailsWrapper>
+client/src/components/prediction/__tests__/PredictionDetailsWrapper.test.tsx:206:        </PredictionDetailsWrapper>
+client/src/components/prediction/__tests__/PredictionDetailsWrapper.test.tsx:236:        <PredictionDetailsWrapper>
+client/src/components/prediction/__tests__/PredictionDetailsWrapper.test.tsx:238:        </PredictionDetailsWrapper>
+client/src/components/prediction/PredictionDetailsContent.tsx:28:interface PredictionDetailsContentProps {
+client/src/components/prediction/PredictionDetailsContent.tsx:33:const PredictionDetailsContent: React.FC<PredictionDetailsContentProps> = ({ 
+client/src/components/prediction/PredictionDetailsContent.tsx:39:    context: 'PredictionDetailsContent',
+client/src/components/prediction/PredictionDetailsContent.tsx:78:        qaLog('[PredictionDetailsContent] Loading prediction:', predictionId);
+client/src/components/prediction/PredictionDetailsContent.tsx:162:        qaLog('[PredictionDetailsContent] Placing bet:', { selectedOption, stakeAmount });
+client/src/components/prediction/PredictionDetailsContent.tsx:419:export default PredictionDetailsContent;
+client/src/components/prediction/PredictionDetailsTabs.tsx:6:interface PredictionDetailsTabsProps {
+client/src/components/prediction/PredictionDetailsTabs.tsx:14:const PredictionDetailsTabs: React.FC<PredictionDetailsTabsProps> = ({
+client/src/components/prediction/PredictionDetailsTabs.tsx:76:export default PredictionDetailsTabs;
+client/src/components/LoadingScreen.tsx:98:export const PredictionCardSkeleton: React.FC = () => {
+client/src/components/LoadingScreen.tsx:139:        <PredictionCardSkeleton key={index} />
+client/src/components/navigation/StableBottomNavigation.tsx:3:import { Home, TrendingUp, Trophy, User, Wallet, Plus } from 'lucide-react';
+client/src/components/navigation/StableBottomNavigation.tsx:33:    { id: 'wallet', label: 'Wallet', icon: Wallet, path: '/wallet' },
+client/src/components/navigation/StableBottomNavigation.tsx:34:    { id: 'profile', label: 'Profile', icon: User, path: '/profile' },
+client/src/components/navigation/TopHeader.tsx:20:    if (location === '/wallet') return 'Wallet';
+client/src/components/navigation/TopHeader.tsx:21:    if (location === '/profile') return 'Profile';
+client/src/components/navigation/BottomNavigation.tsx:42:    label: 'Profile',
+client/src/components/TestPredictionCardV3.tsx:1:// Test component to verify PredictionCardV3 works correctly
+client/src/components/TestPredictionCardV3.tsx:3:import PredictionCardV3, { PredictionCardV3Skeleton } from './predictions/PredictionCardV3';
+client/src/components/TestPredictionCardV3.tsx:5:const TestPredictionCardV3: React.FC = () => {
+client/src/components/TestPredictionCardV3.tsx:22:      <h1 className="text-xl font-bold">PredictionCardV3 Test</h1>
+client/src/components/TestPredictionCardV3.tsx:26:        <PredictionCardV3
+client/src/components/TestPredictionCardV3.tsx:33:        <PredictionCardV3Skeleton />
+client/src/components/TestPredictionCardV3.tsx:38:        <PredictionCardV3
+client/src/components/TestPredictionCardV3.tsx:50:export default TestPredictionCardV3;
+client/src/components/skeletons/DiscoverSkeletons.tsx:32:export const DensePredictionCardSkeleton: React.FC<{ index?: number }> = ({ index = 0 }) => (
+client/src/components/skeletons/DiscoverSkeletons.tsx:163:          <DensePredictionCardSkeleton key={index} index={index} />
+client/src/components/skeletons/DiscoverSkeletons.tsx:176:        <DensePredictionCardSkeleton key={index} index={index} />
+client/src/components/skeletons/DiscoverSkeletons.tsx:222:  DensePredictionCardSkeleton,
+client/src/components/Router.tsx:10:import UnifiedProfilePage from '../pages/UnifiedProfilePage';
+client/src/components/Router.tsx:11:import UnifiedWalletPage from '../pages/UnifiedWalletPage';
+client/src/components/Router.tsx:12:import UnifiedPredictionDetailsPage from '../pages/UnifiedPredictionDetailsPage';
+client/src/components/Router.tsx:33:      <Route path="/profile" component={UnifiedProfilePage} />
+client/src/components/Router.tsx:34:      <Route path="/profile/:userId" component={UnifiedProfilePage} />
+client/src/components/Router.tsx:35:      <Route path="/wallet" component={UnifiedWalletPage} />
+client/src/components/Router.tsx:36:      <Route path="/prediction/:id" component={UnifiedPredictionDetailsPage} />
+client/src/components/layouts/MainLayout.tsx:3:import { Home, BarChart3, Plus, Users, Wallet, Bell, User } from 'lucide-react';
+client/src/components/layouts/MainLayout.tsx:46:      label: 'Profile', 
+client/src/components/layouts/MainLayout.tsx:69:              <Wallet className="w-4 h-4" />
+client/src/components/BottomNavigation.tsx:3:import { Home, TrendingUp, Trophy, User, Wallet, Plus } from 'lucide-react';
+client/src/components/BottomNavigation.tsx:22:    { id: 'wallet', label: 'Wallet', icon: Wallet },
+client/src/components/BottomNavigation.tsx:23:    { id: 'profile', label: 'Profile', icon: User },
+client/src/components/wallet/DepositModal.tsx:7:import { useWalletStore } from '../../store/walletStore';
+client/src/components/wallet/DepositModal.tsx:22:  const { deposit } = useWalletStore();
+client/src/components/wallet/WithdrawModal.tsx:7:import { useWalletStore } from '../../store/walletStore';
+client/src/components/wallet/WithdrawModal.tsx:23:  const { balances, withdraw } = useWalletStore();
+client/src/components/ProfileRoute.tsx:3:import { ProfileErrorBoundary } from './ErrorBoundary';
+client/src/components/ProfileRoute.tsx:4:import ProfilePage from '../pages/ProfilePage';
+client/src/components/ProfileRoute.tsx:8:interface ProfileRouteProps {
+client/src/components/ProfileRoute.tsx:12:const ProfileRoute: React.FC<ProfileRouteProps> = () => {
+client/src/components/ProfileRoute.tsx:77:      <PageWrapper title="Profile">
+client/src/components/ProfileRoute.tsx:91:                <h1 className="text-white text-2xl font-bold">Profile</h1>
+client/src/components/ProfileRoute.tsx:106:                Invalid Profile Link
+client/src/components/ProfileRoute.tsx:136:    <ProfileErrorBoundary>
+client/src/components/ProfileRoute.tsx:137:      <PageWrapper title={userId ? "User Profile" : "My Profile"}>
+client/src/components/ProfileRoute.tsx:138:        <ProfilePage 
+client/src/components/ProfileRoute.tsx:143:    </ProfileErrorBoundary>
+client/src/components/ProfileRoute.tsx:147:export default ProfileRoute;
+client/src/components/PredictionCardSkeleton.tsx:3:const PredictionCardSkeleton: React.FC = () => {
+client/src/components/PredictionCardSkeleton.tsx:55:export default PredictionCardSkeleton;
+client/src/components/onboarding/EnhancedOnboardingProvider.tsx:14:  Wallet, 
+client/src/components/onboarding/EnhancedOnboardingProvider.tsx:106:  // Wallet tab
+client/src/components/onboarding/EnhancedOnboardingProvider.tsx:109:    title: 'Manage Your Wallet',
+client/src/components/onboarding/EnhancedOnboardingProvider.tsx:113:    icon: <Wallet className="w-5 h-5" />,
+client/src/components/onboarding/EnhancedOnboardingProvider.tsx:120:  // Wallet balance
+client/src/components/onboarding/EnhancedOnboardingProvider.tsx:127:    icon: <Wallet className="w-5 h-5" />
+client/src/components/onboarding/EnhancedOnboardingProvider.tsx:130:  // Profile tab
+client/src/components/onboarding/EnhancedOnboardingProvider.tsx:133:    title: 'Your Profile',
+client/src/components/onboarding/EnhancedOnboardingProvider.tsx:144:  // Profile completion
+client/src/components/onboarding/EnhancedOnboardingProvider.tsx:147:    title: 'Complete Your Profile',
+client/src/components/onboarding/EnhancedOnboardingProvider.tsx:186:    icon: <Wallet className="w-5 h-5" />
+client/src/components/onboarding/TourBootstrap.tsx:42:          title: 'Wallet',
+client/src/components/onboarding/TourBootstrap.tsx:61:          title: 'Profile',
+client/src/components/onboarding/TourBootstrap.tsx:68:          title: 'Profile Header',
+client/src/components/onboarding/FixedOnboardingProvider.tsx:13:  Wallet, 
+client/src/components/onboarding/FixedOnboardingProvider.tsx:105:  // Wallet tab
+client/src/components/onboarding/FixedOnboardingProvider.tsx:108:    title: 'Manage Your Wallet',
+client/src/components/onboarding/FixedOnboardingProvider.tsx:112:    icon: <Wallet className="w-5 h-5" />,
+client/src/components/onboarding/FixedOnboardingProvider.tsx:119:  // Wallet balance
+client/src/components/onboarding/FixedOnboardingProvider.tsx:126:    icon: <Wallet className="w-5 h-5" />
+client/src/components/onboarding/FixedOnboardingProvider.tsx:129:  // Profile tab
+client/src/components/onboarding/FixedOnboardingProvider.tsx:132:    title: 'Your Profile',
+client/src/components/onboarding/FixedOnboardingProvider.tsx:143:  // Profile completion
+client/src/components/onboarding/FixedOnboardingProvider.tsx:146:    title: 'Complete Your Profile',
+client/src/components/onboarding/FixedOnboardingProvider.tsx:185:    icon: <Wallet className="w-5 h-5" />
+client/src/components/onboarding/OnboardingProvider.tsx:14:  Wallet, 
+client/src/components/onboarding/OnboardingProvider.tsx:116:  // Wallet tab
+client/src/components/onboarding/OnboardingProvider.tsx:119:    title: 'Manage Your Wallet',
+client/src/components/onboarding/OnboardingProvider.tsx:125:    icon: <Wallet className="w-5 h-5" />,
+client/src/components/onboarding/OnboardingProvider.tsx:135:  // Wallet balance
+client/src/components/onboarding/OnboardingProvider.tsx:145:    icon: <Wallet className="w-5 h-5" />
+client/src/components/onboarding/OnboardingProvider.tsx:148:  // Profile tab
+client/src/components/onboarding/OnboardingProvider.tsx:151:    title: 'Your Profile',
+client/src/components/onboarding/OnboardingProvider.tsx:167:  // Profile completion
+client/src/components/onboarding/OnboardingProvider.tsx:170:    title: 'Complete Your Profile',
+client/src/components/onboarding/OnboardingProvider.tsx:217:    icon: <Wallet className="w-5 h-5" />
+client/src/components/onboarding/OnboardingModal.tsx:3:import { CheckCircle, Sparkles, Target, Wallet, Compass, X } from 'lucide-react';
+client/src/components/onboarding/OnboardingModal.tsx:32:    icon: <Wallet className="w-5 h-5" />,
+client/src/components/onboarding/OnboardingSystem.tsx:11:  Wallet,
+client/src/components/onboarding/OnboardingSystem.tsx:761:                    <Wallet className="w-5 h-5 text-purple-600" />
+client/src/components/onboarding/EnhancedOnboardingSystem.tsx:11:  Wallet,
+client/src/components/onboarding/EnhancedOnboardingSystem.tsx:629:                    <Wallet className="w-5 h-5 text-purple-600" />
+client/src/components/predictions/TrendingPredictions.tsx:2:import { PredictionCard } from './PredictionCard';
+client/src/components/predictions/TrendingPredictions.tsx:14:          <PredictionCard
+client/src/components/predictions/PlacePredictionModal.tsx:8:import { useWalletStore } from '../../store/walletStore';
+client/src/components/predictions/PlacePredictionModal.tsx:66:  const { getBalance, lockFunds } = useWalletStore();
+client/src/components/predictions/PredictionCardV3.tsx:5:type PredictionCardProps = {
+client/src/components/predictions/PredictionCardV3.tsx:18:export default function PredictionCardV3({ prediction }: PredictionCardProps) {
+client/src/components/predictions/PredictionCardV3.tsx:86:export function PredictionCardV3Skeleton() {
+client/src/components/ErrorBoundary.tsx:134:export const ProfileErrorBoundary: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+client/src/components/ErrorBoundary.tsx:135:  const handleProfileError = (error: Error, errorInfo: React.ErrorInfo) => {
+client/src/components/ErrorBoundary.tsx:136:    console.error('Profile navigation error:', error, errorInfo);
+client/src/components/ErrorBoundary.tsx:146:      onError={handleProfileError}
+client/src/components/ErrorBoundary.tsx:147:      fallback={ProfileErrorFallback}
+client/src/components/ErrorBoundary.tsx:154:// Profile-specific error fallback
+client/src/components/ErrorBoundary.tsx:155:const ProfileErrorFallback: React.FC<{ error?: Error; resetError: () => void }> = ({ 
+client/src/components/ErrorBoundary.tsx:174:          <h1 className="text-white text-2xl font-bold">Profile</h1>
+client/src/components/ErrorBoundary.tsx:190:            Profile Unavailable
+client/src/hooks/useSettlementIntegration.ts:20:  isWalletConnected: boolean;
+client/src/hooks/useSettlementIntegration.ts:22:  connectWallet: () => Promise<void>;
+client/src/hooks/useSettlementIntegration.ts:28:  const [isWalletConnected, setIsWalletConnected] = useState(false);
+client/src/hooks/useSettlementIntegration.ts:29:  const [walletAddress, setWalletAddress] = useState<string | null>(null);
+client/src/hooks/useSettlementIntegration.ts:253:  // Wallet operations
+client/src/hooks/useSettlementIntegration.ts:254:  const connectWallet = useCallback(async () => {
+client/src/hooks/useSettlementIntegration.ts:259:      const address = await escrowService.connectWallet();
+client/src/hooks/useSettlementIntegration.ts:261:        setWalletAddress(address);
+client/src/hooks/useSettlementIntegration.ts:262:        setIsWalletConnected(true);
+client/src/hooks/useSettlementIntegration.ts:278:    const checkWalletConnection = async () => {
+client/src/hooks/useSettlementIntegration.ts:280:        const connected = await escrowService.isWalletConnected();
+client/src/hooks/useSettlementIntegration.ts:281:        setIsWalletConnected(connected);
+client/src/hooks/useSettlementIntegration.ts:286:            setWalletAddress(accounts[0]);
+client/src/hooks/useSettlementIntegration.ts:294:    checkWalletConnection();
+client/src/hooks/useSettlementIntegration.ts:313:    isWalletConnected,
+client/src/hooks/useSettlementIntegration.ts:315:    connectWallet
+client/src/lib/supabase.ts:232:    async getProfile(userId: string) {
+client/src/lib/supabase.ts:241:          console.error('Database error in users.getProfile:', error);
+client/src/lib/supabase.ts:246:        console.error('Exception in users.getProfile:', error);
+client/src/lib/supabase.ts:251:    async updateProfile(userId: string, updates: any) {
+client/src/lib/supabase.ts:261:          console.error('Database error in users.updateProfile:', error);
+client/src/lib/supabase.ts:266:        console.error('Exception in users.updateProfile:', error);
+client/src/lib/media/README.md:33:function PredictionCard({ prediction }) {
+client/src/api/schemas.ts:52:export interface WalletSummary {
+client/src/api/schemas.ts:168:export function isWalletSummary(obj: unknown): obj is WalletSummary {
+client/src/api/schemas.ts:273:export function validateWalletSummary(obj: unknown): string[] {
+client/src/api/schemas.ts:276:  if (!isWalletSummary(obj)) {
+client/src/pages/index.tsx:57:export const WalletPage: React.FC = () => {
+client/src/pages/index.tsx:60:      <h1 className="text-2xl font-bold text-foreground mb-6">Wallet</h1>
+client/src/pages/index.tsx:80:export const ProfilePage: React.FC = () => {
+client/src/pages/index.tsx:83:      <h1 className="text-2xl font-bold text-foreground mb-6">Profile</h1>
+client/src/pages/index.tsx:91:          Profile customization coming soon
+client/src/pages/PolishedDiscoverPage.tsx:9:import DensePredictionCard from '../components/cards/DensePredictionCard';
+client/src/pages/PolishedDiscoverPage.tsx:22:  onNavigateToProfile?: () => void;
+client/src/pages/PolishedDiscoverPage.tsx:33:  onNavigateToProfile,
+client/src/pages/PolishedDiscoverPage.tsx:332:                <DensePredictionCard
+client/src/pages/PredictionDetailsPage.tsx:7:import { useWalletStore } from '../store/walletStore';
+client/src/pages/PredictionDetailsPage.tsx:27:interface PredictionDetailsPageProps {
+client/src/pages/PredictionDetailsPage.tsx:32:const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({ predictionId, onNavigateBack }) => {
+client/src/pages/PredictionDetailsPage.tsx:47:  const { getBalance } = useWalletStore();
+client/src/pages/PredictionDetailsPage.tsx:873:export default PredictionDetailsPage;
+client/src/pages/UnifiedLeaderboardPage.tsx:17:// TODO: Replace leaderboard user cards with PredictionCardV3 for consistency
+client/src/pages/UnifiedLeaderboardPage.tsx:19:// import { PredictionCardV3 } from '../components/predictions/PredictionCardV3';
+client/src/pages/ProfilePage.tsx:11:interface ProfilePageProps {
+client/src/pages/ProfilePage.tsx:16:const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigateBack, userId }) => {
+client/src/pages/ProfilePage.tsx:22:  const isOwnProfile = !userId || userId === user?.id;
+client/src/pages/ProfilePage.tsx:50:        <AppHeader title="Profile" />
+client/src/pages/ProfilePage.tsx:78:      <AppHeader title="Profile" />
+client/src/pages/ProfilePage.tsx:137:                  {isOwnProfile && (
+client/src/pages/ProfilePage.tsx:206:              {isOwnProfile && (
+client/src/pages/ProfilePage.tsx:219:export default ProfilePage;
+client/src/pages/auth/AuthPage.tsx:2:import AuthGateModal from '../components/auth/AuthGateModal';
+client/src/pages/auth/AuthPage.tsx:23:      {/* The AuthGateModal will handle all the authentication UI */}
+client/src/pages/auth/AuthPage.tsx:24:      <AuthGateModal />
+client/src/pages/ProfilePageV2.tsx:11:interface ProfilePageV2Props {
+client/src/pages/ProfilePageV2.tsx:16:const ProfilePageV2: React.FC<ProfilePageV2Props> = ({ onNavigateBack, userId }) => {
+client/src/pages/ProfilePageV2.tsx:25:  const isOwnProfile = !userId || userId === user?.id;
+client/src/pages/ProfilePageV2.tsx:55:        <AppHeader title="Profile" />
+client/src/pages/ProfilePageV2.tsx:123:  // Calculate professional KPIs for Profile
+client/src/pages/ProfilePageV2.tsx:130:      <AppHeader title="Profile" />
+client/src/pages/ProfilePageV2.tsx:209:                  {isOwnProfile && (
+client/src/pages/ProfilePageV2.tsx:361:export default ProfilePageV2;
+client/src/pages/UnifiedWalletPage.tsx:4:import { useWalletStore } from '../store/walletStore';
+client/src/pages/UnifiedWalletPage.tsx:14:interface WalletPageProps {
+client/src/pages/UnifiedWalletPage.tsx:18:const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
+client/src/pages/UnifiedWalletPage.tsx:20:  const { balance, transactions, getTransactionHistory, depositFunds, withdrawFunds } = useWalletStore();
+client/src/pages/UnifiedWalletPage.tsx:61:        <Header title="Wallet" />
+client/src/pages/UnifiedWalletPage.tsx:89:      <Header title="Wallet" />
+client/src/pages/UnifiedWalletPage.tsx:223:export default WalletPage;
+client/src/pages/EnhancedBetsTab.tsx:342:  const ActivePredictionCard = ({ prediction }: { prediction: any }) => (
+client/src/pages/EnhancedBetsTab.tsx:458:  const CreatedPredictionCard = ({ prediction }: { prediction: any }) => (
+client/src/pages/EnhancedBetsTab.tsx:701:                  <ActivePredictionCard prediction={prediction} />
+client/src/pages/EnhancedBetsTab.tsx:711:                  <CreatedPredictionCard prediction={prediction} />
+client/src/pages/BetsTab.tsx:500:  const ActivePredictionCard = ({ prediction }: { prediction: any }) => (
+client/src/pages/BetsTab.tsx:581:  const CreatedPredictionCard = ({ prediction }: { prediction: any }) => (
+client/src/pages/BetsTab.tsx:650:  const CompletedPredictionCard = ({ prediction }: { prediction: any }) => (
+client/src/pages/BetsTab.tsx:784:                <ActivePredictionCard key={`active-${prediction.id}-${index}`} prediction={prediction} />
+client/src/pages/BetsTab.tsx:791:                <CreatedPredictionCard key={`created-${prediction.id}-${index}`} prediction={prediction} />
+client/src/pages/BetsTab.tsx:798:                <CompletedPredictionCard key={`completed-${prediction.id}-${index}`} prediction={prediction} />
+client/src/pages/SimpleWalletPage.tsx:3:import { Wallet, Plus, ArrowUpRight, ArrowDownLeft, Clock, CheckCircle } from 'lucide-react';
+client/src/pages/SimpleWalletPage.tsx:4:import { useWalletStore } from '../store/walletStore';
+client/src/pages/SimpleWalletPage.tsx:7:const SimpleWalletPage: React.FC = () => {
+client/src/pages/SimpleWalletPage.tsx:8:  const { balance, transactions, loading, initializeWallet } = useWalletStore();
+client/src/pages/SimpleWalletPage.tsx:14:      initializeWallet();
+client/src/pages/SimpleWalletPage.tsx:16:  }, [user?.id, initializeWallet]);
+client/src/pages/SimpleWalletPage.tsx:46:        return <Wallet className="w-4 h-4 text-gray-500" />;
+client/src/pages/SimpleWalletPage.tsx:60:          <h1 className="text-3xl font-bold text-gray-900 mb-2">Wallet</h1>
+client/src/pages/SimpleWalletPage.tsx:81:              <Wallet className="w-6 h-6 text-white" />
+client/src/pages/SimpleWalletPage.tsx:160:export default SimpleWalletPage;
+client/src/pages/UnifiedMyBetsPage.tsx:14:// TODO: Replace with PredictionCardV3 for consistency
+client/src/pages/UnifiedMyBetsPage.tsx:15:// import { PredictionCardV3 } from '../components/predictions/PredictionCardV3';
+client/src/pages/UnifiedMyBetsPage.tsx:16:// Map userEntry to PredictionCardV3 props:
+client/src/pages/BetDetailPage.tsx:4:import { useWalletStore } from '../store/walletStore';
+client/src/pages/BetDetailPage.tsx:12:  const { balance } = useWalletStore();
+client/src/pages/WalletPageV2.tsx:3:import { useWalletStore } from '../store/walletStore';
+client/src/pages/WalletPageV2.tsx:12:interface WalletPageV2Props {
+client/src/pages/WalletPageV2.tsx:16:const WalletPageV2: React.FC<WalletPageV2Props> = ({ onNavigateBack }) => {
+client/src/pages/WalletPageV2.tsx:19:  const { getBalance, getTransactionHistory, addFunds, initializeWallet } = useWalletStore();
+client/src/pages/WalletPageV2.tsx:28:      initializeWallet();
+client/src/pages/WalletPageV2.tsx:33:  }, [authenticated, user?.id, initializeWallet]);
+client/src/pages/WalletPageV2.tsx:64:        <AppHeader title="Wallet" />
+client/src/pages/WalletPageV2.tsx:141:      <AppHeader title="Wallet" />
+client/src/pages/WalletPageV2.tsx:358:export default WalletPageV2;
+client/src/pages/UnifiedProfilePage.tsx:15:interface ProfilePageProps {
+client/src/pages/UnifiedProfilePage.tsx:20:const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigateBack, userId }) => {
+client/src/pages/UnifiedProfilePage.tsx:26:  const isOwnProfile = !userId || userId === user?.id;
+client/src/pages/UnifiedProfilePage.tsx:54:        <Header title="Profile" />
+client/src/pages/UnifiedProfilePage.tsx:83:        title="Profile" 
+client/src/pages/UnifiedProfilePage.tsx:86:        trailing={isOwnProfile ? (
+client/src/pages/UnifiedProfilePage.tsx:132:                actions={isOwnProfile ? (
+client/src/pages/UnifiedProfilePage.tsx:217:export default ProfilePage;
+client/src/pages/SimpleProfilePage.tsx:6:interface SimpleProfilePageProps {
+client/src/pages/SimpleProfilePage.tsx:10:const SimpleProfilePage: React.FC<SimpleProfilePageProps> = ({ onNavigateBack }) => {
+client/src/pages/SimpleProfilePage.tsx:18:          <h1 className="text-3xl font-bold text-gray-900 mb-2">Profile</h1>
+client/src/pages/SimpleProfilePage.tsx:114:export default SimpleProfilePage;
+client/src/pages/PredictionsTab.tsx:188:  const renderPredictionCard = (prediction: any) => {
+client/src/pages/PredictionsTab.tsx:352:            {currentPredictions.map(renderPredictionCard)}
+client/src/pages/DiscoverPage.tsx:4:import PredictionCard from '../components/PredictionCard';
+client/src/pages/DiscoverPage.tsx:5:import PredictionCardV3, { PredictionCardV3Skeleton } from '../components/predictions/PredictionCardV3';
+client/src/pages/DiscoverPage.tsx:9:import PredictionCardSkeleton from '../components/PredictionCardSkeleton';
+client/src/pages/DiscoverPage.tsx:19:  onNavigateToProfile?: () => void;
+client/src/pages/DiscoverPage.tsx:136:const DiscoverPage = React.memo(function DiscoverPage({ onNavigateToProfile, onNavigateToPrediction }: DiscoverPageProps) {
+client/src/pages/DiscoverPage.tsx:352:              <PredictionCardV3Skeleton key={i} />
+client/src/pages/DiscoverPage.tsx:419:                    <PredictionCardV3
+client/src/pages/PredictionDetailsPageV2.tsx:8:import { useWalletStore } from '../store/walletStore';
+client/src/pages/PredictionDetailsPageV2.tsx:18:import PredictionDetailsTabs from '../components/prediction/PredictionDetailsTabs';
+client/src/pages/PredictionDetailsPageV2.tsx:31:interface PredictionDetailsPageProps {
+client/src/pages/PredictionDetailsPageV2.tsx:35:const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
+client/src/pages/PredictionDetailsPageV2.tsx:64:  const { getBalance } = useWalletStore();
+client/src/pages/PredictionDetailsPageV2.tsx:85:      console.log(`[PredictionDetailsPageV2] ${prediction.id}: ${media.provider}:${media.id}`);
+client/src/pages/PredictionDetailsPageV2.tsx:342:      console.log(`[PredictionDetailsPageV2] ${prediction.id}: ${media.provider}:${media.providerId}`);
+client/src/pages/PredictionDetailsPageV2.tsx:401:          <PredictionDetailsTabs
+client/src/pages/PredictionDetailsPageV2.tsx:521:          </PredictionDetailsTabs>
+client/src/pages/PredictionDetailsPageV2.tsx:551:export default PredictionDetailsPage;
+client/src/pages/WalletPage.tsx:3:import { useWalletStore } from '../store/walletStore';
+client/src/pages/WalletPage.tsx:12:interface WalletPageProps {
+client/src/pages/WalletPage.tsx:16:const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
+client/src/pages/WalletPage.tsx:19:  const { getBalance, getTransactionHistory, addFunds, initializeWallet } = useWalletStore();
+client/src/pages/WalletPage.tsx:38:      initializeWallet();
+client/src/pages/WalletPage.tsx:43:  }, [isAuthenticated, user?.id, initializeWallet]);
+client/src/pages/WalletPage.tsx:88:        <AppHeader title="Wallet" />
+client/src/pages/WalletPage.tsx:116:      <AppHeader title="Wallet" />
+client/src/pages/WalletPage.tsx:265:export default WalletPage;
+client/src/pages/UnifiedPredictionDetailsPage.tsx:9:interface UnifiedPredictionDetailsPageProps {
+client/src/pages/UnifiedPredictionDetailsPage.tsx:14:const UnifiedPredictionDetailsPage: React.FC<UnifiedPredictionDetailsPageProps> = ({ 
+client/src/pages/UnifiedPredictionDetailsPage.tsx:153:export default UnifiedPredictionDetailsPage;
+client/src/pages/PredictionsPage.tsx:485:  const ActivePredictionCard = ({ prediction }: { prediction: any }) => (
+client/src/pages/PredictionsPage.tsx:560:  const CreatedPredictionCard = ({ prediction }: { prediction: any }) => (
+client/src/pages/PredictionsPage.tsx:626:  const CompletedPredictionCard = ({ prediction }: { prediction: any }) => (
+client/src/pages/PredictionsPage.tsx:735:                  <ActivePredictionCard key={`active-${prediction.id}-${index}`} prediction={prediction} />
+client/src/pages/PredictionsPage.tsx:742:                  <CreatedPredictionCard key={`created-${prediction.id}-${index}`} prediction={prediction} />
+client/src/pages/PredictionsPage.tsx:749:                  <CompletedPredictionCard key={`completed-${prediction.id}-${index}`} prediction={prediction} />
+client/src/pages/EnhancedWalletPage.tsx:17:  Wallet,
+client/src/pages/EnhancedWalletPage.tsx:26:import { useWalletStore } from '../store/walletStore';
+client/src/pages/EnhancedWalletPage.tsx:34:interface WalletPageProps {
+client/src/pages/EnhancedWalletPage.tsx:38:const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
+client/src/pages/EnhancedWalletPage.tsx:53:  } = useWalletStore();
+client/src/pages/EnhancedWalletPage.tsx:176:                <Wallet className="w-5 h-5" />
+client/src/pages/EnhancedWalletPage.tsx:288:        { id: 'overview', label: 'Overview', icon: Wallet },
+client/src/pages/EnhancedWalletPage.tsx:316:                layoutId="activeWalletTab"
+client/src/pages/EnhancedWalletPage.tsx:501:            <h1 className="text-3xl font-bold text-gray-900 mb-6">Wallet</h1>
+client/src/pages/EnhancedWalletPage.tsx:539:                Wallet
+client/src/pages/EnhancedWalletPage.tsx:754:export default WalletPage;
+client/src/services/BlockchainEscrowService.ts:1:import { createPublicClient, createWalletClient, custom, parseEther, formatEther } from 'viem';
+client/src/services/BlockchainEscrowService.ts:75:    this.walletClient = createWalletClient({
+client/src/services/BlockchainEscrowService.ts:231:  async isWalletConnected(): Promise<boolean> {
+client/src/services/BlockchainEscrowService.ts:245:  async connectWallet(): Promise<string | null> {
+client/src/store/authStore.ts:38:  updateProfile: (profileData: any) => Promise<void>;
+client/src/store/authStore.ts:449:      updateProfile: async (profileData: any) => {
+client/src/store/authStore.ts:479:            showSuccess('Profile updated successfully!');
+client/src/store/authStore.ts:483:          console.error('❌ Profile update error:', error.message);
+client/src/store/authStore.ts:522:        await clientDb.users.updateProfile(userId, { avatar_url: publicUrl });
+client/src/store/authStore.ts:527:        showSuccess('Profile photo updated.');
+client/src/store/predictionStore.ts:565:      const { useWalletStore } = await import('./walletStore');
+client/src/store/predictionStore.ts:566:      const walletStore = useWalletStore.getState();
+client/src/store/predictionStore.ts:576:      console.log('✅ Wallet funds locked successfully');
+client/src/store/predictionStore.ts:661:      await walletStore.initializeWallet();
+client/src/store/predictionStore.ts:662:      console.log('✅ Wallet refreshed');
+client/src/store/walletStore.ts:19:interface WalletBalance {
+client/src/store/walletStore.ts:26:interface WalletState {
+client/src/store/walletStore.ts:27:  balances: WalletBalance[];
+client/src/store/walletStore.ts:38:  initializeWallet: () => Promise<void>;
+client/src/store/walletStore.ts:49:  refreshWalletData: () => Promise<void>;
+client/src/store/walletStore.ts:52:export const useWalletStore = create<WalletState>()(
+client/src/store/walletStore.ts:78:      initializeWallet: async () => {
+client/src/store/walletStore.ts:190:          console.log('✅ Wallet initialized successfully');
+client/src/store/walletStore.ts:204:      refreshWalletData: async () => {
+client/src/store/walletStore.ts:205:        await get().initializeWallet();
