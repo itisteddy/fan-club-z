@@ -9,6 +9,11 @@ const router = express.Router();
 router.get('/', async (req, res) => {
   try {
     console.log('📡 Predictions endpoint called - origin:', req.headers.origin);
+    console.log('🔧 Environment check:', {
+      NODE_ENV: process.env.NODE_ENV,
+      SUPABASE_URL: process.env.SUPABASE_URL ? 'SET' : 'MISSING',
+      SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY ? 'SET' : 'MISSING'
+    });
     
     // Test database connection
     const { data: testData, error: testError } = await supabase
@@ -18,6 +23,10 @@ router.get('/', async (req, res) => {
     
     if (testError) {
       console.error('Database connection test failed:', testError);
+      console.error('Supabase config:', {
+        url: process.env.SUPABASE_URL,
+        serviceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY ? 'SET' : 'MISSING'
+      });
       return res.status(500).json({
         error: 'Database connection error',
         message: 'Unable to connect to database',

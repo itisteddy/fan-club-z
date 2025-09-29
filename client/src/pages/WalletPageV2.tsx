@@ -40,6 +40,14 @@ const WalletPageV2: React.FC<WalletPageV2Props> = ({ onNavigateBack }) => {
     .reduce((sum, t) => sum + t.amount, 0);
   const transactionCount = transactions.length;
 
+  // Debug logging
+  console.log('Wallet Debug:', {
+    balance,
+    totalDeposits,
+    balanceFormatted: formatCurrency(balance, { compact: balance > 10000 }),
+    totalDepositsFormatted: formatCurrency(totalDeposits, { compact: true })
+  });
+
   // Recent transactions (last 5)
   const recentTransactions = transactions
     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
