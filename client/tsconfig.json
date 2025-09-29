@@ -17,8 +17,9 @@
     /* Path aliases */
     "baseUrl": "src",
     "paths": {
-      "@pages/*": ["pages/*"],
+      "@lib/*": ["lib/*"],
       "@components/*": ["components/*"],
+      "@pages/*": ["pages/*"],
       "@icons/*": ["icons/*"],
       "@auth/*": ["auth/*"],
       "@stores/*": ["stores/*"],

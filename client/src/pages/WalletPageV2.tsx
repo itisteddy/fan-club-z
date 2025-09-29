@@ -6,7 +6,7 @@ import { useAuthSession } from '../providers/AuthSessionProvider';
 import { openAuthGate } from '../auth/authGateAdapter';
 import AppHeader from '../components/layout/AppHeader';
 import toast from 'react-hot-toast';
-import { formatCurrency, formatLargeNumber, formatPercentage } from '../utils/formatters';
+import { formatCurrency, formatLargeNumber, formatPercentage } from '@lib/format';
 import SignedOutGateCard from '../components/auth/SignedOutGateCard';
 
 interface WalletPageV2Props {

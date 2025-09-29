@@ -10,7 +10,7 @@ import Card, { CardHeader, CardContent } from '../components/ui/card/Card';
 import StatCard, { StatRow } from '../components/ui/card/StatCard';
 import EmptyState from '../components/ui/empty/EmptyState';
 import { SkeletonStatRow, SkeletonCard } from '../components/ui/skeleton/Skeleton';
-import { truncateText } from '../utils/formatters';
+import { truncateText } from '@lib/format';
 
 interface ProfilePageProps {
   onNavigateBack?: () => void;

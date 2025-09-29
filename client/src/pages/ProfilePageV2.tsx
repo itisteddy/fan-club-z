@@ -6,7 +6,7 @@ import { usePredictionStore } from '../store/predictionStore';
 import { openAuthGate } from '../auth/authGateAdapter';
 import UserAvatar from '../components/common/UserAvatar';
 import AppHeader from '../components/layout/AppHeader';
-import { formatLargeNumber, formatCurrency, formatPercentage } from '../utils/formatters';
+import { formatLargeNumber, formatCurrency, formatPercentage } from '@lib/format';
 
 interface ProfilePageV2Props {
   onNavigateBack?: () => void;

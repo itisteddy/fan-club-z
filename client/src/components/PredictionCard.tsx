@@ -7,7 +7,7 @@ import { useUnifiedCommentStore } from '../store/unifiedCommentStore';
 import CommentModal from './modals/CommentModal';
 import ErrorBoundary from './ErrorBoundary';
 import toast from 'react-hot-toast';
-import { formatCurrencyShort, formatNumberCompact, formatTimeUntil } from '../utils/formatters';
+import { formatCurrencyShort, formatNumberCompact, formatTimeUntil } from '@lib/format';
 import ImageThumb from './ui/ImageThumb';
 
 interface PredictionCardProps {

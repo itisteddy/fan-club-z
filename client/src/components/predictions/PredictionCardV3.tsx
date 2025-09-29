@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 import { useMedia } from '@/hooks/useMedia';
-import { formatNumberShort, formatDurationShort } from '@/lib/formatters';
+import { formatNumberShort, formatDurationShort } from '@lib/format';
 
 type PredictionCardProps = {
   prediction: {

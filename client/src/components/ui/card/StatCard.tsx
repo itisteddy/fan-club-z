@@ -1,7 +1,7 @@
 import React from 'react';
 import { cn } from '../../../utils/cn';
 import { formatUSDCompact, formatNumberShort, formatPercent } from '../../../utils/format';
-import { formatLargeNumber, formatPercentage, formatBalance } from '../../../utils/formatters';
+import { formatLargeNumber, formatPercentage, formatBalance } from '../../@lib/format';
 
 interface StatCardProps {
   label: string;

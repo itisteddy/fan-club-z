@@ -9,7 +9,7 @@ import Card, { CardHeader, CardContent, CardActions } from '../components/ui/car
 import StatCard, { StatRow } from '../components/ui/card/StatCard';
 import EmptyState from '../components/ui/empty/EmptyState';
 import { SkeletonStatRow, SkeletonCard } from '../components/ui/skeleton/Skeleton';
-import { formatUSDCompact, truncateText } from '../utils/formatters';
+import { formatUSDCompact, truncateText } from '@lib/format';
 
 interface WalletPageProps {
   onNavigateBack?: () => void;

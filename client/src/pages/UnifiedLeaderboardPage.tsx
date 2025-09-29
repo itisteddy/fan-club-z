@@ -10,7 +10,7 @@ import EmptyState from '../components/ui/empty/EmptyState';
 import { SkeletonCard } from '../components/ui/skeleton/Skeleton';
 import { getApiUrl } from '../config';
 import { formatNumberShort, formatUSDCompact, formatPercent } from '../utils/format';
-import { formatPercentage } from '../utils/formatters';
+import { formatPercentage } from '@lib/format';
 import { cn } from '../utils/cn';
 import { KeyboardNavigation, AriaUtils } from '../utils/accessibility';
 
