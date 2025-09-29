@@ -17,6 +17,7 @@ const PORT = config.server.port || 3001;
 
 console.log(`🚀 Fan Club Z Server v${VERSION} - CORS FIXED - WITH SETTLEMENT`);
 console.log('📡 Starting server with enhanced CORS support and settlement functionality...');
+console.log('✅ Clubs table references removed - Ready for production');
 
 // Enhanced CORS middleware - Allow all origins for now to fix immediate issue
 app.use(cors({
