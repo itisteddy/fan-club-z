@@ -8,6 +8,9 @@ importers:
 
   .:
     dependencies:
+      '@fanclubz/shared':
+        specifier: file:../shared
+        version: file:../shared
       '@hookform/resolvers':
         specifier: ^3.3.2
         version: 3.10.0(react-hook-form@7.62.0(react@18.3.1))
@@ -822,6 +825,9 @@ packages:
   '@eslint/js@8.57.1':
     resolution: {integrity: sha512-d9zaMRSTIKDLhctzH12MtXvJKSSUhaHcjV+2Z+GK+EEY7XKpP5yR4x+N3TAcHTcu963nIr+TMcCb4DBCYX1z6Q==}
     engines: {node: ^12.22.0 || ^14.17.0 || >=16.0.0}
+
+  '@fanclubz/shared@file:../shared':
+    resolution: {directory: ../shared, type: directory}
 
   '@floating-ui/core@1.7.3':
     resolution: {integrity: sha512-sGnvb5dmrJaKEZ+LDIpguvdX3bDlEllmv4/ClQ9awcmCZrlx5jQyyMWFM5kBI+EyNOCDDiKk8il0zeuX3Zlg/w==}
@@ -4019,6 +4025,10 @@ snapshots:
       - supports-color
 
   '@eslint/js@8.57.1': {}
+
+  '@fanclubz/shared@file:../shared':
+    dependencies:
+      zod: 3.25.76
 
   '@floating-ui/core@1.7.3':
     dependencies:

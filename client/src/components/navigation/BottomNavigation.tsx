@@ -2,18 +2,13 @@ import React from 'react';
 import { useLocation } from 'wouter';
 import { motion } from 'framer-motion';
 import { 
-  Home, 
-  TrendingUp, 
-  Plus, 
-  Users, 
-  Wallet,
-  Search,
+  Sparkles,
   ChartLine,
-  UserGroup,
   PlusCircle,
-  Sparkles
+  Trophy,
+  User
 } from 'lucide-react';
-import { cn } from '../../lib/utils';
+import { cn } from '../../utils/cn';
 import { scrollToTop } from '../../utils/scroll';
 
 const navigationItems = [
@@ -24,10 +19,10 @@ const navigationItems = [
     path: '/discover',
   },
   {
-    id: 'predictions',
+    id: 'mybets',
     label: 'My Bets',
     icon: ChartLine,
-    path: '/predictions',
+    path: '/mybets',
   },
   {
     id: 'create',
@@ -37,16 +32,16 @@ const navigationItems = [
     isSpecial: true,
   },
   {
-    id: 'clubs',
-    label: 'Clubs',
-    icon: UserGroup,
-    path: '/clubs',
+    id: 'leaderboard',
+    label: 'Leaderboard',
+    icon: Trophy,
+    path: '/leaderboard',
   },
   {
-    id: 'wallet',
-    label: 'Wallet',
-    icon: Wallet,
-    path: '/wallet',
+    id: 'profile',
+    label: 'Profile',
+    icon: User,
+    path: '/profile',
   },
 ];
 
@@ -68,7 +63,8 @@ export const BottomNavigation: React.FC = () => {
 
   return (
     <motion.div 
-      className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-subtle border-t border-cool-gray-100 safe-area-pb z-50 shadow-level-2"
+      className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-sm border-t border-gray-100 z-50 shadow-sm"
+      style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
       initial={{ y: 100 }}
       animate={{ y: 0 }}
       transition={{ type: "spring", stiffness: 300, damping: 30 }}
@@ -96,7 +92,7 @@ export const BottomNavigation: React.FC = () => {
                 }}
               >
                 <motion.div 
-                  className="w-14 h-14 bg-gradient-primary rounded-2xl flex items-center justify-center shadow-fab group-hover:shadow-level-3 transition-shadow duration-200"
+                  className="w-14 h-14 bg-emerald-600 rounded-2xl flex items-center justify-center shadow-lg group-hover:shadow-xl transition-shadow duration-200"
                   whileHover={{ rotate: 5 }}
                   transition={{ type: "spring", stiffness: 300 }}
                 >
@@ -105,7 +101,7 @@ export const BottomNavigation: React.FC = () => {
                 
                 {/* Floating label */}
                 <motion.span 
-                  className="absolute -top-8 px-2 py-1 bg-cool-gray-900 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+                  className="absolute -top-8 px-2 py-1 bg-gray-900 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200"
                   initial={{ y: 10, opacity: 0 }}
                   whileHover={{ y: 0, opacity: 1 }}
                 >
@@ -118,7 +114,7 @@ export const BottomNavigation: React.FC = () => {
           return (
             <motion.button
               key={item.id}
-              onClick={() => setLocation(item.path)}
+              onClick={() => handleNavigation(item.path)}
               className="relative flex flex-col items-center justify-center p-3 min-w-[60px] group"
               whileTap={{ scale: 0.95 }}
               whileHover={{ scale: 1.05 }}
@@ -135,7 +131,7 @@ export const BottomNavigation: React.FC = () => {
                 <motion.div
                   className={cn(
                     "p-2 rounded-xl transition-all duration-200",
-                    active ? "bg-primary-green/10" : "hover:bg-cool-gray-100"
+                    active ? "bg-emerald-50" : "hover:bg-gray-100"
                   )}
                   whileHover={{ scale: 1.1 }}
                 >
@@ -143,7 +139,7 @@ export const BottomNavigation: React.FC = () => {
                     size={20} 
                     className={cn(
                       "transition-colors duration-200",
-                      active ? "text-primary-green" : "text-cool-gray-600 group-hover:text-cool-gray-900"
+                      active ? "text-emerald-600" : "text-gray-600 group-hover:text-gray-900"
                     )} 
                   />
                 </motion.div>
@@ -153,12 +149,12 @@ export const BottomNavigation: React.FC = () => {
                   <>
                     <motion.div
                       layoutId="activeTab"
-                      className="absolute -bottom-2 left-1/2 transform -translate-x-1/2 w-1 h-1 bg-primary-green rounded-full"
+                      className="absolute -bottom-2 left-1/2 transform -translate-x-1/2 w-1 h-1 bg-emerald-600 rounded-full"
                       initial={false}
                       transition={{ type: "spring", duration: 0.4 }}
                     />
                     <motion.div
-                      className="absolute inset-0 rounded-xl border-2 border-primary-green/30"
+                      className="absolute inset-0 rounded-xl border-2 border-emerald-600/30"
                       initial={{ opacity: 0, scale: 0.8 }}
                       animate={{ opacity: 1, scale: 1 }}
                       transition={{ duration: 0.3 }}
@@ -170,7 +166,7 @@ export const BottomNavigation: React.FC = () => {
               <motion.span 
                 className={cn(
                   "text-xs mt-1 transition-all duration-200 font-medium",
-                  active ? "text-primary-green font-semibold" : "text-cool-gray-600"
+                  active ? "text-emerald-600 font-semibold" : "text-gray-600"
                 )}
                 animate={{
                   scale: active ? 1.05 : 1,
@@ -182,7 +178,7 @@ export const BottomNavigation: React.FC = () => {
 
               {/* Ripple effect on tap */}
               <motion.div
-                className="absolute inset-0 rounded-xl bg-primary-green/20"
+                className="absolute inset-0 rounded-xl bg-emerald-600/20"
                 initial={{ scale: 0, opacity: 0 }}
                 whileTap={{ scale: 1.2, opacity: 1 }}
                 transition={{ duration: 0.2 }}
@@ -192,8 +188,10 @@ export const BottomNavigation: React.FC = () => {
         })}
       </div>
 
-      {/* Enhanced separator line with gradient */}
-      <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-cool-gray-200 to-transparent" />
+      {/* Enhanced separator line */}
+      <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-gray-200 to-transparent" />
     </motion.div>
   );
 };
+
+export default BottomNavigation;

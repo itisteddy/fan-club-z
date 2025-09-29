@@ -9,6 +9,7 @@ import toast from 'react-hot-toast';
 import { scrollToTop } from '../utils/scroll';
 import SourcePill from '../components/settlement/SourcePill';
 import RulePreview from '../components/settlement/RulePreview';
+import UnifiedHeader from '../components/layout/UnifiedHeader';
 
 interface PredictionOption {
   id: string;
@@ -285,41 +286,25 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-100 pb-20 create-prediction-page">
-      {/* Header */}
-      <div className="relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-br from-purple-600 via-green-700 to-teal-600" />
-        <div className="absolute inset-0 bg-gradient-to-r from-blue-600/10 via-transparent to-purple-600/10" />
-        
-        {/* Animated elements */}
-        <div className="absolute top-0 right-1/3 w-72 h-72 bg-white/10 rounded-full blur-3xl animate-pulse" />
-        <div className="absolute bottom-0 left-1/3 w-72 h-72 bg-white/10 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }} />
-        
-        <div className="relative z-10 px-6 pt-14 pb-8">
-          <div className="flex items-center gap-4 mb-6">
-            <motion.button
-              whileHover={{ scale: 1.1 }}
-              whileTap={{ scale: 0.9 }}
-              onClick={handleBack}
-              className="w-10 h-10 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center text-white"
-            >
-              <ChevronLeft size={20} />
-            </motion.button>
-            
-            <div>
-              <h1 className="text-3xl font-bold text-white">Create Prediction</h1>
-              <p className="text-green-100">Step {step} of 4</p>
-            </div>
-          </div>
+      {/* Unified Header */}
+      <UnifiedHeader
+        title="Create Prediction"
+        subtitle={`Step ${step} of 4`}
+        showLogo={false}
+        showBack={true}
+        onBack={handleBack}
+        className="bg-gradient-to-r from-emerald-500 to-teal-600 text-white border-b-0"
+      />
 
-          {/* Progress bar */}
-          <div className="bg-white/20 rounded-full h-2 mb-6">
-            <motion.div
-              initial={{ width: 0 }}
-              animate={{ width: `${(step / 4) * 100}%` }}
-              transition={{ duration: 0.5 }}
-              className="h-full bg-white rounded-full"
-            />
-          </div>
+      {/* Progress bar */}
+      <div className="bg-gradient-to-r from-emerald-500 to-teal-600 px-4 pb-4">
+        <div className="bg-white/20 rounded-full h-2">
+          <motion.div
+            initial={{ width: 0 }}
+            animate={{ width: `${(step / 4) * 100}%` }}
+            transition={{ duration: 0.5 }}
+            className="h-full bg-white rounded-full"
+          />
         </div>
       </div>
 

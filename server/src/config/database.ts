@@ -304,6 +304,81 @@ export const db = {
     },
   },
   
+  // Club operations
+  clubs: {
+    async findById(id: string) {
+      const { data, error } = await supabase
+        .from('clubs')
+        .select(`
+          *,
+          owner:users!owner_id(id, username, full_name, avatar_url),
+          members:club_members(
+            id,
+            role,
+            joined_at,
+            user:users(id, username, full_name, avatar_url)
+          )
+        `)
+        .eq('id', id)
+        .single();
+      
+      if (error) throw error;
+      return data;
+    },
+    
+    async findMany(filters: any = {}, pagination: any = {}) {
+      let query = supabase
+        .from('clubs')
+        .select(`
+          *,
+          owner:users!owner_id(id, username, full_name, avatar_url)
+        `, { count: 'exact' });
+      
+      if (filters.search) {
+        query = query.or(`name.ilike.%${filters.search}%,description.ilike.%${filters.search}%`);
+      }
+      
+      if (filters.visibility) {
+        query = query.eq('visibility', filters.visibility);
+      }
+      
+      // Apply pagination
+      const page = pagination.page || 1;
+      const limit = pagination.limit || 20;
+      const offset = (page - 1) * limit;
+      
+      query = query
+        .order('member_count', { ascending: false })
+        .range(offset, offset + limit - 1);
+      
+      const { data, error, count } = await query;
+      
+      if (error) throw error;
+      
+      return {
+        data: data || [],
+        pagination: {
+          page,
+          limit,
+          total: count || 0,
+          totalPages: Math.ceil((count || 0) / limit),
+          hasNext: page * limit < (count || 0),
+          hasPrev: page > 1,
+        },
+      };
+    },
+    
+    async create(clubData: any) {
+      const { data, error } = await supabase
+        .from('clubs')
+        .insert(clubData)
+        .select()
+        .single();
+      
+      if (error) throw error;
+      return data;
+    },
+  },
   
   // Comment operations
   comments: {

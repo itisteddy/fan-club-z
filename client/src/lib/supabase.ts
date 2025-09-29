@@ -1,8 +1,9 @@
 import { createClient } from '@supabase/supabase-js';
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from '@/utils/environment';
 
-// Environment variables
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+// Environment variables from centralized config
+const supabaseUrl = SUPABASE_URL;
+const supabaseAnonKey = SUPABASE_ANON_KEY;
 
 console.log('🔧 Supabase Config Check:');
 console.log('URL:', supabaseUrl ? '✅ Present' : '❌ Missing');
@@ -15,19 +16,23 @@ if (!supabaseUrl || !supabaseAnonKey) {
   
   throw new Error(
     `❌ Missing Supabase environment variables: ${missingVars.join(', ')}.\n` +
-    'Please check your .env file and ensure these variables are set:\n' +
+    'Please check your .env.development.local file and ensure these variables are set:\n' +
     '- VITE_SUPABASE_URL=https://your-project-ref.supabase.co\n' +
     '- VITE_SUPABASE_ANON_KEY=your-anon-public-key-here'
   );
 }
 
-// Create Supabase client
+// Create Supabase client with proper OAuth configuration
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
     autoRefreshToken: true,
     persistSession: true,
     detectSessionInUrl: true,
-    flowType: 'pkce'
+    flowType: 'pkce',
+    // Set proper redirect URL for local development
+    redirectTo: import.meta.env.DEV 
+      ? `${window.location.origin}/auth/callback`
+      : 'https://app.fanclubz.app/auth/callback'
   },
   db: {
     schema: 'public',
@@ -42,19 +47,22 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
 // Test the connection on initialization
 const testConnection = async () => {
   try {
-    const { data, error } = await supabase.from('users').select('count').limit(1);
-    if (error && !error.message.includes('relation "users" does not exist')) {
-      console.warn('⚠️ Supabase connection test failed:', error.message);
+    // Simple auth check instead of table access
+    const { data: { session }, error } = await supabase.auth.getSession();
+    if (error) {
+      console.warn('⚠️ Supabase auth check failed:', error.message);
     } else {
       console.log('✅ Supabase connection successful');
     }
   } catch (error: any) {
-    console.warn('⚠️ Supabase connection test error:', error.message);
+    console.warn('⚠️ Supabase connection test failed:', error.message);
+    // Don't throw error - let the app continue to work
   }
 };
 
 // Run connection test in development
-if (import.meta.env.DEV) {
+import { isDev } from '@/utils/environment';
+if (isDev) {
   testConnection();
 }
 
@@ -148,7 +156,6 @@ export const clientDb = {
             *,
             creator:users!creator_id(id, username, full_name, avatar_url),
             options:prediction_options!prediction_options_prediction_id_fkey(*),
-            club:clubs(id, name, avatar_url)
           `);
 
         if (filters.category) {
@@ -186,7 +193,6 @@ export const clientDb = {
             *,
             creator:users!creator_id(id, username, full_name, avatar_url),
             options:prediction_options!prediction_options_prediction_id_fkey(*),
-            club:clubs(id, name, avatar_url)
           `)
           .eq('id', id)
           .single();
@@ -305,63 +311,6 @@ export const clientDb = {
     },
   },
 
-  clubs: {
-    async getAll(filters: any = {}) {
-      try {
-        let query = supabase
-          .from('clubs')
-          .select(`
-            *,
-            owner:users!owner_id(id, username, full_name, avatar_url)
-          `);
-
-        if (filters.search) {
-          query = query.or(`name.ilike.%${filters.search}%,description.ilike.%${filters.search}%`);
-        }
-
-        const { data, error } = await query
-          .order('member_count', { ascending: false })
-          .limit(filters.limit || 20);
-
-        if (error && !error.message.includes('relation') && !error.message.includes('does not exist')) {
-          console.error('Database error in clubs.getAll:', error);
-        }
-
-        return { data, error };
-      } catch (error: any) {
-        console.error('Exception in clubs.getAll:', error);
-        return { data: null, error: { message: error.message || 'An unexpected error occurred' } };
-      }
-    },
-
-    async getById(id: string) {
-      try {
-        const { data, error } = await supabase
-          .from('clubs')
-          .select(`
-            *,
-            owner:users!owner_id(id, username, full_name, avatar_url),
-            members:club_members(
-              id,
-              role,
-              joined_at,
-              user:users(id, username, full_name, avatar_url)
-            )
-          `)
-          .eq('id', id)
-          .single();
-
-        if (error && !error.message.includes('relation') && !error.message.includes('does not exist')) {
-          console.error('Database error in clubs.getById:', error);
-        }
-
-        return { data, error };
-      } catch (error: any) {
-        console.error('Exception in clubs.getById:', error);
-        return { data: null, error: { message: error.message || 'An unexpected error occurred' } };
-      }
-    },
-  },
 
   comments: {
     async getByPredictionId(predictionId: string, limit: number = 20) {

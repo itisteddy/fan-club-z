@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { useLocation } from 'wouter';
+import { useNavigate } from 'react-router-dom';
 
 interface TappableUsernameProps {
   username: string;
@@ -19,7 +19,7 @@ const TappableUsername: React.FC<TappableUsernameProps> = ({
   showAt = true,
   onClick
 }) => {
-  const [, navigate] = useLocation();
+  const navigate = useNavigate();
 
   const handleClick = (e: React.MouseEvent) => {
     e.stopPropagation(); // Prevent parent click events

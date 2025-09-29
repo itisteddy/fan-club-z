@@ -1,3 +1,6 @@
+/* FCZ Design Tokens - Import first for cascading */
+@import './styles/tokens.css';
+
 @import './styles/navigation-fixes.css';
 @import './styles/modal-fixes.css';
 @import './styles/compact-cards.css';
@@ -38,10 +41,14 @@
     max-width: 100vw;
     overflow-x: hidden;
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif;
-    background-color: #f9fafb;
-    color: #111827;
-    line-height: 1.5;
+    background-color: var(--color-bg-secondary);
+    color: var(--color-text-primary);
+    font-size: var(--text-body-size);
+    font-weight: var(--text-body-weight);
+    line-height: var(--text-body-height);
     position: relative;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
 
   #root {
@@ -89,10 +96,18 @@
     cursor: pointer;
     border: none;
     background: none;
-    min-height: 44px;
-    min-width: 44px;
+    min-height: var(--size-touch-target);
+    min-width: var(--size-touch-target);
     touch-action: manipulation;
     max-width: 100%;
+    font-size: inherit;
+    color: inherit;
+    border-radius: var(--radius-2);
+  }
+  
+  button:focus-visible {
+    outline: 2px solid var(--color-focus-ring);
+    outline-offset: 2px;
   }
 
   /* Link styling */

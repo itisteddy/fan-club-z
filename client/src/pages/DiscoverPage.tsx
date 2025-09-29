@@ -2,14 +2,18 @@ import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react'
 import { usePredictionStore, Prediction } from '../store/predictionStore';
 import { toast } from 'react-hot-toast';
 import PredictionCard from '../components/PredictionCard';
+import PredictionCardV3, { PredictionCardV3Skeleton } from '../components/predictions/PredictionCardV3';
 import { motion, AnimatePresence } from 'framer-motion';
-import { TrendingUp, Search, Loader2 } from 'lucide-react';
+import { TrendingUp, Search, Loader2, Bell } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import PredictionCardSkeleton from '../components/PredictionCardSkeleton';
 import { PlacePredictionModal } from '../components/predictions/PlacePredictionModal';
 import { useInfiniteScroll } from '../hooks/useInfiniteScroll';
 import Logo from '../components/common/Logo';
 import useScrollPreservation from '../hooks/useScrollPreservation';
+import AppHeader from '../components/layout/AppHeader';
+import { formatUSDCompact, formatNumberShort } from '@lib/format';
+import { useNavigate } from 'react-router-dom';
 
 interface DiscoverPageProps {
   onNavigateToProfile?: () => void;
@@ -65,98 +69,73 @@ const CategoryFilters = React.memo(function CategoryFilters({
 
 CategoryFilters.displayName = 'CategoryFilters';
 
-// Enhanced Mobile Header Component
-const MobileHeader = React.memo(function MobileHeader({ 
-  user, 
+// Enhanced Discover Header Component
+const DiscoverHeaderContent = React.memo(function DiscoverHeaderContent({ 
   stats, 
   searchQuery, 
-  onSearchChange, 
-  onNavigateToProfile 
+  onSearchChange
 }: {
-  user: any;
   stats: any;
   searchQuery: string;
   onSearchChange: (query: string) => void;
-  onNavigateToProfile: () => void;
 }) {
   return (
-    <div className="bg-white border-b border-gray-100 sticky top-0 z-50">
-      {/* Status bar spacer */}
-      <div className="h-11" />
-      
-      <div className="px-4 pb-4">
-        {/* Top section with logo */}
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-3">
-            <Logo size="md" variant="icon" />
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">Discover</h1>
-              <p className="text-sm text-gray-600">Find your next winning prediction</p>
-            </div>
-          </div>
-          <button
-            onClick={onNavigateToProfile}
-            className="w-10 h-10 rounded-full bg-gradient-to-r from-purple-400 to-purple-500 flex items-center justify-center text-white font-semibold shadow-lg"
-          >
-            {user?.email?.[0]?.toUpperCase() || 'U'}
-          </button>
+    <div className="px-4 pt-4 pb-4 bg-white">
+      {/* Live market stats */}
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="bg-gradient-to-r from-emerald-50 to-teal-50 rounded-2xl p-4 mb-4"
+      >
+        <div className="flex items-center gap-2 mb-3">
+          <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></div>
+          <span className="text-sm font-medium text-gray-900">LIVE MARKETS</span>
         </div>
-
-        {/* Live market stats */}
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="bg-gradient-to-r from-purple-50 to-emerald-50 rounded-2xl p-4 mb-4"
-        >
-          <div className="flex items-center gap-2 mb-3">
-            <div className="w-2 h-2 bg-purple-500 rounded-full animate-pulse"></div>
-            <span className="text-sm font-medium text-gray-900">LIVE MARKETS</span>
-          </div>
-          <div className="grid grid-cols-3 gap-4">
-            <div className="text-center">
-              <div className="text-lg font-bold text-gray-900">
-                ${stats?.totalVolume || '0'}
-              </div>
-              <div className="text-xs text-gray-600">Volume</div>
+        <div className="grid grid-cols-3 gap-4">
+          <div className="text-center">
+            <div className="text-lg font-bold text-gray-900" title={`Total volume: ${(stats?.totalVolume || 0).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`}>
+              {formatUSDCompact(stats?.totalVolume)}
             </div>
-            <div className="text-center">
-              <div className="text-lg font-bold text-gray-900">
-                {stats?.activePredictions || '0'}
-              </div>
-              <div className="text-xs text-gray-600">Live</div>
-            </div>
-            <div className="text-center">
-              <div className="text-lg font-bold text-gray-900">
-                {stats?.totalUsers || '0'}
-              </div>
-              <div className="text-xs text-gray-600">Players</div>
-            </div>
+            <div className="text-xs text-gray-600">Volume</div>
           </div>
-        </motion.div>
-
-        {/* Search bar */}
-        <div className="relative" data-tour-id="search-bar">
-          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-            <Search className="h-5 w-5 text-gray-400" />
+          <div className="text-center">
+            <div className="text-lg font-bold text-gray-900" title={`${(stats?.activePredictions || 0).toLocaleString()} active predictions`}>
+              {formatNumberShort(stats?.activePredictions)}
+            </div>
+            <div className="text-xs text-gray-600">Live</div>
           </div>
-          <input
-            type="text"
-            placeholder="Search predictions..."
-            value={searchQuery}
-            onChange={(e) => onSearchChange(e.target.value)}
-            className="w-full pl-10 pr-4 py-3 bg-gray-50 border-0 rounded-xl text-gray-900 placeholder-gray-500 focus:bg-white focus:ring-2 focus:ring-purple-500 focus:outline-none transition-all"
-          />
+          <div className="text-center">
+            <div className="text-lg font-bold text-gray-900" title={`${(stats?.totalUsers || 0).toLocaleString()} total players`}>
+              {formatNumberShort(stats?.totalUsers)}
+            </div>
+            <div className="text-xs text-gray-600">Players</div>
+          </div>
         </div>
+      </motion.div>
+
+      {/* Search bar */}
+      <div className="relative" data-tour-id="search-bar">
+        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+          <Search className="h-5 w-5 text-gray-400" />
+        </div>
+        <input
+          type="text"
+          placeholder="Search predictions..."
+          value={searchQuery}
+          onChange={(e) => onSearchChange(e.target.value)}
+          className="w-full pl-10 pr-4 py-3 bg-gray-50 border-0 rounded-xl text-gray-900 placeholder-gray-500 focus:bg-white focus:ring-2 focus:ring-emerald-500 focus:outline-none transition-all"
+        />
       </div>
     </div>
   );
 });
 
-MobileHeader.displayName = 'MobileHeader';
+DiscoverHeaderContent.displayName = 'DiscoverHeaderContent';
 
 // Main DiscoverPage Component
 const DiscoverPage = React.memo(function DiscoverPage({ onNavigateToProfile, onNavigateToPrediction }: DiscoverPageProps) {
   const { user } = useAuthStore();
+  const navigate = useNavigate();
   const { 
     predictions, 
     loading, 
@@ -192,7 +171,7 @@ const DiscoverPage = React.memo(function DiscoverPage({ onNavigateToProfile, onN
   const fetchPlatformStats = useCallback(async () => {
     try {
       // Use the same environment API URL logic as the rest of the app
-      const { getApiUrl } = await import('../lib/environment');
+      const { getApiUrl } = await import('@/utils/environment');
       const response = await fetch(`${getApiUrl()}/api/v2/predictions/stats/platform`);
       if (response.ok) {
         const data = await response.json();
@@ -370,7 +349,7 @@ const DiscoverPage = React.memo(function DiscoverPage({ onNavigateToProfile, onN
           {/* Prediction card skeletons */}
           <div className="space-y-2">
             {[1, 2, 3, 4, 5].map((i) => (
-              <PredictionCardSkeleton key={i} />
+              <PredictionCardV3Skeleton key={i} />
             ))}
           </div>
         </div>
@@ -385,18 +364,15 @@ const DiscoverPage = React.memo(function DiscoverPage({ onNavigateToProfile, onN
       data-scroll-container
       style={{ position: 'relative', zIndex: 1, overflowY: 'auto', height: '100vh' }}
     >
-      {/* Header with proper z-index */}
-      <div className="discover-header">
-        <div className="header-content">
-          <MobileHeader 
-            user={user} 
-            stats={stats} 
-            searchQuery={filters.search}
-            onSearchChange={handleSearchChange}
-            onNavigateToProfile={onNavigateToProfile || (() => {})}
-          />
-        </div>
-      </div>
+      {/* Unified Header - Minimal (no logo, no descriptive text) */}
+      <AppHeader title="Discover" />
+      
+      {/* Header Content */}
+      <DiscoverHeaderContent 
+        stats={stats} 
+        searchQuery={filters.search}
+        onSearchChange={handleSearchChange}
+      />
 
       {/* Category filters with explicit positioning */}
       <div className="category-filters-wrapper" style={{ position: 'relative', zIndex: 45 }}>
@@ -440,14 +416,21 @@ const DiscoverPage = React.memo(function DiscoverPage({ onNavigateToProfile, onN
                   }
                   
                   return (
-                    <PredictionCard
-                      key={`${prediction.id}-${index}`} // More robust key
-                      prediction={prediction}
-                      variant="compact"
-                      onPredict={() => handlePredict(prediction)}
-                      onLike={() => handleLike(prediction.id)}
-                      onComment={() => handleComment(prediction.id)}
-                      onShare={() => handleShare(prediction)}
+                    <PredictionCardV3
+                      key={`${prediction.id}-${index}`}
+                      prediction={{
+                        id: prediction.id,
+                        title: prediction.title,
+                        category: prediction.category,
+                        endsAt: prediction.entry_deadline,
+                        pool: prediction.pool_total,
+                        players: prediction.participant_count,
+                        options: prediction.options?.slice(0, 2).map(opt => ({
+                          label: opt.label,
+                          odds: opt.current_odds
+                        })),
+                        description: prediction.description
+                      }}
                     />
                   );
                 })}

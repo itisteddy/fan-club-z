@@ -3,7 +3,8 @@
 // Production-compatible version import
 import pkg from '../../package.json';
 const VERSION: string = (pkg as any).version || '0.0.0';
-import { getEnvironmentConfig } from '../lib/environment';
+import { getEnvironmentConfig } from '@/utils/environment';
+import { FRONTEND_URL, isDev, isProd } from '@/utils/environment';
 
 export const APP_CONFIG = {
   version: VERSION,
@@ -18,7 +19,7 @@ export const APP_CONFIG = {
   },
   
   frontend: {
-    url: import.meta.env.VITE_FRONTEND_URL || 'https://app.fanclubz.app'
+    url: FRONTEND_URL || 'https://app.fanclubz.app'
   },
   
   features: {
@@ -26,7 +27,6 @@ export const APP_CONFIG = {
     socialEngagement: true,
     walletIntegration: true,
     settlementSystem: true,
-    clubSystem: true
   },
   
   limits: {
@@ -59,8 +59,8 @@ export const APP_CONFIG = {
 } as const;
 
 // Environment helpers
-export const isDevelopment = () => import.meta.env.DEV;
-export const isProduction = () => import.meta.env.PROD;
+export const isDevelopment = () => isDev;
+export const isProduction = () => isProd;
 
 // API helpers
 export const getApiUrl = () => APP_CONFIG.api.url;

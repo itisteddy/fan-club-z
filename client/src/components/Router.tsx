@@ -1,53 +1,44 @@
-import React from 'react';
-import { Route, Switch } from 'wouter';
-import { useAuth } from '../providers/AuthProvider';
-import { MainLayout } from './layouts/MainLayout';
-import { AuthLayout } from './layouts/AuthLayout';
-import { LoadingScreen } from './LoadingScreen';
+// Note: This Router component using wouter is deprecated
+// The main app now uses react-router-dom consistently
+// This file is kept for reference but should not be used
 
-// Import pages directly
+// Import unified pages
 import DiscoverPage from '../pages/DiscoverPage';
-import PredictionsPage from '../pages/PredictionsPage';
+import UnifiedMyBetsPage from '../pages/UnifiedMyBetsPage';
 import CreatePredictionPage from '../pages/CreatePredictionPage';
-import ClubsPage from '../pages/ClubsPage';
-import WalletPage from '../pages/WalletPage';
-import ProfilePage from '../pages/ProfilePage';
-import PredictionDetailPage from '../pages/PredictionDetailPage';
-import ClubDetailPage from '../pages/ClubDetailPage';
+import UnifiedLeaderboardPage from '../pages/UnifiedLeaderboardPage';
+import UnifiedProfilePage from '../pages/UnifiedProfilePage';
+import UnifiedWalletPage from '../pages/UnifiedWalletPage';
+import UnifiedPredictionDetailsPage from '../pages/UnifiedPredictionDetailsPage';
+import AuthCallback from '../pages/auth/AuthCallback';
 
 export const Router: React.FC = () => {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, loading } = useAuthStore();
 
-  if (isLoading) {
+  if (loading) {
     return <LoadingScreen />;
   }
 
-  if (!isAuthenticated) {
-    return (
-      <AuthLayout>
-        <Switch>
-          <Route path="/register" component={RegisterPage} />
-          <Route path="/" component={LoginPage} />
-          <Route component={LoginPage} />
-        </Switch>
-      </AuthLayout>
-    );
-  }
-
   return (
-    <MainLayout>
-      <Switch>
-        <Route path="/" component={DiscoverPage} />
-        <Route path="/discover" component={DiscoverPage} />
-        <Route path="/predictions" component={PredictionsPage} />
-        <Route path="/create" component={CreatePredictionPage} />
-        <Route path="/clubs" component={ClubsPage} />
-        <Route path="/wallet" component={WalletPage} />
-        <Route path="/profile" component={ProfilePage} />
-        <Route path="/prediction/:id" component={PredictionDetailPage} />
-        <Route path="/club/:id" component={ClubDetailPage} />
-        <Route component={DiscoverPage} />
-      </Switch>
-    </MainLayout>
+    <Switch>
+      {/* Auth callback route - accessible to all */}
+      <Route path="/auth/callback" component={AuthCallback} />
+      
+      {/* Main app routes */}
+      <Route path="/" component={DiscoverPage} />
+      <Route path="/discover" component={DiscoverPage} />
+      <Route path="/mybets" component={UnifiedMyBetsPage} />
+      <Route path="/create" component={CreatePredictionPage} />
+      <Route path="/leaderboard" component={UnifiedLeaderboardPage} />
+      <Route path="/profile" component={UnifiedProfilePage} />
+      <Route path="/profile/:userId" component={UnifiedProfilePage} />
+      <Route path="/wallet" component={UnifiedWalletPage} />
+      <Route path="/prediction/:id" component={UnifiedPredictionDetailsPage} />
+      
+      {/* Fallback */}
+      <Route component={DiscoverPage} />
+    </Switch>
   );
 };
+
+export default Router;

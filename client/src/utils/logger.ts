@@ -3,8 +3,10 @@
  * Automatically disables console logs in production builds
  */
 
-const isDevelopment = import.meta.env.DEV;
-const isDebugMode = import.meta.env.VITE_DEBUG === 'true';
+import { isDev, DEBUG_ENABLED } from '@/utils/environment';
+
+const isDevelopment = isDev;
+const isDebugMode = DEBUG_ENABLED;
 
 export const logger = {
   log: (...args: any[]) => {

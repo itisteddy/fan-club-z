@@ -1,0 +1,296 @@
+/**
+ * FCZ Design Tokens - Mobile-First, Dense UI
+ * Based on FCZ UI/UX Change Checklist v2.0
+ */
+
+:root {
+  /* === SPACING (Dense) === */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-12: 48px;
+  --space-16: 64px;
+
+  /* === BORDER RADIUS === */
+  --radius-1: 6px;
+  --radius-2: 10px;
+  --radius-3: 12px;
+  --radius-4: 16px;
+  --radius-full: 9999px;
+
+  /* === SHADOWS (Subtle) === */
+  --elev-1: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --elev-2: 0 1px 3px rgba(0, 0, 0, 0.1), 0 1px 2px rgba(0, 0, 0, 0.06);
+  --elev-3: 0 4px 6px rgba(0, 0, 0, 0.07), 0 2px 4px rgba(0, 0, 0, 0.06);
+
+  /* === TYPOGRAPHY === */
+  /* Titles/H1: 16px, 600, -1% letter spacing */
+  --text-title-size: 16px;
+  --text-title-weight: 600;
+  --text-title-spacing: -0.01em;
+  --text-title-height: 1.4;
+
+  /* Body: 14px, 400 */
+  --text-body-size: 14px;
+  --text-body-weight: 400;
+  --text-body-height: 1.5;
+
+  /* Meta: 12px, 500, muted */
+  --text-meta-size: 12px;
+  --text-meta-weight: 500;
+  --text-meta-height: 1.3;
+
+  /* Large: 18px, 600 */
+  --text-large-size: 18px;
+  --text-large-weight: 600;
+  --text-large-height: 1.4;
+
+  /* === COLORS === */
+  /* Primary (Emerald) */
+  --color-primary-50: #ecfdf5;
+  --color-primary-100: #d1fae5;
+  --color-primary-200: #a7f3d0;
+  --color-primary-300: #6ee7b7;
+  --color-primary-400: #34d399;
+  --color-primary-500: #10b981;
+  --color-primary-600: #059669;
+  --color-primary-700: #047857;
+  --color-primary-800: #065f46;
+  --color-primary-900: #064e3b;
+
+  /* Gray Scale */
+  --color-gray-50: #f9fafb;
+  --color-gray-100: #f3f4f6;
+  --color-gray-200: #e5e7eb;
+  --color-gray-300: #d1d5db;
+  --color-gray-400: #9ca3af;
+  --color-gray-500: #6b7280;
+  --color-gray-600: #4b5563;
+  --color-gray-700: #374151;
+  --color-gray-800: #1f2937;
+  --color-gray-900: #111827;
+
+  /* Semantic Colors */
+  --color-error: #dc2626;
+  --color-error-bg: #fef2f2;
+  --color-success: var(--color-primary-600);
+  --color-success-bg: var(--color-primary-50);
+  --color-warning: #d97706;
+  --color-warning-bg: #fffbeb;
+
+  /* Text Colors */
+  --color-text-primary: var(--color-gray-900);
+  --color-text-secondary: var(--color-gray-600);
+  --color-text-muted: var(--color-gray-500);
+  --color-text-inverse: white;
+
+  /* Background Colors */
+  --color-bg-primary: white;
+  --color-bg-secondary: var(--color-gray-50);
+  --color-bg-tertiary: var(--color-gray-100);
+  --color-bg-overlay: rgba(0, 0, 0, 0.5);
+
+  /* Border Colors */
+  --color-border-light: var(--color-gray-200);
+  --color-border-medium: var(--color-gray-300);
+  --color-border-strong: var(--color-gray-400);
+
+  /* Focus */
+  --color-focus: var(--color-primary-500);
+  --color-focus-ring: var(--color-primary-500);
+
+  /* === SIZING === */
+  /* Card min-height: 88px */
+  --size-card-min-height: 88px;
+  
+  /* Header height: 48–56px */
+  --size-header-height: 52px;
+  
+  /* Bottom nav height */
+  --fcz-bottom-nav-height: 60px;
+  
+  /* Icon sizes */
+  --size-icon-sm: 16px;
+  --size-icon-md: 20px;
+  --size-icon-lg: 24px;
+  --size-icon-xl: 32px;
+  --size-icon-2xl: 48px;
+  
+  /* Touch targets */
+  --size-touch-target: 44px;
+  
+  /* Avatar sizes */
+  --size-avatar-sm: 24px;
+  --size-avatar-md: 32px;
+  --size-avatar-lg: 48px;
+  
+  /* Progress bar height: 6px */
+  --size-progress-height: 6px;
+
+  /* === LAYOUT === */
+  /* Safe area insets */
+  --safe-area-top: env(safe-area-inset-top, 0px);
+  --safe-area-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-area-left: env(safe-area-inset-left, 0px);
+  --safe-area-right: env(safe-area-inset-right, 0px);
+
+  /* Header offset for sticky elements */
+  --fcz-header-offset: var(--size-header-height);
+
+  /* === ANIMATION === */
+  --duration-fast: 100ms;
+  --duration-normal: 150ms;
+  --duration-slow: 200ms;
+  
+  --easing-ease-out: cubic-bezier(0.0, 0.0, 0.2, 1);
+  --easing-ease-in: cubic-bezier(0.4, 0.0, 1, 1);
+  --easing-ease-in-out: cubic-bezier(0.4, 0.0, 0.2, 1);
+
+  /* === Z-INDEX === */
+  --z-sticky: 10;
+  --z-dropdown: 100;
+  --z-overlay: 200;
+  --z-modal: 300;
+  --z-toast: 400;
+}
+
+/* === UTILITY CLASSES === */
+
+/* Line Clamp */
+.line-clamp-1 {
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.line-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.line-clamp-3 {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Focus Ring */
+.focus-ring {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
+}
+
+.focus-ring:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
+}
+
+/* Touch Target */
+.touch-target {
+  min-width: var(--size-touch-target);
+  min-height: var(--size-touch-target);
+}
+
+/* Typography Classes */
+.text-title {
+  font-size: var(--text-title-size);
+  font-weight: var(--text-title-weight);
+  letter-spacing: var(--text-title-spacing);
+  line-height: var(--text-title-height);
+}
+
+.text-body {
+  font-size: var(--text-body-size);
+  font-weight: var(--text-body-weight);
+  line-height: var(--text-body-height);
+}
+
+.text-meta {
+  font-size: var(--text-meta-size);
+  font-weight: var(--text-meta-weight);
+  line-height: var(--text-meta-height);
+  color: var(--color-text-muted);
+}
+
+.text-large {
+  font-size: var(--text-large-size);
+  font-weight: var(--text-large-weight);
+  line-height: var(--text-large-height);
+}
+
+/* Card Base */
+.card {
+  background: var(--color-bg-primary);
+  border-radius: var(--radius-3);
+  border: 1px solid var(--color-border-light);
+  box-shadow: var(--elev-1);
+  min-height: var(--size-card-min-height);
+}
+
+/* Progress Bar */
+.progress-bar {
+  height: var(--size-progress-height);
+  border-radius: var(--radius-full);
+  overflow: hidden;
+  background: var(--color-gray-200);
+}
+
+.progress-bar-fill {
+  height: 100%;
+  transition: width var(--duration-normal) var(--easing-ease-out);
+}
+
+/* Safe Area Spacing */
+.safe-top {
+  padding-top: var(--safe-area-top);
+}
+
+.safe-bottom {
+  padding-bottom: var(--safe-area-bottom);
+}
+
+.safe-left {
+  padding-left: var(--safe-area-left);
+}
+
+.safe-right {
+  padding-right: var(--safe-area-right);
+}
+
+/* Reduced Motion Support */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  
+  .focus-ring:focus-visible {
+    transition: none;
+  }
+}
+
+/* High Contrast Support */
+@media (prefers-contrast: high) {
+  :root {
+    --color-border-light: var(--color-gray-400);
+    --color-border-medium: var(--color-gray-600);
+    --color-text-muted: var(--color-gray-700);
+  }
+}
+
+/* Dark Mode Preparation (tokens ready for future) */
+@media (prefers-color-scheme: dark) {
+  /* Will be implemented in future dark mode task */
+}

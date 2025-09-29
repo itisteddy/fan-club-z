@@ -9,6 +9,7 @@ import { formatTimeRemaining } from '../lib/utils';
 import { Prediction } from '../store/predictionStore';
 import BetCard from '../components/BetCard';
 import ManagePredictionModal from '../components/modals/ManagePredictionModal';
+import { openAuthGate } from '../auth/authGateAdapter';
 
 interface BetsTabProps {
   onNavigateToDiscover?: () => void;
@@ -250,8 +251,9 @@ const BetsTab: React.FC<BetsTabProps> = ({ onNavigateToDiscover }) => {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.6 }}
             className="bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white px-8 py-4 rounded-2xl font-semibold transition-all duration-300 flex items-center gap-3 shadow-lg hover:shadow-xl"
-            onClick={() => {
-              if (onNavigateToDiscover) {
+            onClick={async () => {
+              const result = await openAuthGate({ intent: 'view_my_bets' });
+              if (result.status === 'success' && onNavigateToDiscover) {
                 onNavigateToDiscover();
               }
             }}
@@ -259,7 +261,7 @@ const BetsTab: React.FC<BetsTabProps> = ({ onNavigateToDiscover }) => {
             whileTap={{ scale: 0.95 }}
           >
             <Sparkles className="w-5 h-5" />
-            Explore Predictions
+            Sign In to View Predictions
           </motion.button>
         </div>
       </div>

@@ -1,136 +1,52 @@
 import { Request, Response, NextFunction } from 'express';
-import { supabase } from '../config/database';
 
-// Extend the Request interface to include user
-declare global {
-  namespace Express {
-    interface Request {
-      user?: {
-        id: string;
-        username: string;
-        full_name?: string;
-        avatar_url?: string;
-        is_verified?: boolean;
-      };
-    }
-  }
+/**
+ * Simple authentication middleware for Fan Club Z
+ * In development, this allows all requests through
+ * In production, this would verify JWT tokens
+ */
+
+export interface AuthenticatedRequest extends Request {
+  user?: {
+    id: string;
+    email: string;
+    username?: string;
+  };
 }
 
-// Simple auth middleware that tries to get user from token, but doesn't require it
-export const optionalAuth = async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    const authHeader = req.headers.authorization;
-    
-    if (authHeader && authHeader.startsWith('Bearer ')) {
-      const token = authHeader.substring(7);
-      
-      try {
-        // Try to verify the JWT token with Supabase
-        const { data: { user }, error } = await supabase.auth.getUser(token);
-        
-        if (!error && user) {
-          // Get user profile from the users table
-          const { data: profile, error: profileError } = await supabase
-            .from('users')
-            .select('id, username, full_name, avatar_url, is_verified')
-            .eq('id', user.id)
-            .single();
-          
-          if (!profileError && profile) {
-            req.user = profile;
-          } else {
-            // Fallback to minimal user info from auth
-            req.user = {
-              id: user.id,
-              username: user.email?.split('@')[0] || 'user',
-              full_name: user.user_metadata?.full_name || user.email?.split('@')[0] || 'User',
-              avatar_url: user.user_metadata?.avatar_url,
-              is_verified: false
-            };
-          }
-        }
-      } catch (tokenError) {
-        // Token is invalid, but we continue without user (optional auth)
-        console.log('Invalid token provided, continuing without auth');
-      }
-    }
-    
-    // If no user found from token, create a demo user for development
-    if (!req.user) {
-      req.user = {
-        id: 'demo-user',
-        username: 'demo_user',
-        full_name: 'Demo User',
-        avatar_url: null,
-        is_verified: false
-      };
-    }
-    
-    next();
-  } catch (error) {
-    console.error('Auth middleware error:', error);
-    // Continue without user in case of error (optional auth)
+export const authenticate = (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  // For development, we'll create a mock user
+  // In production, this would verify JWT tokens from headers
+  
+  const authHeader = req.headers.authorization;
+  
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    // In a real implementation, we'd verify the JWT token here
+    // For now, we'll create a mock user
     req.user = {
-      id: 'demo-user',
-      username: 'demo_user', 
-      full_name: 'Demo User',
-      avatar_url: null,
-      is_verified: false
+      id: 'current-user',
+      email: 'user@example.com',
+      username: 'TestUser'
     };
-    next();
+  } else {
+    // For development, allow unauthenticated requests with a default user
+    req.user = {
+      id: 'anonymous-user',
+      email: 'anonymous@example.com',
+      username: 'Anonymous'
+    };
   }
+  
+  next();
 };
 
-// Required auth middleware - returns 401 if no valid user
-export const requireAuth = async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    const authHeader = req.headers.authorization;
-    
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return res.status(401).json({
-        success: false,
-        error: 'Authorization header missing or invalid'
-      });
-    }
-    
-    const token = authHeader.substring(7);
-    
-    // Try to verify the JWT token with Supabase
-    const { data: { user }, error } = await supabase.auth.getUser(token);
-    
-    if (error || !user) {
-      return res.status(401).json({
-        success: false,
-        error: 'Invalid or expired token'
-      });
-    }
-    
-    // Get user profile from the users table
-    const { data: profile, error: profileError } = await supabase
-      .from('users')
-      .select('id, username, full_name, avatar_url, is_verified')
-      .eq('id', user.id)
-      .single();
-    
-    if (profileError) {
-      // Fallback to minimal user info from auth
-      req.user = {
-        id: user.id,
-        username: user.email?.split('@')[0] || 'user',
-        full_name: user.user_metadata?.full_name || user.email?.split('@')[0] || 'User',
-        avatar_url: user.user_metadata?.avatar_url,
-        is_verified: false
-      };
-    } else {
-      req.user = profile;
-    }
-    
-    next();
-  } catch (error) {
-    console.error('Auth middleware error:', error);
-    res.status(500).json({
+export const requireAuth = (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  if (!req.user || req.user.id === 'anonymous-user') {
+    return res.status(401).json({
       success: false,
-      error: 'Authentication error'
+      error: 'Authentication required'
     });
   }
+  
+  return next();
 };

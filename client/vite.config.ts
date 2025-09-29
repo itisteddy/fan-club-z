@@ -4,6 +4,9 @@ import { VitePWA } from 'vite-plugin-pwa'
 import path from 'path'
 import { fileURLToPath } from 'url'
 
+// Ensure plugin types are correctly resolved
+import type { PluginOption } from 'vite'
+
 // Get the directory name for ES modules
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -15,7 +18,7 @@ export default defineConfig(({ mode }) => {
   // but we can also use env here to configure dev server safely.
   return {
   plugins: [
-    react(),
+    react() as PluginOption,
     VitePWA({
       registerType: 'autoUpdate',
       workbox: {
@@ -43,11 +46,12 @@ export default defineConfig(({ mode }) => {
           }
         ]
       }
-    })
+    }) as PluginOption
   ],
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),
+      '@lib': path.resolve(__dirname, './src/lib'),
       '@pages': path.resolve(__dirname, './src/pages'),
       '@components': path.resolve(__dirname, './src/components'),
       '@icons': path.resolve(__dirname, './src/icons'),
@@ -58,6 +62,7 @@ export default defineConfig(({ mode }) => {
       '@/lib': path.resolve(__dirname, './src/lib'),
       '@/hooks': path.resolve(__dirname, './src/hooks'),
       '@/types': path.resolve(__dirname, './src/types'),
+      '@fanclubz/shared': path.resolve(__dirname, '../shared/src'),
     },
   },
   server: {
@@ -69,7 +74,7 @@ export default defineConfig(({ mode }) => {
       : undefined,
     proxy: {
       '/api': {
-        target: env.VITE_API_BASE || 'http://localhost:3001',
+        target: 'http://localhost:3001',
         changeOrigin: true,
         secure: false,
       },

@@ -1,4 +1,5 @@
 // PWA utility functions for service worker registration and management
+import { VAPID_PUBLIC_KEY } from '@/utils/environment';
 
 export interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
@@ -173,7 +174,7 @@ export class PWAManager {
       const subscription = await registration.pushManager.subscribe({
         userVisibleOnly: true,
         applicationServerKey: this.urlBase64ToUint8Array(
-          process.env.VITE_VAPID_PUBLIC_KEY || ''
+          VAPID_PUBLIC_KEY || ''
         )
       });
 

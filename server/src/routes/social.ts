@@ -1,13 +1,9 @@
 import express from 'express';
 import { SocialService } from '../services/social';
-import { optionalAuth } from '../middleware/auth';
 
 const socialService = new SocialService();
 
 const router = express.Router();
-
-// Apply auth middleware to all routes
-router.use(optionalAuth);
 
 // Get comments for a prediction
 router.get('/predictions/:predictionId/comments', async (req, res) => {
@@ -42,8 +38,8 @@ router.post('/predictions/:predictionId/comments', async (req, res) => {
     const { predictionId } = req.params;
     const { content, userId, user, parentCommentId, parent_comment_id } = req.body;
 
-    // Get userId from either request body, user object, or auth middleware
-    const actualUserId = userId || user?.id || req.user?.id;
+    // Get userId from either userId field or user object
+    const actualUserId = userId || user?.id;
     const actualParentId = parentCommentId || parent_comment_id;
 
     console.log('📝 Comment creation request:', {
@@ -51,7 +47,6 @@ router.post('/predictions/:predictionId/comments', async (req, res) => {
       content: content?.substring(0, 50) + '...',
       userId,
       userObject: user,
-      authUser: req.user?.username,
       actualUserId,
       parentCommentId,
       parent_comment_id,
@@ -64,7 +59,6 @@ router.post('/predictions/:predictionId/comments', async (req, res) => {
         contentLength: content?.length,
         userId: !!userId,
         userObject: !!user,
-        authUser: !!req.user,
         actualUserId: !!actualUserId,
         fullBody: req.body 
       });
@@ -75,7 +69,6 @@ router.post('/predictions/:predictionId/comments', async (req, res) => {
           hasContent: !!content,
           hasUserId: !!userId,
           hasUserObject: !!user,
-          hasAuthUser: !!req.user,
           extractedUserId: actualUserId
         }
       });
@@ -110,19 +103,16 @@ router.post('/comments/:commentId/like', async (req, res) => {
     const { commentId } = req.params;
     const { userId } = req.body;
 
-    // Get userId from request body or auth middleware
-    const actualUserId = userId || req.user?.id;
-
-    if (!actualUserId) {
+    if (!userId) {
       return res.status(400).json({
         success: false,
-        error: 'userId is required or user not authenticated'
+        error: 'userId is required'
       });
     }
 
-    console.log(`👍 Toggling like for comment ${commentId} by user ${actualUserId}`);
+    console.log(`👍 Toggling like for comment ${commentId} by user ${userId}`);
 
-    await socialService.toggleCommentLike(actualUserId, commentId);
+    await socialService.toggleCommentLike(userId, commentId);
 
     return res.json({
       success: true,
@@ -145,19 +135,16 @@ router.put('/comments/:commentId', async (req, res) => {
     const { commentId } = req.params;
     const { content, userId } = req.body;
 
-    // Get userId from request body or auth middleware
-    const actualUserId = userId || req.user?.id;
-
-    if (!content || !actualUserId) {
+    if (!content || !userId) {
       return res.status(400).json({
         success: false,
         error: 'Content and userId are required'
       });
     }
 
-    console.log(`✏️ Editing comment ${commentId} by user ${actualUserId}`);
+    console.log(`✏️ Editing comment ${commentId} by user ${userId}`);
 
-    const updatedComment = await socialService.updateComment(commentId, actualUserId, content);
+    const updatedComment = await socialService.updateComment(commentId, userId, content);
 
     return res.json({
       success: true,
@@ -180,19 +167,16 @@ router.delete('/comments/:commentId', async (req, res) => {
     const { commentId } = req.params;
     const { userId } = req.query;
 
-    // Get userId from query params or auth middleware
-    const actualUserId = userId || req.user?.id;
-
-    if (!actualUserId) {
+    if (!userId) {
       return res.status(400).json({
         success: false,
-        error: 'userId is required or user not authenticated'
+        error: 'userId is required'
       });
     }
 
-    console.log(`🗑️ Deleting comment ${commentId} by user ${actualUserId}`);
+    console.log(`🗑️ Deleting comment ${commentId} by user ${userId}`);
 
-    await socialService.deleteComment(commentId, actualUserId as string);
+    await socialService.deleteComment(commentId, userId as string);
 
     return res.json({
       success: true,

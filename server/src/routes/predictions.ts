@@ -9,6 +9,31 @@ const router = express.Router();
 router.get('/', async (req, res) => {
   try {
     console.log('📡 Predictions endpoint called - origin:', req.headers.origin);
+    console.log('🔧 Environment check:', {
+      NODE_ENV: process.env.NODE_ENV,
+      SUPABASE_URL: process.env.SUPABASE_URL ? 'SET' : 'MISSING',
+      SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY ? 'SET' : 'MISSING'
+    });
+    
+    // Test database connection
+    const { data: testData, error: testError } = await supabase
+      .from('predictions')
+      .select('id')
+      .limit(1);
+    
+    if (testError) {
+      console.error('Database connection test failed:', testError);
+      console.error('Supabase config:', {
+        url: process.env.SUPABASE_URL,
+        serviceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY ? 'SET' : 'MISSING'
+      });
+      return res.status(500).json({
+        error: 'Database connection error',
+        message: 'Unable to connect to database',
+        version: VERSION,
+        details: process.env.NODE_ENV === 'development' ? testError.message : undefined
+      });
+    }
     
     // Parse pagination parameters
     const page = parseInt(req.query.page as string) || 1;
@@ -81,10 +106,16 @@ router.get('/', async (req, res) => {
     });
   } catch (error) {
     console.error('Error fetching predictions:', error);
+    console.error('Error details:', {
+      message: error.message,
+      stack: error.stack,
+      name: error.name
+    });
     return res.status(500).json({
       error: 'Internal server error',
       message: 'Failed to fetch predictions',
-      version: VERSION
+      version: VERSION,
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 });
@@ -290,10 +321,17 @@ router.get('/created/:userId', async (req, res) => {
     });
   } catch (error) {
     console.error('Error fetching user created predictions:', error);
+    console.error('Error details:', {
+      message: error.message,
+      stack: error.stack,
+      name: error.name,
+      userId
+    });
     return res.status(500).json({
       error: 'Internal server error',
       message: 'Failed to fetch user created predictions',
-      version: VERSION
+      version: VERSION,
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 });

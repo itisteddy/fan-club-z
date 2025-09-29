@@ -1,7 +1,8 @@
 import { io, Socket } from 'socket.io-client';
 import { create } from 'zustand';
 import { useAuthStore } from './authStore';
-import { getSocketUrl } from '../lib/environment';
+import { getSocketUrl } from '@/utils/environment';
+import { mode, isProd } from '@/utils/environment';
 // Production-compatible version import
 import pkg from '../../package.json';
 const VERSION: string = (pkg as any).version || '0.0.0';
@@ -123,8 +124,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
     const serverUrl = getServerUrl();
     console.log('🔗 Connecting to chat server:', serverUrl);
-    console.log('🌍 Environment:', import.meta.env.MODE);
-    console.log('🌍 Is Production:', import.meta.env.PROD);
+    console.log('🌍 Environment:', mode);
+    console.log('🌍 Is Production:', isProd);
     console.log('👤 User:', user.username || user.email);
     
     const newSocket = io(serverUrl, {
@@ -142,7 +143,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         username: user.username || user.email?.split('@')[0] || 'Anonymous',
         clientType: 'web',
         version: VERSION,
-        environment: import.meta.env.MODE
+        environment: mode
       }
     });
 

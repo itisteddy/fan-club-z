@@ -1,3 +1,1 @@
-export * from './schemas';
-export * from './types';
-export * from './version';
+export const VERSION = "2.0.74";

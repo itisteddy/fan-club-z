@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, MessageCircle, Heart, Send } from 'lucide-react';
+import { FocusTrap, AriaUtils, KeyboardNavigation } from '../../utils/accessibility';
 import { useCommentsForPrediction } from '../../store/unifiedCommentStore';
 import { useAuthStore } from '../../store/authStore';
 import toast from 'react-hot-toast';
@@ -55,6 +56,9 @@ const CommentModal: React.FC<CommentModalProps> = ({
   const { user } = useAuthStore();
   const [newComment, setNewComment] = useState('');
   const [mounted, setMounted] = useState(false);
+  const modalRef = useRef<HTMLDivElement>(null);
+  const focusTrapRef = useRef<FocusTrap | null>(null);
+  const [modalId] = useState(() => AriaUtils.generateId('comment-modal'));
 
   // Effect to handle mounting state
   useEffect(() => {
@@ -74,8 +78,7 @@ const CommentModal: React.FC<CommentModalProps> = ({
     isSubmitting,
     fetchComments,
     addComment,
-    toggleCommentLike,
-    clearError
+    toggleCommentLike
   } = useCommentsForPrediction(shouldFetchComments ? prediction!.id : '');
 
   // Handle fetching comments when modal opens
@@ -85,15 +88,45 @@ const CommentModal: React.FC<CommentModalProps> = ({
     }
   }, [shouldFetchComments, fetchComments]);
 
+  // Focus management and accessibility
+  useEffect(() => {
+    if (isOpen && modalRef.current) {
+      // Initialize focus trap
+      focusTrapRef.current = new FocusTrap(modalRef.current);
+      focusTrapRef.current.activate();
+      
+      // Announce modal opening to screen readers
+      AriaUtils.announce('Comments dialog opened');
+      
+      return () => {
+        if (focusTrapRef.current) {
+          focusTrapRef.current.deactivate();
+          focusTrapRef.current = null;
+        }
+      };
+    }
+  }, [isOpen]);
+
+  // Handle keyboard interactions
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      KeyboardNavigation.handleEscape(event, onClose);
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
+
   // Handle modal close cleanup
   useEffect(() => {
     if (!isOpen) {
       setNewComment('');
-      if (validPrediction) {
-        clearError();
-      }
+      // Clear any error state when modal closes
+      // Note: Error clearing is now handled by the store internally
     }
-  }, [isOpen, clearError, validPrediction]);
+  }, [isOpen, validPrediction]);
 
   const handleSubmitComment = async () => {
     if (!validPrediction || !newComment.trim() || !user) {
@@ -171,20 +204,26 @@ const CommentModal: React.FC<CommentModalProps> = ({
         >
           {/* Modal */}
           <motion.div
+            ref={modalRef}
             initial={{ opacity: 0, y: '100%' }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: '100%' }}
             onClick={(e) => e.stopPropagation()}
             className="bg-white w-full max-w-lg rounded-t-3xl sm:rounded-3xl overflow-hidden flex flex-col max-h-[90vh] sm:max-h-[80vh]"
             style={{ zIndex: 9001 }}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby={`${modalId}-title`}
+            aria-describedby={`${modalId}-description`}
+            aria-live="polite"
           >
             {/* Header */}
             <div className="p-4 border-b border-gray-100 flex items-center justify-between sticky top-0 bg-white z-10">
               <div className="flex items-center gap-3">
                 <MessageCircle size={20} className="text-blue-500" />
                 <div>
-                  <h2 className="text-lg font-bold text-gray-900">Comments</h2>
-                  <p className="text-sm text-gray-600">
+                  <h2 id={`${modalId}-title`} className="text-lg font-bold text-gray-900">Comments</h2>
+                  <p id={`${modalId}-description`} className="text-sm text-gray-600">
                     {commentCount} {commentCount === 1 ? 'comment' : 'comments'}
                   </p>
                 </div>
@@ -192,6 +231,7 @@ const CommentModal: React.FC<CommentModalProps> = ({
               <button
                 onClick={onClose}
                 className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center hover:bg-gray-200 transition-colors"
+                aria-label="Close comments dialog"
               >
                 <X size={18} />
               </button>

@@ -1,41 +1,11 @@
 {
-  "version": 2,
-  "buildCommand": "cd client && pnpm install --frozen-lockfile && pnpm build",
-  "outputDirectory": "client/dist",
-  "installCommand": "pnpm install --frozen-lockfile",
-  "framework": "vite",
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist",
+  "installCommand": "npm install",
   "rewrites": [
     {
-      "source": "/api/(.*)",
-      "destination": "https://fan-club-z.onrender.com/$1"
-    },
-    {
       "source": "/(.*)",
-      "destination": "/"
+      "destination": "/index.html"
     }
-  ],
-  "headers": [
-    {
-      "source": "/(.*)",
-      "headers": [
-        {
-          "key": "X-Frame-Options",
-          "value": "SAMEORIGIN"
-        },
-        {
-          "key": "X-Content-Type-Options",
-          "value": "nosniff"
-        },
-        {
-          "key": "Referrer-Policy",
-          "value": "strict-origin-when-cross-origin"
-        }
-      ]
-    }
-  ],
-  "env": {
-    "VITE_API_BASE": "/api",
-    "VITE_IMAGES_FEATURE_FLAG": "false",
-    "VITE_IMAGES_PROVIDER": "none"
-  }
+  ]
 }
