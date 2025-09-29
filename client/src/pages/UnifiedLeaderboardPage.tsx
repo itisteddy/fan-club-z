@@ -9,9 +9,14 @@ import Card, { CardHeader, CardContent } from '../components/ui/card/Card';
 import EmptyState from '../components/ui/empty/EmptyState';
 import { SkeletonCard } from '../components/ui/skeleton/Skeleton';
 import { getApiUrl } from '../config';
-import { formatLargeNumber, formatCurrency, formatPercentage } from '../utils/formatters';
+import { formatNumberShort, formatUSDCompact, formatPercent } from '../utils/format';
+import { formatPercentage } from '../utils/formatters';
 import { cn } from '../utils/cn';
 import { KeyboardNavigation, AriaUtils } from '../utils/accessibility';
+
+// TODO: Replace leaderboard user cards with PredictionCardV3 for consistency
+// when showing user's top predictions or recent activity
+// import { PredictionCardV3 } from '../components/predictions/PredictionCardV3';
 
 interface LeaderboardUser {
   id: string;
@@ -136,19 +141,19 @@ const UnifiedLeaderboardPage: React.FC = () => {
     switch (type) {
       case 'predictions':
         return {
-          primary: formatLargeNumber(user.predictions_count),
+          primary: formatNumberShort(user.predictions_count),
           color: user.predictions_count > 10 ? 'text-blue-600' : 'text-gray-600'
         };
       case 'profit':
         const profit = user.total_profit || 0;
         return {
-          primary: formatCurrency(profit, { compact: true }),
+          primary: formatUSDCompact(profit),
           color: profit > 0 ? 'text-emerald-600' : profit < 0 ? 'text-red-600' : 'text-gray-600'
         };
       case 'winrate':
         const winRate = user.win_rate || 0;
         return {
-          primary: formatPercentage(winRate),
+          primary: formatPercent(winRate / 100),
           color: winRate > 70 ? 'text-emerald-600' : winRate > 50 ? 'text-blue-600' : 'text-gray-600'
         };
     }

@@ -1,184 +1,71 @@
-// Formatting utilities for numbers, currency, and other data types
+// src/utils/formatters.ts
+export const formatNumberCompact = (n: number): string =>
+  new Intl.NumberFormat(undefined, { notation: 'compact', maximumFractionDigits: 1 }).format(n);
 
-export interface FormatCurrencyOptions {
-  compact?: boolean;
-  showSign?: boolean;
-  minimumFractionDigits?: number;
-  maximumFractionDigits?: number;
-}
-
-export interface FormatBalanceResult {
-  value: string;
-  sign: '+' | '-' | '';
-  color: 'green' | 'red' | 'gray';
-}
-
-/**
- * Format currency with various options
- */
-export function formatCurrency(
-  amount: number,
-  options: FormatCurrencyOptions = {}
-): string {
-  const {
-    compact = false,
-    showSign = false,
-    minimumFractionDigits = 2,
-    maximumFractionDigits = 2,
-  } = options;
-
-  if (compact && Math.abs(amount) >= 1000) {
-    return formatLargeNumber(amount, { style: 'currency' });
-  }
-
-  const formatter = new Intl.NumberFormat('en-US', {
+export const formatCurrencyShort = (n: number, currency = 'USD'): string => {
+  // Show $14.1K style; assumes USD symbol, but supports others for future
+  const formatter = new Intl.NumberFormat(undefined, {
     style: 'currency',
-    currency: 'USD',
-    minimumFractionDigits,
-    maximumFractionDigits,
+    currency,
+    notation: 'compact',
+    maximumFractionDigits: 1,
   });
+  return formatter.format(n);
+};
 
-  const formatted = formatter.format(Math.abs(amount));
+// Additional formatters for wallet and other components
+export const formatCurrency = (amount: number, options?: { compact?: boolean; showSign?: boolean; currency?: string }): string => {
+  const { compact = true, showSign = false, currency = 'USD' } = options || {};
   
-  if (showSign && amount !== 0) {
-    return `${amount >= 0 ? '+' : '-'}${formatted}`;
+  if (compact) {
+    const formatter = new Intl.NumberFormat(undefined, {
+      style: 'currency',
+      currency,
+      notation: 'compact',
+      maximumFractionDigits: 1,
+    });
+    const formatted = formatter.format(amount);
+    return showSign && amount > 0 ? `+${formatted}` : formatted;
   }
   
-  return amount < 0 ? `-${formatted}` : formatted;
-}
+  const formatter = new Intl.NumberFormat(undefined, {
+    style: 'currency',
+    currency,
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  });
+  const formatted = formatter.format(amount);
+  return showSign && amount > 0 ? `+${formatted}` : formatted;
+};
 
-/**
- * Format percentage
- */
-export function formatPercentage(value: number, decimals: number = 1): string {
+export const formatLargeNumber = (n: number): string => {
+  return new Intl.NumberFormat(undefined, { notation: 'compact', maximumFractionDigits: 1 }).format(n);
+};
+
+export const formatPercentage = (value: number, decimals: number = 1): string => {
   return `${value.toFixed(decimals)}%`;
-}
+};
 
-/**
- * Format balance with sign and color indication
- */
-export function formatBalance(amount: number): FormatBalanceResult {
-  const absAmount = Math.abs(amount);
-  let sign: '+' | '-' | '' = '';
-  let color: 'green' | 'red' | 'gray' = 'gray';
+type TimeLike = Date | string | number; // ISO, ms, or Date
 
-  if (amount > 0) {
-    sign = '+';
-    color = 'green';
-  } else if (amount < 0) {
-    sign = '-';
-    color = 'red';
-  }
+export const formatTimeUntil = (end: TimeLike): string => {
+  const endMs = typeof end === 'number' ? end : new Date(end).getTime();
+  const now = Date.now();
+  const delta = Math.max(0, endMs - now);
 
-  return {
-    value: formatCurrency(absAmount),
-    sign,
-    color,
-  };
-}
+  const s = Math.floor(delta / 1000);
+  const m = Math.floor(s / 60);
+  const h = Math.floor(m / 60);
+  const d = Math.floor(h / 24);
+  const w = Math.floor(d / 7);
+  const mo = Math.floor(d / 30);
+  const y = Math.floor(d / 365);
 
-interface FormatLargeNumberOptions {
-  style?: 'decimal' | 'currency';
-  precision?: number;
-}
-
-/**
- * Format large numbers with compact notation (K, M, B)
- */
-export function formatLargeNumber(
-  num: number,
-  options: FormatLargeNumberOptions = {}
-): string {
-  const { style = 'decimal', precision = 1 } = options;
-
-  const absNum = Math.abs(num);
-  
-  // Handle small numbers
-  if (absNum < 1000) {
-    if (style === 'currency') {
-      return formatCurrency(num, { minimumFractionDigits: 0 });
-    }
-    return num.toLocaleString();
-  }
-
-  const units = [
-    { value: 1e9, symbol: 'B' },
-    { value: 1e6, symbol: 'M' },
-    { value: 1e3, symbol: 'K' },
-  ];
-
-  for (const unit of units) {
-    if (absNum >= unit.value) {
-      const formatted = (num / unit.value).toFixed(precision);
-      const value = parseFloat(formatted); // Remove trailing zeros
-      
-      if (style === 'currency') {
-        return `$${value}${unit.symbol}`;
-      }
-      return `${value}${unit.symbol}`;
-    }
-  }
-
-  if (style === 'currency') {
-    return formatCurrency(num, { minimumFractionDigits: 0 });
-  }
-  return num.toLocaleString();
-}
-
-/**
- * Truncate text with ellipsis for display
- */
-export function truncateText(text: string, maxLength: number): string {
-  if (text.length <= maxLength) return text;
-  return text.substring(0, maxLength - 3) + '...';
-}
-
-/**
- * Format time duration from milliseconds
- */
-export function formatDuration(ms: number): string {
-  const seconds = Math.floor(ms / 1000);
-  const minutes = Math.floor(seconds / 60);
-  const hours = Math.floor(minutes / 60);
-  const days = Math.floor(hours / 24);
-
-  if (days > 0) {
-    const remainingHours = hours % 24;
-    return remainingHours > 0 ? `${days}d ${remainingHours}h` : `${days}d`;
-  } else if (hours > 0) {
-    const remainingMinutes = minutes % 60;
-    return remainingMinutes > 0 ? `${hours}h ${remainingMinutes}m` : `${hours}h`;
-  } else if (minutes > 0) {
-    return `${minutes}m`;
-  } else {
-    return `${seconds}s`;
-  }
-}
-
-/**
- * Format relative time (ago/from now)
- */
-export function formatRelativeTime(date: Date | string): string {
-  const now = new Date();
-  const targetDate = typeof date === 'string' ? new Date(date) : date;
-  const diffMs = targetDate.getTime() - now.getTime();
-  const absDiffMs = Math.abs(diffMs);
-
-  const units = [
-    { ms: 365 * 24 * 60 * 60 * 1000, label: 'year' },
-    { ms: 30 * 24 * 60 * 60 * 1000, label: 'month' },
-    { ms: 24 * 60 * 60 * 1000, label: 'day' },
-    { ms: 60 * 60 * 1000, label: 'hour' },
-    { ms: 60 * 1000, label: 'minute' },
-  ];
-
-  for (const unit of units) {
-    if (absDiffMs >= unit.ms) {
-      const count = Math.floor(absDiffMs / unit.ms);
-      const suffix = diffMs < 0 ? 'ago' : 'from now';
-      return `${count} ${unit.label}${count !== 1 ? 's' : ''} ${suffix}`;
-    }
-  }
-
-  return 'just now';
-}
+  if (y > 0) return `${y}y ${d % 365}d`;
+  if (mo > 0) return `${mo}mo ${d % 30}d`;
+  if (w > 0) return `${w}w ${d % 7}d`;
+  if (d > 0) return `${d}d ${h % 24}h`;
+  if (h > 0) return `${h}h ${m % 60}m`;
+  if (m > 0) return `${m}m`;
+  return `${s}s`;
+};

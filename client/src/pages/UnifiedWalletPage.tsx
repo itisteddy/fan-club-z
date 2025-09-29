@@ -9,7 +9,7 @@ import Card, { CardHeader, CardContent, CardActions } from '../components/ui/car
 import StatCard, { StatRow } from '../components/ui/card/StatCard';
 import EmptyState from '../components/ui/empty/EmptyState';
 import { SkeletonStatRow, SkeletonCard } from '../components/ui/skeleton/Skeleton';
-import { formatCurrency, truncateText } from '../utils/formatters';
+import { formatUSDCompact, truncateText } from '../utils/formatters';
 
 interface WalletPageProps {
   onNavigateBack?: () => void;
@@ -183,7 +183,7 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
                               ? 'text-red-600'
                               : 'text-gray-900'
                           }`}>
-                            {transaction.type === 'deposit' ? '+' : '-'}{formatCurrency(transaction.amount, { compact: true })}
+                            {transaction.type === 'deposit' ? '+' : '-'}{formatUSDCompact(transaction.amount)}
                           </p>
                           <p className="text-xs text-gray-500">
                             {new Date(transaction.created_at || 0).toLocaleDateString('en-US', {

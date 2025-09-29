@@ -2,6 +2,7 @@ import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react'
 import { usePredictionStore, Prediction } from '../store/predictionStore';
 import { toast } from 'react-hot-toast';
 import PredictionCard from '../components/PredictionCard';
+import PredictionCardV3, { PredictionCardV3Skeleton } from '../components/predictions/PredictionCardV3';
 import { motion, AnimatePresence } from 'framer-motion';
 import { TrendingUp, Search, Loader2, Bell } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
@@ -11,6 +12,8 @@ import { useInfiniteScroll } from '../hooks/useInfiniteScroll';
 import Logo from '../components/common/Logo';
 import useScrollPreservation from '../hooks/useScrollPreservation';
 import AppHeader from '../components/layout/AppHeader';
+import { formatUSDCompact, formatNumberShort } from '../utils/format';
+import { useNavigate } from 'react-router-dom';
 
 interface DiscoverPageProps {
   onNavigateToProfile?: () => void;
@@ -90,20 +93,20 @@ const DiscoverHeaderContent = React.memo(function DiscoverHeaderContent({
         </div>
         <div className="grid grid-cols-3 gap-4">
           <div className="text-center">
-            <div className="text-lg font-bold text-gray-900">
-              ${stats?.totalVolume || '0'}
+            <div className="text-lg font-bold text-gray-900" title={`Total volume: ${(stats?.totalVolume || 0).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`}>
+              {formatUSDCompact(stats?.totalVolume)}
             </div>
             <div className="text-xs text-gray-600">Volume</div>
           </div>
           <div className="text-center">
-            <div className="text-lg font-bold text-gray-900">
-              {stats?.activePredictions || '0'}
+            <div className="text-lg font-bold text-gray-900" title={`${(stats?.activePredictions || 0).toLocaleString()} active predictions`}>
+              {formatNumberShort(stats?.activePredictions)}
             </div>
             <div className="text-xs text-gray-600">Live</div>
           </div>
           <div className="text-center">
-            <div className="text-lg font-bold text-gray-900">
-              {stats?.totalUsers || '0'}
+            <div className="text-lg font-bold text-gray-900" title={`${(stats?.totalUsers || 0).toLocaleString()} total players`}>
+              {formatNumberShort(stats?.totalUsers)}
             </div>
             <div className="text-xs text-gray-600">Players</div>
           </div>
@@ -132,6 +135,7 @@ DiscoverHeaderContent.displayName = 'DiscoverHeaderContent';
 // Main DiscoverPage Component
 const DiscoverPage = React.memo(function DiscoverPage({ onNavigateToProfile, onNavigateToPrediction }: DiscoverPageProps) {
   const { user } = useAuthStore();
+  const navigate = useNavigate();
   const { 
     predictions, 
     loading, 
@@ -345,7 +349,7 @@ const DiscoverPage = React.memo(function DiscoverPage({ onNavigateToProfile, onN
           {/* Prediction card skeletons */}
           <div className="space-y-2">
             {[1, 2, 3, 4, 5].map((i) => (
-              <PredictionCardSkeleton key={i} />
+              <PredictionCardV3Skeleton key={i} />
             ))}
           </div>
         </div>
@@ -412,14 +416,21 @@ const DiscoverPage = React.memo(function DiscoverPage({ onNavigateToProfile, onN
                   }
                   
                   return (
-                    <PredictionCard
-                      key={`${prediction.id}-${index}`} // More robust key
-                      prediction={prediction}
-                      variant="compact"
-                      onPredict={() => handlePredict(prediction)}
-                      onLike={() => handleLike(prediction.id)}
-                      onComment={() => handleComment(prediction.id)}
-                      onShare={() => handleShare(prediction)}
+                    <PredictionCardV3
+                      key={`${prediction.id}-${index}`}
+                      prediction={{
+                        id: prediction.id,
+                        title: prediction.title,
+                        category: prediction.category,
+                        endsAt: prediction.entry_deadline,
+                        pool: prediction.pool_total,
+                        players: prediction.participant_count,
+                        options: prediction.options?.slice(0, 2).map(opt => ({
+                          label: opt.label,
+                          odds: opt.current_odds
+                        })),
+                        description: prediction.description
+                      }}
                     />
                   );
                 })}

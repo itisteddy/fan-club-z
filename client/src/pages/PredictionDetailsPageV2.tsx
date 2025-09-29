@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Share2, BarChart3, Users, Calendar, DollarSign, ArrowLeft, Clock } from 'lucide-react';
+import { Share2, BarChart3, Users, Calendar, DollarSign, ArrowLeft, Clock, User } from 'lucide-react';
 
 import { usePredictionStore } from '../store/predictionStore';
 import { useAuthStore } from '../store/authStore';
@@ -17,11 +17,14 @@ import { AppHeader } from '../components/layout/AppHeader';
 import PredictionActionPanel from '../components/prediction/PredictionActionPanel';
 import PredictionDetailsTabs from '../components/prediction/PredictionDetailsTabs';
 import { CommentsSection } from '../features/comments';
+import { useMedia } from '../hooks/useMedia';
 import LoadingState from '../components/ui/LoadingState';
 import ErrorBanner from '../components/ui/ErrorBanner';
 import EmptyState from '../components/ui/EmptyState';
 
 import toast from 'react-hot-toast';
+import { formatCurrency } from '../utils/format';
+
 const showSuccessToast = (message: string) => toast.success(message);
 const showErrorToast = (message: string) => toast.error(message);
 
@@ -65,6 +68,23 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
     if (!predictionId) return null;
     return predictions.find(p => p.id === predictionId) || null;
   }, [predictions, predictionId]);
+
+  // Use the unified media system for consistent, relevant images (after prediction is defined)
+  const { media, status: mediaStatus } = useMedia(
+    prediction?.id || '', 
+    prediction ? { 
+      id: prediction.id, 
+      title: prediction.title, 
+      category: prediction.category 
+    } : undefined
+  );
+
+  // Log for debugging consistency (as requested in acceptance criteria)
+  useEffect(() => {
+    if (media && prediction && import.meta.env.DEV) {
+      console.log(`[PredictionDetailsPageV2] ${prediction.id}: ${media.provider}:${media.id}`);
+    }
+  }, [media, prediction]);
 
   // User balance
   const userBalance = useMemo(() => {
@@ -316,29 +336,61 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
   const participantCount = prediction.participants?.length || 0;
   const totalVolume = prediction.totalVolume || '0.00';
 
+  // Log for debugging consistency (as requested in acceptance criteria)
+  useEffect(() => {
+    if (media && prediction && import.meta.env.DEV) {
+      console.log(`[PredictionDetailsPageV2] ${prediction.id}: ${media.provider}:${media.providerId}`);
+    }
+  }, [media, prediction]);
+
   return (
     <>
-      <AppHeader 
-        title="Prediction" 
-        left={
-          <button
-            onClick={handleBack}
-            className="p-2 hover:bg-gray-100 rounded-full transition-colors"
-            aria-label="Go back"
-          >
-            <ArrowLeft className="w-5 h-5 text-gray-600" />
-          </button>
-        }
-        right={
+      {/* Header */}
+      <div className="bg-white border-b border-gray-200 sticky top-0 z-30">
+        <div className="px-4 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={handleBack}
+              className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+              aria-label="Go back"
+            >
+              <ArrowLeft className="w-5 h-5 text-gray-600" />
+            </button>
+            <h1 className="text-lg font-semibold text-gray-900">Prediction Details</h1>
+          </div>
           <button
             onClick={handleShare}
             className="p-2 hover:bg-gray-100 rounded-full transition-colors"
             aria-label="Share prediction"
           >
-            <Share2 className="h-5 w-5" />
+            <Share2 className="h-5 w-5 text-gray-600" />
           </button>
-        }
-      />
+        </div>
+      </div>
+
+      {/* Compact Hero Image - 16:9 aspect ratio as per spec */}
+      <div className="mx-4 mt-4 rounded-2xl overflow-hidden border border-gray-100 aspect-video">
+        {mediaStatus === 'ready' && media?.url ? (
+          <img
+            src={media.url}
+            alt={media.alt || prediction?.title}
+            className="w-full h-full object-cover"
+            loading="lazy"
+            decoding="async"
+          />
+        ) : mediaStatus === 'loading' ? (
+          <div className="w-full h-full bg-gradient-to-br from-gray-200 to-gray-300 animate-pulse" />
+        ) : (
+          <div className="w-full h-full bg-gradient-to-br from-gray-200 to-gray-300 flex items-center justify-center">
+            <div className="text-gray-500 text-center">
+              <div className="text-2xl mb-2">📊</div>
+              <div className="text-sm font-medium capitalize">
+                {prediction?.category || 'Prediction'}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
 
       <motion.div
         initial={reduceMotion ? {} : { opacity: 0 }}

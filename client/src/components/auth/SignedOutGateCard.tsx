@@ -37,14 +37,22 @@ const SignedOutGateCard: React.FC<SignedOutGateCardProps> = ({
         const result = await openAuthGate({ intent, payload });
         if (result.status === 'success') {
           // Auth completed successfully - the calling component should handle the resume
-          console.log('[FCZ-QA] Auth gate completed successfully for intent:', intent);
+          if (import.meta.env.DEV && import.meta.env.VITE_DEBUG_LOGS === 'true') {
+            console.log('[FCZ-QA] Auth gate completed successfully for intent:', intent);
+          }
         } else if (result.status === 'cancel') {
-          console.log('[FCZ-QA] Auth gate cancelled by user');
+          if (import.meta.env.DEV && import.meta.env.VITE_DEBUG_LOGS === 'true') {
+            console.log('[FCZ-QA] Auth gate cancelled by user');
+          }
         } else if (result.status === 'error') {
-          console.error('[FCZ-QA] Auth gate error:', result.reason);
+          if (import.meta.env.DEV && import.meta.env.VITE_DEBUG_LOGS === 'true') {
+            console.error('[FCZ-QA] Auth gate error:', result.reason);
+          }
         }
       } catch (error) {
-        console.error('[FCZ-QA] Auth gate exception:', error);
+        if (import.meta.env.DEV && import.meta.env.VITE_DEBUG_LOGS === 'true') {
+          console.error('[FCZ-QA] Auth gate exception:', error);
+        }
       }
     } else {
       console.warn('SignedOutGateCard: No onPrimary or intent provided');

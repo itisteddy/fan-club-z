@@ -4,43 +4,43 @@
  */
 
 export const qaLog = (...args: unknown[]) => {
-  if (import.meta.env.DEV) {
+  if (import.meta.env.DEV && import.meta.env.VITE_DEBUG_LOGS === 'true') {
     console.log('[FCZ-QA]', ...args);
   }
 };
 
 export const qaWarn = (...args: unknown[]) => {
-  if (import.meta.env.DEV) {
+  if (import.meta.env.DEV && import.meta.env.VITE_DEBUG_LOGS === 'true') {
     console.warn('[FCZ-QA]', ...args);
   }
 };
 
 export const qaError = (...args: unknown[]) => {
-  if (import.meta.env.DEV) {
+  if (import.meta.env.DEV && import.meta.env.VITE_DEBUG_LOGS === 'true') {
     console.error('[FCZ-QA]', ...args);
   }
 };
 
 export const qaGroup = (label: string) => {
-  if (import.meta.env.DEV) {
+  if (import.meta.env.DEV && import.meta.env.VITE_DEBUG_LOGS === 'true') {
     console.group(`[FCZ-QA] ${label}`);
   }
 };
 
 export const qaGroupEnd = () => {
-  if (import.meta.env.DEV) {
+  if (import.meta.env.DEV && import.meta.env.VITE_DEBUG_LOGS === 'true') {
     console.groupEnd();
   }
 };
 
 export const qaTime = (label: string) => {
-  if (import.meta.env.DEV) {
+  if (import.meta.env.DEV && import.meta.env.VITE_DEBUG_LOGS === 'true') {
     console.time(`[FCZ-QA] ${label}`);
   }
 };
 
 export const qaTimeEnd = (label: string) => {
-  if (import.meta.env.DEV) {
+  if (import.meta.env.DEV && import.meta.env.VITE_DEBUG_LOGS === 'true') {
     console.timeEnd(`[FCZ-QA] ${label}`);
   }
 };

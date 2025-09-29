@@ -1,6 +1,7 @@
 import React from 'react';
 import { cn } from '../../../utils/cn';
-import { formatLargeNumber, formatCurrency, formatPercentage, formatBalance } from '../../../utils/formatters';
+import { formatUSDCompact, formatNumberShort, formatPercent } from '../../../utils/format';
+import { formatLargeNumber, formatPercentage, formatBalance } from '../../../utils/formatters';
 
 interface StatCardProps {
   label: string;
@@ -38,14 +39,14 @@ export function StatCard({
     
     switch (variant) {
       case 'currency':
-        return formatCurrency(numValue, { compact: true });
+        return formatUSDCompact(numValue);
       case 'percentage':
         return formatPercentage(numValue);
       case 'balance':
         const balanceData = formatBalance(numValue);
         return `${balanceData.sign}${balanceData.value}`;
       case 'count':
-        return formatLargeNumber(numValue);
+        return formatNumberShort(numValue);
       default:
         if (typeof val === 'number') {
           return formatLargeNumber(val);

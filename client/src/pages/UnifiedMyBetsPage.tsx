@@ -9,7 +9,17 @@ import Card, { CardHeader, CardContent } from '../components/ui/card/Card';
 import StatCard, { StatRow } from '../components/ui/card/StatCard';
 import EmptyState from '../components/ui/empty/EmptyState';
 import { SkeletonStatRow, SkeletonCard } from '../components/ui/skeleton/Skeleton';
-import { formatCurrency } from '../utils/formatters';
+import { formatUSDCompact } from '../utils/format';
+
+// TODO: Replace with PredictionCardV3 for consistency
+// import { PredictionCardV3 } from '../components/predictions/PredictionCardV3';
+// Map userEntry to PredictionCardV3 props:
+// - id: entry.prediction.id
+// - title: entry.prediction.title 
+// - poolTotal: entry.prediction.pool_total
+// - players: entry.prediction.participant_count
+// - thumbnailUrl: entry.prediction.image_url
+// - etc.
 
 interface MyBetsPageProps {
   onNavigateBack?: () => void;
@@ -172,7 +182,7 @@ const MyBetsPage: React.FC<MyBetsPageProps> = ({ onNavigateBack }) => {
                         </div>
                         <div className="flex items-center justify-between text-sm text-gray-600">
                           <div className="flex items-center space-x-4">
-                            <span>Bet: {formatCurrency(entry.amount || 0)}</span>
+                            <span>Bet: {formatUSDCompact(entry.amount || 0)}</span>
                             {entry.selected_option && (
                               <span>On: {entry.selected_option}</span>
                             )}
@@ -183,12 +193,12 @@ const MyBetsPage: React.FC<MyBetsPageProps> = ({ onNavigateBack }) => {
                           <div className="text-right">
                             {entry.status === 'won' && entry.actual_payout && (
                               <span className="text-green-600 font-medium">
-                                Won: {formatCurrency(entry.actual_payout)}
+                                Won: {formatUSDCompact(entry.actual_payout)}
                               </span>
                             )}
                             {entry.status === 'lost' && (
                               <span className="text-red-600 font-medium">
-                                Lost: {formatCurrency(entry.amount || 0)}
+                                Lost: {formatUSDCompact(entry.amount || 0)}
                               </span>
                             )}
                             <div className="text-xs text-gray-500 mt-1">

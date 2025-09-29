@@ -80,8 +80,7 @@ export const db = {
         .select(`
           *,
           creator:users!creator_id(id, username, full_name, avatar_url),
-          options:prediction_options!prediction_options_prediction_id_fkey(*),
-          club:clubs(id, name, avatar_url)
+          options:prediction_options!prediction_options_prediction_id_fkey(*)
         `)
         .eq('id', id)
         .single();

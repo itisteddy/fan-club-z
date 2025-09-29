@@ -7,6 +7,7 @@ import { useLocation } from 'wouter';
 import { openAuthGate } from '../auth/authGateAdapter';
 import AppHeader from '../components/layout/AppHeader';
 import toast from 'react-hot-toast';
+import { formatCurrency, formatInt } from '../utils/format';
 
 interface WalletPageProps {
   onNavigateBack?: () => void;
@@ -57,7 +58,7 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
   const handleAddFunds = async (amount: number) => {
     try {
       await addFunds(amount, 'USD', 'Demo funds added');
-      toast.success(`Successfully added $${amount.toLocaleString()} to your wallet!`);
+      toast.success(`Successfully added ${formatCurrency(amount, 'USD', false)} to your wallet!`);
     } catch (error) {
       console.error('Failed to add funds:', error);
       toast.error('Failed to add funds. Please try again.');

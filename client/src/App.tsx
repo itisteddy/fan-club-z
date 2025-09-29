@@ -31,36 +31,6 @@ const LazyProfilePageV2 = lazy(() => import('./pages/ProfilePageV2'));
 const LazyWalletPageV2 = lazy(() => import('./pages/WalletPageV2'));
 const LazyUnifiedLeaderboardPage = lazy(() => import('./pages/UnifiedLeaderboardPage'));
 
-// Temporary Auth Test Button - Will remove after testing
-const AuthTestButton: React.FC = () => {
-  const { user, signOut } = useAuthSession();
-  const { user: authStoreUser, isAuthenticated: authStoreAuth } = useAuthStore();
-  
-  if (user) {
-    return (
-      <div className="bg-green-500 text-white px-4 py-2 rounded-lg shadow-lg flex flex-col gap-2">
-        <div className="text-sm">✅ Session: {user.email}</div>
-        <div className="text-sm">🏪 Store Auth: {authStoreAuth ? '✅' : '❌'}</div>
-        <div className="text-sm">🏪 Store User: {authStoreUser?.email || 'None'}</div>
-        <button 
-          onClick={() => signOut()}
-          className="bg-red-500 hover:bg-red-600 px-2 py-1 rounded text-xs"
-        >
-          Sign Out
-        </button>
-      </div>
-    );
-  }
-  
-  return (
-    <button
-      onClick={() => import('./auth/authGateAdapter').then(m => m.openAuthGate({ intent: 'edit_profile' }))}
-      className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg shadow-lg"
-    >
-      🧪 Test Sign In
-    </button>
-  );
-};
 
 // Import all page components
 // These imports are now lazy-loaded above
@@ -551,12 +521,6 @@ const AppContent: React.FC = () => {
           {/* Bootstrap Effects */}
           <BootstrapEffects />
           
-          {/* Temporary Auth Test Button - Will remove after testing */}
-          {import.meta.env.DEV && (
-            <div className="fixed bottom-20 right-4 z-50">
-              <AuthTestButton />
-            </div>
-          )}
         </OnboardingProvider>
   );
 };

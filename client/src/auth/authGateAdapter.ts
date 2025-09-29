@@ -104,7 +104,7 @@ export const useAuthGate = () => {
  * Returns a promise that resolves when the user completes or cancels auth
  */
 export const openAuthGate = (opts: OpenOptions): Promise<AuthGateResult> => {
-  if (import.meta.env.DEV) {
+  if (import.meta.env.DEV && import.meta.env.VITE_DEBUG_LOGS === 'true') {
     console.log('[FCZ-QA] openAuthGate called with:', opts);
   }
 
@@ -131,7 +131,7 @@ export const openAuthGate = (opts: OpenOptions): Promise<AuthGateResult> => {
  * Resolve the current auth gate with a result
  */
 export const resolveAuthGate = (result: AuthGateResult): void => {
-  if (import.meta.env.DEV) {
+  if (import.meta.env.DEV && import.meta.env.VITE_DEBUG_LOGS === 'true') {
     console.log('[FCZ-QA] resolveAuthGate called with:', result);
   }
 
@@ -162,7 +162,7 @@ export const resolveAuthGate = (result: AuthGateResult): void => {
  * Handle resume-after-auth actions based on the intent
  */
 const handleResumeAfterAuth = (intent: AuthIntent, payload?: Record<string, unknown>) => {
-  if (import.meta.env.DEV) {
+  if (import.meta.env.DEV && import.meta.env.VITE_DEBUG_LOGS === 'true') {
     console.log('[FCZ-QA] Handling resume after auth for intent:', intent, 'with payload:', payload);
   }
 
@@ -241,7 +241,7 @@ export const getAuthGateState = (): Readonly<AuthGateState> => {
 export const restorePendingAuth = (): { intent: AuthIntent; payload?: Record<string, unknown> } | null => {
   const persisted = getPersistedAuth();
   if (persisted) {
-    if (import.meta.env.DEV) {
+    if (import.meta.env.DEV && import.meta.env.VITE_DEBUG_LOGS === 'true') {
       console.log('[FCZ-QA] Restored pending auth from sessionStorage:', persisted);
     }
     

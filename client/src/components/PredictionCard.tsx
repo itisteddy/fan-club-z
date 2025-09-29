@@ -1,15 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
-import { Heart, MessageCircle, Share, TrendingUp, Clock, Users } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { Heart, MessageCircle, Share2 } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
 import { Prediction, PredictionEntry } from '../store/predictionStore';
 import { useLikeStore } from '../store/likeStore';
 import { useUnifiedCommentStore } from '../store/unifiedCommentStore';
 import CommentModal from './modals/CommentModal';
-import TappableUsername from './TappableUsername';
 import ErrorBoundary from './ErrorBoundary';
 import toast from 'react-hot-toast';
-import UserAvatar from './common/UserAvatar';
+import { formatCurrencyShort, formatNumberCompact, formatTimeUntil } from '../utils/formatters';
+import ImageThumb from './ui/ImageThumb';
 
 interface PredictionCardProps {
   prediction: Prediction;
@@ -18,7 +17,6 @@ interface PredictionCardProps {
   onLike?: () => void;
   onComment?: () => void;
   onShare?: () => void;
-  onPredict?: () => void;
   className?: string;
 }
 
@@ -39,7 +37,6 @@ const PredictionCardContent: React.FC<PredictionCardProps> = ({
   onLike: customOnLike,
   onComment: customOnComment,
   onShare: customOnShare,
-  onPredict,
   className = ''
 }) => {
   // Early return with error boundary if prediction is invalid
@@ -49,107 +46,44 @@ const PredictionCardContent: React.FC<PredictionCardProps> = ({
   }
 
   const navigate = useNavigate();
-  const [mounted, setMounted] = useState(false);
   const [commentModalOpen, setCommentModalOpen] = useState(false);
   const [isLiking, setIsLiking] = useState(false);
 
-  // Initialize mounting state
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  // Get stores
+  const { likes, toggleLike } = useLikeStore();
+  const { getCommentCount } = useUnifiedCommentStore();
 
-  // Safe store access with error handling
-  const getLikeData = () => {
-    try {
-      const { toggleLike, checkIfLiked, getLikeCount } = useLikeStore();
-      return { toggleLike, checkIfLiked, getLikeCount };
-    } catch (error) {
-      console.warn('Error accessing like store:', error);
-      return {
-        toggleLike: async () => {},
-        checkIfLiked: () => false,
-        getLikeCount: () => 0
-      };
-    }
-  };
-
-  const getCommentData = () => {
-    try {
-      const { getCommentCount } = useUnifiedCommentStore();
-      return { getCommentCount };
-    } catch (error) {
-      console.warn('Error accessing comment store:', error);
-      return { getCommentCount: () => 0 };
-    }
-  };
-
-  const { toggleLike, checkIfLiked, getLikeCount } = getLikeData();
-  const { getCommentCount } = getCommentData();
-
-  // Don't render until mounted to prevent hydration issues
-  if (!mounted) {
-    return (
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 animate-pulse">
-        <div className="flex items-center gap-3 mb-3">
-          <div className="w-10 h-10 bg-gray-200 rounded-full"></div>
-          <div className="flex-1">
-            <div className="h-4 bg-gray-200 rounded w-1/3 mb-1"></div>
-            <div className="h-3 bg-gray-200 rounded w-1/4"></div>
-          </div>
-        </div>
-        <div className="h-6 bg-gray-200 rounded mb-2"></div>
-        <div className="h-4 bg-gray-200 rounded w-3/4"></div>
-      </div>
-    );
-  }
-
-  // Get real-time data from stores with safe fallbacks
-  const isLiked = checkIfLiked(prediction.id) || false;
-  const storeLikeCount = getLikeCount(prediction.id);
-  const likeCount = storeLikeCount !== undefined && storeLikeCount !== null ? storeLikeCount : (prediction.likes_count || prediction.likes || 0);
-  const storeCommentCount = getCommentCount(prediction.id);
-  const commentCount = storeCommentCount !== undefined && storeCommentCount !== null ? storeCommentCount : (prediction.comments_count || prediction.comments || 0);
-  
   // Calculate real data with safe fallbacks
   const entryDeadline = prediction.entry_deadline || prediction.entryDeadline;
-  const timeRemaining = entryDeadline ? Math.max(0, new Date(entryDeadline).getTime() - Date.now()) : 0;
-  const hoursRemaining = Math.floor(timeRemaining / (1000 * 60 * 60));
-  const isClosingSoon = hoursRemaining < 24 && hoursRemaining > 0;
-
+  
   // Use real participant count from database with fallbacks
   const participantCount = prediction.participant_count || prediction.entries?.length || 0;
-  
-  // Calculate real pool total from options with safe fallbacks
+
+  // Calculate total pool from options or use fallback
   const totalPool = prediction.options?.reduce((sum, option) => {
     const staked = option.total_staked || option.totalStaked || 0;
     return sum + staked;
   }, 0) || prediction.pool_total || prediction.poolTotal || 0;
 
-  // Format currency consistently
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(amount);
-  };
+  // Get like and comment counts
+  const likeCount = likes[prediction.id] || 0;
+  const commentCount = getCommentCount(prediction.id);
+  const isLiked = false; // Simplified for now
 
-  const formatTimeRemaining = () => {
-    if (timeRemaining <= 0) return 'Closed';
-    if (hoursRemaining < 1) return `${Math.ceil(timeRemaining / (1000 * 60))}m left`;
-    if (hoursRemaining < 24) return `${hoursRemaining}h left`;
-    const daysRemaining = Math.floor(hoursRemaining / 24);
-    return `${daysRemaining}d left`;
-  };
+  // Get first two options for chips
+  const chips = (prediction.options || []).slice(0, 2).map((option) => ({
+    label: option.text || option.option || option.label || 'Option',
+    odds: option.current_odds || option.odds || 1,
+  }));
 
   const handleLike = async (e: React.MouseEvent) => {
-    e.stopPropagation(); // Prevent card navigation
+    e.preventDefault();
+    e.stopPropagation();
     
     if (isLiking) return;
-    
+    setIsLiking(true);
+
     try {
-      setIsLiking(true);
       await toggleLike(prediction.id);
       if (customOnLike) customOnLike();
     } catch (error) {
@@ -161,13 +95,15 @@ const PredictionCardContent: React.FC<PredictionCardProps> = ({
   };
 
   const handleComment = (e: React.MouseEvent) => {
-    e.stopPropagation(); // Prevent card navigation
+    e.preventDefault();
+    e.stopPropagation();
     setCommentModalOpen(true);
     if (customOnComment) customOnComment();
   };
 
   const handleShare = async (e: React.MouseEvent) => {
-    e.stopPropagation(); // Prevent card navigation
+    e.preventDefault();
+    e.stopPropagation();
     
     try {
       const shareData = {
@@ -199,192 +135,89 @@ const PredictionCardContent: React.FC<PredictionCardProps> = ({
     }
   };
 
-  const handlePredict = (e: React.MouseEvent) => {
-    e.stopPropagation(); // Prevent card navigation
-    if (onPredict) onPredict();
-  };
-
-  const handleCardClick = (e: React.MouseEvent) => {
-    // Don't navigate if clicking on interactive elements
-    const target = e.target as HTMLElement;
-    if (target.closest('button') || 
-        target.closest('a') || 
-        target.closest('.interactive')) {
-      return;
-    }
-    
-    console.log('🔗 PredictionCard: Navigating to prediction details:', prediction.id);
-    
-    // Navigate to prediction details page using react-router-dom
-    navigate(`/prediction/${prediction.id}`);
-  };
-
   return (
     <>
-      <motion.div
-        className={`bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden cursor-pointer ${className}`}
-        whileHover={{ scale: 1.02, boxShadow: '0 8px 25px rgba(0, 0, 0, 0.1)' }}
-        whileTap={{ scale: 0.98 }}
-        onClick={handleCardClick}
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.3 }}
+      <article
+        className={`group relative rounded-2xl border border-black/5 bg-white p-4 md:p-5 shadow-none hover:shadow-sm transition-shadow ${className}`}
+        data-qa="prediction-card"
       >
-        {/* Header */}
-        <div className="p-4">
-          <div className="flex items-center gap-3 mb-3">
-            {/* Only show creator info if we actually have a real creator */}
-            {prediction.creator?.firstName || prediction.creator?.email ? (
-              <>
-                <UserAvatar
-                  email={prediction.creator?.email}
-                  username={prediction.creator?.firstName || prediction.creator?.email?.split('@')[0]}
-                  avatarUrl={prediction.creator?.avatar}
-                  size="sm"
-                />
-                <div className="flex-1 min-w-0">
-                  <TappableUsername
-                    username={prediction.creator?.firstName || prediction.creator?.email?.split('@')[0]}
-                    className="font-medium text-gray-900"
-                  />
-                  <p className="text-sm text-gray-500">
-                    {new Date(prediction.created_at).toLocaleDateString('en-US', {
-                      month: 'short',
-                      day: 'numeric',
-                      hour: 'numeric',
-                      minute: '2-digit'
-                    })}
-                  </p>
-                </div>
-              </>
-            ) : (
-              // If no real creator info, just show date without any user info
-              <div className="flex-1">
-                <p className="text-sm text-gray-500">
-                  {new Date(prediction.created_at).toLocaleDateString('en-US', {
-                    month: 'short',
-                    day: 'numeric',
-                    hour: 'numeric',
-                    minute: '2-digit'
-                  })}
-                </p>
-              </div>
-            )}
-            {prediction.category && (
-              <div className="flex-shrink-0">
-                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+        <div className="grid grid-cols-[1fr,auto] gap-4">
+          {/* LEFT: content */}
+          <Link to={`/prediction/${prediction.id}`} className="min-w-0">
+            <div className="flex items-start gap-2 text-xs text-slate-500">
+              {prediction.category && (
+                <span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5">
                   {prediction.category}
                 </span>
-              </div>
-            )}
-          </div>
-
-          {/* Question */}
-          <h3 className="text-lg font-semibold text-gray-900 mb-3 line-clamp-2">
-            {prediction.question || prediction.title}
-          </h3>
-
-          {/* Options (if available) */}
-          {prediction.options && prediction.options.length > 0 && (
-            <div className="space-y-2 mb-4">
-              {prediction.options.map((option, index) => {
-                const optionStaked = option.total_staked || option.totalStaked || 0;
-                const percentage = totalPool > 0 ? Math.round((optionStaked / totalPool) * 100) : 0;
-                
-                return (
-                  <div key={index} className="relative">
-                    <div 
-                      className="absolute inset-0 bg-emerald-100 rounded-lg"
-                      style={{ width: `${percentage}%` }}
-                    />
-                    <div className="relative px-3 py-2 flex items-center justify-between">
-                      <span className="text-sm font-medium text-gray-900">
-                        {option.text || option.option}
-                      </span>
-                      <span className="text-sm font-semibold text-emerald-600">
-                        {percentage}%
-                      </span>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-
-        {/* Stats */}
-        <div className="px-4 py-3 bg-gray-50 border-t border-gray-100">
-          <div className="flex items-center justify-between text-sm">
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-1">
-                <span className="font-semibold text-gray-900">{formatCurrency(totalPool)}</span>
-                <span className="text-gray-500">pool</span>
-              </div>
-              <div className="flex items-center gap-1 text-gray-600">
-                <Users className="w-4 h-4" />
-                <span>{participantCount}</span>
-              </div>
-              <div className="flex items-center gap-1 text-gray-600">
-                <Clock className="w-4 h-4" />
-                <span className={isClosingSoon ? 'text-amber-600 font-medium' : ''}>
-                  {formatTimeRemaining()}
+              )}
+              {entryDeadline && (
+                <span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5">
+                  ends in {formatTimeUntil(entryDeadline)}
                 </span>
-              </div>
+              )}
             </div>
-            {/* Only show trending if there are actual participants */}
-            {participantCount > 5 && (
-              <div className="flex items-center gap-1 text-emerald-600">
-                <TrendingUp className="w-4 h-4" />
-                <span className="font-medium">Trending</span>
+
+            <h3 className="mt-2 line-clamp-2 text-base md:text-lg font-semibold text-slate-900">
+              {prediction.question || prediction.title}
+            </h3>
+
+            <div className="mt-2 flex flex-wrap items-center gap-3 text-sm text-slate-600">
+              <span>{formatCurrencyShort(totalPool)}</span>
+              <span>•</span>
+              <span>{formatNumberCompact(participantCount)} {participantCount === 1 ? 'player' : 'players'}</span>
+            </div>
+
+            {chips.length > 0 && (
+              <div className="mt-2 flex flex-wrap gap-2">
+                {chips.map((c, index) => (
+                  <span
+                    key={index}
+                    className="inline-flex items-center rounded-full border border-slate-200 px-2.5 py-1 text-xs text-slate-700"
+                  >
+                    {c.label} <span className="ml-1 font-semibold text-slate-900">{c.odds.toFixed(2)}x</span>
+                  </span>
+                ))}
               </div>
             )}
-          </div>
+
+            {/* engagement row — subtle, not shouty */}
+            <div className="mt-3 flex items-center gap-4 text-xs text-slate-500">
+              <button
+                onClick={handleLike}
+                className="inline-flex items-center gap-1 hover:text-red-500 transition-colors"
+              >
+                <Heart className="h-3.5 w-3.5" />
+                {formatNumberCompact(likeCount)}
+              </button>
+              <button
+                onClick={handleComment}
+                className="inline-flex items-center gap-1 hover:text-blue-500 transition-colors"
+              >
+                <MessageCircle className="h-3.5 w-3.5" />
+                {formatNumberCompact(commentCount)}
+              </button>
+              <button
+                onClick={handleShare}
+                className="inline-flex items-center gap-1 hover:text-emerald-500 transition-colors"
+              >
+                <Share2 className="h-3.5 w-3.5" />
+                Share
+              </button>
+            </div>
+          </Link>
+
+          {/* RIGHT: thumbnail */}
+          <ImageThumb
+            seed={prediction.id}
+            size={96} // tweak to 88 on xs if desired via responsive classes
+            alt={prediction.question || prediction.title}
+            className="mt-1"
+          />
         </div>
 
-        {/* Social Actions */}
-        <div className="px-4 py-3 border-t border-gray-100">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-6">
-              <motion.button
-                onClick={handleLike}
-                disabled={isLiking}
-                className={`flex items-center gap-2 ${isLiked ? 'text-red-500' : 'text-gray-600'} hover:text-red-500 transition-colors interactive`}
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-              >
-                <Heart className={`w-5 h-5 ${isLiked ? 'fill-current' : ''}`} />
-                <span className="text-sm font-medium">{likeCount}</span>
-              </motion.button>
-              <motion.button
-                onClick={handleComment}
-                className="flex items-center gap-2 text-gray-600 hover:text-blue-500 transition-colors interactive"
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-              >
-                <MessageCircle className="w-5 h-5" />
-                <span className="text-sm font-medium">{commentCount}</span>
-              </motion.button>
-              <motion.button
-                onClick={handleShare}
-                className="flex items-center gap-2 text-gray-600 hover:text-emerald-500 transition-colors interactive"
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-              >
-                <Share className="w-5 h-5" />
-                <span className="text-sm font-medium">Share</span>
-              </motion.button>
-            </div>
-            <motion.button
-              onClick={handlePredict}
-              className="bg-gradient-to-r from-purple-600 to-emerald-600 text-white px-6 py-2 rounded-lg font-medium shadow-sm interactive"
-              whileHover={{ scale: 1.02, boxShadow: '0 8px 25px rgba(123, 47, 247, 0.25)' }}
-              whileTap={{ scale: 0.98 }}
-            >
-              Predict Now
-            </motion.button>
-          </div>
-        </div>
-      </motion.div>
+        {/* No big button. Whole card is the CTA via Link. */}
+        <span className="pointer-events-none absolute inset-0 rounded-2xl ring-0 ring-inset transition group-hover:ring-1 group-hover:ring-slate-200" />
+      </article>
 
       {/* Comment Modal */}
       <CommentModal

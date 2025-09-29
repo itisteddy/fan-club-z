@@ -5,6 +5,8 @@ import { usePredictionStore } from '../store/predictionStore';
 import { openAuthGate } from '../auth/authGateAdapter';
 import UserAvatar from '../components/common/UserAvatar';
 import AppHeader from '../components/layout/AppHeader';
+import { SignOutButton } from '../components/profile/SignOutButton';
+import { formatCurrency, formatInt, formatPercent } from '../utils/format';
 
 interface ProfilePageProps {
   onNavigateBack?: () => void;
@@ -123,7 +125,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigateBack, userId }) => 
                     <div className="text-xs text-gray-600 font-medium">Balance</div>
                   </div>
                   <div className="text-xl font-semibold text-gray-900 font-mono">
-                    ${balance.toLocaleString()}
+                    {formatCurrency(balance)}
                   </div>
                 </div>
               </div>
@@ -199,6 +201,13 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigateBack, userId }) => 
                   </div>
                 )}
               </div>
+
+              {/* Sign Out Button - Only for own profile */}
+              {isOwnProfile && (
+                <div className="mt-4">
+                  <SignOutButton />
+                </div>
+              )}
             </>
           )}
         </div>

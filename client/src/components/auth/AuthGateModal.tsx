@@ -60,7 +60,7 @@ const AuthGateModal: React.FC = () => {
   // Handle successful authentication - resolve with success
   useEffect(() => {
     if (user && isOpen) {
-      if (import.meta.env.DEV) {
+      if (import.meta.env.DEV && import.meta.env.VITE_DEBUG_LOGS === 'true') {
         console.log('[FCZ-QA] User authenticated, resolving auth gate');
       }
       resolveAuthGate({ status: 'success' });
@@ -69,7 +69,7 @@ const AuthGateModal: React.FC = () => {
 
   // Handle modal close
   const handleClose = () => {
-    if (import.meta.env.DEV) {
+    if (import.meta.env.DEV && import.meta.env.VITE_DEBUG_LOGS === 'true') {
       console.log('[FCZ-QA] Auth modal closed by user');
     }
     resolveAuthGate({ status: 'cancel' });
@@ -77,7 +77,7 @@ const AuthGateModal: React.FC = () => {
 
   // Handle Google sign in
   const handleGoogleSignIn = async () => {
-    if (import.meta.env.DEV) {
+    if (import.meta.env.DEV && import.meta.env.VITE_DEBUG_LOGS === 'true') {
       console.log('[FCZ-QA] Google sign in attempt');
     }
     
@@ -102,14 +102,14 @@ const AuthGateModal: React.FC = () => {
 
   // Handle email link sign in
   const handleEmailLinkSignIn = () => {
-    if (import.meta.env.DEV) {
+    if (import.meta.env.DEV && import.meta.env.VITE_DEBUG_LOGS === 'true') {
       console.log('[FCZ-QA] Opening email input modal');
     }
     setIsEmailModalOpen(true);
   };
 
   const handleEmailSubmit = async (email: string) => {
-    if (import.meta.env.DEV) {
+    if (import.meta.env.DEV && import.meta.env.VITE_DEBUG_LOGS === 'true') {
       console.log('[FCZ-QA] Email sign in attempt with:', email);
     }
     
