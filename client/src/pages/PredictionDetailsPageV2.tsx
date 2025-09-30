@@ -232,11 +232,20 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
     setIsPlacingBet(true);
     
     try {
-      await placePrediction({
-        predictionId: prediction.id,
-        optionId: selectedOptionId,
-        amount: parseFloat(stakeAmount)
+      const amount = parseFloat(stakeAmount);
+      console.log('🎲 Placing prediction with amount:', { 
+        stakeAmount, 
+        parsedAmount: amount, 
+        isNaN: isNaN(amount), 
+        isPositive: amount > 0 
       });
+      
+      await placePrediction(
+        prediction.id,
+        selectedOptionId,
+        amount,
+        currentUser?.id
+      );
 
       showSuccessToast(`Prediction placed! $${stakeAmount} on your choice.`);
       AriaUtils.announce(`Prediction placed successfully for ${stakeAmount} dollars`);
