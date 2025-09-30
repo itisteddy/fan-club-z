@@ -16,6 +16,11 @@ type PredictionCardProps = {
 };
 
 export default function PredictionCardV3({ prediction }: PredictionCardProps) {
+  // Add null check to prevent errors when prediction is undefined
+  if (!prediction) {
+    return null;
+  }
+
   const { media } = useMedia(prediction.id, {
     id: prediction.id,
     title: prediction.title,
