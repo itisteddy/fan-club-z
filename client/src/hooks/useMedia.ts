@@ -19,25 +19,20 @@ export function useMedia(
     category?: string;
   }
 ) {
-  // Return default values if prediction is undefined
-  if (!prediction) {
-    return {
-      media: {
-        id: id || '',
-        url: '',
-        alt: '',
-        provider: 'fallback',
-      },
-      status: 'idle' as Status,
-    };
-  }
+  // Always call the underlying hook to preserve hooks order across renders.
+  // When prediction is undefined, fall back to a safe placeholder object.
+  const safePrediction = prediction ?? {
+    id: id || '',
+    title: '',
+    category: undefined as string | undefined,
+  };
 
-  // Use the new hook
-  const result = usePredictionMedia(prediction);
+  // Use the new hook with a safe prediction object
+  const result = usePredictionMedia(safePrediction);
 
   // Transform to legacy format
   const media: MediaItem = {
-    id: prediction.id,
+    id: safePrediction.id,
     url: result.url,
     alt: result.alt,
     provider: result.provider,
