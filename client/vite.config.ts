@@ -98,6 +98,7 @@ export default defineConfig(({ mode }) => {
   envPrefix: ['VITE_'],
   define: {
     __BUILD_TIME__: JSON.stringify(new Date().toISOString()),
+    __CACHE_BUST__: JSON.stringify(Date.now()),
   },
   optimizeDeps: {
     include: ['react', 'react-dom', 'zustand', '@tanstack/react-query'],
