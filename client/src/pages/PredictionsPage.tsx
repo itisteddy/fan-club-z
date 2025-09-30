@@ -356,10 +356,11 @@ const PredictionsPage: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNa
         <AppHeader title="My Bets" />
         <div className="min-h-screen bg-gray-50 px-4 py-6">
           <SignedOutGateCard
+            icon={<TrendingUp />}
             title="Sign in to view your predictions"
             body="See your portfolio, performance, and history."
             intent="view_my_bets"
-            ctaLabel="Sign In"
+            primaryLabel="Sign In"
           />
         </div>
       </>

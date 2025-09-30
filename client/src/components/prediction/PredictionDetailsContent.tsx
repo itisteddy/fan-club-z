@@ -24,6 +24,7 @@ import { AppError } from '../../utils/errorHandling';
 import ErrorBanner from '../ui/ErrorBanner';
 import LoadingState from '../ui/LoadingState';
 import EmptyState from '../ui/EmptyState';
+import AuthRequiredState from '../ui/empty/AuthRequiredState';
 
 interface PredictionDetailsContentProps {
   predictionId: string;
@@ -354,7 +355,13 @@ const PredictionDetailsContent: React.FC<PredictionDetailsContentProps> = ({
                     ? 'border-emerald-500 bg-emerald-50'
                     : 'border-gray-200 hover:border-gray-300'
                 }`}
-                onClick={() => setSelectedOption(option.id)}
+                onClick={() => {
+                  if (!isAuthenticated) {
+                    openAuthGate({ intent: 'place_prediction', payload: { predictionId } });
+                    return;
+                  }
+                  setSelectedOption(option.id);
+                }}
               >
                 <div className="flex items-center justify-between">
                   <div>
@@ -374,8 +381,8 @@ const PredictionDetailsContent: React.FC<PredictionDetailsContentProps> = ({
             ))}
           </div>
           
-          {/* Stake Input */}
-          {selectedOption && (
+          {/* Stake Input or Auth Required */}
+          {selectedOption && isAuthenticated ? (
             <div className="mt-6 p-4 bg-gray-50 rounded-lg">
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Stake Amount
@@ -398,7 +405,18 @@ const PredictionDetailsContent: React.FC<PredictionDetailsContentProps> = ({
                 </button>
               </div>
             </div>
-          )}
+          ) : selectedOption && !isAuthenticated ? (
+            <div className="mt-6">
+              <AuthRequiredState
+                icon={<TrendingUp />}
+                title="Sign in to place your bet"
+                description="Create an account or sign in to make predictions and win rewards."
+                intent="place_prediction"
+                payload={{ predictionId }}
+                className="py-8"
+              />
+            </div>
+          ) : null}
         </div>
       )}
 

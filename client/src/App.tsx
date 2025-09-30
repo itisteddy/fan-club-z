@@ -30,6 +30,7 @@ const LazyPredictionDetailsPageV2 = lazy(() => import('./pages/PredictionDetails
 const LazyProfilePageV2 = lazy(() => import('./pages/ProfilePageV2'));
 const LazyWalletPageV2 = lazy(() => import('./pages/WalletPageV2'));
 const LazyUnifiedLeaderboardPage = lazy(() => import('./pages/UnifiedLeaderboardPage'));
+const LazyAuthCallback = lazy(() => import('./pages/auth/AuthCallback'));
 
 
 // Import all page components
@@ -485,6 +486,7 @@ const AppContent: React.FC = () => {
             <Routes>
               <Route path="/" element={<DiscoverPageWrapper />} />
               <Route path="/discover" element={<DiscoverPageWrapper />} />
+              <Route path="/auth/callback" element={<LazyAuthCallback />} />
               <Route path="/predictions" element={<PredictionsPageWrapper />} />
               <Route path="/predictions/:id" element={<PredictionDetailsRouteWrapper />} />
               <Route path="/bets" element={<PredictionsPageWrapper />} />

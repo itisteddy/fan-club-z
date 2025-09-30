@@ -1,10 +1,11 @@
 import React from 'react';
-import { Lock, ArrowRight } from 'lucide-react';
+import { ArrowRight } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { openAuthGate } from '../../auth/authGateAdapter';
 import { AuthIntent } from '../../auth/authIntents';
 
 interface SignedOutGateCardProps {
+  icon?: React.ReactElement<{ className?: string }>;
   title?: string;
   body?: string;
   primaryLabel?: string;
@@ -16,7 +17,12 @@ interface SignedOutGateCardProps {
   payload?: Record<string, unknown>;
 }
 
+/**
+ * SignedOutGateCard - Consistent auth-required gate component
+ * Now matches the design pattern used across Wallet, Profile, and other pages
+ */
 const SignedOutGateCard: React.FC<SignedOutGateCardProps> = ({
+  icon,
   title,
   body,
   primaryLabel = 'Sign In',
@@ -60,54 +66,48 @@ const SignedOutGateCard: React.FC<SignedOutGateCardProps> = ({
   };
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="max-w-sm mx-auto mt-8"
-    >
-      <div className="bg-white rounded-2xl shadow-lg p-8 text-center border border-gray-100">
-        {/* Lock Icon */}
-        <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-6">
-          <Lock className="w-8 h-8 text-gray-400" />
+    <div className="flex flex-col items-center justify-center text-center py-12 px-4">
+      {/* Icon - minimal 24-32px as per design system */}
+      {icon && (
+        <div className="mb-4 text-gray-300">
+          {React.cloneElement(icon, {
+            className: 'w-6 h-6 md:w-8 md:h-8'
+          })}
         </div>
+      )}
 
-        {/* Title */}
-        <h2 className="text-xl font-semibold text-gray-900 mb-3" role="heading" aria-level="2">
-          {title || 'Sign in required'}
-        </h2>
+      {/* Title - 16-18px */}
+      <h3 className="text-base md:text-lg font-semibold text-gray-900 mb-2">
+        {title || 'Sign in required'}
+      </h3>
 
-        {/* Body */}
-        <p className="text-gray-600 text-sm leading-relaxed mb-8" role="text">
-          {body || 'Please sign in to continue with this action.'}
-        </p>
+      {/* Body - 14-15px */}
+      <p className="text-sm md:text-base text-gray-600 mb-6 max-w-sm leading-relaxed">
+        {body || 'Please sign in to continue with this action.'}
+      </p>
 
+      {/* Actions */}
+      <div className="flex flex-col sm:flex-row items-center space-y-3 sm:space-y-0 sm:space-x-3">
         {/* Primary CTA */}
-        <motion.button
-          whileHover={{ scale: 1.02 }}
-          whileTap={{ scale: 0.98 }}
+        <button
           onClick={handlePrimary}
-          className="w-full flex items-center justify-center gap-2 bg-emerald-600 text-white py-4 px-6 rounded-xl font-semibold hover:bg-emerald-700 transition-colors mb-4"
+          className="px-6 py-2 bg-emerald-600 text-white rounded-lg font-medium hover:bg-emerald-700 transition-colors"
           data-qa="authgate-open"
-          style={{ minHeight: '44px' }} // Ensure minimum touch target
         >
           {primaryLabel}
-          <ArrowRight className="w-4 h-4" />
-        </motion.button>
+        </button>
 
         {/* Secondary CTA */}
         {secondaryLabel && onSecondary && (
-          <motion.button
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
+          <button
             onClick={onSecondary}
-            className="w-full text-gray-600 py-3 px-6 rounded-xl font-medium hover:text-gray-800 hover:bg-gray-50 transition-colors"
-            style={{ minHeight: '44px' }} // Ensure minimum touch target
+            className="px-6 py-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg font-medium transition-colors"
           >
             {secondaryLabel}
-          </motion.button>
+          </button>
         )}
       </div>
-    </motion.div>
+    </div>
   );
 };
 

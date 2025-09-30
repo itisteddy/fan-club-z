@@ -40,6 +40,13 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
   const { user, isAuthenticated } = useAuthSession();
   const reduceMotion = prefersReducedMotion();
 
+  // Debug: Log auth state
+  console.log('🔍 PredictionDetailsPageV2 Auth State:', { 
+    isAuthenticated, 
+    hasUser: !!user,
+    userEmail: user?.email 
+  });
+
   // Get prediction ID from multiple sources (URL params, props)
   const predictionId = propPredictionId || params.id || params.predictionId || '';
 
@@ -553,6 +560,7 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
               stakeAmount={stakeAmount}
               isPlacingBet={isPlacingBet}
               userBalance={userBalance}
+              isAuthenticated={!!user}
               onOptionSelect={handleOptionSelect}
               onStakeChange={setStakeAmount}
               onPlaceBet={handlePlaceBet}

@@ -1,6 +1,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Heart, MessageCircle, DollarSign } from 'lucide-react';
+import { Heart, MessageCircle, DollarSign, TrendingUp } from 'lucide-react';
+import AuthRequiredState from '../ui/empty/AuthRequiredState';
 
 interface PredictionOption {
   id: string;
@@ -21,6 +22,7 @@ interface PredictionActionPanelProps {
   stakeAmount: string;
   isPlacingBet: boolean;
   userBalance: number;
+  isAuthenticated?: boolean;
   onOptionSelect: (optionId: string) => void;
   onStakeChange: (amount: string) => void;
   onPlaceBet: () => void;
@@ -34,6 +36,7 @@ const PredictionActionPanel: React.FC<PredictionActionPanelProps> = ({
   stakeAmount,
   isPlacingBet,
   userBalance,
+  isAuthenticated = true,
   onOptionSelect,
   onStakeChange,
   onPlaceBet,
@@ -41,6 +44,15 @@ const PredictionActionPanel: React.FC<PredictionActionPanelProps> = ({
   onComment
 }) => {
   const canPlaceBet = prediction.status === 'open';
+
+  // Debug logging to verify auth state
+  React.useEffect(() => {
+    console.log('🔐 PredictionActionPanel - Auth State:', { 
+      isAuthenticated, 
+      canPlaceBet,
+      predictionId: prediction.id 
+    });
+  }, [isAuthenticated, canPlaceBet, prediction.id]);
 
   if (!canPlaceBet) {
     // Show engagement actions only
@@ -73,78 +85,94 @@ const PredictionActionPanel: React.FC<PredictionActionPanelProps> = ({
 
   return (
     <div className="bg-white border-t border-gray-200 p-4 space-y-4">
-      {/* Options */}
-      <div className="space-y-2">
-        <h3 className="font-semibold text-gray-900">Choose an option:</h3>
-        <div className="grid gap-2">
-          {prediction.options.map((option) => (
-            <button
-              key={option.id}
-              onClick={() => onOptionSelect(option.id)}
-              className={`p-3 rounded-lg border-2 transition-all ${
-                selectedOptionId === option.id
-                  ? 'border-emerald-500 bg-emerald-50'
-                  : 'border-gray-200 hover:border-gray-300'
-              }`}
-            >
-              <div className="flex justify-between items-center">
-                <span className="font-medium">{option.label}</span>
-                <span className="text-sm text-gray-600">
-                  {option.odds ? `${option.odds.toFixed(2)}x` : '1.00x'}
-                </span>
-              </div>
-            </button>
-          ))}
+      {/* Show auth required state immediately if not authenticated */}
+      {!isAuthenticated ? (
+        <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-6">
+          <AuthRequiredState
+            icon={<TrendingUp />}
+            title="Sign in to place your bet"
+            description="Create an account or sign in to make predictions and win rewards."
+            intent="place_prediction"
+            payload={{ predictionId: prediction.id }}
+            className="py-0"
+          />
         </div>
-      </div>
-
-      {/* Stake Input */}
-      {selectedOptionId && (
-        <motion.div
-          initial={{ opacity: 0, height: 0 }}
-          animate={{ opacity: 1, height: 'auto' }}
-          className="space-y-3"
-        >
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Stake Amount (USD)
-            </label>
-            <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
-              <input
-                type="number"
-                value={stakeAmount}
-                onChange={(e) => onStakeChange(e.target.value)}
-                placeholder="0.00"
-                className="w-full pl-8 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
-                min="0"
-                step="0.01"
-              />
+      ) : (
+        <>
+          {/* Options */}
+          <div className="space-y-2">
+            <h3 className="font-semibold text-gray-900">Choose an option:</h3>
+            <div className="grid gap-2">
+              {prediction.options.map((option) => (
+                <button
+                  key={option.id}
+                  onClick={() => onOptionSelect(option.id)}
+                  className={`p-3 rounded-lg border-2 transition-all ${
+                    selectedOptionId === option.id
+                      ? 'border-emerald-500 bg-emerald-50'
+                      : 'border-gray-200 hover:border-gray-300'
+                  }`}
+                >
+                  <div className="flex justify-between items-center">
+                    <span className="font-medium">{option.label}</span>
+                    <span className="text-sm text-gray-600">
+                      {option.odds ? `${option.odds.toFixed(2)}x` : '1.00x'}
+                    </span>
+                  </div>
+                </button>
+              ))}
             </div>
-            <p className="text-xs text-gray-500 mt-1">
-              Balance: ${userBalance.toLocaleString()}
-            </p>
           </div>
 
-          <button
-            onClick={onPlaceBet}
-            disabled={!stakeAmount || isPlacingBet || parseFloat(stakeAmount) > userBalance}
-            className={`w-full py-3 rounded-lg font-semibold transition-colors ${
-              !stakeAmount || isPlacingBet || parseFloat(stakeAmount) > userBalance
-                ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                : 'bg-emerald-500 text-white hover:bg-emerald-600'
-            }`}
-          >
-            {isPlacingBet ? (
-              <div className="flex items-center justify-center space-x-2">
-                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                <span>Placing Bet...</span>
+          {/* Stake Input */}
+          {selectedOptionId && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              className="space-y-3"
+            >
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Stake Amount (USD)
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
+                  <input
+                    type="number"
+                    value={stakeAmount}
+                    onChange={(e) => onStakeChange(e.target.value)}
+                    placeholder="0.00"
+                    className="w-full pl-8 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                    min="0"
+                    step="0.01"
+                  />
+                </div>
+                <p className="text-xs text-gray-500 mt-1">
+                  Balance: ${userBalance.toLocaleString()}
+                </p>
               </div>
-            ) : (
-              `Place Bet - $${stakeAmount || '0.00'}`
-            )}
-          </button>
-        </motion.div>
+
+              <button
+                onClick={onPlaceBet}
+                disabled={!stakeAmount || isPlacingBet || parseFloat(stakeAmount) > userBalance}
+                className={`w-full py-3 rounded-lg font-semibold transition-colors ${
+                  !stakeAmount || isPlacingBet || parseFloat(stakeAmount) > userBalance
+                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                    : 'bg-emerald-500 text-white hover:bg-emerald-600'
+                }`}
+              >
+                {isPlacingBet ? (
+                  <div className="flex items-center justify-center space-x-2">
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    <span>Placing Bet...</span>
+                  </div>
+                ) : (
+                  `Place Bet - ${stakeAmount || '0.00'}`
+                )}
+              </button>
+            </motion.div>
+          )}
+        </>
       )}
 
       {/* Engagement Actions */}

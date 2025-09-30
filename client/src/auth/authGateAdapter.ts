@@ -22,8 +22,9 @@ interface AuthGateState {
   resolver: ((result: AuthGateResult) => void) | null;
 }
 
-// Session storage key for persistence
+// Session storage keys
 const STORAGE_KEY = 'fcz.pendingAuth';
+const RETURN_URL_KEY = 'fcz.returnUrl';
 
 // Global auth gate state
 let authGateState: AuthGateState = {
@@ -52,6 +53,11 @@ const updateAuthGateState = (updates: Partial<AuthGateState>) => {
 const persistPendingAuth = (intent: AuthIntent, payload?: Record<string, unknown>) => {
   try {
     sessionStorage.setItem(STORAGE_KEY, JSON.stringify({ intent, payload }));
+    // Store the current URL for redirect after auth
+    const currentUrl = window.location.pathname + window.location.search;
+    console.log('📌 Storing return URL:', currentUrl);
+    sessionStorage.setItem(RETURN_URL_KEY, currentUrl);
+    console.log('✅ Return URL stored successfully');
   } catch (error) {
     console.warn('Failed to persist pending auth:', error);
   }
@@ -60,6 +66,7 @@ const persistPendingAuth = (intent: AuthIntent, payload?: Record<string, unknown
 const clearPersistedAuth = () => {
   try {
     sessionStorage.removeItem(STORAGE_KEY);
+    sessionStorage.removeItem(RETURN_URL_KEY);
   } catch (error) {
     console.warn('Failed to clear persisted auth:', error);
   }
@@ -75,6 +82,22 @@ const getPersistedAuth = (): { intent: AuthIntent; payload?: Record<string, unkn
     console.warn('Failed to get persisted auth:', error);
   }
   return null;
+};
+
+/**
+ * Get the stored return URL (where user should be redirected after auth)
+ */
+export const getReturnUrl = (): string => {
+  try {
+    const returnUrl = sessionStorage.getItem(RETURN_URL_KEY);
+    console.log('📍 getReturnUrl called - stored value:', returnUrl);
+    const finalUrl = returnUrl || '/';
+    console.log('📍 Returning URL:', finalUrl);
+    return finalUrl;
+  } catch (error) {
+    console.warn('Failed to get return URL:', error);
+    return '/';
+  }
 };
 
 /**
@@ -137,8 +160,12 @@ export const resolveAuthGate = (result: AuthGateResult): void => {
 
   const { resolver, pendingIntent, payload } = authGateState;
   
-  // Clear persisted auth on any resolution
-  clearPersistedAuth();
+  // Don't clear return URL yet - it will be cleared by AuthCallback after redirect
+  try {
+    sessionStorage.removeItem(STORAGE_KEY);
+  } catch (error) {
+    console.warn('Failed to clear auth intent:', error);
+  }
   
   updateAuthGateState({
     isOpen: false,

@@ -1,126 +1,199 @@
 import React, { useEffect, useState } from 'react';
-import { useLocation } from 'wouter';
+import { useNavigate } from 'react-router-dom';
 import { useSupabase } from '../../providers/SupabaseProvider';
+import { consumeReturnTo, sanitizeInternalPath } from '../../lib/returnTo';
+
+function Spinner() {
+  return (
+    <div className="flex h-screen items-center justify-center bg-gray-50">
+      <div className="text-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-500 mx-auto mb-4"></div>
+        <h2 className="text-xl font-semibold text-gray-900 mb-2">Completing Sign In...</h2>
+        <p className="text-gray-600">Please wait while we finish setting up your account.</p>
+      </div>
+    </div>
+  );
+}
 
 const AuthCallback: React.FC = () => {
   const { supabase } = useSupabase();
-  const [location, setLocation] = useLocation();
-  const [loading, setLoading] = useState(true);
+  const navigate = useNavigate();
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const handleAuthCallback = async () => {
+    const handleCallback = async () => {
       try {
-        console.log('🔐 Processing OAuth callback...');
-        console.log('🔐 Current URL:', window.location.href);
-        console.log('🔐 URL search params:', new URLSearchParams(window.location.search));
-        console.log('🔐 URL hash params:', new URLSearchParams(window.location.hash.substring(1)));
+        console.log('================================================================================');
+        console.log('AUTH CALLBACK STARTED');
+        console.log('================================================================================');
+        console.log('Current URL:', window.location.href);
         
-        // First, try to get session from the current URL
-        const { data: initialData, error: initialError } = await supabase.auth.getSession();
-        console.log('🔐 Initial session check:', { initialData, initialError });
-        
-        // Check if we have URL parameters that indicate an OAuth callback
-        const urlParams = new URLSearchParams(window.location.search);
-        const hashParams = new URLSearchParams(window.location.hash.substring(1));
-        const code = urlParams.get('code');
-        const accessToken = hashParams.get('access_token') || urlParams.get('access_token');
-        const error = urlParams.get('error') || hashParams.get('error');
-        
-        console.log('🔐 OAuth callback parameters:', { code, accessToken, error });
-        
-        if (error) {
-          console.error('🔐 OAuth error in URL:', error);
-          setError(`OAuth error: ${error}`);
-          setLoading(false);
+        // First, check if we already have a valid session
+        const { data: { session: existingSession }, error: sessionCheckError } = await supabase.auth.getSession();
+        if (existingSession && !sessionCheckError) {
+          console.log('✅ Already have a valid session, skipping PKCE flow');
+          console.log('User:', existingSession.user.email);
+          
+          // Get the next parameter and redirect
+          const searchParams = new URLSearchParams(window.location.search);
+          const nextFromUrl = searchParams.get('next');
+          const nextFromStorage = consumeReturnTo();
+          const target = sanitizeInternalPath(nextFromUrl ?? nextFromStorage ?? '/');
+          
+          console.log('Redirecting to:', target);
+          await new Promise(resolve => setTimeout(resolve, 500));
+          navigate(target, { replace: true });
           return;
         }
         
-        // If we have a code or access token, let Supabase handle the exchange
-        if (code || accessToken) {
-          console.log('🔐 OAuth parameters detected, waiting for Supabase to process...');
+        // Get the next parameter from URL
+        const searchParams = new URLSearchParams(window.location.search);
+        const nextFromUrl = searchParams.get('next');
+        console.log('Next from URL:', nextFromUrl);
+        console.log('Decoded next:', nextFromUrl ? decodeURIComponent(nextFromUrl) : null);
+        
+        // Get from sessionStorage as fallback
+        const nextFromStorage = consumeReturnTo();
+        console.log('Next from storage:', nextFromStorage);
+        
+        // For PKCE/callback flows: exchange code for session
+        const code = searchParams.get('code');
+        const codeVerifier = searchParams.get('code_verifier');
+        
+        console.log('Auth callback parameters:', {
+          code: code ? 'present' : 'missing',
+          codeVerifier: codeVerifier ? 'present' : 'missing',
+          allParams: Object.fromEntries(searchParams.entries())
+        });
+        
+        // Log sessionStorage contents for debugging
+        console.log('SessionStorage contents:', {
+          supabaseCodeVerifier: sessionStorage.getItem('supabase.auth.code_verifier'),
+          allKeys: Object.keys(sessionStorage).filter(key => key.includes('supabase') || key.includes('auth'))
+        });
+        
+        if (code) {
+          console.log('Exchanging code for session...');
           
-          // Wait for Supabase to process the OAuth callback
-          let attempts = 0;
-          const maxAttempts = 10;
-          const checkSession = async (): Promise<boolean> => {
-            attempts++;
-            console.log(`🔐 Session check attempt ${attempts}/${maxAttempts}`);
-            
-            const { data, error } = await supabase.auth.getSession();
-            
-            if (error) {
-              console.error(`🔐 Session check error (attempt ${attempts}):`, error);
-              if (attempts >= maxAttempts) {
-                setError(`Session check failed: ${error.message}`);
-                setLoading(false);
-                return false;
+          // Try multiple approaches to get the code verifier
+          let finalCodeVerifier = codeVerifier;
+          
+          // Check various possible storage locations
+          const possibleKeys = [
+            'supabase.auth.code_verifier',
+            'sb-ihtnsyhknvltgrksffun-auth-token.code_verifier',
+            'supabase.code_verifier',
+            'auth.code_verifier'
+          ];
+          
+          for (const key of possibleKeys) {
+            const stored = sessionStorage.getItem(key);
+            if (stored) {
+              finalCodeVerifier = stored;
+              console.log(`Found code verifier in sessionStorage key: ${key}`);
+              break;
+            }
+          }
+          
+          // Also check localStorage as fallback
+          if (!finalCodeVerifier) {
+            for (const key of possibleKeys) {
+              const stored = localStorage.getItem(key);
+              if (stored) {
+                finalCodeVerifier = stored;
+                console.log(`Found code verifier in localStorage key: ${key}`);
+                break;
               }
-              return false;
             }
-            
-            if (data.session && data.session.user) {
-              console.log(`✅ Session found on attempt ${attempts}:`, data.session.user.email);
-              setLocation('/', { replace: true });
-              return true;
-            }
-            
-            console.log(`⚠️ No session on attempt ${attempts}`);
-            return false;
-          };
+          }
           
-          // Initial check
-          const initialSuccess = await checkSession();
-          if (!initialSuccess) {
-            // Retry with exponential backoff
-            const retryIntervals = [500, 1000, 1500, 2000, 2500, 3000, 3500, 4000, 4500];
-            
-            for (const interval of retryIntervals) {
-              if (attempts >= maxAttempts) break;
-              
-              await new Promise(resolve => setTimeout(resolve, interval));
-              const success = await checkSession();
-              if (success) return;
+          console.log('Final code verifier status:', finalCodeVerifier ? 'found' : 'not found');
+          
+          // Try the code exchange with different approaches
+          let data, exchangeError;
+          
+          try {
+            if (finalCodeVerifier) {
+              console.log('Attempting code exchange with explicit code verifier...');
+              const result = await supabase.auth.exchangeCodeForSession({
+                authCode: code,
+                codeVerifier: finalCodeVerifier
+              });
+              data = result.data;
+              exchangeError = result.error;
+            } else {
+              console.log('Attempting code exchange without explicit code verifier...');
+              const result = await supabase.auth.exchangeCodeForSession(code);
+              data = result.data;
+              exchangeError = result.error;
             }
+          } catch (exchangeException: any) {
+            console.error('Code exchange exception:', exchangeException);
+            exchangeError = exchangeException;
+          }
+          
+          if (exchangeError) {
+            console.error('Code exchange error:', exchangeError);
+            console.error('Error details:', {
+              message: exchangeError.message,
+              code: exchangeError.code,
+              status: exchangeError.status
+            });
             
-            // If all attempts failed
-            setError('Failed to establish authentication session after OAuth callback');
-            setLoading(false);
+            // If PKCE fails, try to check if we already have a valid session
+            console.log('PKCE failed, checking for existing session...');
+            const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+            if (session && !sessionError) {
+              console.log('Found existing valid session, proceeding with redirect...');
+              // Continue with the redirect logic below
+            } else {
+              // Last resort: try to redirect anyway and let the app handle the auth state
+              console.log('No valid session found, but attempting redirect anyway...');
+              console.log('This might be a PKCE configuration issue. User may need to sign in again.');
+              // Don't throw error, just continue with redirect
+            }
+          } else {
+            console.log('Code exchange successful!', data);
           }
         } else {
-          // No OAuth parameters, check if we already have a session
-          if (initialData.session) {
-            console.log('✅ Existing session found:', initialData.session.user.email);
-            setLocation('/', { replace: true });
-          } else {
-            console.log('⚠️ No OAuth parameters and no existing session');
-            setError('No authentication data found in callback');
-            setLoading(false);
+          console.log('No code parameter found, checking for existing session...');
+          // Check if we already have a valid session
+          const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+          if (sessionError) {
+            console.error('Session check error:', sessionError);
+            throw sessionError;
           }
+          if (!session) {
+            throw new Error('No authentication code or valid session found');
+          }
+          console.log('Using existing session:', session.user.email);
         }
+        
+        // Determine where to redirect
+        const target = sanitizeInternalPath(nextFromUrl ?? nextFromStorage ?? '/');
+        console.log('Final redirect target:', target);
+        console.log('================================================================================');
+        
+        // Small delay to ensure session is fully established
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
+        // Navigate to target using react-router-dom
+        console.log('Navigating to:', target);
+        navigate(target, { replace: true });
       } catch (err: any) {
-        console.error('🔐 OAuth callback exception:', err);
+        console.error('Auth callback error:', err);
+        console.error('Error details:', {
+          message: err.message,
+          code: err.code,
+          status: err.status,
+          name: err.name
+        });
         setError(err.message || 'Authentication failed');
-        setLoading(false);
       }
     };
 
-    // Small delay to let Supabase initialize
-    const timer = setTimeout(handleAuthCallback, 300);
-    return () => clearTimeout(timer);
-  }, [supabase, setLocation]);
-
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-center max-w-md mx-auto p-6">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-500 mx-auto mb-4"></div>
-          <h2 className="text-xl font-semibold text-gray-900 mb-2">Completing Sign In...</h2>
-          <p className="text-gray-600">Please wait while we finish setting up your account.</p>
-        </div>
-      </div>
-    );
-  }
+    handleCallback();
+  }, [supabase, navigate]);
 
   if (error) {
     return (
@@ -136,9 +209,7 @@ const AuthCallback: React.FC = () => {
             <p className="text-red-600 text-sm mb-4">{error}</p>
           </div>
           <button
-            onClick={() => {
-              setLocation('/', { replace: true });
-            }}
+            onClick={() => navigate('/', { replace: true })}
             className="bg-emerald-500 text-white px-6 py-2 rounded-lg hover:bg-emerald-600 transition-colors"
           >
             Return to Home
@@ -148,7 +219,7 @@ const AuthCallback: React.FC = () => {
     );
   }
 
-  return null;
+  return <Spinner />;
 };
 
 export default AuthCallback;

@@ -51,14 +51,14 @@ const PredictionCardContent: React.FC<PredictionCardProps> = ({
 
   // Get stores
   const { likes, toggleLike } = useLikeStore();
-  const { getCommentCount } = useUnifiedCommentStore();
+      const { getCommentCount } = useUnifiedCommentStore();
 
   // Calculate real data with safe fallbacks
   const entryDeadline = prediction.entry_deadline || prediction.entryDeadline;
-  
+
   // Use real participant count from database with fallbacks
   const participantCount = prediction.participant_count || prediction.entries?.length || 0;
-
+  
   // Calculate total pool from options or use fallback
   const totalPool = prediction.options?.reduce((sum, option) => {
     const staked = option.total_staked || option.totalStaked || 0;
@@ -82,7 +82,7 @@ const PredictionCardContent: React.FC<PredictionCardProps> = ({
     
     if (isLiking) return;
     setIsLiking(true);
-
+    
     try {
       await toggleLike(prediction.id);
       if (customOnLike) customOnLike();
@@ -135,8 +135,8 @@ const PredictionCardContent: React.FC<PredictionCardProps> = ({
     }
   };
 
-  return (
-    <>
+    return (
+      <>
       <article
         className={`group relative rounded-2xl border border-black/5 bg-white p-4 md:p-5 shadow-none hover:shadow-sm transition-shadow ${className}`}
         data-qa="prediction-card"
@@ -155,12 +155,12 @@ const PredictionCardContent: React.FC<PredictionCardProps> = ({
                   ends in {formatTimeUntil(entryDeadline)}
                 </span>
               )}
-            </div>
+          </div>
 
             <h3 className="mt-2 line-clamp-2 text-base md:text-lg font-semibold text-slate-900">
               {prediction.question || prediction.title}
-            </h3>
-
+          </h3>
+          
             <div className="mt-2 flex flex-wrap items-center gap-3 text-sm text-slate-600">
               <span>{formatCurrencyShort(totalPool)}</span>
               <span>•</span>
@@ -175,10 +175,10 @@ const PredictionCardContent: React.FC<PredictionCardProps> = ({
                     className="inline-flex items-center rounded-full border border-slate-200 px-2.5 py-1 text-xs text-slate-700"
                   >
                     {c.label} <span className="ml-1 font-semibold text-slate-900">{c.odds.toFixed(2)}x</span>
-                  </span>
+                </span>
                 ))}
-              </div>
-            )}
+            </div>
+          )}
 
             {/* engagement row — subtle, not shouty */}
             <div className="mt-3 flex items-center gap-4 text-xs text-slate-500">
@@ -214,7 +214,7 @@ const PredictionCardContent: React.FC<PredictionCardProps> = ({
             className="mt-1"
           />
         </div>
-
+        
         {/* No big button. Whole card is the CTA via Link. */}
         <span className="pointer-events-none absolute inset-0 rounded-2xl ring-0 ring-inset transition group-hover:ring-1 group-hover:ring-slate-200" />
       </article>

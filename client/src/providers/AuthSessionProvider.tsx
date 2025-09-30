@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { useSupabase } from './SupabaseProvider';
 import { User, Session } from '@supabase/supabase-js';
+import { captureReturnTo } from '../lib/returnTo';
 
 interface AuthSessionContextType {
   user: User | null;
@@ -132,15 +133,19 @@ export const AuthSessionProvider: React.FC<AuthSessionProviderProps> = ({ childr
 
   const signInWithGoogle = async () => {
     try {
-      // Determine the correct redirect URL for the current environment
+      // Capture current location
+      captureReturnTo();
+      
+      // Build redirect URL with next parameter
+      const currentPath = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+      const next = encodeURIComponent(currentPath);
       const redirectUrl = import.meta.env.DEV 
-        ? `${window.location.origin}/auth/callback`
-        : 'https://app.fanclubz.app/auth/callback';
+        ? `${window.location.origin}/auth/callback?next=${next}`
+        : `https://app.fanclubz.app/auth/callback?next=${next}`;
         
       console.log('🔐 Google OAuth redirect URL:', redirectUrl);
-      console.log('🔐 Environment - DEV:', import.meta.env.DEV);
-      console.log('🔐 Environment - PROD:', import.meta.env.PROD);
-      console.log('🔐 Window origin:', window.location.origin);
+      console.log('🔐 Current path:', currentPath);
+      console.log('🔐 Next param:', next);
       
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
@@ -166,12 +171,20 @@ export const AuthSessionProvider: React.FC<AuthSessionProviderProps> = ({ childr
 
   const signInWithEmailLink = async (email: string) => {
     try {
+      // Capture current location
+      captureReturnTo();
+      
+      // Build redirect URL with next parameter
+      const currentPath = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+      const next = encodeURIComponent(currentPath);
+      const emailRedirectTo = import.meta.env.DEV 
+        ? `${window.location.origin}/auth/callback?next=${next}`
+        : `https://app.fanclubz.app/auth/callback?next=${next}`;
+        
       const { error } = await supabase.auth.signInWithOtp({
         email,
         options: {
-          emailRedirectTo: import.meta.env.DEV 
-            ? `${window.location.origin}/`
-            : 'https://app.fanclubz.app/',
+          emailRedirectTo,
         },
       });
       return { error };

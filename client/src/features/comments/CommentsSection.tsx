@@ -15,22 +15,20 @@ export const CommentsSection: React.FC<CommentsSectionProps> = ({
   className = ''
 }) => {
   const {
-    comments,
-    commentCount,
-    status,
-    isPosting,
-    hasMore,
+    getComments,
+    getCommentCount,
+    getStatus,
+    isPosting: isPostingFn,
+    hasMore: hasMoreFn,
     fetchComments,
     loadMore,
     addComment,
-    toggleCommentLike,
-    clearErrors
   } = useUnifiedCommentStore();
 
-  const predictionComments = comments[predictionId] || [];
-  const predictionStatus = status[predictionId] || 'idle';
-  const predictionPosting = isPosting[predictionId] || false;
-  const predictionHasMore = hasMore[predictionId] || false;
+  const predictionComments = getComments(predictionId);
+  const predictionStatus = getStatus(predictionId);
+  const predictionPosting = isPostingFn(predictionId);
+  const predictionHasMore = hasMoreFn(predictionId);
 
   // Initialize comments on mount
   useEffect(() => {
@@ -59,7 +57,8 @@ export const CommentsSection: React.FC<CommentsSectionProps> = ({
   // Handle like toggle
   const handleToggleLike = async (commentId: string) => {
     try {
-      await toggleCommentLike(predictionId, commentId);
+      // TODO: Implement toggleCommentLike when like functionality is ready
+      toast.success('Like feature coming soon!');
     } catch (error: any) {
       if (error?.status >= 500) {
         toast.error('Failed to update like. Please try again.');
@@ -79,7 +78,7 @@ export const CommentsSection: React.FC<CommentsSectionProps> = ({
   };
 
   const isLoading = predictionStatus === 'loading' || predictionStatus === 'paginating';
-  const showCount = commentCount[predictionId] || predictionComments.length;
+  const showCount = getCommentCount(predictionId);
 
   return (
     <div className={`bg-white rounded-lg ${className}`}>

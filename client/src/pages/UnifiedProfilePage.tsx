@@ -9,6 +9,7 @@ import Page from '../components/ui/layout/Page';
 import Card, { CardHeader, CardContent } from '../components/ui/card/Card';
 import StatCard, { StatRow } from '../components/ui/card/StatCard';
 import EmptyState from '../components/ui/empty/EmptyState';
+import AuthRequiredState from '../components/ui/empty/AuthRequiredState';
 import { SkeletonStatRow, SkeletonCard } from '../components/ui/skeleton/Skeleton';
 import { truncateText } from '@lib/format';
 
@@ -53,24 +54,11 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigateBack, userId }) => 
       <>
         <Header title="Profile" />
         <Page>
-          <EmptyState
+          <AuthRequiredState
             icon={<User />}
             title="Sign in to view your profile"
             description="Customize your handle, avatar, and preferences."
-            primaryAction={
-              <button
-                onClick={async () => {
-                  try {
-                    await openAuthGate({ intent: 'edit_profile' });
-                  } catch (error) {
-                    console.error('Auth gate error:', error);
-                  }
-                }}
-                className="px-6 py-2 bg-emerald-600 text-white rounded-lg font-medium hover:bg-emerald-700 transition-colors"
-              >
-                Sign In
-              </button>
-            }
+            intent="edit_profile"
           />
         </Page>
       </>
