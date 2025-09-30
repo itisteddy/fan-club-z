@@ -35,16 +35,15 @@ interface OnboardingContextValue {
 
 const OnboardingContext = createContext<OnboardingContextValue | undefined>(undefined);
 
-// Comprehensive tour configurations with proper target IDs
+// Comprehensive tour configurations with proper target IDs matching current UI
 const FULL_TOUR_STEPS: OnboardingStep[] = [
   // Welcome & Discover Tab
   {
     id: 'welcome-discover',
-    title: 'Welcome to Discover',
-    description: 'This is where you\'ll find trending predictions and explore new markets. Scroll through the list to see all available predictions.',
+    title: 'Welcome to FanClubZ!',
+    description: 'This is where you\'ll find active predictions and explore new markets. Browse through the list to see all available predictions you can participate in.',
     target: 'discover-list',
     placement: 'bottom',
-    // Step 1/10: place tooltip below the "All Predictions" header
     offset: { y: 24 },
     icon: <Compass className="w-5 h-5" />,
     delay: 500
@@ -64,7 +63,7 @@ const FULL_TOUR_STEPS: OnboardingStep[] = [
   {
     id: 'category-filters',
     title: 'Browse by Category',
-    description: 'Filter predictions by category - Sports, Pop Culture, Tech, Finance, and more. Find what you\'re passionate about.',
+    description: 'Filter predictions by category - Sports, Pop Culture, Tech, Finance, and more. Tap a category to filter the list.',
     target: 'category-filters',
     placement: 'bottom',
     icon: <Filter className="w-5 h-5" />
@@ -73,44 +72,32 @@ const FULL_TOUR_STEPS: OnboardingStep[] = [
   // FAB for creating predictions
   {
     id: 'create-prediction',
-    title: 'Create Your Own',
-    description: 'Ready to share your insights? Tap the plus button to create your own prediction and invite others to participate.',
+    title: 'Create Your Own Prediction',
+    description: 'Have an insight you want to share? Tap the plus button to create your own prediction and invite others to participate.',
     target: 'create-fab',
     placement: 'left',
-    // Step 4/10: lift tooltip higher so FAB remains visible on mobile
-    offset: { y: -100 },
+    offset: { y: -80 },
     icon: <Plus className="w-5 h-5" />
   },
   
   // My Bets tab
   {
     id: 'my-bets-tab',
-    title: 'Track Your Predictions',
-    description: 'View all your active predictions, ones you\'ve created, and your completed predictions with results.',
+    title: 'Track Your Bets',
+    description: 'View all your active bets, predictions you\'ve created, and your completed bets with results here.',
     target: 'tab-bets',
     placement: 'top',
-    // Step 5/10: raise tooltip above bottom nav (match mobile spacing used in 7 & 9)
-    offset: { y: -60 },
+    offset: { y: -40 },
     icon: <TrendingUp className="w-5 h-5" />,
     onNext: async () => {
-      // Navigate to predictions page
+      // Navigate to bets page
       const navigate = (window as any).__router_navigate;
       if (navigate) {
-        navigate('/predictions');
+        navigate('/bets');
         // Wait for navigation to complete
         await new Promise(resolve => setTimeout(resolve, 300));
       }
     }
-  },
-  
-  // Bets management tabs
-  {
-    id: 'bets-management',
-    title: 'Organize Your Activity',
-    description: 'Switch between Active (ongoing), Created (your predictions), and Completed (finished) to stay organized.',
-    target: 'bets-tabs',
-    placement: 'bottom',
-    icon: <BarChart3 className="w-5 h-5" />
   },
   
   // Wallet tab
@@ -132,27 +119,24 @@ const FULL_TOUR_STEPS: OnboardingStep[] = [
     }
   },
   
-  // Wallet balance
+  // Leaderboard tab
   {
-    id: 'wallet-balance',
-    title: 'Your Balance',
-    description: 'Your current balance is displayed here. In demo mode, you can add test funds to try out predictions.',
-    // Step 8/10: focus the balance card, not the header
-    target: 'wallet-balance-card',
-    placement: 'bottom',
-    // Step 8/10: ensure tooltip is below the balance card with buffer
-    offset: { y: 40 },
-    icon: <Wallet className="w-5 h-5" />
+    id: 'leaderboard-tab',
+    title: 'Rankings & Leaderboard',
+    description: 'See how you stack up against other players and track top performers.',
+    target: 'tab-leaderboard',
+    placement: 'top',
+    offset: { y: -40 },
+    icon: <BarChart3 className="w-5 h-5" />
   },
   
   // Profile tab
   {
     id: 'profile-tab',
     title: 'Your Profile',
-    description: 'Access your settings, view achievements, manage notifications, and track your performance stats.',
+    description: 'Access your profile settings, view your stats, and manage your account.',
     target: 'tab-profile',
     placement: 'top',
-    // Step 9/10: raise tooltip above bottom nav
     offset: { y: -40 },
     icon: <User className="w-5 h-5" />,
     onNext: async () => {
@@ -164,15 +148,15 @@ const FULL_TOUR_STEPS: OnboardingStep[] = [
     }
   },
   
-  // Profile completion
+  // Tour complete
   {
-    id: 'profile-completion',
-    title: 'Complete Your Profile',
-    description: 'Take a moment to complete your profile information and adjust your preferences for the best experience.',
-    // Step 10/10: spotlight only the profile card, not the entire header
-    target: 'profile-card',
-    placement: 'bottom',
-    icon: <Settings className="w-5 h-5" />,
+    id: 'tour-complete',
+    title: 'You\'re Ready!',
+    description: 'You now know how to navigate FanClubZ. Start exploring, place bets, and have fun!',
+    target: 'tab-discover',
+    placement: 'top',
+    offset: { y: -40 },
+    icon: <Target className="w-5 h-5" />,
     onNext: async () => {
       const navigate = (window as any).__router_navigate;
       if (navigate) {

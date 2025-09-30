@@ -93,9 +93,15 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
     }
   }, [media, prediction]);
 
-  // User balance
+  // User balance - call getBalance with 'USD' parameter
   const userBalance = useMemo(() => {
-    return isAuthenticated ? getBalance() : 0;
+    const balance = isAuthenticated ? getBalance('USD') : 0;
+    console.log('🔍 PredictionDetailsPageV2 - User balance:', { 
+      isAuthenticated, 
+      balance,
+      type: typeof balance 
+    });
+    return balance;
   }, [isAuthenticated, getBalance]);
 
   // Load prediction data
@@ -545,8 +551,8 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
             </AnimatePresence>
           </PredictionDetailsTabs>
 
-          {/* Fixed Action Panel */}
-          <div className="fixed bottom-0 left-0 right-0 z-20 safe-area-inset">
+          {/* Fixed Action Panel - positioned above bottom navigation */}
+          <div className="fixed bottom-16 left-0 right-0 z-20 safe-area-inset md:bottom-0">
             <PredictionActionPanel
               prediction={{
                 id: prediction.id,

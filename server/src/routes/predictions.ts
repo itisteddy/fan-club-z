@@ -125,11 +125,12 @@ router.get('/stats/platform', async (req, res) => {
   try {
     console.log('📊 Platform stats endpoint called - origin:', req.headers.origin);
     
-    // Get total volume from predictions
+    // Get total volume from active predictions only (status='open' AND entry_deadline hasn't passed)
     const { data: volumeData, error: volumeError } = await supabase
       .from('predictions')
       .select('pool_total')
-      .eq('status', 'open');
+      .eq('status', 'open')
+      .gt('entry_deadline', new Date().toISOString());
 
     if (volumeError) {
       console.error('Error fetching volume data:', volumeError);
@@ -140,11 +141,12 @@ router.get('/stats/platform', async (req, res) => {
       });
     }
 
-    // Get active predictions count
+    // Get active predictions count (status='open' AND entry_deadline hasn't passed)
     const { count: activeCount, error: countError } = await supabase
       .from('predictions')
       .select('*', { count: 'exact', head: true })
-      .eq('status', 'open');
+      .eq('status', 'open')
+      .gt('entry_deadline', new Date().toISOString());
 
     if (countError) {
       console.error('Error fetching active predictions count:', countError);
