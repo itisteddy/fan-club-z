@@ -588,22 +588,23 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
           </PredictionDetailsTabs>
 
           {/* Fixed Action Panel - positioned above bottom navigation with proper spacing */}
-          <div 
-            className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-2xl" 
-            style={{ 
-              zIndex: 35,
-              paddingBottom: 'calc(5rem + env(safe-area-inset-bottom))'
-            }}
-          >
-            <PredictionActionPanel
-              prediction={{
-                id: prediction.id,
-                status: prediction.status,
-                options: prediction.options || [],
-                likeCount: prediction.likeCount,
-                commentCount: prediction.commentCount,
-                isLiked: prediction.isLiked
+          {prediction && (
+            <div 
+              className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-2xl" 
+              style={{ 
+                zIndex: 35,
+                paddingBottom: 'calc(5rem + env(safe-area-inset-bottom))'
               }}
+            >
+              <PredictionActionPanel
+                prediction={{
+                  id: prediction.id,
+                  status: prediction.status,
+                  options: prediction.options || [],
+                  likeCount: prediction.likeCount,
+                  commentCount: prediction.commentCount,
+                  isLiked: prediction.isLiked
+                }}
               selectedOptionId={selectedOptionId}
               stakeAmount={stakeAmount}
               isPlacingBet={isPlacingBet}
@@ -615,7 +616,8 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
               onLike={handleLike}
               onComment={handleComment}
             />  
-          </div>
+            </div>
+          )}
         </div>
       </motion.div>
     </>
