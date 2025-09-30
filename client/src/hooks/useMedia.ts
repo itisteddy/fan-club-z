@@ -33,11 +33,7 @@ export function useMedia(
   }
 
   // Use the new hook
-  const result = usePredictionMedia({
-    id: prediction.id,
-    title: prediction.title,
-    category: prediction.category,
-  });
+  const result = usePredictionMedia(prediction);
 
   // Transform to legacy format
   const media: MediaItem = {

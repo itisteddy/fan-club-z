@@ -148,7 +148,7 @@ function getFallback(id: string, category?: string): string {
   return pool[seed % pool.length];
 }
 
-export function usePredictionMedia(prediction: {
+export function usePredictionMedia(prediction?: {
   id: string;
   title: string;
   category?: string;
@@ -158,6 +158,14 @@ export function usePredictionMedia(prediction: {
 
   useEffect(() => {
     let cancelled = false;
+    
+    // Return early if prediction is undefined
+    if (!prediction) {
+      setUrl(getFallback('', 'general'));
+      setStatus('ready');
+      return;
+    }
+    
     const { id, title, category } = prediction;
     
     if (!id || !title) {
