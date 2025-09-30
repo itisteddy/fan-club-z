@@ -5,6 +5,74 @@ import { VERSION } from '@fanclubz/shared';
 
 const router = express.Router();
 
+// GET /api/v2/predictions/stats/platform - Get platform-wide statistics
+router.get('/stats/platform', async (req, res) => {
+  try {
+    console.log('📊 Platform stats endpoint called');
+
+    // Get count of active (open) predictions with future deadlines
+    const { count: activePredictions, error: countError } = await supabase
+      .from('predictions')
+      .select('*', { count: 'exact', head: true })
+      .eq('status', 'open')
+      .gt('entry_deadline', new Date().toISOString());
+
+    if (countError) {
+      console.error('Error counting active predictions:', countError);
+    }
+
+    // Get total volume from active predictions
+    const { data: volumeData, error: volumeError } = await supabase
+      .from('predictions')
+      .select('pool_total')
+      .eq('status', 'open')
+      .gt('entry_deadline', new Date().toISOString());
+
+    const totalVolume = volumeData?.reduce((sum, p) => sum + (parseFloat(p.pool_total) || 0), 0) || 0;
+
+    if (volumeError) {
+      console.error('Error calculating total volume:', volumeError);
+    }
+
+    // Get unique user count from prediction entries
+    const { data: userData, error: userError } = await supabase
+      .from('prediction_entries')
+      .select('user_id')
+      .eq('status', 'active');
+
+    const uniqueUsers = new Set(userData?.map(entry => entry.user_id) || []).size;
+
+    if (userError) {
+      console.error('Error counting unique users:', userError);
+    }
+
+    const stats = {
+      totalVolume: totalVolume.toFixed(2),
+      activePredictions: activePredictions || 0,
+      totalUsers: uniqueUsers.toString(),
+      rawVolume: totalVolume,
+      rawUsers: uniqueUsers
+    };
+
+    console.log('✅ Platform stats calculated:', stats);
+
+    return res.json({
+      success: true,
+      data: stats,
+      message: 'Platform stats fetched successfully',
+      version: VERSION
+    });
+  } catch (error) {
+    console.error('Error fetching platform stats:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Internal server error',
+      message: 'Failed to fetch platform stats',
+      version: VERSION
+    });
+  }
+});
+
 // GET /api/v2/predictions - Get all predictions with pagination
 router.get('/', async (req, res) => {
   try {

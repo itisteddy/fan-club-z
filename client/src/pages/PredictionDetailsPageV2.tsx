@@ -37,14 +37,21 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
 }) => {
   const navigate = useNavigate();
   const params = useParams<{ id?: string; predictionId?: string }>();
-  const { user, isAuthenticated } = useAuthSession();
+  const { user, isAuthenticated: sessionAuth } = useAuthSession();
   const reduceMotion = prefersReducedMotion();
+  const { isAuthenticated: storeAuth, user: storeUser } = useAuthStore();
+  
+  // Use either auth source
+  const isAuthenticated = sessionAuth || storeAuth;
+  const currentUser = user || storeUser;
 
   // Debug: Log auth state
   console.log('🔍 PredictionDetailsPageV2 Auth State:', { 
-    isAuthenticated, 
-    hasUser: !!user,
-    userEmail: user?.email 
+    sessionAuth,
+    storeAuth,
+    isAuthenticated,
+    hasUser: !!currentUser,
+    userEmail: currentUser?.email 
   });
 
   // Get prediction ID from multiple sources (URL params, props)
@@ -68,7 +75,11 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
   } = usePredictionStore();
 
   const { isAuthenticated: authStoreAuthenticated, user: authStoreUser } = useAuthStore();
-  const { getBalance } = useWalletStore();
+  const walletStore = useWalletStore();
+  const { getBalance, initializeWallet, balances } = walletStore;
+  
+  // Get the actual balance value from the store
+  const walletBalance = walletStore.balance; // This accesses the getter
 
   // Get prediction from store
   const prediction = useMemo(() => {
@@ -93,16 +104,41 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
     }
   }, [media, prediction]);
 
-  // User balance - call getBalance with 'USD' parameter
+  // User balance - get balance from wallet store with proper error handling
   const userBalance = useMemo(() => {
-    const balance = isAuthenticated ? getBalance('USD') : 0;
-    console.log('🔍 PredictionDetailsPageV2 - User balance:', { 
-      isAuthenticated, 
-      balance,
-      type: typeof balance 
+    if (!isAuthenticated) {
+      console.log('💰 PredictionDetailsPageV2 - Not authenticated, returning 0');
+      return 0;
+    }
+    
+    // The wallet store returns balance as a computed property
+    // It should be the available balance in dollars
+    const balance = typeof walletBalance === 'number' && !isNaN(walletBalance) 
+      ? walletBalance 
+      : 0;
+    
+    // Also try getting from balances array as fallback
+    const balanceFromArray = balances.find(b => b.currency === 'USD')?.available || 0;
+    
+    console.log('💰 PredictionDetailsPageV2 - Balance calculation:', { 
+      isAuthenticated,
+      walletBalance,
+      balanceFromArray,
+      finalBalance: balance || balanceFromArray,
+      balancesArray: balances,
+      formatted: `${(balance || balanceFromArray).toLocaleString()}`
     });
-    return balance;
-  }, [isAuthenticated, getBalance]);
+    
+    return balance || balanceFromArray;
+  }, [isAuthenticated, walletBalance, balances]);
+
+  // Initialize wallet when authenticated
+  useEffect(() => {
+    if (isAuthenticated && currentUser) {
+      console.log('💼 PredictionDetailsPageV2 - Initializing wallet for user:', currentUser.email);
+      initializeWallet();
+    }
+  }, [isAuthenticated, currentUser, initializeWallet]);
 
   // Load prediction data
   const loadPrediction = useCallback(async () => {
@@ -551,8 +587,14 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
             </AnimatePresence>
           </PredictionDetailsTabs>
 
-          {/* Fixed Action Panel - positioned above bottom navigation */}
-          <div className="fixed bottom-16 left-0 right-0 z-20 safe-area-inset md:bottom-0">
+          {/* Fixed Action Panel - positioned above bottom navigation with proper spacing */}
+          <div 
+            className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-2xl" 
+            style={{ 
+              zIndex: 35,
+              paddingBottom: 'calc(5rem + env(safe-area-inset-bottom))'
+            }}
+          >
             <PredictionActionPanel
               prediction={{
                 id: prediction.id,
@@ -566,7 +608,7 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
               stakeAmount={stakeAmount}
               isPlacingBet={isPlacingBet}
               userBalance={userBalance}
-              isAuthenticated={!!user}
+              isAuthenticated={isAuthenticated}
               onOptionSelect={handleOptionSelect}
               onStakeChange={setStakeAmount}
               onPlaceBet={handlePlaceBet}

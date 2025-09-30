@@ -9,7 +9,7 @@ import { useCommentsForPrediction } from '../store/unifiedCommentStore';
 const BetDetailPage: React.FC = () => {
   const [, params] = useRoute('/bet/:id');
   const { bets } = useBetStore();
-  const { balance } = useWalletStore();
+  const { balance, totalBalance, reservedBalance } = useWalletStore();
   const { user } = useAuthStore();
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
   const [stakeAmount, setStakeAmount] = useState<string>('');
@@ -85,6 +85,20 @@ const BetDetailPage: React.FC = () => {
         </div>
       </div>
 
+      {/* Balance Display */}
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 mb-4">
+        <div className="flex items-center justify-between">
+          <span className="text-sm text-gray-600">Available Balance</span>
+          <span className="text-xl font-bold text-gray-900">${balance?.toLocaleString() || '0'}</span>
+        </div>
+        {reservedBalance > 0 && (
+          <div className="flex items-center justify-between mt-2">
+            <span className="text-xs text-gray-500">Reserved</span>
+            <span className="text-sm font-medium text-amber-600">${reservedBalance?.toLocaleString() || '0'}</span>
+          </div>
+        )}
+      </div>
+
       {/* Place Your Bet Section - exactly as reference */}
       <div className="stake-section">
         <h2 className="stake-title">Place Your Bet</h2>
@@ -122,9 +136,14 @@ const BetDetailPage: React.FC = () => {
         <button 
           className="btn btn-primary btn-full"
           onClick={handlePlaceBet}
-          disabled={!selectedOption || !stakeAmount}
+          disabled={!selectedOption || !stakeAmount || parseFloat(stakeAmount) > balance}
+          style={{ 
+            position: 'relative',
+            zIndex: 40,
+            marginBottom: 'calc(env(safe-area-inset-bottom) + 80px)'
+          }}
         >
-          Place Bet
+          {parseFloat(stakeAmount) > balance ? 'Insufficient Balance' : 'Place Bet'}
         </button>
       </div>
 

@@ -4,6 +4,9 @@
 // =========================
 // Config / Environment
 // =========================
+const MEDIA_ENDPOINT = import.meta.env.VITE_MEDIA_ENDPOINT || '/media/search';
+const USE_PROXY = true; // Use serverless proxy to avoid CORS/429
+
 const UNSPLASH_KEY = import.meta.env.VITE_MEDIA_UNSPLASH_KEY as string | undefined;
 const PEXELS_KEY   = import.meta.env.VITE_MEDIA_PEXELS_KEY as string | undefined;
 
@@ -305,17 +308,44 @@ export async function resolveMedia(pred: PredictionLike): Promise<MediaItem> {
   // 1) Build provider queries
   const queries = buildQueries(tokens, contexts);
 
-  // 2) Search providers (keys optional). We try Unsplash and Pexels and merge.
+  // 2) Search providers - use proxy to avoid CORS/429
   let providerResults: ProviderResult[] = [];
-  try {
-    const [u, p] = await Promise.allSettled([
-      searchUnsplash(queries, PROVIDER_LIMIT, seed),
-      searchPexels(queries, PROVIDER_LIMIT, seed),
-    ]);
-    if (u.status === 'fulfilled') providerResults = providerResults.concat(u.value);
-    if (p.status === 'fulfilled') providerResults = providerResults.concat(p.value);
-  } catch {
-    // ignore network/provider errors and fall back
+  if (USE_PROXY) {
+    try {
+      // Use serverless proxy
+      const query = queries[seed % queries.length];
+      const url = new URL(MEDIA_ENDPOINT, window.location.origin);
+      url.searchParams.set('q', query);
+      url.searchParams.set('per', '1');
+      
+      const res = await withTimeout(fetch(url.toString(), { method: 'GET' }));
+      if (res.ok) {
+        const { images } = await res.json();
+        if (images && images.length) {
+          providerResults = images.map((img: any) => ({
+            provider: 'unsplash' as const,
+            id: 'proxy',
+            url: img.url,
+            alt: img.credit || '',
+            tags: [],
+          }));
+        }
+      }
+    } catch {
+      // Fall through to fallback
+    }
+  } else {
+    // Direct API calls (legacy, may have CORS issues)
+    try {
+      const [u, p] = await Promise.allSettled([
+        searchUnsplash(queries, PROVIDER_LIMIT, seed),
+        searchPexels(queries, PROVIDER_LIMIT, seed),
+      ]);
+      if (u.status === 'fulfilled') providerResults = providerResults.concat(u.value);
+      if (p.status === 'fulfilled') providerResults = providerResults.concat(p.value);
+    } catch {
+      // ignore network/provider errors and fall back
+    }
   }
 
   // 3) Apply optional strong override (editor hint) if provided

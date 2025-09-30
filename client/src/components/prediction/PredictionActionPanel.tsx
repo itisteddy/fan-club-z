@@ -50,9 +50,10 @@ const PredictionActionPanel: React.FC<PredictionActionPanelProps> = ({
     console.log('🔐 PredictionActionPanel - Auth State:', { 
       isAuthenticated, 
       canPlaceBet,
+      userBalance,
       predictionId: prediction.id 
     });
-  }, [isAuthenticated, canPlaceBet, prediction.id]);
+  }, [isAuthenticated, canPlaceBet, userBalance, prediction.id]);
 
   if (!canPlaceBet) {
     // Show engagement actions only
@@ -147,56 +148,44 @@ const PredictionActionPanel: React.FC<PredictionActionPanelProps> = ({
                     step="0.01"
                   />
                 </div>
-                <p className="text-xs text-gray-500 mt-1">
-                  Balance: ${userBalance.toLocaleString()}
+                <p className="text-sm text-gray-600 mt-1 flex items-center justify-between">
+                  <span>Available: ${(userBalance || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                  {parseFloat(stakeAmount) > userBalance && (
+                    <span className="text-red-600 font-medium">Insufficient funds</span>
+                  )}
                 </p>
               </div>
 
               <button
                 onClick={onPlaceBet}
-                disabled={!stakeAmount || isPlacingBet || parseFloat(stakeAmount) > userBalance}
-                className={`w-full py-3 rounded-lg font-semibold transition-colors ${
-                  !stakeAmount || isPlacingBet || parseFloat(stakeAmount) > userBalance
-                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                    : 'bg-emerald-500 text-white hover:bg-emerald-600'
+                disabled={!stakeAmount || isPlacingBet || parseFloat(stakeAmount) > userBalance || parseFloat(stakeAmount) <= 0}
+                className={`w-full py-4 rounded-xl font-bold text-lg transition-all transform ${
+                  !stakeAmount || isPlacingBet || parseFloat(stakeAmount) > userBalance || parseFloat(stakeAmount) <= 0
+                    ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                    : 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white hover:from-emerald-600 hover:to-teal-600 active:scale-[0.98] shadow-lg hover:shadow-xl'
                 }`}
+                style={{
+                  position: 'relative',
+                  zIndex: 10
+                }}
               >
                 {isPlacingBet ? (
                   <div className="flex items-center justify-center space-x-2">
                     <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
                     <span>Placing Bet...</span>
                   </div>
+                ) : parseFloat(stakeAmount) > userBalance ? (
+                  'Insufficient Balance'
+                ) : parseFloat(stakeAmount) <= 0 || !stakeAmount ? (
+                  'Enter Amount'
                 ) : (
-                  `Place Bet - ${stakeAmount || '0.00'}`
+                  `Place Bet - ${parseFloat(stakeAmount).toFixed(2)}`
                 )}
               </button>
             </motion.div>
           )}
         </>
       )}
-
-      {/* Engagement Actions */}
-      <div className="flex items-center justify-center space-x-8 pt-2 border-t border-gray-100">
-        <button
-          onClick={onLike}
-          className={`flex items-center space-x-2 px-3 py-2 rounded-lg transition-colors ${
-            prediction.isLiked
-              ? 'bg-red-50 text-red-600'
-              : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
-          }`}
-        >
-          <Heart className={`w-4 h-4 ${prediction.isLiked ? 'fill-current' : ''}`} />
-          <span>{prediction.likeCount || 0}</span>
-        </button>
-        
-        <button
-          onClick={onComment}
-          className="flex items-center space-x-2 px-3 py-2 rounded-lg bg-gray-50 text-gray-600 hover:bg-gray-100 transition-colors"
-        >
-          <MessageCircle className="w-4 h-4" />
-          <span>{prediction.commentCount || 0}</span>
-        </button>
-      </div>
     </div>
   );
 };

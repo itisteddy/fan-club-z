@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useCallback, useEffect, useState } from 'react';
 import { useLocation } from 'wouter';
 import { isDev } from '@/utils/environment';
+import { useAuthStore } from '@/store/authStore';
 import { 
   OnboardingSystem, 
   WelcomeModal, 
@@ -239,6 +240,13 @@ export const OnboardingProvider: React.FC<{ children: React.ReactNode }> = ({
   } = useOnboarding();
 
   const [showWelcome, setShowWelcome] = useState(false);
+  const { user, loading: authLoading } = useAuthStore();
+  
+  // Gate: Don't run tour during auth flow or modals
+  const canRunTour = 
+    user && // Signed in
+    !authLoading && // Auth loaded
+    document.querySelector('[data-tour="discover-header"]'); // UI ready
 
   // Store navigate function globally for onboarding steps
   useEffect(() => {
@@ -316,7 +324,7 @@ export const OnboardingProvider: React.FC<{ children: React.ReactNode }> = ({
 
   // Context value
   const contextValue: OnboardingContextValue = {
-    isActive: state.isActive,
+    isActive: state.isActive && canRunTour,
     showWelcome,
     startFullTour: handleStartFullTour,
     startQuickTour: handleStartQuickTour,
@@ -327,27 +335,36 @@ export const OnboardingProvider: React.FC<{ children: React.ReactNode }> = ({
     totalSteps: config?.steps.length || 0
   };
 
+  // Don't render tour if gated
+  if (!canRunTour && state.isActive) {
+    return <OnboardingContext.Provider value={contextValue}>{children}</OnboardingContext.Provider>;
+  }
+
   return (
     <OnboardingContext.Provider value={contextValue}>
       {children}
       
       {/* Welcome Modal */}
-      <WelcomeModal
-        isOpen={showWelcome}
-        onStartTour={handleStartFullTour}
-        onMinimalTour={handleStartQuickTour}
-        onSkip={handleSkipOnboarding}
-      />
+      {canRunTour && (
+        <WelcomeModal
+          isOpen={showWelcome}
+          onStartTour={handleStartFullTour}
+          onMinimalTour={handleStartQuickTour}
+          onSkip={handleSkipOnboarding}
+        />
+      )}
       
       {/* Onboarding System */}
-      <OnboardingSystem
-        isActive={state.isActive}
-        config={config}
-        currentStep={state.currentStep}
-        onNext={nextStep}
-        onPrev={prevStep}
-        onSkip={skipOnboarding}
-      />
+      {canRunTour && (
+        <OnboardingSystem
+          isActive={state.isActive}
+          config={config}
+          currentStep={state.currentStep}
+          onNext={nextStep}
+          onPrev={prevStep}
+          onSkip={skipOnboarding}
+        />
+      )}
     </OnboardingContext.Provider>
   );
 };

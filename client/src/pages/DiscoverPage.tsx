@@ -29,36 +29,35 @@ const CategoryFilters = React.memo(function CategoryFilters({
   onSelect: (category: string) => void;
 }) {
   const categories = [
-    { id: 'all', label: 'All', icon: '🌟' },
-    { id: 'sports', label: 'Sports', icon: '⚽' },
-    { id: 'pop_culture', label: 'Pop Culture', icon: '🎬' },
-    { id: 'custom', label: 'Custom', icon: '✨' },
-    { id: 'politics', label: 'Politics', icon: '🗳️' },
-    { id: 'crypto', label: 'Crypto', icon: '₿' },
-    { id: 'tech', label: 'Tech', icon: '💻' },
-    { id: 'finance', label: 'Finance', icon: '📈' }
+    { id: 'all', label: 'All' },
+    { id: 'sports', label: 'Sports' },
+    { id: 'pop_culture', label: 'Pop Culture' },
+    { id: 'custom', label: 'Custom' },
+    { id: 'politics', label: 'Politics' },
+    { id: 'crypto', label: 'Crypto' },
+    { id: 'tech', label: 'Tech' },
+    { id: 'finance', label: 'Finance' }
   ];
 
   return (
-    <div className="category-filters bg-white border-b border-gray-100 px-4 py-3" data-tour-id="category-filters">
-      <div className="category-filters-container overflow-x-auto -mx-2 px-2">
-        <div className="category-filters-flex flex gap-2 pb-1">
+    <div className="category-filters bg-white border-b border-gray-100 px-4 py-3">
+      <div className="overflow-x-auto -mx-2 px-2">
+        <div className="flex gap-2 pb-1" data-tour="category-chips">
           {categories.map((category) => (
             <motion.button
               key={category.id}
               onClick={() => onSelect(category.id)}
-              className={`
-                category-pill flex-shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium
-                transition-all duration-200 whitespace-nowrap
-                ${selectedCategory === category.id
-                  ? 'active bg-purple-500 text-white shadow-sm'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }
-              `}
+              className={
+                `flex-shrink-0 inline-flex items-center px-3 h-[25px] rounded-full text-sm font-medium ` +
+                `transition-all duration-200 whitespace-nowrap ` +
+                (selectedCategory === category.id
+                  ? 'bg-purple-500 text-white shadow-sm'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200')
+              }
               whileTap={{ scale: 0.96 }}
+              data-tour="category-chips-item"
             >
-              {/* Removed emoji icons in category chips to align with standard iconography preference */}
-              <span>{category.label}</span>
+              {category.label}
             </motion.button>
           ))}
         </div>
@@ -80,7 +79,7 @@ const DiscoverHeaderContent = React.memo(function DiscoverHeaderContent({
   onSearchChange: (query: string) => void;
 }) {
   return (
-    <div className="px-4 pt-4 pb-4 bg-white">
+    <div className="px-4 pt-4 pb-4 bg-white" data-tour="discover-header">
       {/* Live market stats */}
       <motion.div
         initial={{ opacity: 0, y: 10 }}
@@ -391,7 +390,19 @@ const DiscoverPage = React.memo(function DiscoverPage({ onNavigateToProfile, onN
           className="px-4 mb-4"
         >
           <h2 className="text-xl font-bold text-gray-900 mb-1" data-tour-id="discover-list">
-            {filters.category === 'all' ? 'All Predictions' : `${filters.category} Predictions`}
+            {(() => {
+              const categoryLabels: Record<string, string> = {
+                'all': 'All Predictions',
+                'sports': 'Sports Predictions',
+                'pop_culture': 'Pop Culture Predictions',
+                'custom': 'Custom Predictions',
+                'politics': 'Politics Predictions',
+                'crypto': 'Crypto Predictions',
+                'tech': 'Tech Predictions',
+                'finance': 'Finance Predictions'
+              };
+              return categoryLabels[filters.category] || 'All Predictions';
+            })()}
             {filters.search && ` - "${filters.search}"`}
           </h2>
           {/* Show pagination info instead of static count */}

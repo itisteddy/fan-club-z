@@ -17,12 +17,14 @@ const navigationItems = [
     label: 'Discover',
     icon: Sparkles,
     path: '/discover',
+    tourAttr: 'nav-discover',
   },
   {
     id: 'mybets',
     label: 'My Bets',
     icon: ChartLine,
     path: '/mybets',
+    tourAttr: 'nav-wallet',
   },
   {
     id: 'create',
@@ -42,6 +44,7 @@ const navigationItems = [
     label: 'Profile',
     icon: User,
     path: '/profile',
+    tourAttr: 'nav-profile',
   },
 ];
 
@@ -80,6 +83,7 @@ export const BottomNavigation: React.FC = () => {
                 key={item.id}
                 onClick={() => handleNavigation(item.path)}
                 className="relative flex flex-col items-center justify-center p-2 min-w-[60px] group"
+                data-tour={item.tourAttr}
                 whileTap={{ scale: 0.9 }}
                 whileHover={{ scale: 1.05 }}
                 initial={{ scale: 0, rotate: -180 }}
@@ -116,6 +120,7 @@ export const BottomNavigation: React.FC = () => {
               key={item.id}
               onClick={() => handleNavigation(item.path)}
               className="relative flex flex-col items-center justify-center p-3 min-w-[60px] group"
+              data-tour={item.tourAttr}
               whileTap={{ scale: 0.95 }}
               whileHover={{ scale: 1.05 }}
               initial={{ y: 50, opacity: 0 }}

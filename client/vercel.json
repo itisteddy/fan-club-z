@@ -4,6 +4,10 @@
   "installCommand": "cd .. && npm install && cd client && npm install",
   "rewrites": [
     {
+      "source": "/media/search",
+      "destination": "/api/media-search"
+    },
+    {
       "source": "/(.*)",
       "destination": "/index.html"
     }
