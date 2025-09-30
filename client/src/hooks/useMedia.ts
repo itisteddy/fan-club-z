@@ -12,13 +12,26 @@ type Status = 'idle' | 'loading' | 'ready' | 'error';
 // For backwards compatibility with existing code
 export function useMedia(
   id: string,
-  prediction: {
+  prediction?: {
     id: string;
     title: string;
     description?: string;
     category?: string;
   }
 ) {
+  // Return default values if prediction is undefined
+  if (!prediction) {
+    return {
+      media: {
+        id: id || '',
+        url: '',
+        alt: '',
+        provider: 'fallback',
+      },
+      status: 'idle' as Status,
+    };
+  }
+
   // Use the new hook
   const result = usePredictionMedia({
     id: prediction.id,
