@@ -216,11 +216,11 @@ export function usePredictionMedia(prediction?: {
     })();
 
     return () => { cancelled = true; };
-  }, [prediction.id, prediction.title, prediction.category]);
+  }, [prediction?.id, prediction?.title, prediction?.category]);
 
   return {
-    url: url || getFallback(prediction.id, prediction.category),
-    alt: prediction.title,
+    url: url || getFallback(prediction?.id || '', prediction?.category),
+    alt: prediction?.title || '',
     provider: url ? 'api' : 'fallback',
     status,
   };
