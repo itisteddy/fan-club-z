@@ -26,7 +26,8 @@ import CreatorByline from '../components/predictions/CreatorByline';
 import SignInInline from '../components/auth/SignInInline';
 import BetOptions from '../components/predictions/BetOptions';
 import PlaceBetSticky from '../components/predictions/PlaceBetSticky';
-import { useShareResult } from '../components/share/useShareResult';
+// TODO: Re-enable share functionality after testing
+// import { useShareResult } from '../components/share/useShareResult';
 
 import toast from 'react-hot-toast';
 import { formatCurrency } from '@lib/format';
@@ -70,8 +71,8 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
   const [activeTab, setActiveTab] = useState('overview');
   const [shareUrl, setShareUrl] = useState('');
   
-  // Share functionality
-  const { SharePreview, share: shareResult } = useShareResult();
+  // TODO: Re-enable share functionality after testing
+  // const { SharePreview, share: shareResult } = useShareResult();
 
   // Store hooks
   const {
@@ -629,7 +630,7 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
             label="Place Bet"
           />
 
-          {/* Share Preview (hidden off-screen) */}
+          {/* TODO: Share Preview will be added later after proper testing
           {prediction && prediction.user_entry && (
             <SharePreview
               title={prediction.title}
@@ -639,7 +640,7 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
               result={prediction.user_entry.status === 'won' ? 'won' : prediction.user_entry.status === 'lost' ? 'lost' : 'active'}
               creatorName={prediction.creator?.full_name || prediction.creator?.username}
             />
-          )}
+          )} */}
         </div>
       </motion.div>
     </>
