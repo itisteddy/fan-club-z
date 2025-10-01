@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
-import { useMedia } from '@/hooks/useMedia';
+import { useMedia } from '../../hooks/useMedia';
 import { formatNumberShort, formatDurationShort } from '@lib/format';
+import CreatorByline from './CreatorByline';
 
 type PredictionCardProps = {
   prediction: {
@@ -12,6 +13,13 @@ type PredictionCardProps = {
     players?: number;      // participants
     options?: Array<{ label: string; odds?: number }>;
     description?: string | null;
+    creator?: {
+      id?: string;
+      username?: string | null;
+      full_name?: string | null;
+      avatar_url?: string | null;
+      is_verified?: boolean | null;
+    };
   };
 };
 
@@ -50,6 +58,10 @@ export default function PredictionCardV3({ prediction }: PredictionCardProps) {
           <h3 className="mt-1 line-clamp-2 text-[15px] font-semibold text-gray-900">
             {prediction.title}
           </h3>
+
+          {prediction.creator && (
+            <CreatorByline creator={prediction.creator} className="mt-1.5 text-xs" />
+          )}
 
           <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-gray-500">
             {typeof prediction.pool === 'number' && (

@@ -14,13 +14,19 @@ const AriaUtils = { announce: (message: string) => console.log('Announce:', mess
 
 // Import unified header system
 import { AppHeader } from '../components/layout/AppHeader';
-import PredictionActionPanel from '../components/prediction/PredictionActionPanel';
 import PredictionDetailsTabs from '../components/prediction/PredictionDetailsTabs';
 import { CommentsSection } from '../features/comments';
 import { useMedia } from '../hooks/useMedia';
 import LoadingState from '../components/ui/LoadingState';
 import ErrorBanner from '../components/ui/ErrorBanner';
 import EmptyState from '../components/ui/EmptyState';
+
+// New compact components
+import CreatorByline from '../components/predictions/CreatorByline';
+import SignInInline from '../components/auth/SignInInline';
+import BetOptions from '../components/predictions/BetOptions';
+import PlaceBetSticky from '../components/predictions/PlaceBetSticky';
+import { useShareResult } from '../components/share/useShareResult';
 
 import toast from 'react-hot-toast';
 import { formatCurrency } from '@lib/format';
@@ -63,6 +69,9 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
   const [isPlacingBet, setIsPlacingBet] = useState(false);
   const [activeTab, setActiveTab] = useState('overview');
   const [shareUrl, setShareUrl] = useState('');
+  
+  // Share functionality
+  const { SharePreview, share: shareResult } = useShareResult();
 
   // Store hooks
   const {
@@ -494,14 +503,7 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
                     <h1 className="text-2xl font-bold text-gray-900 leading-tight mb-2">
                       {prediction.title}
                     </h1>
-                    {prediction.creator && (
-                      <div className="flex items-center text-sm text-gray-600">
-                        <span>Created by</span>
-                        <span className="ml-1 font-medium text-gray-900">
-                          {prediction.creator.firstName || prediction.creator.email?.split('@')[0] || 'User'}
-                        </span>
-                      </div>
-                    )}
+                    <CreatorByline creator={prediction.creator} className="mt-2" />
                   </div>
                   
                   {/* Prediction Stats */}
@@ -596,36 +598,47 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
             </AnimatePresence>
           </PredictionDetailsTabs>
 
-          {/* Fixed Action Panel - positioned above bottom navigation with proper spacing */}
+          {/* Compact Bet Options Section - In Normal Flow */}
           {prediction && (
-            <div 
-              className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-2xl" 
-              style={{ 
-                zIndex: 35,
-                paddingBottom: 'calc(5rem + env(safe-area-inset-bottom))'
-              }}
-            >
-              <PredictionActionPanel
-                prediction={{
-                  id: prediction.id,
-                  status: prediction.status,
-                  options: prediction.options || [],
-                  likeCount: prediction.likeCount,
-                  commentCount: prediction.commentCount,
-                  isLiked: prediction.isLiked
-                }}
-              selectedOptionId={selectedOptionId}
-              stakeAmount={stakeAmount}
-              isPlacingBet={isPlacingBet}
-              userBalance={userBalance}
-              isAuthenticated={isAuthenticated}
-              onOptionSelect={handleOptionSelect}
-              onStakeChange={setStakeAmount}
-              onPlaceBet={handlePlaceBet}
-              onLike={handleLike}
-              onComment={handleComment}
-            />  
+            <div className="p-6 pb-24">
+              {!isAuthenticated ? (
+                <SignInInline 
+                  message="Sign in to place a bet"
+                  description="Create an account or sign in to participate"
+                />
+              ) : (
+                <BetOptions
+                  options={prediction.options || []}
+                  selected={selectedOptionId || undefined}
+                  onSelect={handleOptionSelect}
+                  stake={stakeAmount}
+                  onStake={setStakeAmount}
+                  disabled={isPlacingBet}
+                  balance={userBalance}
+                />
+              )}
             </div>
+          )}
+
+          {/* Floating Place Bet Button - Only shows when ready */}
+          <PlaceBetSticky
+            visible={!!selectedOptionId && !!stakeAmount && parseFloat(stakeAmount) > 0}
+            onClick={handlePlaceBet}
+            disabled={isPlacingBet || !isAuthenticated || parseFloat(stakeAmount) > userBalance}
+            loading={isPlacingBet}
+            label="Place Bet"
+          />
+
+          {/* Share Preview (hidden off-screen) */}
+          {prediction && prediction.user_entry && (
+            <SharePreview
+              title={prediction.title}
+              choice={prediction.options?.find(o => o.id === prediction.user_entry?.option_id)?.label || 'Unknown'}
+              stake={prediction.user_entry.amount}
+              payout={prediction.user_entry.potential_payout}
+              result={prediction.user_entry.status === 'won' ? 'won' : prediction.user_entry.status === 'lost' ? 'lost' : 'active'}
+              creatorName={prediction.creator?.full_name || prediction.creator?.username}
+            />
           )}
         </div>
       </motion.div>
