@@ -23,9 +23,10 @@ import EmptyState from '../components/ui/EmptyState';
 
 // New compact components
 import CreatorByline from '../components/predictions/CreatorByline';
-import SignInInline from '../components/auth/SignInInline';
-import BetOptions from '../components/predictions/BetOptions';
-import PlaceBetSticky from '../components/predictions/PlaceBetSticky';
+import SignInCallout from '../components/auth/SignInCallout';
+import { TitleAndMeta } from '../components/predictions/TitleAndMeta';
+import { OptionsSection } from '../components/predictions/OptionsSection';
+import { StickyBetBar } from '../components/predictions/StickyBetBar';
 // TODO: Re-enable share functionality after testing
 // import { useShareResult } from '../components/share/useShareResult';
 
@@ -79,7 +80,6 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
     predictions,
     fetchPredictionById,
     placePrediction,
-    togglePredictionLike,
     loading,
     error
   } = usePredictionStore();
@@ -273,7 +273,7 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
     }
   };
 
-  // Handle like toggle
+  // Handle like toggle (placeholder - not currently used)
   const handleLike = async () => {
     if (!isAuthenticated) {
       openAuthGate({
@@ -282,18 +282,8 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
       });
       return;
     }
-
-    if (!prediction) return;
-
-    try {
-      await togglePredictionLike(prediction.id);
-      AriaUtils.announce(
-        prediction.isLiked ? 'Prediction unliked' : 'Prediction liked'
-      );
-    } catch (error) {
-      console.error('Error toggling like:', error);
-      showErrorToast('Failed to update like');
-    }
+    // TODO: Implement like functionality
+    console.log('Like toggled');
   };
 
   // Handle comment navigation
@@ -419,8 +409,8 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
 
   if (!prediction) return null;
 
-  const participantCount = prediction.participants?.length || 0;
-  const totalVolume = prediction.totalVolume || '0.00';
+  const participantCount = prediction.participant_count || 0;
+  const totalVolume = prediction.pool_total || 0;
 
   return (
     <>
@@ -478,38 +468,30 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
         )}
       </div>
 
-      <motion.div
-        initial={reduceMotion ? {} : { opacity: 0 }}
-        animate={{ opacity: 1 }}
-        className="min-h-screen bg-gray-50"
-      >
-        <div className="pb-safe">
+      {/* Main content with proper bottom padding to avoid overlap with fixed elements */}
+      <main className="px-4 pb-[calc(var(--bottom-nav-h,64px)+72px+env(safe-area-inset-bottom))] pt-4 space-y-4 bg-gray-50">
+        {/* Title and Creator */}
+        <TitleAndMeta title={prediction.title} creator={prediction.creator} />
+
+        {/* Tabs */}
           <PredictionDetailsTabs
             activeTab={activeTab}
             onTabChange={setActiveTab}
-            commentCount={prediction.commentCount}
+            commentCount={prediction.comments_count || 0}
             participantCount={participantCount}
           >
-            <AnimatePresence mode="wait">
-              {activeTab === 'overview' && (
-                <motion.div
-                  key="overview"
-                  initial={reduceMotion ? {} : { opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={reduceMotion ? {} : { opacity: 0, x: 20 }}
-                  className="p-6"
-                >
-                  {/* Prediction Title */}
-                  <div className="mb-6">
-                    <h1 className="text-2xl font-bold text-gray-900 leading-tight mb-2">
-                      {prediction.title}
-                    </h1>
-                    <CreatorByline creator={prediction.creator} className="mt-2" />
-                  </div>
-                  
+          <AnimatePresence mode="wait">
+            {activeTab === 'overview' && (
+              <motion.div
+                key="overview"
+                initial={reduceMotion ? {} : { opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={reduceMotion ? {} : { opacity: 0, x: 20 }}
+                className="space-y-4"
+              >
                   {/* Prediction Stats */}
-                  <div className="bg-white rounded-2xl p-6 mb-4 shadow-sm">
-                    <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                  <div className="bg-white rounded-2xl p-4 shadow-sm border">
+                    <h3 className="text-base font-semibold text-gray-900 mb-3">
                       Prediction Details
                     </h3>
                     <div className="grid grid-cols-2 gap-4">
@@ -519,7 +501,7 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
                         </div>
                         <div>
                           <p className="text-sm text-gray-500">Total Volume</p>
-                          <p className="font-semibold text-gray-900">${totalVolume}</p>
+                          <p className="font-semibold text-gray-900">{formatCurrency(totalVolume, { compact: true })}</p>
                         </div>
                       </div>
                       <div className="flex items-center space-x-3">
@@ -536,27 +518,27 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
 
                   {/* Description */}
                   {prediction.description && (
-                    <div className="bg-white rounded-2xl p-6 mb-4 shadow-sm">
-                      <h3 className="text-lg font-semibold text-gray-900 mb-3">
+                    <div className="bg-white rounded-2xl p-4 shadow-sm border">
+                      <h3 className="text-base font-semibold text-gray-900 mb-2">
                         Description
                       </h3>
-                      <p className="text-gray-700 leading-relaxed">
+                      <p className="text-sm text-gray-700 leading-relaxed">
                         {prediction.description}
                       </p>
                     </div>
                   )}
 
                   {/* Prediction Rules */}
-                  <div className="bg-white rounded-2xl p-6 shadow-sm">
-                    <h3 className="text-lg font-semibold text-gray-900 mb-3">
+                  <div className="bg-white rounded-2xl p-4 shadow-sm border">
+                    <h3 className="text-base font-semibold text-gray-900 mb-2">
                       How This Works
                     </h3>
-                    <div className="space-y-3 text-sm text-gray-600">
-                      <p>• Choose an outcome you believe will happen</p>
-                      <p>• Stake an amount you're comfortable with</p>
-                      <p>• If you're right, win based on the current odds</p>
-                      <p>• Betting closes when the prediction expires</p>
-                    </div>
+                    <ul className="space-y-1.5 text-sm text-gray-600">
+                      <li>• Choose an outcome you believe will happen</li>
+                      <li>• Stake an amount you're comfortable with</li>
+                      <li>• If you're right, win based on the current odds</li>
+                      <li>• Betting closes when the prediction expires</li>
+                    </ul>
                   </div>
                 </motion.div>
               )}
@@ -599,50 +581,81 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
             </AnimatePresence>
           </PredictionDetailsTabs>
 
-          {/* Compact Bet Options Section - In Normal Flow */}
-          {prediction && (
-            <div className="p-6 pb-24">
-              {!isAuthenticated ? (
-                <SignInInline 
-                  message="Sign in to place a bet"
-                  description="Create an account or sign in to participate"
-                />
-              ) : (
-                <BetOptions
-                  options={prediction.options || []}
-                  selected={selectedOptionId || undefined}
-                  onSelect={handleOptionSelect}
-                  stake={stakeAmount}
-                  onStake={setStakeAmount}
+        {/* Options Section - Compact */}
+        {!isAuthenticated ? (
+          <SignInCallout
+            onSignIn={() =>
+              openAuthGate({
+                intent: 'place_prediction',
+                payload: { predictionId }
+              })
+            }
+          />
+        ) : (
+          <OptionsSection
+            options={prediction.options || []}
+            selectedId={selectedOptionId || undefined}
+            onSelect={handleOptionSelect}
+            disabled={isPlacingBet}
+          />
+        )}
+
+        {/* Stake Input - Only shows after option selection */}
+        {isAuthenticated && selectedOptionId && (
+          <div className="bg-white rounded-2xl p-4 shadow-sm border space-y-3">
+            <div>
+              <label htmlFor="stake-input" className="block text-sm font-medium text-gray-900 mb-2">
+                Stake Amount (USD)
+              </label>
+              <div className="relative">
+                <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400 pointer-events-none" />
+                <input
+                  id="stake-input"
+                  type="number"
+                  inputMode="decimal"
+                  placeholder="0.00"
+                  value={stakeAmount}
+                  onChange={(e) => setStakeAmount(e.target.value)}
                   disabled={isPlacingBet}
-                  balance={userBalance}
+                  className="w-full rounded-xl border bg-background pl-10 pr-4 py-3 text-lg font-semibold transition-colors border-border focus:border-primary focus:ring-primary/20 focus:outline-none focus:ring-2 disabled:opacity-50"
                 />
+              </div>
+            </div>
+            
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-gray-600">
+                Available: {formatCurrency(userBalance, { compact: true })}
+              </span>
+              {stakeAmount && parseFloat(stakeAmount) > userBalance && (
+                <span className="text-red-600 font-medium">Insufficient balance</span>
               )}
             </div>
-          )}
+            
+            {/* Quick Amount Buttons */}
+            <div className="grid grid-cols-3 gap-2">
+              {[10, 25, 50, 100, 250, 500].map((amount) => (
+                <button
+                  key={amount}
+                  onClick={() => setStakeAmount(amount.toString())}
+                  disabled={isPlacingBet || amount > userBalance}
+                  className="rounded-lg border bg-gray-50 px-3 py-2 text-sm font-medium hover:bg-gray-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  ${amount}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+      </main>
 
-          {/* Floating Place Bet Button - Only shows when ready */}
-          <PlaceBetSticky
-            visible={!!selectedOptionId && !!stakeAmount && parseFloat(stakeAmount) > 0}
-            onClick={handlePlaceBet}
-            disabled={isPlacingBet || !isAuthenticated || parseFloat(stakeAmount) > userBalance}
-            loading={isPlacingBet}
-            label="Place Bet"
-          />
-
-          {/* TODO: Share Preview will be added later after proper testing
-          {prediction && prediction.user_entry && (
-            <SharePreview
-              title={prediction.title}
-              choice={prediction.options?.find(o => o.id === prediction.user_entry?.option_id)?.label || 'Unknown'}
-              stake={prediction.user_entry.amount}
-              payout={prediction.user_entry.potential_payout}
-              result={prediction.user_entry.status === 'won' ? 'won' : prediction.user_entry.status === 'lost' ? 'lost' : 'active'}
-              creatorName={prediction.creator?.full_name || prediction.creator?.username}
-            />
-          )} */}
-        </div>
-      </motion.div>
+      {/* Fixed Bet Bar - Above Bottom Navigation */}
+      {isAuthenticated && selectedOptionId && (
+        <StickyBetBar
+          canBet={!!stakeAmount && parseFloat(stakeAmount) > 0 && parseFloat(stakeAmount) <= userBalance}
+          onPlace={handlePlaceBet}
+          loading={isPlacingBet}
+        />
+      )}
     </>
   );
 };

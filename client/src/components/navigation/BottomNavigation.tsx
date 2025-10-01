@@ -66,8 +66,11 @@ export const BottomNavigation: React.FC = () => {
 
   return (
     <motion.div 
-      className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-sm border-t border-gray-100 z-50 shadow-sm"
-      style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+      className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-sm border-t border-gray-100 z-50 shadow-sm h-16"
+      style={{ 
+        paddingBottom: 'env(safe-area-inset-bottom)',
+        ['--bottom-nav-h' as any]: '64px'
+      } as React.CSSProperties}
       initial={{ y: 100 }}
       animate={{ y: 0 }}
       transition={{ type: "spring", stiffness: 300, damping: 30 }}
