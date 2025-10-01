@@ -527,19 +527,6 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
                       </p>
                     </div>
                   )}
-
-                  {/* Prediction Rules */}
-                  <div className="bg-white rounded-2xl p-4 shadow-sm border">
-                    <h3 className="text-base font-semibold text-gray-900 mb-2">
-                      How This Works
-                    </h3>
-                    <ul className="space-y-1.5 text-sm text-gray-600">
-                      <li>• Choose an outcome you believe will happen</li>
-                      <li>• Stake an amount you're comfortable with</li>
-                      <li>• If you're right, win based on the current odds</li>
-                      <li>• Betting closes when the prediction expires</li>
-                    </ul>
-                  </div>
                 </motion.div>
               )}
 
@@ -550,7 +537,6 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
                   animate={{ opacity: 1, x: 0 }}
                   exit={reduceMotion ? {} : { opacity: 0, x: 20 }}
                   data-qa="comments-section"
-                  className="p-6"
                 >
                   <CommentsSection predictionId={predictionId} />
                 </motion.div>
@@ -562,18 +548,12 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
                   initial={reduceMotion ? {} : { opacity: 0, x: -20 }}
                   animate={{ opacity: 1, x: 0 }}
                   exit={reduceMotion ? {} : { opacity: 0, x: 20 }}
-                  className="p-6"
                 >
-                  <div className="bg-white rounded-2xl p-6 shadow-sm">
-                    <h3 className="text-lg font-semibold text-gray-900 mb-4">
-                      Recent Activity
-                    </h3>
-                    <div className="text-center py-8 text-gray-500">
-                      <Users className="w-12 h-12 mx-auto mb-4 text-gray-300" />
-                      <p>Activity feed coming soon</p>
-                      <p className="text-sm mt-2">
-                        Track predictions and settlements
-                      </p>
+                  <div className="bg-white rounded-2xl p-4 shadow-sm border">
+                    <div className="text-center py-6 text-gray-500">
+                      <Users className="w-10 h-10 mx-auto mb-3 text-gray-300" />
+                      <p className="font-medium text-gray-700 mb-1">Activity feed coming soon</p>
+                      <p className="text-sm">Track predictions and settlements</p>
                     </div>
                   </div>
                 </motion.div>

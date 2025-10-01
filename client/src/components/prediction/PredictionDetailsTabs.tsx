@@ -66,7 +66,7 @@ const PredictionDetailsTabs: React.FC<PredictionDetailsTabsProps> = ({
       </div>
 
       {/* Tab Content */}
-      <div className="min-h-screen">
+      <div>
         {children}
       </div>
     </div>
