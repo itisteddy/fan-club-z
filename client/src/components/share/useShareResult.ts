@@ -1,7 +1,7 @@
 import { useRef, useCallback } from 'react';
 import { toPng } from 'html-to-image';
-import ShareResultCard from './ShareResultCard';
-import type { ShareResultProps } from './ShareResultCard';
+import ShareOutcomeCard from './ShareOutcomeCard';
+import type { ShareOutcomeProps } from './ShareOutcomeCard';
 import toast from 'react-hot-toast';
 
 export interface ShareOptions {
@@ -20,9 +20,9 @@ export function useShareResult() {
   /**
    * Share preview component - renders off-screen
    */
-  const SharePreview = (props: ShareResultProps) => (
+  const SharePreview = (props: ShareOutcomeProps) => (
     <div className="fixed -left-[9999px] top-0 pointer-events-none" aria-hidden="true">
-      <ShareResultCard ref={cardRef} {...props} />
+      <ShareOutcomeCard ref={cardRef} {...props} />
     </div>
   );
 

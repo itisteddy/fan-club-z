@@ -20,6 +20,7 @@ import { useMedia } from '../hooks/useMedia';
 import LoadingState from '../components/ui/LoadingState';
 import ErrorBanner from '../components/ui/ErrorBanner';
 import EmptyState from '../components/ui/EmptyState';
+import ActivityFeed from '../components/activity/ActivityFeed';
 
 // New compact components
 import CreatorByline from '../components/predictions/CreatorByline';
@@ -45,17 +46,17 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
 }) => {
   const navigate = useNavigate();
   const params = useParams<{ id?: string; predictionId?: string }>();
-  const { user, isAuthenticated: sessionAuth } = useAuthSession();
+  const { user: sessionUser } = useAuthSession();
   const reduceMotion = prefersReducedMotion();
   const { isAuthenticated: storeAuth, user: storeUser } = useAuthStore();
   
   // Use either auth source
-  const isAuthenticated = sessionAuth || storeAuth;
-  const currentUser = user || storeUser;
+  const isAuthenticated = !!sessionUser || storeAuth;
+  const currentUser = sessionUser || storeUser;
 
   // Debug: Log auth state
   console.log('🔍 PredictionDetailsPageV2 Auth State:', { 
-    sessionAuth,
+    sessionUser: !!sessionUser,
     storeAuth,
     isAuthenticated,
     hasUser: !!currentUser,
@@ -359,7 +360,7 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
         </header>
         
         <ErrorBanner
-          message="Failed to load prediction details"
+          error="Failed to load prediction details"
           onRetry={loadPrediction}
           className="m-4"
         />
@@ -397,7 +398,7 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
           icon={BarChart3}
           title="Prediction Not Found"
           description="The prediction you're looking for doesn't exist or has been removed."
-          primaryAction={{
+          action={{
             label: 'Browse Predictions',
             onClick: () => navigate('/discover')
           }}
@@ -527,6 +528,85 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
                       </p>
                     </div>
                   )}
+
+                  {/* How This Works Section - Now outside tabs and compact */}
+                  <div className="bg-white rounded-2xl p-4 shadow-sm border">
+                    <h3 className="text-base font-semibold text-gray-900 mb-2">
+                      How This Works
+                    </h3>
+                    <ul className="space-y-1.5 text-sm text-gray-600">
+                      <li>• Choose an outcome you believe will happen</li>
+                      <li>• Stake an amount you're comfortable with</li>
+                      <li>• If you're right, win based on the current odds</li>
+                      <li>• Betting closes when the prediction expires</li>
+                    </ul>
+                  </div>
+
+                  {/* Options Section - Only on Overview tab */}
+                  {!isAuthenticated ? (
+                    <SignInCallout
+                      onSignIn={() =>
+                        openAuthGate({
+                          intent: 'place_prediction',
+                          payload: { predictionId }
+                        })
+                      }
+                    />
+                  ) : (
+                    <OptionsSection
+                      options={prediction.options || []}
+                      selectedId={selectedOptionId || undefined}
+                      onSelect={handleOptionSelect}
+                      disabled={isPlacingBet}
+                    />
+                  )}
+
+                  {/* Stake Input - Only shows after option selection */}
+                  {isAuthenticated && selectedOptionId && (
+                    <div className="bg-white rounded-2xl p-4 shadow-sm border space-y-3">
+                      <div>
+                        <label htmlFor="stake-input" className="block text-sm font-medium text-gray-900 mb-2">
+                          Stake Amount (USD)
+                        </label>
+                        <div className="relative">
+                          <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400 pointer-events-none" />
+                          <input
+                            id="stake-input"
+                            type="number"
+                            inputMode="decimal"
+                            placeholder="0.00"
+                            value={stakeAmount}
+                            onChange={(e) => setStakeAmount(e.target.value)}
+                            disabled={isPlacingBet}
+                            className="w-full rounded-xl border bg-background pl-10 pr-4 py-3 text-lg font-semibold transition-colors border-border focus:border-primary focus:ring-primary/20 focus:outline-none focus:ring-2 disabled:opacity-50"
+                          />
+                        </div>
+                      </div>
+                      
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-gray-600">
+                          Available: {formatCurrency(userBalance, { compact: true })}
+                        </span>
+                        {stakeAmount && parseFloat(stakeAmount) > userBalance && (
+                          <span className="text-red-600 font-medium">Insufficient balance</span>
+                        )}
+                      </div>
+                      
+                      {/* Quick Amount Buttons */}
+                      <div className="grid grid-cols-3 gap-2">
+                        {[10, 25, 50, 100, 250, 500].map((amount) => (
+                          <button
+                            key={amount}
+                            onClick={() => setStakeAmount(amount.toString())}
+                            disabled={isPlacingBet || amount > userBalance}
+                            className="rounded-lg border bg-gray-50 px-3 py-2 text-sm font-medium hover:bg-gray-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                          >
+                            ${amount}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </motion.div>
               )}
 
@@ -549,87 +629,16 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
                   animate={{ opacity: 1, x: 0 }}
                   exit={reduceMotion ? {} : { opacity: 0, x: 20 }}
                 >
-                  <div className="bg-white rounded-2xl p-4 shadow-sm border">
-                    <div className="text-center py-6 text-gray-500">
-                      <Users className="w-10 h-10 mx-auto mb-3 text-gray-300" />
-                      <p className="font-medium text-gray-700 mb-1">Activity feed coming soon</p>
-                      <p className="text-sm">Track predictions and settlements</p>
-                    </div>
-                  </div>
+                  <ActivityFeed predictionId={predictionId} />
                 </motion.div>
               )}
             </AnimatePresence>
           </PredictionDetailsTabs>
 
-        {/* Options Section - Compact */}
-        {!isAuthenticated ? (
-          <SignInCallout
-            onSignIn={() =>
-              openAuthGate({
-                intent: 'place_prediction',
-                payload: { predictionId }
-              })
-            }
-          />
-        ) : (
-          <OptionsSection
-            options={prediction.options || []}
-            selectedId={selectedOptionId || undefined}
-            onSelect={handleOptionSelect}
-            disabled={isPlacingBet}
-          />
-        )}
-
-        {/* Stake Input - Only shows after option selection */}
-        {isAuthenticated && selectedOptionId && (
-          <div className="bg-white rounded-2xl p-4 shadow-sm border space-y-3">
-            <div>
-              <label htmlFor="stake-input" className="block text-sm font-medium text-gray-900 mb-2">
-                Stake Amount (USD)
-              </label>
-              <div className="relative">
-                <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400 pointer-events-none" />
-                <input
-                  id="stake-input"
-                  type="number"
-                  inputMode="decimal"
-                  placeholder="0.00"
-                  value={stakeAmount}
-                  onChange={(e) => setStakeAmount(e.target.value)}
-                  disabled={isPlacingBet}
-                  className="w-full rounded-xl border bg-background pl-10 pr-4 py-3 text-lg font-semibold transition-colors border-border focus:border-primary focus:ring-primary/20 focus:outline-none focus:ring-2 disabled:opacity-50"
-                />
-              </div>
-            </div>
-            
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-gray-600">
-                Available: {formatCurrency(userBalance, { compact: true })}
-              </span>
-              {stakeAmount && parseFloat(stakeAmount) > userBalance && (
-                <span className="text-red-600 font-medium">Insufficient balance</span>
-              )}
-            </div>
-            
-            {/* Quick Amount Buttons */}
-            <div className="grid grid-cols-3 gap-2">
-              {[10, 25, 50, 100, 250, 500].map((amount) => (
-                <button
-                  key={amount}
-                  onClick={() => setStakeAmount(amount.toString())}
-                  disabled={isPlacingBet || amount > userBalance}
-                  className="rounded-lg border bg-gray-50 px-3 py-2 text-sm font-medium hover:bg-gray-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                >
-                  ${amount}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
       </main>
 
-      {/* Fixed Bet Bar - Above Bottom Navigation */}
-      {isAuthenticated && selectedOptionId && (
+      {/* Fixed Bet Bar - Above Bottom Navigation - Only on Overview tab */}
+      {activeTab === 'overview' && isAuthenticated && selectedOptionId && (
         <StickyBetBar
           canBet={!!stakeAmount && parseFloat(stakeAmount) > 0 && parseFloat(stakeAmount) <= userBalance}
           onPlace={handlePlaceBet}

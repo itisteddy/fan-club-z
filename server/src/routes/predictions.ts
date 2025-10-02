@@ -120,7 +120,7 @@ router.get('/', async (req, res) => {
       .from('predictions')
       .select(`
         *,
-        creator:users!creator_id(id, username, full_name, avatar_url),
+        creator:users!creator_id(id, username, full_name, avatar_url, is_verified),
         options:prediction_options!prediction_options_prediction_id_fkey(*)
       `, { count: 'exact' })
       .eq('status', 'open') // Only show open predictions
@@ -278,7 +278,7 @@ router.get('/trending', async (req, res) => {
       .from('predictions')
       .select(`
         *,
-        creator:users!creator_id(id, username, full_name, avatar_url),
+        creator:users!creator_id(id, username, full_name, avatar_url, is_verified),
         options:prediction_options!prediction_options_prediction_id_fkey(*)
       `)
       .eq('status', 'open')
@@ -322,7 +322,7 @@ router.get('/:id', async (req, res) => {
       .from('predictions')
       .select(`
         *,
-        creator:users!creator_id(id, username, full_name, avatar_url),
+        creator:users!creator_id(id, username, full_name, avatar_url, is_verified),
         options:prediction_options!prediction_options_prediction_id_fkey(*)
       `)
       .eq('id', id)
@@ -366,7 +366,7 @@ router.get('/created/:userId', async (req, res) => {
       .from('predictions')
       .select(`
         *,
-        creator:users!creator_id(id, username, full_name, avatar_url),
+        creator:users!creator_id(id, username, full_name, avatar_url, is_verified),
         options:prediction_options!prediction_options_prediction_id_fkey(*)
       `)
       .eq('creator_id', userId)
@@ -534,7 +534,7 @@ router.post('/', async (req, res) => {
       .from('predictions')
       .select(`
         *,
-        creator:users!creator_id(id, username, full_name, avatar_url),
+        creator:users!creator_id(id, username, full_name, avatar_url, is_verified),
         options:prediction_options!prediction_options_prediction_id_fkey(*)
       `)
       .eq('id', prediction.id)
@@ -699,7 +699,7 @@ router.post('/:id/entries', async (req, res) => {
       .from('predictions')
       .select(`
         *,
-        creator:users!creator_id(id, username, full_name, avatar_url),
+        creator:users!creator_id(id, username, full_name, avatar_url, is_verified),
         options:prediction_options!prediction_options_prediction_id_fkey(*)
       `)
       .eq('id', predictionId)
@@ -848,7 +848,7 @@ router.get('/user/:id', async (req, res) => {
       .from('predictions')
       .select(`
         *,
-        creator:users!creator_id(id, username, full_name, avatar_url),
+        creator:users!creator_id(id, username, full_name, avatar_url, is_verified),
         options:prediction_options!prediction_options_prediction_id_fkey(*)
       `)
       .eq('creator_id', id)
