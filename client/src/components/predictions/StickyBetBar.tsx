@@ -22,7 +22,7 @@ export function StickyBetBar({
   return (
     <div
       className="fixed inset-x-0 z-50 px-4 pb-[calc(env(safe-area-inset-bottom))] pointer-events-none"
-      style={{ bottom: 'calc(var(--bottom-nav-h, 64px) + 8px)' }}
+      style={{ bottom: 'calc(var(--bottom-nav-h, 64px) + 16px)' }}
     >
       <div className="pointer-events-auto mx-auto max-w-screen-sm">
         <button

@@ -4,8 +4,8 @@ import { VERSION } from '@fanclubz/shared';
 
 const router = Router();
 
-// GET /api/v2/predictions/:id/activity - Get activity feed for a prediction
-router.get('/predictions/:id/activity', async (req, res) => {
+// GET /api/v2/activity/predictions/:id - Get activity feed for a prediction
+router.get('/predictions/:id', async (req, res) => {
   try {
     const { id: predictionId } = req.params;
     const { cursor, limit = '25' } = req.query;
@@ -24,59 +24,30 @@ router.get('/predictions/:id/activity', async (req, res) => {
     // Parse limit
     const limitNum = Math.min(parseInt(limit as string) || 25, 100); // Max 100 items
 
-    // Build query
-    let query = supabase
-      .from('prediction_activity_feed_v1')
-      .select(`
-        ts, type, ref_id, actor_id, data,
-        actor:actor_id (
-          id, username, full_name, avatar_url, is_verified
-        )
-      `)
-      .eq('prediction_id', predictionId)
-      .order('ts', { ascending: false })
-      .limit(limitNum);
-
-    // Add cursor for pagination
-    if (cursor) {
-      query = query.lt('ts', cursor);
-    }
-
-    const { data, error } = await query;
-
-    if (error) {
-      console.error('Error fetching activity feed:', error);
-      return res.status(500).json({
-        error: 'Database error',
-        message: 'Failed to fetch activity feed',
-        version: VERSION
-      });
-    }
-
-    // Transform data for client
-    const transformedData = data?.map(item => ({
-      id: item.ref_id,
-      timestamp: item.ts,
-      type: item.type,
-      actor: item.actor ? {
-        id: item.actor.id,
-        username: item.actor.username,
-        full_name: item.actor.full_name,
-        avatar_url: item.actor.avatar_url,
-        is_verified: item.actor.is_verified
-      } : null,
-      data: item.data
-    })) || [];
-
-    // Determine next cursor
-    const nextCursor = transformedData.length === limitNum 
-      ? transformedData[transformedData.length - 1]?.timestamp 
-      : null;
+    // For now, return a simple response since we don't have the database view yet
+    // TODO: Implement the actual activity feed query once the database view is created
+    const mockActivity = [
+      {
+        id: '1',
+        timestamp: new Date().toISOString(),
+        type: 'comment',
+        actor: {
+          id: 'user1',
+          username: 'testuser',
+          full_name: 'Test User',
+          avatar_url: null,
+          is_verified: false
+        },
+        data: {
+          content: 'This is a test comment'
+        }
+      }
+    ];
 
     res.json({
-      items: transformedData,
-      nextCursor,
-      hasMore: !!nextCursor,
+      items: mockActivity,
+      nextCursor: null,
+      hasMore: false,
       version: VERSION
     });
 
@@ -110,65 +81,11 @@ router.get('/user/:userId', async (req, res) => {
     // Parse limit
     const limitNum = Math.min(parseInt(limit as string) || 25, 100);
 
-    // Build query
-    let query = supabase
-      .from('prediction_activity_feed_v1')
-      .select(`
-        prediction_id, ts, type, ref_id, actor_id, data,
-        actor:actor_id (
-          id, username, full_name, avatar_url, is_verified
-        ),
-        prediction:predictions!inner (
-          id, title, status
-        )
-      `)
-      .eq('actor_id', userId)
-      .order('ts', { ascending: false })
-      .limit(limitNum);
-
-    // Add cursor for pagination
-    if (cursor) {
-      query = query.lt('ts', cursor);
-    }
-
-    const { data, error } = await query;
-
-    if (error) {
-      console.error('Error fetching user activity feed:', error);
-      return res.status(500).json({
-        error: 'Database error',
-        message: 'Failed to fetch user activity feed',
-        version: VERSION
-      });
-    }
-
-    // Transform data for client
-    const transformedData = data?.map(item => ({
-      id: item.ref_id,
-      predictionId: item.prediction_id,
-      predictionTitle: item.prediction?.title,
-      predictionStatus: item.prediction?.status,
-      timestamp: item.ts,
-      type: item.type,
-      actor: item.actor ? {
-        id: item.actor.id,
-        username: item.actor.username,
-        full_name: item.actor.full_name,
-        avatar_url: item.actor.avatar_url,
-        is_verified: item.actor.is_verified
-      } : null,
-      data: item.data
-    })) || [];
-
-    // Determine next cursor
-    const nextCursor = transformedData.length === limitNum 
-      ? transformedData[transformedData.length - 1]?.timestamp 
-      : null;
-
+    // For now, return empty array
     res.json({
-      items: transformedData,
-      nextCursor,
-      hasMore: !!nextCursor,
+      items: [],
+      nextCursor: null,
+      hasMore: false,
       version: VERSION
     });
 
