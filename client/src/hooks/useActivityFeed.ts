@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 
 export interface ActivityItem {
   id: string;
@@ -56,6 +56,7 @@ export function useActivityFeed({
   const [error, setError] = useState<string | null>(null);
   const [cursor, setCursor] = useState<string | undefined>();
   const [hasMore, setHasMore] = useState(true);
+  const hasLoadedRef = useRef(false);
 
   // Build API URL based on whether we're fetching prediction or user activity
   const getApiUrl = useCallback((cursorParam?: string) => {
@@ -127,6 +128,7 @@ export function useActivityFeed({
   const refresh = useCallback(async () => {
     setCursor(undefined);
     setHasMore(true);
+    hasLoadedRef.current = false;
     await fetchActivity(undefined, false);
   }, [fetchActivity]);
 
@@ -136,15 +138,18 @@ export function useActivityFeed({
     setCursor(undefined);
     setHasMore(true);
     setError(null);
+    hasLoadedRef.current = false;
   }, []);
 
   // Auto-load on mount or when dependencies change
   useEffect(() => {
-    if (autoLoad && (predictionId || userId)) {
+    if (autoLoad && (predictionId || userId) && !hasLoadedRef.current) {
+      hasLoadedRef.current = true;
       clear();
+      // Call fetchActivity directly without including it in dependencies
       fetchActivity(undefined, false);
     }
-  }, [predictionId, userId, autoLoad, clear, fetchActivity]);
+  }, [predictionId, userId, autoLoad, clear]);
 
   return {
     items,
