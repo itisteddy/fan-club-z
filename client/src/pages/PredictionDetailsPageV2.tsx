@@ -8,6 +8,8 @@ import { useAuthStore } from '../store/authStore';
 import { useWalletStore } from '../store/walletStore';
 import { openAuthGate } from '../auth/authGateAdapter';
 import { useAuthSession } from '../providers/AuthSessionProvider';
+import { selectEscrowAvailableUSD, selectOverviewBalances } from '../lib/balance/balanceSelector';
+import DepositUSDCModal from '../components/wallet/DepositUSDCModal';
 // TODO: Implement accessibility utils
 const prefersReducedMotion = () => false;
 const AriaUtils = { announce: (message: string) => console.log('Announce:', message) };
@@ -72,6 +74,7 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
   const [isPlacingBet, setIsPlacingBet] = useState(false);
   const [activeTab, setActiveTab] = useState('overview');
   const [shareUrl, setShareUrl] = useState('');
+  const [showDepositModal, setShowDepositModal] = useState(false);
   
   // TODO: Re-enable share functionality after testing
   // const { SharePreview, share: shareResult } = useShareResult();
@@ -115,33 +118,24 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
     }
   }, [media, prediction]);
 
-  // User balance - get balance from wallet store with proper error handling
+  // User balance - use escrow available (escrow - reserved)
   const userBalance = useMemo(() => {
     if (!isAuthenticated) {
       console.log('💰 PredictionDetailsPageV2 - Not authenticated, returning 0');
       return 0;
     }
     
-    // The wallet store returns balance as a computed property
-    // It should be the available balance in dollars
-    const balance = typeof walletBalance === 'number' && !isNaN(walletBalance) 
-      ? walletBalance 
-      : 0;
-    
-    // Also try getting from balances array as fallback
-    const balanceFromArray = balances.find(b => b.currency === 'USD')?.available || 0;
+    // Use escrow available (what user can actually stake)
+    const escrowAvailable = selectEscrowAvailableUSD(walletStore);
     
     console.log('💰 PredictionDetailsPageV2 - Balance calculation:', { 
       isAuthenticated,
-      walletBalance,
-      balanceFromArray,
-      finalBalance: balance || balanceFromArray,
-      balancesArray: balances,
-      formatted: `${(balance || balanceFromArray).toLocaleString()}`
+      escrowAvailable,
+      formatted: `$${escrowAvailable.toFixed(2)}`
     });
     
-    return balance || balanceFromArray;
-  }, [isAuthenticated, walletBalance, balances]);
+    return escrowAvailable;
+  }, [isAuthenticated, walletStore]);
 
   // Initialize wallet when authenticated
   useEffect(() => {
@@ -240,13 +234,21 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
       return;
     }
 
+    // Check if stake amount exceeds available escrow balance
+    const amount = parseFloat(stakeAmount);
+    if (amount > userBalance) {
+      // Open deposit modal instead of placing bet
+      setShowDepositModal(true);
+      return;
+    }
+
     setIsPlacingBet(true);
     
     try {
-      const amount = parseFloat(stakeAmount);
       console.log('🎲 Placing prediction with amount:', { 
         stakeAmount, 
         parsedAmount: amount, 
+        availableBalance: userBalance,
         isNaN: isNaN(amount), 
         isPositive: amount > 0 
       });
@@ -643,6 +645,16 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
           canBet={!!stakeAmount && parseFloat(stakeAmount) > 0 && parseFloat(stakeAmount) <= userBalance}
           onPlace={handlePlaceBet}
           loading={isPlacingBet}
+        />
+      )}
+      
+      {/* Deposit Modal */}
+      {currentUser?.id && (
+        <DepositUSDCModal
+          open={showDepositModal}
+          onClose={() => setShowDepositModal(false)}
+          availableUSDC={selectOverviewBalances(walletStore).walletUSDC}
+          userId={currentUser.id}
         />
       )}
     </>

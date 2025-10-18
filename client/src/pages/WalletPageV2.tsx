@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Download, DollarSign, TrendingUp, CreditCard, User } from 'lucide-react';
+import { Plus, Download, DollarSign, TrendingUp, CreditCard, User, Wallet } from 'lucide-react';
 import { useWalletStore } from '../store/walletStore';
 import { useAuthStore } from '../store/authStore';
 import { useAuthSession } from '../providers/AuthSessionProvider';
@@ -8,6 +8,10 @@ import AppHeader from '../components/layout/AppHeader';
 import toast from 'react-hot-toast';
 import { formatCurrency, formatLargeNumber, formatPercentage } from '@lib/format';
 import SignedOutGateCard from '../components/auth/SignedOutGateCard';
+import DepositUSDCModal from '../components/wallet/DepositUSDCModal';
+import WithdrawUSDCModal from '../components/wallet/WithdrawUSDCModal';
+import { selectOverviewBalances, selectEscrowAvailableUSD } from '../lib/balance/balanceSelector';
+import { useOnchainActivity } from '../hooks/useOnchainActivity';
 
 interface WalletPageV2Props {
   onNavigateBack?: () => void;
@@ -16,8 +20,17 @@ interface WalletPageV2Props {
 const WalletPageV2: React.FC<WalletPageV2Props> = ({ onNavigateBack }) => {
   const { user: sessionUser } = useAuthSession();
   const { user: storeUser, isAuthenticated: storeAuth } = useAuthStore();
-  const { getBalance, getTransactionHistory, addFunds, initializeWallet } = useWalletStore();
+  const walletStore = useWalletStore();
+  const { getBalance, getTransactionHistory, addFunds, initializeWallet } = walletStore;
   const [loading, setLoading] = useState(true);
+  
+  // Crypto wallet modal state
+  const [showDeposit, setShowDeposit] = useState(false);
+  const [showWithdraw, setShowWithdraw] = useState(false);
+  
+  // On-chain balances and activity
+  const { walletUSDC, escrowUSDC, escrowAvailableUSDC } = selectOverviewBalances(walletStore);
+  const { data: onchainActivity = [] } = useOnchainActivity(user?.id);
 
   // Determine user context - prioritize session user
   const user = sessionUser || storeUser;
@@ -210,6 +223,73 @@ const WalletPageV2: React.FC<WalletPageV2Props> = ({ onNavigateBack }) => {
                 </div>
               </div>
 
+              {/* On-chain Balance Card (Base Sepolia) */}
+              {(escrowUSDC > 0 || walletUSDC > 0) && (
+                <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-2xl border border-blue-100 p-4">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-sm font-semibold text-gray-900">On-chain Balance</h3>
+                    <span className="text-xs font-medium text-blue-600 bg-blue-100 px-2 py-1 rounded-full">
+                      Base Sepolia
+                    </span>
+                  </div>
+                  
+                  <div className="space-y-3 mb-4">
+                    {/* Wallet USDC */}
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Wallet className="w-4 h-4 text-gray-600" />
+                        <span className="text-sm text-gray-700">Wallet USDC</span>
+                        <span className="text-xs text-gray-500 bg-white px-2 py-0.5 rounded-full">ERC20</span>
+                      </div>
+                      <span className="text-base font-bold text-gray-900 font-mono">
+                        ${walletUSDC.toFixed(2)}
+                      </span>
+                    </div>
+                    
+                    {/* Escrow USDC */}
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <CreditCard className="w-4 h-4 text-gray-600" />
+                        <span className="text-sm text-gray-700">Escrow USDC</span>
+                      </div>
+                      <span className="text-base font-bold text-gray-900 font-mono">
+                        ${escrowUSDC.toFixed(2)}
+                      </span>
+                    </div>
+                    
+                    {/* Available to Stake */}
+                    <div className="flex items-center justify-between pt-2 border-t border-blue-100">
+                      <div className="flex items-center gap-2">
+                        <TrendingUp className="w-4 h-4 text-emerald-600" />
+                        <span className="text-sm font-semibold text-gray-900">Available to stake</span>
+                      </div>
+                      <span className="text-lg font-bold text-emerald-600 font-mono">
+                        ${escrowAvailableUSDC.toFixed(2)}
+                      </span>
+                    </div>
+                  </div>
+                  
+                  {/* Action Buttons */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      onClick={() => setShowDeposit(true)}
+                      className="flex items-center justify-center gap-2 py-3 px-4 bg-emerald-600 text-white rounded-xl font-semibold hover:bg-emerald-700 transition-all duration-200"
+                    >
+                      <Plus className="w-4 h-4" />
+                      <span>Deposit</span>
+                    </button>
+                    <button
+                      onClick={() => setShowWithdraw(true)}
+                      className="flex items-center justify-center gap-2 py-3 px-4 border border-gray-300 text-gray-700 rounded-xl font-semibold hover:bg-gray-50 transition-all duration-200"
+                      disabled={escrowAvailableUSDC === 0}
+                    >
+                      <Download className="w-4 h-4" />
+                      <span>Withdraw</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+
               {/* Overview Card - Professional balance display with intent handoff */}
               <div className="bg-white rounded-2xl border border-black/[0.06] p-4">
                 <h3 className="text-sm font-semibold text-gray-900 mb-4">Overview</h3>
@@ -352,6 +432,24 @@ const WalletPageV2: React.FC<WalletPageV2Props> = ({ onNavigateBack }) => {
           )}
         </div>
       </div>
+      
+      {/* Crypto Wallet Modals */}
+      {user?.id && (
+        <>
+          <DepositUSDCModal
+            open={showDeposit}
+            onClose={() => setShowDeposit(false)}
+            availableUSDC={walletUSDC}
+            userId={user.id}
+          />
+          <WithdrawUSDCModal
+            open={showWithdraw}
+            onClose={() => setShowWithdraw(false)}
+            availableUSDC={escrowAvailableUSDC}
+            userId={user.id}
+          />
+        </>
+      )}
     </div>
   );
 };
