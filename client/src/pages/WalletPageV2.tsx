@@ -24,6 +24,10 @@ const WalletPageV2: React.FC<WalletPageV2Props> = ({ onNavigateBack }) => {
   const { getBalance, getTransactionHistory, addFunds, initializeWallet } = walletStore;
   const [loading, setLoading] = useState(true);
   
+  // Determine user context - prioritize session user
+  const user = sessionUser || storeUser;
+  const authenticated = !!sessionUser || storeAuth;
+  
   // Crypto wallet modal state
   const [showDeposit, setShowDeposit] = useState(false);
   const [showWithdraw, setShowWithdraw] = useState(false);
@@ -31,10 +35,6 @@ const WalletPageV2: React.FC<WalletPageV2Props> = ({ onNavigateBack }) => {
   // On-chain balances and activity
   const { walletUSDC, escrowUSDC, escrowAvailableUSDC } = selectOverviewBalances(walletStore);
   const { data: onchainActivity = [] } = useOnchainActivity(user?.id);
-
-  // Determine user context - prioritize session user
-  const user = sessionUser || storeUser;
-  const authenticated = !!sessionUser || storeAuth;
 
   useEffect(() => {
     if (authenticated && user?.id) {
