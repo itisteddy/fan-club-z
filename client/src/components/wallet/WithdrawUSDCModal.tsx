@@ -3,7 +3,7 @@ import { useAccount, useWriteContract, usePublicClient, useSwitchChain } from 'w
 import { baseSepolia } from 'wagmi/chains';
 import { useQueryClient } from '@tanstack/react-query';
 import { waitForTransactionReceipt } from 'viem/actions';
-import { toast } from 'sonner';
+import toast from 'react-hot-toast';
 
 const ESCROW_ADDR_ENV = (import.meta.env.VITE_BASE_ESCROW_ADDRESS ?? '') as `0x${string}`;
 const ESCROW_ABI_MIN = [
@@ -38,7 +38,7 @@ export default function WithdrawUSDCModal({
 }: WithdrawUSDCModalProps) {
   const queryClient = useQueryClient();
   const { address, chainId, isConnected } = useAccount();
-  const publicClient = usePublicClient({ chainId: baseSepolia.id });
+  const publicClient = usePublicClient();
   const { switchChainAsync } = useSwitchChain();
   const { writeContractAsync } = useWriteContract();
 
@@ -78,6 +78,7 @@ export default function WithdrawUSDCModal({
         abi: escrowAbi,
         functionName: 'withdraw',
         args: [units],
+        chain: baseSepolia,
       });
 
       await waitForTransactionReceipt(publicClient!, { hash: txHash });
