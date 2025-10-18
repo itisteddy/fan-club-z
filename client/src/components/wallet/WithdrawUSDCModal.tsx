@@ -78,10 +78,11 @@ export default function WithdrawUSDCModal({
         abi: escrowAbi,
         functionName: 'withdraw',
         args: [units],
-        chain: baseSepolia,
-      });
+      } as any);
 
-      await waitForTransactionReceipt(publicClient!, { hash: txHash });
+      if (publicClient) {
+        await waitForTransactionReceipt(publicClient as any, { hash: txHash });
+      }
       toast.success('Withdrawal confirmed');
 
       queryClient.invalidateQueries({ queryKey: ['wallet', 'onchain'] });

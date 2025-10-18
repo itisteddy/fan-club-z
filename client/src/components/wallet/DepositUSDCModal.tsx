@@ -88,10 +88,11 @@ export default function DepositUSDCModal({
         abi: escrowAbi,
         functionName: 'deposit',
         args: [units],
-        chain: baseSepolia,
-      });
+      } as any);
 
-      await waitForTransactionReceipt(publicClient!, { hash: txHash });
+      if (publicClient) {
+        await waitForTransactionReceipt(publicClient as any, { hash: txHash });
+      }
       toast.success('Deposit confirmed');
 
       // invalidate wallet + activity
