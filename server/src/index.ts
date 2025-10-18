@@ -112,6 +112,7 @@ import socialRoutes from './routes/social';
 import settlementRoutes from './routes/settlement';
 import activityRoutes from './routes/activity';
 import imagesRoutes from './api/images/router';
+import { chainActivity } from './routes/chain/activity';
 import { ensureAvatarsBucket } from './startup/storage';
 
 // Use routes
@@ -122,6 +123,7 @@ app.use('/api/v2/social', socialRoutes);
 app.use('/api/v2/settlement', settlementRoutes);
 app.use('/api/v2/activity', activityRoutes);
 app.use('/api/images', imagesRoutes);
+app.use('/api/chain', chainActivity);
 
 // Debug logging for route registration
 console.log('✅ Routes registered:');
