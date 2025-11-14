@@ -10,12 +10,23 @@
   ],
   "scripts": {
     "preinstall": "npm --prefix server install",
-    "build": "npm --prefix server run build",
+    "build": "npm --prefix client run build && npm --prefix server run build",
+    "build:client": "npm --prefix client run build",
+    "build:server": "npm --prefix server run build",
     "start": "npm --prefix server run start",
-    "dev": "npm --prefix server run dev"
+    "dev": "npm --prefix server run dev",
+    "typecheck": "npm --prefix client run typecheck && npm --prefix server run typecheck",
+    "lint": "npm --prefix client run lint && npm --prefix server run lint",
+    "lint:fix": "npm --prefix client run lint:fix && npm --prefix server run lint:fix",
+    "test": "npm --prefix server run test",
+    "test:unit": "npm --prefix server run test",
+    "test:api": "npm --prefix server run test:api",
+    "test:e2e": "npm --prefix client run test:e2e",
+    "test:smoke": "npm run typecheck && npm run lint && npm run test:unit",
+    "verify-env": "tsx scripts/verify-env.ts",
+    "ledger:check": "tsx scripts/ledger-check.ts"
   },
   "engines": {
     "node": ">=20.0.0"
   }
 }
-
