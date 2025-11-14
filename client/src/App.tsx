@@ -9,6 +9,7 @@ import { restorePendingAuth } from './auth/authGateAdapter';
 import { useAuthSession } from './providers/AuthSessionProvider';
 import { SupabaseProvider } from './providers/SupabaseProvider';
 import { AuthSessionProvider } from './providers/AuthSessionProvider';
+import { RealtimeProvider } from './providers/RealtimeProvider';
 import AuthGateModal from './components/auth/AuthGateModal';
 import { Toaster } from 'react-hot-toast';
 import { scrollToTop, saveScrollPosition, markNavigationAsIntentional } from './utils/scroll';
@@ -28,6 +29,7 @@ const LazyProfilePage = lazy(() => import('./pages/ProfilePage'));
 const LazyWalletPage = lazy(() => import('./pages/WalletPage'));
 const LazyPredictionDetailsPageV2 = lazy(() => import('./pages/PredictionDetailsPageV2'));
 const LazyProfilePageV2 = lazy(() => import('./pages/ProfilePageV2'));
+const LazyDownloadPage = lazy(() => import('./pages/DownloadPage'));
 const LazyWalletPageV2 = lazy(() => import('./pages/WalletPageV2'));
 const LazyUnifiedLeaderboardPage = lazy(() => import('./pages/UnifiedLeaderboardPage'));
 const LazyAuthCallback = lazy(() => import('./pages/auth/AuthCallback'));
@@ -37,6 +39,7 @@ const LazyAuthCallback = lazy(() => import('./pages/auth/AuthCallback'));
 // These imports are now lazy-loaded above
 import StableBottomNavigation from './components/navigation/StableBottomNavigation';
 import ErrorBoundary from './components/ErrorBoundary';
+import ConnectWalletSheet from './components/wallet/ConnectWalletSheet';
 
 // Simple Loading Component
 const LoadingSpinner: React.FC<{ message?: string }> = ({ message = "Loading..." }) => (
@@ -137,11 +140,13 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = memo(({ children }) 
       {/* Toast Notifications */}
       <Toaster
         position="top-center"
+        containerStyle={{ zIndex: 2147483647 }}
         toastOptions={{
           duration: 4000,
           style: {
             background: '#363636',
             color: '#fff',
+            zIndex: 2147483647,
           },
         }}
       />
@@ -383,6 +388,8 @@ const LeaderboardPageWrapper: React.FC = () => {
 const PredictionDetailsRouteWrapper: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const [resolvedId, setResolvedId] = React.useState<string | null>(null);
+  const [checking, setChecking] = React.useState<boolean>(true);
   
   const handleNavigateBack = useCallback(() => {
     // Use browser back to restore previous scroll position automatically
@@ -398,7 +405,61 @@ const PredictionDetailsRouteWrapper: React.FC = () => {
     }
   }, [navigate]);
 
+  React.useEffect(() => {
+    const run = async () => {
+      if (!id) {
+        setChecking(false);
+        return;
+      }
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      if (uuidRegex.test(id)) {
+        setResolvedId(id);
+        setChecking(false);
+        return;
+      }
+      // Treat as SEO slug - resolve to full ID
+      try {
+        const apiBase = (await import('./config')).getApiUrl();
+        const r = await fetch(`${apiBase}/api/v2/predictions/resolve/slug/${encodeURIComponent(id)}`, { method: 'GET' });
+        if (!r.ok) throw new Error(`resolve failed ${r.status}`);
+        const j = await r.json();
+        if (j?.id) {
+          setResolvedId(j.id);
+        } else {
+          console.warn('Slug resolve returned no id for', id);
+        }
+      } catch (e) {
+        console.warn('Slug resolve errored', e);
+      } finally {
+        setChecking(false);
+      }
+    };
+    run();
+  }, [id]);
+
   if (!id) {
+    return (
+        <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+          <div className="text-center">
+            <h2 className="text-xl font-semibold text-gray-900 mb-2">Prediction Not Found</h2>
+            <p className="text-gray-600 mb-4">The prediction you're looking for doesn't exist.</p>
+            <button
+              onClick={handleNavigateBack}
+              className="px-4 py-2 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600"
+            >
+              Go Back
+            </button>
+          </div>
+        </div>
+    );
+  }
+
+  if (checking) {
+    return <LoadingSpinner message="Loading prediction..." />;
+  }
+
+  // If we couldn't resolve, show not-found state
+  if (!resolvedId) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
@@ -415,7 +476,7 @@ const PredictionDetailsRouteWrapper: React.FC = () => {
     );
   }
 
-  return <LazyPredictionDetailsPageV2 predictionId={id} />;
+  return <LazyPredictionDetailsPageV2 predictionId={resolvedId} />;
 };
 
 // Main App Component with improved error handling
@@ -443,7 +504,7 @@ const AppContent: React.FC = () => {
           // Let the sync effect above handle the auth store update
           console.log('App: Session user exists, sync will handle auth store');
         } else {
-          initializeAuth();
+        initializeAuth();
         }
       } catch (error) {
         console.error('Auth initialization failed:', error);
@@ -479,7 +540,7 @@ const AppContent: React.FC = () => {
   }, [sessionInitialized]);
 
   return (
-        <OnboardingProvider>
+          <OnboardingProvider>
           <MobileShell>
             <MainLayout>
           <Suspense fallback={<PageLoadingSpinner />}>
@@ -509,8 +570,9 @@ const AppContent: React.FC = () => {
               } />
               <Route path="/rankings" element={<LeaderboardPageWrapper />} />
               <Route path="/prediction/:id" element={<PredictionDetailsRouteWrapper />} />
+              <Route path="/download" element={<LazyDownloadPage />} />
 
-              {/* Fallback */}
+                {/* Fallback */}
               <Route path="*" element={<DiscoverPageWrapper />} />
             </Routes>
           </Suspense>
@@ -523,7 +585,7 @@ const AppContent: React.FC = () => {
           {/* Bootstrap Effects */}
           <BootstrapEffects />
           
-        </OnboardingProvider>
+          </OnboardingProvider>
   );
 };
 
@@ -533,7 +595,10 @@ function App() {
     <NetworkStatusProvider>
       <SupabaseProvider>
         <AuthSessionProvider>
-          <AppContent />
+          <RealtimeProvider>
+            <AppContent />
+            <ConnectWalletSheet />
+          </RealtimeProvider>
         </AuthSessionProvider>
       </SupabaseProvider>
     </NetworkStatusProvider>
