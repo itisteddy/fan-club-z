@@ -75,6 +75,12 @@ export const config = {
       publicKey: process.env.PAYSTACK_PUBLIC_KEY,
     },
   },
+
+  // Platform / Treasury Configuration
+  platform: {
+    treasuryUserId: process.env.PLATFORM_TREASURY_USER_ID || null,
+    feeCurrency: process.env.PLATFORM_FEE_CURRENCY || 'USD',
+  },
   
   // KYC Configuration
   kyc: {

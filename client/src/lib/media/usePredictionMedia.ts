@@ -153,7 +153,11 @@ export function usePredictionMedia(prediction?: {
   title: string;
   category?: string;
 }): MediaResult {
-  const [url, setUrl] = useState<string | null>(null);
+  // Initialize with fallback to prevent flash of empty/wrong image
+  const [url, setUrl] = useState<string | null>(() => {
+    if (!prediction) return getFallback('', 'general');
+    return getFallback(prediction.id, prediction.category);
+  });
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
 
   useEffect(() => {
@@ -191,7 +195,10 @@ export function usePredictionMedia(prediction?: {
       
       if (dbUrl) {
         memory.set(id, dbUrl);
-        setUrl(dbUrl);
+        // Only update if different from current fallback
+        if (dbUrl !== url) {
+          setUrl(dbUrl);
+        }
         setStatus('ready');
         return;
       }
@@ -208,7 +215,11 @@ export function usePredictionMedia(prediction?: {
       // 4) Store & set
       const finalUrl = fetched || getFallback(id, category);
       memory.set(id, fetched);
-      setUrl(finalUrl);
+      
+      // Only update if we have a new fetched image (prevents unnecessary flash)
+      if (fetched && fetched !== url) {
+        setUrl(fetched);
+      }
       setStatus('ready');
       
       // Cache in background (don't await)

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useLocation } from 'wouter';
 import { useAuthStore } from '../store/authStore';
 import { useAuthSession } from '../providers/AuthSessionProvider';
@@ -12,11 +12,19 @@ import {
   CheckCircle, 
   Plus, 
   Settings,
-  Share2
+  Users,
+  Clock
 } from 'lucide-react';
 import ManagePredictionModal from '../components/modals/ManagePredictionModal';
 import { cn } from '../utils/cn';
 import { AppHeader } from '../components/layout/AppHeader';
+import { formatTimeRemaining } from '@/lib/utils';
+import { getApiUrl } from '@/utils/environment';
+import toast from 'react-hot-toast';
+import { useAccount } from 'wagmi';
+import { useMerkleClaim } from '@/hooks/useMerkleClaim';
+import { useClaimableClaims } from '@/hooks/useClaimableClaims';
+import { formatCurrency } from '@/lib/format';
 
 // Production BetsTab Component - Extracted from production bundle
 const PredictionsPage: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNavigateToDiscover }) => {
@@ -48,30 +56,27 @@ const PredictionsPage: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNa
   const [activeTab, setActiveTab] = useState("Active");
   const [showManageModal, setShowManageModal] = useState(false);
   const [selectedPrediction, setSelectedPrediction] = useState(null);
+  const [entriesHydrated, setEntriesHydrated] = useState(false);
+  const isEntryActive = useCallback((status: string) => {
+    const normalized = (status || '').toLowerCase();
+    return !(normalized === 'won' || normalized === 'lost' || normalized === 'refunded');
+  }, []);
 
   // Helper function to get time remaining with proper status context
-  const getTimeRemaining = (deadline: string, predictionStatus?: string) => {
-    if (!deadline) return "Unknown";
-    
-    const now = new Date().getTime();
-    const end = new Date(deadline).getTime() - now;
-    
-    // Handle different prediction states
-    if (predictionStatus === 'closed') return "Closed";
-    if (predictionStatus === 'settled') return "Settled";
-    if (predictionStatus === 'awaiting_settlement') return "Awaiting Settlement";
-    if (predictionStatus === 'disputed') return "Disputed";
-    if (predictionStatus === 'refunded') return "Refunded";
-    if (predictionStatus === 'ended') return "Ended";
-    
-    // Time-based logic for active predictions
-    if (end <= 0) return "Ended";
-    
-    const days = Math.floor(end / (1000 * 60 * 60 * 24));
-    const hours = Math.floor((end % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-    
-    if (days > 0) return `${days}d ${hours}h`;
-    return `${hours}h`;
+  const getTimeRemaining = (deadline: string | null | undefined, predictionStatus?: string) => {
+    if (!deadline) return 'Unknown';
+
+    const normalizedStatus = (predictionStatus || '').toLowerCase();
+    if (normalizedStatus === 'closed') return 'Closed';
+    if (normalizedStatus === 'settled') return 'Settled';
+    if (normalizedStatus === 'awaiting_settlement') return 'Awaiting settlement';
+    if (normalizedStatus === 'disputed') return 'Disputed';
+    if (normalizedStatus === 'refunded') return 'Refunded';
+    if (normalizedStatus === 'ended') return 'Ended';
+
+    const formatted = formatTimeRemaining(deadline);
+    if (!formatted) return 'Unknown';
+    return formatted;
   };
 
   // Helper function to calculate confidence
@@ -90,24 +95,27 @@ const PredictionsPage: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNa
 
   // Fetch user data
   useEffect(() => {
-    if (!user?.id || !isAuthenticated) return;
-    
-    let isMounted = true;
-    let hasStarted = false;
-    
-    const timeout = setTimeout(() => {
-      if (!isMounted || hasStarted) return;
-      console.log('📊 BetsTab: Fetching data for user:', user.id);
-      fetchUserCreatedPredictions(user.id);
-      fetchUserPredictionEntries(user.id);
-      hasStarted = true;
-    }, 100);
-
-    return () => {
-      isMounted = false;
-      clearTimeout(timeout);
+    let cancelled = false;
+    const run = async () => {
+      if (!user?.id || !isAuthenticated) return;
+      try {
+        setEntriesHydrated(false);
+        console.log('📊 BetsTab: Fetching data for user:', user.id);
+        await Promise.all([
+          fetchUserCreatedPredictions(user.id),
+          fetchUserPredictionEntries(user.id)
+        ]);
+      } finally {
+        if (!cancelled) {
+          setEntriesHydrated(true);
+        }
+      }
     };
-  }, [user?.id, isAuthenticated]);
+    run();
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id, isAuthenticated, fetchUserCreatedPredictions, fetchUserPredictionEntries]);
 
   // Get counts for tabs
   const getCounts = () => {
@@ -116,16 +124,20 @@ const PredictionsPage: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNa
     const userCreated = getUserCreatedPredictions(user.id);
     const userEntries = getUserPredictionEntries(user.id);
     
-    // Count active entries (same logic as getUserPredictions)
+    // Count active entries - only truly active/open predictions
     const activeEntries = userEntries.filter(entry => {
       const prediction = (entry as any).prediction || predictions.find(p => p.id === entry.prediction_id);
-      if (!prediction) return false;
+      const entryActive = isEntryActive(entry.status);
+      if (!prediction) {
+        return entryActive;
+      }
       
-      const isOpen = prediction.status === 'open';
+      const status = (prediction.status || '').toLowerCase();
+      const isOpen = status === 'open';
       const beforeDeadline = new Date(prediction.entry_deadline) > new Date();
-      const entryActive = entry.status === 'active';
       
-      return isOpen && beforeDeadline && entryActive;
+      // Only include if entry is active, prediction is open, and deadline hasn't passed
+      return entryActive && isOpen && beforeDeadline;
     });
     
     // Count created predictions (only open and before deadline)
@@ -177,14 +189,15 @@ const PredictionsPage: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNa
     const activePredictions = userEntries
       .filter(entry => {
         const prediction = (entry as any).prediction || predictions.find(p => p.id === entry.prediction_id);
-        if (!prediction) return false;
+        const entryActive = isEntryActive(entry.status);
+        if (!prediction) return entryActive;
         
-        // Check if prediction is still active (not ended/closed/settled and before deadline)
-        const isOpen = prediction.status === 'open';
+        const status = (prediction.status || '').toLowerCase();
+        const isOpen = status === 'open';
         const beforeDeadline = new Date(prediction.entry_deadline) > new Date();
-        const entryActive = entry.status === 'active';
         
-        return isOpen && beforeDeadline && entryActive;
+        // Only include if entry is active, prediction is open, and deadline hasn't passed
+        return entryActive && isOpen && beforeDeadline;
       })
       .map(entry => {
         const prediction = (entry as any).prediction || predictions.find(p => p.id === entry.prediction_id);
@@ -326,6 +339,50 @@ const PredictionsPage: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNa
       return { Active: [], Created: [], Completed: [] };
     }
   }, [user?.id, isAuthenticated, predictions, activeTab]);
+
+  const userEntriesList = (isAuthenticated && user) ? getUserPredictionEntries(user.id) : [];
+
+  const activeEntryCards = useMemo(() => {
+    if (!isAuthenticated || !user) return [];
+    return userEntriesList
+      .filter(entry => {
+        const prediction = (entry as any).prediction || predictions.find(p => p.id === entry.prediction_id);
+        const entryActive = isEntryActive(entry.status);
+        if (!prediction) {
+          return entryActive;
+        }
+        const status = (prediction.status || '').toLowerCase();
+        const isOpen = status === 'open';
+        const beforeDeadline = new Date(prediction.entry_deadline) > new Date();
+        // Only include if entry is active, prediction is open, and deadline hasn't passed
+        return entryActive && isOpen && beforeDeadline;
+      })
+      .map(entry => {
+        const prediction = (entry as any).prediction || predictions.find(p => p.id === entry.prediction_id);
+        if (!prediction) {
+          return { entry, prediction: null, card: null };
+        }
+        const option = (entry as any).option || prediction.options?.find((o: any) => o.id === entry.option_id);
+        return { 
+          entry, 
+          prediction,
+          card: {
+            id: entry.id,
+            predictionId: prediction.id,
+            title: prediction.title,
+            category: prediction.category || 'custom',
+            position: option?.label || 'Unknown',
+            stake: entry.amount,
+            potentialReturn: entry.potential_payout || 0,
+            odds: entry.potential_payout ? `${(entry.potential_payout / entry.amount).toFixed(2)}x` : '1.00x',
+            confidence: calculateConfidence(prediction),
+            participants: prediction.participant_count || 0,
+            status: 'active',
+            timeRemaining: getTimeRemaining(prediction.entry_deadline, prediction.status)
+          }
+        };
+      });
+  }, [isAuthenticated, user, userEntriesList, predictions, isEntryActive]);
 
   const currentPredictions = userPredictions[activeTab] || [];
 
@@ -482,22 +539,21 @@ const PredictionsPage: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNa
     );
   };
 
-  // Active prediction card
   const ActivePredictionCard = ({ prediction }: { prediction: any }) => (
     <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-4 hover:shadow-md transition-all duration-200">
       <div className="flex items-start justify-between mb-4">
         <div className="flex-1">
           <div className="flex items-center gap-2 mb-2">
             <span className={`px-2 py-1 rounded-lg text-xs font-medium ${getCategoryColor(prediction.category)}`}>
-              {prediction.category.replace('_', ' ')}
+              {(prediction.category || 'custom').replace('_', ' ')}
             </span>
             <span className={`px-2 py-1 rounded-lg text-xs font-medium border ${getStatusColor(prediction.status)}`}>
               Active
             </span>
           </div>
           <h3 className="font-semibold text-gray-900 text-lg leading-tight">{prediction.title}</h3>
-              </div>
-            </div>
+        </div>
+      </div>
       
       <div className="bg-emerald-50 rounded-xl p-4 mb-4">
         <div className="flex items-center justify-between mb-2">
@@ -516,50 +572,86 @@ const PredictionsPage: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNa
           <div>
             <p className="text-xs text-emerald-600 mb-1">Odds</p>
             <p className="font-semibold text-emerald-900">{prediction.odds}</p>
-              </div>
-            </div>
           </div>
-
+        </div>
+      </div>
+      
       <div className="mb-4">
         <div className="flex justify-between items-center mb-2">
           <span className="text-sm text-gray-600">Market Confidence</span>
           <span className="text-sm font-medium text-gray-900">{prediction.confidence}%</span>
-            </div>
+        </div>
         <div className="w-full bg-gray-200 rounded-full h-2">
           <div 
             className="bg-emerald-500 h-2 rounded-full transition-all duration-500" 
             style={{ width: `${prediction.confidence}%` }}
-              />
-            </div>
+          />
+        </div>
       </div>
       
       <div className="flex items-center justify-between text-sm text-gray-500">
-        <span>{prediction.participants} participants</span>
-        <span className={`font-medium ${
-          prediction.timeRemaining.includes('Closed') || 
-          prediction.timeRemaining.includes('Settled') || 
-          prediction.timeRemaining.includes('Disputed') || 
-          prediction.timeRemaining.includes('Ended') ? 'text-red-600' :
-          prediction.timeRemaining.includes('Awaiting') ? 'text-yellow-600' :
-          'text-amber-600'
-        }`}>
-          {(prediction.timeRemaining.includes('h') || prediction.timeRemaining.includes('d')) && 
-           !prediction.timeRemaining.includes('Closed') && 
-           !prediction.timeRemaining.includes('Ended') && 
-           !prediction.timeRemaining.includes('Settled') && 
-           !prediction.timeRemaining.includes('Disputed') && 
-           !prediction.timeRemaining.includes('Awaiting') ? 
-            `${prediction.timeRemaining} left` : 
-            prediction.timeRemaining
-          }
-        </span>
+        <div className="flex items-center gap-1">
+          <Users className="w-4 h-4" />
+          <span>{prediction.participants} participants</span>
+        </div>
+        <div className="flex items-center gap-1">
+          <Clock className="w-4 h-4" />
+          <span className={`font-medium ${
+            prediction.timeRemaining.includes('Closed') || 
+            prediction.timeRemaining.includes('Settled') || 
+            prediction.timeRemaining.includes('Disputed') || 
+            prediction.timeRemaining.includes('Ended') ? 'text-red-600' :
+            prediction.timeRemaining.includes('Awaiting') ? 'text-yellow-600' :
+            'text-amber-600'
+          }`}>
+            {(prediction.timeRemaining.includes('h') || prediction.timeRemaining.includes('d')) && 
+             !prediction.timeRemaining.includes('Closed') && 
+             !prediction.timeRemaining.includes('Ended') && 
+             !prediction.timeRemaining.includes('Settled') && 
+             !prediction.timeRemaining.includes('Disputed') && 
+             !prediction.timeRemaining.includes('Awaiting') ? 
+              `${prediction.timeRemaining} left` : 
+              prediction.timeRemaining
+            }
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+
+  const ActivePredictionCardSkeleton = () => (
+    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-4">
+      <div className="animate-pulse space-y-4">
+        <div className="flex items-center gap-2">
+          <div className="h-5 w-16 bg-gray-200 rounded-full" />
+          <div className="h-5 w-12 bg-gray-200 rounded-full" />
+        </div>
+        <div className="h-6 w-3/4 bg-gray-200 rounded" />
+        <div className="bg-emerald-50 rounded-xl p-4 space-y-3">
+          <div className="h-4 w-24 bg-emerald-200 rounded" />
+          <div className="grid grid-cols-3 gap-4">
+            <div className="h-10 bg-emerald-100 rounded" />
+            <div className="h-10 bg-emerald-100 rounded" />
+            <div className="h-10 bg-emerald-100 rounded" />
+          </div>
+        </div>
+        <div className="h-3 w-full bg-gray-200 rounded-full" />
+        <div className="flex items-center justify-between">
+          <div className="h-4 w-24 bg-gray-200 rounded" />
+          <div className="h-4 w-20 bg-gray-200 rounded" />
+        </div>
       </div>
     </div>
   );
 
   // Created prediction card
   const CreatedPredictionCard = ({ prediction }: { prediction: any }) => (
-    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-4 hover:shadow-md transition-all duration-200">
+    <div
+      className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-4 hover:shadow-md transition-all duration-200 cursor-pointer"
+      onClick={() => setLocation(`/predictions/${prediction.id}`)}
+      role="button"
+      aria-label={`View prediction ${prediction.title}`}
+    >
       <div className="flex items-start justify-between mb-4">
         <div className="flex-1">
           <div className="flex items-center gap-2 mb-2">
@@ -624,63 +716,155 @@ const PredictionsPage: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNa
   );
 
   // Completed prediction card
-  const CompletedPredictionCard = ({ prediction }: { prediction: any }) => (
-    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-4 hover:shadow-md transition-all duration-200">
+  const CompletedPredictionCard = ({ prediction }: { prediction: any }) => {
+    const { address } = useAccount();
+    const { data: claimables } = useClaimableClaims(address || undefined, 100);
+    const claimMap = new Map((claimables || []).map(c => [c.predictionId, c]));
+    const { claim, isClaiming } = useMerkleClaim();
+    const [archived, setArchived] = React.useState(false);
+    const localClaimed = (() => {
+      try {
+        const addrLower = (address || '').toLowerCase();
+        return Boolean(localStorage.getItem(`fcz:claimed:${prediction.id}:${addrLower}`));
+      } catch {
+        return false;
+      }
+    })();
+    const claimData = claimMap.get(prediction.id);
+    const hasClaim = !!address && !!claimData && !localClaimed;
+    const isSettled = Boolean(prediction?.settledAt) || (String(prediction?.status || '').toLowerCase() === 'settled');
+
+    const openSafely = async () => {
+      // If status already indicates archived, do not fire a detail request at all
+      const statusLower = String(prediction?.status || '').toLowerCase();
+      if (statusLower === 'archived' || archived) {
+        setArchived(true);
+        toast('This prediction has been archived', { icon: '🗄️' });
+        return;
+      }
+      try {
+        // Lightweight HEAD preflight to avoid full payload
+        const r = await fetch(`${getApiUrl()}/api/v2/predictions/${prediction.id}`, { method: 'HEAD' });
+        if (!r.ok) {
+          setArchived(true);
+          toast('This prediction has been archived', { icon: '🗄️' });
+          return;
+        }
+        setLocation(`/predictions/${prediction.id}`);
+      } catch {
+        setLocation(`/predictions/${prediction.id}`);
+      }
+    };
+
+    return (
+    <div
+      className={`bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-4 transition-all duration-200 ${archived ? 'opacity-60 cursor-not-allowed' : 'hover:shadow-md cursor-pointer'}`}
+      onClick={() => { if (!archived) void openSafely(); }}
+      role="button"
+      aria-label={`View prediction ${prediction.title}`}
+    >
       <div className="flex items-start justify-between mb-4">
         <div className="flex-1">
           <div className="flex items-center gap-2 mb-2">
             <span className={`px-2 py-1 rounded-lg text-xs font-medium ${getCategoryColor(prediction.category)}`}>
               {prediction.category.replace('_', ' ')}
             </span>
-            <span className={`px-2 py-1 rounded-lg text-xs font-medium border ${
-              prediction.status === 'won' 
-                ? 'bg-emerald-50 text-emerald-700 border-emerald-200' 
-                : 'bg-red-50 text-red-700 border-red-200'
-            }`}>
-              {prediction.status === 'won' ? 'Won' : 'Lost'}
-            </span>
+            {archived ? (
+              <span className="px-2 py-1 rounded-lg text-xs font-medium border bg-gray-50 text-gray-700 border-gray-200">Archived</span>
+            ) : isSettled ? (
+              <span className={`px-2 py-1 rounded-lg text-xs font-medium border ${
+                prediction.status === 'won' 
+                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200' 
+                  : 'bg-red-50 text-red-700 border-red-200'
+              }`}>
+                {prediction.status === 'won' ? 'Won' : 'Lost'}
+              </span>
+            ) : (
+              <span className="px-2 py-1 rounded-lg text-xs font-medium border bg-yellow-50 text-yellow-700 border-yellow-200">
+                Awaiting Settlement
+              </span>
+            )}
           </div>
           <h3 className="font-semibold text-gray-900 text-lg leading-tight">{prediction.title}</h3>
         </div>
       </div>
 
-      <div className={`rounded-xl p-4 mb-4 ${prediction.status === 'won' ? 'bg-emerald-50' : 'bg-red-50'}`}>
+      <div className={`rounded-xl p-4 mb-4 ${
+        archived ? 'bg-gray-50' : isSettled ? (prediction.status === 'won' ? 'bg-emerald-50' : 'bg-red-50') : 'bg-yellow-50'
+      }`}>
         <div className="flex items-center justify-between mb-2">
-          <span className={`text-sm font-medium ${prediction.status === 'won' ? 'text-emerald-800' : 'text-red-800'}`}>
-            Your Position: {prediction.position}
+          <span className={`text-sm font-medium ${
+            archived ? 'text-gray-700' : isSettled ? (prediction.status === 'won' ? 'text-emerald-800' : 'text-red-800') : 'text-yellow-800'
+          }`}>
+            {archived ? 'Archived' : isSettled ? `Your Position: ${prediction.position}` : 'Awaiting Settlement'}
           </span>
-          <span className={`text-lg font-bold ${prediction.status === 'won' ? 'text-emerald-700' : 'text-red-700'}`}>
-            {prediction.profit >= 0 ? '+' : ''}${Math.abs(prediction.profit).toLocaleString()}
-          </span>
+          <div className="flex items-center gap-3">
+            {isSettled && (
+              <span className={`text-lg font-bold ${prediction.status === 'won' ? 'text-emerald-700' : 'text-red-700'}`}>
+                {prediction.profit >= 0 ? '+' : '−'}${Math.abs(prediction.profit).toLocaleString()}
+              </span>
+            )}
+            {hasClaim && claimData && (
+              <button
+                type="button"
+                className="h-8 px-3 rounded-lg bg-emerald-600 text-white text-xs font-semibold hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={isClaiming}
+                onClick={async (e) => {
+                  e.stopPropagation();
+                  const units = BigInt(claimData.amountUnits);
+                  const tx = await claim({
+                    predictionId: prediction.id,
+                    amountUnits: units,
+                    proof: claimData.proof as `0x${string}`[],
+                  });
+                  if (tx) {
+                    // Prevent card click navigation; show claimed state inline
+                    // The global cache invalidation will hide the button next refresh
+                  }
+                }}
+              >
+                {isClaiming ? 'Claiming…' : `Claim ${formatCurrency(claimData.amountUSD, { compact: true })}`}
+              </button>
+            )}
+          </div>
         </div>
         <div className="grid grid-cols-3 gap-4 mt-3">
           <div>
-            <p className={`text-xs mb-1 ${prediction.status === 'won' ? 'text-emerald-600' : 'text-red-600'}`}>Staked</p>
-            <p className={`font-semibold ${prediction.status === 'won' ? 'text-emerald-900' : 'text-red-900'}`}>
+            <p className={`text-xs mb-1 ${
+              archived ? 'text-gray-600' : isSettled ? (prediction.status === 'won' ? 'text-emerald-600' : 'text-red-600') : 'text-yellow-600'
+            }`}>Staked</p>
+            <p className={`font-semibold ${
+              archived ? 'text-gray-900' : isSettled ? (prediction.status === 'won' ? 'text-emerald-900' : 'text-red-900') : 'text-yellow-900'
+            }`}>
               ${prediction.stake.toLocaleString()}
             </p>
           </div>
           <div>
-            <p className={`text-xs mb-1 ${prediction.status === 'won' ? 'text-emerald-600' : 'text-red-600'}`}>Returned</p>
-            <p className={`font-semibold ${prediction.status === 'won' ? 'text-emerald-900' : 'text-red-900'}`}>
-              ${prediction.actualReturn.toLocaleString()}
-            </p>
+            <p className={`text-xs mb-1 ${
+              archived ? 'text-gray-600' : isSettled ? (prediction.status === 'won' ? 'text-emerald-600' : 'text-red-600') : 'text-yellow-600'
+            }`}>Returned</p>
+            <p className={`font-semibold ${
+              archived ? 'text-gray-900' : isSettled ? (prediction.status === 'won' ? 'text-emerald-900' : 'text-red-900') : 'text-yellow-900'
+            }`}>{isSettled ? `$${prediction.actualReturn.toLocaleString()}` : '—'}</p>
           </div>
           <div>
-            <p className={`text-xs mb-1 ${prediction.status === 'won' ? 'text-emerald-600' : 'text-red-600'}`}>Profit/Loss</p>
-            <p className={`font-semibold ${prediction.status === 'won' ? 'text-emerald-900' : 'text-red-900'}`}>
-              {prediction.profit >= 0 ? '+' : ''}${Math.abs(prediction.profit).toLocaleString()}
-            </p>
+            <p className={`text-xs mb-1 ${
+              archived ? 'text-gray-600' : isSettled ? (prediction.status === 'won' ? 'text-emerald-600' : 'text-red-600') : 'text-yellow-600'
+            }`}>Profit/Loss</p>
+            <p className={`font-semibold ${
+              archived ? 'text-gray-900' : isSettled ? (prediction.status === 'won' ? 'text-emerald-900' : 'text-red-900') : 'text-yellow-900'
+            }`}>{isSettled ? `${prediction.profit >= 0 ? '+' : '−'}$${Math.abs(prediction.profit).toLocaleString()}` : 'Pending'}</p>
           </div>
         </div>
       </div>
 
       <div className="flex items-center justify-between text-sm text-gray-500">
         <span>{prediction.participants} participants</span>
-        <span>Settled {prediction.settledAt}</span>
+        <span>{archived ? 'Archived' : isSettled ? `Settled ${prediction.settledAt}` : 'Closed — awaiting settlement'}</span>
       </div>
       </div>
   );
+  }
 
   return (
     <>
@@ -727,15 +911,38 @@ const PredictionsPage: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNa
               <div className="w-8 h-8 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
               <span className="ml-3 text-gray-600">Loading predictions...</span>
             </div>
+          ) : activeTab === 'Active' ? (
+            !entriesHydrated ? (
+              <div className="space-y-4">
+              {Array.from({ length: Math.max(3, counts.active || 1) }).map((_, idx) => (
+                <ActivePredictionCardSkeleton key={`active-loading-${idx}`} />
+              ))}
+              </div>
+            ) : activeEntryCards.length > 0 ? (
+              <div className="space-y-4">
+                <AnimatePresence mode="popLayout">
+                  {activeEntryCards.map(({ entry, prediction, card }, index) => (
+                    <motion.div
+                      key={`active-${prediction?.id || entry.id}-${index}`}
+                      initial={{ opacity: 0, y: 12 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -12 }}
+                      transition={{ duration: 0.2, delay: index * 0.02 }}
+                    >
+                      {prediction && card ? (
+                        <ActivePredictionCard prediction={card} />
+                      ) : (
+                        <ActivePredictionCardSkeleton />
+                      )}
+                    </motion.div>
+                  ))}
+                </AnimatePresence>
+              </div>
+            ) : (
+              <EmptyState tab={activeTab} />
+            )
           ) : currentPredictions.length > 0 ? (
             <div className="space-y-4">
-              {activeTab === 'Active' && currentPredictions.map((prediction, index) => 
-                !prediction || typeof prediction.id === 'undefined' ? (
-                  console.warn('Invalid prediction object:', prediction), null
-                ) : (
-                  <ActivePredictionCard key={`active-${prediction.id}-${index}`} prediction={prediction} />
-                )
-              )}
               {activeTab === 'Created' && currentPredictions.map((prediction, index) => 
                 !prediction || typeof prediction.id === 'undefined' ? (
                   console.warn('Invalid prediction object:', prediction), null
@@ -777,7 +984,7 @@ const PredictionsPage: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNa
               (selectedPrediction as any).participants ||
               (selectedPrediction as any).participant_count ||
               0,
-            timeRemaining: (selectedPrediction as any).timeRemaining || '0h',
+            timeRemaining: getTimeRemaining((selectedPrediction as any).entry_deadline, (selectedPrediction as any).status) || 'Ended',
             yourCut:
               (selectedPrediction as any).yourCut ||
               (selectedPrediction as any).creator_fee_percentage ||

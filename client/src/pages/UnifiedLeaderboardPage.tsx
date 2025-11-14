@@ -9,8 +9,7 @@ import Card, { CardHeader, CardContent } from '../components/ui/card/Card';
 import EmptyState from '../components/ui/empty/EmptyState';
 import { SkeletonCard } from '../components/ui/skeleton/Skeleton';
 import { getApiUrl } from '../config';
-import { formatNumberShort, formatUSDCompact, formatPercent } from '@lib/format';
-import { formatPercentage } from '@lib/format';
+import { formatNumberShort, formatUSDCompact, formatPercent, formatPercentage } from '@/lib/format';
 import { cn } from '../utils/cn';
 import { KeyboardNavigation, AriaUtils } from '../utils/accessibility';
 

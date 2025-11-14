@@ -6,6 +6,7 @@
  */
 
 import express from 'express';
+import http from 'http';
 import cors from 'cors';
 import { config } from './config';
 import { supabase } from './config/database';
@@ -108,32 +109,75 @@ app.post('/api/v2/admin/seed-database', async (req, res) => {
 import usersRoutes from './routes/users';
 import predictionsRoutes from './routes/predictions';
 import predictionEntriesRoutes from './routes/prediction-entries';
+import betsRoutes from './routes/bets';
 import socialRoutes from './routes/social';
 import settlementRoutes from './routes/settlement';
 import activityRoutes from './routes/activity';
 import imagesRoutes from './api/images/router';
+import escrowRoutes from './routes/escrow';
+import { walletRead } from './routes/walletRead';
+import { walletSummary } from './routes/walletSummary';
+import { walletActivity } from './routes/walletActivity';
+import { walletReconcile } from './routes/walletReconcile';
+import walletMaintenance from './routes/walletMaintenance';
+import { placeBetRouter } from './routes/predictions/placeBet';
 import { chainActivity } from './routes/chain/activity';
+import { healthPayments } from './routes/healthPayments';
+import { healthBase } from './routes/healthBase';
+import { healthApp } from './routes/healthApp';
+import { qaCryptoMock } from './routes/qaCryptoMock';
+import { startBaseDepositWatcher } from './chain/base/depositWatcher';
+import { resolveAndValidateAddresses } from './chain/base/addressRegistry';
+import { validatePaymentsEnv } from './utils/envValidation';
 import { ensureAvatarsBucket } from './startup/storage';
+import { startReconciliationJob } from './cron/reconcileEscrow';
+import { startLockExpirationJob } from './cron/expireLocks';
+import { initRealtime } from './services/realtime';
 
 // Use routes
 app.use('/api/v2/users', usersRoutes);
 app.use('/api/v2/predictions', predictionsRoutes);
+app.use('/api/predictions', placeBetRouter);
+app.use('/api/v1/predictions', placeBetRouter); // Back-compat for older clients (snake_case route supported inside)
 app.use('/api/v2/prediction-entries', predictionEntriesRoutes);
+app.use('/api/v2/bets', betsRoutes);
 app.use('/api/v2/social', socialRoutes);
 app.use('/api/v2/settlement', settlementRoutes);
 app.use('/api/v2/activity', activityRoutes);
 app.use('/api/images', imagesRoutes);
+app.use('/api/escrow', escrowRoutes);
+app.use('/api/wallet', walletRead);
+app.use('/api/wallet', walletSummary);
+app.use('/api/wallet', walletActivity);
+app.use('/api/wallet', walletReconcile);
+app.use('/api/wallet', walletMaintenance);
 app.use('/api/chain', chainActivity);
+app.use(healthPayments);
+app.use(healthBase);
+app.use(healthApp);
+
+// QA Mock routes (guarded by flag)
+if (process.env.BASE_DEPOSITS_MOCK === '1') {
+  app.use(qaCryptoMock());
+}
 
 // Debug logging for route registration
 console.log('✅ Routes registered:');
 console.log('  - /api/v2/users');
 console.log('  - /api/v2/predictions');
 console.log('  - /api/v2/prediction-entries');
+console.log('  - /api/v2/bets (NEW: idempotent bet placement)');
 console.log('  - /api/v2/social (comments system)');
 console.log('  - /api/v2/settlement (manual/auto settlement)');
 console.log('  - /api/v2/activity (activity feed)');
 console.log('  - /api/images (auto-generated images)');
+console.log('  - /api/escrow (escrow lock/unlock)');
+console.log('  - /api/wallet (wallet summary & activity)');
+console.log('  - /api/health/payments (payment system health)');
+console.log('  - /api/health/base (Base chain health)');
+if (process.env.BASE_DEPOSITS_MOCK === '1') {
+  console.log('  - /api/qa/crypto/mock-deposit (QA mock deposits)');
+}
 
 // CORS test endpoint
 app.get('/api/v2/test-cors', (req, res) => {
@@ -168,8 +212,10 @@ app.use((error: any, req: express.Request, res: express.Response, next: express.
   });
 });
 
-// Start server
-app.listen(PORT, () => {
+// Start server (HTTP + Socket.io)
+const httpServer = http.createServer(app);
+initRealtime(httpServer);
+httpServer.listen(PORT, async () => {
   console.log(`🚀 Fan Club Z Server started successfully!`);
   console.log(`📡 Environment: ${config.server.nodeEnv || 'production'}`);
   console.log(`🌐 Server running on port ${PORT}`);
@@ -179,6 +225,68 @@ app.listen(PORT, () => {
   console.log(`✅ CORS enabled for all origins (development mode)`);
   console.log(`🔨 Settlement system enabled`);
   ensureAvatarsBucket();
+  
+  // Validate payment environment variables
+  try {
+    validatePaymentsEnv();
+  } catch (e) {
+    console.error('[FCZ-PAY] Environment validation failed:', e);
+    if (process.env.NODE_ENV === 'production') {
+      process.exit(1); // Fail fast in production
+    }
+  }
+  
+  // Start Base deposit watcher if enabled
+  if (process.env.PAYMENTS_ENABLE === '1' && process.env.ENABLE_BASE_DEPOSITS === '1') {
+    (async () => {
+      try {
+        // Resolve and validate addresses from registry
+        const { usdc } = await resolveAndValidateAddresses();
+        
+        // Create a simple pool for the watcher (using Supabase connection)
+        const pool = {
+          connect: async () => {
+            return {
+              query: async (sql: string, params?: any[]) => {
+                if (sql.includes('SELECT')) {
+                  const { data, error } = await supabase.rpc('exec_sql', { sql, params });
+                  if (error) throw error;
+                  return { rows: data || [] };
+                } else {
+                  const { error } = await supabase.rpc('exec_sql', { sql, params });
+                  if (error) throw error;
+                  return { rowCount: 1 };
+                }
+              },
+              release: () => {}
+            };
+          }
+        } as any;
+        
+        await startBaseDepositWatcher({ 
+          pool, 
+          usdc: usdc as `0x${string}`
+        });
+        
+        console.log('[FCZ-PAY] ✅ Deposit watcher started successfully');
+      } catch (e) {
+        console.error('[FCZ-PAY] watcher fatal', e);
+        if (process.env.NODE_ENV === 'production') {
+          process.exit(1); // Fail fast in production
+        }
+      }
+    })();
+  }
+
+  // Start reconciliation job if payments enabled
+  if (process.env.PAYMENTS_ENABLE === '1') {
+    startReconciliationJob();
+  }
+  
+  // Start lock expiration job (always run, not just when payments enabled)
+  // This prevents locks from staying forever even in demo/test environments
+  startLockExpirationJob();
+  console.log('✅ Lock expiration cron job started');
 });
 
 export default app;

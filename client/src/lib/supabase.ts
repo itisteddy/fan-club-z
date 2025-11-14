@@ -22,6 +22,24 @@ if (!supabaseUrl || !supabaseAnonKey) {
   );
 }
 
+// Helper to get the proper redirect URL for any environment
+function getRedirectUrl() {
+  // In production, always use the production URL
+  if (import.meta.env.PROD) {
+    return 'https://app.fanclubz.app/auth/callback';
+  }
+  
+  // In development, check if we have a custom redirect URL override
+  if (import.meta.env.VITE_AUTH_REDIRECT_URL) {
+    return import.meta.env.VITE_AUTH_REDIRECT_URL;
+  }
+  
+  // Use current origin (works for localhost, network IPs, etc.)
+  const currentOrigin = window.location.origin;
+  console.log('🔧 Auth redirect URL:', `${currentOrigin}/auth/callback`);
+  return `${currentOrigin}/auth/callback`;
+}
+
 // Create Supabase client with proper OAuth configuration
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
@@ -29,10 +47,8 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     persistSession: true,
     detectSessionInUrl: true,
     flowType: 'pkce',
-    // Set proper redirect URL for local development
-    redirectTo: import.meta.env.DEV 
-      ? `${window.location.origin}/auth/callback`
-      : 'https://app.fanclubz.app/auth/callback'
+    // Use dynamic redirect URL that works with any origin
+    redirectTo: getRedirectUrl()
   },
   db: {
     schema: 'public',
@@ -66,7 +82,7 @@ if (isDev) {
   testConnection();
 }
 
-// Auth helpers with better error handling
+// Auth helpers with better error handling and dynamic redirect URLs
 export const auth = {
   signUp: async (email: string, password: string, userData: any = {}) => {
     try {
@@ -75,9 +91,7 @@ export const auth = {
         password,
         options: {
           data: userData,
-          emailRedirectTo: import.meta.env.PROD 
-            ? 'https://app.fanclubz.app/auth/callback'
-            : `${window.location.origin}/auth/callback`,
+          emailRedirectTo: getRedirectUrl(),
         },
       });
       
@@ -106,6 +120,27 @@ export const auth = {
       return { data, error };
     } catch (error: any) {
       console.error('Auth signIn exception:', error);
+      return { data: null, error: { message: error.message || 'An unexpected error occurred' } };
+    }
+  },
+
+  signInWithOAuth: async (provider: 'google' | 'github' | 'discord') => {
+    try {
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider,
+        options: {
+          redirectTo: getRedirectUrl(),
+          skipBrowserRedirect: false,
+        },
+      });
+      
+      if (error) {
+        console.error('Auth signInWithOAuth error:', error);
+      }
+      
+      return { data, error };
+    } catch (error: any) {
+      console.error('Auth signInWithOAuth exception:', error);
       return { data: null, error: { message: error.message || 'An unexpected error occurred' } };
     }
   },

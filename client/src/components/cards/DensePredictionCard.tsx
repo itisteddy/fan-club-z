@@ -7,6 +7,7 @@ import { useLikeStore } from '../../store/likeStore';
 import { useUnifiedCommentStore } from '../../store/unifiedCommentStore';
 import UserAvatar from '../common/UserAvatar';
 import { cn } from '@/utils/cn';
+import { formatTimeRemaining } from '@/lib/utils';
 
 interface DensePredictionCardProps {
   prediction: Prediction;
@@ -46,23 +47,6 @@ const DensePredictionCard: React.FC<DensePredictionCardProps> = ({
       setIsLiking(false);
     }
   }, [isLiking, toggleLike, prediction.id]);
-
-  const formatTimeRemaining = (endDate: string) => {
-    const now = new Date();
-    const end = new Date(endDate);
-    const diff = end.getTime() - now.getTime();
-    
-    if (diff <= 0) return 'Ended';
-    
-    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-    const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-    
-    if (days > 0) return `${days}d ${hours}h`;
-    if (hours > 0) return `${hours}h`;
-    
-    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-    return `${minutes}m`;
-  };
 
   const getHighestOption = () => {
     if (!prediction.options || prediction.options.length === 0) return null;
@@ -121,9 +105,11 @@ const DensePredictionCard: React.FC<DensePredictionCardProps> = ({
           </div>
           
           {/* Time Remaining Badge */}
-          <div className="flex items-center gap-1 px-2 py-1 bg-gray-100 rounded-md text-xs text-gray-600 font-medium">
+          <div className={`${formatTimeRemaining(prediction.end_date) === 'Ended' ? 'bg-red-100 text-red-600 border border-red-200' : 'bg-gray-100 text-gray-600'} flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium`}>
             <Clock size={12} />
-            {formatTimeRemaining(prediction.end_date)}
+            {formatTimeRemaining(prediction.end_date) === 'Ended'
+              ? 'Closed'
+              : `Ends in ${formatTimeRemaining(prediction.end_date)}`}
           </div>
         </div>
 

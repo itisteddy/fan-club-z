@@ -1,7 +1,10 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { Heart, MessageCircle, DollarSign, TrendingUp } from 'lucide-react';
+import { useAccount, useSwitchChain } from 'wagmi';
 import AuthRequiredState from '../ui/empty/AuthRequiredState';
+import { selectEscrowAvailableUSD } from '@/lib/balance/balanceSelector';
+import { useWalletStore } from '@/store/walletStore';
 
 interface PredictionOption {
   id: string;
@@ -44,6 +47,24 @@ const PredictionActionPanel: React.FC<PredictionActionPanelProps> = ({
   onComment
 }) => {
   const canPlaceBet = prediction.status === 'open';
+  const walletStore = useWalletStore();
+  const { address, isConnected, chainId } = useAccount();
+  const { switchChainAsync } = useSwitchChain();
+
+  // Feature flags
+  const BASE_ENABLED = import.meta.env.VITE_FCZ_BASE_ENABLE === '1';
+  const BETS_ONCHAIN = import.meta.env.VITE_FCZ_BASE_BETS === '1';
+  const BASE_CHAIN_ID = Number(import.meta.env.VITE_CHAIN_ID || 84532);
+
+  // Real escrow-available balance
+  const escrowAvailable = useMemo(
+    () => selectEscrowAvailableUSD(walletStore),
+    [walletStore]
+  );
+
+  const stakeValue = parseFloat(stakeAmount) || 0;
+  const needsFunds = stakeValue > 0 && escrowAvailable < stakeValue;
+  const onBase = chainId === BASE_CHAIN_ID;
 
   // Debug logging to verify auth state
   React.useEffect(() => {
@@ -51,9 +72,14 @@ const PredictionActionPanel: React.FC<PredictionActionPanelProps> = ({
       isAuthenticated, 
       canPlaceBet,
       userBalance,
+      escrowAvailable,
+      BASE_ENABLED,
+      BETS_ONCHAIN,
+      isConnected,
+      onBase,
       predictionId: prediction.id 
     });
-  }, [isAuthenticated, canPlaceBet, userBalance, prediction.id]);
+  }, [isAuthenticated, canPlaceBet, userBalance, escrowAvailable, BASE_ENABLED, BETS_ONCHAIN, isConnected, onBase, prediction.id]);
 
   if (!canPlaceBet) {
     // Show engagement actions only
@@ -149,39 +175,85 @@ const PredictionActionPanel: React.FC<PredictionActionPanelProps> = ({
                   />
                 </div>
                 <p className="text-sm text-gray-600 mt-1 flex items-center justify-between">
-                  <span>Available: ${(userBalance || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                  {parseFloat(stakeAmount) > userBalance && (
+                  <span>
+                    {BASE_ENABLED && BETS_ONCHAIN 
+                      ? `Available in escrow: $${Math.max(0, escrowAvailable).toFixed(2)}`
+                      : `Available: ${(userBalance || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                    }
+                  </span>
+                  {(BASE_ENABLED && BETS_ONCHAIN ? needsFunds : parseFloat(stakeAmount) > userBalance) && (
                     <span className="text-red-600 font-medium">Insufficient funds</span>
                   )}
                 </p>
               </div>
 
-              <button
-                onClick={onPlaceBet}
-                disabled={!stakeAmount || isPlacingBet || parseFloat(stakeAmount) > userBalance || parseFloat(stakeAmount) <= 0}
-                className={`w-full py-4 rounded-xl font-bold text-lg transition-all transform ${
-                  !stakeAmount || isPlacingBet || parseFloat(stakeAmount) > userBalance || parseFloat(stakeAmount) <= 0
-                    ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                    : 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white hover:from-emerald-600 hover:to-teal-600 active:scale-[0.98] shadow-lg hover:shadow-xl'
-                }`}
-                style={{
-                  position: 'relative',
-                  zIndex: 10
-                }}
-              >
-                {isPlacingBet ? (
-                  <div className="flex items-center justify-center space-x-2">
-                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    <span>Placing Bet...</span>
-                  </div>
-                ) : parseFloat(stakeAmount) > userBalance ? (
-                  'Insufficient Balance'
-                ) : parseFloat(stakeAmount) <= 0 || !stakeAmount ? (
-                  'Enter Amount'
-                ) : (
-                  `Place Bet - ${parseFloat(stakeAmount).toFixed(2)}`
-                )}
-              </button>
+              {/* CTA Button with Gating Logic */}
+              {BASE_ENABLED && BETS_ONCHAIN && !isConnected ? (
+                <button
+                  onClick={() => {
+                    // Trigger wallet connect - you can customize this
+                    console.log('[FCZ-PAY] ui: Connect wallet requested');
+                    // TODO: Open your wallet connect modal
+                  }}
+                  className="w-full py-4 rounded-xl font-bold text-lg transition-all transform bg-gradient-to-r from-blue-500 to-indigo-500 text-white hover:from-blue-600 hover:to-indigo-600 active:scale-[0.98] shadow-lg hover:shadow-xl"
+                  style={{ position: 'relative', zIndex: 10 }}
+                >
+                  Connect Wallet
+                </button>
+              ) : BASE_ENABLED && BETS_ONCHAIN && !onBase ? (
+                <button
+                  onClick={async () => {
+                    try {
+                      await switchChainAsync?.({ chainId: BASE_CHAIN_ID });
+                    } catch (err) {
+                      console.error('[FCZ-PAY] Chain switch failed:', err);
+                    }
+                  }}
+                  className="w-full py-4 rounded-xl font-bold text-lg transition-all transform bg-gradient-to-r from-blue-500 to-indigo-500 text-white hover:from-blue-600 hover:to-indigo-600 active:scale-[0.98] shadow-lg hover:shadow-xl"
+                  style={{ position: 'relative', zIndex: 10 }}
+                >
+                  Switch to Base
+                </button>
+              ) : BASE_ENABLED && BETS_ONCHAIN && needsFunds ? (
+                <button
+                  onClick={() => {
+                    // Open deposit modal
+                    console.log('[FCZ-PAY] ui: Add funds requested');
+                    walletStore?.openDepositModal?.();
+                  }}
+                  className="w-full py-4 rounded-xl font-bold text-lg transition-all transform bg-gradient-to-r from-amber-500 to-orange-500 text-white hover:from-amber-600 hover:to-orange-600 active:scale-[0.98] shadow-lg hover:shadow-xl"
+                  style={{ position: 'relative', zIndex: 10 }}
+                >
+                  Add funds (need ${Math.max(0, stakeValue - escrowAvailable).toFixed(2)})
+                </button>
+              ) : (
+                <button
+                  onClick={onPlaceBet}
+                  disabled={!stakeAmount || isPlacingBet || (BASE_ENABLED && BETS_ONCHAIN ? needsFunds : parseFloat(stakeAmount) > userBalance) || parseFloat(stakeAmount) <= 0}
+                  className={`w-full py-4 rounded-xl font-bold text-lg transition-all transform ${
+                    !stakeAmount || isPlacingBet || (BASE_ENABLED && BETS_ONCHAIN ? needsFunds : parseFloat(stakeAmount) > userBalance) || parseFloat(stakeAmount) <= 0
+                      ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                      : 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white hover:from-emerald-600 hover:to-teal-600 active:scale-[0.98] shadow-lg hover:shadow-xl'
+                  }`}
+                  style={{
+                    position: 'relative',
+                    zIndex: 10
+                  }}
+                >
+                  {isPlacingBet ? (
+                    <div className="flex items-center justify-center space-x-2">
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      <span>Placing Bet...</span>
+                    </div>
+                  ) : (BASE_ENABLED && BETS_ONCHAIN ? needsFunds : parseFloat(stakeAmount) > userBalance) ? (
+                    'Insufficient Balance'
+                  ) : parseFloat(stakeAmount) <= 0 || !stakeAmount ? (
+                    'Enter Amount'
+                  ) : (
+                    `Place Bet: $${parseFloat(stakeAmount).toFixed(2)}`
+                  )}
+                </button>
+              )}
             </motion.div>
           )}
         </>

@@ -19,6 +19,9 @@ import {
 } from 'lucide-react';
 import ManagePredictionModal from '../components/modals/ManagePredictionModal';
 import { cn } from '../utils/cn';
+import { formatTimeAgo } from '../lib/format';
+import { formatTimeRemaining } from '@/lib/utils';
+import PredictionCardV3, { PredictionCardV3Skeleton } from '../components/predictions/PredictionCardV3';
 
 // Production BetsTab Component - Extracted from production bundle
 const BetsTab: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNavigateToDiscover }) => {
@@ -50,30 +53,28 @@ const BetsTab: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNavigateTo
   const [activeTab, setActiveTab] = useState("Active");
   const [showManageModal, setShowManageModal] = useState(false);
   const [selectedPrediction, setSelectedPrediction] = useState(null);
+  const [fetching, setFetching] = useState(false);
+  const [entriesHydrated, setEntriesHydrated] = useState(false);
+  const isEntryActive = useCallback((status: string) => {
+    const s = (status || '').toLowerCase();
+    return !(s === 'won' || s === 'lost' || s === 'refunded');
+  }, []);
 
   // Helper function to get time remaining with proper status context
-  const getTimeRemaining = (deadline: string, predictionStatus?: string) => {
-    if (!deadline) return "Unknown";
-    
-    const now = new Date().getTime();
-    const end = new Date(deadline).getTime() - now;
-    
-    // Handle different prediction states
-    if (predictionStatus === 'closed') return "Closed";
-    if (predictionStatus === 'settled') return "Settled";
-    if (predictionStatus === 'awaiting_settlement') return "Awaiting Settlement";
-    if (predictionStatus === 'disputed') return "Disputed";
-    if (predictionStatus === 'refunded') return "Refunded";
-    if (predictionStatus === 'ended') return "Ended";
-    
-    // Time-based logic for active predictions
-    if (end <= 0) return "Ended";
-    
-    const days = Math.floor(end / (1000 * 60 * 60 * 24));
-    const hours = Math.floor((end % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-    
-    if (days > 0) return `${days}d ${hours}h`;
-    return `${hours}h`;
+  const getTimeRemaining = (deadline: string | null | undefined, predictionStatus?: string) => {
+    if (!deadline) return 'Unknown';
+
+    const normalizedStatus = (predictionStatus || '').toLowerCase();
+    if (normalizedStatus === 'closed') return 'Closed';
+    if (normalizedStatus === 'settled') return 'Settled';
+    if (normalizedStatus === 'awaiting_settlement') return 'Awaiting settlement';
+    if (normalizedStatus === 'disputed') return 'Disputed';
+    if (normalizedStatus === 'refunded') return 'Refunded';
+    if (normalizedStatus === 'ended') return 'Ended';
+
+    const formatted = formatTimeRemaining(deadline);
+    if (!formatted) return 'Unknown';
+    return formatted;
   };
 
   // Helper function to calculate confidence
@@ -92,24 +93,28 @@ const BetsTab: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNavigateTo
 
   // Fetch user data
   useEffect(() => {
-    if (!user?.id || !isAuthenticated) return;
-    
-    let isMounted = true;
-    let hasStarted = false;
-    
-    const timeout = setTimeout(() => {
-      if (!isMounted || hasStarted) return;
-      console.log('📊 BetsTab: Fetching data for user:', user.id);
-      fetchUserCreatedPredictions(user.id);
-      fetchUserPredictionEntries(user.id);
-      hasStarted = true;
-    }, 100);
-
-    return () => {
-      isMounted = false;
-      clearTimeout(timeout);
+    let cancelled = false;
+    const run = async () => {
+      if (!user?.id || !isAuthenticated) return;
+      try {
+        setFetching(true);
+        setEntriesHydrated(false);
+        console.log('📊 BetsTab: Fetching data for user:', user.id);
+        await Promise.all([
+          fetchUserCreatedPredictions(user.id),
+          fetchUserPredictionEntries(user.id),
+        ]);
+        setEntriesHydrated(true);
+      } finally {
+        if (!cancelled) setFetching(false);
+        if (!cancelled) {
+          setEntriesHydrated(true);
+        }
+      }
     };
-  }, [user?.id, isAuthenticated]);
+    run();
+    return () => { cancelled = true; };
+  }, [user?.id, isAuthenticated, fetchUserCreatedPredictions, fetchUserPredictionEntries]);
 
   // Get counts for tabs
   const getCounts = () => {
@@ -118,15 +123,16 @@ const BetsTab: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNavigateTo
     const userCreated = getUserCreatedPredictions(user.id);
     const userEntries = getUserPredictionEntries(user.id);
     
-    // Count active entries (same logic as getUserPredictions)
+    // Count active entries with graceful fallback if prediction not yet loaded
     const activeEntries = userEntries.filter(entry => {
       const prediction = (entry as any).prediction || predictions.find(p => p.id === entry.prediction_id);
-      if (!prediction) return false;
-      
+      const entryActive = isEntryActive(entry.status);
+      if (!prediction) {
+        // Assume active if entry is active and prediction data hasn't hydrated yet
+        return entryActive;
+      }
       const isOpen = prediction.status === 'open';
       const beforeDeadline = new Date(prediction.entry_deadline) > new Date();
-      const entryActive = entry.status === 'active';
-      
       return isOpen && beforeDeadline && entryActive;
     });
     
@@ -139,15 +145,13 @@ const BetsTab: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNavigateTo
       return needsManagement;
     });
     
-    // Count completed entries (settled or ended)
+    // Count completed entries – rely primarily on entry status; include prediction-ended cases when available
     const completedEntries = userEntries.filter(entry => {
       const prediction = (entry as any).prediction || predictions.find(p => p.id === entry.prediction_id);
-      if (!prediction) return false;
-      
-      const isSettled = entry.status === 'won' || entry.status === 'lost';
+      const isSettled = (entry.status || '').toLowerCase() === 'won' || (entry.status || '').toLowerCase() === 'lost' || (entry.status || '').toLowerCase() === 'refunded';
+      if (!prediction) return isSettled;
       const predictionEnded = prediction.status === 'closed' || prediction.status === 'settled' || prediction.status === 'ended';
       const pastDeadline = new Date(prediction.entry_deadline) <= new Date();
-      
       return isSettled || predictionEnded || pastDeadline;
     });
     
@@ -179,37 +183,28 @@ const BetsTab: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNavigateTo
     const activePredictions = userEntries
       .filter(entry => {
         const prediction = (entry as any).prediction || predictions.find(p => p.id === entry.prediction_id);
-        if (!prediction) return false;
-        
-        // Check if prediction is still active (not ended/closed/settled and before deadline)
+        const entryActive = isEntryActive(entry.status);
+        if (!prediction) return entryActive;
         const isOpen = prediction.status === 'open';
         const beforeDeadline = new Date(prediction.entry_deadline) > new Date();
-        const entryActive = entry.status === 'active';
-        
         return isOpen && beforeDeadline && entryActive;
       })
       .map(entry => {
         const prediction = (entry as any).prediction || predictions.find(p => p.id === entry.prediction_id);
-        if (!prediction) {
-          console.warn('⚠️ No prediction found for entry:', entry.id);
-          return null;
-        }
-
-        const option = (entry as any).option || prediction.options?.find(o => o.id === entry.option_id);
-        const timeRemaining = getTimeRemaining(prediction.entry_deadline, prediction.status);
-        
+        const option = (entry as any).option || prediction?.options?.find(o => o.id === entry.option_id);
+        const timeRemaining = prediction ? getTimeRemaining(prediction.entry_deadline, prediction.status) : 'Active';
         return {
           id: entry.id,
-          title: prediction.title,
-          category: prediction.category,
+          title: prediction?.title || 'Prediction',
+          category: prediction?.category || 'custom',
           position: option?.label || 'Unknown',
           stake: entry.amount,
           potentialReturn: entry.potential_payout || 0,
           odds: entry.potential_payout ? `${(entry.potential_payout / entry.amount).toFixed(2)}x` : '1.00x',
           timeRemaining,
           status: 'active',
-          participants: prediction.participant_count || 0,
-          confidence: calculateConfidence(prediction)
+          participants: prediction?.participant_count || 0,
+          confidence: prediction ? calculateConfidence(prediction) : 68
         };
       })
       .filter(Boolean);
@@ -279,7 +274,7 @@ const BetsTab: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNavigateTo
         let timeLabel = "";
         
         if (prediction.status === 'settled' && (entry.status === 'won' || entry.status === 'lost')) {
-          timeLabel = `Settled on ${new Date(entry.updated_at).toLocaleDateString()}`;
+          timeLabel = `Settled ${formatTimeAgo(entry.updated_at)}`;
         } else if (prediction.status === 'closed') {
           timeLabel = "Closed - Awaiting Settlement";
         } else if (prediction.status === 'awaiting_settlement') {
@@ -287,9 +282,9 @@ const BetsTab: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNavigateTo
         } else if (prediction.status === 'disputed') {
           timeLabel = "Settlement Disputed";
         } else if (prediction.status === 'refunded') {
-          timeLabel = `Refunded on ${new Date(prediction.updated_at || prediction.created_at).toLocaleDateString()}`;
+          timeLabel = `Refunded ${formatTimeAgo(prediction.updated_at || prediction.created_at)}`;
         } else if (new Date(prediction.entry_deadline) <= new Date()) {
-          timeLabel = `Ended on ${new Date(prediction.entry_deadline).toLocaleDateString()}`;
+          timeLabel = `Ended ${formatTimeAgo(prediction.entry_deadline)}`;
           // Keep the original status for ended predictions that haven't been settled
           if (entry.status === 'active') {
             displayStatus = 'active'; // Will show as "pending settlement" in UI
@@ -320,6 +315,9 @@ const BetsTab: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNavigateTo
     };
   };
 
+  const userEntriesList = (isAuthenticated && user) ? getUserPredictionEntries(user.id) : [];
+  const userCreatedList = (isAuthenticated && user) ? getUserCreatedPredictions(user.id) : [];
+
   const userPredictions = useMemo(() => {
     try {
       return getUserPredictions();
@@ -327,7 +325,26 @@ const BetsTab: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNavigateTo
       console.error('Error getting user predictions:', error);
       return { Active: [], Created: [], Completed: [] };
     }
-  }, [user?.id, isAuthenticated, predictions, activeTab]);
+  }, [user?.id, isAuthenticated, predictions, activeTab, userEntriesList, userCreatedList]);
+
+  const activeEntryCards = useMemo(() => {
+    if (!isAuthenticated || !user) return [];
+    return userEntriesList
+      .filter(entry => {
+        const prediction = (entry as any).prediction || predictions.find(p => p.id === entry.prediction_id);
+        const entryActive = isEntryActive(entry.status);
+        if (!prediction) {
+          return entryActive;
+        }
+        const isOpen = prediction.status === 'open';
+        const beforeDeadline = new Date(prediction.entry_deadline) > new Date();
+        return entryActive && (isOpen || beforeDeadline);
+      })
+      .map(entry => {
+        const prediction = (entry as any).prediction || predictions.find(p => p.id === entry.prediction_id);
+        return { entry, prediction };
+      });
+  }, [isAuthenticated, user, userEntriesList, predictions, isEntryActive]);
 
   const currentPredictions = userPredictions[activeTab] || [];
 
@@ -770,20 +787,63 @@ const BetsTab: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNavigateTo
 
       {/* Content */}
       <div className="px-6 py-6">
-        {loading ? (
-          <div className="flex items-center justify-center py-16">
-            <div className="w-8 h-8 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
-            <span className="ml-3 text-gray-600">Loading predictions...</span>
+        {loading || fetching ? (
+          <div className="space-y-4">
+            {Array.from({ length: 3 }).map((_, idx) => (
+              <div key={idx} className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 animate-pulse">
+                <div className="h-4 w-28 bg-gray-200 rounded mb-3" />
+                <div className="h-6 w-3/4 bg-gray-200 rounded mb-4" />
+                <div className="h-24 bg-gray-100 rounded" />
+              </div>
+            ))}
           </div>
+        ) : activeTab === 'Active' ? (
+          !entriesHydrated ? (
+            <div className="space-y-4">
+              {Array.from({ length: Math.max(3, counts.active || 1) }).map((_, idx) => (
+                <PredictionCardV3Skeleton key={`active-loading-${idx}`} />
+              ))}
+            </div>
+          ) : activeEntryCards.length > 0 ? (
+            <div className="space-y-4">
+              <AnimatePresence mode="popLayout">
+                {activeEntryCards.map(({ entry, prediction }, index) => (
+                  <motion.div
+                    key={`active-${prediction?.id || entry.id}-${index}`}
+                    initial={{ opacity: 0, y: 12 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -12 }}
+                    transition={{ duration: 0.2, delay: index * 0.02 }}
+                  >
+                    {prediction ? (
+                      <PredictionCardV3
+                        prediction={{
+                          id: prediction.id,
+                          title: prediction.title,
+                          category: prediction.category,
+                          endsAt: prediction.entry_deadline,
+                          pool: prediction.pool_total || 0,
+                          players: prediction.participant_count || 0,
+                          options: (prediction.options || []).map((opt: any) => ({
+                            label: opt.label,
+                            odds: opt.current_odds
+                          })),
+                          description: prediction.description,
+                          creator: prediction.creator || (prediction as any).creator_profile
+                        }}
+                      />
+                    ) : (
+                      <PredictionCardV3Skeleton />
+                    )}
+                  </motion.div>
+                ))}
+              </AnimatePresence>
+            </div>
+          ) : (
+            <EmptyState tab={activeTab} />
+          )
         ) : currentPredictions.length > 0 ? (
           <div className="space-y-4">
-            {activeTab === 'Active' && currentPredictions.map((prediction, index) => 
-              !prediction || typeof prediction.id === 'undefined' ? (
-                console.warn('Invalid prediction object:', prediction), null
-              ) : (
-                <ActivePredictionCard key={`active-${prediction.id}-${index}`} prediction={prediction} />
-              )
-            )}
             {activeTab === 'Created' && currentPredictions.map((prediction, index) => 
               !prediction || typeof prediction.id === 'undefined' ? (
                 console.warn('Invalid prediction object:', prediction), null
@@ -824,7 +884,7 @@ const BetsTab: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNavigateTo
               (selectedPrediction as any).participants ||
               (selectedPrediction as any).participant_count ||
               0,
-            timeRemaining: (selectedPrediction as any).timeRemaining || '0h',
+            timeRemaining: getTimeRemaining((selectedPrediction as any).entry_deadline, (selectedPrediction as any).status) || 'Ended',
             yourCut:
               (selectedPrediction as any).yourCut ||
               (selectedPrediction as any).creator_fee_percentage ||

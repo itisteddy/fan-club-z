@@ -16,6 +16,27 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Safe bottom padding utility for mobile sheets */
+.safe-bottom {
+  padding-bottom: calc(env(safe-area-inset-bottom) + 16px);
+}
+
+/* Constrain a bottom sheet body to visible area (minus ~88px for footer) */
+.sheet-body {
+  max-height: calc(86vh - 88px);
+  overflow-y: auto;
+}
+
+/* High z-index for app modals/sheets above tab bar */
+.z-modal {
+  z-index: 80; /* above tab bar but below any global toasts if needed */
+}
+
+/* Safe bottom padding utility */
+.pb-safe {
+  padding-bottom: max(16px, env(safe-area-inset-bottom));
+}
+
 /* Force CSS reset and base styles - Performance optimized */
 @layer base {
   * {

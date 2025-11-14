@@ -7,7 +7,7 @@ interface PredictionDetailsTabsProps {
   activeTab: string;
   onTabChange: (tab: string) => void;
   commentCount?: number;
-  participantCount?: number;
+  activityCount?: number;
   children: React.ReactNode;
 }
 
@@ -15,13 +15,13 @@ const PredictionDetailsTabs: React.FC<PredictionDetailsTabsProps> = ({
   activeTab,
   onTabChange,
   commentCount = 0,
-  participantCount = 0,
+  activityCount = 0,
   children
 }) => {
   const tabs = [
     { id: 'overview', label: 'Overview', count: 0, icon: BarChart3 },
     { id: 'comments', label: 'Comments', count: commentCount, icon: MessageCircle },
-    { id: 'activity', label: 'Activity', count: participantCount, icon: Activity }
+    { id: 'activity', label: 'Activity', count: activityCount, icon: Activity }
   ];
 
   return (

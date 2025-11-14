@@ -107,7 +107,7 @@ const BetsTab: React.FC<BetsTabProps> = ({ onNavigateToDiscover }) => {
           stake: entry.amount,
           potentialReturn: entry.potentialPayout || 0,
           odds: `${((entry.potentialPayout || 0) / entry.amount).toFixed(2)}x`,
-          timeRemaining: getTimeRemaining(prediction?.entry_deadline),
+          deadline: prediction?.entry_deadline || null,
           status: 'active',
           participants: prediction?.participant_count || 0,
           confidence: calculateConfidence(prediction),
@@ -118,36 +118,23 @@ const BetsTab: React.FC<BetsTabProps> = ({ onNavigateToDiscover }) => {
 
     const createdPredictions = getUserCreatedPredictions(user.id)
       .map(prediction => {
-        const recentActivity = [
-          {
-            id: '1',
-            type: 'participant_joined' as const,
-            description: 'New participant joined',
-            amount: 75,
-            timestamp: new Date(Date.now() - 2 * 60 * 1000).toISOString(),
-            timeAgo: '2 minutes ago'
-          },
-          {
-            id: '2',
-            type: 'prediction_placed' as const,
-            description: 'Large prediction placed',
-            amount: 200,
-            timestamp: new Date(Date.now() - 15 * 60 * 1000).toISOString(),
-            timeAgo: '15 minutes ago'
-          }
-        ];
-
+        // Remove mock activity data - use real data from API if needed
         return {
           id: prediction.id,
           title: prediction.title,
           category: prediction.category,
           totalPool: prediction.pool_total || 0,
           participants: prediction.participant_count || 0,
-          timeRemaining: getTimeRemaining(prediction.entry_deadline),
+          deadline: prediction.entry_deadline || null,
+          entry_deadline: prediction.entry_deadline || null,
           status: prediction.status,
-          yourCut: 3.5,
+          yourCut: prediction.creator_fee_percentage || 1.0,
+          pool_total: prediction.pool_total || 0,
+          participant_count: prediction.participant_count || 0,
+          creator_fee_percentage: prediction.creator_fee_percentage || 1.0,
           description: prediction.description,
-          recentActivity,
+          options: prediction.options || [],
+          recentActivity: [], // Use real activity data from API
           growth: false ? 'growing' : 'stable',
           isPopular: Math.random() > 0.6
         };
@@ -158,21 +145,6 @@ const BetsTab: React.FC<BetsTabProps> = ({ onNavigateToDiscover }) => {
       Created: createdPredictions,
       Completed: []
     };
-  };
-
-  const getTimeRemaining = (deadline: Date | string | undefined) => {
-    if (!deadline) return '2d 14h';
-    const now = new Date().getTime();
-    const deadlineTime = new Date(deadline).getTime();
-    const diff = deadlineTime - now;
-    
-    if (diff <= 0) return 'Ended';
-    
-    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-    const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-    
-    if (days > 0) return `${days}d ${hours}h`;
-    return `${hours}h`;
   };
 
   const calculateConfidence = (prediction: Prediction | undefined) => {
@@ -445,10 +417,20 @@ const BetsTab: React.FC<BetsTabProps> = ({ onNavigateToDiscover }) => {
               Pool Growing
             </span>
           </div>
-          <span className="font-semibold text-amber-600 bg-amber-50 px-3 py-1 rounded-full text-sm flex items-center gap-1">
+          {(() => {
+            const label = formatTimeRemaining(prediction.deadline || prediction.entry_deadline || '');
+            const isClosed = label === 'Ended';
+            const badgeText = isClosed ? 'Closed' : label ? `Ends in ${label}` : 'No deadline';
+            const badgeClasses = isClosed
+              ? 'text-gray-600 bg-gray-100'
+              : 'text-amber-600 bg-amber-50';
+            return (
+              <span className={`${badgeClasses} px-3 py-1 rounded-full text-sm flex items-center gap-1 font-semibold`}>
             <Clock className="w-4 h-4" />
-            {prediction.timeRemaining}
+                {badgeText}
           </span>
+            );
+          })()}
         </div>
       </div>
     </motion.div>
@@ -478,8 +460,14 @@ const BetsTab: React.FC<BetsTabProps> = ({ onNavigateToDiscover }) => {
                   ⭐ Popular
                 </span>
               )}
-              <span className="px-3 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-700 border border-blue-200">
-                Open
+              <span
+                className={`px-3 py-1 rounded-full text-xs font-medium border ${
+                  prediction.status === 'closed' || prediction.status === 'settled'
+                    ? 'bg-gray-100 text-gray-600 border-gray-200'
+                    : 'bg-blue-100 text-blue-700 border-blue-200'
+                }`}
+              >
+                {prediction.status?.toUpperCase() || 'OPEN'}
               </span>
             </div>
             <h3 className="font-bold text-gray-900 text-lg leading-tight group-hover:text-blue-900 transition-colors">
@@ -515,7 +503,28 @@ const BetsTab: React.FC<BetsTabProps> = ({ onNavigateToDiscover }) => {
         <div className="flex items-center justify-between pt-2 border-t border-gray-100">
           <div className="flex items-center gap-1 text-sm text-gray-600">
             <Clock className="w-4 h-4" />
-            Closes in {formatTimeRemaining(prediction.entry_deadline || prediction.timeRemaining)}
+            {(() => {
+              // Check status first
+              if (prediction.status === 'closed' || prediction.status === 'settled') {
+                return <span className="text-gray-600">Closed</span>;
+              }
+              
+              // Check deadline
+              const deadlineStr = prediction.deadline || prediction.entry_deadline;
+              if (!deadlineStr) {
+                return <span className="text-gray-600">No deadline</span>;
+              }
+              
+              const deadlineMs = new Date(deadlineStr).getTime();
+              const now = Date.now();
+              
+              if (deadlineMs <= now) {
+                return <span className="text-red-600">Closed</span>;
+              }
+              
+              const label = formatTimeRemaining(deadlineStr);
+              return <span>{label === 'Ended' ? 'Closed' : `Ends in ${label}`}</span>;
+            })()}
           </div>
           <motion.button
             onClick={() => {

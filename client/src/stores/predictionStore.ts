@@ -37,6 +37,7 @@ interface PredictionState {
   fetchPrediction: (id: string) => Promise<Prediction | null>;
   clear: () => void;
   setError: (error: string | null) => void;
+  closePrediction: (predictionId: string) => Promise<{ success: boolean; data?: unknown }>;
 }
 
 export const usePredictionStore = create<PredictionState>()(
@@ -253,39 +254,46 @@ export const usePredictionStore = create<PredictionState>()(
     }
   },
 
-  placePrediction: async (predictionId: string, optionId: string, amount: number, userId?: string) => {
-    qaLog('Prediction store: Placing prediction:', { predictionId, optionId, amount, userId });
+  placePrediction: async (predictionId: string, optionId: string, amount: number, transactionHash: string, userId: string) => {
+    qaLog('Prediction store: Placing prediction:', { predictionId, optionId, amount, transactionHash, userId });
+    
+    if (!predictionId || !optionId || !amount || !transactionHash || !userId) {
+      qaError('Prediction store: missing required fields');
+      throw new Error('All fields are required: predictionId, optionId, amount, transactionHash, userId');
+    }
     
     try {
       const { post } = await import('../api/client');
-      const result = await post(`/v2/predictions/${predictionId}/entries`, {
+      
+      const payload = {
         option_id: optionId,
-        amount,
+        amount: Number(amount),
+        transaction_hash: transactionHash,
         user_id: userId
-      });
+      };
+      
+      qaLog('Prediction store: Sending payload:', payload);
+      
+      const result = await post(`/v2/predictions/${predictionId}/entries`, payload);
       
       if (result.kind === 'success') {
         const data = result.data.data;
         
-        // Update the prediction in store with new data
         if (data.prediction) {
           set(state => ({
             predictions: state.predictions.map(pred => 
               pred.id === predictionId 
-                ? { 
-                    ...pred,
-                    ...data.prediction,
-                    user_entry: data.entry
-                  }
+                ? { ...pred, ...data.prediction, user_entry: data.entry }
                 : pred
             )
           }));
         }
         
         qaLog('Prediction placed successfully');
+        return { success: true, data };
       } else {
         qaError('Failed to place prediction:', result);
-        throw new Error('Failed to place prediction');
+        throw new Error(`Failed to place prediction: ${result.kind}`);
       }
     } catch (error) {
       qaError('Error placing prediction:', error);
@@ -365,6 +373,37 @@ export const usePredictionStore = create<PredictionState>()(
         // This would be implemented when like functionality is needed
         // For now, just log to prevent errors
         return Promise.resolve();
+      },
+
+      closePrediction: async (predictionId: string) => {
+        qaLog('Prediction store: Closing prediction:', predictionId);
+
+        try {
+          const { post } = await import('../api/client');
+
+          const result = await post(`/v2/predictions/${predictionId}/close`, {});
+
+          if (result.kind === 'success') {
+            const closedPrediction = result.data.data;
+
+            set(state => ({
+              predictions: state.predictions.map(pred =>
+                pred.id === predictionId
+                  ? { ...pred, ...closedPrediction, status: 'closed' }
+                  : pred
+              ),
+            }));
+
+            qaLog('Prediction closed successfully');
+            return { success: true, data: closedPrediction };
+          }
+
+          qaError('Failed to close prediction:', result);
+          throw new Error(`Failed to close prediction: ${result.kind}`);
+        } catch (error) {
+          qaError('Error closing prediction:', error);
+          throw error;
+        }
       },
     }),
     {

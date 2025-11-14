@@ -7,7 +7,8 @@ import { useUnifiedCommentStore } from '../store/unifiedCommentStore';
 import CommentModal from './modals/CommentModal';
 import ErrorBoundary from './ErrorBoundary';
 import toast from 'react-hot-toast';
-import { formatCurrencyShort, formatNumberCompact, formatTimeUntil } from '@lib/format';
+import { formatCurrencyShort, formatNumberCompact } from '@/lib/format';
+import { formatTimeRemaining } from '@/lib/utils';
 import ImageThumb from './ui/ImageThumb';
 
 interface PredictionCardProps {
@@ -54,7 +55,13 @@ const PredictionCardContent: React.FC<PredictionCardProps> = ({
       const { getCommentCount } = useUnifiedCommentStore();
 
   // Calculate real data with safe fallbacks
-  const entryDeadline = prediction.entry_deadline || prediction.entryDeadline;
+  const rawDeadline = prediction.entry_deadline ?? prediction.entryDeadline ?? null;
+  const entryDeadline =
+    typeof rawDeadline === 'string' && !Number.isNaN(Date.parse(rawDeadline))
+      ? rawDeadline
+      : null;
+  const normalizedStatus = (prediction.status || 'open').toLowerCase();
+  const timeRemaining = entryDeadline ? formatTimeRemaining(entryDeadline) : null;
 
   // Use real participant count from database with fallbacks
   const participantCount = prediction.participant_count || prediction.entries?.length || 0;
@@ -75,6 +82,49 @@ const PredictionCardContent: React.FC<PredictionCardProps> = ({
     label: option.text || option.option || option.label || 'Option',
     odds: option.current_odds || option.odds || 1,
   }));
+
+  const statusBadge = (() => {
+    if (normalizedStatus === 'settled') {
+      return {
+        label: 'Settled',
+        className: 'bg-emerald-50 text-emerald-600 border border-emerald-100',
+      };
+    }
+    if (normalizedStatus === 'awaiting_settlement') {
+      return {
+        label: 'Awaiting settlement',
+        className: 'bg-amber-50 text-amber-700 border border-amber-100',
+      };
+    }
+    if (normalizedStatus === 'closed' || normalizedStatus === 'ended') {
+      return {
+        label: 'Closed',
+        className: 'bg-gray-100 text-gray-700 border border-gray-200',
+      };
+    }
+    if (normalizedStatus === 'cancelled' || normalizedStatus === 'canceled') {
+      return {
+        label: 'Cancelled',
+        className: 'bg-gray-100 text-gray-600 border border-gray-200',
+      };
+    }
+    if (!entryDeadline || !timeRemaining) {
+      return {
+        label: 'No deadline',
+        className: 'bg-slate-100 text-slate-600 border border-slate-200',
+      };
+    }
+    if (timeRemaining === 'Ended') {
+      return {
+        label: 'Closed',
+        className: 'bg-red-50 text-red-600 border border-red-100',
+      };
+    }
+    return {
+      label: `Ends in ${timeRemaining}`,
+      className: 'bg-slate-100 text-slate-600 border border-slate-200',
+    };
+  })();
 
   const handleLike = async (e: React.MouseEvent) => {
     e.preventDefault();
@@ -150,11 +200,11 @@ const PredictionCardContent: React.FC<PredictionCardProps> = ({
                   {prediction.category}
                 </span>
               )}
-              {entryDeadline && (
-                <span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5">
-                  ends in {formatTimeUntil(entryDeadline)}
-                </span>
-              )}
+              <span
+                className={`inline-flex items-center rounded-full px-2 py-0.5 ${statusBadge.className}`}
+              >
+                {statusBadge.label}
+              </span>
           </div>
 
             <h3 className="mt-2 line-clamp-2 text-base md:text-lg font-semibold text-slate-900">

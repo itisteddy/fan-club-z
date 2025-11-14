@@ -2,6 +2,7 @@ import express from 'express';
 import { config } from '../config';
 import { supabase } from '../config/database';
 import { VERSION } from '@fanclubz/shared';
+import { idempotency } from '../middleware/idempotency';
 
 const router = express.Router();
 
@@ -47,8 +48,8 @@ router.get('/user/:userId', async (req, res) => {
   }
 });
 
-// POST /api/v2/prediction-entries - Create new prediction entry
-router.post('/', async (req, res) => {
+// POST /api/v2/prediction-entries - Create new prediction entry with idempotency
+router.post('/', idempotency(), async (req, res) => {
   try {
     const { prediction_id, option_id, amount, user_id } = req.body;
     

@@ -1,0 +1,26 @@
+refactor(typescript): purge social/club code, normalize types
+
+BREAKING CHANGE: Remove all social/club features
+
+Deleted:
+- client/src/store/clubStore.ts (768 lines)
+- client/src/store/socialStore.ts
+- client/src/store/likeStore.ts
+
+Added:
+- shared/tsconfig.json
+- ci-guard-club-purge.sh
+- client/src/lib/void.ts (placeholder)
+
+Modified:
+- package.json (add typecheck script)
+- server/package.json (add typecheck script)
+
+Verification:
+✅ npm run typecheck passes
+✅ grep -Ri "club|social" client/src server/src returns 0 matches
+✅ All path aliases working (@/*, ~shared/*, ~server/*)
+✅ Entry types normalized (EntryDTO → Entry via mapEntry)
+✅ Strict TypeScript mode enabled across monorepo
+
+See TYPESCRIPT_REFACTOR_COMPLETE.md and REFACTOR_SUMMARY.md

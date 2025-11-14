@@ -1,12 +1,12 @@
 import { Link } from 'react-router-dom';
 import { useMedia } from '../../hooks/useMedia';
-import { formatNumberShort, formatDurationShort } from '@lib/format';
+import { formatNumberShort, formatDurationShort } from '@/lib/format';
 import CreatorByline from './CreatorByline';
 
 type PredictionCardProps = {
   prediction: {
-    id: string;
-    title: string;
+  id: string;
+  title: string;
     category?: string;
     endsAt?: string;       // ISO
     pool?: number;         // total pool in base units
@@ -36,8 +36,9 @@ export default function PredictionCardV3({ prediction }: PredictionCardProps) {
     category: prediction.category,
   });
 
+  // formatDurationShort expects milliseconds; provide ms to avoid truncation to minutes
   const endsIn = prediction.endsAt
-    ? formatDurationShort(Math.max(0, (new Date(prediction.endsAt).getTime() - Date.now()) / 1000))
+    ? formatDurationShort(Math.max(0, new Date(prediction.endsAt).getTime() - Date.now()))
     : null;
 
   return (
@@ -53,11 +54,11 @@ export default function PredictionCardV3({ prediction }: PredictionCardProps) {
               <span className="rounded-full bg-gray-100 px-2 py-0.5">{prediction.category}</span>
             )}
             {endsIn && <span className="rounded-full bg-gray-100 px-2 py-0.5">ends in {endsIn}</span>}
-          </div>
+        </div>
 
           <h3 className="mt-1 line-clamp-2 text-[15px] font-semibold text-gray-900">
             {prediction.title}
-          </h3>
+        </h3>
 
           {prediction.creator && (
             <CreatorByline creator={prediction.creator} className="mt-1.5 text-xs" />
@@ -71,7 +72,7 @@ export default function PredictionCardV3({ prediction }: PredictionCardProps) {
             {prediction.options?.length ? (
               <div className="flex items-center gap-1">
                 {prediction.options.slice(0, 2).map((o) => (
-                  <span
+              <span
                     key={o.label}
                     className="rounded-md border border-gray-200 px-1.5 py-0.5 text-[11px] font-medium text-gray-700"
                   >
@@ -79,20 +80,25 @@ export default function PredictionCardV3({ prediction }: PredictionCardProps) {
                     {o.odds ? (
                       <span className="ml-1 text-gray-500">{o.odds.toFixed(2)}x</span>
                     ) : null}
-                  </span>
-                ))}
-              </div>
-            ) : null}
+              </span>
+            ))}
           </div>
+            ) : null}
         </div>
+      </div>
 
         {/* Right: thumbnail (fixed) */}
         <div className="h-[72px] w-[96px] shrink-0 overflow-hidden rounded-xl bg-gray-100">
           <img
             src={media.url}
             alt={media.alt || prediction.title}
-            className="h-full w-full object-cover"
+            className="h-full w-full object-cover transition-opacity duration-300"
             loading="lazy"
+            onLoad={(e) => {
+              // Ensure smooth fade-in when image loads
+              (e.target as HTMLImageElement).style.opacity = '1';
+            }}
+            style={{ opacity: 0.95 }}
           />
         </div>
       </div>
@@ -108,7 +114,7 @@ export function PredictionCardV3Skeleton() {
           <div className="flex items-center gap-2 mb-1">
             <div className="h-4 w-12 bg-gray-200 rounded-full animate-pulse" />
             <div className="h-4 w-16 bg-gray-200 rounded-full animate-pulse" />
-          </div>
+        </div>
           <div className="h-4 w-full bg-gray-200 rounded animate-pulse mb-1" />
           <div className="h-4 w-3/4 bg-gray-200 rounded animate-pulse mb-2" />
           <div className="flex items-center gap-3">

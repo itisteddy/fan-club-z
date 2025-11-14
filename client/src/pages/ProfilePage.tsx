@@ -6,7 +6,7 @@ import { openAuthGate } from '../auth/authGateAdapter';
 import UserAvatar from '../components/common/UserAvatar';
 import AppHeader from '../components/layout/AppHeader';
 import { SignOutButton } from '../components/profile/SignOutButton';
-import { formatCurrency, formatInt, formatPercent } from '@lib/format';
+import { formatCurrency, formatInt, formatPercent } from '@/lib/format';
 
 interface ProfilePageProps {
   onNavigateBack?: () => void;

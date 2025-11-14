@@ -204,57 +204,9 @@ const PolishedDiscoverPage: React.FC<DiscoverPageProps> = ({
       )}
       {...containerProps}
     >
-      {/* Header with Stats */}
+      {/* Header - stats removed per request; keep search bar only */}
       <div className="bg-white border-b border-gray-100">
         <div className="px-4 py-6">
-          {/* Platform Stats Pills */}
-          <div className="flex items-center justify-center gap-6 mb-6">
-            <motion.div 
-              className="text-center"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.1 }}
-            >
-              <div className="flex items-center justify-center gap-1 text-emerald-600 mb-1">
-                <DollarSign size={16} />
-                <span className="text-lg font-bold">
-                  {isLoadingStats ? '...' : `$${stats?.totalVolume || '0'}`}
-                </span>
-              </div>
-              <p className="text-xs text-gray-500 font-medium">Volume</p>
-            </motion.div>
-            
-            <motion.div 
-              className="text-center"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.2 }}
-            >
-              <div className="flex items-center justify-center gap-1 text-blue-600 mb-1">
-                <TrendingUp size={16} />
-                <span className="text-lg font-bold">
-                  {isLoadingStats ? '...' : stats?.activePredictions || '0'}
-                </span>
-              </div>
-              <p className="text-xs text-gray-500 font-medium">Active</p>
-            </motion.div>
-            
-            <motion.div 
-              className="text-center"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.3 }}
-            >
-              <div className="flex items-center justify-center gap-1 text-purple-600 mb-1">
-                <Users size={16} />
-                <span className="text-lg font-bold">
-                  {isLoadingStats ? '...' : stats?.totalUsers || '0'}
-                </span>
-              </div>
-              <p className="text-xs text-gray-500 font-medium">Users</p>
-            </motion.div>
-          </div>
-
           {/* Search Bar */}
           <motion.div 
             className="relative"

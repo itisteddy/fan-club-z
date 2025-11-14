@@ -1,0 +1,33 @@
+# Foundry/Forge Deployment Configuration
+# Copy these to .env file in the contracts/ directory
+
+# ========== Wallet & Keys ==========
+# Private key of the deployer wallet (must have ETH for gas)
+DEPLOYER_PRIVATE_KEY=your_deployer_private_key_here
+
+# ========== RPC Endpoints ==========
+# Base Sepolia RPC (use Alchemy or public)
+ALCHEMY_API_KEY=your_alchemy_api_key_here
+BASE_SEPOLIA_RPC_URL=https://sepolia.base.org
+
+# Alternative RPC endpoints:
+# BASE_SEPOLIA_RPC_URL=https://base-sepolia.g.alchemy.com/v2/${ALCHEMY_API_KEY}
+# BASE_SEPOLIA_RPC_URL=https://base-sepolia.publicnode.com
+
+# ========== Contract Addresses ==========
+# USDC Token address on Base Sepolia
+# Default: 0x036CbD53842c5426634e7929541eC2318f3dCF7e
+USDC_ADDRESS=0x036CbD53842c5426634e7929541eC2318f3dCF7e
+
+# ========== Escrow Configuration ==========
+# Platform fee in basis points (250 = 2.5%, 100 = 1%, 1000 = 10%)
+PLATFORM_FEE_BPS=250
+
+# ========== Verification ==========
+# Basescan API key for contract verification (optional but recommended)
+BASESCAN_API_KEY=your_basescan_api_key_here
+
+# ========== Environment ==========
+# Deployment environment (qa, staging, production)
+DEPLOY_ENV=qa
+

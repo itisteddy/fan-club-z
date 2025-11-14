@@ -9,10 +9,7 @@ router.get('/predictions/:id', async (req, res) => {
   try {
     const { id: predictionId } = req.params;
     const { cursor, limit = '25' } = req.query;
-    
-    console.log('📊 Activity feed endpoint called:', { predictionId, cursor, limit });
 
-    // Validate prediction ID
     if (!predictionId) {
       return res.status(400).json({
         error: 'Bad Request',
@@ -21,39 +18,108 @@ router.get('/predictions/:id', async (req, res) => {
       });
     }
 
-    // Parse limit
-    const limitNum = Math.min(parseInt(limit as string) || 25, 100); // Max 100 items
+    const limitNum = Math.min(parseInt(limit as string, 10) || 25, 100);
+    const cursorIso = typeof cursor === 'string' && cursor.trim().length ? cursor : undefined;
 
-    // For now, return a simple response since we don't have the database view yet
-    // TODO: Implement the actual activity feed query once the database view is created
-    const mockActivity = [
-      {
-        id: '1',
-        timestamp: new Date().toISOString(),
-        type: 'comment',
-        actor: {
-          id: 'user1',
-          username: 'testuser',
-          full_name: 'Test User',
-          avatar_url: null,
-          is_verified: false
-        },
-        data: {
-          content: 'This is a test comment'
-        }
+    let entriesQuery = supabase
+      .from('prediction_entries')
+      .select(`
+        id,
+        created_at,
+        amount,
+        potential_payout,
+        status,
+        option_id,
+        prediction_id,
+        user:users!prediction_entries_user_id_fkey(id, username, full_name, avatar_url, is_verified),
+        option:prediction_options!prediction_entries_option_id_fkey(label)
+      `)
+      .eq('prediction_id', predictionId)
+      .order('created_at', { ascending: false })
+      .limit(limitNum);
+
+    if (cursorIso) {
+      entriesQuery = entriesQuery.lt('created_at', cursorIso);
+    }
+
+    const { data: betEntries, error: betError } = await entriesQuery;
+
+    if (betError) {
+      console.error('[activity] Failed to load prediction entries:', betError);
+      return res.status(500).json({
+        error: 'Database error',
+        message: 'Failed to fetch prediction activity',
+        version: VERSION
+      });
+    }
+
+    const { data: betTransactions, error: txError } = await supabase
+      .from('wallet_transactions')
+      .select(`
+        id,
+        created_at,
+        amount,
+        currency,
+        meta,
+        user:users!wallet_transactions_user_id_fkey(id, username, full_name, avatar_url, is_verified)
+      `)
+      .eq('channel', 'escrow_consumed')
+      .eq('prediction_id', predictionId)
+      .order('created_at', { ascending: false })
+      .limit(limitNum);
+
+    if (txError) {
+      console.error('[activity] Failed to load wallet bet transactions:', txError);
+      return res.status(500).json({
+        error: 'Database error',
+        message: 'Failed to fetch prediction activity',
+        version: VERSION
+      });
+    }
+
+    const entryItems = (betEntries || []).map((entry) => ({
+      id: `entry_${entry.id}`,
+      timestamp: entry.created_at,
+      type: 'entry.create',
+      actor: entry.user ?? null,
+      data: {
+        amount: Number(entry.amount || 0),
+        potential_payout: Number(entry.potential_payout || 0),
+        status: entry.status,
+        option_id: entry.option_id,
+        option_label: entry.option?.label ?? null,
       }
-    ];
+    }));
 
-    res.json({
-      items: mockActivity,
-      nextCursor: null,
-      hasMore: false,
+    const transactionItems = (betTransactions || []).map((tx) => ({
+      id: `wallet_${tx.id}`,
+      timestamp: tx.created_at,
+      type: 'bet_placed',
+      actor: tx.user ?? null,
+      data: {
+        amount: Number(tx.amount || 0),
+        currency: tx.currency || 'USD',
+        option_label: tx.meta?.option_label ?? null,
+        option_id: tx.meta?.option_id ?? null,
+      }
+    }));
+
+    const merged = [...entryItems, ...transactionItems]
+      .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+
+    const items = merged.slice(0, limitNum);
+    const hasMore = merged.length === limitNum;
+    const nextCursor = hasMore ? items[items.length - 1]?.timestamp : null;
+
+    return res.json({
+      items,
+      nextCursor,
+      hasMore,
       version: VERSION
     });
-
   } catch (error) {
     console.error('Activity feed error:', error);
-    res.status(500).json({
+    return res.status(500).json({
       error: 'Internal Server Error',
       message: 'Failed to fetch activity feed',
       version: VERSION
@@ -66,10 +132,7 @@ router.get('/user/:userId', async (req, res) => {
   try {
     const { userId } = req.params;
     const { cursor, limit = '25' } = req.query;
-    
-    console.log('👤 User activity feed endpoint called:', { userId, cursor, limit });
 
-    // Validate user ID
     if (!userId) {
       return res.status(400).json({
         error: 'Bad Request',
@@ -78,20 +141,211 @@ router.get('/user/:userId', async (req, res) => {
       });
     }
 
-    // Parse limit
-    const limitNum = Math.min(parseInt(limit as string) || 25, 100);
+    const limitNum = Math.min(parseInt(limit as string, 10) || 25, 100);
+    const cursorIso = typeof cursor === 'string' && cursor.trim().length ? cursor : undefined;
 
-    // For now, return empty array
-    res.json({
-      items: [],
-      nextCursor: null,
-      hasMore: false,
-      version: VERSION
+    let userEntriesQuery = supabase
+      .from('prediction_entries')
+      .select(`
+        id,
+        created_at,
+        amount,
+        potential_payout,
+        status,
+        option_id,
+        prediction_id,
+        prediction:predictions!prediction_entries_prediction_id_fkey(id, title, status),
+        option:prediction_options!prediction_entries_option_id_fkey(label)
+      `)
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+      .limit(limitNum);
+
+    if (cursorIso) {
+      userEntriesQuery = userEntriesQuery.lt('created_at', cursorIso);
+    }
+
+    let createdPredictionsQuery = supabase
+      .from('predictions')
+      .select('id, title, status, created_at, entry_deadline, category')
+      .eq('creator_id', userId)
+      .order('created_at', { ascending: false })
+      .limit(limitNum);
+
+    if (cursorIso) {
+      createdPredictionsQuery = createdPredictionsQuery.lt('created_at', cursorIso);
+    }
+
+    const [{ data: betEntries, error: betError }, { data: createdPredictions, error: createdError }] = await Promise.all([
+      userEntriesQuery,
+      createdPredictionsQuery,
+    ]);
+
+    if (betError) {
+      console.error('[activity] Failed to load user bet entries:', betError);
+      return res.status(500).json({
+        error: 'Database error',
+        message: 'Failed to fetch user activity',
+        version: VERSION
+      });
+    }
+
+    if (createdError) {
+      console.error('[activity] Failed to load user created predictions:', createdError);
+      return res.status(500).json({
+        error: 'Database error',
+        message: 'Failed to fetch user activity',
+        version: VERSION
+      });
+    }
+
+    const betEvents = (betEntries || []).map((entry) => ({
+      id: `bet_${entry.id}`,
+      timestamp: entry.created_at,
+      type: 'entry.create',
+      actor: null,
+      predictionId: entry.prediction?.id ?? entry.prediction_id,
+      predictionTitle: entry.prediction?.title ?? null,
+      predictionStatus: entry.prediction?.status ?? null,
+      data: {
+        amount: Number(entry.amount || 0),
+        potential_payout: Number(entry.potential_payout || 0),
+        status: entry.status,
+        option_id: entry.option_id,
+        option_label: entry.option?.label ?? null,
+      }
+    }));
+
+    const walletChannels = ['escrow_consumed', 'escrow_unlock', 'payout', 'platform_fee', 'creator_fee'];
+
+    const { data: betTransactions, error: txError } = await supabase
+      .from('wallet_transactions')
+      .select('id, created_at, amount, currency, meta, prediction_id, channel, description')
+      .in('channel', walletChannels)
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+      .limit(limitNum);
+
+    if (txError) {
+      console.error('[activity] Failed to load user wallet transactions:', txError);
+      return res.status(500).json({
+        error: 'Database error',
+        message: 'Failed to fetch user activity',
+        version: VERSION
+      });
+    }
+
+    const transactionEvents = (betTransactions || []).map((tx) => {
+      const amount = Math.abs(Number(tx.amount || 0));
+      const predictionId = tx.prediction_id ?? tx.meta?.prediction_id ?? null;
+      const predictionTitle = tx.meta?.prediction_title ?? null;
+
+      switch (tx.channel) {
+        case 'payout':
+          return {
+            id: `wallet_${tx.id}`,
+            timestamp: tx.created_at,
+            type: 'wallet.payout',
+            actor: null,
+            predictionId,
+            predictionTitle,
+            predictionStatus: null,
+            data: {
+              amount,
+              option_label: tx.meta?.option_label ?? null,
+              entry_id: tx.meta?.prediction_entry_id ?? tx.entry_id ?? null,
+            },
+          };
+        case 'platform_fee':
+          return {
+            id: `wallet_${tx.id}`,
+            timestamp: tx.created_at,
+            type: 'wallet.platform_fee',
+            actor: null,
+            predictionId,
+            predictionTitle,
+            predictionStatus: null,
+            data: {
+              amount,
+            },
+          };
+        case 'creator_fee':
+          return {
+            id: `wallet_${tx.id}`,
+            timestamp: tx.created_at,
+            type: 'wallet.creator_fee',
+            actor: null,
+            predictionId,
+            predictionTitle,
+            predictionStatus: null,
+            data: {
+              amount,
+            },
+          };
+        case 'escrow_unlock':
+          return {
+            id: `wallet_${tx.id}`,
+            timestamp: tx.created_at,
+            type: 'wallet.unlock',
+            actor: null,
+            predictionId,
+            predictionTitle,
+            predictionStatus: null,
+            data: {
+              amount,
+              reason: tx.description ?? null,
+            },
+          };
+        default:
+          return {
+            id: `wallet_${tx.id}`,
+            timestamp: tx.created_at,
+            type: 'bet_placed',
+            actor: null,
+            predictionId,
+            predictionTitle,
+            predictionStatus: null,
+            data: {
+              amount,
+              option_label: tx.meta?.option_label ?? null,
+              option_id: tx.meta?.option_id ?? null,
+            },
+          };
+      }
     });
 
+    const createdEvents = (createdPredictions || []).map((prediction) => ({
+      id: `prediction_${prediction.id}`,
+      timestamp: prediction.created_at,
+      type: 'prediction.created',
+      actor: null,
+      predictionId: prediction.id,
+      predictionTitle: prediction.title,
+      predictionStatus: prediction.status,
+      data: {
+        entry_deadline: prediction.entry_deadline,
+        category: prediction.category,
+      }
+    }));
+
+    const merged = [...betEvents, ...transactionEvents, ...createdEvents]
+      .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+    const items = merged.slice(0, limitNum);
+    const hasMore =
+      (betEntries?.length ?? 0) === limitNum ||
+      (createdPredictions?.length ?? 0) === limitNum ||
+      (betTransactions?.length ?? 0) === limitNum;
+    const nextCursor = hasMore ? items[items.length - 1]?.timestamp : null;
+
+    return res.json({
+      items,
+      nextCursor,
+      hasMore,
+      version: VERSION
+    });
   } catch (error) {
     console.error('User activity feed error:', error);
-    res.status(500).json({
+    return res.status(500).json({
       error: 'Internal Server Error',
       message: 'Failed to fetch user activity feed',
       version: VERSION

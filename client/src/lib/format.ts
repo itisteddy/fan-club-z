@@ -46,6 +46,28 @@ export const formatDuration = (ms: number) => {
   return `${mins}m`;
 };
 
+// Relative time formatter (e.g., 5m ago, 2h ago)
+export const formatTimeAgo = (date: string | Date) => {
+  const d = typeof date === 'string' ? new Date(date) : date;
+  const diffMs = Date.now() - d.getTime();
+  const sec = Math.floor(diffMs / 1000);
+  if (sec < 30) return 'now';
+  if (sec < 60) return `${sec}s ago`;
+  const min = Math.floor(sec / 60);
+  if (min < 60) return `${min}m ago`;
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return `${hr}h ago`;
+  const day = Math.floor(hr / 24);
+  if (day < 7) return `${day}d ago`;
+  return d.toLocaleString();
+};
+
+// Absolute display with fallback (local time)
+export const formatDateTime = (date: string | Date) => {
+  const d = typeof date === 'string' ? new Date(date) : date;
+  return d.toLocaleString();
+};
+
 // Additional formatters for backward compatibility
 export const formatLargeNumber = formatNumber;
 export const formatPercentage = formatPercent;

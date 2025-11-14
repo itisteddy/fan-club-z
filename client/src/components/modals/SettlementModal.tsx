@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { X, Check, AlertTriangle, DollarSign, Users, Trophy } from 'lucide-react';
 import { Prediction, PredictionOption, usePredictionStore } from '../../store/predictionStore';
 import useSettlement from '../../hooks/useSettlement';
+import useSettlementMerkle from '../../hooks/useSettlementMerkle';
 import { Button } from '../ui/button';
 import { Textarea } from '../ui/textarea';
 import { Input } from '../ui/input';
@@ -29,6 +30,7 @@ const SettlementModal: React.FC<SettlementModalProps> = ({
   const [options, setOptions] = useState<PredictionOption[]>(prediction.options || []);
 
   const { settleManually, isSettling, settlementError, clearError } = useSettlement();
+  const { settleWithMerkle, isSubmitting: isPostingRoot, error: merkleError } = useSettlementMerkle();
   const { notifySettlementReady } = useNotificationStore();
 
   const handleSubmit = async () => {
@@ -43,29 +45,21 @@ const SettlementModal: React.FC<SettlementModalProps> = ({
     }
 
     try {
-      const result = await settleManually({
+      // Merkle-based on-chain settlement. Creator signs the tx to post the root.
+      const tx = await settleWithMerkle({
         predictionId: prediction.id,
         winningOptionId: selectedOptionId,
-        proofUrl: proofUrl.trim() || undefined,
         reason: reason.trim(),
-        userId: prediction.creator_id || '325343a7-0a32-4565-8059-7c0d9d3fed1b' // Fallback for demo
+        userId: prediction.creator_id || '',
       });
-
-      if (result) {
-        toast.success('Prediction settled successfully!');
-        
-        // Notify all participants about the settlement (individual notifications, not bulk)
-        // This will be handled by the backend to send individual notifications to each participant
-        console.log('🔔 Settlement completed, participants will be notified individually');
-        
+      if (tx) {
+        toast.success('Settlement root posted on-chain!');
         setShowConfirmation(false);
         onClose();
-        if (onSettlementComplete) {
-          onSettlementComplete();
-        }
+        if (onSettlementComplete) onSettlementComplete();
       }
     } catch (error) {
-      console.error('Settlement error:', error);
+      console.error('Settlement submit error:', error);
     }
   };
 
@@ -108,9 +102,27 @@ const SettlementModal: React.FC<SettlementModalProps> = ({
   const selectedOption = options.find(opt => opt.id === selectedOptionId);
   const totalPool = prediction.pool_total || 0;
   const participantCount = prediction.participant_count || 0;
-  const platformFee = (totalPool * 2.5) / 100;
-  const creatorFee = (totalPool * 1.0) / 100;
-  const payoutPool = totalPool - platformFee - creatorFee;
+  // Determine total staked on the selected (winning) option
+  const selectedStake = (() => {
+    if (!selectedOption) return 0;
+    return Number(
+      // Try multiple possible field names used across app versions
+      (selectedOption as any).total_staked ||
+      (selectedOption as any).staked_amount ||
+      (selectedOption as any).amount_staked ||
+      (selectedOption as any).total_amount ||
+      (selectedOption as any).totalStaked ||
+      0
+    ) || 0;
+  })();
+  // House take applies ONLY to losing stakes (round to cents deterministically)
+  const totalLosingStake = Math.max(0, totalPool - selectedStake);
+  const platformFeeCents = Math.round(totalLosingStake * 100 * 2.5 / 100);
+  const creatorFeeCents = Math.round(totalLosingStake * 100 * 1.0 / 100);
+  const platformFee = platformFeeCents / 100;
+  const creatorFee = creatorFeeCents / 100;
+  // Winners receive their stake back plus proportional share of (losing stakes - fees)
+  const payoutPool = Math.max(0, selectedStake + Math.max(0, (totalLosingStake * 100 - platformFeeCents - creatorFeeCents) / 100));
 
   if (!isOpen) return null;
 
@@ -184,8 +196,28 @@ const SettlementModal: React.FC<SettlementModalProps> = ({
                     ) : (
                       options.map((option) => {
                       const isSelected = selectedOptionId === option.id;
-                      const optionStaked = option.total_staked || 0;
+                      // Try multiple possible field names for staked amount
+                      const optionStaked = Number(
+                        option.total_staked || 
+                        option.staked_amount || 
+                        option.amount_staked || 
+                        option.total_amount ||
+                        option.totalStaked ||
+                        0
+                      );
+                      
+                      // Debug: Log to see what data is available
+                      if (import.meta.env.DEV) {
+                        console.log('SettlementModal option data:', {
+                          id: option.id,
+                          label: option.label,
+                          optionStaked,
+                          availableFields: Object.keys(option)
+                        });
+                      }
+                      
                       const percentage = totalPool > 0 ? (optionStaked / totalPool) * 100 : 0;
+                      const optionOdds = option.current_odds || (totalPool > 0 && optionStaked > 0 ? totalPool / optionStaked : 2.00);
 
                       return (
                         <motion.button
@@ -207,7 +239,7 @@ const SettlementModal: React.FC<SettlementModalProps> = ({
                                 {option.label}
                               </div>
                               <div className="text-sm text-gray-500">
-                                {percentage.toFixed(0)}% • ${optionStaked.toFixed(2)} staked
+                                {percentage.toFixed(1)}% • ${optionStaked.toFixed(2)} staked • {optionOdds.toFixed(2)}x odds
                               </div>
                             </div>
                             {isSelected && (
@@ -255,11 +287,11 @@ const SettlementModal: React.FC<SettlementModalProps> = ({
                 </div>
 
                 {/* Error Display */}
-                {settlementError && (
+                {(settlementError || merkleError) && (
                   <div className="bg-red-50 border border-red-200 rounded-lg p-3">
                     <div className="flex items-center gap-2">
                       <AlertTriangle className="w-4 h-4 text-red-500 flex-shrink-0" />
-                      <p className="text-red-700 text-sm">{settlementError}</p>
+                      <p className="text-red-700 text-sm">{settlementError || merkleError}</p>
                     </div>
                   </div>
                 )}
@@ -362,16 +394,16 @@ const SettlementModal: React.FC<SettlementModalProps> = ({
                 <Button
                   variant="outline"
                   onClick={() => setShowConfirmation(false)}
-                  disabled={isSettling}
+                  disabled={isSettling || isPostingRoot}
                 >
                   Back
                 </Button>
                 <Button
                   onClick={handleSubmit}
-                  disabled={isSettling}
+                  disabled={isSettling || isPostingRoot}
                   className="bg-emerald-600 hover:bg-emerald-700"
                 >
-                  {isSettling ? 'Settling...' : 'Confirm Settlement'}
+                  {isPostingRoot ? 'Submitting...' : isSettling ? 'Settling...' : 'Confirm Settlement'}
                 </Button>
               </div>
             </>

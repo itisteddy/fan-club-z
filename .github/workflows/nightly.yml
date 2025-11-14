@@ -1,0 +1,69 @@
+name: Nightly Checks
+
+on:
+  schedule:
+    # Run at 2 AM UTC daily
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+
+env:
+  NODE_VERSION: '20.x'
+
+jobs:
+  # Nightly ledger sanity check
+  ledger-check:
+    name: Nightly Ledger Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: |
+          npm ci
+          npm --prefix server ci
+
+      - name: Run ledger check
+        run: npm run ledger:check
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
+      - name: Report results
+        if: failure()
+        run: |
+          echo "❌ Ledger sanity check failed!"
+          echo "Please review the ledger state and fix any inconsistencies."
+        # In production, you might want to send notifications here
+
+  # Health check all environments
+  health-check:
+    name: Health Check All Environments
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check production backend
+        run: |
+          echo "Checking production backend health..."
+          curl -f https://fan-club-z.onrender.com/api/health/app || echo "❌ Production backend unhealthy"
+        continue-on-error: true
+
+      - name: Check production frontend
+        run: |
+          echo "Checking production frontend..."
+          curl -f https://app.fanclubz.app || echo "❌ Production frontend unhealthy"
+        continue-on-error: true
+
+      - name: Check health endpoints
+        run: |
+          echo "Checking health endpoints..."
+          curl -f https://fan-club-z.onrender.com/api/health/payments || echo "❌ Payments health check failed"
+          curl -f https://fan-club-z.onrender.com/api/health/base || echo "❌ Base health check failed"
+        continue-on-error: true
+

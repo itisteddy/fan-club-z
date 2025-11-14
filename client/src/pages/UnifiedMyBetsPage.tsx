@@ -10,7 +10,7 @@ import StatCard, { StatRow } from '../components/ui/card/StatCard';
 import EmptyState from '../components/ui/empty/EmptyState';
 import AuthRequiredState from '../components/ui/empty/AuthRequiredState';
 import { SkeletonStatRow, SkeletonCard } from '../components/ui/skeleton/Skeleton';
-import { formatUSDCompact } from '@lib/format';
+import { formatUSDCompact } from '@/lib/format';
 
 // TODO: Replace with PredictionCardV3 for consistency
 // import { PredictionCardV3 } from '../components/predictions/PredictionCardV3';

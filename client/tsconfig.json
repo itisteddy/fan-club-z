@@ -14,26 +14,19 @@
     "noEmit": true,
     "jsx": "react-jsx",
 
-    /* Path aliases */
-    "baseUrl": "src",
+    /* Path aliases - local + global */
+    "baseUrl": ".",
     "paths": {
-      "@lib/*": ["lib/*"],
-      "@components/*": ["components/*"],
-      "@pages/*": ["pages/*"],
-      "@icons/*": ["icons/*"],
-      "@auth/*": ["auth/*"],
-      "@stores/*": ["stores/*"],
-      "@config/*": ["config/*"],
-      "@utils/*": ["utils/*"]
+      "@/*": ["src/*"],
+      "~server/*": ["../server/src/*"],
+      "~shared/*": ["../shared/*"]
     },
 
-    /* Linting */
-    "strict": false,
-    "noUnusedLocals": false,
-    "noUnusedParameters": false,
-    "noFallthroughCasesInSwitch": false,
-    "noImplicitAny": false
+    /* Linting - enabled strict */
+    "strict": true,
+    "skipLibCheck": true,
+    "noUncheckedIndexedAccess": true
   },
   "include": ["src", "vite-env.d.ts"],
   "references": [{ "path": "./tsconfig.node.json" }]
-} 
+}

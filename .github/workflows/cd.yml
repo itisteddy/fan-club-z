@@ -1,0 +1,180 @@
+name: CD
+
+on:
+  push:
+    branches: [main]
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Deployment environment'
+        required: true
+        default: 'production'
+        type: choice
+        options:
+          - production
+          - staging
+
+env:
+  NODE_VERSION: '20.x'
+
+jobs:
+  # Build and test before deployment
+  build-and-test:
+    name: Build & Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: |
+          npm ci
+          npm --prefix server ci
+          npm --prefix client ci
+          npm --prefix shared ci
+
+      - name: Type check
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Build client
+        run: npm run build:client
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          VITE_CHAIN_ID: ${{ secrets.VITE_CHAIN_ID }}
+          VITE_RPC_URL: ${{ secrets.VITE_RPC_URL }}
+          VITE_USDC_ADDRESS: ${{ secrets.VITE_USDC_ADDRESS }}
+          VITE_BASE_ESCROW_ADDRESS: ${{ secrets.VITE_BASE_ESCROW_ADDRESS }}
+          VITE_WC_PROJECT_ID: ${{ secrets.VITE_WC_PROJECT_ID }}
+
+      - name: Build server
+        run: npm run build:server
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          NODE_ENV: production
+
+      - name: Upload client build
+        uses: actions/upload-artifact@v4
+        with:
+          name: client-build
+          path: client/dist
+          retention-days: 30
+
+      - name: Upload server build
+        uses: actions/upload-artifact@v4
+        with:
+          name: server-build
+          path: server/dist
+          retention-days: 30
+
+  # Deploy to Vercel (Frontend)
+  deploy-frontend:
+    name: Deploy Frontend (Vercel)
+    runs-on: ubuntu-latest
+    needs: build-and-test
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download client build
+        uses: actions/download-artifact@v4
+        with:
+          name: client-build
+          path: client/dist
+
+      - name: Deploy to Vercel
+        uses: amondnet/vercel-action@v25
+        with:
+          vercel-token: ${{ secrets.VERCEL_TOKEN }}
+          vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
+          vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
+          vercel-args: '--prod'
+          working-directory: ./client
+
+  # Deploy to Render (Backend)
+  deploy-backend:
+    name: Deploy Backend (Render)
+    runs-on: ubuntu-latest
+    needs: build-and-test
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download server build
+        uses: actions/download-artifact@v4
+        with:
+          name: server-build
+          path: server/dist
+
+      - name: Trigger Render deployment
+        run: |
+          echo "Render deployments are typically triggered via webhook"
+          echo "or manual deployment from Render dashboard"
+          echo "Build artifacts are available for deployment"
+        # Note: Render typically auto-deploys on git push
+        # If using Render API, add deployment step here
+
+  # Health check after deployment
+  health-check:
+    name: Health Check
+    runs-on: ubuntu-latest
+    needs: [deploy-frontend, deploy-backend]
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - name: Wait for deployment
+        run: sleep 60
+
+      - name: Check backend health
+        run: |
+          BACKEND_URL="${BACKEND_URL:-https://fan-club-z.onrender.com}"
+          echo "Checking backend health: $BACKEND_URL/api/health/app"
+          curl -f "$BACKEND_URL/api/health/app" || exit 1
+
+      - name: Check frontend
+        run: |
+          FRONTEND_URL="${FRONTEND_URL:-https://app.fanclubz.app}"
+          echo "Checking frontend: $FRONTEND_URL"
+          curl -f "$FRONTEND_URL" || exit 1
+
+  # Post-deployment ledger check
+  post-deploy-ledger-check:
+    name: Post-Deploy Ledger Check
+    runs-on: ubuntu-latest
+    needs: health-check
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: |
+          npm ci
+          npm --prefix server ci
+
+      - name: Run ledger check
+        run: npm run ledger:check
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
