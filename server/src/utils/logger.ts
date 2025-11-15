@@ -49,8 +49,10 @@ class StructuredLogger {
     if (!this.enabled) return;
     const errorContext = {
       ...context,
-      error: error instanceof Error ? error.message : String(error),
-      stack: error instanceof Error ? error.stack : undefined,
+      ...(error !== undefined && error !== null && {
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+      }),
     };
     console.error(this.formatMessage('error', message, errorContext));
   }

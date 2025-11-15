@@ -47,14 +47,15 @@ function envOn(): boolean {
 
 function log(level: 'info' | 'warn' | 'error', message: string, meta?: Record<string, any>) {
   if (level === 'error') {
-    // Extract error from meta if present, otherwise pass null (not undefined)
-    const error = meta?.error instanceof Error ? meta.error : null;
+    // Extract error from meta if present as Error instance
+    const error = meta?.error instanceof Error ? meta.error : undefined;
     const cleanMeta = meta ? { ...meta } : {};
     // Remove error from meta if it's an Error instance (logger will handle it separately)
     if (error) {
       delete cleanMeta.error;
     }
-    payLogger.error(message, error || undefined, cleanMeta);
+    // Only pass error parameter if we have an Error instance, otherwise omit it
+    payLogger.error(message, error, cleanMeta);
   } else if (level === 'warn') {
     payLogger.warn(message, meta);
   } else {
