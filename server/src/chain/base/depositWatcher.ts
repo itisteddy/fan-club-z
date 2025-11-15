@@ -84,10 +84,23 @@ async function loadCheckpoint(ctx: Ctx): Promise<bigint | null> {
     log('info', 'No checkpoint found, starting from latest block');
     return null;
   } catch (err) {
-    const errorMessage = err instanceof Error ? err.message : 
-                        typeof err === 'string' ? err : 
-                        err ? String(err) : 'Unknown error';
-    log('error', 'Failed to load checkpoint', { error: errorMessage });
+    // Better error serialization
+    let errorMessage = 'Unknown error';
+    if (err instanceof Error) {
+      errorMessage = err.message || err.toString();
+    } else if (typeof err === 'string') {
+      errorMessage = err;
+    } else if (err !== null && err !== undefined) {
+      errorMessage = String(err);
+    }
+    
+    const errorDetails: Record<string, any> = { error: errorMessage };
+    if (err instanceof Error) {
+      errorDetails.stack = err.stack;
+      errorDetails.name = err.name;
+    }
+    
+    log('error', 'Failed to load checkpoint', errorDetails);
     return null;
   } finally {
     client.release();
@@ -125,11 +138,34 @@ async function saveCheckpoint(ctx: Ctx, blockNumber: bigint): Promise<void> {
     await client.query('COMMIT');
     log('info', 'Checkpoint saved', { block: blockNumber.toString() });
   } catch (err) {
-    await client.query('ROLLBACK').catch(() => {});
-    const errorMessage = err instanceof Error ? err.message : 
-                        typeof err === 'string' ? err : 
-                        err ? String(err) : 'Unknown error';
-    log('error', 'Failed to save checkpoint', { error: errorMessage });
+    try {
+      await client.query('ROLLBACK');
+    } catch (rollbackErr) {
+      // Ignore rollback errors
+    }
+    
+    // Better error serialization
+    let errorMessage = 'Unknown error';
+    if (err instanceof Error) {
+      errorMessage = err.message || err.toString();
+    } else if (typeof err === 'string') {
+      errorMessage = err;
+    } else if (err !== null && err !== undefined) {
+      errorMessage = String(err);
+    }
+    
+    // Log full error details for debugging
+    const errorDetails: Record<string, any> = { 
+      error: errorMessage,
+      block: blockNumber.toString()
+    };
+    
+    if (err instanceof Error) {
+      errorDetails.stack = err.stack;
+      errorDetails.name = err.name;
+    }
+    
+    log('error', 'Failed to save checkpoint', errorDetails);
   } finally {
     client.release();
   }
