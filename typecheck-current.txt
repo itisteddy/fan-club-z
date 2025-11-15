@@ -1,0 +1,574 @@
+
+> fan-club-z@2.0.78 typecheck
+> npm --prefix client run typecheck && npm --prefix server run typecheck
+
+
+> @fanclubz/client@2.0.78 typecheck
+> tsc -p tsconfig.json --noEmit
+
+src/api/client.ts(44,46): error TS2367: This comparison appears to be unintentional because the types '"POST" | "PATCH" | "DELETE" | "PUT"' and '"HEAD"' have no overlap.
+src/api/client.ts(67,41): error TS2367: This comparison appears to be unintentional because the types '"POST" | "PATCH" | "DELETE" | "PUT"' and '"HEAD"' have no overlap.
+src/api/client.ts(76,22): error TS2552: Cannot find name 'timeoutId'. Did you mean 'timeout'?
+src/auth/authGateTest.ts(4,85): error TS2307: Cannot find module './auth/authGateAdapter' or its corresponding type declarations.
+src/auth/useAuthAdapter.ts(134,33): error TS7006: Parameter 'error' implicitly has an 'any' type.
+src/auth/useAuthAdapter.ts(159,31): error TS7006: Parameter 'error' implicitly has an 'any' type.
+src/auth/useAuthGate.ts(18,3): error TS2322: Type '{ isOpen: boolean; pendingIntent: AuthIntent | null; intentMeta: IntentMeta | null; payload: Record<string, unknown> | undefined; }' is not assignable to type 'UseAuthGateReturn'.
+  Types of property 'pendingIntent' are incompatible.
+    Type 'AuthIntent | null' is not assignable to type 'AuthIntent | undefined'.
+      Type 'null' is not assignable to type 'AuthIntent | undefined'.
+src/components/admin/SettlementAnalytics.tsx(106,25): error TS2532: Object is possibly 'undefined'.
+src/components/admin/SettlementAnalytics.tsx(107,24): error TS2345: Argument of type 'string | undefined' is not assignable to parameter of type 'string'.
+  Type 'undefined' is not assignable to type 'string'.
+src/components/admin/SettlementAnalytics.tsx(108,26): error TS2345: Argument of type 'string | undefined' is not assignable to parameter of type 'string'.
+  Type 'undefined' is not assignable to type 'string'.
+src/components/admin/SettlementAnalytics.tsx(111,29): error TS2345: Argument of type 'string | undefined' is not assignable to parameter of type 'string'.
+  Type 'undefined' is not assignable to type 'string'.
+src/components/admin/SettlementAnalytics.tsx(112,25): error TS2532: Object is possibly 'undefined'.
+src/components/admin/SettlementAnalytics.tsx(113,39): error TS2345: Argument of type 'string | undefined' is not assignable to parameter of type 'string'.
+  Type 'undefined' is not assignable to type 'string'.
+src/components/admin/SettlementAnalytics.tsx(114,26): error TS2345: Argument of type 'string | undefined' is not assignable to parameter of type 'string'.
+  Type 'undefined' is not assignable to type 'string'.
+src/components/admin/SettlementAnalytics.tsx(207,11): error TS2322: Type 'LucideIcon' is not assignable to type 'ComponentType<{ size?: number | undefined; className?: string | undefined; }>'.
+  Type 'ForwardRefExoticComponent<LucideProps>' is not assignable to type 'FunctionComponent<{ size?: number | undefined; className?: string | undefined; }>'.
+    Types of property 'propTypes' are incompatible.
+      Type 'WeakValidationMap<LucideProps> | undefined' is not assignable to type 'WeakValidationMap<{ size?: number | undefined; className?: string | undefined; }> | undefined'.
+        Type 'WeakValidationMap<LucideProps>' is not assignable to type 'WeakValidationMap<{ size?: number | undefined; className?: string | undefined; }>'.
+          Types of property 'size' are incompatible.
+            Type 'Validator<string | number | null | undefined> | undefined' is not assignable to type 'Validator<number | null | undefined> | undefined'.
+              Type 'Validator<string | number | null | undefined>' is not assignable to type 'Validator<number | null | undefined>'.
+                Type 'string | number | null | undefined' is not assignable to type 'number | null | undefined'.
+                  Type 'string' is not assignable to type 'number'.
+src/components/admin/SettlementAnalytics.tsx(216,11): error TS2322: Type 'LucideIcon' is not assignable to type 'ComponentType<{ size?: number | undefined; className?: string | undefined; }>'.
+  Type 'ForwardRefExoticComponent<LucideProps>' is not assignable to type 'FunctionComponent<{ size?: number | undefined; className?: string | undefined; }>'.
+    Types of property 'propTypes' are incompatible.
+      Type 'WeakValidationMap<LucideProps> | undefined' is not assignable to type 'WeakValidationMap<{ size?: number | undefined; className?: string | undefined; }> | undefined'.
+        Type 'WeakValidationMap<LucideProps>' is not assignable to type 'WeakValidationMap<{ size?: number | undefined; className?: string | undefined; }>'.
+          Types of property 'size' are incompatible.
+            Type 'Validator<string | number | null | undefined> | undefined' is not assignable to type 'Validator<number | null | undefined> | undefined'.
+              Type 'Validator<string | number | null | undefined>' is not assignable to type 'Validator<number | null | undefined>'.
+                Type 'string | number | null | undefined' is not assignable to type 'number | null | undefined'.
+                  Type 'string' is not assignable to type 'number'.
+src/components/admin/SettlementAnalytics.tsx(225,11): error TS2322: Type 'LucideIcon' is not assignable to type 'ComponentType<{ size?: number | undefined; className?: string | undefined; }>'.
+  Type 'ForwardRefExoticComponent<LucideProps>' is not assignable to type 'FunctionComponent<{ size?: number | undefined; className?: string | undefined; }>'.
+    Types of property 'propTypes' are incompatible.
+      Type 'WeakValidationMap<LucideProps> | undefined' is not assignable to type 'WeakValidationMap<{ size?: number | undefined; className?: string | undefined; }> | undefined'.
+        Type 'WeakValidationMap<LucideProps>' is not assignable to type 'WeakValidationMap<{ size?: number | undefined; className?: string | undefined; }>'.
+          Types of property 'size' are incompatible.
+            Type 'Validator<string | number | null | undefined> | undefined' is not assignable to type 'Validator<number | null | undefined> | undefined'.
+              Type 'Validator<string | number | null | undefined>' is not assignable to type 'Validator<number | null | undefined>'.
+                Type 'string | number | null | undefined' is not assignable to type 'number | null | undefined'.
+                  Type 'string' is not assignable to type 'number'.
+src/components/admin/SettlementAnalytics.tsx(234,11): error TS2322: Type 'LucideIcon' is not assignable to type 'ComponentType<{ size?: number | undefined; className?: string | undefined; }>'.
+  Type 'ForwardRefExoticComponent<LucideProps>' is not assignable to type 'FunctionComponent<{ size?: number | undefined; className?: string | undefined; }>'.
+    Types of property 'propTypes' are incompatible.
+      Type 'WeakValidationMap<LucideProps> | undefined' is not assignable to type 'WeakValidationMap<{ size?: number | undefined; className?: string | undefined; }> | undefined'.
+        Type 'WeakValidationMap<LucideProps>' is not assignable to type 'WeakValidationMap<{ size?: number | undefined; className?: string | undefined; }>'.
+          Types of property 'size' are incompatible.
+            Type 'Validator<string | number | null | undefined> | undefined' is not assignable to type 'Validator<number | null | undefined> | undefined'.
+              Type 'Validator<string | number | null | undefined>' is not assignable to type 'Validator<number | null | undefined>'.
+                Type 'string | number | null | undefined' is not assignable to type 'number | null | undefined'.
+                  Type 'string' is not assignable to type 'number'.
+src/components/admin/SettlementAnalytics.tsx(246,11): error TS2322: Type 'LucideIcon' is not assignable to type 'ComponentType<{ size?: number | undefined; className?: string | undefined; }>'.
+  Type 'ForwardRefExoticComponent<LucideProps>' is not assignable to type 'FunctionComponent<{ size?: number | undefined; className?: string | undefined; }>'.
+    Types of property 'propTypes' are incompatible.
+      Type 'WeakValidationMap<LucideProps> | undefined' is not assignable to type 'WeakValidationMap<{ size?: number | undefined; className?: string | undefined; }> | undefined'.
+        Type 'WeakValidationMap<LucideProps>' is not assignable to type 'WeakValidationMap<{ size?: number | undefined; className?: string | undefined; }>'.
+          Types of property 'size' are incompatible.
+            Type 'Validator<string | number | null | undefined> | undefined' is not assignable to type 'Validator<number | null | undefined> | undefined'.
+              Type 'Validator<string | number | null | undefined>' is not assignable to type 'Validator<number | null | undefined>'.
+                Type 'string | number | null | undefined' is not assignable to type 'number | null | undefined'.
+                  Type 'string' is not assignable to type 'number'.
+src/components/admin/SettlementAnalytics.tsx(254,11): error TS2322: Type 'LucideIcon' is not assignable to type 'ComponentType<{ size?: number | undefined; className?: string | undefined; }>'.
+  Type 'ForwardRefExoticComponent<LucideProps>' is not assignable to type 'FunctionComponent<{ size?: number | undefined; className?: string | undefined; }>'.
+    Types of property 'propTypes' are incompatible.
+      Type 'WeakValidationMap<LucideProps> | undefined' is not assignable to type 'WeakValidationMap<{ size?: number | undefined; className?: string | undefined; }> | undefined'.
+        Type 'WeakValidationMap<LucideProps>' is not assignable to type 'WeakValidationMap<{ size?: number | undefined; className?: string | undefined; }>'.
+          Types of property 'size' are incompatible.
+            Type 'Validator<string | number | null | undefined> | undefined' is not assignable to type 'Validator<number | null | undefined> | undefined'.
+              Type 'Validator<string | number | null | undefined>' is not assignable to type 'Validator<number | null | undefined>'.
+                Type 'string | number | null | undefined' is not assignable to type 'number | null | undefined'.
+                  Type 'string' is not assignable to type 'number'.
+src/components/admin/SettlementAnalytics.tsx(262,11): error TS2322: Type 'LucideIcon' is not assignable to type 'ComponentType<{ size?: number | undefined; className?: string | undefined; }>'.
+  Type 'ForwardRefExoticComponent<LucideProps>' is not assignable to type 'FunctionComponent<{ size?: number | undefined; className?: string | undefined; }>'.
+    Types of property 'propTypes' are incompatible.
+      Type 'WeakValidationMap<LucideProps> | undefined' is not assignable to type 'WeakValidationMap<{ size?: number | undefined; className?: string | undefined; }> | undefined'.
+        Type 'WeakValidationMap<LucideProps>' is not assignable to type 'WeakValidationMap<{ size?: number | undefined; className?: string | undefined; }>'.
+          Types of property 'size' are incompatible.
+            Type 'Validator<string | number | null | undefined> | undefined' is not assignable to type 'Validator<number | null | undefined> | undefined'.
+              Type 'Validator<string | number | null | undefined>' is not assignable to type 'Validator<number | null | undefined>'.
+                Type 'string | number | null | undefined' is not assignable to type 'number | null | undefined'.
+                  Type 'string' is not assignable to type 'number'.
+src/components/admin/SettlementAnalytics.tsx(270,11): error TS2322: Type 'LucideIcon' is not assignable to type 'ComponentType<{ size?: number | undefined; className?: string | undefined; }>'.
+  Type 'ForwardRefExoticComponent<LucideProps>' is not assignable to type 'FunctionComponent<{ size?: number | undefined; className?: string | undefined; }>'.
+    Types of property 'propTypes' are incompatible.
+      Type 'WeakValidationMap<LucideProps> | undefined' is not assignable to type 'WeakValidationMap<{ size?: number | undefined; className?: string | undefined; }> | undefined'.
+        Type 'WeakValidationMap<LucideProps>' is not assignable to type 'WeakValidationMap<{ size?: number | undefined; className?: string | undefined; }>'.
+          Types of property 'size' are incompatible.
+            Type 'Validator<string | number | null | undefined> | undefined' is not assignable to type 'Validator<number | null | undefined> | undefined'.
+              Type 'Validator<string | number | null | undefined>' is not assignable to type 'Validator<number | null | undefined>'.
+                Type 'string | number | null | undefined' is not assignable to type 'number | null | undefined'.
+                  Type 'string' is not assignable to type 'number'.
+src/components/analytics/BehaviorAnalytics.tsx(220,54): error TS2532: Object is possibly 'undefined'.
+src/components/analytics/UserAnalyticsDashboard.tsx(60,50): error TS2551: Property 'createdAt' does not exist on type 'Prediction'. Did you mean 'created_at'?
+src/components/analytics/UserAnalyticsDashboard.tsx(65,65): error TS2339: Property 'won' does not exist on type 'Prediction'.
+src/components/analytics/UserAnalyticsDashboard.tsx(67,72): error TS2339: Property 'amount' does not exist on type 'Prediction'.
+src/components/analytics/UserAnalyticsDashboard.tsx(68,74): error TS2339: Property 'payout' does not exist on type 'Prediction'.
+src/components/analytics/UserAnalyticsDashboard.tsx(79,34): error TS2551: Property 'createdAt' does not exist on type 'Prediction'. Did you mean 'created_at'?
+src/components/analytics/UserAnalyticsDashboard.tsx(79,68): error TS2551: Property 'createdAt' does not exist on type 'Prediction'. Did you mean 'created_at'?
+src/components/analytics/UserAnalyticsDashboard.tsx(83,21): error TS18048: 'prediction' is possibly 'undefined'.
+src/components/analytics/UserAnalyticsDashboard.tsx(83,32): error TS2339: Property 'won' does not exist on type 'Prediction'.
+src/components/analytics/UserAnalyticsDashboard.tsx(91,29): error TS2532: Object is possibly 'undefined'.
+src/components/analytics/UserAnalyticsDashboard.tsx(91,54): error TS2339: Property 'won' does not exist on type 'Prediction'.
+src/components/analytics/UserAnalyticsDashboard.tsx(119,11): error TS2551: Property 'createdAt' does not exist on type 'Prediction'. Did you mean 'created_at'?
+src/components/analytics/UserAnalyticsDashboard.tsx(122,56): error TS2339: Property 'won' does not exist on type 'Prediction'.
+src/components/analytics/UserAnalyticsDashboard.tsx(123,74): error TS2339: Property 'payout' does not exist on type 'Prediction'.
+src/components/analytics/UserAnalyticsDashboard.tsx(148,22): error TS2339: Property 'won' does not exist on type 'Prediction'.
+src/components/analytics/UserAnalyticsDashboard.tsx(149,35): error TS2339: Property 'payout' does not exist on type 'Prediction'.
+src/components/auth/SignInInline.tsx(21,7): error TS2353: Object literal may only specify known properties, and 'message' does not exist in type 'OpenOptions'.
+src/components/BetCard.tsx(45,28): error TS2339: Property 'updateCommentCount' does not exist on type 'CommentsState & CommentsActions'.
+src/components/BetCard.tsx(45,48): error TS2339: Property 'initialize' does not exist on type 'CommentsState & CommentsActions'.
+src/components/BetCard.tsx(72,66): error TS2339: Property 'participants' does not exist on type 'Prediction'.
+src/components/BetCard.tsx(427,85): error TS18048: 'colorScheme' is possibly 'undefined'.
+src/components/BetCard.tsx(427,103): error TS18048: 'colorScheme' is possibly 'undefined'.
+src/components/BetCard.tsx(443,66): error TS18048: 'colorScheme' is possibly 'undefined'.
+src/components/BetCard.tsx(450,52): error TS18048: 'colorScheme' is possibly 'undefined'.
+src/components/cards/DensePredictionCard.tsx(55,45): error TS2339: Property 'total_amount' does not exist on type 'PredictionOption'.
+src/components/cards/DensePredictionCard.tsx(56,47): error TS2339: Property 'total_amount' does not exist on type 'PredictionOption'.
+src/components/cards/DensePredictionCard.tsx(63,29): error TS2339: Property 'total_amount' does not exist on type 'PredictionOption'.
+src/components/cards/DensePredictionCard.tsx(95,42): error TS2339: Property 'email' does not exist on type '{ id: string; username: string; avatar_url?: string | undefined; is_verified: boolean; full_name?: string | undefined; }'.
+src/components/cards/DensePredictionCard.tsx(96,45): error TS2339: Property 'firstName' does not exist on type '{ id: string; username: string; avatar_url?: string | undefined; is_verified: boolean; full_name?: string | undefined; }'.
+src/components/cards/DensePredictionCard.tsx(96,78): error TS2339: Property 'email' does not exist on type '{ id: string; username: string; avatar_url?: string | undefined; is_verified: boolean; full_name?: string | undefined; }'.
+src/components/cards/DensePredictionCard.tsx(97,46): error TS2339: Property 'avatar' does not exist on type '{ id: string; username: string; avatar_url?: string | undefined; is_verified: boolean; full_name?: string | undefined; }'.
+src/components/cards/DensePredictionCard.tsx(98,15): error TS2322: Type '"xs"' is not assignable to type '"sm" | "lg" | "md" | "xl" | undefined'.
+src/components/cards/DensePredictionCard.tsx(102,38): error TS2339: Property 'firstName' does not exist on type '{ id: string; username: string; avatar_url?: string | undefined; is_verified: boolean; full_name?: string | undefined; }'.
+src/components/cards/DensePredictionCard.tsx(102,71): error TS2339: Property 'email' does not exist on type '{ id: string; username: string; avatar_url?: string | undefined; is_verified: boolean; full_name?: string | undefined; }'.
+src/components/cards/DensePredictionCard.tsx(108,61): error TS2339: Property 'end_date' does not exist on type 'Prediction'.
+src/components/cards/DensePredictionCard.tsx(110,45): error TS2339: Property 'end_date' does not exist on type 'Prediction'.
+src/components/cards/DensePredictionCard.tsx(112,59): error TS2339: Property 'end_date' does not exist on type 'Prediction'.
+src/components/cards/DensePredictionCard.tsx(126,83): error TS2339: Property 'title' does not exist on type 'PredictionOption'.
+src/components/cards/DensePredictionCard.tsx(138,48): error TS2339: Property 'total_amount' does not exist on type 'PredictionOption'.
+src/components/cards/DensePredictionCard.tsx(155,31): error TS2339: Property 'title' does not exist on type 'PredictionOption'.
+src/components/comments/CommentList.tsx(48,13): error TS2532: Object is possibly 'undefined'.
+src/components/comments/CommentList.tsx(184,23): error TS2367: This comparison appears to be unintentional because the types '"loading" | "idle" | "loaded"' and '"paginating"' have no overlap.
+src/components/comments/CommentList.tsx(186,14): error TS2367: This comparison appears to be unintentional because the types '"loading" | "idle" | "loaded"' and '"paginating"' have no overlap.
+src/components/comments/CommentOverflowMenu.tsx(91,27): error TS2532: Object is possibly 'undefined'.
+src/components/comments/Comments.tsx(85,45): error TS2322: Type '"comment"' is not assignable to type 'AuthIntent'.
+src/components/comments/Comments.tsx(100,38): error TS2339: Property 'email' does not exist on type '{ id: string; username: string; full_name?: string | undefined; avatarUrl?: string | undefined; avatar_url?: string | undefined; is_verified?: boolean | undefined; }'.
+src/components/comments/Comments.tsx(101,67): error TS2339: Property 'firstName' does not exist on type '{ id: string; username: string; full_name?: string | undefined; avatarUrl?: string | undefined; avatar_url?: string | undefined; is_verified?: boolean | undefined; }'.
+src/components/comments/Comments.tsx(110,35): error TS2339: Property 'firstName' does not exist on type '{ id: string; username: string; full_name?: string | undefined; avatarUrl?: string | undefined; avatar_url?: string | undefined; is_verified?: boolean | undefined; }'.
+src/components/comments/Comments.tsx(127,8): error TS2774: This condition will always return true since this function is always defined. Did you mean to call it instead?
+src/components/CommentSystem.tsx(95,24): error TS2367: This comparison appears to be unintentional because the types 'Status' and '"posting"' have no overlap.
+src/components/CommentSystem.tsx(172,40): error TS2554: Expected 1 arguments, but got 3.
+src/components/CommentSystem.tsx(251,59): error TS2554: Expected 1 arguments, but got 3.
+src/components/common/UserAvatar.tsx(41,14): error TS2532: Object is possibly 'undefined'.
+src/components/filters/StickyFilters.tsx(39,22): error TS18048: 'entry' is possibly 'undefined'.
+src/components/modals/ChatModal.tsx(71,36): error TS18048: 'lastMessage' is possibly 'undefined'.
+src/components/modals/CommentModal.tsx(76,5): error TS2339: Property 'isLoading' does not exist on type '{ comments: Comment[]; commentCount: number; status: Status; draft: string; isPosting: boolean; hasMore: boolean; fetchComments: () => Promise<void>; loadMore: () => Promise<void>; ... 5 more ...; setHighlighted: (commentId: string | undefined) => void; }'.
+src/components/modals/CommentModal.tsx(77,5): error TS2339: Property 'error' does not exist on type '{ comments: Comment[]; commentCount: number; status: Status; draft: string; isPosting: boolean; hasMore: boolean; fetchComments: () => Promise<void>; loadMore: () => Promise<void>; ... 5 more ...; setHighlighted: (commentId: string | undefined) => void; }'.
+src/components/modals/CommentModal.tsx(78,5): error TS2339: Property 'isSubmitting' does not exist on type '{ comments: Comment[]; commentCount: number; status: Status; draft: string; isPosting: boolean; hasMore: boolean; fetchComments: () => Promise<void>; loadMore: () => Promise<void>; ... 5 more ...; setHighlighted: (commentId: string | undefined) => void; }'.
+src/components/modals/CommentModal.tsx(81,5): error TS2339: Property 'toggleCommentLike' does not exist on type '{ comments: Comment[]; commentCount: number; status: Status; draft: string; isPosting: boolean; hasMore: boolean; fetchComments: () => Promise<void>; loadMore: () => Promise<void>; ... 5 more ...; setHighlighted: (commentId: string | undefined) => void; }'.
+src/components/modals/CommentModal.tsx(182,8): error TS2741: Property 'children' is missing in type '{ onClose: () => void; error: string; }' but required in type '{ children: ReactNode; onClose: () => void; error?: string | undefined; }'.
+src/components/modals/CommentModal.tsx(303,46): error TS2345: Argument of type 'string | undefined' is not assignable to parameter of type 'string'.
+  Type 'undefined' is not assignable to type 'string'.
+src/components/modals/CommentModal.tsx(323,30): error TS18048: 'comment.likes_count' is possibly 'undefined'.
+src/components/modals/ManagePredictionModal.tsx(120,27): error TS2345: Argument of type '{ id: string; creator_id: string; title: string; question?: string; description?: string; category: "sports" | "pop_culture" | "custom" | "esports" | "celebrity_gossip" | "politics"; ... 25 more ...; comments?: number; }' is not assignable to parameter of type 'SetStateAction<{ id: string | number; title: string; category: string; totalPool: number; participants: number; timeRemaining: string; yourCut: number; status: string; description?: string | undefined; ... 4 more ...; options?: any[] | undefined; }>'.
+  Type '{ id: string; creator_id: string; title: string; question?: string | undefined; description?: string | undefined; category: "custom" | "sports" | "pop_culture" | "esports" | "celebrity_gossip" | "politics"; ... 25 more ...; comments?: number | undefined; }' is missing the following properties from type '{ id: string | number; title: string; category: string; totalPool: number; participants: number; timeRemaining: string; yourCut: number; status: string; description?: string | undefined; pool_total?: number | undefined; participant_count?: number | undefined; creator_fee_percentage?: number | undefined; entry_deadli...': totalPool, participants, timeRemaining, yourCut
+src/components/modals/ManagePredictionModal.tsx(129,31): error TS2345: Argument of type '{ id: string; creator_id: string; title: string; question?: string; description?: string; category: "sports" | "pop_culture" | "custom" | "esports" | "celebrity_gossip" | "politics"; ... 25 more ...; comments?: number; }' is not assignable to parameter of type 'SetStateAction<{ id: string | number; title: string; category: string; totalPool: number; participants: number; timeRemaining: string; yourCut: number; status: string; description?: string | undefined; ... 4 more ...; options?: any[] | undefined; }>'.
+  Type '{ id: string; creator_id: string; title: string; question?: string | undefined; description?: string | undefined; category: "custom" | "sports" | "pop_culture" | "esports" | "celebrity_gossip" | "politics"; ... 25 more ...; comments?: number | undefined; }' is missing the following properties from type '{ id: string | number; title: string; category: string; totalPool: number; participants: number; timeRemaining: string; yourCut: number; status: string; description?: string | undefined; pool_total?: number | undefined; participant_count?: number | undefined; creator_fee_percentage?: number | undefined; entry_deadli...': totalPool, participants, timeRemaining, yourCut
+src/components/modals/SettlementModal.tsx(202,32): error TS2339: Property 'staked_amount' does not exist on type 'PredictionOption'.
+src/components/modals/SettlementModal.tsx(203,32): error TS2339: Property 'amount_staked' does not exist on type 'PredictionOption'.
+src/components/modals/SettlementModal.tsx(204,32): error TS2339: Property 'total_amount' does not exist on type 'PredictionOption'.
+src/components/ModernMainLayout.tsx(2,36): error TS2307: Cannot find module './ModernBottomNavigation' or its corresponding type declarations.
+src/components/nav/SegmentedTabs.tsx(34,28): error TS2532: Object is possibly 'undefined'.
+src/components/nav/SegmentedTabs.tsx(39,28): error TS2532: Object is possibly 'undefined'.
+src/components/navigation/BottomNavigation.tsx(6,3): error TS2305: Module '"lucide-react"' has no exported member 'ChartLine'.
+src/components/onboarding/EnhancedOnboardingProvider.tsx(8,8): error TS2614: Module '"./EnhancedOnboardingSystem"' has no exported member 'OnboardingStep'. Did you mean to use 'import OnboardingStep from "./EnhancedOnboardingSystem"' instead?
+src/components/onboarding/EnhancedOnboardingSystem.tsx(13,3): error TS2305: Module '"lucide-react"' has no exported member 'Skip'.
+src/components/onboarding/EnhancedOnboardingSystem.tsx(104,67): error TS18048: 'currentStepData' is possibly 'undefined'.
+src/components/onboarding/FixedOnboardingProvider.tsx(265,11): error TS2322: Type '({ id: string; title: string; description: string; target: string; placement: string; icon: Element; delay: number; onNext?: undefined; } | { id: string; title: string; description: string; ... 4 more ...; onNext?: undefined; } | { ...; })[]' is not assignable to type 'OnboardingStep[]'.
+  Type '{ id: string; title: string; description: string; target: string; placement: string; icon: Element; delay: number; onNext?: undefined; } | { id: string; title: string; description: string; ... 4 more ...; onNext?: undefined; } | { ...; }' is not assignable to type 'OnboardingStep'.
+    Type '{ id: string; title: string; description: string; target: string; placement: string; icon: JSX.Element; delay: number; onNext?: undefined; }' is not assignable to type 'OnboardingStep'.
+      Types of property 'placement' are incompatible.
+        Type 'string' is not assignable to type '"top" | "center" | "left" | "bottom" | "right" | undefined'.
+src/components/onboarding/FixedOnboardingProvider.tsx(273,9): error TS2322: Type '({ id: string; title: string; description: string; target: string; placement: string; icon: Element; delay: number; onNext?: undefined; } | { id: string; title: string; description: string; ... 4 more ...; onNext?: undefined; } | { ...; })[]' is not assignable to type 'OnboardingStep[]'.
+  Type '{ id: string; title: string; description: string; target: string; placement: string; icon: Element; delay: number; onNext?: undefined; } | { id: string; title: string; description: string; ... 4 more ...; onNext?: undefined; } | { ...; }' is not assignable to type 'OnboardingStep'.
+    Type '{ id: string; title: string; description: string; target: string; placement: string; icon: JSX.Element; delay: number; onNext?: undefined; }' is not assignable to type 'OnboardingStep'.
+      Types of property 'placement' are incompatible.
+        Type 'string' is not assignable to type '"top" | "center" | "left" | "bottom" | "right" | undefined'.
+src/components/onboarding/FixedOnboardingProvider.tsx(284,7): error TS2322: Type '{ id: string; title: string; description: string; target: string; placement: string; icon: Element; }[]' is not assignable to type 'OnboardingStep[]'.
+  Type '{ id: string; title: string; description: string; target: string; placement: string; icon: JSX.Element; }' is not assignable to type 'OnboardingStep'.
+    Types of property 'placement' are incompatible.
+      Type 'string' is not assignable to type '"top" | "center" | "left" | "bottom" | "right" | undefined'.
+src/components/onboarding/OnboardingModal.tsx(83,20): error TS18048: 'step' is possibly 'undefined'.
+src/components/onboarding/OnboardingModal.tsx(86,72): error TS18048: 'step' is possibly 'undefined'.
+src/components/onboarding/OnboardingModal.tsx(87,57): error TS18048: 'step' is possibly 'undefined'.
+src/components/onboarding/OnboardingProvider.tsx(327,5): error TS2322: Type 'false | Element | null' is not assignable to type 'boolean'.
+  Type 'null' is not assignable to type 'boolean'.
+src/components/onboarding/OnboardingSystem.tsx(575,9): error TS2345: Argument of type '{ width: number; height: number; }' is not assignable to parameter of type 'DOMRect'.
+  Type '{ width: number; height: number; }' is missing the following properties from type 'DOMRect': x, y, bottom, left, and 3 more.
+src/components/onboarding/SmartOnboarding.tsx(103,17): error TS2339: Property 'info' does not exist on type '{ (message: Message, opts?: Partial<Pick<Toast, "id" | "duration" | "style" | "className" | "position" | "icon" | "ariaProps" | "iconTheme" | "toasterId" | "removeDelay">> | undefined): string; ... 8 more ...; promise<T>(promise: Promise<...> | (() => Promise<...>), msgs: { ...; }, opts?: DefaultToastOptions | undef...'.
+src/components/onboarding/SmartOnboarding.tsx(275,36): error TS2345: Argument of type 'OnboardingStep | undefined' is not assignable to parameter of type 'SetStateAction<OnboardingStep>'.
+  Type 'undefined' is not assignable to type 'SetStateAction<OnboardingStep>'.
+src/components/prediction/__tests__/PredictionDetailsWrapper.test.tsx(2,41): error TS2307: Cannot find module '@testing-library/react' or its corresponding type declarations.
+src/components/prediction/__tests__/PredictionDetailsWrapper.test.tsx(4,54): error TS2307: Cannot find module 'vitest' or its corresponding type declarations.
+src/components/prediction/__tests__/PredictionDetailsWrapper.test.tsx(221,5): error TS2322: Type '{ pathname: string; ancestorOrigins: DOMStringList; hash: string; host: string; hostname: string; href: string; toString(): string; origin: string; port: string; protocol: string; search: string; assign(url: string | URL): void; reload(): void; replace(url: string | URL): void; }' is not assignable to type 'string & Location'.
+  Type '{ pathname: string; ancestorOrigins: DOMStringList; hash: string; host: string; hostname: string; href: string; toString(): string; origin: string; port: string; protocol: string; search: string; assign(url: string | URL): void; reload(): void; replace(url: string | URL): void; }' is not assignable to type 'string'.
+src/components/prediction/__tests__/PredictionDetailsWrapper.test.tsx(247,5): error TS2322: Type 'Location' is not assignable to type 'string & Location'.
+  Type 'Location' is not assignable to type 'string'.
+src/components/prediction/PredictionActionPanel.tsx(207,50): error TS2322: Type 'number' is not assignable to type '84532'.
+src/components/prediction/PredictionActionPanel.tsx(222,34): error TS2339: Property 'openDepositModal' does not exist on type 'WalletState'.
+src/components/prediction/PredictionDetailsContent.tsx(38,17): error TS2339: Property 'isAuthenticated' does not exist on type 'AuthSessionContextType'.
+src/components/prediction/PredictionDetailsContent.tsx(57,62): error TS2339: Property 'loading' does not exist on type 'PredictionState'.
+src/components/prediction/PredictionDetailsContent.tsx(221,11): error TS2322: Type '(() => void) | undefined' is not assignable to type '() => void'.
+  Type 'undefined' is not assignable to type '() => void'.
+src/components/prediction/PredictionDetailsContent.tsx(235,16): error TS18047: 'prediction' is possibly 'null'.
+src/components/prediction/PredictionDetailsContent.tsx(238,16): error TS18047: 'prediction' is possibly 'null'.
+src/components/prediction/PredictionDetailsContent.tsx(251,18): error TS18047: 'prediction' is possibly 'null'.
+src/components/prediction/PredictionDetailsContent.tsx(254,18): error TS18047: 'prediction' is possibly 'null'.
+src/components/prediction/PredictionDetailsContent.tsx(254,38): error TS2339: Property 'displayName' does not exist on type '{ id: string; username: string; full_name?: string | undefined; avatar_url?: string | undefined; }'.
+src/components/prediction/PredictionDetailsContent.tsx(278,36): error TS18047: 'prediction' is possibly 'null'.
+src/components/prediction/PredictionDetailsContent.tsx(278,36): error TS2345: Argument of type 'string | undefined' is not assignable to parameter of type 'string'.
+  Type 'undefined' is not assignable to type 'string'.
+src/components/prediction/PredictionDetailsContent.tsx(288,17): error TS18047: 'prediction' is possibly 'null'.
+src/components/prediction/PredictionDetailsContent.tsx(298,16): error TS18047: 'prediction' is possibly 'null'.
+src/components/prediction/PredictionDetailsContent.tsx(308,16): error TS18047: 'prediction' is possibly 'null'.
+src/components/prediction/PredictionDetailsContent.tsx(346,8): error TS18047: 'prediction' is possibly 'null'.
+src/components/prediction/PredictionDetailsContent.tsx(346,30): error TS18047: 'prediction' is possibly 'null'.
+src/components/prediction/PredictionDetailsContent.tsx(350,14): error TS18047: 'prediction' is possibly 'null'.
+src/components/prediction/PredictionDetailsWrapper.tsx(24,32): error TS2339: Property 'loading' does not exist on type 'PredictionState'.
+src/components/PredictionCard.tsx(76,27): error TS7015: Element implicitly has an 'any' type because index expression is not of type 'number'.
+src/components/PredictionCard.tsx(82,19): error TS2339: Property 'text' does not exist on type 'PredictionOption'.
+src/components/PredictionCard.tsx(82,34): error TS2339: Property 'option' does not exist on type 'PredictionOption'.
+src/components/PredictionCard.tsx(83,41): error TS2339: Property 'odds' does not exist on type 'PredictionOption'.
+src/components/PredictionPlacementModal.tsx(37,78): error TS18048: 'option.totalStaked' is possibly 'undefined'.
+src/components/PredictionPlacementModal.tsx(45,28): error TS18048: 'selectedOption.totalStaked' is possibly 'undefined'.
+src/components/PredictionPlacementModal.tsx(55,41): error TS18048: 'option.totalStaked' is possibly 'undefined'.
+src/components/PredictionPlacementModal.tsx(56,55): error TS2345: Argument of type 'number | undefined' is not assignable to parameter of type 'number'.
+  Type 'undefined' is not assignable to type 'number'.
+src/components/PredictionPlacementModal.tsx(81,52): error TS2551: Property 'stakeMin' does not exist on type 'Prediction'. Did you mean 'stake_min'?
+src/components/PredictionPlacementModal.tsx(130,37): error TS2551: Property 'participantCount' does not exist on type 'Prediction'. Did you mean 'participant_count'?
+src/components/PredictionPlacementModal.tsx(134,47): error TS2769: No overload matches this call.
+  Overload 1 of 4, '(value: string | number | Date): Date', gave the following error.
+    Argument of type 'string | undefined' is not assignable to parameter of type 'string | number | Date'.
+      Type 'undefined' is not assignable to type 'string | number | Date'.
+  Overload 2 of 4, '(value: string | number): Date', gave the following error.
+    Argument of type 'string | undefined' is not assignable to parameter of type 'string | number'.
+      Type 'undefined' is not assignable to type 'string | number'.
+src/components/PredictionPlacementModal.tsx(256,76): error TS2551: Property 'stakeMin' does not exist on type 'Prediction'. Did you mean 'stake_min'?
+src/components/PredictionPlacementModal.tsx(309,65): error TS2551: Property 'settlementMethod' does not exist on type 'Prediction'. Did you mean 'settlement_method'?
+src/components/predictions/CommentsModal.tsx(25,21): error TS2339: Property 'loading' does not exist on type '{ comments: Comment[]; commentCount: number; status: Status; draft: string; isPosting: boolean; hasMore: boolean; fetchComments: () => Promise<void>; loadMore: () => Promise<void>; ... 5 more ...; setHighlighted: (commentId: string | undefined) => void; }'.
+src/components/predictions/CommentsModal.tsx(25,57): error TS2339: Property 'toggleCommentLike' does not exist on type '{ comments: Comment[]; commentCount: number; status: Status; draft: string; isPosting: boolean; hasMore: boolean; fetchComments: () => Promise<void>; loadMore: () => Promise<void>; ... 5 more ...; setHighlighted: (commentId: string | undefined) => void; }'.
+src/components/predictions/CommentsModal.tsx(37,21): error TS2554: Expected 0 arguments, but got 1.
+src/components/predictions/CommentsModal.tsx(59,38): error TS2554: Expected 1 arguments, but got 2.
+src/components/predictions/CommentsModal.tsx(162,52): error TS2339: Property 'email' does not exist on type '{ id: string; username: string; full_name?: string | undefined; avatarUrl?: string | undefined; avatar_url?: string | undefined; is_verified?: boolean | undefined; }'.
+src/components/predictions/CommentsModal.tsx(175,50): error TS2345: Argument of type 'string | undefined' is not assignable to parameter of type 'string'.
+  Type 'undefined' is not assignable to type 'string'.
+src/components/predictions/SettlementCriteriaSetup.tsx(49,83): error TS2345: Argument of type 'SettlementCriteria | null | undefined' is not assignable to parameter of type 'SettlementCriteria | (() => SettlementCriteria | null) | null'.
+  Type 'undefined' is not assignable to type 'SettlementCriteria | (() => SettlementCriteria | null) | null'.
+src/components/predictions/TrendingPredictions.tsx(2,32): error TS2307: Cannot find module './PredictionCard' or its corresponding type declarations.
+src/components/PWAInstallManager.tsx(88,16): error TS2304: Cannot find name 'gtag'.
+src/components/PWAInstallManager.tsx(89,7): error TS2304: Cannot find name 'gtag'.
+src/components/PWAInstallManager.tsx(102,16): error TS2304: Cannot find name 'gtag'.
+src/components/PWAInstallManager.tsx(103,7): error TS2304: Cannot find name 'gtag'.
+src/components/ReliableMainLayout.tsx(2,38): error TS2307: Cannot find module './ReliableBottomNavigation' or its corresponding type declarations.
+src/components/Router.tsx(16,40): error TS2304: Cannot find name 'useAuthStore'.
+src/components/Router.tsx(19,13): error TS2304: Cannot find name 'LoadingScreen'.
+src/components/Router.tsx(23,6): error TS2304: Cannot find name 'Switch'.
+src/components/Router.tsx(25,8): error TS2552: Cannot find name 'Route'. Did you mean 'Router'?
+src/components/Router.tsx(28,8): error TS2304: Cannot find name 'Route'.
+src/components/Router.tsx(29,8): error TS2304: Cannot find name 'Route'.
+src/components/Router.tsx(30,8): error TS2304: Cannot find name 'Route'.
+src/components/Router.tsx(31,8): error TS2304: Cannot find name 'Route'.
+src/components/Router.tsx(32,8): error TS2304: Cannot find name 'Route'.
+src/components/Router.tsx(33,8): error TS2304: Cannot find name 'Route'.
+src/components/Router.tsx(34,8): error TS2304: Cannot find name 'Route'.
+src/components/Router.tsx(35,8): error TS2304: Cannot find name 'Route'.
+src/components/Router.tsx(36,8): error TS2304: Cannot find name 'Route'.
+src/components/Router.tsx(39,8): error TS2304: Cannot find name 'Route'.
+src/components/Router.tsx(40,7): error TS2304: Cannot find name 'Switch'.
+src/components/settlement/DisputeCard.tsx(2,25): error TS2307: Cannot find module '../../../../shared/schema' or its corresponding type declarations.
+src/components/settlement/DisputeCard.tsx(76,36): error TS7006: Parameter 'item' implicitly has an 'any' type.
+src/components/settlement/DisputeCard.tsx(76,42): error TS7006: Parameter 'index' implicitly has an 'any' type.
+src/components/settlement/DisputeModal.tsx(3,25): error TS2307: Cannot find module '../../../../shared/schema' or its corresponding type declarations.
+src/components/settlement/ProofRow.tsx(2,33): error TS2307: Cannot find module '../../../../shared/schema' or its corresponding type declarations.
+src/components/settlement/RulePreview.tsx(2,34): error TS2307: Cannot find module '../../../../shared/schema' or its corresponding type declarations.
+src/components/settlement/SettlementPanel.tsx(3,28): error TS2307: Cannot find module '../../../../shared/schema' or its corresponding type declarations.
+src/components/settlement/SettlementRuleModal.tsx(3,34): error TS2307: Cannot find module '../../../../shared/schema' or its corresponding type declarations.
+src/components/settlement/SettlementRuleModal.tsx(158,49): error TS2345: Argument of type 'unknown' is not assignable to parameter of type 'string'.
+src/components/settlement/SettlementRuleModal.tsx(170,41): error TS7006: Parameter 'badge' implicitly has an 'any' type.
+src/components/settlement/SettlementRuleModal.tsx(170,48): error TS7006: Parameter 'index' implicitly has an 'any' type.
+src/components/settlement/SourcePill.tsx(2,34): error TS2307: Cannot find module '../../../../shared/schema' or its corresponding type declarations.
+src/components/share/useShareResult.tsx(2,23): error TS2307: Cannot find module 'html-to-image' or its corresponding type declarations.
+src/components/SimpleMainLayout.tsx(3,36): error TS2307: Cannot find module './SimpleBottomNavigation' or its corresponding type declarations.
+src/components/skeletons/DiscoverSkeletons.tsx(111,19): error TS2322: Type '{ key: number; className: string; style: { width: string; }; }' is not assignable to type 'IntrinsicAttributes & SkeletonProps'.
+  Property 'style' does not exist on type 'IntrinsicAttributes & SkeletonProps'.
+src/components/social/CommentThread.tsx(5,32): error TS2307: Cannot find module '../../store/socialStore' or its corresponding type declarations.
+src/components/social/CommentThread.tsx(44,46): error TS7006: Parameter 'c' implicitly has an 'any' type.
+src/components/social/CommentThread.tsx(45,54): error TS7006: Parameter 'c' implicitly has an 'any' type.
+src/components/social/CommentThread.tsx(48,38): error TS7006: Parameter 'c' implicitly has an 'any' type.
+src/components/social/CommentThread.tsx(316,38): error TS7006: Parameter 'comment' implicitly has an 'any' type.
+src/components/social/SharePrediction.tsx(135,12): error TS2774: This condition will always return true since this function is always defined. Did you mean to call it instead?
+src/components/ui/empty/AuthRequiredState.tsx(29,28): error TS2322: Type 'string' is not assignable to type 'AuthIntent'.
+src/components/ui/NotificationContainer.tsx(6,26): error TS2339: Property 'removeNotification' does not exist on type 'NotificationStore'.
+src/components/ui/NotificationContainer.tsx(13,11): error TS2322: Type '"like" | "prediction_outcome" | "comment" | "payout" | "market_close" | "follow" | "general" | "settlement_ready" | "settlement_completed"' is not assignable to type '"error" | "success" | "info" | "warning"'.
+  Type '"like"' is not assignable to type '"error" | "success" | "info" | "warning"'.
+src/components/ui/NotificationContainer.tsx(15,34): error TS2339: Property 'duration' does not exist on type 'Notification'.
+src/components/ui/radio-group.tsx(66,9): error TS2322: Type 'HTMLInputTypeAttribute' is not assignable to type '"button" | "submit" | "reset" | undefined'.
+  Type '"number"' is not assignable to type '"button" | "submit" | "reset" | undefined'.
+src/components/ui/radio-group.tsx(71,9): error TS2322: Type 'MouseEventHandler<HTMLInputElement>' is not assignable to type 'MouseEventHandler<HTMLButtonElement>'.
+  Type 'HTMLInputElement' is not assignable to type 'HTMLButtonElement'.
+    Types of property 'labels' are incompatible.
+      Type 'NodeListOf<HTMLLabelElement> | null' is not assignable to type 'NodeListOf<HTMLLabelElement>'.
+        Type 'null' is not assignable to type 'NodeListOf<HTMLLabelElement>'.
+src/components/wallet/DepositModal.tsx(22,11): error TS2339: Property 'deposit' does not exist on type 'WalletState'.
+src/components/wallet/WithdrawModal.tsx(24,64): error TS2339: Property 'available_balance' does not exist on type 'WalletBalance'.
+src/components/wallet/WithdrawModal.tsx(51,22): error TS2345: Argument of type 'string' is not assignable to parameter of type 'number'.
+src/features/comments/CommentInput.tsx(25,22): error TS2322: Type '"comment"' is not assignable to type 'AuthIntent'.
+src/features/comments/CommentInput.tsx(41,41): error TS2322: Type '"comment"' is not assignable to type 'AuthIntent'.
+src/features/images/select.ts(20,3): error TS2322: Type 'T | undefined' is not assignable to type 'T | null'.
+  Type 'undefined' is not assignable to type 'T | null'.
+src/features/images/select.ts(31,19): error TS2345: Argument of type 'T | undefined' is not assignable to parameter of type 'T'.
+  'T' could be instantiated with an arbitrary type which could be unrelated to 'T | undefined'.
+src/features/images/useAutoImage.ts(98,22): error TS2345: Argument of type '{}' is not assignable to parameter of type 'SetStateAction<StockImage | null>'.
+src/features/images/useAutoImage.ts(101,65): error TS2345: Argument of type '{}' is not assignable to parameter of type 'StockImage'.
+  Type '{}' is missing the following properties from type 'StockImage': url, previewUrl, width, height, provider
+src/hooks/useComments.ts(4,39): error TS2305: Module '"@fanclubz/shared"' has no exported member 'ApiResponse'.
+src/hooks/useComments.ts(163,46): error TS2488: Type '{}' must have a '[Symbol.iterator]()' method that returns an iterator.
+src/hooks/useComments.ts(164,36): error TS2365: Operator '+' cannot be applied to types '{}' and 'number'.
+src/hooks/useComments.ts(294,52): error TS2339: Property 'length' does not exist on type '{}'.
+src/hooks/useComments.ts(297,42): error TS2339: Property 'map' does not exist on type '{}'.
+src/hooks/useErrorHandling.ts(138,9): error TS2322: Type 'Awaited<T> | { data?: T | undefined; error?: AppError | undefined; }' is not assignable to type 'T | null'.
+  Type '{ data?: T | undefined; error?: AppError | undefined; }' is not assignable to type 'T'.
+    'T' could be instantiated with an arbitrary type which could be unrelated to '{ data?: T | undefined; error?: AppError | undefined; }'.
+src/hooks/useErrorHandling.ts(140,17): error TS2339: Property 'data' does not exist on type 'Awaited<T> | { data?: T | undefined; error?: AppError | undefined; }'.
+src/hooks/useErrorHandling.ts(140,23): error TS2339: Property 'error' does not exist on type 'Awaited<T> | { data?: T | undefined; error?: AppError | undefined; }'.
+src/hooks/useIdempotentRequest.ts(31,13): error TS2339: Property 'info' does not exist on type '{ (message: Message, opts?: Partial<Pick<Toast, "id" | "duration" | "style" | "className" | "position" | "icon" | "ariaProps" | "iconTheme" | "toasterId" | "removeDelay">> | undefined): string; ... 8 more ...; promise<T>(promise: Promise<...> | (() => Promise<...>), msgs: { ...; }, opts?: DefaultToastOptions | undef...'.
+src/hooks/useIdempotentRequest.ts(147,17): error TS2339: Property 'info' does not exist on type '{ (message: Message, opts?: Partial<Pick<Toast, "id" | "duration" | "style" | "className" | "position" | "icon" | "ariaProps" | "iconTheme" | "toasterId" | "removeDelay">> | undefined): string; ... 8 more ...; promise<T>(promise: Promise<...> | (() => Promise<...>), msgs: { ...; }, opts?: DefaultToastOptions | undef...'.
+src/hooks/useIdempotentRequest.ts(191,17): error TS2339: Property 'info' does not exist on type '{ (message: Message, opts?: Partial<Pick<Toast, "id" | "duration" | "style" | "className" | "position" | "icon" | "ariaProps" | "iconTheme" | "toasterId" | "removeDelay">> | undefined): string; ... 8 more ...; promise<T>(promise: Promise<...> | (() => Promise<...>), msgs: { ...; }, opts?: DefaultToastOptions | undef...'.
+src/hooks/useIdempotentRequest.ts(235,17): error TS2339: Property 'info' does not exist on type '{ (message: Message, opts?: Partial<Pick<Toast, "id" | "duration" | "style" | "className" | "position" | "icon" | "ariaProps" | "iconTheme" | "toasterId" | "removeDelay">> | undefined): string; ... 8 more ...; promise<T>(promise: Promise<...> | (() => Promise<...>), msgs: { ...; }, opts?: DefaultToastOptions | undef...'.
+src/lib/balance/__tests__/balanceSelector.test.ts(1,38): error TS2307: Cannot find module 'vitest' or its corresponding type declarations.
+src/lib/balance/__tests__/balanceSelector.test.ts(3,15): error TS2305: Module '"@/store/walletStore"' has no exported member 'WalletStoreState'.
+src/lib/balance/balanceSelector.ts(1,15): error TS2459: Module '"../../store/walletStore"' declares 'WalletState' locally, but it is not exported.
+src/lib/media/buildQuery.test.ts(2,38): error TS2307: Cannot find module 'vitest' or its corresponding type declarations.
+src/lib/media/examples.tsx(31,13): error TS2322: Type 'MediaResult' is not assignable to type 'string'.
+src/lib/media/examples.tsx(80,13): error TS2322: Type 'MediaResult' is not assignable to type 'string'.
+src/lib/media/examples.tsx(141,13): error TS2322: Type 'MediaResult' is not assignable to type 'string'.
+src/lib/media/examples.tsx(208,41): error TS2686: 'React' refers to a UMD global, but the current file is a module. Consider adding an import instead.
+src/lib/media/examples.tsx(219,15): error TS2322: Type 'MediaResult' is not assignable to type 'string'.
+src/lib/media/index.ts(9,10): error TS2305: Module '"./providers"' has no exported member 'MEDIA_PROVIDERS'.
+src/lib/media/providers.ts(143,18): error TS2532: Object is possibly 'undefined'.
+src/lib/media/providers.ts(143,37): error TS2532: Object is possibly 'undefined'.
+src/lib/media/resolveMedia.ts(153,20): error TS2532: Object is possibly 'undefined'.
+src/lib/media/resolveMedia.ts(213,33): error TS2345: Argument of type 'string | undefined' is not assignable to parameter of type 'string'.
+  Type 'undefined' is not assignable to type 'string'.
+src/lib/media/resolveMedia.ts(243,33): error TS2345: Argument of type 'string | undefined' is not assignable to parameter of type 'string'.
+  Type 'undefined' is not assignable to type 'string'.
+src/lib/media/resolveMedia.ts(318,33): error TS2345: Argument of type 'string | undefined' is not assignable to parameter of type 'string'.
+  Type 'undefined' is not assignable to type 'string'.
+src/lib/media/resolveMedia.ts(368,18): error TS2532: Object is possibly 'undefined'.
+src/lib/media/resolveMedia.ts(387,5): error TS2322: Type 'string | undefined' is not assignable to type 'string'.
+  Type 'undefined' is not assignable to type 'string'.
+src/lib/media/test.spec.ts(7,1): error TS2593: Cannot find name 'describe'. Do you need to install type definitions for a test runner? Try `npm i --save-dev @types/jest` or `npm i --save-dev @types/mocha` and then add 'jest' or 'mocha' to the types field in your tsconfig.
+src/lib/media/test.spec.ts(9,3): error TS2593: Cannot find name 'describe'. Do you need to install type definitions for a test runner? Try `npm i --save-dev @types/jest` or `npm i --save-dev @types/mocha` and then add 'jest' or 'mocha' to the types field in your tsconfig.
+src/lib/media/test.spec.ts(10,5): error TS2593: Cannot find name 'it'. Do you need to install type definitions for a test runner? Try `npm i --save-dev @types/jest` or `npm i --save-dev @types/mocha` and then add 'jest' or 'mocha' to the types field in your tsconfig.
+src/lib/media/test.spec.ts(12,7): error TS2304: Cannot find name 'expect'.
+src/lib/media/test.spec.ts(13,7): error TS2304: Cannot find name 'expect'.
+src/lib/media/test.spec.ts(14,7): error TS2304: Cannot find name 'expect'.
+src/lib/media/test.spec.ts(15,7): error TS2304: Cannot find name 'expect'.
+src/lib/media/test.spec.ts(16,7): error TS2304: Cannot find name 'expect'.
+src/lib/media/test.spec.ts(17,7): error TS2304: Cannot find name 'expect'.
+src/lib/media/test.spec.ts(20,5): error TS2593: Cannot find name 'it'. Do you need to install type definitions for a test runner? Try `npm i --save-dev @types/jest` or `npm i --save-dev @types/mocha` and then add 'jest' or 'mocha' to the types field in your tsconfig.
+src/lib/media/test.spec.ts(22,7): error TS2304: Cannot find name 'expect'.
+src/lib/media/test.spec.ts(23,7): error TS2304: Cannot find name 'expect'.
+src/lib/media/test.spec.ts(24,7): error TS2304: Cannot find name 'expect'.
+src/lib/media/test.spec.ts(25,7): error TS2304: Cannot find name 'expect'.
+src/lib/media/test.spec.ts(28,5): error TS2593: Cannot find name 'it'. Do you need to install type definitions for a test runner? Try `npm i --save-dev @types/jest` or `npm i --save-dev @types/mocha` and then add 'jest' or 'mocha' to the types field in your tsconfig.
+src/lib/media/test.spec.ts(30,7): error TS2304: Cannot find name 'expect'.
+src/lib/media/test.spec.ts(31,7): error TS2304: Cannot find name 'expect'.
+src/lib/media/test.spec.ts(32,7): error TS2304: Cannot find name 'expect'.
+src/lib/media/test.spec.ts(35,5): error TS2593: Cannot find name 'it'. Do you need to install type definitions for a test runner? Try `npm i --save-dev @types/jest` or `npm i --save-dev @types/mocha` and then add 'jest' or 'mocha' to the types field in your tsconfig.
+src/lib/media/test.spec.ts(37,7): error TS2304: Cannot find name 'expect'.
+src/lib/media/test.spec.ts(38,7): error TS2304: Cannot find name 'expect'.
+src/lib/media/test.spec.ts(42,3): error TS2593: Cannot find name 'describe'. Do you need to install type definitions for a test runner? Try `npm i --save-dev @types/jest` or `npm i --save-dev @types/mocha` and then add 'jest' or 'mocha' to the types field in your tsconfig.
+src/lib/media/test.spec.ts(70,5): error TS2593: Cannot find name 'it'. Do you need to install type definitions for a test runner? Try `npm i --save-dev @types/jest` or `npm i --save-dev @types/mocha` and then add 'jest' or 'mocha' to the types field in your tsconfig.
+src/lib/media/test.spec.ts(74,7): error TS2304: Cannot find name 'expect'.
+src/lib/media/test.spec.ts(77,5): error TS2593: Cannot find name 'it'. Do you need to install type definitions for a test runner? Try `npm i --save-dev @types/jest` or `npm i --save-dev @types/mocha` and then add 'jest' or 'mocha' to the types field in your tsconfig.
+src/lib/media/test.spec.ts(82,7): error TS2304: Cannot find name 'expect'.
+src/lib/media/test.spec.ts(83,7): error TS2304: Cannot find name 'expect'.
+src/lib/media/test.spec.ts(86,5): error TS2593: Cannot find name 'it'. Do you need to install type definitions for a test runner? Try `npm i --save-dev @types/jest` or `npm i --save-dev @types/mocha` and then add 'jest' or 'mocha' to the types field in your tsconfig.
+src/lib/media/test.spec.ts(90,7): error TS2304: Cannot find name 'expect'.
+src/lib/media/test.spec.ts(91,7): error TS2304: Cannot find name 'expect'.
+src/lib/media/usePredictionMedia.ts(148,3): error TS2322: Type 'string | undefined' is not assignable to type 'string'.
+  Type 'undefined' is not assignable to type 'string'.
+src/lib/media/usePredictionMedia.ts(148,10): error TS18048: 'pool' is possibly 'undefined'.
+src/lib/media/usePredictionMedia.ts(148,22): error TS18048: 'pool' is possibly 'undefined'.
+src/lib/supabase.ts(51,5): error TS2353: Object literal may only specify known properties, and 'redirectTo' does not exist in type '{ autoRefreshToken?: boolean | undefined; storageKey?: string | undefined; persistSession?: boolean | undefined; detectSessionInUrl?: boolean | undefined; storage?: SupportedStorage | undefined; ... 4 more ...; throwOnError?: boolean | undefined; }'.
+src/lib/utils.ts(37,15): error TS18048: 'formatter' is possibly 'undefined'.
+src/lib/utils.ts(41,15): error TS18048: 'formatter' is possibly 'undefined'.
+src/lib/utils.ts(44,10): error TS18048: 'formatter' is possibly 'undefined'.
+src/lib/version.ts(34,48): error TS18048: 'patch' is possibly 'undefined'.
+src/lib/version.ts(41,39): error TS18048: 'minor' is possibly 'undefined'.
+src/lib/version.ts(48,30): error TS18048: 'major' is possibly 'undefined'.
+src/lib/wagmi.ts(14,5): error TS2345: Argument of type 'CreateConnectorFn<EthereumProvider, { connect<withCapabilities extends boolean = false>(parameters?: { chainId?: number | undefined; isReconnecting?: boolean | undefined; pairingTopic?: string | undefined; withCapabilities?: boolean | ... 1 more ... | undefined; } | undefined): Promise<...>; ... 7 more ...; requeste...' is not assignable to parameter of type 'CreateConnectorFn<{ on: <event extends keyof EIP1193EventMap>(event: event, listener: EIP1193EventMap[event]) => void; removeListener: <event extends keyof EIP1193EventMap>(event: event, listener: EIP1193EventMap[event]) => void; ... 41 more ...; _state?: { ...; } | undefined; } | undefined, { ...; }, { ...; }>'.
+  Types of parameters 'config' and 'config' are incompatible.
+    Type '{ chains: readonly [Chain, ...Chain[]]; emitter: Emitter<ConnectorEventMap>; storage?: { key: string; getItem: <key extends keyof StorageItemMap | `${string}.disconnected` | "injected.connected", value extends (StorageItemMap & { ...; })[key], defaultValue extends value | ... 1 more ... | undefined>(key: key, defaul...' is not assignable to type '{ chains: readonly [Chain, ...Chain[]]; emitter: Emitter<ConnectorEventMap>; storage?: { key: string; getItem: <key extends keyof StorageItemMap | `${string}.requestedChains`, value extends (StorageItemMap & { ...; })[key], defaultValue extends value | ... 1 more ... | undefined>(key: key, defaultValue?: defaultValu...'.
+      Types of property 'storage' are incompatible.
+        Type '{ key: string; getItem: <key extends keyof StorageItemMap | `${string}.disconnected` | "injected.connected", value extends (StorageItemMap & { [x: `${string}.disconnected`]: true; "injected.connected": true; })[key], defaultValue extends value | ... 1 more ... | undefined>(key: key, defaultValue?: defaultValue | und...' is not assignable to type '{ key: string; getItem: <key extends keyof StorageItemMap | `${string}.requestedChains`, value extends (StorageItemMap & { [x: `${string}.requestedChains`]: number[]; })[key], defaultValue extends value | null | undefined>(key: key, defaultValue?: defaultValue | undefined) => (defaultValue extends null ? value | nul...'.
+          Type '{ key: string; getItem: <key extends keyof StorageItemMap | `${string}.disconnected` | "injected.connected", value extends (StorageItemMap & { [x: `${string}.disconnected`]: true; "injected.connected": true; })[key], defaultValue extends value | ... 1 more ... | undefined>(key: key, defaultValue?: defaultValue | und...' is not assignable to type '{ key: string; getItem: <key extends keyof StorageItemMap | `${string}.requestedChains`, value extends (StorageItemMap & { [x: `${string}.requestedChains`]: number[]; })[key], defaultValue extends value | null | undefined>(key: key, defaultValue?: defaultValue | undefined) => (defaultValue extends null ? value | nul...'.
+            Types of property 'removeItem' are incompatible.
+              Type '(key: keyof StorageItemMap | `${string}.disconnected` | "injected.connected") => void | Promise<void>' is not assignable to type '(key: keyof StorageItemMap | `${string}.requestedChains`) => void | Promise<void>'.
+                Types of parameters 'key' and 'key' are incompatible.
+                  Type 'keyof StorageItemMap | `${string}.requestedChains`' is not assignable to type 'keyof StorageItemMap | `${string}.disconnected` | "injected.connected"'.
+                    Type '`${string}.requestedChains`' is not assignable to type 'keyof StorageItemMap | `${string}.disconnected` | "injected.connected"'.
+src/lib/wagmi.ts(30,5): error TS2345: Argument of type 'CreateConnectorFn<ProviderInterface & { close?(): void; }, { connect<withCapabilities extends boolean = false>(parameters?: { chainId?: number | undefined; instantOnboarding?: boolean | undefined; isReconnecting?: boolean | undefined; withCapabilities?: boolean | ... 1 more ... | undefined; } | undefined): Promise<....' is not assignable to parameter of type 'CreateConnectorFn<{ on: <event extends keyof EIP1193EventMap>(event: event, listener: EIP1193EventMap[event]) => void; removeListener: <event extends keyof EIP1193EventMap>(event: event, listener: EIP1193EventMap[event]) => void; ... 41 more ...; _state?: { ...; } | undefined; } | undefined, { ...; }, { ...; }>'.
+  Type 'CreateConnectorFn<ProviderInterface & { close?(): void; }, { connect<withCapabilities extends boolean = false>(parameters?: { chainId?: number | undefined; instantOnboarding?: boolean | undefined; isReconnecting?: boolean | undefined; withCapabilities?: boolean | ... 1 more ... | undefined; } | undefined): Promise<....' is not assignable to type 'CreateConnectorFn<{ on: <event extends keyof EIP1193EventMap>(event: event, listener: EIP1193EventMap[event]) => void; removeListener: <event extends keyof EIP1193EventMap>(event: event, listener: EIP1193EventMap[event]) => void; ... 41 more ...; _state?: { ...; } | undefined; } | undefined, { ...; }, { ...; }>'.
+    Call signature return types '{ readonly icon?: string | undefined; readonly id: string; readonly name: string; readonly rdns?: string | readonly string[] | undefined; readonly supportsSimulation?: boolean | undefined; readonly type: string; ... 13 more ...; onMessage?: ((message: ProviderMessage) => void) | undefined; }' and '{ readonly icon?: string | undefined; readonly id: string; readonly name: string; readonly rdns?: string | readonly string[] | undefined; readonly supportsSimulation?: boolean | undefined; readonly type: string; ... 13 more ...; onMessage?: ((message: ProviderMessage) => void) | undefined; }' are incompatible.
+      The types returned by 'getProvider(...)' are incompatible between these types.
+        Type 'Promise<ProviderInterface & { close?(): void; }>' is not assignable to type 'Promise<{ on: <event extends keyof EIP1193EventMap>(event: event, listener: EIP1193EventMap[event]) => void; removeListener: <event extends keyof EIP1193EventMap>(event: event, listener: EIP1193EventMap[event]) => void; ... 41 more ...; _state?: { ...; } | undefined; } | undefined>'.
+          Type 'ProviderInterface & { close?(): void; }' is not assignable to type '{ on: <event extends keyof EIP1193EventMap>(event: event, listener: EIP1193EventMap[event]) => void; removeListener: <event extends keyof EIP1193EventMap>(event: event, listener: EIP1193EventMap[event]) => void; ... 41 more ...; _state?: { ...; } | undefined; } | undefined'.
+            Type 'ProviderInterface & { close?(): void; }' is not assignable to type '{ on: <event extends keyof EIP1193EventMap>(event: event, listener: EIP1193EventMap[event]) => void; removeListener: <event extends keyof EIP1193EventMap>(event: event, listener: EIP1193EventMap[event]) => void; ... 41 more ...; _state?: { ...; } | undefined; }'.
+              Types of property 'on' are incompatible.
+                Type '<K extends keyof ProviderEventMap>(event: K, listener: (_: ProviderEventMap[K]) => void) => ProviderInterface & { close?(): void; }' is not assignable to type '<event extends keyof EIP1193EventMap>(event: event, listener: EIP1193EventMap[event]) => void'.
+                  Types of parameters 'event' and 'event' are incompatible.
+                    Type 'event' is not assignable to type 'keyof ProviderEventMap'.
+                      Type 'keyof EIP1193EventMap' is not assignable to type 'keyof ProviderEventMap'.
+                        Type '"message"' is not assignable to type 'keyof ProviderEventMap'.
+src/pages/auth/AuthCallback.tsx(118,73): error TS2345: Argument of type '{ authCode: string; codeVerifier: string; }' is not assignable to parameter of type 'string'.
+src/pages/auth/AuthPage.tsx(2,27): error TS2307: Cannot find module '../components/auth/AuthGateModal' or its corresponding type declarations.
+src/pages/BetDetailPage.tsx(3,29): error TS2307: Cannot find module '../store/betStore' or its corresponding type declarations.
+src/pages/BetDetailPage.tsx(18,25): error TS7006: Parameter 'b' implicitly has an 'any' type.
+src/pages/BetDetailPage.tsx(35,9): error TS7034: Variable 'topBettors' implicitly has type 'any[]' in some locations where its type cannot be determined.
+src/pages/BetDetailPage.tsx(107,29): error TS7006: Parameter 'option' implicitly has an 'any' type.
+src/pages/BetDetailPage.tsx(107,37): error TS7006: Parameter 'index' implicitly has an 'any' type.
+src/pages/BetDetailPage.tsx(168,13): error TS7005: Variable 'topBettors' implicitly has an 'any[]' type.
+src/pages/BetsTab.tsx(194,75): error TS7006: Parameter 'o' implicitly has an 'any' type.
+src/pages/BetsTab.tsx(269,74): error TS7006: Parameter 'o' implicitly has an 'any' type.
+src/pages/BetsTab.tsx(349,30): error TS7053: Element implicitly has an 'any' type because expression of type 'string' can't be used to index type '{ Active: { id: string; title: any; category: any; position: any; stake: number; potentialReturn: number; odds: string; timeRemaining: string; status: string; participants: any; confidence: number; }[]; Created: { ...; }[]; Completed: ({ ...; } | null)[]; }'.
+  No index signature with a parameter of type 'string' was found on type '{ Active: { id: string; title: any; category: any; position: any; stake: number; potentialReturn: number; odds: string; timeRemaining: string; status: string; participants: any; confidence: number; }[]; Created: { ...; }[]; Completed: ({ ...; } | null)[]; }'.
+src/pages/BetsTab.tsx(433,20): error TS7053: Element implicitly has an 'any' type because expression of type 'string' can't be used to index type '{ Active: { icon: LucideIcon; title: string; description: string; buttonText: string; buttonColor: string; iconBg: string; iconColor: string; }; Created: { icon: LucideIcon; ... 5 more ...; iconColor: string; }; Completed: { ...; }; }'.
+  No index signature with a parameter of type 'string' was found on type '{ Active: { icon: LucideIcon; title: string; description: string; buttonText: string; buttonColor: string; iconBg: string; iconColor: string; }; Created: { icon: LucideIcon; ... 5 more ...; iconColor: string; }; Completed: { ...; }; }'.
+src/pages/BetsTab.tsx(847,65): error TS7006: Parameter 'prediction' implicitly has an 'any' type.
+src/pages/BetsTab.tsx(847,77): error TS7006: Parameter 'index' implicitly has an 'any' type.
+src/pages/BetsTab.tsx(854,67): error TS7006: Parameter 'prediction' implicitly has an 'any' type.
+src/pages/BetsTab.tsx(854,79): error TS7006: Parameter 'index' implicitly has an 'any' type.
+src/pages/CreatePredictionPage.tsx(10,8): error TS2613: Module '"/Users/efe/Library/CloudStorage/OneDrive-Personal/Fan Club Z v2.0/FanClubZ-version2.0/client/src/components/settlement/SourcePill"' has no default export. Did you mean to use 'import { SourcePill } from "/Users/efe/Library/CloudStorage/OneDrive-Personal/Fan Club Z v2.0/FanClubZ-version2.0/client/src/components/settlement/SourcePill"' instead?
+src/pages/CreatePredictionPage.tsx(11,8): error TS2613: Module '"/Users/efe/Library/CloudStorage/OneDrive-Personal/Fan Club Z v2.0/FanClubZ-version2.0/client/src/components/settlement/RulePreview"' has no default export. Did you mean to use 'import { RulePreview } from "/Users/efe/Library/CloudStorage/OneDrive-Personal/Fan Club Z v2.0/FanClubZ-version2.0/client/src/components/settlement/RulePreview"' instead?
+src/pages/EnhancedBetsTab.tsx(100,65): error TS2551: Property 'predictionId' does not exist on type 'PredictionEntry'. Did you mean 'prediction_id'?
+src/pages/EnhancedBetsTab.tsx(101,69): error TS2551: Property 'optionId' does not exist on type 'PredictionEntry'. Did you mean 'option_id'?
+src/pages/EnhancedBetsTab.tsx(108,34): error TS2551: Property 'potentialPayout' does not exist on type 'PredictionEntry'. Did you mean 'potential_payout'?
+src/pages/EnhancedBetsTab.tsx(109,28): error TS2551: Property 'potentialPayout' does not exist on type 'PredictionEntry'. Did you mean 'potential_payout'?
+src/pages/EnhancedBetsTab.tsx(152,74): error TS18048: 'option.totalStaked' is possibly 'undefined'.
+src/pages/EnhancedBetsTab.tsx(154,32): error TS2345: Argument of type 'number | undefined' is not assignable to parameter of type 'number'.
+  Type 'undefined' is not assignable to type 'number'.
+src/pages/EnhancedBetsTab.tsx(159,30): error TS7053: Element implicitly has an 'any' type because expression of type 'string' can't be used to index type '{ Active: { id: string; title: string; category: string; position: string; stake: number; potentialReturn: any; odds: string; deadline: string | null; status: string; participants: number; confidence: number; trend: string; isHot: boolean; }[]; Created: { ...; }[]; Completed: never[]; }'.
+  No index signature with a parameter of type 'string' was found on type '{ Active: { id: string; title: string; category: string; position: string; stake: number; potentialReturn: any; odds: string; deadline: string | null; status: string; participants: number; confidence: number; trend: string; isHot: boolean; }[]; Created: { ...; }[]; Completed: never[]; }'.
+src/pages/EnhancedBetsTab.tsx(171,12): error TS7053: Element implicitly has an 'any' type because expression of type 'string' can't be used to index type '{ crypto: string; sports: string; tech: string; pop_culture: string; politics: string; custom: string; }'.
+  No index signature with a parameter of type 'string' was found on type '{ crypto: string; sports: string; tech: string; pop_culture: string; politics: string; custom: string; }'.
+src/pages/EnhancedBetsTab.tsx(269,20): error TS7053: Element implicitly has an 'any' type because expression of type 'string' can't be used to index type '{ Active: { icon: LucideIcon; title: string; description: string; action: string; gradient: string; }; Created: { icon: LucideIcon; title: string; description: string; action: string; gradient: string; }; Completed: { ...; }; }'.
+  No index signature with a parameter of type 'string' was found on type '{ Active: { icon: LucideIcon; title: string; description: string; action: string; gradient: string; }; Created: { icon: LucideIcon; title: string; description: string; action: string; gradient: string; }; Completed: { ...; }; }'.
+src/pages/EnhancedBetsTab.tsx(703,66): error TS7006: Parameter 'prediction' implicitly has an 'any' type.
+src/pages/EnhancedBetsTab.tsx(703,78): error TS7006: Parameter 'index' implicitly has an 'any' type.
+src/pages/EnhancedBetsTab.tsx(713,67): error TS7006: Parameter 'prediction' implicitly has an 'any' type.
+src/pages/EnhancedBetsTab.tsx(713,79): error TS7006: Parameter 'index' implicitly has an 'any' type.
+src/pages/EnhancedWalletPage.tsx(51,5): error TS2339: Property 'resetDemoBalance' does not exist on type 'WalletState'.
+src/pages/EnhancedWalletPage.tsx(52,5): error TS2339: Property 'isDemoMode' does not exist on type 'WalletState'.
+src/pages/EnhancedWalletPage.tsx(132,12): error TS7053: Element implicitly has an 'any' type because expression of type 'string' can't be used to index type '{ deposit: LucideIcon; withdraw: LucideIcon; bet_lock: LucideIcon; bet_release: LucideIcon; transfer_in: LucideIcon; transfer_out: LucideIcon; }'.
+  No index signature with a parameter of type 'string' was found on type '{ deposit: LucideIcon; withdraw: LucideIcon; bet_lock: LucideIcon; bet_release: LucideIcon; transfer_in: LucideIcon; transfer_out: LucideIcon; }'.
+src/pages/EnhancedWalletPage.tsx(144,12): error TS7053: Element implicitly has an 'any' type because expression of type 'string' can't be used to index type '{ deposit: string; withdraw: string; bet_lock: string; bet_release: string; transfer_in: string; transfer_out: string; }'.
+  No index signature with a parameter of type 'string' was found on type '{ deposit: string; withdraw: string; bet_lock: string; bet_release: string; transfer_in: string; transfer_out: string; }'.
+src/pages/EnhancedWalletPage.tsx(153,12): error TS7053: Element implicitly has an 'any' type because expression of type 'string' can't be used to index type '{ completed: string; pending: string; failed: string; }'.
+  No index signature with a parameter of type 'string' was found on type '{ completed: string; pending: string; failed: string; }'.
+src/pages/EnhancedWalletPage.tsx(237,36): error TS2339: Property 'info' does not exist on type '{ (message: Message, opts?: Partial<Pick<Toast, "id" | "duration" | "style" | "className" | "position" | "icon" | "ariaProps" | "iconTheme" | "toasterId" | "removeDelay">> | undefined): string; ... 8 more ...; promise<T>(promise: Promise<...> | (() => Promise<...>), msgs: { ...; }, opts?: DefaultToastOptions | undef...'.
+src/pages/PolishedDiscoverPage.tsx(53,5): error TS2339: Property 'isLoading' does not exist on type 'PredictionState & PredictionActions'.
+src/pages/PolishedDiscoverPage.tsx(55,5): error TS2339: Property 'hasMore' does not exist on type 'PredictionState & PredictionActions'.
+src/pages/PolishedDiscoverPage.tsx(57,5): error TS2339: Property 'loadMore' does not exist on type 'PredictionState & PredictionActions'.
+src/pages/PolishedDiscoverPage.tsx(63,25): error TS2345: Argument of type 'string' is not assignable to parameter of type 'RefObject<HTMLElement>'.
+src/pages/PolishedDiscoverPage.tsx(135,11): error TS2339: Property 'containerProps' does not exist on type '{ triggerLoadMore: () => void; }'.
+src/pages/PolishedDiscoverPage.tsx(135,27): error TS2339: Property 'endOfListRef' does not exist on type '{ triggerLoadMore: () => void; }'.
+src/pages/PolishedDiscoverPage.tsx(136,5): error TS2353: Object literal may only specify known properties, and 'hasMore' does not exist in type 'UseInfiniteScrollOptions'.
+src/pages/PredictionDetailsPageV2.tsx(121,23): error TS2339: Property 'settledAt' does not exist on type 'Prediction'.
+src/pages/PredictionsPage.tsx(212,74): error TS7006: Parameter 'o' implicitly has an 'any' type.
+src/pages/PredictionsPage.tsx(288,74): error TS7006: Parameter 'o' implicitly has an 'any' type.
+src/pages/PredictionsPage.tsx(331,7): error TS2322: Type '({ id: string; title: any; category: any; position: any; stake: number; potentialReturn: number; odds: string; timeRemaining: string; status: string; participants: any; confidence: number; } | null)[]' is not assignable to type '(Prediction | null)[]'.
+  Type '{ id: string; title: any; category: any; position: any; stake: number; potentialReturn: number; odds: string; timeRemaining: string; status: string; participants: any; confidence: number; } | null' is not assignable to type 'Prediction | null'.
+    Type '{ id: string; title: any; category: any; position: any; stake: number; potentialReturn: number; odds: string; timeRemaining: string; status: string; participants: any; confidence: number; }' is missing the following properties from type 'Prediction': creator_id, type, stake_min, pool_total, and 13 more.
+src/pages/PredictionsPage.tsx(332,7): error TS2322: Type '{ id: string; title: string; category: "custom" | "sports" | "pop_culture" | "esports" | "celebrity_gossip" | "politics"; totalPool: number; participants: number; timeRemaining: string; ... 6 more ...; entry_deadline: string; }[]' is not assignable to type '(Prediction | null)[]'.
+  Type '{ id: string; title: string; category: "custom" | "sports" | "pop_culture" | "esports" | "celebrity_gossip" | "politics"; totalPool: number; participants: number; timeRemaining: string; ... 6 more ...; entry_deadline: string; }' is missing the following properties from type 'Prediction': creator_id, type, stake_min, settlement_method, and 9 more.
+src/pages/PredictionsPage.tsx(333,7): error TS2322: Type '({ id: string; title: any; category: any; position: any; stake: number; actualReturn: number; profit: number; status: "won" | "lost" | "refunded" | "active"; participants: any; settledAt: string; } | null)[]' is not assignable to type '(Prediction | null)[]'.
+  Type '{ id: string; title: any; category: any; position: any; stake: number; actualReturn: number; profit: number; status: "won" | "lost" | "refunded" | "active"; participants: any; settledAt: string; } | null' is not assignable to type 'Prediction | null'.
+    Type '{ id: string; title: any; category: any; position: any; stake: number; actualReturn: number; profit: number; status: "won" | "lost" | "refunded" | "active"; participants: any; settledAt: string; }' is missing the following properties from type 'Prediction': creator_id, type, stake_min, pool_total, and 13 more.
+src/pages/PredictionsPage.tsx(462,20): error TS7053: Element implicitly has an 'any' type because expression of type 'string' can't be used to index type '{ Active: { icon: LucideIcon; title: string; description: string; buttonText: string; buttonColor: string; iconBg: string; iconColor: string; }; Created: { icon: LucideIcon; ... 5 more ...; iconColor: string; }; Completed: { ...; }; }'.
+  No index signature with a parameter of type 'string' was found on type '{ Active: { icon: LucideIcon; title: string; description: string; buttonText: string; buttonColor: string; iconBg: string; iconColor: string; }; Created: { icon: LucideIcon; ... 5 more ...; iconColor: string; }; Completed: { ...; }; }'.
+src/pages/UnifiedLeaderboardPage.tsx(94,21): error TS18048: 'entry' is possibly 'undefined'.
+src/pages/UnifiedWalletPage.tsx(289,82): error TS2339: Property 'amount' does not exist on type 'ActivityItem'.
+src/pages/WalletPage.tsx(313,80): error TS2339: Property 'amount' does not exist on type 'ActivityItem'.
+src/pages/WalletPage.tsx(353,11): error TS2322: Type '{ isOpen: true; onClose: () => void; onSuccess: () => void; }' is not assignable to type 'IntrinsicAttributes & DepositUSDCModalProps'.
+  Property 'onSuccess' does not exist on type 'IntrinsicAttributes & DepositUSDCModalProps'.
+src/pages/WalletPage.tsx(364,11): error TS2322: Type '{ isOpen: true; onClose: () => void; onSuccess: () => void; maxAmount: number; }' is not assignable to type 'IntrinsicAttributes & WithdrawUSDCModalProps'.
+  Property 'onSuccess' does not exist on type 'IntrinsicAttributes & WithdrawUSDCModalProps'.
+src/services/BlockchainEscrowService.ts(311,5): error TS2717: Subsequent property declarations must have the same type.  Property 'ethereum' must be of type 'any', but here has type '{ request: (args: { method: string; params?: any[] | undefined; }) => Promise<any>; isMetaMask?: boolean | undefined; } | undefined'.
+src/store/authStore.ts(244,15): error TS18047: 'data' is possibly 'null'.
+src/store/authStore.ts(244,28): error TS18047: 'data' is possibly 'null'.
+src/store/authStore.ts(245,55): error TS18047: 'data' is possibly 'null'.
+src/store/authStore.ts(251,22): error TS18047: 'data' is possibly 'null'.
+src/store/authStore.ts(304,15): error TS18047: 'data' is possibly 'null'.
+src/store/authStore.ts(305,55): error TS18047: 'data' is possibly 'null'.
+src/store/authStore.ts(309,17): error TS18047: 'data' is possibly 'null'.
+src/store/authStore.ts(313,24): error TS18047: 'data' is possibly 'null'.
+src/store/authStore.ts(381,7): error TS2322: Type '() => Promise<User | null>' is not assignable to type '() => Promise<void>'.
+  Type 'Promise<User | null>' is not assignable to type 'Promise<void>'.
+    Type 'User | null' is not assignable to type 'void'.
+      Type 'null' is not assignable to type 'void'.
+src/store/authStore.ts(406,34): error TS2532: Object is possibly 'undefined'.
+src/store/authStore.ts(406,85): error TS2532: Object is possibly 'undefined'.
+src/store/chatStore.ts(325,43): error TS2532: Object is possibly 'undefined'.
+src/store/notificationStore.ts(106,17): error TS2339: Property 'sendPushNotification' does not exist on type 'NotificationStore'.
+src/stores/predictionStore_FIXED.ts(116,21): error TS2339: Property 'predictions' does not exist on type 'PredictionListResponse'.
+src/tests/healthCheck.ts(38,9): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(input: string | URL | Request, init?: RequestInit | undefined): Promise<Response>', gave the following error.
+    Object literal may only specify known properties, and 'timeout' does not exist in type 'RequestInit'.
+  Overload 2 of 2, '(input: URL | RequestInfo, init?: RequestInit | undefined): Promise<Response>', gave the following error.
+    Object literal may only specify known properties, and 'timeout' does not exist in type 'RequestInit'.
+src/tests/healthCheck.ts(83,9): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(input: string | URL | Request, init?: RequestInit | undefined): Promise<Response>', gave the following error.
+    Object literal may only specify known properties, and 'timeout' does not exist in type 'RequestInit'.
+  Overload 2 of 2, '(input: URL | RequestInfo, init?: RequestInit | undefined): Promise<Response>', gave the following error.
+    Object literal may only specify known properties, and 'timeout' does not exist in type 'RequestInit'.
+src/tests/healthCheck.ts(155,9): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(input: string | URL | Request, init?: RequestInit | undefined): Promise<Response>', gave the following error.
+    Object literal may only specify known properties, and 'timeout' does not exist in type 'RequestInit'.
+  Overload 2 of 2, '(input: URL | RequestInfo, init?: RequestInit | undefined): Promise<Response>', gave the following error.
+    Object literal may only specify known properties, and 'timeout' does not exist in type 'RequestInit'.
+src/tests/smokeTest.ts(75,13): error TS2532: Object is possibly 'undefined'.
+src/types/index.ts(10,1): error TS2308: Module '@fanclubz/shared' has already exported a member named 'Comment'. Consider explicitly re-exporting to resolve the ambiguity.
+src/types/index.ts(10,1): error TS2308: Module '@fanclubz/shared' has already exported a member named 'PaginatedResponse'. Consider explicitly re-exporting to resolve the ambiguity.
+src/utils/errorHandling.ts(228,5): error TS2322: Type 'number | boolean | undefined' is not assignable to type 'boolean'.
+  Type 'undefined' is not assignable to type 'boolean'.
+src/utils/errorMonitoring.ts(87,35): error TS2307: Cannot find module '@sentry/react' or its corresponding type declarations.
+src/utils/errorMonitoring.ts(88,47): error TS2307: Cannot find module '@sentry/tracing' or its corresponding type declarations.
+src/utils/errorMonitoring.ts(97,15): error TS2304: Cannot find name 'useLocation'.
+src/utils/errorMonitoring.ts(98,15): error TS2304: Cannot find name 'useNavigationType'.
+src/utils/errorMonitoring.ts(99,15): error TS2304: Cannot find name 'createRoutesFromChildren'.
+src/utils/errorMonitoring.ts(100,15): error TS2304: Cannot find name 'matchRoutes'.
+src/utils/errorMonitoring.ts(112,20): error TS7006: Parameter 'event' implicitly has an 'any' type.
+src/utils/errorMonitoring.ts(116,47): error TS7006: Parameter 'e' implicitly has an 'any' type.
+src/utils/errorMonitoring.ts(124,47): error TS7006: Parameter 'e' implicitly has an 'any' type.
+src/utils/errorMonitoring.ts(136,27): error TS7006: Parameter 'event' implicitly has an 'any' type.
+src/utils/performance.ts(60,39): error TS2339: Property 'processingStart' does not exist on type 'PerformanceEntry'.
+src/utils/performance.ts(144,56): error TS2339: Property 'navigationStart' does not exist on type 'PerformanceNavigationTiming'.
+src/utils/performance.ts(145,70): error TS2339: Property 'navigationStart' does not exist on type 'PerformanceNavigationTiming'.
+src/utils/predictionImage.ts(72,10): error TS18048: 'list' is possibly 'undefined'.
+src/utils/predictionImage.ts(72,42): error TS18048: 'list' is possibly 'undefined'.
+src/utils/predictionImage.ts(106,25): error TS2345: Argument of type 'string | undefined' is not assignable to parameter of type 'string'.
+  Type 'undefined' is not assignable to type 'string'.
+src/utils/predictionImage.ts(107,3): error TS2322: Type 'string | undefined' is not assignable to type 'string'.
+  Type 'undefined' is not assignable to type 'string'.
+src/utils/pullToRefresh.ts(195,19): error TS2532: Object is possibly 'undefined'.
+src/utils/pullToRefresh.ts(202,21): error TS2532: Object is possibly 'undefined'.
+src/utils/pwa.ts(176,9): error TS2322: Type 'Uint8Array<ArrayBufferLike>' is not assignable to type 'string | BufferSource | null | undefined'.
+  Type 'Uint8Array<ArrayBufferLike>' is not assignable to type 'ArrayBufferView<ArrayBuffer>'.
+    Types of property 'buffer' are incompatible.
+      Type 'ArrayBufferLike' is not assignable to type 'ArrayBuffer'.
+        Type 'SharedArrayBuffer' is not assignable to type 'ArrayBuffer'.
+          Types of property '[Symbol.toStringTag]' are incompatible.
+            Type '"SharedArrayBuffer"' is not assignable to type '"ArrayBuffer"'.

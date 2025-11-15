@@ -72,7 +72,7 @@ async function testReactMount(): Promise<TestResult> {
     // Check for React-specific patterns
     const reactPatterns = [
       () => document.querySelector('[data-reactroot]') !== null,
-      () => document.querySelector('div[id="root"]')?.children.length > 0,
+      () => ((document.querySelector('div[id="root"]')?.children.length) ?? 0) > 0,
       () => document.querySelector('.react-app, [data-testid]') !== null,
       () => window.React !== undefined,
       () => (window as any).__REACT_DEVTOOLS_GLOBAL_HOOK__ !== undefined,

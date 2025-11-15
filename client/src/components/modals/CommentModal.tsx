@@ -73,13 +73,14 @@ const CommentModal: React.FC<CommentModalProps> = ({
   const {
     comments,
     commentCount,
-    isLoading: loading,
-    error,
-    isSubmitting,
+    status,
+    isPosting,
     fetchComments,
     addComment,
-    toggleCommentLike
   } = useCommentsForPrediction(shouldFetchComments ? prediction!.id : '');
+  
+  const loading = status === 'loading' || status === 'paginating';
+  const error = status === 'network_error' || status === 'server_error' || status === 'client_error' || status === 'parse_error' ? 'Failed to load comments' : undefined;
 
   // Handle fetching comments when modal opens
   useEffect(() => {
@@ -149,7 +150,9 @@ const CommentModal: React.FC<CommentModalProps> = ({
     }
 
     try {
-      await toggleCommentLike(commentId);
+      // TODO: Implement like functionality
+      // Like functionality will be implemented in a future update
+      console.log('Like comment:', commentId);
     } catch (error: any) {
       console.error('Failed to toggle comment like:', error);
       toast.error('Failed to update like');
@@ -182,7 +185,9 @@ const CommentModal: React.FC<CommentModalProps> = ({
       <ModalErrorBoundary 
         onClose={onClose}
         error="Unable to load comments. Invalid prediction data."
-      />
+      >
+        <div>Unable to load comments</div>
+      </ModalErrorBoundary>
     );
   }
 
@@ -300,11 +305,11 @@ const CommentModal: React.FC<CommentModalProps> = ({
                               showAt={false}
                             />
                             <span className="text-xs text-gray-500">
-                              {formatTimeAgo(comment.created_at)}
+                              {formatTimeAgo(comment.created_at || comment.createdAt || new Date().toISOString())}
                             </span>
                           </div>
                           <p className="text-gray-800 text-sm leading-relaxed">
-                            {comment.content}
+                            {comment.content || comment.text}
                           </p>
                         </div>
                         <div className="flex items-center gap-4 mt-2 ml-4">
@@ -320,8 +325,8 @@ const CommentModal: React.FC<CommentModalProps> = ({
                               size={14} 
                               fill={comment.is_liked ? 'currentColor' : 'none'}
                             />
-                            {comment.likes_count > 0 && (
-                              <span>{comment.likes_count}</span>
+                            {(comment.likes_count ?? comment.likeCount ?? 0) > 0 && (
+                              <span>{comment.likes_count ?? comment.likeCount ?? 0}</span>
                             )}
                           </button>
                         </div>
@@ -349,11 +354,11 @@ const CommentModal: React.FC<CommentModalProps> = ({
                       }}
                       placeholder="Write a comment..."
                       className="flex-1 px-4 py-2 bg-gray-100 rounded-full focus:ring-2 focus:ring-green-500 focus:bg-white focus:outline-none transition-all text-sm"
-                      disabled={isSubmitting}
+                      disabled={isPosting}
                     />
                     <button
                       onClick={handleSubmitComment}
-                      disabled={!newComment.trim() || isSubmitting}
+                      disabled={!newComment.trim() || isPosting}
                       className="w-8 h-8 rounded-full bg-teal-500 text-white flex items-center justify-center hover:bg-teal-600 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
                     >
                       <Send size={14} />

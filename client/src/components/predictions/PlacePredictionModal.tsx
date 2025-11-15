@@ -9,6 +9,7 @@ import { useWalletStore } from '../../store/walletStore';
 import { usePredictionStore } from '../../store/predictionStore';
 import { useAuthStore } from '../../store/authStore';
 import toast from 'react-hot-toast';
+import { formatTimeRemaining } from '@/lib/utils';
 
 interface PlacePredictionModalProps {
   prediction: Prediction | null;
@@ -32,22 +33,6 @@ const calculatePotentialPayout = (amount: number, odds: number) => {
 
 const cn = (...classes: (string | undefined | null | false)[]) => {
   return classes.filter(Boolean).join(' ');
-};
-
-// Helper function for time remaining
-const formatTimeRemaining = (prediction: Prediction) => {
-  const entryDeadline = prediction.entry_deadline || prediction.entryDeadline;
-  if (!entryDeadline) return "Time remaining unknown";
-  
-  const timeRemaining = Math.max(0, new Date(entryDeadline).getTime() - Date.now());
-  const hoursRemaining = Math.floor(timeRemaining / (1000 * 60 * 60));
-  
-  if (timeRemaining <= 0) return "Ended";
-  if (hoursRemaining >= 24) {
-    const days = Math.floor(hoursRemaining / 24);
-    return `${days}d left`;
-  }
-  return `${hoursRemaining}h left`;
 };
 
 export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
@@ -180,7 +165,13 @@ export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
                     <span>•</span>
                     <span>{prediction.participant_count || 0} Players</span>
                     <span>•</span>
-                    <span>{formatTimeRemaining(prediction)}</span>
+                  <span>
+                    {(() => {
+                      const timeLabel = formatTimeRemaining(prediction.entry_deadline || prediction.entryDeadline || '');
+                      if (!timeLabel) return '';
+                      return timeLabel === 'Ended' ? 'Closed' : `Ends in ${timeLabel}`;
+                    })()}
+                  </span>
                   </div>
                 </div>
 

@@ -22,7 +22,7 @@ export const CommentInput: React.FC<CommentInputProps> = ({
     if (!text.trim() || isPosting) return;
     
     if (!user) {
-      openAuthGate({ intent: 'comment' });
+      openAuthGate({ intent: 'comment_prediction' });
       return;
     }
 
@@ -38,7 +38,7 @@ export const CommentInput: React.FC<CommentInputProps> = ({
     return (
       <div className="p-4 border rounded-lg bg-gray-50">
         <button
-          onClick={() => openAuthGate({ intent: 'comment' })}
+          onClick={() => openAuthGate({ intent: 'comment_prediction' })}
           className="text-blue-600 hover:text-blue-700 text-sm font-medium"
         >
           Sign in to comment

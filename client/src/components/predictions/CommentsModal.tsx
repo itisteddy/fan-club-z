@@ -22,7 +22,8 @@ export const CommentsModal: React.FC<CommentsModalProps> = ({
   isOpen,
   onClose,
 }) => {
-  const { comments, loading, fetchComments, addComment, toggleCommentLike } = useCommentsForPrediction(predictionId);
+  const { comments, status, fetchComments, addComment } = useCommentsForPrediction(predictionId);
+  const loading = status === 'loading';
   const { user } = useAuthStore();
   const [newComment, setNewComment] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -34,7 +35,7 @@ export const CommentsModal: React.FC<CommentsModalProps> = ({
 
   useEffect(() => {
     if (isOpen && predictionId) {
-      fetchComments(predictionId);
+      fetchComments();
     }
   }, [isOpen, predictionId, fetchComments]);
 
@@ -56,7 +57,7 @@ export const CommentsModal: React.FC<CommentsModalProps> = ({
     setIsSubmitting(true);
     
     try {
-      await addComment(predictionId, newComment.trim());
+      await addComment(newComment.trim());
       setNewComment('');
       toast.success('Comment posted successfully!');
     } catch (error) {
@@ -67,12 +68,8 @@ export const CommentsModal: React.FC<CommentsModalProps> = ({
   };
 
   const handleLikeComment = async (commentId: string) => {
-    try {
-      await toggleCommentLike(commentId);
-      toast.success('Like updated!');
-    } catch (error) {
-      toast.error('Failed to update like');
-    }
+    // TODO: Implement like functionality
+    toast('Like functionality coming soon', { icon: 'ℹ️' });
   };
 
   const formatTimeAgo = (dateString: string) => {
@@ -159,9 +156,8 @@ export const CommentsModal: React.FC<CommentsModalProps> = ({
                         >
                           {hasAvatar && (
                             <UserAvatar 
-                              email={comment.user?.email} 
-                              username={comment.user?.username} 
-                              avatarUrl={getAvatarUrl(comment.user)} 
+                              username={comment.user?.username || 'Anonymous'} 
+                              avatarUrl={getAvatarUrl(comment.user || {})} 
                               size="sm" 
                             />
                           )}
@@ -169,10 +165,10 @@ export const CommentsModal: React.FC<CommentsModalProps> = ({
                             <div className="bg-gray-100 rounded-2xl px-4 py-3 max-w-[85%]">
                               <div className="flex items-center gap-2 mb-2">
                                 <span className="font-semibold text-sm text-gray-900">
-                                  {comment.user.username}
+                                  {comment.user?.username || 'Anonymous'}
                                 </span>
                                 <span className="text-xs text-gray-500">
-                                  {formatTimeAgo(comment.created_at)}
+                                  {formatTimeAgo(comment.created_at || comment.createdAt || new Date().toISOString())}
                                 </span>
                               </div>
                               <p className="text-sm text-gray-700 leading-relaxed">

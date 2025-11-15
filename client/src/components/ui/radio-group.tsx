@@ -52,11 +52,11 @@ export const RadioGroup = React.forwardRef<HTMLDivElement, RadioGroupProps>(
 );
 RadioGroup.displayName = 'RadioGroup';
 
-interface RadioGroupItemProps extends React.InputHTMLAttributes<HTMLInputElement> {
+interface RadioGroupItemProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   value: string;
 }
 
-export const RadioGroupItem = React.forwardRef<HTMLInputElement, RadioGroupItemProps>(
+export const RadioGroupItem = React.forwardRef<HTMLButtonElement, RadioGroupItemProps>(
   ({ value, className, ...props }, ref) => {
     const { value: selectedValue, onValueChange } = useRadioGroupContext();
     const isSelected = selectedValue === value;
@@ -64,11 +64,14 @@ export const RadioGroupItem = React.forwardRef<HTMLInputElement, RadioGroupItemP
     return (
       <button
         type="button"
+        role="radio"
+        aria-checked={isSelected}
         className={cn(
           'aspect-square h-4 w-4 rounded-full border border-primary text-primary ring-offset-background focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50',
           className
         )}
         onClick={() => onValueChange(value)}
+        ref={ref}
         {...props}
       >
         {isSelected && (
@@ -76,14 +79,6 @@ export const RadioGroupItem = React.forwardRef<HTMLInputElement, RadioGroupItemP
             <div className="h-2.5 w-2.5 rounded-full bg-current" />
           </div>
         )}
-        <input
-          ref={ref}
-          type="radio"
-          value={value}
-          checked={isSelected}
-          onChange={() => onValueChange(value)}
-          className="sr-only"
-        />
       </button>
     );
   }

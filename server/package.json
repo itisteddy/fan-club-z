@@ -1,6 +1,6 @@
 {
   "name": "@fanclubz/server",
-  "version": "2.0.75",
+  "version": "2.0.78",
   "description": "Fan Club Z API Server",
   "main": "dist/index.js",
   "scripts": {
@@ -8,6 +8,7 @@
     "build": "npm run build:shared && npm run build:server",
     "build:shared": "cd ../shared && npm run build",
     "build:server": "tsc",
+    "typecheck": "tsc --noEmit",
     "start": "node dist/index.js",
     "db:migrate": "tsx src/scripts/migrate-database.ts",
     "db:seed": "tsx src/scripts/seed-database.ts",
@@ -18,7 +19,12 @@
     "test:watch": "jest --watch",
     "lint": "eslint src --ext .ts",
     "lint:fix": "eslint src --ext .ts --fix",
-    "test:supabase": "tsx src/scripts/test-supabase.ts"
+    "test:supabase": "tsx src/scripts/test-supabase.ts",
+    "db:connect": "tsx scripts/db-connect.ts",
+    "db:migrate-file": "tsx scripts/run-migration.ts",
+    "db:query": "tsx scripts/db-query.ts",
+    "db:inspect": "tsx scripts/inspect-db.ts",
+    "db:migrate-supabase": "tsx scripts/run-migrations-supabase.ts"
   },
   "dependencies": {
     "@fanclubz/shared": "file:../shared",
@@ -38,6 +44,7 @@
     "morgan": "^1.10.0",
     "multer": "^1.4.5-lts.1",
     "nodemailer": "^6.9.7",
+    "pg": "^8.12.0",
     "redis": "^4.6.11",
     "sharp": "^0.33.1",
     "socket.io": "^4.7.4",
@@ -56,6 +63,7 @@
     "@types/morgan": "^1.9.9",
     "@types/multer": "^1.4.11",
     "@types/node": "^20.10.5",
+    "@types/pg": "^8.11.4",
     "@types/nodemailer": "^6.4.14",
     "@types/supertest": "^6.0.2",
     "@types/uuid": "^9.0.7",

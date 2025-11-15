@@ -10,6 +10,7 @@ import { getApiUrl } from '../../config';
 import SettlementModal from './SettlementModal';
 import DisputeResolutionModal from './DisputeResolutionModal';
 import EditModal from './EditModal';
+import { formatTimeRemaining } from '@/lib/utils';
 
 interface ManagePredictionModalProps {
   isOpen: boolean;
@@ -80,14 +81,12 @@ const ManagePredictionModal: React.FC<ManagePredictionModalProps> = ({
     if (pred.status === 'closed' || pred.status === 'ended') return true;
     
     // Check if deadline has passed for open predictions
-    const deadline = pred.entry_deadline || pred.timeRemaining;
+    const deadline = pred.entry_deadline;
     if (deadline) {
-      if (typeof deadline === 'string' && deadline.includes('Ended')) return true;
-      if (pred.entry_deadline) {
-        const isPastDeadline = new Date(pred.entry_deadline) <= new Date();
-        return pred.status === 'open' && isPastDeadline;
-      }
+      const isPastDeadline = new Date(deadline).getTime() <= Date.now();
+      if (isPastDeadline) return true;
     }
+    if (typeof pred.timeRemaining === 'string' && pred.timeRemaining.toLowerCase().includes('ended')) return true;
     
     return false;
   };
@@ -117,8 +116,23 @@ const ManagePredictionModal: React.FC<ManagePredictionModalProps> = ({
         console.log('🔄 ManagePredictionModal: Updated prediction with', fullPrediction.options.length, 'options');
         // Force update the prediction object with all data from API
         Object.assign(prediction, fullPrediction);
-        // Update state to force re-render of all components
-        setPredictionData({ ...fullPrediction });
+        // Update state to force re-render of all components (map to expected type)
+        setPredictionData({
+          id: fullPrediction.id,
+          title: fullPrediction.title,
+          category: fullPrediction.category,
+          totalPool: fullPrediction.pool_total || fullPrediction.poolTotal || 0,
+          participants: fullPrediction.participant_count || fullPrediction.participantCount || 0,
+          timeRemaining: formatTimeRemaining(fullPrediction.entry_deadline || fullPrediction.entryDeadline || ''),
+          yourCut: fullPrediction.creator_fee_percentage || 3.5,
+          status: fullPrediction.status || 'open',
+          description: fullPrediction.description,
+          pool_total: fullPrediction.pool_total || fullPrediction.poolTotal,
+          participant_count: fullPrediction.participant_count || fullPrediction.participantCount,
+          creator_fee_percentage: fullPrediction.creator_fee_percentage,
+          entry_deadline: fullPrediction.entry_deadline || fullPrediction.entryDeadline,
+          options: fullPrediction.options
+        });
       } else {
         console.warn('⚠️ ManagePredictionModal: No options found for prediction:', prediction.id);
         // Try to fetch again with a delay
@@ -127,7 +141,22 @@ const ManagePredictionModal: React.FC<ManagePredictionModalProps> = ({
           if (retryPrediction?.options?.length) {
             console.log('🔄 Retry successful: Found', retryPrediction.options.length, 'options');
             Object.assign(prediction, retryPrediction);
-            setPredictionData({ ...retryPrediction });
+            setPredictionData({
+              id: retryPrediction.id,
+              title: retryPrediction.title,
+              category: retryPrediction.category,
+              totalPool: retryPrediction.pool_total || retryPrediction.poolTotal || 0,
+              participants: retryPrediction.participant_count || retryPrediction.participantCount || 0,
+              timeRemaining: formatTimeRemaining(retryPrediction.entry_deadline || retryPrediction.entryDeadline || ''),
+              yourCut: retryPrediction.creator_fee_percentage || 3.5,
+              status: retryPrediction.status || 'open',
+              description: retryPrediction.description,
+              pool_total: retryPrediction.pool_total || retryPrediction.poolTotal,
+              participant_count: retryPrediction.participant_count || retryPrediction.participantCount,
+              creator_fee_percentage: retryPrediction.creator_fee_percentage,
+              entry_deadline: retryPrediction.entry_deadline || retryPrediction.entryDeadline,
+              options: retryPrediction.options
+            });
           }
         }, 1000);
       }
@@ -214,6 +243,19 @@ const ManagePredictionModal: React.FC<ManagePredictionModalProps> = ({
   };
 
   const handleClosePrediction = () => {
+    console.log('🔒 Close Early clicked:', {
+      predictionId: prediction.id,
+      status: prediction.status,
+      updating,
+      loading,
+      canClose: prediction.status === 'open' && !updating && !loading
+    });
+    
+    if (prediction.status !== 'open') {
+      toast.error('Can only close predictions that are currently open');
+      return;
+    }
+    
     setShowCloseModal(true);
   };
 
@@ -232,6 +274,7 @@ const ManagePredictionModal: React.FC<ManagePredictionModalProps> = ({
       
       toast.success('Prediction closed successfully! You can now settle it.');
       setShowCloseModal(false);
+      setShowSettlementModal(true);
       // Don't close the modal - let user access settlement
     } catch (error) {
       console.error('Failed to close prediction:', error);
@@ -728,37 +771,17 @@ const ManagePredictionModal: React.FC<ManagePredictionModalProps> = ({
       )}
 
       {/* Close Early Confirmation Modal */}
-      {showCloseModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.95 }}
-            className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6"
-          >
-            <h3 className="text-xl font-semibold text-gray-900 mb-4">Close Prediction Early</h3>
-            <p className="text-gray-600 mb-6">
-              Are you sure you want to close this prediction early? No new participants will be able to join once closed.
-            </p>
-            <div className="flex gap-3">
-              <button
-                onClick={() => setShowCloseModal(false)}
-                className="flex-1 px-4 py-2 text-gray-700 bg-gray-100 rounded-xl hover:bg-gray-200 transition-colors"
-                disabled={updating}
-              >
-                Cancel
-              </button>
-              <button
-                onClick={confirmClosePrediction}
-                disabled={updating}
-                className="flex-1 px-4 py-2 bg-orange-600 text-white rounded-xl hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              >
-                {updating ? 'Closing...' : 'Close Early'}
-              </button>
-            </div>
-          </motion.div>
-        </div>
-      )}
+      <ConfirmationModal
+        isOpen={showCloseModal}
+        onClose={() => setShowCloseModal(false)}
+        onConfirm={confirmClosePrediction}
+        title="Close Prediction Early"
+        message="Are you sure you want to close this prediction early? No new participants will be able to join once closed."
+        confirmText="Close Early"
+        cancelText="Cancel"
+        variant="warning"
+        isLoading={updating}
+      />
 
       {/* Settlement Modal */}
       {showSettlementModal && (

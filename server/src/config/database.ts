@@ -191,6 +191,8 @@ export const db = {
           currency,
           ...updates,
           updated_at: new Date().toISOString(),
+        }, {
+          onConflict: 'user_id,currency'
         })
         .select()
         .single();
@@ -228,22 +230,40 @@ export const db = {
       
       if (!wallet) {
         // Create new wallet
-        wallet = await this.createOrUpdate(userId, currency, {
-          available_balance: Math.max(0, availableChange),
-          reserved_balance: Math.max(0, reservedChange),
-        });
+        const { data, error } = await supabase
+          .from('wallets')
+          .insert({
+            user_id: userId,
+            currency,
+            available_balance: Math.max(0, availableChange),
+            reserved_balance: Math.max(0, reservedChange),
+            updated_at: new Date().toISOString(),
+          })
+          .select()
+          .single();
+        
+        if (error) throw error;
+        return data;
       } else {
-        // Update existing wallet
+        // Update existing wallet using UPDATE not upsert
         const newAvailable = Math.max(0, wallet.available_balance + availableChange);
         const newReserved = Math.max(0, wallet.reserved_balance + reservedChange);
         
-        wallet = await this.createOrUpdate(userId, currency, {
-          available_balance: newAvailable,
-          reserved_balance: newReserved,
-        });
+        const { data, error } = await supabase
+          .from('wallets')
+          .update({
+            available_balance: newAvailable,
+            reserved_balance: newReserved,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('user_id', userId)
+          .eq('currency', currency)
+          .select()
+          .single();
+        
+        if (error) throw error;
+        return data;
       }
-      
-      return wallet;
     },
   },
   

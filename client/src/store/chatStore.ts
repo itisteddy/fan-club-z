@@ -322,7 +322,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
         const updatedMessages: Record<string, ChatMessage[]> = {};
         
         Object.keys(state.messages).forEach(predictionId => {
-          updatedMessages[predictionId] = state.messages[predictionId].filter(
+          const existing = state.messages[predictionId] || [];
+          updatedMessages[predictionId] = existing.filter(
             msg => msg.id !== messageId
           );
         });

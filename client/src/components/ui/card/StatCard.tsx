@@ -1,6 +1,6 @@
 import React from 'react';
 import { cn } from '../../../utils/cn';
-import { formatUSDCompact, formatNumberShort, formatPercent, formatLargeNumber, formatPercentage, formatBalance } from '@lib/format';
+import { formatUSDCompact, formatNumberShort, formatPercent, formatLargeNumber, formatPercentage, formatCurrency } from '@/lib/format';
 
 interface StatCardProps {
   label: string;
@@ -12,6 +12,7 @@ interface StatCardProps {
   variant?: 'default' | 'currency' | 'percentage' | 'balance' | 'count';
   compact?: boolean;
   className?: string;
+  subtitle?: string;
 }
 
 export function StatCard({ 
@@ -24,6 +25,7 @@ export function StatCard({
   variant = 'default',
   compact = false,
   className,
+  subtitle,
 }: StatCardProps) {
   const formatValue = (val: string | number | undefined) => {
     if (loading || val === undefined || val === null) {
@@ -41,9 +43,12 @@ export function StatCard({
         return formatUSDCompact(numValue);
       case 'percentage':
         return formatPercentage(numValue);
-      case 'balance':
-        const balanceData = formatBalance(numValue);
-        return `${balanceData.sign}${balanceData.value}`;
+      case 'balance': {
+        const amount = typeof numValue === 'number' ? numValue : Number(numValue || 0);
+        const formatted = formatCurrency(Math.abs(amount), { compact });
+        const sign = amount > 0 ? '+' : amount < 0 ? '-' : '';
+        return `${sign}${formatted}`;
+      }
       case 'count':
         return formatNumberShort(numValue);
       default:
@@ -98,17 +103,22 @@ export function StatCard({
         )}
       </div>
       
-      <div className={cn(
-        // Value: 20–24px semibold/mono, single line with truncation
-        'text-lg md:text-xl font-semibold font-mono leading-tight',
-        'truncate',
-        getValueColor(),
-        loading && 'animate-pulse'
-      )}>
-        {loading && (
-          <div className="h-5 bg-gray-200 rounded w-16 animate-pulse"></div>
+      <div className="space-y-1">
+        <div className={cn(
+          // Value styling
+          'text-lg md:text-xl font-semibold font-mono leading-tight',
+          'truncate',
+          getValueColor(),
+          loading && 'animate-pulse'
+        )}>
+          {loading && (
+            <div className="h-5 bg-gray-200 rounded w-16 animate-pulse"></div>
+          )}
+          {!loading && formatValue(value)}
+        </div>
+        {subtitle && (
+          <p className="text-xs text-gray-500 leading-tight truncate">{subtitle}</p>
         )}
-        {!loading && formatValue(value)}
       </div>
     </div>
   );

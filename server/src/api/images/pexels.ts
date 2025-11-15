@@ -38,17 +38,34 @@ export class PexelsProvider implements ImageProvider {
         throw new Error(`Pexels API error: ${response.status} ${response.statusText}`);
       }
 
-      const data = await response.json();
+      type PexelsPhoto = {
+        src?: {
+          large?: string;
+          original?: string;
+          small?: string;
+          tiny?: string;
+        };
+        width?: number;
+        height?: number;
+        photographer?: string;
+        url?: string;
+      };
+
+      type PexelsResponse = {
+        photos?: PexelsPhoto[];
+      };
+
+      const data = (await response.json()) as PexelsResponse;
       
-      return data.photos?.map((photo: any): StockImage => ({
-        url: photo.src?.large || photo.src?.original,
-        previewUrl: photo.src?.small || photo.src?.tiny,
+      return (data.photos ?? []).map((photo): StockImage => ({
+        url: photo.src?.large || photo.src?.original || '',
+        previewUrl: photo.src?.small || photo.src?.tiny || '',
         width: photo.width || 800,
         height: photo.height || 600,
-        photographer: photo.photographer,
+        photographer: photo.photographer ?? 'Unknown',
         provider: 'pexels' as const,
-        sourceUrl: photo.url
-      })) || [];
+        sourceUrl: photo.url || ''
+      }));
 
     } catch (error) {
       console.error('Pexels search error:', error);

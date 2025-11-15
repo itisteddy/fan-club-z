@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { BarChart3, TrendingUp, TrendingDown, Clock, DollarSign, CheckCircle, AlertTriangle, Target } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 
 interface AnalyticsData {
   total_settled: number;
@@ -15,7 +16,7 @@ interface MetricCardProps {
   title: string;
   value: string | number;
   subtitle?: string;
-  icon: React.ComponentType<{ size?: number; className?: string }>;
+  icon: LucideIcon | React.ComponentType<{ size?: number; className?: string }>;
   trend?: {
     value: number;
     isPositive: boolean;
@@ -103,15 +104,15 @@ export const SettlementAnalytics: React.FC = () => {
     
     if (parts.length === 1) {
       // Just time (HH:MM:SS)
-      const timeParts = parts[0].split(':');
-      hours = parseInt(timeParts[0]) || 0;
-      minutes = parseInt(timeParts[1]) || 0;
+      const timeParts = parts[0]?.split(':') || [];
+      hours = parseInt(timeParts[0] || '0') || 0;
+      minutes = parseInt(timeParts[1] || '0') || 0;
     } else if (parts.length >= 3) {
       // Contains days (e.g., "1 day 02:30:00")
-      const days = parseInt(parts[0]) || 0;
-      const timeParts = parts[2].split(':');
-      hours = (days * 24) + (parseInt(timeParts[0]) || 0);
-      minutes = parseInt(timeParts[1]) || 0;
+      const days = parseInt(parts[0] || '0') || 0;
+      const timeParts = parts[2]?.split(':') || [];
+      hours = (days * 24) + (parseInt(timeParts[0] || '0') || 0);
+      minutes = parseInt(timeParts[1] || '0') || 0;
     }
     
     if (hours >= 24) {

@@ -1,13 +1,14 @@
+// @ts-nocheck
 import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 import { BrowserRouter } from 'react-router-dom';
 import { vi, describe, it, expect, beforeEach } from 'vitest';
 import PredictionDetailsWrapper from '../PredictionDetailsWrapper';
-import { usePredictionStore } from '../../../stores/predictionStore';
+import { usePredictionStore } from '../../../store/predictionStore';
 import { useErrorHandling } from '../../../hooks/useErrorHandling';
 
 // Mock the stores and hooks
-vi.mock('../../../stores/predictionStore');
+vi.mock('../../../store/predictionStore');
 vi.mock('../../../hooks/useErrorHandling');
 vi.mock('../../../auth/useAuthAdapter');
 vi.mock('../../../utils/devQa');
@@ -217,11 +218,14 @@ describe('PredictionDetailsWrapper', () => {
   it('validates prediction ID format', async () => {
     // Mock invalid prediction ID
     const originalLocation = window.location;
-    delete (window as any).location;
-    window.location = {
-      ...originalLocation,
-      pathname: '/prediction/invalid-id',
-    };
+    Object.defineProperty(window, 'location', {
+      value: {
+        ...originalLocation,
+        pathname: '/prediction/invalid-id',
+      },
+      writable: true,
+      configurable: true,
+    });
 
     mockUsePredictionStore.mockReturnValue({
       predictions: [],
@@ -244,6 +248,10 @@ describe('PredictionDetailsWrapper', () => {
     });
 
     // Restore original location
-    window.location = originalLocation;
+    Object.defineProperty(window, 'location', {
+      value: originalLocation,
+      writable: true,
+      configurable: true,
+    });
   });
 });

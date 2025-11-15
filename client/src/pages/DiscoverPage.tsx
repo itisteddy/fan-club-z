@@ -12,7 +12,7 @@ import { useInfiniteScroll } from '../hooks/useInfiniteScroll';
 import Logo from '../components/common/Logo';
 import useScrollPreservation from '../hooks/useScrollPreservation';
 import AppHeader from '../components/layout/AppHeader';
-import { formatUSDCompact, formatNumberShort } from '@lib/format';
+import { formatUSDCompact, formatNumberShort } from '@/lib/format';
 import { useNavigate } from 'react-router-dom';
 
 interface DiscoverPageProps {
@@ -80,37 +80,7 @@ const DiscoverHeaderContent = React.memo(function DiscoverHeaderContent({
 }) {
   return (
     <div className="px-4 pt-4 pb-4 bg-white" data-tour="discover-header">
-      {/* Live market stats */}
-      <motion.div
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="bg-gradient-to-r from-emerald-50 to-teal-50 rounded-2xl p-4 mb-4"
-      >
-        <div className="flex items-center gap-2 mb-3">
-          <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></div>
-          <span className="text-sm font-medium text-gray-900">LIVE MARKETS</span>
-        </div>
-        <div className="grid grid-cols-3 gap-4">
-          <div className="text-center">
-            <div className="text-lg font-bold text-gray-900" title={`Total volume: ${(stats?.totalVolume || 0).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`}>
-              {formatUSDCompact(stats?.totalVolume)}
-            </div>
-            <div className="text-xs text-gray-600">Volume</div>
-          </div>
-          <div className="text-center">
-            <div className="text-lg font-bold text-gray-900" title={`${(stats?.activePredictions || 0).toLocaleString()} active predictions`}>
-              {formatNumberShort(stats?.activePredictions)}
-            </div>
-            <div className="text-xs text-gray-600">Live</div>
-          </div>
-          <div className="text-center">
-            <div className="text-lg font-bold text-gray-900" title={`${(stats?.totalUsers || 0).toLocaleString()} total players`}>
-              {formatNumberShort(stats?.totalUsers)}
-            </div>
-            <div className="text-xs text-gray-600">Players</div>
-          </div>
-        </div>
-      </motion.div>
+      {/* Live market stats removed per request */}
 
       {/* Search bar */}
       <div className="relative" data-tour-id="search-bar">
@@ -218,20 +188,27 @@ const DiscoverPage = React.memo(function DiscoverPage({ onNavigateToProfile, onN
 
   // Backend now handles filtering - no additional filtering needed
   const displayPredictions = useMemo(() => {
-    if (!predictions || !Array.isArray(predictions)) {
+    if (!Array.isArray(predictions)) {
       console.log('🔍 DiscoverPage Debug - No valid predictions array:', predictions);
       return [];
     }
-    
-    console.log(`🔍 DiscoverPage Debug - Displaying ${predictions.length} predictions`);
-    return predictions.filter(prediction => {
-      // Safety check for prediction object only
+
+    const now = Date.now();
+    const activePredictions = predictions.filter((prediction) => {
       if (!prediction || !prediction.id || !prediction.title) {
         console.warn('⚠️ DiscoverPage: Invalid prediction object:', prediction);
         return false;
       }
-      return true;
+
+      const isOpen = (prediction.status ?? 'open') === 'open';
+      const deadlineMs = prediction.entry_deadline ? new Date(prediction.entry_deadline).getTime() : Number.POSITIVE_INFINITY;
+      const isExpired = Number.isFinite(deadlineMs) && deadlineMs <= now;
+
+      return isOpen && !isExpired;
     });
+
+    console.log(`🔍 DiscoverPage Debug - Displaying ${activePredictions.length} active predictions (raw: ${predictions.length})`);
+    return activePredictions;
   }, [predictions]);
 
   // Event handlers

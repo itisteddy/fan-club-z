@@ -5,8 +5,9 @@ export { buildImageQuery } from './buildQuery';
 export { usePredictionMedia } from './usePredictionMedia';
 
 // Re-export for convenience (if you keep the old system around during migration)
-export { resolveMedia } from './resolveMedia';
-export { MEDIA_PROVIDERS } from './providers';
+// Legacy exports retained for backward compatibility (deprecated)
+// export { resolveMedia } from './resolveMedia';
+// export { MEDIA_PROVIDERS } from './providers';
 
 // Type definitions
 export type PredictionMediaInput = {

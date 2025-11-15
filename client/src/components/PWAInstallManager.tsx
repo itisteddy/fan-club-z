@@ -85,8 +85,8 @@ const PWAInstallManager: React.FC = () => {
 
   const handleUpdateApp = () => {
     // Track update acceptance
-    if (typeof gtag !== 'undefined') {
-      gtag('event', 'pwa_update_accepted', {
+    if (typeof window !== 'undefined' && 'gtag' in window && typeof window.gtag === 'function') {
+      window.gtag('event', 'pwa_update_accepted', {
         event_category: 'engagement',
         event_label: 'app_update'
       });
@@ -99,8 +99,8 @@ const PWAInstallManager: React.FC = () => {
     setShowUpdateNotification(false);
     
     // Track update dismissal
-    if (typeof gtag !== 'undefined') {
-      gtag('event', 'pwa_update_dismissed', {
+    if (typeof window !== 'undefined' && 'gtag' in window && typeof window.gtag === 'function') {
+      window.gtag('event', 'pwa_update_dismissed', {
         event_category: 'engagement',
         event_label: 'app_update'
       });

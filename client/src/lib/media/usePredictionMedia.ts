@@ -143,9 +143,17 @@ async function setCached(predictionId: string, url: string | null, query: string
 }
 
 function getFallback(id: string, category?: string): string {
-  const seed = hashSeed(id);
-  const pool = FALLBACKS[category || ''] || FALLBACKS.general;
-  return pool[seed % pool.length];
+  const seed = hashSeed(id || 'default');
+  const normalizedCategory = category ? category.toLowerCase() : 'general';
+  const fallbackPool = FALLBACKS.general;
+  const poolCandidate = FALLBACKS[normalizedCategory] || fallbackPool;
+  const pool: string[] =
+    (poolCandidate && poolCandidate.length > 0 ? poolCandidate : fallbackPool) || [];
+  if (pool.length === 0) {
+    return 'https://images.unsplash.com/photo-1500530855697-b586d89ba3ee';
+  }
+  const index = Math.abs(seed) % pool.length;
+  return pool[index] ?? pool[0] ?? 'https://images.unsplash.com/photo-1500530855697-b586d89ba3ee';
 }
 
 export function usePredictionMedia(prediction?: {
@@ -153,7 +161,11 @@ export function usePredictionMedia(prediction?: {
   title: string;
   category?: string;
 }): MediaResult {
-  const [url, setUrl] = useState<string | null>(null);
+  // Initialize with fallback to prevent flash of empty/wrong image
+  const [url, setUrl] = useState<string | null>(() => {
+    if (!prediction) return getFallback('', 'general');
+    return getFallback(prediction.id, prediction.category);
+  });
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
 
   useEffect(() => {
@@ -191,7 +203,10 @@ export function usePredictionMedia(prediction?: {
       
       if (dbUrl) {
         memory.set(id, dbUrl);
-        setUrl(dbUrl);
+        // Only update if different from current fallback
+        if (dbUrl !== url) {
+          setUrl(dbUrl);
+        }
         setStatus('ready');
         return;
       }
@@ -208,7 +223,11 @@ export function usePredictionMedia(prediction?: {
       // 4) Store & set
       const finalUrl = fetched || getFallback(id, category);
       memory.set(id, fetched);
-      setUrl(finalUrl);
+      
+      // Only update if we have a new fetched image (prevents unnecessary flash)
+      if (fetched && fetched !== url) {
+        setUrl(fetched);
+      }
       setStatus('ready');
       
       // Cache in background (don't await)

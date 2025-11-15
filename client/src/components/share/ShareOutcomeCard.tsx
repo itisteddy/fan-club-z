@@ -1,7 +1,7 @@
 import React, { forwardRef } from 'react';
 import { TrendingUp, DollarSign, Trophy, Target, User } from 'lucide-react';
-import { formatCurrency } from '@lib/format';
-import { PnLResult } from '@lib/pnl';
+import { formatCurrency } from '@/lib/format';
+import { PnLResult } from '@/lib/pnl';
 
 export interface ShareOutcomeProps {
   title: string;

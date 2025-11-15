@@ -91,7 +91,7 @@ export function useAutoImage({
         if (cancelled) return;
 
         if (data.success && data.images && data.images.length > 0) {
-          const selectedImage = selectImage(data.images, seed);
+          const selectedImage = selectImage<StockImage>(data.images as StockImage[], seed);
           
           if (selectedImage) {
             qaLog(`[images] Got image for prediction ${prediction.id}:`, selectedImage);

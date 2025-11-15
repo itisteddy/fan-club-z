@@ -1,6 +1,20 @@
 import React, { useState, useEffect } from 'react';
-import { useSettlementStore } from '../../store/settlementStore';
-import { SettlementConfig } from '../../../../shared/schema';
+import { useSettlementStore, type SettlementConfig as StoreSettlementConfig } from '../../store/settlementStore';
+
+type SettlementSource = {
+  name: string;
+  url?: string;
+};
+
+type SettlementConfig = {
+  rule_text: string;
+  method: string;
+  timezone?: string;
+  primary_source: SettlementSource;
+  backup_source?: SettlementSource;
+  contingencies?: Record<string, string>;
+  badges?: string[];
+};
 
 interface SettlementRuleModalProps {
   predictionId?: string;
@@ -9,13 +23,41 @@ interface SettlementRuleModalProps {
   onClose: () => void;
 }
 
+// Transform store config to modal config
+function transformStoreConfig(storeConfig: StoreSettlementConfig, approvedSources: any[]): SettlementConfig | null {
+  const primarySource = storeConfig.primary_source_id 
+    ? approvedSources.find(s => s.id === storeConfig.primary_source_id)
+    : null;
+  const backupSource = storeConfig.backup_source_id
+    ? approvedSources.find(s => s.id === storeConfig.backup_source_id)
+    : null;
+
+  if (!primarySource) return null;
+
+  return {
+    rule_text: storeConfig.rule_text,
+    method: storeConfig.method,
+    timezone: storeConfig.timezone,
+    primary_source: {
+      name: primarySource.name,
+      url: primarySource.url,
+    },
+    backup_source: backupSource ? {
+      name: backupSource.name,
+      url: backupSource.url,
+    } : undefined,
+    contingencies: storeConfig.contingencies,
+    badges: storeConfig.badges,
+  };
+}
+
 export const SettlementRuleModal: React.FC<SettlementRuleModalProps> = ({ 
   predictionId, 
   settlement, 
   isOpen, 
   onClose 
 }) => {
-  const { settlementConfigs, fetchSettlement } = useSettlementStore();
+  const { settlementConfigs, approvedSources, fetchSettlement } = useSettlementStore();
   const [config, setConfig] = useState<SettlementConfig | null>(settlement || null);
 
   useEffect(() => {
@@ -26,11 +68,14 @@ export const SettlementRuleModal: React.FC<SettlementRuleModalProps> = ({
 
   useEffect(() => {
     if (predictionId && settlementConfigs[predictionId]) {
-      setConfig(settlementConfigs[predictionId]);
+      const transformed = transformStoreConfig(settlementConfigs[predictionId], approvedSources);
+      if (transformed) {
+        setConfig(transformed);
+      }
     } else if (settlement) {
       setConfig(settlement);
     }
-  }, [settlementConfigs, predictionId, settlement]);
+  }, [settlementConfigs, approvedSources, predictionId, settlement]);
 
   const handleCopyRule = async () => {
     if (!config) return;

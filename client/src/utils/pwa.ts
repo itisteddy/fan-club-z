@@ -133,8 +133,8 @@ export class PWAManager {
 
   private trackInstallation() {
     // Track installation analytics
-    if (typeof gtag !== 'undefined') {
-      gtag('event', 'pwa_install', {
+    if (typeof window !== 'undefined' && window.gtag) {
+      window.gtag('event', 'pwa_install', {
         event_category: 'engagement',
         event_label: 'app_install'
       });
@@ -175,7 +175,7 @@ export class PWAManager {
         userVisibleOnly: true,
         applicationServerKey: this.urlBase64ToUint8Array(
           VAPID_PUBLIC_KEY || ''
-        )
+        ) as BufferSource
       });
 
       // Send subscription to server
@@ -198,7 +198,8 @@ export class PWAManager {
     const outputArray = new Uint8Array(rawData.length);
 
     for (let i = 0; i < rawData.length; ++i) {
-      outputArray[i] = rawData.charCodeAt(i);
+      const charCode = rawData.charCodeAt(i);
+      outputArray[i] = charCode;
     }
     return outputArray;
   }

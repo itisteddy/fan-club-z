@@ -17,7 +17,8 @@ export function selectImage<T>(items: T[], seed: string): T | null {
   if (!items || items.length === 0) return null;
   
   const index = seededIndex(seed, items.length);
-  return items[index];
+  const item = items[index];
+  return item ?? null;
 }
 
 export function selectImages<T>(items: T[], seed: string, count: number): T[] {
@@ -28,7 +29,10 @@ export function selectImages<T>(items: T[], seed: string, count: number): T[] {
   
   for (let i = 0; i < Math.min(count, items.length); i++) {
     const index = (startIndex + i) % items.length;
-    selected.push(items[index]);
+    const item = items[index];
+    if (item !== undefined) {
+      selected.push(item);
+    }
   }
   
   return selected;

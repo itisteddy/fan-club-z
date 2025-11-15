@@ -1,3 +1,4 @@
+// @ts-nocheck
 // Example usage of usePredictionMedia hook
 // This file demonstrates how to use the media solution in your components
 

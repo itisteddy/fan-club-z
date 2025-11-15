@@ -1,9 +1,20 @@
 import express from 'express';
+import { z } from 'zod';
 import { config } from '../config';
 import { supabase } from '../config/database';
 import { VERSION } from '@fanclubz/shared';
+import { recomputePredictionState } from '../services/predictionMath';
+import { emitPredictionUpdate } from '../services/realtime';
 
 const router = express.Router();
+
+// Local slugify helper (must match client)
+function slugify(input: string): string {
+  return String(input || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
 
 // GET /api/v2/predictions/stats/platform - Get platform-wide statistics
 router.get('/stats/platform', async (req, res) => {
@@ -73,6 +84,65 @@ router.get('/stats/platform', async (req, res) => {
   }
 });
 
+// Lightweight resolver: GET /api/v2/predictions/resolve/slug/:slug
+// Returns { id } for a given SEO slug, without exposing the full prediction body
+router.get('/resolve/slug/:slug', async (req, res) => {
+  try {
+    const { slug } = req.params as { slug: string };
+    const candidate = (slug || '').trim().toLowerCase();
+
+    // If a UUID is accidentally passed, return it directly if it exists
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (uuidRegex.test(candidate)) {
+      const { data: row, error } = await supabase
+        .from('predictions')
+        .select('id')
+        .eq('id', candidate)
+        .maybeSingle();
+      if (error || !row) {
+        return res.status(404).json({ error: 'not_found', message: 'Prediction not found', version: VERSION });
+      }
+      return res.json({ id: candidate, version: VERSION });
+    }
+
+    // Safety: if someone shares "<slug>-<uuid>" older format, extract the UUID if present
+    const maybeUuid = candidate.slice(-36);
+    if (uuidRegex.test(maybeUuid)) {
+      const { data: row, error } = await supabase
+        .from('predictions')
+        .select('id')
+        .eq('id', maybeUuid)
+        .maybeSingle();
+      if (row && !error) {
+        return res.json({ id: maybeUuid, version: VERSION });
+      }
+    }
+
+    // Fallback: scan recent predictions and match by computed slug.
+    // Note: For our dataset size this is fine. If this grows large, add a persisted slug column or an index.
+    const { data: preds, error } = await supabase
+      .from('predictions')
+      .select('id,title,created_at')
+      .order('created_at', { ascending: false })
+      .limit(200);
+
+    if (error) {
+      console.error('[predictions.resolve.slug] DB error:', error);
+      return res.status(500).json({ error: 'db_error', message: 'Failed to resolve slug', version: VERSION });
+    }
+
+    const matched = (preds || []).find(p => slugify(p.title) === candidate);
+    if (!matched) {
+      return res.status(404).json({ error: 'not_found', message: 'Prediction not found for slug', version: VERSION });
+    }
+
+    return res.json({ id: matched.id, version: VERSION });
+  } catch (err) {
+    console.error('[predictions.resolve.slug] Unhandled', err);
+    return res.status(500).json({ error: 'internal_error', message: 'Failed to resolve slug', version: VERSION });
+  }
+});
+
 // GET /api/v2/predictions - Get all predictions with pagination
 router.get('/', async (req, res) => {
   try {
@@ -82,25 +152,17 @@ router.get('/', async (req, res) => {
       SUPABASE_URL: process.env.SUPABASE_URL ? 'SET' : 'MISSING',
       SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY ? 'SET' : 'MISSING'
     });
-    
-    // Test database connection
-    const { data: testData, error: testError } = await supabase
+
+    // Auto-close expired predictions before returning fresh list
+    const nowIso = new Date().toISOString();
+    const { error: closeError } = await supabase
       .from('predictions')
-      .select('id')
-      .limit(1);
-    
-    if (testError) {
-      console.error('Database connection test failed:', testError);
-      console.error('Supabase config:', {
-        url: process.env.SUPABASE_URL,
-        serviceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY ? 'SET' : 'MISSING'
-      });
-      return res.status(500).json({
-        error: 'Database connection error',
-        message: 'Unable to connect to database',
-        version: VERSION,
-        details: process.env.NODE_ENV === 'development' ? testError.message : undefined
-      });
+      .update({ status: 'closed', updated_at: nowIso })
+      .lte('entry_deadline', nowIso)
+      .eq('status', 'open');
+
+    if (closeError && closeError.code !== 'PGRST116') {
+      console.warn('[predictions] Failed to auto-close expired predictions:', closeError);
     }
     
     // Parse pagination parameters
@@ -185,6 +247,24 @@ router.get('/', async (req, res) => {
       version: VERSION,
       details: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
+  }
+});
+
+// HEAD /api/v2/predictions/:id - Lightweight existence check for UI preflight
+router.head('/:id', async (req, res) => {
+  try {
+    const { id } = req.params as { id: string };
+    const { data, error } = await supabase
+      .from('predictions')
+      .select('id,status')
+      .eq('id', id)
+      .maybeSingle();
+    if (error || !data) {
+      return res.status(404).end();
+    }
+    return res.status(200).end();
+  } catch {
+    return res.status(500).end();
   }
 });
 
@@ -358,9 +438,22 @@ router.get('/:id', async (req, res) => {
 
 // GET /api/v2/predictions/created/:userId - Get user's created predictions
 router.get('/created/:userId', async (req, res) => {
+  const { userId } = req.params;
   try {
-    const { userId } = req.params;
     console.log(`📊 User created predictions endpoint called for ID: ${userId} - origin:`, req.headers.origin);
+
+    // Auto-close any expired predictions for this creator before returning results
+    const nowIso = new Date().toISOString();
+    const { error: closeError } = await supabase
+      .from('predictions')
+      .update({ status: 'closed', updated_at: nowIso })
+      .lte('entry_deadline', nowIso)
+      .eq('status', 'open')
+      .eq('creator_id', userId);
+
+    if (closeError && closeError.code !== 'PGRST116') {
+      console.warn(`[predictions.created] Failed to auto-close expired predictions for user ${userId}:`, closeError);
+    }
     
     const { data: predictions, error } = await supabase
       .from('predictions')
@@ -579,37 +672,293 @@ router.post('/', async (req, res) => {
 router.post('/:id/entries', async (req, res) => {
   try {
     const predictionId = req.params.id;
-    const { option_id, amount, user_id } = req.body;
     
-    console.log(`🎲 Creating prediction entry for prediction ${predictionId}:`, { option_id, amount, user_id });
+    // Check if crypto mode is enabled
+    const isCryptoMode = process.env.VITE_FCZ_BASE_BETS === '1' || 
+                         process.env.ENABLE_BASE_BETS === '1' ||
+                         process.env.FCZ_ENABLE_BASE_BETS === '1';
     
-    // Validate required fields
-    if (!option_id || !amount || !user_id) {
+    console.log('🔧 Crypto mode check:', { isCryptoMode, body: req.body });
+    
+    // Zod validation schema - escrowLockId only required in crypto mode
+    const BodySchema = z.object({
+      option_id: z.string().uuid('Invalid option_id format'),
+      stakeUSD: z.union([
+        z.number().positive('stakeUSD must be positive'),
+        z.string().transform((val) => {
+          const num = Number(val);
+          if (isNaN(num) || num <= 0) throw new Error('stakeUSD must be a positive number');
+          return num;
+        })
+      ]).transform(val => typeof val === 'number' ? val : Number(val)).optional(),
+      amount: z.number().positive('amount must be positive').optional(),
+      user_id: z.string().uuid('Invalid user_id format'),
+      escrowLockId: z.string().uuid('Invalid escrowLockId format').optional()
+    }).refine(
+      (data) => data.stakeUSD !== undefined || data.amount !== undefined,
+      { message: 'Either stakeUSD or amount is required' }
+    ).transform((data) => ({
+      ...data,
+      stakeUSD: data.stakeUSD ?? data.amount ?? 0
+    }));
+    
+    // Parse and validate body
+    let validatedBody;
+    try {
+      validatedBody = BodySchema.parse(req.body);
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        console.error('❌ Validation error:', err.issues);
+        console.error('❌ Request body:', JSON.stringify(req.body, null, 2));
+        return res.status(400).json({
+          error: 'invalid_body',
+          details: err.issues,
+          receivedBody: req.body,
+          message: 'Request validation failed',
+          version: VERSION
+        });
+      }
+      throw err;
+    }
+    
+    const { option_id, stakeUSD, user_id, escrowLockId } = validatedBody;
+    const amount = Number(stakeUSD);
+    
+    console.log(`🎲 Creating prediction entry for prediction ${predictionId}:`, { 
+      option_id, 
+      stakeUSD: amount, 
+      escrowLockId,
+      user_id,
+      isCryptoMode
+    });
+    console.log('📦 Full request body:', JSON.stringify(req.body, null, 2));
+    
+    // In crypto mode, require escrowLockId
+    if (isCryptoMode && !escrowLockId) {
+      console.error('❌ Crypto mode requires escrowLockId:', { isCryptoMode, escrowLockId });
       return res.status(400).json({
-        error: 'Validation error',
-        message: 'option_id, amount, and user_id are required',
+        error: 'escrowLockId_required',
+        message: 'escrowLockId is required when crypto bets are enabled',
         version: VERSION
       });
     }
     
+    // Verify prediction exists and is open
+    const { data: prediction, error: predError } = await supabase
+      .from('predictions')
+      .select('id, status, entry_deadline')
+      .eq('id', predictionId)
+      .single();
+
+    if (predError || !prediction) {
+      console.error('❌ Prediction not found:', predictionId);
+      return res.status(404).json({
+        error: 'Not found',
+        message: 'Prediction not found',
+        version: VERSION
+      });
+    }
+
+    if (prediction.status !== 'open') {
+      console.error('❌ Prediction not open:', prediction.status);
+      return res.status(400).json({
+        error: 'Invalid state',
+        message: `Prediction is ${prediction.status}, not open for entries`,
+        version: VERSION
+      });
+    }
+
+    // Verify option exists
+    const { data: option, error: optError } = await supabase
+      .from('prediction_options')
+      .select('id, prediction_id')
+      .eq('id', option_id)
+      .eq('prediction_id', predictionId)
+      .single();
+
+    if (optError || !option) {
+      console.error('❌ Option not found:', option_id);
+      return res.status(404).json({
+        error: 'Not found',
+        message: 'Option not found for this prediction',
+        version: VERSION
+      });
+    }
+
+    // CRITICAL FIX: Check if user already has an entry for this prediction
+    const { data: existingEntry, error: existingError } = await supabase
+      .from('prediction_entries')
+      .select('id, amount, option_id, created_at')
+      .eq('prediction_id', predictionId)
+      .eq('user_id', user_id)
+      .single();
+
+    if (existingEntry) {
+      console.error('❌ Duplicate entry detected:', { 
+        existingEntryId: existingEntry.id,
+        userId: user_id,
+        predictionId 
+      });
+      return res.status(409).json({
+        error: 'duplicate_entry',
+        message: 'You have already placed a bet on this prediction. Each user can only bet once per prediction.',
+        existingEntry: {
+          id: existingEntry.id,
+          amount: existingEntry.amount,
+          optionId: existingEntry.option_id,
+          createdAt: existingEntry.created_at
+        },
+        version: VERSION
+      });
+    }
+
+    // CRYPTO MODE: Load and validate escrow lock with explicit error codes
+    let lock = null;
+    if (isCryptoMode && escrowLockId) {
+      console.log(`🔒 [Crypto Mode] Loading escrow lock: ${escrowLockId}`);
+      
+      // Load lock - in a real transaction, this would be FOR UPDATE
+      // Supabase doesn't support FOR UPDATE directly, so we use a select + update pattern
+      const { data: lockData, error: lockError } = await supabase
+        .from('escrow_locks')
+        .select('*')
+        .eq('id', escrowLockId)
+        .single(); // Don't filter by user_id here - we'll check it explicitly
+
+      if (lockError || !lockData) {
+        console.error('❌ Escrow lock not found:', { escrowLockId, error: lockError });
+        return res.status(400).json({
+          error: 'lock_not_found',
+          message: `Escrow lock ${escrowLockId} not found`,
+          version: VERSION
+        });
+      }
+
+      lock = lockData;
+
+      // Validate user owns the lock
+      if (lock.user_id !== user_id) {
+        console.error('❌ Lock user mismatch:', { 
+          lockUserId: lock.user_id, 
+          requestUserId: user_id 
+        });
+        return res.status(400).json({
+          error: 'lock_user_mismatch',
+          message: `Lock belongs to different user`,
+          version: VERSION
+        });
+      }
+
+      // Validate lock status - check both 'status' and 'state' columns (migration handles both)
+      const lockStatus = lock.status || lock.state;
+      if (lockStatus !== 'locked') {
+        console.error('❌ Lock is not in locked state:', { escrowLockId, status: lockStatus });
+        return res.status(400).json({
+          error: 'lock_not_locked',
+          message: `Lock status is '${lockStatus}', expected 'locked'`,
+          version: VERSION
+        });
+      }
+
+      // Validate lock prediction matches
+      if (lock.prediction_id !== predictionId) {
+        console.error('❌ Lock prediction mismatch:', { 
+          lockPrediction: lock.prediction_id, 
+          requestPrediction: predictionId 
+        });
+        return res.status(400).json({
+          error: 'lock_prediction_mismatch',
+          message: `Lock belongs to prediction ${lock.prediction_id}, but request is for ${predictionId}`,
+          version: VERSION
+        });
+      }
+
+      // Validate currency
+      const lockCurrency = lock.currency || 'USD';
+      if (lockCurrency !== 'USD') {
+        console.error('❌ Lock currency mismatch:', { lockCurrency });
+        return res.status(400).json({
+          error: 'currency_not_usd',
+          message: `Lock currency is '${lockCurrency}', expected 'USD'`,
+          version: VERSION
+        });
+      }
+
+      // Validate lock amount is sufficient
+      const lockAmount = Number(lock.amount);
+      if (lockAmount < amount) {
+        console.error('❌ Insufficient lock amount:', { lockAmount, required: amount });
+        return res.status(400).json({
+          error: 'insufficient_lock_amount',
+          message: `Lock amount (${lockAmount}) is less than stake (${amount})`,
+          version: VERSION
+        });
+      }
+
+      console.log(`✅ [Crypto Mode] Lock validated: ${escrowLockId}, amount: ${lockAmount}`);
+    }
+
     // Create prediction entry in database
+    const entryData: any = {
+      prediction_id: predictionId,
+      option_id: option_id,
+      user_id: user_id,
+      amount: amount,
+      status: 'active',
+      potential_payout: amount * 2.0, // Simple calculation for now
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    };
+
+    // Add crypto fields if in crypto mode
+    if (isCryptoMode && escrowLockId) {
+      entryData.escrow_lock_id = escrowLockId;
+      entryData.provider = 'crypto-base-usdc';
+    }
+
     const { data: entry, error: entryError } = await supabase
       .from('prediction_entries')
-      .insert({
-        prediction_id: predictionId,
-        option_id: option_id,
-        user_id: user_id,
-        amount: amount,
-        status: 'active',
-        potential_payout: amount * 2.0, // Simple calculation for now
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      })
+      .insert(entryData)
       .select()
       .single();
       
     if (entryError) {
       console.error('Error creating prediction entry:', entryError);
+      console.error('Entry error details:', JSON.stringify(entryError, null, 2));
+      
+      // CRITICAL: Release lock if entry creation fails in crypto mode
+      if (isCryptoMode && escrowLockId) {
+        console.log(`⚠️ Entry creation failed, releasing lock: ${escrowLockId}`);
+        const updateData: any = {};
+        if (lock && lock.status !== undefined) {
+          updateData.status = 'released';
+        } else {
+          updateData.state = 'released';
+        }
+        updateData.released_at = new Date().toISOString();
+        
+        await supabase
+          .from('escrow_locks')
+          .update(updateData)
+          .eq('id', escrowLockId)
+          .then(({ error: releaseError }) => {
+            if (releaseError) {
+              console.error('❌ Failed to release lock after entry error:', releaseError);
+            } else {
+              console.log(`✅ Lock released after entry failure: ${escrowLockId}`);
+            }
+          });
+      }
+      
+      // Check if it's a unique constraint violation (lock already consumed)
+      if (entryError.code === '23505' || entryError.message?.includes('unique') || entryError.message?.includes('uniq_lock_consumption')) {
+        return res.status(409).json({
+          error: 'Conflict',
+          message: 'Escrow lock has already been consumed. Please refresh and try again.',
+          version: VERSION
+        });
+      }
+      
       return res.status(500).json({
         error: 'Database error',
         message: 'Failed to create prediction entry',
@@ -619,6 +968,84 @@ router.post('/:id/entries', async (req, res) => {
     }
     
     console.log('✅ Prediction entry created successfully:', entry.id);
+
+    // CRYPTO MODE: Mark lock as consumed and create wallet transaction
+    if (isCryptoMode && escrowLockId && lock) {
+      console.log(`🔒 [Crypto Mode] Marking lock as consumed: ${escrowLockId}`);
+      
+      // Update lock status to consumed (prefer 'status' column, fallback to 'state')
+      const updateData: any = {};
+      if (lock.status !== undefined) {
+        updateData.status = 'consumed';
+      } else {
+        updateData.state = 'consumed';
+      }
+      
+      const { error: lockUpdateError } = await supabase
+        .from('escrow_locks')
+        .update(updateData)
+        .eq('id', escrowLockId);
+
+      if (lockUpdateError) {
+        console.error('❌ Failed to mark lock as consumed:', lockUpdateError);
+        // Entry was created but lock wasn't updated - this is a problem but we continue
+        // In a real transaction, this would rollback. For now, log and continue.
+        console.warn('⚠️ Lock update failed after entry creation - manual intervention may be needed');
+      } else {
+        console.log(`✅ [Crypto Mode] Lock marked as consumed: ${escrowLockId}`);
+      }
+
+      // Create wallet transaction mirror (debit for bet)
+      const { error: txnError } = await supabase
+        .from('wallet_transactions')
+        .insert({
+          user_id: user_id,
+          amount: -amount, // Negative for debit
+          currency: 'USD',
+          direction: 'debit',
+          provider: 'crypto-base-usdc',
+          channel: 'escrow_consumed',
+          external_ref: escrowLockId,
+          meta: {
+            entryId: entry.id,
+            predictionId: predictionId,
+            lockId: escrowLockId
+          },
+          created_at: new Date().toISOString()
+        });
+
+      if (txnError) {
+        console.error('⚠️ Failed to create wallet transaction mirror:', txnError);
+        // Non-fatal, continue
+      } else {
+        console.log(`✅ [Crypto Mode] Wallet transaction created for entry: ${entry.id}`);
+      }
+
+      // Write event log
+      const { error: eventError } = await supabase
+        .from('event_log')
+        .insert({
+          source: 'api',
+          kind: 'prediction.entry.created',
+          ref: entry.id,
+          payload: {
+            entryId: entry.id,
+            predictionId: predictionId,
+            lockId: escrowLockId,
+            userId: user_id,
+            amount: amount,
+            optionId: option_id
+          },
+          ts: new Date().toISOString()
+        });
+
+      if (eventError) {
+        console.error('⚠️ Failed to write event log:', eventError);
+        // Non-fatal, continue
+      } else {
+        console.log(`✅ [Crypto Mode] Event log written for entry: ${entry.id}`);
+      }
+    }
 
     // 1) Update the selected option's total_staked
     const { data: currentOption, error: readOptError } = await supabase
@@ -630,13 +1057,20 @@ router.post('/:id/entries', async (req, res) => {
     if (readOptError) {
       console.error('Error reading option for update:', readOptError);
     } else {
-      const newTotalStaked = (currentOption?.total_staked || 0) + Number(amount || 0);
+      const newTotalStaked = (currentOption?.total_staked || 0) + amount;
+      console.log('📊 Updating option total_staked:', { 
+        currentTotal: currentOption?.total_staked, 
+        newAmount: amount, 
+        newTotal: newTotalStaked 
+      });
       const { error: updateOptError } = await supabase
         .from('prediction_options')
         .update({ total_staked: newTotalStaked, updated_at: new Date().toISOString() as any })
         .eq('id', option_id);
       if (updateOptError) {
         console.error('Error updating option total_staked:', updateOptError);
+      } else {
+        console.log('✅ Option total_staked updated successfully');
       }
     }
 
@@ -710,6 +1144,8 @@ router.post('/:id/entries', async (req, res) => {
     }
 
     return res.status(201).json({
+      ok: true,
+      entryId: entry.id,
       data: {
         entry,
         prediction: fullPrediction || updatedPredictionRow || { id: predictionId, pool_total: poolTotal, participant_count: participantCount || 0 }
@@ -718,12 +1154,36 @@ router.post('/:id/entries', async (req, res) => {
       version: VERSION
     });
     
-  } catch (error) {
-    console.error('Error in prediction entry creation:', error);
+  } catch (error: any) {
+    console.error('❌ Unhandled error in prediction entry creation:', error);
+    
+    // Handle Zod validation errors (if somehow missed earlier)
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({
+        error: 'invalid_body',
+        details: error.issues,
+        message: 'Request validation failed',
+        version: VERSION
+      });
+    }
+    
+    // Handle database unique constraint violations
+    if (error && typeof error === 'object' && 'code' in error) {
+      const dbError = error;
+      if (dbError.code === '23505' || dbError.message?.includes('unique') || dbError.message?.includes('uniq_lock_consumption')) {
+        return res.status(409).json({
+          error: 'lock_already_consumed',
+          message: 'Escrow lock has already been consumed',
+          version: VERSION
+        });
+      }
+    }
+    
     return res.status(500).json({
-      error: 'Internal server error',
-      message: 'Failed to create prediction entry',
-      version: VERSION
+      error: 'server_error',
+      message: 'Internal server error',
+      version: VERSION,
+      details: error instanceof Error ? error.message : 'Unknown error'
     });
   }
 });
@@ -887,7 +1347,38 @@ router.post('/:id/close', async (req, res) => {
     const { id } = req.params;
     
     console.log('🔒 Closing prediction:', id);
-    
+
+    const { data: existingPrediction, error: fetchError } = await supabase
+      .from('predictions')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (fetchError) {
+      console.error('Error fetching prediction before close:', fetchError);
+      return res.status(500).json({
+        error: 'Database error',
+        message: 'Failed to load prediction before close',
+        version: VERSION
+      });
+    }
+
+    if (!existingPrediction) {
+      return res.status(404).json({
+        error: 'Not found',
+        message: 'Prediction not found',
+        version: VERSION
+      });
+    }
+
+    if (existingPrediction.status !== 'open') {
+      return res.status(400).json({
+        error: 'invalid_state',
+        message: `Prediction is already ${existingPrediction.status}`,
+        version: VERSION
+      });
+    }
+
     // Update prediction status to 'closed' in database
     const { data: updatedPrediction, error } = await supabase
       .from('predictions')
@@ -915,9 +1406,18 @@ router.post('/:id/close', async (req, res) => {
     }
 
     console.log('✅ Prediction closed successfully:', updatedPrediction.id);
-    
+
+    const recomputed = await recomputePredictionState(id);
+    const payload = recomputed.prediction || updatedPrediction;
+
+    try {
+      emitPredictionUpdate({ predictionId: id, reason: 'closed' });
+    } catch (emitErr) {
+      console.warn('⚠️ Failed to emit prediction update after close:', emitErr);
+    }
+
     return res.json({
-      data: updatedPrediction,
+      data: payload,
       message: `Prediction ${id} closed successfully`,
       version: VERSION
     });

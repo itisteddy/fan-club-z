@@ -10,6 +10,7 @@ interface HeaderProps {
   back?: boolean;
   onBack?: () => void;
   trailing?: React.ReactNode;
+  action?: React.ReactNode;
   children?: React.ReactNode;
   className?: string;
 }
@@ -18,7 +19,8 @@ export function Header({
   title, 
   back = false, 
   onBack, 
-  trailing, 
+  trailing,
+  action,
   children,
   className 
 }: HeaderProps) {
@@ -82,9 +84,9 @@ export function Header({
         </div>
 
         {/* Right section - Trailing actions */}
-        {trailing && (
+        {(trailing ?? action) && (
           <div className="flex items-center space-x-2 ml-3">
-            {trailing}
+            {trailing ?? action}
           </div>
         )}
       </div>

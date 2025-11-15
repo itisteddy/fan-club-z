@@ -11,7 +11,7 @@ import StatCard, { StatRow } from '../components/ui/card/StatCard';
 import EmptyState from '../components/ui/empty/EmptyState';
 import AuthRequiredState from '../components/ui/empty/AuthRequiredState';
 import { SkeletonStatRow, SkeletonCard } from '../components/ui/skeleton/Skeleton';
-import { truncateText } from '@lib/format';
+import { truncateText } from '@/lib/format';
 
 interface ProfilePageProps {
   onNavigateBack?: () => void;

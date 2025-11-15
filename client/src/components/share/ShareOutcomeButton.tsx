@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Share2, Loader2 } from 'lucide-react';
 import { useShareResult } from './useShareResult';
 import type { ShareOutcomeProps } from './ShareOutcomeCard';
-import { formatCurrency } from '@lib/format';
+import { formatCurrency } from '@/lib/format';
 
 interface ShareOutcomeButtonProps extends ShareOutcomeProps {
   className?: string;

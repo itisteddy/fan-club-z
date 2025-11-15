@@ -127,23 +127,20 @@ export const useErrorHandling = (options: UseErrorHandlingOptions = {}) => {
     const { isUserAction = false, successMessage, showSuccessToast: showSuccess = false } = options;
 
     try {
-      const result = isUserAction 
-        ? await handleUserActionError(operation, context)
-        : await handleAsyncError(operation, context);
-
       if (isUserAction) {
+        const result = await handleUserActionError(operation, context);
         if (showSuccess && successMessage) {
           showSuccessToast(successMessage);
         }
         return result;
-      } else {
-        const { data, error } = result;
-        if (error) {
-          setError(error);
-          return null;
-        }
-        return data || null;
       }
+
+      const { data, error } = await handleAsyncError(operation, context);
+      if (error) {
+        setError(error);
+        return null;
+      }
+      return data ?? null;
     } catch (error) {
       setError(error as AppError | Error);
       return null;

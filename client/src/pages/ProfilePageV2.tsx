@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { Edit3, User, Activity, DollarSign, TrendingUp, Target, Trophy } from 'lucide-react';
+import { Edit3, User, Activity, DollarSign, TrendingUp, Target, Trophy, MoreVertical, LogOut, Upload, X } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { useAuthSession } from '../providers/AuthSessionProvider';
 import { usePredictionStore } from '../store/predictionStore';
 import { openAuthGate } from '../auth/authGateAdapter';
 import UserAvatar from '../components/common/UserAvatar';
 import AppHeader from '../components/layout/AppHeader';
-import { formatLargeNumber, formatCurrency, formatPercentage } from '@lib/format';
+import { formatLargeNumber, formatCurrency, formatPercentage, formatTimeAgo } from '@/lib/format';
+import { useUserActivity, ActivityItem as FeedActivityItem } from '@/hooks/useActivityFeed';
 
 interface ProfilePageV2Props {
   onNavigateBack?: () => void;
@@ -16,8 +17,19 @@ interface ProfilePageV2Props {
 const ProfilePageV2: React.FC<ProfilePageV2Props> = ({ onNavigateBack, userId }) => {
   const { user: sessionUser } = useAuthSession();
   const { user: storeUser, isAuthenticated: storeAuth } = useAuthStore();
-  const { getUserPredictionEntries, getUserCreatedPredictions } = usePredictionStore();
+  const { 
+    getUserPredictionEntries, 
+    getUserCreatedPredictions,
+    fetchUserPredictionEntries,
+    fetchUserCreatedPredictions
+  } = usePredictionStore();
   const [loading, setLoading] = useState(true);
+  const [showActivityModal, setShowActivityModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [showMenu, setShowMenu] = useState(false);
+  const [editFirstName, setEditFirstName] = useState('');
+  const [editLastName, setEditLastName] = useState('');
+  const [editBio, setEditBio] = useState('');
   
   // Determine user context - prioritize session user
   const user = sessionUser || storeUser;
@@ -33,7 +45,22 @@ const ProfilePageV2: React.FC<ProfilePageV2Props> = ({ onNavigateBack, userId })
     }
   }, [authenticated, user?.id]);
 
+  // Ensure profile analytics are calculated from fresh data
+  useEffect(() => {
+    if (authenticated && user?.id) {
+      fetchUserPredictionEntries(user.id);
+      fetchUserCreatedPredictions(user.id);
+    }
+  }, [authenticated, user?.id, fetchUserPredictionEntries, fetchUserCreatedPredictions]);
+
   // Calculate user stats
+  const activityUserId = userId ?? user?.id ?? '';
+
+  const { items: activityItems, loading: loadingActivity } = useUserActivity(activityUserId, {
+    limit: 50,
+    autoLoad: Boolean(activityUserId)
+  });
+
   const userEntries = getUserPredictionEntries(user?.id || '') || [];
   const userCreated = getUserCreatedPredictions(user?.id || '') || [];
   const completedEntries = userEntries.filter(entry => entry?.status === 'won' || entry?.status === 'lost');
@@ -44,9 +71,84 @@ const ProfilePageV2: React.FC<ProfilePageV2Props> = ({ onNavigateBack, userId })
   const balance = totalEarnings - totalInvested;
 
   // Recent activity (last 5 items)
-  const recentActivity = [...userEntries, ...userCreated]
-    .sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime())
-    .slice(0, 5);
+  const recentActivity = activityItems.slice(0, 5);
+  const isActivityLoading = loadingActivity && activityItems.length === 0;
+
+  const getActivityDisplay = (item: FeedActivityItem) => {
+    switch (item.type) {
+      case 'entry.create':
+      case 'bet_placed':
+        return {
+          iconBg: 'bg-blue-100',
+          icon: <Target className="w-4 h-4 text-blue-600" />, 
+          title: item.predictionTitle ? `Bet on ${item.predictionTitle}` : 'Bet placed',
+          subtitle: item.data?.option_label ? `Option: ${item.data.option_label}` : '',
+          amount: item.data?.amount ? formatCurrency(Number(item.data.amount), { compact: true }) : null,
+          badge: 'placed',
+          badgeColor: 'text-blue-600'
+        };
+      case 'prediction.created':
+        return {
+          iconBg: 'bg-purple-100',
+          icon: <TrendingUp className="w-4 h-4 text-purple-600" />, 
+          title: item.predictionTitle ? `Created ${item.predictionTitle}` : 'Created a prediction',
+          subtitle: item.data?.category ? `Category: ${item.data.category}` : '',
+          amount: null,
+          badge: 'created',
+          badgeColor: 'text-purple-600'
+        };
+      case 'wallet.unlock':
+        return {
+          iconBg: 'bg-emerald-100',
+          icon: <DollarSign className="w-4 h-4 text-emerald-600" />,
+          title: 'Escrow funds released',
+          subtitle: item.data?.prediction_title ? item.data.prediction_title : '',
+          amount: item.data?.amount ? formatCurrency(Number(item.data.amount), { compact: true }) : null,
+          badge: 'wallet',
+          badgeColor: 'text-emerald-600'
+        };
+      case 'wallet.payout':
+        return {
+          iconBg: 'bg-emerald-100',
+          icon: <DollarSign className="w-4 h-4 text-emerald-700" />,
+          title: 'Settlement payout received',
+          subtitle: item.data?.prediction_title ? item.data.prediction_title : '',
+          amount: item.data?.amount ? formatCurrency(Number(item.data.amount), { compact: true }) : null,
+          badge: 'payout',
+          badgeColor: 'text-emerald-700'
+        };
+      case 'wallet.platform_fee':
+        return {
+          iconBg: 'bg-slate-100',
+          icon: <DollarSign className="w-4 h-4 text-slate-600" />,
+          title: 'Platform fee credited',
+          subtitle: item.data?.prediction_title ? item.data.prediction_title : '',
+          amount: item.data?.amount ? formatCurrency(Number(item.data.amount), { compact: true }) : null,
+          badge: 'platform',
+          badgeColor: 'text-slate-600'
+        };
+      case 'wallet.creator_fee':
+        return {
+          iconBg: 'bg-amber-100',
+          icon: <DollarSign className="w-4 h-4 text-amber-600" />,
+          title: 'Creator earnings received',
+          subtitle: item.data?.prediction_title ? item.data.prediction_title : '',
+          amount: item.data?.amount ? formatCurrency(Number(item.data.amount), { compact: true }) : null,
+          badge: 'creator',
+          badgeColor: 'text-amber-600'
+        };
+      default:
+        return {
+          iconBg: 'bg-gray-100',
+          icon: <Activity className="w-4 h-4 text-gray-500" />, 
+          title: 'Activity',
+          subtitle: '',
+          amount: null,
+          badge: item.type,
+          badgeColor: 'text-gray-500'
+        };
+    }
+  };
 
   // Handle authentication required - NO UPSELL, clean experience (same visual structure as wallet)
   if (!authenticated) {
@@ -121,7 +223,14 @@ const ProfilePageV2: React.FC<ProfilePageV2Props> = ({ onNavigateBack, userId })
   }
 
   // Calculate professional KPIs for Profile
-  const totalPredictions = userEntries.length + userCreated.length;
+  const uniquePredictionsBetOn = React.useMemo(() => {
+    const ids = new Set<string>();
+    for (const e of userEntries) {
+      if (e?.prediction_id) ids.add(e.prediction_id);
+    }
+    return ids.size;
+  }, [userEntries]);
+  const totalPredictions = uniquePredictionsBetOn + userCreated.length;
   const successRate = completedEntries.length > 0 ? (wonEntries.length / completedEntries.length) * 100 : 0;
   const userRank = Math.max(1, Math.ceil((100 - winRate) / 10)); // Simple ranking based on win rate
 
@@ -181,7 +290,7 @@ const ProfilePageV2: React.FC<ProfilePageV2Props> = ({ onNavigateBack, userId })
                     successRate >= 70 ? 'text-emerald-600' : 
                     successRate >= 50 ? 'text-yellow-600' : 'text-red-600'
                   }`}>
-                    {formatPercentage(successRate)}
+                    {formatPercentage(successRate / 100)}
                   </div>
                   <div className="text-xs text-gray-500 mt-1">
                     {wonEntries.length}/{completedEntries.length} won
@@ -207,18 +316,29 @@ const ProfilePageV2: React.FC<ProfilePageV2Props> = ({ onNavigateBack, userId })
                 <div className="flex items-start justify-between mb-4">
                   <h3 className="text-sm font-semibold text-gray-900">Overview</h3>
                   {isOwnProfile && (
-                    <button 
-                      onClick={async () => {
-                        try {
-                          await openAuthGate({ intent: 'edit_profile' });
-                        } catch (error) {
-                          console.error('Edit profile error:', error);
-                        }
-                      }}
-                      className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
-                    >
-                      <Edit3 className="w-4 h-4" />
-                    </button>
+                    <div className="relative">
+                      <div className="flex items-center gap-1">
+                        <button 
+                          onClick={() => {
+                            setEditFirstName((displayUser as any)?.firstName || '');
+                            setEditLastName((displayUser as any)?.lastName || '');
+                            setEditBio((displayUser as any)?.bio || '');
+                            setShowEditModal(true);
+                          }}
+                          className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+                          title="Edit profile"
+                        >
+                          <Edit3 className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => setShowMenu(v => !v)}
+                          className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+                          title="More"
+                        >
+                          <MoreVertical className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
                   )}
                 </div>
                 <div className="flex items-center space-x-4">
@@ -259,73 +379,59 @@ const ProfilePageV2: React.FC<ProfilePageV2Props> = ({ onNavigateBack, userId })
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-sm font-semibold text-gray-900">Recent Activity</h3>
                   {recentActivity.length > 0 && (
-                    <button className="text-xs text-emerald-600 hover:text-emerald-700 font-medium">
+                    <button
+                      onClick={() => setShowActivityModal(true)}
+                      className="text-xs text-emerald-600 hover:text-emerald-700 font-medium"
+                    >
                       View All
                     </button>
                   )}
                 </div>
                 
-                {recentActivity.length > 0 ? (
+                {isActivityLoading ? (
+                  <div className="space-y-3">
+                    {Array.from({ length: 3 }).map((_, idx) => (
+                      <div key={idx} className="animate-pulse flex items-center justify-between py-2 px-2">
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 bg-gray-100 rounded-full" />
+                          <div>
+                            <div className="h-3 bg-gray-200 rounded w-32 mb-1" />
+                            <div className="h-2 bg-gray-200 rounded w-24" />
+                          </div>
+                        </div>
+                        <div className="h-3 bg-gray-200 rounded w-12" />
+                      </div>
+                    ))}
+                  </div>
+                ) : recentActivity.length > 0 ? (
                   <div className="space-y-3">
                     {recentActivity.map((item, index) => {
-                      const isEntry = 'status' in item;
-                      const isPrediction = 'question' in item;
-                      
+                      const display = getActivityDisplay(item);
                       return (
                         <div key={index} className="flex items-center justify-between py-2 hover:bg-gray-50 rounded-lg px-2 -mx-2 transition-colors">
                           <div className="flex items-center space-x-3 flex-1 min-w-0">
-                            <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                              isEntry ? 
-                                (item as any).status === 'won' ? 'bg-emerald-100' : 
-                                (item as any).status === 'lost' ? 'bg-red-100' : 'bg-blue-100'
-                              : 'bg-purple-100'
-                            }`}>
-                              {isEntry ? (
-                                (item as any).status === 'won' ? (
-                                  <TrendingUp className="w-4 h-4 text-emerald-600" />
-                                ) : (item as any).status === 'lost' ? (
-                                  <Activity className="w-4 h-4 text-red-600" />
-                                ) : (
-                                  <Target className="w-4 h-4 text-blue-600" />
-                                )
-                              ) : (
-                                <User className="w-4 h-4 text-purple-600" />
-                              )}
+                            <div className={`w-8 h-8 rounded-full flex items-center justify-center ${display.iconBg}`}>
+                              {display.icon}
                             </div>
                             <div className="flex-1 min-w-0">
-                              <p className="text-sm font-medium text-gray-900 truncate">
-                                {isPrediction ? String((item as any).question) : 
-                                 isEntry ? `${(item as any).status === 'won' ? 'Won' : (item as any).status === 'lost' ? 'Lost' : 'Placed'} Prediction` :
-                                 'Prediction Activity'}
-                              </p>
-                              <p className="text-xs text-gray-500">
-                                {new Date(item.created_at || 0).toLocaleDateString('en-US', {
-                                  month: 'short',
-                                  day: 'numeric',
-                                  hour: 'numeric',
-                                  minute: '2-digit'
-                                })}
+                              <p className="text-sm font-medium text-gray-900 truncate">{display.title}</p>
+                              {display.subtitle && (
+                                <p className="text-xs text-gray-500 truncate">{display.subtitle}</p>
+                              )}
+                              <p className="text-[11px] text-gray-400">
+                                {item.timestamp ? formatTimeAgo(item.timestamp) : 'Recently'}
                               </p>
                             </div>
                           </div>
                           
                           <div className="text-right flex-shrink-0">
-                            {isEntry && (item as any).amount && (
-                              <div className={`text-sm font-semibold font-mono ${
-                                (item as any).status === 'won' ? 'text-emerald-600' : 
-                                (item as any).status === 'lost' ? 'text-red-600' : 'text-gray-600'
-                              }`}>
-                                {formatCurrency((item as any).amount, { compact: true })}
+                            {display.amount && (
+                              <div className="text-sm font-semibold font-mono text-gray-700">
+                                {display.amount}
                               </div>
                             )}
-                            <div className={`text-xs font-medium ${
-                              isEntry ? (
-                                (item as any).status === 'won' ? 'text-emerald-600' :
-                                (item as any).status === 'lost' ? 'text-red-600' :
-                                'text-blue-600'
-                              ) : 'text-purple-600'
-                            }`}>
-                              {isEntry ? (item as any).status : 'created'}
+                            <div className={`text-xs font-medium ${display.badgeColor}`}>
+                              {display.badge}
                             </div>
                           </div>
                         </div>
@@ -352,8 +458,170 @@ const ProfilePageV2: React.FC<ProfilePageV2Props> = ({ onNavigateBack, userId })
               </div>
             </>
           )}
+      </div>
+    </div>
+
+    {/* Persistent Sign out CTA */}
+    {authenticated && (
+      <div className="mx-auto w-full max-w-[720px] lg:max-w-[960px] px-4 mt-4 mb-[calc(5rem+env(safe-area-inset-bottom))]">
+        <button
+          onClick={async () => {
+            try {
+              await useAuthStore.getState().logout();
+            } catch (e) {
+              console.error('Logout failed', e);
+            }
+          }}
+          className="w-full text-sm px-4 py-3 rounded-2xl border border-black/[0.06] bg-white text-gray-900 hover:bg-gray-50 flex items-center justify-center shadow-sm"
+        >
+          Sign out
+        </button>
+      </div>
+    )}
+
+    {/* Edit Profile Modal */}
+    {showEditModal && (
+      <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
+        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+            <h2 className="text-sm font-semibold text-gray-900">Edit Profile</h2>
+            <button
+              onClick={() => setShowEditModal(false)}
+              className="p-1.5 rounded-lg hover:bg-gray-100"
+              aria-label="Close"
+            >
+              <X className="w-4 h-4 text-gray-600" />
+            </button>
+          </div>
+          <div className="p-4 space-y-4">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs text-gray-600 mb-1">First name</label>
+                <input
+                  value={editFirstName}
+                  onChange={(e) => setEditFirstName(e.target.value)}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-600 mb-1">Last name</label>
+                <input
+                  value={editLastName}
+                  onChange={(e) => setEditLastName(e.target.value)}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                />
+              </div>
+            </div>
+            <div>
+              <label className="block text-xs text-gray-600 mb-1">Bio</label>
+              <textarea
+                value={editBio}
+                onChange={(e) => setEditBio(e.target.value)}
+                rows={3}
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-gray-600 mb-2">Profile photo</label>
+              <label className="inline-flex items-center gap-2 px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-700 hover:bg-gray-50 cursor-pointer">
+                <Upload className="w-4 h-4 text-gray-500" />
+                Upload image
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    try {
+                      await useAuthStore.getState().uploadAvatar(file);
+                    } catch (err) {
+                      console.error('Avatar upload failed', err);
+                    }
+                  }}
+                />
+              </label>
+            </div>
+          </div>
+          <div className="px-4 py-3 border-t border-gray-100 flex items-center justify-end gap-2">
+            <button
+              onClick={() => setShowEditModal(false)}
+              className="px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-lg"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={async () => {
+                try {
+                  await useAuthStore.getState().updateProfile({
+                    firstName: editFirstName,
+                    lastName: editLastName,
+                    bio: editBio
+                  });
+                  setShowEditModal(false);
+                } catch (err) {
+                  console.error('Update failed', err);
+                }
+              }}
+              className="px-3 py-2 bg-emerald-600 text-white rounded-lg text-sm hover:bg-emerald-700"
+            >
+              Save changes
+            </button>
+          </div>
         </div>
       </div>
+    )}
+
+    {showActivityModal && (
+      <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-end md:items-center justify-center p-4">
+        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xl max-h-[80vh] overflow-hidden">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+            <h2 className="text-sm font-semibold text-gray-900">All Activity</h2>
+            <button
+              onClick={() => setShowActivityModal(false)}
+              className="text-xs text-gray-500 hover:text-gray-700"
+            >
+              Close
+            </button>
+          </div>
+          <div className="overflow-y-auto divide-y divide-gray-100 max-h-[calc(80vh-3.5rem)] sm:max-h-[calc(80vh-3rem)] pr-1">
+            {loadingActivity && activityItems.length === 0 ? (
+              <div className="p-6 text-sm text-gray-500">Loading activity…</div>
+            ) : activityItems.length === 0 ? (
+              <div className="p-6 text-sm text-gray-500">No activity yet.</div>
+            ) : (
+              activityItems.map((item) => {
+                const display = getActivityDisplay(item);
+                return (
+                  <div key={item.id} className="flex items-center justify-between gap-4 px-4 py-3">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className={`w-9 h-9 rounded-full flex items-center justify-center ${display.iconBg}`}>
+                        {display.icon}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-gray-900 truncate">{display.title}</p>
+                        {display.subtitle && (
+                          <p className="text-xs text-gray-500 truncate">{display.subtitle}</p>
+                        )}
+                        <p className="text-[11px] text-gray-400">
+                          {item.timestamp ? formatTimeAgo(item.timestamp) : 'Recently'}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="text-right flex-shrink-0 min-w-[80px]">
+                      {display.amount && (
+                        <div className="text-sm font-mono font-medium text-gray-700">{display.amount}</div>
+                      )}
+                      <div className={`text-xs font-medium ${display.badgeColor}`}>{display.badge}</div>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+      </div>
+    )}
     </div>
   );
 };

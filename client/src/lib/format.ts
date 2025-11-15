@@ -1,6 +1,22 @@
-export const formatCurrency = (n: number | string, opts?: { compact?: boolean; showSign?: boolean; currency?: string }) => {
-  const num = typeof n === "string" ? Number(n) : n;
-  const { compact = true, showSign = false, currency = 'USD' } = opts || {};
+type FormatCurrencyOptions = {
+  compact?: boolean;
+  showSign?: boolean;
+  currency?: string;
+};
+
+export function formatCurrency(n: number | string, opts?: FormatCurrencyOptions): string;
+export function formatCurrency(n: number | string, currency?: string, showSign?: boolean): string;
+export function formatCurrency(
+  n: number | string,
+  optsOrCurrency?: FormatCurrencyOptions | string,
+  legacyShowSign?: boolean
+): string {
+  const num = typeof n === 'string' ? Number(n) : n;
+  const resolvedOptions: FormatCurrencyOptions =
+    typeof optsOrCurrency === 'string'
+      ? { currency: optsOrCurrency, showSign: legacyShowSign }
+      : optsOrCurrency || {};
+  const { compact = true, showSign = false, currency = 'USD' } = resolvedOptions;
   
   if (compact) {
     const formatter = new Intl.NumberFormat(undefined, {
@@ -44,6 +60,28 @@ export const formatDuration = (ms: number) => {
   if (days) return `${days}d ${hrs % 24}h`;
   if (hrs) return `${hrs}h ${mins % 60}m`;
   return `${mins}m`;
+};
+
+// Relative time formatter (e.g., 5m ago, 2h ago)
+export const formatTimeAgo = (date: string | Date) => {
+  const d = typeof date === 'string' ? new Date(date) : date;
+  const diffMs = Date.now() - d.getTime();
+  const sec = Math.floor(diffMs / 1000);
+  if (sec < 30) return 'now';
+  if (sec < 60) return `${sec}s ago`;
+  const min = Math.floor(sec / 60);
+  if (min < 60) return `${min}m ago`;
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return `${hr}h ago`;
+  const day = Math.floor(hr / 24);
+  if (day < 7) return `${day}d ago`;
+  return d.toLocaleString();
+};
+
+// Absolute display with fallback (local time)
+export const formatDateTime = (date: string | Date) => {
+  const d = typeof date === 'string' ? new Date(date) : date;
+  return d.toLocaleString();
 };
 
 // Additional formatters for backward compatibility

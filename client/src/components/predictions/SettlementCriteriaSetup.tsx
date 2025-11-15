@@ -46,7 +46,7 @@ export const SettlementCriteriaSetup: React.FC<SettlementCriteriaSetupProps> = (
   const [templates, setTemplates] = useState<CriteriaTemplate[]>([]);
   const [verificationSources, setVerificationSources] = useState<VerificationSource[]>([]);
   const [selectedTemplate, setSelectedTemplate] = useState<string>('');
-  const [customCriteria, setCustomCriteria] = useState<SettlementCriteria | null>(value);
+  const [customCriteria, setCustomCriteria] = useState<SettlementCriteria | null>(value ?? null);
   const [isCustomMode, setIsCustomMode] = useState(false);
   const [loading, setLoading] = useState(true);
 

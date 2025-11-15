@@ -5,6 +5,23 @@ import { Prediction } from '../store/predictionStore';
 import { useUnifiedCommentStore } from '../store/unifiedCommentStore';
 import CommentModal from './modals/CommentModal';
 import TappableUsername from './TappableUsername';
+import { formatTimeAgo, formatTimeRemaining, calculateOdds } from '../lib/utils';
+
+const USD_FORMATTER = new Intl.NumberFormat('en-US', {
+  style: 'currency',
+  currency: 'USD',
+  minimumFractionDigits: 0,
+  maximumFractionDigits: 2,
+});
+
+const toNumber = (value: unknown): number => {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string') {
+    const parsed = parseFloat(value);
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+  return 0;
+};
 
 interface BetCardProps {
   bet: Prediction;
@@ -25,32 +42,50 @@ const BetCard: React.FC<BetCardProps> = ({
 }) => {
   const [showAllOptions, setShowAllOptions] = React.useState(false);
   const [isCommentModalOpen, setIsCommentModalOpen] = useState(false);
-  const { getCommentCount, updateCommentCount, initialize } = useUnifiedCommentStore();
+  const { getCommentCount } = useUnifiedCommentStore();
   
-  // Initialize comment store once
-  useEffect(() => {
-    initialize();
-  }, []);
-  
-  // Sync comment count from bet data only when it changes
-  useEffect(() => {
-    if (bet.comments_count !== undefined || bet.comments !== undefined) {
-      const count = bet.comments_count || bet.comments || 0;
-      updateCommentCount(bet.id, count);
-    }
-  }, [bet.id, bet.comments_count, bet.comments, updateCommentCount]);
-  
-  // Get comment count for this bet
-  const commentCount = getCommentCount(bet.id);
+  // Get comment count for this bet (from store or bet data)
+  const commentCount = getCommentCount(bet.id) || bet.comments_count || bet.comments || 0;
   
   // Calculate display logic for options
   const options = bet.options || [];
   const hasMultipleOptions = options.length > 2;
-  const displayOptions = showAllOptions ? options : options.slice(0, 3); // Show 3 instead of 2
+  const displayOptions = showAllOptions ? options : options.slice(0, 3);
   const hiddenOptionsCount = Math.max(0, options.length - 3);
 
-  // Calculate total pool and percentages
-  const totalPool = bet.pool_total || bet.poolTotal || options.reduce((sum, option) => sum + (option.total_staked || option.totalStaked || 0), 0);
+  const explicitPool = toNumber(bet.pool_total ?? bet.poolTotal);
+  const derivedPool = options.reduce((sum, option) => sum + toNumber(option.total_staked ?? option.totalStaked), 0);
+  const totalPool = explicitPool > 0 ? explicitPool : derivedPool;
+  const participantCount = toNumber(bet.participant_count ?? 0);
+  const rawDeadline = bet.entry_deadline ?? bet.entryDeadline ?? null;
+  const entryDeadline = typeof rawDeadline === 'string' && !Number.isNaN(Date.parse(rawDeadline))
+    ? rawDeadline
+    : null;
+  const status = (bet.status || 'open').toLowerCase();
+  const timeRemaining = entryDeadline ? formatTimeRemaining(entryDeadline) : null;
+  const createdAt = bet.created_at || bet.updated_at || '';
+  const createdAtLabel = createdAt ? formatTimeAgo(createdAt) : null;
+
+  const countdownLabel = (() => {
+    if (status === 'settled') return 'Settled';
+    if (status === 'awaiting_settlement') return 'Awaiting settlement';
+    if (status === 'closed' || status === 'ended') return 'Closed';
+    if (status === 'cancelled' || status === 'canceled') return 'Cancelled';
+    if (!entryDeadline || !timeRemaining) return 'No deadline';
+    if (timeRemaining === 'Ended') return 'Closed';
+    return `Ends in ${timeRemaining}`;
+  })();
+
+  const statusLabel = (() => {
+    if (status === 'open') return 'Live';
+    if (status === 'pending') return 'Pending';
+    if (status === 'awaiting_settlement') return 'Awaiting settlement';
+    if (status === 'settled') return 'Settled';
+    if (status === 'closed' || status === 'ended') return 'Closed';
+    if (status === 'cancelled' || status === 'canceled') return 'Cancelled';
+    if (status === 'refunded') return 'Refunded';
+    return status.replace(/_/g, ' ');
+  })();
 
   const handleCommentClick = () => {
     setIsCommentModalOpen(true);
@@ -91,7 +126,7 @@ const BetCard: React.FC<BetCardProps> = ({
           
           <div className="flex items-center justify-between">
             <div>
-                <div className="text-2xl font-bold">${totalPool.toLocaleString('en-US')}</div>
+              <div className="text-2xl font-bold">{USD_FORMATTER.format(totalPool)}</div>
               <div className="text-sm opacity-90">Total Pool</div>
             </div>
             <motion.button
@@ -235,7 +270,11 @@ const BetCard: React.FC<BetCardProps> = ({
                 className="font-medium text-gray-900 hover:text-blue-600"
                 showAt={true}
               />
-              <div className="text-sm text-gray-500">2 hours ago</div>
+              {createdAtLabel && (
+                <div className="text-sm text-gray-500">
+                  {createdAtLabel === 'now' ? 'Just now' : `${createdAtLabel} ago`}
+                </div>
+              )}
             </div>
           </div>
             <div className="flex items-center gap-2">
@@ -306,9 +345,11 @@ const BetCard: React.FC<BetCardProps> = ({
               // Two options - Grid layout
               <div className="grid grid-cols-2 gap-3">
                 {options.map((option, index) => {
-                  const optionStaked = option.total_staked || option.totalStaked || 0;
-                  const percentage = totalPool > 0 ? (optionStaked / totalPool) * 100 : 25;
-                  const odds = optionStaked > 0 ? totalPool / optionStaked : 2.0;
+                  const optionStaked = toNumber(option.total_staked ?? option.totalStaked);
+                  const percentageRaw = totalPool > 0 ? (optionStaked / totalPool) * 100 : toNumber(option.percentage);
+                  const percentage = Math.max(0, Math.min(percentageRaw, 100));
+                  const oddsValue = toNumber(option.current_odds);
+                  const odds = oddsValue > 0 ? oddsValue : calculateOdds(totalPool, optionStaked);
                   
                   return (
                     <motion.button
@@ -329,7 +370,7 @@ const BetCard: React.FC<BetCardProps> = ({
                         <div className={`text-2xl font-bold mb-1 ${
                           index === 0 ? 'text-teal-700' : 'text-blue-700'
                         }`}>
-                          {odds.toFixed(1)}x
+                          {odds.toFixed(2)}x
                         </div>
                         <div className="text-sm text-gray-600">
                           {percentage.toFixed(0)}% backing
@@ -340,7 +381,7 @@ const BetCard: React.FC<BetCardProps> = ({
                               className={`h-full transition-all duration-500 ${
                                 index === 0 ? 'bg-teal-500' : 'bg-blue-500'
                               }`}
-                              style={{ width: `${Math.min(percentage, 100)}%` }}
+                              style={{ width: `${percentage}%` }}
                             />
                           </div>
                         </div>
@@ -353,9 +394,11 @@ const BetCard: React.FC<BetCardProps> = ({
               // Multiple options - Enhanced list layout
               <div className="space-y-2">
                 {displayOptions.map((option, index) => {
-                  const optionStaked = option.total_staked || option.totalStaked || 0;
-                  const percentage = totalPool > 0 ? (optionStaked / totalPool) * 100 : Math.random() * 30 + 10;
-                  const odds = optionStaked > 0 ? totalPool / optionStaked : (Math.random() * 3 + 1.5);
+                  const optionStaked = toNumber(option.total_staked ?? option.totalStaked);
+                  const percentageRaw = totalPool > 0 ? (optionStaked / totalPool) * 100 : toNumber(option.percentage);
+                  const percentage = Math.max(0, Math.min(percentageRaw, 100));
+                  const oddsValue = toNumber(option.current_odds);
+                  const odds = oddsValue > 0 ? oddsValue : calculateOdds(totalPool, optionStaked);
                   
                   const colors = [
                     { bg: 'from-emerald-50 to-green-50', border: 'border-teal-200 hover:border-teal-300', text: 'text-teal-700', bar: 'bg-teal-500' },
@@ -363,7 +406,7 @@ const BetCard: React.FC<BetCardProps> = ({
                     { bg: 'from-purple-50 to-violet-50', border: 'border-purple-200 hover:border-purple-300', text: 'text-purple-700', bar: 'bg-purple-500' },
                     { bg: 'from-amber-50 to-yellow-50', border: 'border-amber-200 hover:border-amber-300', text: 'text-amber-700', bar: 'bg-amber-500' },
                   ];
-                  const colorScheme = colors[index % colors.length];
+                  const colorScheme = colors[index % colors.length] ?? colors[0] ?? { bg: 'from-gray-50 to-gray-50', border: 'border-gray-200 hover:border-gray-300', text: 'text-gray-700', bar: 'bg-gray-500' };
                   
                   return (
                     <motion.button
@@ -379,20 +422,20 @@ const BetCard: React.FC<BetCardProps> = ({
                             {option.label}
                           </div>
                           <div className="text-sm text-gray-600">
-                            {percentage.toFixed(0)}% backing • ${optionStaked?.toLocaleString('en-US') || '0'}
+                            {percentage.toFixed(0)}% backing • {USD_FORMATTER.format(optionStaked)}
                           </div>
                         </div>
                         <div className="flex items-center gap-4">
                           <div className="text-right">
                             <div className={`text-xl font-bold ${colorScheme.text}`}>
-                              {odds.toFixed(1)}x
+                              {odds.toFixed(2)}x
                             </div>
                             <div className="text-xs text-gray-500">odds</div>
                           </div>
                           <div className="w-16 h-3 bg-gray-200 rounded-full overflow-hidden">
                             <div 
                               className={`h-full ${colorScheme.bar} transition-all duration-700`}
-                              style={{ width: `${Math.min(percentage, 100)}%` }}
+                              style={{ width: `${percentage}%` }}
                             />
                           </div>
                         </div>
@@ -433,21 +476,21 @@ const BetCard: React.FC<BetCardProps> = ({
                 <div className="w-6 h-6 rounded-full bg-gradient-to-r from-purple-500 to-emerald-500 flex items-center justify-center">
                   <span className="text-white text-xs font-bold">$</span>
                 </div>
-                <span className="font-semibold text-gray-900">${totalPool.toLocaleString('en-US')}</span>
+                <span className="font-semibold text-gray-900">{USD_FORMATTER.format(totalPool)}</span>
                 <span className="text-gray-500">pool</span>
             </div>
             <div className="flex items-center gap-1 text-gray-600">
               <Users className="w-4 h-4" />
-                <span>{0}</span>
+              <span>{participantCount}</span>
             </div>
             <div className="flex items-center gap-1 text-gray-600">
               <Clock className="w-4 h-4" />
-              <span>2 days left</span>
+              <span>{countdownLabel}</span>
             </div>
           </div>
           <div className="flex items-center gap-1 text-teal-600">
             <TrendingUp className="w-4 h-4" />
-              <span className="font-medium">Trending</span>
+            <span className="font-medium capitalize">{statusLabel}</span>
             </div>
         </div>
       </div>
@@ -463,7 +506,7 @@ const BetCard: React.FC<BetCardProps> = ({
               whileTap={{ scale: 0.95 }}
             >
               <Heart className="w-5 h-5" />
-              <span className="text-sm font-medium">{0}</span>
+              <span className="text-sm font-medium">{bet.likes_count ?? bet.likes ?? 0}</span>
             </motion.button>
             <motion.button
                 onClick={handleCommentClick}

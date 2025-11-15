@@ -10,12 +10,12 @@ import {
   Compass, 
   Wallet,
   CheckCircle,
-  Skip,
-  Play
+  Play,
+  SkipForward
 } from 'lucide-react';
 
 // Types
-interface OnboardingStep {
+export interface OnboardingStep {
   id: string;
   title: string;
   description: string;
@@ -99,11 +99,13 @@ export const useEnhancedOnboarding = () => {
       saveState({ currentStep: newStep });
       
       // Mark current step as completed
-      const updatedPrefs = {
-        ...state.userPreferences,
-        completedSteps: [...state.userPreferences.completedSteps, currentStepData.id]
-      };
-      saveState({ userPreferences: updatedPrefs });
+      if (currentStepData) {
+        const updatedPrefs = {
+          ...state.userPreferences,
+          completedSteps: [...state.userPreferences.completedSteps, currentStepData.id]
+        };
+        saveState({ userPreferences: updatedPrefs });
+      }
     } else {
       // Onboarding completed
       saveState({ 
@@ -656,7 +658,7 @@ export const WelcomeModal: React.FC<WelcomeModalProps> = ({
                   onClick={onSkip}
                   className="w-full text-gray-500 hover:text-gray-700 py-2 px-4 rounded-xl font-medium transition-colors flex items-center justify-center gap-1"
                 >
-                  <Skip className="w-4 h-4" />
+                  <SkipForward className="w-4 h-4" />
                   Skip for now
                 </button>
               </div>

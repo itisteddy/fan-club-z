@@ -31,7 +31,7 @@ export const formatCurrency = (amount: number, currency: string = 'USD'): string
     }),
   };
 
-  const formatter = formatters[currency] || formatters.USD;
+  const formatter: Intl.NumberFormat = formatters[currency] ?? formatters.USD ?? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
   
   if (currency === 'USDT') {
     return `${formatter.format(amount)} USDT`;
@@ -45,37 +45,42 @@ export const formatCurrency = (amount: number, currency: string = 'USD'): string
 };
 
 export const formatTimeRemaining = (dateString: string): string => {
-  const date = new Date(dateString);
-  const now = new Date();
-  const diffMs = date.getTime() - now.getTime();
+  const target = new Date(dateString).getTime();
+  const now = Date.now();
+  const diffMs = target - now;
 
+  if (!Number.isFinite(diffMs)) return '';
   if (diffMs <= 0) return 'Ended';
 
-  const diffMins = Math.floor(diffMs / 60000);
-  const diffHours = Math.floor(diffMs / 3600000);
-  const diffDays = Math.floor(diffMs / 86400000);
-  const diffYears = Math.floor(diffDays / 365);
+  const diffSeconds = Math.floor(diffMs / 1000);
 
-  // For very long periods (over 999 hours = ~41 days), use years and days
-  if (diffHours > 999) {
-    if (diffYears > 0) {
-      const remainingDays = diffDays % 365;
-      if (remainingDays > 0) {
-        return `${diffYears}y ${remainingDays}d left`;
-      } else {
-        return `${diffYears}y left`;
-      }
-    } else {
-      return `${diffDays}d left`;
+  const units = [
+    { label: 'y', seconds: 60 * 60 * 24 * 365 },
+    { label: 'mo', seconds: 60 * 60 * 24 * 30 },
+    { label: 'd', seconds: 60 * 60 * 24 },
+    { label: 'h', seconds: 60 * 60 },
+    { label: 'm', seconds: 60 },
+    { label: 's', seconds: 1 }
+  ];
+
+  const parts: string[] = [];
+  let remaining = diffSeconds;
+
+  for (const unit of units) {
+    if (remaining <= 0) break;
+    const value = Math.floor(remaining / unit.seconds);
+    if (value > 0) {
+      parts.push(`${value}${unit.label}`);
+      remaining -= value * unit.seconds;
     }
+    if (parts.length === 2) break; // keep it concise
   }
 
-  // Standard formatting for shorter periods
-  if (diffDays > 0) return `${diffDays}d ${diffHours % 24}h left`;
-  if (diffHours > 0) return `${diffHours}h left`;
-  if (diffMins > 0) return `${diffMins}m left`;
-  
-  return 'Ending soon';
+  if (parts.length === 0) {
+    return '0s';
+  }
+
+  return parts.join(' ');
 };
 
 export const formatDate = (dateString: string): string => {

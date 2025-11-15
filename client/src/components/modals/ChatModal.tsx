@@ -68,6 +68,7 @@ export const ChatModal: React.FC<ChatModalProps> = ({
     if (messages.length > 0) {
       // Auto-scroll to bottom when new messages arrive
       const lastMessage = messages[messages.length - 1];
+      if (!lastMessage) return;
       const isOwnMessage = user && lastMessage.user_id === user.id;
       
       if (isOwnMessage || !showScrollToBottom) {

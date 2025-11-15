@@ -27,7 +27,7 @@ class ApiClient {
     this.baseUrl = baseUrl;
   }
 
-  async fetchJson<T>(
+  async fetchJson<T = any>(
     path: string,
     options: FetchOptions = {}
   ): Promise<ApiResult<T>> {
@@ -41,14 +41,16 @@ class ApiClient {
     } = options;
 
     const url = `${this.baseUrl}${path}`;
-    const isIdempotent = method === 'GET' || method === 'HEAD';
+    const isIdempotent = method === 'GET';
 
     qaLog(`API request: ${method} ${url}`, { retries, timeout });
+
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
 
     for (let attempt = 0; attempt <= retries; attempt++) {
       try {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), timeout);
+        timeoutId = setTimeout(() => controller.abort(), timeout);
 
         // Combine abort signals
         const combinedSignal = signal
@@ -64,16 +66,20 @@ class ApiClient {
           signal: combinedSignal,
         };
 
-        if (body && method !== 'GET' && method !== 'HEAD') {
+        if (body && method !== 'GET') {
           requestInit.body = JSON.stringify(body);
         }
 
         const response = await fetch(url, requestInit);
-        clearTimeout(timeoutId);
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+        }
 
         return await this.classifyResponse<T>(response, attempt, retries);
       } catch (error) {
-        clearTimeout(timeoutId);
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+        }
 
         if (error instanceof Error) {
           if (error.name === 'AbortError') {
@@ -219,17 +225,17 @@ class ApiClient {
 export const apiClient = new ApiClient();
 
 // Convenience methods
-export const fetchJson = <T>(path: string, options?: FetchOptions) =>
+export const fetchJson = <T = any>(path: string, options?: FetchOptions) =>
   apiClient.fetchJson<T>(path, options);
 
-export const get = <T>(path: string, options?: Omit<FetchOptions, 'method'>) =>
+export const get = <T = any>(path: string, options?: Omit<FetchOptions, 'method'>) =>
   apiClient.fetchJson<T>(path, { ...options, method: 'GET' });
 
-export const post = <T>(path: string, body?: unknown, options?: Omit<FetchOptions, 'method' | 'body'>) =>
+export const post = <T = any>(path: string, body?: unknown, options?: Omit<FetchOptions, 'method' | 'body'>) =>
   apiClient.fetchJson<T>(path, { ...options, method: 'POST', body });
 
-export const put = <T>(path: string, body?: unknown, options?: Omit<FetchOptions, 'method' | 'body'>) =>
+export const put = <T = any>(path: string, body?: unknown, options?: Omit<FetchOptions, 'method' | 'body'>) =>
   apiClient.fetchJson<T>(path, { ...options, method: 'PUT', body });
 
-export const del = <T>(path: string, options?: Omit<FetchOptions, 'method'>) =>
+export const del = <T = any>(path: string, options?: Omit<FetchOptions, 'method'>) =>
   apiClient.fetchJson<T>(path, { ...options, method: 'DELETE' });

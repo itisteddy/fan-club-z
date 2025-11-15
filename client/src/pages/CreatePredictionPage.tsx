@@ -7,8 +7,8 @@ import { useAuthStore } from '../store/authStore';
 import { useLocation } from 'wouter';
 import toast from 'react-hot-toast';
 import { scrollToTop } from '../utils/scroll';
-import SourcePill from '../components/settlement/SourcePill';
-import RulePreview from '../components/settlement/RulePreview';
+import { SourcePill } from '../components/settlement/SourcePill';
+import { RulePreview } from '../components/settlement/RulePreview';
 import UnifiedHeader from '../components/layout/UnifiedHeader';
 
 interface PredictionOption {

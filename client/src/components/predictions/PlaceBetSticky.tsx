@@ -28,7 +28,7 @@ export default function PlaceBetSticky({
         <button
           onClick={onClick}
           disabled={disabled || loading}
-          className="w-full rounded-2xl bg-primary py-3 sm:py-3.5 text-primary-foreground font-semibold shadow-lg shadow-black/10 hover:bg-primary/90 active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+          className="w-full rounded-2xl bg-emerald-500 py-3 sm:py-3.5 text-white font-semibold shadow-lg shadow-black/10 hover:bg-emerald-600 active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
           aria-label={label}
         >
           {loading && <Loader2 className="size-5 animate-spin" />}

@@ -87,7 +87,7 @@ const CommentOverflowMenu: React.FC<CommentOverflowMenuProps> = ({
       case 'Enter':
       case ' ':
         event.preventDefault();
-        if (focusedIndex >= 0 && focusedIndex < menuItems.length) {
+        if (focusedIndex >= 0 && focusedIndex < menuItems.length && menuItems[focusedIndex]) {
           handleItemClick(menuItems[focusedIndex].action);
         }
         break;

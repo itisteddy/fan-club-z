@@ -4,10 +4,37 @@ import { getApiUrl } from '../config';
 import { useAuthStore } from './authStore';
 import { apiClient } from '../lib/apiUtils';
 
+// ---- Idempotency helpers for bet placement ----
+function computeBetKey(userId: string | undefined, predictionId: string, optionId: string, amount: number) {
+  return `bet:${userId || 'anon'}:${predictionId}:${optionId}:${amount}`;
+}
+
+function getOrCreateRequestId(compositeKey: string, ttlMs = 2 * 60 * 1000): string {
+  try {
+    const raw = sessionStorage.getItem(compositeKey);
+    const now = Date.now();
+    if (raw) {
+      const parsed = JSON.parse(raw) as { id: string; ts: number };
+      if (parsed && parsed.id && now - parsed.ts < ttlMs) {
+        return parsed.id;
+      }
+    }
+    const id = (typeof crypto !== 'undefined' && 'randomUUID' in crypto)
+      ? (crypto as any).randomUUID()
+      : `${now}-${Math.random().toString(16).slice(2)}`;
+    sessionStorage.setItem(compositeKey, JSON.stringify({ id, ts: now }));
+    return id;
+  } catch {
+    // Fallback if storage fails
+    return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  }
+}
+
 export interface Prediction {
   id: string;
   creator_id: string;
   title: string;
+  question?: string;
   description?: string;
   category: 'sports' | 'pop_culture' | 'custom' | 'esports' | 'celebrity_gossip' | 'politics';
   type: 'binary' | 'multi_outcome' | 'pool';
@@ -36,6 +63,11 @@ export interface Prediction {
   participant_count: number;
   likes_count: number;
   comments_count: number;
+  stakeMin: number;
+  settlementMethod: 'auto' | 'manual';
+  participantCount: number;
+  likeCount: number;
+  commentCount: number;
   user_entry?: {
     option_id: string;
     amount: number;
@@ -47,6 +79,8 @@ export interface Prediction {
   entries?: any[];
   likes?: number;
   comments?: number;
+  settledAt?: string;
+  settled_at?: string;
 }
 
 export interface PredictionOption {
@@ -57,6 +91,7 @@ export interface PredictionOption {
   current_odds: number;
   percentage: number;
   totalStaked?: number; // Compatibility alias
+  currentOdds?: number; // Compatibility alias
 }
 
 export interface PredictionEntry {
@@ -70,6 +105,11 @@ export interface PredictionEntry {
   status: 'active' | 'won' | 'lost' | 'refunded';
   created_at: string;
   updated_at: string;
+  selected_option?: string;
+  odds?: number;
+  prediction?: Partial<Prediction> & { question?: string; title?: string };
+  option?: { id?: string; label?: string };
+  metadata?: Record<string, unknown>;
 }
 
 export interface ActivityItem {
@@ -80,6 +120,9 @@ export interface ActivityItem {
   participantCount?: number;
   timestamp: string;
   timeAgo: string;
+  kind?: 'deposit' | 'withdraw' | 'lock' | 'unlock' | 'bet_refund' | 'payout' | 'creator_fee' | 'platform_fee' | 'entry' | 'release' | 'claim';
+  createdAt?: string;
+  txHash?: string;
 }
 
 export interface Participant {
@@ -99,6 +142,73 @@ export interface PlatformStats {
   rawVolume: number;
   rawUsers: number;
 }
+
+type OptionLike = Partial<PredictionOption> & Record<string, any>;
+type PredictionLike = Partial<Prediction> & Record<string, any>;
+
+const normalizePredictionOption = (option: OptionLike = {}): PredictionOption => {
+  const totalStaked = option.totalStaked ?? option.total_staked ?? 0;
+  const currentOdds = option.currentOdds ?? option.current_odds ?? option.odds ?? 1;
+
+  return {
+    id: option.id ?? '',
+    prediction_id: option.prediction_id ?? option.predictionId ?? '',
+    label: option.label ?? option.text ?? 'Option',
+    total_staked: option.total_staked ?? totalStaked,
+    current_odds: option.current_odds ?? currentOdds,
+    percentage: option.percentage ?? option.share ?? 0,
+    totalStaked,
+    currentOdds,
+  };
+};
+
+const normalizePrediction = (prediction: PredictionLike = {}): Prediction => {
+  const options = Array.isArray(prediction.options)
+    ? prediction.options.map(normalizePredictionOption)
+    : [];
+
+  const poolTotal = prediction.pool_total ?? prediction.poolTotal ?? prediction.totalPool ?? 0;
+  const stakeMin = prediction.stake_min ?? prediction.stakeMin ?? prediction.minimum_stake ?? 0;
+  const entryDeadline = prediction.entry_deadline ?? prediction.entryDeadline ?? prediction.deadline;
+  const settlementMethod = prediction.settlement_method ?? prediction.settlementMethod ?? 'manual';
+  const participantCount =
+    prediction.participant_count ??
+    prediction.participantCount ??
+    prediction.participants ??
+    0;
+  const likeCount =
+    prediction.likes_count ??
+    prediction.likeCount ??
+    (Array.isArray((prediction as any).likes) ? (prediction as any).likes.length : Number((prediction as any).likes ?? 0));
+  const commentCount =
+    prediction.comments_count ??
+    prediction.commentCount ??
+    (Array.isArray((prediction as any).comments)
+      ? (prediction as any).comments.length
+      : Number((prediction as any).comments ?? 0));
+
+  return {
+    ...prediction,
+    options,
+    pool_total: prediction.pool_total ?? poolTotal,
+    poolTotal,
+    stake_min: prediction.stake_min ?? stakeMin,
+    stakeMin,
+    entry_deadline: prediction.entry_deadline ?? entryDeadline,
+    entryDeadline,
+    settlement_method: prediction.settlement_method ?? settlementMethod,
+    settlementMethod,
+    participant_count: prediction.participant_count ?? participantCount,
+    participantCount,
+    likes_count: prediction.likes_count ?? likeCount,
+    likeCount,
+    comments_count: prediction.comments_count ?? commentCount,
+    commentCount,
+  } as Prediction;
+};
+
+const normalizePredictions = (items: PredictionLike[] = []): Prediction[] =>
+  items.map(normalizePrediction);
 
 interface PredictionState {
   predictions: Prediction[];
@@ -126,6 +236,8 @@ interface PredictionState {
     category: string;
     search: string;
   };
+  // Prevent duplicate concurrent bet submissions per composite key
+  inFlightBets?: Record<string, boolean>;
 }
 
 interface PredictionActions {
@@ -140,7 +252,7 @@ interface PredictionActions {
   fetchCreatedPredictions: (userId: string) => Promise<void>;
   fetchPredictionById: (id: string) => Promise<Prediction | null>;
   createPrediction: (predictionData: any) => Promise<Prediction>;
-  placePrediction: (predictionId: string, optionId: string, amount: number, userId?: string) => Promise<void>;
+  placePrediction: (predictionId: string, optionId: string, amount: number, userId?: string, walletAddress?: string | null) => Promise<void>;
   
   // User-specific data fetching
   fetchUserPredictionEntries: (userId: string) => Promise<void>;
@@ -197,6 +309,7 @@ const initialState: PredictionState = {
     category: 'all',
     search: '',
   },
+  inFlightBets: {},
 };
 
 export const usePredictionStore = create<PredictionState & PredictionActions>((set, get) => ({
@@ -240,7 +353,7 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
         retryOptions: { maxRetries: 3 }
       });
 
-      const newPredictions = data.data || [];
+      const newPredictions = normalizePredictions(data.data || []);
       const pagination = data.pagination || {};
       
       console.log(`✅ Predictions fetched successfully: ${newPredictions.length} items (${pagination.total} total)`);
@@ -357,7 +470,7 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
       }
 
       const data = await response.json();
-      const trendingPredictions = data.data || [];
+      const trendingPredictions = normalizePredictions(data.data || []);
       
       set({ 
         trendingPredictions,
@@ -387,7 +500,7 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
       }
 
       const data = await response.json();
-      const userPredictions = data.data || [];
+      const userPredictions = normalizePredictions(data.data || []);
       
       set({ 
         userPredictions,
@@ -415,7 +528,7 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
       }
 
       const data = await response.json();
-      const createdPredictions = data.data || [];
+      const createdPredictions = normalizePredictions(data.data || []);
 
       set({
         createdPredictions,
@@ -435,53 +548,56 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
   fetchPredictionById: async (id: string) => {
     try {
       console.log(`🔍 Fetching prediction by ID: ${id}`);
-      
-      // First check if it's already in the store and has options
       const { predictions } = get();
-      const existing = predictions.find(p => p.id === id);
-      if (existing && existing.options && existing.options.length > 0) {
-        console.log('✅ Found prediction in store with options:', existing.title, existing.options.length);
-        return existing;
-      }
-      
-      // Fetch directly from the specific prediction endpoint to ensure we get options
-      console.log('🌐 Fetching prediction directly from API:', id);
-      const response = await fetch(`${getApiUrl()}/api/v2/predictions/${id}`);
-      
-      if (!response.ok) {
-        console.error(`❌ Failed to fetch prediction ${id}:`, response.status);
-        return null;
-      }
-      
-      const data = await response.json();
-      const prediction = data.data;
-      
-      if (prediction) {
-        console.log('✅ Fetched prediction from API:', prediction.title);
-        console.log('🔍 Prediction options:', prediction.options?.length || 0);
-        
-        // Update the store with the fetched prediction
-        set(state => ({
-          predictions: state.predictions.some(p => p.id === id) 
-            ? state.predictions.map(p => p.id === id ? prediction : p)
-            : [...state.predictions, prediction]
-        }));
-        
-        return prediction;
-      }
-      
-      // Fallback: try to find in store without options requirement
-      if (existing) {
-        console.log('⚠️ Using existing prediction without options:', existing.title);
-        return existing;
-      }
-      
-      console.log('❌ Prediction not found:', id);
-      return null;
+      const existing = predictions.find(p => p.id === id) || null;
 
+      const response = await fetch(`${getApiUrl()}/api/v2/predictions/${id}`);
+
+      if (!response.ok) {
+        // Suppress 404 errors for archived/deleted predictions
+        if (response.status === 404) {
+          console.log(`ℹ️ Prediction ${id} not found (archived or deleted)`);
+        } else {
+          console.error(`❌ Failed to fetch prediction ${id}:`, response.status);
+        }
+        return existing;
+      }
+
+      const data = await response.json();
+      const freshPrediction = normalizePrediction(data.data);
+
+      if (!freshPrediction) {
+        return existing;
+      }
+
+      console.log('✅ Fetched prediction from API:', freshPrediction.title);
+      console.log('🔍 Prediction options:', freshPrediction.options?.length || 0);
+
+      set(state => {
+        const merge = (pred: any) =>
+          pred.id === id ? { ...pred, ...freshPrediction } : pred;
+
+        const ensurePredictionList = (list: any[]) =>
+          list.some(pred => pred.id === id)
+            ? list.map(merge)
+            : [...list, freshPrediction];
+
+        return {
+          predictions: ensurePredictionList(state.predictions),
+          userPredictions: state.userPredictions.map(merge),
+          createdPredictions: state.createdPredictions.map(merge),
+          userCreatedPredictions: state.userCreatedPredictions.map(merge),
+          trendingPredictions: state.trendingPredictions.map(merge),
+          completedPredictions: state.completedPredictions.map(merge),
+        };
+      });
+
+      return freshPrediction;
     } catch (error) {
-      console.error('❌ Error fetching prediction by ID:', error);
-      return null;
+      // Suppress console errors for network issues (likely 404s for archived predictions)
+      console.log(`ℹ️ Could not fetch prediction ${id}`);
+      const { predictions } = get();
+      return predictions.find(p => p.id === id) || null;
     }
   },
 
@@ -507,7 +623,7 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
         throw new Error('Invalid response: no prediction data returned');
       }
       
-      const newPrediction = data.data;
+      const newPrediction = normalizePrediction(data.data);
 
       // Validate the prediction has required fields
       if (!newPrediction || !newPrediction.id) {
@@ -557,47 +673,166 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
     }
   },
 
-  placePrediction: async (predictionId: string, optionId: string, amount: number, userId?: string) => {
+  placePrediction: async (predictionId: string, optionId: string, amount: number, userId?: string, walletAddress?: string | null) => {
     set({ loading: true, error: null });
     
     try {
-      // First, update the wallet to lock funds
+      // Check if crypto mode is enabled (prefer on-chain when Base is enabled)
+      const FLAG_BASE_BETS = import.meta.env.VITE_FCZ_BASE_BETS === '1' || 
+                              import.meta.env.ENABLE_BASE_BETS === '1' ||
+                              import.meta.env.FCZ_ENABLE_BASE_BETS === '1' ||
+                              import.meta.env.VITE_FCZ_BASE_ENABLE === '1';
+      const FLAG_DEMO = import.meta.env.VITE_FCZ_ENABLE_DEMO === '1';
+      const isCryptoMode = FLAG_BASE_BETS && !FLAG_DEMO;
+
+      console.log('[FCZ-BET] mode detection', { FLAG_BASE_BETS, FLAG_DEMO, isCryptoMode, predictionId, optionId, amount, userId });
+
+      // Use new unified place-bet endpoint if crypto mode is enabled
+      if (isCryptoMode) {
+        console.log('[FCZ-BET] Placing bet via unified endpoint...', { predictionId, optionId, amount, userId });
+        
+        // Generate stable idempotency key + requestId (reused within TTL)
+        const compositeKey = computeBetKey(userId, predictionId, optionId, amount);
+        const inFlight = get().inFlightBets || {};
+        if (inFlight[compositeKey]) {
+          console.log('[FCZ-BET] Duplicate click prevented (in-flight):', compositeKey);
+          set({ loading: false });
+          return; // Ignore duplicate concurrent submissions
+        }
+        // mark in-flight
+        set(state => ({ inFlightBets: { ...(state.inFlightBets || {}), [compositeKey]: true } }));
+        const requestId = getOrCreateRequestId(compositeKey);
+        
+        const response = await fetch(`${getApiUrl()}/api/predictions/${predictionId}/place-bet`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            optionId,
+            amountUSD: amount,
+            userId,
+            walletAddress: walletAddress || undefined,
+            requestId
+          }),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          
+          // Handle specific error codes
+          if (errorData.error === 'INSUFFICIENT_ESCROW') {
+            throw new Error('INSUFFICIENT_ESCROW');
+          }
+          
+          if (errorData.error === 'BETTING_DISABLED') {
+            throw new Error('Betting is temporarily unavailable. Please try again later.');
+          }
+          
+          throw new Error(errorData.message || `Unable to place bet. Please try again.`);
+        }
+
+        const result = await response.json();
+        console.log('[FCZ-BET] Bet placed successfully:', result);
+
+        const updatedPrediction = result?.data?.prediction;
+        const newEntry = result?.data?.entry;
+
+        set(state => {
+          const mergePrediction = (pred: any) => {
+            if (!pred || pred.id !== predictionId) return pred;
+            return updatedPrediction
+              ? { ...pred, ...updatedPrediction }
+              : { 
+                  ...pred, 
+                  pool_total: (pred.pool_total || 0) + amount,
+                  participant_count: (pred.participant_count || 0) + 1
+                };
+          };
+
+          return {
+            predictions: state.predictions.map(mergePrediction),
+            userPredictions: state.userPredictions.map(mergePrediction),
+            createdPredictions: state.createdPredictions.map(mergePrediction),
+            userCreatedPredictions: state.userCreatedPredictions.map(mergePrediction),
+            userPredictionEntries: newEntry
+              ? [
+                  ...state.userPredictionEntries.filter(entry => entry.id !== newEntry.id),
+                  newEntry
+                ]
+              : state.userPredictionEntries,
+            loading: false,
+            error: null
+          };
+        });
+
+        // Ensure derived lists (like created predictions) stay fresh
+        try {
+          const { user } = useAuthStore.getState();
+          if (user?.id) {
+            await Promise.all([
+              get().fetchUserCreatedPredictions(user.id),
+              get().fetchUserPredictionEntries(user.id)
+            ]);
+          }
+        } catch (refreshErr) {
+          console.warn('[FCZ-BET] Post-bet refresh encountered an issue:', refreshErr);
+        }
+        // clear in-flight
+        set(state => {
+          const next = { ...(state.inFlightBets || {}) };
+          delete next[compositeKey];
+          return { inFlightBets: next } as any;
+        });
+
+        return result;
+      } else {
+        // DEMO MODE: Use old wallet lock flow and entries endpoint
+        // Only reachable when VITE_FCZ_ENABLE_DEMO=1
       const { useWalletStore } = await import('./walletStore');
       const walletStore = useWalletStore.getState();
       
-      // Get prediction details for transaction description
       const prediction = get().predictions.find(p => p.id === predictionId);
       const option = prediction?.options.find(o => o.id === optionId);
       const description = `Bet on "${option?.label || 'Unknown'}" in "${prediction?.title || 'Unknown Prediction'}"`;
       
-      // Lock funds in wallet first
-      console.log('🔄 Locking wallet funds before prediction placement...');
+        console.log('🔄 [DEMO] Locking wallet funds before prediction placement...');
       await walletStore.makePrediction(amount, description, predictionId);
-      console.log('✅ Wallet funds locked successfully');
+        console.log('✅ [DEMO] Wallet funds locked successfully');
+        
+        // Create prediction entry
+        const entryBody: any = {
+          option_id: optionId,
+          stakeUSD: amount,
+          user_id: userId
+        };
       
       const response = await fetch(`${getApiUrl()}/api/v2/predictions/${predictionId}/entries`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          option_id: optionId,
-          amount,
-          user_id: userId
-        }),
+          body: JSON.stringify(entryBody),
       });
 
       if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          
+          // Handle 409 Conflict (lock already consumed)
+          if (response.status === 409) {
+            throw new Error(errorData.message || 'This lock has already been used. Please try placing the bet again.');
+          }
+          
         // If API call fails, we should reverse the wallet transaction
         // For now, just throw the error - wallet will show locked funds
-        throw new Error(`Failed to place prediction: ${response.statusText}`);
+          throw new Error(errorData.message || `Failed to place prediction: ${response.statusText}`);
       }
 
       const data = await response.json();
       
       // Use the full updated prediction object returned by the server
       if (data.prediction) {
-        console.log('📊 Updating prediction with server data:', {
+          console.log('📊 [DEMO] Updating prediction with server data:', {
           id: data.prediction.id,
           pool_total: data.prediction.pool_total,
           participant_count: data.prediction.participant_count,
@@ -654,20 +889,42 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
         }));
       }
 
-      console.log('✅ Prediction placed successfully with updated data');
+        console.log('✅ [DEMO] Prediction placed successfully with updated data');
       
-      // Refresh wallet to show updated transactions
-      console.log('🔄 Refreshing wallet data after prediction placement...');
+        // In demo mode, refresh wallet store (reuse walletStore from line above)
+        console.log('🔄 [DEMO] Refreshing wallet data after prediction placement...');
       await walletStore.initializeWallet();
-      console.log('✅ Wallet refreshed');
+        console.log('✅ [DEMO] Wallet refreshed');
+      }
 
     } catch (error) {
       console.error('❌ Error placing prediction:', error);
+      
+      // Provide helpful error messages
+      let errorMessage = 'Failed to place prediction';
+      if (error instanceof Error) {
+        if (error.message.includes('already been used') || error.message.includes('already been consumed')) {
+          errorMessage = 'Previous bet attempt was not completed. Please refresh the page and try again.';
+        } else {
+          errorMessage = error.message;
+        }
+      }
+      
       set({
         loading: false,
-        error: error instanceof Error ? error.message : 'Failed to place prediction'
+        error: errorMessage
       });
       throw error;
+    } finally {
+      // Always clear in-flight guard after attempt window for this composite key
+      try {
+        const compositeKey = computeBetKey(userId, predictionId, optionId, amount);
+        set(state => {
+          const next = { ...(state.inFlightBets || {}) };
+          delete next[compositeKey];
+          return { inFlightBets: next } as any;
+        });
+      } catch {}
     }
   },
 
@@ -892,14 +1149,21 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
       const updatedPrediction = data.data;
 
       // Update prediction status in state
-      set(state => ({
-        predictions: state.predictions.map(pred => 
-          pred.id === predictionId ? { ...pred, status: 'closed', ...updatedPrediction } : pred
-        ),
-        userCreatedPredictions: state.userCreatedPredictions.map(pred => 
-          pred.id === predictionId ? { ...pred, status: 'closed', ...updatedPrediction } : pred
-        )
-      }));
+      set(state => {
+        const mergePrediction = (pred: any) =>
+          pred.id === predictionId
+            ? { ...pred, ...updatedPrediction, status: 'closed' }
+            : pred;
+
+        return {
+          predictions: state.predictions.map(mergePrediction),
+          userCreatedPredictions: state.userCreatedPredictions.map(mergePrediction),
+          createdPredictions: state.createdPredictions.map(mergePrediction),
+          userPredictions: state.userPredictions.map(mergePrediction),
+          trendingPredictions: state.trendingPredictions.map(mergePrediction),
+          completedPredictions: state.completedPredictions.map(mergePrediction),
+        };
+      });
 
       console.log('✅ Prediction closed successfully');
 

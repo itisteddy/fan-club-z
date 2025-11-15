@@ -50,19 +50,8 @@ export default defineConfig(({ mode }) => {
   ],
   resolve: {
     alias: {
-      '@': fileURLToPath(new URL('./src', import.meta.url)),
-      '@lib': path.resolve(__dirname, './src/lib'),
-      '@pages': path.resolve(__dirname, './src/pages'),
-      '@components': path.resolve(__dirname, './src/components'),
-      '@icons': path.resolve(__dirname, './src/icons'),
-      '@auth': path.resolve(__dirname, './src/auth'),
-      '@stores': path.resolve(__dirname, './src/stores'),
-      '@config': path.resolve(__dirname, './src/config'),
-      '@utils': path.resolve(__dirname, './src/utils'),
-      '@/lib': path.resolve(__dirname, './src/lib'),
-      '@/hooks': path.resolve(__dirname, './src/hooks'),
-      '@/types': path.resolve(__dirname, './src/types'),
-      '@fanclubz/shared': path.resolve(__dirname, '../shared/src'),
+      '@': path.resolve(__dirname, 'src'),
+      '~shared': path.resolve(__dirname, '../shared'),
     },
   },
   server: {
@@ -102,9 +91,10 @@ export default defineConfig(({ mode }) => {
   },
   optimizeDeps: {
     include: ['react', 'react-dom', 'zustand', '@tanstack/react-query'],
+    exclude: ['@base-org/account'],
   },
   esbuild: {
-    target: 'es2022',
+    target: 'esnext',
   }
   };
 });

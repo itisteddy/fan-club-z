@@ -3,7 +3,7 @@ import { useLocation } from 'wouter';
 import { motion } from 'framer-motion';
 import { 
   Sparkles,
-  ChartLine,
+  TrendingUp,
   PlusCircle,
   Trophy,
   User
@@ -22,7 +22,7 @@ const navigationItems = [
   {
     id: 'mybets',
     label: 'My Bets',
-    icon: ChartLine,
+    icon: TrendingUp,
     path: '/mybets',
     tourAttr: 'nav-wallet',
   },

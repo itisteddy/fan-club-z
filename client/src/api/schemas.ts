@@ -1,117 +1,48 @@
-// Type guards and validation schemas for API responses
-// Using simple type guards instead of Zod for now to avoid additional dependencies
+/**
+ * API schemas - type guards and validation
+ * Re-exports domain types and provides runtime validation
+ */
 
-export interface Prediction {
-  id: string;
-  title: string;
-  description: string;
-  category: string;
-  status: 'open' | 'closed' | 'settled' | 'awaiting_settlement' | 'disputed' | 'refunded' | 'ended';
-  creator_id: string;
-  created_at: string;
-  updated_at: string;
-  deadline: string;
-  settlement_criteria?: string;
-  total_volume?: number;
-  participant_count?: number;
-  creator?: {
-    id: string;
-    username: string;
-    full_name?: string;
-    avatar_url?: string;
-  };
-}
+// Re-export domain types for backward compatibility
+export type {
+  Prediction,
+  PredictionStatus,
+  PredictionOption,
+  PredictionEntry,
+  EntryStatus,
+  User,
+  WalletBalance,
+  Transaction,
+  TransactionType,
+  TransactionStatus,
+  EscrowLock,
+  EscrowLockState,
+  LeaderboardEntry,
+  Settlement,
+  PredictionListResponse,
+  LeaderboardResponse,
+} from '../types/domain';
 
-export interface PredictionListResponse {
-  predictions: Prediction[];
-  total: number;
-  page: number;
-  limit: number;
-  has_more: boolean;
-}
+// Re-export from shared (Comment, PaginatedResponse)
+export type { Comment, PaginatedResponse } from '@fanclubz/shared';
 
-export interface LeaderboardEntry {
-  id: string;
-  username: string;
-  full_name?: string;
-  avatar_url?: string;
-  total_predictions: number;
-  won_predictions: number;
-  total_volume: number;
-  win_rate: number;
-  rank: number;
-}
+// Import types for validation
+import type { 
+  Prediction, 
+  PredictionListResponse, 
+  LeaderboardEntry, 
+  LeaderboardResponse,
+  WalletBalance,
+  Transaction,
+  PredictionEntry,
+  Settlement,
+  User 
+} from '../types/domain';
 
-export interface LeaderboardResponse {
-  entries: LeaderboardEntry[];
-  total: number;
-  page: number;
-  limit: number;
-}
+// ================================
+// TYPE GUARDS
+// ================================
 
-export interface WalletSummary {
-  user_id: string;
-  currency: string;
-  available_balance: number;
-  reserved_balance: number;
-  total_balance: number;
-  last_updated: string;
-}
-
-export interface Transaction {
-  id: string;
-  user_id: string;
-  type: 'deposit' | 'withdrawal' | 'bet_placed' | 'bet_won' | 'bet_lost' | 'refund';
-  amount: number;
-  currency: string;
-  description: string;
-  status: 'pending' | 'completed' | 'failed' | 'cancelled';
-  created_at: string;
-  updated_at: string;
-  reference_id?: string;
-}
-
-export interface UserBet {
-  id: string;
-  user_id: string;
-  prediction_id: string;
-  option: 'yes' | 'no';
-  amount: number;
-  currency: string;
-  status: 'active' | 'won' | 'lost' | 'refunded';
-  created_at: string;
-  updated_at: string;
-  prediction?: Prediction;
-}
-
-export interface Settlement {
-  id: string;
-  prediction_id: string;
-  outcome: 'yes' | 'no' | 'refund';
-  settled_by: string;
-  settled_at: string;
-  reason?: string;
-  prediction?: Prediction;
-}
-
-export interface User {
-  id: string;
-  username: string;
-  full_name?: string;
-  email?: string;
-  avatar_url?: string;
-  bio?: string;
-  created_at: string;
-  updated_at: string;
-  stats?: {
-    total_predictions: number;
-    won_predictions: number;
-    total_volume: number;
-    win_rate: number;
-  };
-}
-
-// Type guards
 export function isPrediction(obj: unknown): obj is Prediction {
   return (
     typeof obj === 'object' &&
@@ -132,7 +63,7 @@ export function isPredictionListResponse(obj: unknown): obj is PredictionListRes
   return (
     typeof obj === 'object' &&
     obj !== null &&
-    Array.isArray((obj as any).predictions) &&
+    Array.isArray((obj as any).data) &&
     typeof (obj as any).total === 'number' &&
     typeof (obj as any).page === 'number' &&
     typeof (obj as any).limit === 'number' &&
@@ -158,14 +89,14 @@ export function isLeaderboardResponse(obj: unknown): obj is LeaderboardResponse 
   return (
     typeof obj === 'object' &&
     obj !== null &&
-    Array.isArray((obj as any).entries) &&
+    Array.isArray((obj as any).data) &&
     typeof (obj as any).total === 'number' &&
     typeof (obj as any).page === 'number' &&
     typeof (obj as any).limit === 'number'
   );
 }
 
-export function isWalletSummary(obj: unknown): obj is WalletSummary {
+export function isWalletBalance(obj: unknown): obj is WalletBalance {
   return (
     typeof obj === 'object' &&
     obj !== null &&
@@ -186,27 +117,22 @@ export function isTransaction(obj: unknown): obj is Transaction {
     typeof (obj as any).user_id === 'string' &&
     typeof (obj as any).type === 'string' &&
     typeof (obj as any).amount === 'number' &&
-    typeof (obj as any).currency === 'string' &&
-    typeof (obj as any).description === 'string' &&
     typeof (obj as any).status === 'string' &&
-    typeof (obj as any).created_at === 'string' &&
-    typeof (obj as any).updated_at === 'string'
+    typeof (obj as any).created_at === 'string'
   );
 }
 
-export function isUserBet(obj: unknown): obj is UserBet {
+export function isPredictionEntry(obj: unknown): obj is PredictionEntry {
   return (
     typeof obj === 'object' &&
     obj !== null &&
     typeof (obj as any).id === 'string' &&
     typeof (obj as any).user_id === 'string' &&
     typeof (obj as any).prediction_id === 'string' &&
-    typeof (obj as any).option === 'string' &&
+    typeof (obj as any).option_id === 'string' &&
     typeof (obj as any).amount === 'number' &&
-    typeof (obj as any).currency === 'string' &&
     typeof (obj as any).status === 'string' &&
-    typeof (obj as any).created_at === 'string' &&
-    typeof (obj as any).updated_at === 'string'
+    typeof (obj as any).created_at === 'string'
   );
 }
 
@@ -227,13 +153,14 @@ export function isUser(obj: unknown): obj is User {
     typeof obj === 'object' &&
     obj !== null &&
     typeof (obj as any).id === 'string' &&
-    typeof (obj as any).username === 'string' &&
-    typeof (obj as any).created_at === 'string' &&
-    typeof (obj as any).updated_at === 'string'
+    (typeof (obj as any).created_at === 'string' || typeof (obj as any).created_at === 'undefined')
   );
 }
 
-// Validation functions that return issues array
+// ================================
+// VALIDATION FUNCTIONS
+// ================================
+
 export function validatePredictionListResponse(obj: unknown): string[] {
   const issues: string[] = [];
   
@@ -243,7 +170,7 @@ export function validatePredictionListResponse(obj: unknown): string[] {
   }
 
   // Validate each prediction
-  obj.predictions.forEach((prediction, index) => {
+  obj.data.forEach((prediction, index) => {
     if (!isPrediction(prediction)) {
       issues.push(`Invalid prediction at index ${index}`);
     }
@@ -261,7 +188,7 @@ export function validateLeaderboardResponse(obj: unknown): string[] {
   }
 
   // Validate each entry
-  obj.entries.forEach((entry, index) => {
+  obj.data.forEach((entry, index) => {
     if (!isLeaderboardEntry(entry)) {
       issues.push(`Invalid leaderboard entry at index ${index}`);
     }
@@ -270,11 +197,11 @@ export function validateLeaderboardResponse(obj: unknown): string[] {
   return issues;
 }
 
-export function validateWalletSummary(obj: unknown): string[] {
+export function validateWalletBalance(obj: unknown): string[] {
   const issues: string[] = [];
   
-  if (!isWalletSummary(obj)) {
-    issues.push('Invalid wallet summary structure');
+  if (!isWalletBalance(obj)) {
+    issues.push('Invalid wallet balance structure');
   }
 
   return issues;
@@ -297,17 +224,17 @@ export function validateTransactionList(obj: unknown): string[] {
   return issues;
 }
 
-export function validateUserBetList(obj: unknown): string[] {
+export function validatePredictionEntryList(obj: unknown): string[] {
   const issues: string[] = [];
   
   if (!Array.isArray(obj)) {
-    issues.push('User bets must be an array');
+    issues.push('Prediction entries must be an array');
     return issues;
   }
 
-  obj.forEach((bet, index) => {
-    if (!isUserBet(bet)) {
-      issues.push(`Invalid user bet at index ${index}`);
+  obj.forEach((entry, index) => {
+    if (!isPredictionEntry(entry)) {
+      issues.push(`Invalid prediction entry at index ${index}`);
     }
   });
 

@@ -23,11 +23,16 @@ interface WalletBalance {
   total: number;
 }
 
-interface WalletState {
+export interface WalletState {
   balances: WalletBalance[];
   transactions: Transaction[];
   isLoading: boolean;
   error: string | null;
+  walletSummary?: {
+    available_balance?: number;
+    reserved_balance?: number;
+    total_balance?: number;
+  } | null;
   
   // Computed properties for easy access
   balance: number; // Available USD balance
@@ -55,6 +60,7 @@ export const useWalletStore = create<WalletState>()(
       transactions: [],
       isLoading: false,
       error: null,
+      walletSummary: null,
       
       // Computed properties
       get balance() {
@@ -76,129 +82,16 @@ export const useWalletStore = create<WalletState>()(
       },
 
       initializeWallet: async () => {
-        console.log('🔄 Initializing wallet...');
-        set({ isLoading: true, error: null });
-        
-        try {
-          // Always fetch from database - no demo balance fallback
-
-          // Get user from database
-          const { data: { user } } = await supabase.auth.getUser();
-          if (!user) {
-            console.log('⚠️ No authenticated user found');
-            set({ 
-              balances: [],
-              isLoading: false,
-              error: 'User not authenticated'
-            });
-            return;
-          }
-
-          console.log('👤 Fetching wallet for user:', user.id);
-
-          // Fetch wallet data from database
-          const { data: walletData, error: walletError } = await supabase
-            .from('wallets')
-            .select('*')
-            .eq('user_id', user.id);
-
-          if (walletError && walletError.code !== 'PGRST116') {
-            console.error('❌ Error fetching wallet data:', walletError);
-            set({ 
-              balances: [],
-              isLoading: false,
-              error: 'Failed to fetch wallet data'
-            });
-            return;
-          }
-
-          // Transform wallet data - NO DEMO FALLBACKS
-          const balances = walletData?.map(wallet => ({
-            currency: wallet.currency as 'USD',
-            available: Number(wallet.available_balance) || 0,
-            reserved: Number(wallet.reserved_balance) || 0,
-            total: Number(wallet.available_balance || 0) + Number(wallet.reserved_balance || 0)
-          })) || [];
-
-          // Create initial wallet in database if none exists
-          if (balances.length === 0) {
-            console.log('🏦 Creating initial wallet in database');
-            try {
-              await supabase
-                .from('wallets')
-                .insert({
-                  user_id: user.id,
-                  currency: 'USD',
-                  available_balance: 0,
-                  reserved_balance: 0,
-                  total_deposited: 0,
-                  total_withdrawn: 0,
-                  created_at: new Date().toISOString(),
-                  updated_at: new Date().toISOString()
-                });
-              
-              balances.push({ currency: 'USD', available: 0, reserved: 0, total: 0 });
-              console.log('✅ Initial wallet created in database');
-            } catch (createError) {
-              console.error('❌ Failed to create initial wallet:', createError);
-              set({ 
-                balances: [],
-                isLoading: false,
-                error: 'Failed to create wallet'
-              });
-              return;
-            }
-          } else {
-            console.log('✅ Using real wallet data from database:', balances[0]);
-          }
-
-          // Fetch transaction history
-          const { data: transactionData, error: transactionError } = await supabase
-            .from('wallet_transactions')
-            .select('*')
-            .eq('user_id', user.id)
-            .order('created_at', { ascending: false })
-            .limit(50);
-
-          if (transactionError) {
-            console.error('❌ Error fetching transaction history:', transactionError);
-          }
-
-          // Transform transaction data
-          const transactions = (transactionData || []).map(tx => ({
-            id: tx.id,
-            type: tx.type as Transaction['type'],
-            amount: Number(tx.amount),
-            description: tx.description,
-            date: new Date(tx.created_at),
-            status: tx.status as Transaction['status'],
-            reference: tx.reference,
-            currency: tx.currency as 'USD',
-            fee: tx.fee ? Number(tx.fee) : undefined,
-            fromUser: tx.from_user,
-            toUser: tx.to_user,
-            predictionId: tx.prediction_id
-          }));
-
-          set({
-            balances,
-            transactions,
-            isLoading: false,
-            error: null
-          });
-
-          console.log('✅ Wallet initialized successfully');
-          console.log('💰 Balance:', balances[0]?.available || 0);
-          console.log('📊 Transactions:', transactions.length);
-
-        } catch (error) {
-          console.error('❌ Error initializing wallet:', error);
-          set({
-            balances: [{ currency: 'USD', available: 0, reserved: 0, total: 0 }],
-            isLoading: false,
-            error: 'Failed to initialize wallet'
-          });
-        }
+        // DISABLED: This function reads from wallets table (demo/mock data)
+        // Wallet balance must come from on-chain data via useUSDCBalance hook
+        // Escrow data comes from useWalletSummary hook
+        console.log('[FCZ-PAY] initializeWallet() called but disabled - use on-chain hooks instead');
+        set({ 
+          balances: [],
+          transactions: [],
+          isLoading: false,
+          error: null
+        });
       },
 
       refreshWalletData: async () => {

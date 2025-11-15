@@ -35,8 +35,11 @@ const StickyFilters: React.FC<StickyFiltersProps> = ({
     if (!sentinel) return;
 
     const observer = new IntersectionObserver(
-      ([entry]) => {
-        setIsSticky(!entry.isIntersecting);
+      (entries) => {
+        const entry = entries[0];
+        if (entry) {
+          setIsSticky(!entry.isIntersecting);
+        }
       },
       { threshold: 0 }
     );

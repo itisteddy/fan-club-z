@@ -1,5 +1,15 @@
 import React from 'react';
-import { Dispute } from '../../../../shared/schema';
+
+// Local Dispute type definition
+interface Dispute {
+  id: string;
+  state: 'open' | 'under_review' | 'upheld' | 'overturned';
+  reason: 'wrong_source' | 'timing' | 'source_updated' | 'other';
+  evidence?: Array<{ type: 'link' | 'text'; value: string }>;
+  created_at?: string;
+  updated_at?: string;
+  resolution_note?: string;
+}
 
 interface DisputeCardProps {
   dispute: Dispute;
@@ -73,7 +83,7 @@ export const DisputeCard: React.FC<DisputeCardProps> = ({ dispute, className = "
         <div className="mb-3">
           <span className="text-xs font-medium text-gray-500">Evidence:</span>
           <div className="mt-1 space-y-1">
-            {dispute.evidence.map((item, index) => (
+            {dispute.evidence?.map((item: { type: 'link' | 'text'; value: string }, index: number) => (
               <div key={index} className="text-sm">
                 {item.type === 'link' ? (
                   <a 
@@ -103,7 +113,7 @@ export const DisputeCard: React.FC<DisputeCardProps> = ({ dispute, className = "
 
       {/* Timeline */}
       <div className="text-xs text-gray-500 space-y-1">
-        <div>Created: {formatDate(dispute.created_at)}</div>
+        <div>Created: {formatDate(dispute.created_at || '')}</div>
         {dispute.updated_at && dispute.updated_at !== dispute.created_at && (
           <div>Updated: {formatDate(dispute.updated_at)}</div>
         )}

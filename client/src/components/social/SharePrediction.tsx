@@ -65,7 +65,7 @@ export const SharePrediction: React.FC<SharePredictionProps> = ({
   };
 
   const shareViaNativeAPI = async () => {
-    if (navigator.share) {
+    if ('share' in navigator && typeof navigator.share === 'function') {
       try {
         await navigator.share({
           title: 'Fan Club Z Prediction',
@@ -132,7 +132,7 @@ export const SharePrediction: React.FC<SharePredictionProps> = ({
           </button>
 
           {/* Native Share (Mobile) */}
-          {navigator.share && (
+          {'share' in navigator && typeof navigator.share === 'function' && (
             <button
               onClick={shareViaNativeAPI}
               className="flex items-center justify-center gap-3 p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"

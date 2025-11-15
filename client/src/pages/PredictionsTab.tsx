@@ -15,6 +15,7 @@ import ManagePredictionModal from '../components/modals/ManagePredictionModal';
 import AppHeader from '../components/layout/AppHeader';
 import Page from '../components/ui/layout/Page';
 import EmptyState from '../components/ui/empty/EmptyState';
+import { formatTimeRemaining } from '@/lib/utils';
 
 const PredictionsTab: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNavigateToDiscover }) => {
   const navigate = useNavigate();
@@ -49,13 +50,10 @@ const PredictionsTab: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNav
   }, [user?.id, isAuthenticated, fetchUserCreatedPredictions, fetchUserPredictionEntries]);
 
   // Helper functions
-  const getTimeRemaining = (deadline: string) => {
-    if (!deadline) return "Unknown";
-    const end = new Date(deadline).getTime() - new Date().getTime();
-    if (end <= 0) return "Ended";
-    const days = Math.floor(end / (1000 * 60 * 60 * 24));
-    const hours = Math.floor((end % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-    return days > 0 ? `${days}d ${hours}h` : `${hours}h`;
+  const getTimeRemaining = (deadline: string | null | undefined) => {
+    if (!deadline) return 'Unknown';
+    const formatted = formatTimeRemaining(deadline);
+    return formatted || 'Unknown';
   };
 
   const calculateConfidence = (prediction: any) => {

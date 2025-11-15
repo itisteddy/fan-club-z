@@ -8,6 +8,7 @@ interface AuthSessionContextType {
   session: Session | null;
   loading: boolean;
   initialized: boolean;
+  isAuthenticated: boolean;
   signIn: (email: string, password: string) => Promise<{ error: any }>;
   signUp: (email: string, password: string, userData?: any) => Promise<{ error: any }>;
   signOut: () => Promise<{ error: any }>;
@@ -198,6 +199,7 @@ export const AuthSessionProvider: React.FC<AuthSessionProviderProps> = ({ childr
     session,
     loading,
     initialized,
+    isAuthenticated: Boolean(user),
     signIn,
     signUp,
     signOut,

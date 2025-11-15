@@ -1,5 +1,5 @@
 import React from 'react';
-import ModernBottomNavigation from './ModernBottomNavigation';
+// import ModernBottomNavigation from './ModernBottomNavigation'; // Module not found - commented out
 
 interface ModernMainLayoutProps {
   children: React.ReactNode;
@@ -14,7 +14,7 @@ const ModernMainLayout: React.FC<ModernMainLayoutProps> = ({ children }) => {
       </main>
 
       {/* Bottom Navigation */}
-      <ModernBottomNavigation />
+      {/* <ModernBottomNavigation /> */} {/* Module not found - commented out */}
     </div>
   );
 };

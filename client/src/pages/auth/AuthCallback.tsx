@@ -115,7 +115,7 @@ const AuthCallback: React.FC = () => {
           try {
             if (finalCodeVerifier) {
               console.log('Attempting code exchange with explicit code verifier...');
-              const result = await supabase.auth.exchangeCodeForSession({
+              const result = await (supabase.auth as any).exchangeCodeForSession({
                 authCode: code,
                 codeVerifier: finalCodeVerifier
               });
@@ -123,7 +123,7 @@ const AuthCallback: React.FC = () => {
               exchangeError = result.error;
             } else {
               console.log('Attempting code exchange without explicit code verifier...');
-              const result = await supabase.auth.exchangeCodeForSession(code);
+              const result = await (supabase.auth as any).exchangeCodeForSession(code);
               data = result.data;
               exchangeError = result.error;
             }

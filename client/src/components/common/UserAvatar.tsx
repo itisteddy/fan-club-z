@@ -38,10 +38,8 @@ export const UserAvatar: React.FC<UserAvatarProps> = ({
     }
     
     if (email && email.trim()) {
-      return email
-        .trim()
-        .split('@')[0]
-        .slice(0, 2)
+      const parts = email.trim().split('@');
+      return (parts[0] || email.trim()).slice(0, 2)
         .toUpperCase();
     }
     

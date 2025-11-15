@@ -1,0 +1,109 @@
+import { Router } from 'express';
+import { supabase } from '../config/database';
+import { VERSION } from '@fanclubz/shared';
+import { reconcileWallet } from '../services/walletReconciliation';
+
+export const walletSummary = Router();
+
+/**
+ * GET /api/wallet/summary?userId=<id>
+ * Returns escrow summary (escrow locks only)
+ * 
+ * NOTE: walletUSDC is NOT returned here - it must come from on-chain data
+ * via useUSDCBalance hook (reading ERC20 balanceOf from blockchain)
+ * 
+ * Response:
+ * {
+ *   currency: 'USD',
+ *   escrowUSDC: number,        // total locked in escrow (from escrow_locks)
+ *   reservedUSDC: number,      // reserved/locks pending consumption
+ *   availableToStakeUSDC: number, // calculated from escrow data
+ *   lastUpdated: string
+ * }
+ */
+walletSummary.get('/summary', async (req, res) => {
+  try {
+    const { userId, walletAddress, refresh } = req.query as {
+      userId?: string;
+      walletAddress?: string;
+      refresh?: string;
+    };
+
+    if (!userId) {
+      return res.status(400).json({
+        error: 'Bad Request',
+        message: 'userId query parameter is required',
+        version: VERSION
+      });
+    }
+
+    console.log(`[FCZ-PAY] Fetching wallet summary for user: ${userId}`);
+
+    let summary;
+    try {
+      summary = await reconcileWallet({
+        userId,
+        walletAddress: walletAddress ?? undefined,
+        recordTransactions: refresh === '1',
+      });
+    } catch (reconcileErr) {
+      // Do not 500 the endpoint if on-chain snapshot fails; fall back to zeros
+      console.warn('[FCZ-PAY] reconcileWallet failed in /api/wallet/summary, falling back:', reconcileErr);
+      summary = {
+        userId,
+        walletAddress: walletAddress ?? null,
+        escrowUSDC: 0,
+        reservedUSDC: 0,
+        availableToStakeUSDC: 0,
+        totalDepositedUSDC: 0,
+        totalWithdrawnUSDC: 0,
+        updatedAt: new Date().toISOString(),
+        source: 'cached' as const,
+      };
+    }
+
+    // Persist wallet address association if missing
+    if (summary.walletAddress) {
+      await supabase
+        .from('crypto_addresses')
+        .upsert(
+          {
+            user_id: userId,
+            chain_id: process.env.CHAIN_ID ? Number(process.env.CHAIN_ID) : null,
+            address: summary.walletAddress,
+          },
+          { onConflict: 'chain_id,address' }
+        );
+    }
+
+    const response = {
+      currency: 'USD' as const,
+      escrowUSDC: summary.escrowUSDC,
+      reservedUSDC: summary.reservedUSDC,
+      availableToStakeUSDC: summary.availableToStakeUSDC,
+      totalDepositedUSDC: summary.totalDepositedUSDC,
+      totalWithdrawnUSDC: summary.totalWithdrawnUSDC,
+      walletAddress: summary.walletAddress,
+      lastUpdated: summary.updatedAt,
+      source: summary.source,
+    };
+
+    console.log(`[FCZ-PAY] Wallet summary for ${userId}:`, response);
+
+    return res.json(response);
+  } catch (error) {
+    console.error('[FCZ-PAY] Unhandled error in wallet summary:', error);
+    return res.status(200).json({
+      currency: 'USD' as const,
+      escrowUSDC: 0,
+      reservedUSDC: 0,
+      availableToStakeUSDC: 0,
+      totalDepositedUSDC: 0,
+      totalWithdrawnUSDC: 0,
+      walletAddress: null,
+      lastUpdated: new Date().toISOString(),
+      source: 'cached' as const,
+    });
+  }
+});
+

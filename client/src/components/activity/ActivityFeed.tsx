@@ -11,8 +11,7 @@ import {
   RefreshCw
 } from 'lucide-react';
 import { useActivityFeed, ActivityItem } from '../../hooks/useActivityFeed';
-import { formatCurrency } from '@lib/format';
-import { formatDistanceToNow } from 'date-fns';
+import { formatCurrency, formatTimeAgo } from '@/lib/format';
 
 interface ActivityFeedProps {
   predictionId: string;
@@ -50,7 +49,7 @@ function ActivityItemComponent({ item }: ActivityItemComponentProps) {
       case 'entry.create':
         return {
           message: `${actorName} placed a bet`,
-          details: `${formatCurrency(data.amount, { compact: true })} on ${data.option_id ? 'an option' : 'this prediction'}`,
+          details: `${formatCurrency(data.amount, { compact: true })}${data.option_label ? ` on ${data.option_label}` : ''}`,
           icon: DollarSign
         };
       
@@ -74,7 +73,30 @@ function ActivityItemComponent({ item }: ActivityItemComponentProps) {
           details: data.settled_outcome_id ? 'Outcome determined' : '',
           icon: TrendingUp
         };
-      
+      case 'wallet.unlock':
+        return {
+          message: 'Escrow funds released',
+          details: data.amount ? formatCurrency(data.amount, { compact: true }) : '',
+          icon: DollarSign,
+        };
+      case 'wallet.payout':
+        return {
+          message: 'Settlement payout received',
+          details: data.amount ? `${formatCurrency(data.amount, { compact: true })}${data.prediction_title ? ` · ${data.prediction_title}` : ''}` : (data.prediction_title ?? ''),
+          icon: DollarSign,
+        };
+      case 'wallet.platform_fee':
+        return {
+          message: 'Platform fee credited',
+          details: data.amount ? formatCurrency(data.amount, { compact: true }) : '',
+          icon: DollarSign,
+        };
+      case 'wallet.creator_fee':
+        return {
+          message: 'Creator earnings received',
+          details: data.amount ? `${formatCurrency(data.amount, { compact: true })}${data.prediction_title ? ` · ${data.prediction_title}` : ''}` : (data.prediction_title ?? ''),
+          icon: DollarSign,
+        };
       default:
         return {
           message: 'Activity occurred',
@@ -125,7 +147,7 @@ function ActivityItemComponent({ item }: ActivityItemComponentProps) {
         
         <div className="flex items-center gap-2 mt-1">
           <span className="text-xs text-gray-500">
-            {formatDistanceToNow(new Date(item.timestamp), { addSuffix: true })}
+            {formatTimeAgo(item.timestamp)}
           </span>
           {item.actor?.is_verified && (
             <span className="text-xs text-emerald-600 font-medium">✓ Verified</span>

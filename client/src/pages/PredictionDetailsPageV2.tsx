@@ -2,12 +2,18 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Share2, BarChart3, Users, Calendar, DollarSign, ArrowLeft, Clock, User } from 'lucide-react';
+import { useQueryClient } from '@tanstack/react-query';
+import { QK } from '@/lib/queryKeys';
+import { useAccount } from 'wagmi';
 
 import { usePredictionStore } from '../store/predictionStore';
 import { useAuthStore } from '../store/authStore';
-import { useWalletStore } from '../store/walletStore';
+// DISABLED: useWalletStore reads from wallets table (demo/mock data)
+// import { useWalletStore } from '../stores/walletStore';
 import { openAuthGate } from '../auth/authGateAdapter';
 import { useAuthSession } from '../providers/AuthSessionProvider';
+import { useUnifiedBalance } from '../hooks/useUnifiedBalance';
+import DepositUSDCModal from '../components/wallet/DepositUSDCModal';
 // TODO: Implement accessibility utils
 const prefersReducedMotion = () => false;
 const AriaUtils = { announce: (message: string) => console.log('Announce:', message) };
@@ -32,7 +38,10 @@ import { StickyBetBar } from '../components/predictions/StickyBetBar';
 // import { useShareResult } from '../components/share/useShareResult';
 
 import toast from 'react-hot-toast';
-import { formatCurrency } from '@lib/format';
+import { formatCurrency } from '@/lib/format';
+import { useMerkleProof } from '@/hooks/useMerkleProof';
+import { useMerkleClaim } from '@/hooks/useMerkleClaim';
+import { usePredictionActivity } from '@/hooks/useActivityFeed';
 
 const showSuccessToast = (message: string) => toast.success(message);
 const showErrorToast = (message: string) => toast.error(message);
@@ -72,6 +81,8 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
   const [isPlacingBet, setIsPlacingBet] = useState(false);
   const [activeTab, setActiveTab] = useState('overview');
   const [shareUrl, setShareUrl] = useState('');
+  const [showDepositModal, setShowDepositModal] = useState(false);
+  const [justPlaced, setJustPlaced] = useState<{ amount: number; optionLabel: string } | null>(null);
   
   // TODO: Re-enable share functionality after testing
   // const { SharePreview, share: shareResult } = useShareResult();
@@ -84,19 +95,48 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
     loading,
     error
   } = usePredictionStore();
-
-  const { isAuthenticated: authStoreAuthenticated, user: authStoreUser } = useAuthStore();
-  const walletStore = useWalletStore();
-  const { getBalance, initializeWallet, balances } = walletStore;
   
-  // Get the actual balance value from the store
-  const walletBalance = walletStore.balance; // This accesses the getter
+  // DISABLED: Wallet store refresh - use query invalidation instead
+  // const { refresh: refreshWallet } = useWalletStore();
 
+  // Query client for cache invalidation
+  const queryClient = useQueryClient();
+
+  // Unified balance hook - SINGLE SOURCE OF TRUTH
+  const { 
+    wallet: walletUSDC,
+    available: escrowAvailableUSD,
+    locked: escrowLockedUSD,
+    total: escrowTotalUSD,
+    isLoading: isLoadingBalance,
+    refetch: refetchBalances
+  } = useUnifiedBalance();
+  
+  // Wallet address for additional checks
+  const { address: walletAddress } = useAccount();
+  const lowerWallet = walletAddress?.toLowerCase();
+  // Only request proof when prediction is actually settled
+  const isSettled = useMemo(() => {
+    const p = predictions.find(p => p.id === predictionId);
+    return Boolean(p?.settledAt);
+  }, [predictions, predictionId]);
+  const { data: merkle, isLoading: loadingProof } = useMerkleProof(isSettled ? predictionId : undefined, walletAddress);
+  const { claim, isClaiming } = useMerkleClaim();
+  
+  // Server snapshot for database locks (if still needed)
+  // Available to stake = on-chain available balance
+  const availableToStake = escrowAvailableUSD;
+  
   // Get prediction from store
   const prediction = useMemo(() => {
     if (!predictionId) return null;
     return predictions.find(p => p.id === predictionId) || null;
   }, [predictions, predictionId]);
+  const isClosedOrSettled = useMemo(() => {
+    if (!prediction) return false;
+    const status = (prediction.status || '').toLowerCase();
+    return isSettled || status === 'closed' || status === 'settled' || status === 'cancelled';
+  }, [prediction, isSettled]);
 
   // Use the unified media system for consistent, relevant images (after prediction is defined)
   const { media, status: mediaStatus } = useMedia(
@@ -115,41 +155,21 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
     }
   }, [media, prediction]);
 
-  // User balance - get balance from wallet store with proper error handling
-  const userBalance = useMemo(() => {
-    if (!isAuthenticated) {
-      console.log('💰 PredictionDetailsPageV2 - Not authenticated, returning 0');
-      return 0;
-    }
-    
-    // The wallet store returns balance as a computed property
-    // It should be the available balance in dollars
-    const balance = typeof walletBalance === 'number' && !isNaN(walletBalance) 
-      ? walletBalance 
-      : 0;
-    
-    // Also try getting from balances array as fallback
-    const balanceFromArray = balances.find(b => b.currency === 'USD')?.available || 0;
-    
-    console.log('💰 PredictionDetailsPageV2 - Balance calculation:', { 
-      isAuthenticated,
-      walletBalance,
-      balanceFromArray,
-      finalBalance: balance || balanceFromArray,
-      balancesArray: balances,
-      formatted: `${(balance || balanceFromArray).toLocaleString()}`
-    });
-    
-    return balance || balanceFromArray;
-  }, [isAuthenticated, walletBalance, balances]);
+  // User balance - use database-adjusted available balance (accounts for pending locks)
+const userBalance = isAuthenticated ? availableToStake : 0;
 
-  // Initialize wallet when authenticated
+  // Log balance for debugging
   useEffect(() => {
-    if (isAuthenticated && currentUser) {
-      console.log('💼 PredictionDetailsPageV2 - Initializing wallet for user:', currentUser.email);
-      initializeWallet();
+    if (isAuthenticated) {
+      console.log('💰 PredictionDetailsPageV2 - Balance:', { 
+        escrowTotal: escrowAvailableUSD,
+        availableToStake,
+        userBalance,
+        isLoadingBalance,
+        formatted: `${userBalance.toFixed(2)}`
+      });
     }
-  }, [isAuthenticated, currentUser, initializeWallet]);
+  }, [isAuthenticated, escrowAvailableUSD, availableToStake, userBalance, isLoadingBalance]);
 
   // Load prediction data
   const loadPrediction = useCallback(async () => {
@@ -173,12 +193,40 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
     loadPrediction();
   }, [loadPrediction]);
 
-  // Set share URL
+  // Activity feed for count badge
+  const { items: activityItems, refresh: refreshActivity } = usePredictionActivity(predictionId, { limit: 25, autoLoad: true });
+
+  // Set share URL (canonical slug) and gently rewrite URL to SEO path
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      setShareUrl(window.location.href);
-    }
-  }, [predictionId]);
+    if (typeof window === 'undefined') return;
+    const title = prediction?.title || prediction?.question || '';
+    const slug = title
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9\s-]/g, '')
+      .replace(/\s+/g, '-')
+      .replace(/-+/g, '-')
+      .slice(0, 80);
+    const canonical = `${window.location.origin}/predictions/${slug}`;
+    setShareUrl(canonical);
+    // Inject/replace canonical link
+    try {
+      let link = document.querySelector('link[rel="canonical"]') as HTMLLinkElement | null;
+      if (!link) {
+        link = document.createElement('link');
+        link.setAttribute('rel', 'canonical');
+        document.head.appendChild(link);
+      }
+      link.setAttribute('href', canonical);
+    } catch {}
+    // If the current URL isn't already the canonical slug path, replace it (no reload)
+    try {
+      const targetPath = `/predictions/${slug}`;
+      if (window.location.pathname !== targetPath) {
+        navigate(targetPath, { replace: true });
+      }
+    } catch {}
+  }, [prediction?.title, predictionId]);
 
   // Handle navigation
   const handleBack = () => {
@@ -236,17 +284,38 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
       return;
     }
 
-    if (!selectedOptionId || !stakeAmount || !prediction) {
+    if (!selectedOptionId || !stakeAmount || !prediction || !currentUser?.id) {
+      if (!currentUser?.id) {
+        showErrorToast('User not authenticated. Please sign in.');
+      }
+      return;
+    }
+
+    // Check if stake amount exceeds available balance
+    const amount = parseFloat(stakeAmount);
+    const BASE_BETS_ENABLED = import.meta.env.VITE_FCZ_BASE_BETS === '1';
+    
+    // Use availableToStake for crypto mode, userBalance for demo mode
+    const maxAvailable = BASE_BETS_ENABLED ? availableToStake : userBalance;
+    
+    if (amount > maxAvailable) {
+      // Open deposit modal instead of placing bet (crypto mode)
+      if (BASE_BETS_ENABLED) {
+        setShowDepositModal(true);
+        return;
+      }
+      showErrorToast(`Insufficient balance. Available: $${maxAvailable.toFixed(2)}`);
       return;
     }
 
     setIsPlacingBet(true);
     
     try {
-      const amount = parseFloat(stakeAmount);
       console.log('🎲 Placing prediction with amount:', { 
         stakeAmount, 
         parsedAmount: amount, 
+        availableBalance: userBalance,
+        userId: currentUser.id,
         isNaN: isNaN(amount), 
         isPositive: amount > 0 
       });
@@ -255,20 +324,58 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
         prediction.id,
         selectedOptionId,
         amount,
-        currentUser?.id
+        currentUser.id,
+        walletAddress
       );
 
-      showSuccessToast(`Prediction placed! $${stakeAmount} on your choice.`);
+      showSuccessToast(`Bet placed: $${stakeAmount} | lock consumed`);
       AriaUtils.announce(`Prediction placed successfully for ${stakeAmount} dollars`);
+      
+      // Inline confirmation chip (keep user on overview)
+      const optionLabel = prediction.options.find(o => o.id === selectedOptionId)?.label || 'Your bet';
+      setJustPlaced({ amount, optionLabel });
+      setTimeout(() => setJustPlaced(null), 6000);
       
       // Reset form
       setSelectedOptionId(null);
       setStakeAmount('');
-      setActiveTab('activity'); // Switch to activity tab
+
+      // Invalidate all related queries using unified query keys
+      const userId = currentUser?.id;
+      if (userId) {
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: QK.walletSummary(userId, lowerWallet) }),
+          queryClient.invalidateQueries({ queryKey: QK.walletActivity(userId) }),
+          queryClient.invalidateQueries({ queryKey: QK.escrowBalance(userId) }),
+          queryClient.invalidateQueries({ queryKey: QK.onchainActivity(userId) }),
+          queryClient.invalidateQueries({ queryKey: QK.prediction(predictionId) }),
+          queryClient.invalidateQueries({ queryKey: QK.predictionEntries(predictionId) }),
+        ]);
+      }
+      
+      // Also invalidate contract reads
+      queryClient.invalidateQueries({ queryKey: ['readContract'] });
+      
+      // Refresh escrow balances (on-chain and snapshot)
+      await refetchBalances();
+      
+      // Reload the prediction to get updated pool totals
+      await loadPrediction();
       
     } catch (error) {
-      console.error('Error placing prediction:', error);
-      showErrorToast('Failed to place prediction. Please try again.');
+      console.error('[FCZ-BET] Error placing prediction:', error);
+      
+      // Handle specific errors
+      if (error instanceof Error) {
+        if (error.message === 'INSUFFICIENT_ESCROW') {
+          setShowDepositModal(true);
+          showErrorToast('Insufficient escrow balance. Opening deposit modal...');
+          return;
+        }
+        showErrorToast(error.message || 'Failed to place prediction. Please try again.');
+      } else {
+        showErrorToast('Failed to place prediction. Please try again.');
+      }
     } finally {
       setIsPlacingBet(false);
     }
@@ -479,7 +586,7 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
             activeTab={activeTab}
             onTabChange={setActiveTab}
             commentCount={prediction.comments_count || 0}
-            participantCount={participantCount}
+            activityCount={activityItems.length}
           >
           <AnimatePresence mode="wait">
             {activeTab === 'overview' && (
@@ -517,6 +624,16 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
                     </div>
                   </div>
 
+                  {/* Closed/Settled callout */}
+                  {isClosedOrSettled && (
+                    <div className="bg-yellow-50 border border-yellow-200 rounded-2xl p-3">
+                      <div className="text-sm text-yellow-900 font-medium">This prediction is closed.</div>
+                      <div className="text-xs text-yellow-800 mt-1">
+                        {isSettled ? 'Results are finalized.' : 'No new bets can be placed.'}
+                      </div>
+                    </div>
+                  )}
+
                   {/* Description */}
                   {prediction.description && (
                     <div className="bg-white rounded-2xl p-4 shadow-sm border">
@@ -526,6 +643,41 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
                       <p className="text-sm text-gray-700 leading-relaxed">
                         {prediction.description}
                       </p>
+                    </div>
+                  )}
+
+                  {/* Claim Winnings - shown when a connected wallet has a claimable amount and not locally claimed */}
+                  {!!walletAddress && !!merkle && Number(merkle.amountUnits) > 0 && !(() => {
+                    try {
+                      return Boolean(localStorage.getItem(`fcz:claimed:${predictionId}:${walletAddress.toLowerCase()}`));
+                    } catch { return false; }
+                  })() && (
+                    <div className="bg-gradient-to-br from-emerald-50 to-blue-50 rounded-2xl p-4 shadow-sm border border-emerald-100">
+                      <div className="flex items-center justify-between gap-2">
+                        <div>
+                          <h3 className="text-base font-semibold text-gray-900">
+                            You have winnings to claim
+                          </h3>
+                          <p className="text-sm text-gray-600 mt-0.5">
+                            Connected: <span className="font-mono">{walletAddress.slice(0, 6)}…{walletAddress.slice(-4)}</span>
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          className="h-10 px-4 rounded-xl bg-emerald-600 text-white font-semibold hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                          disabled={isClaiming || loadingProof}
+                          onClick={async () => {
+                            const units = BigInt(merkle.amountUnits);
+                            await claim({
+                              predictionId,
+                              amountUnits: units,
+                              proof: merkle.proof as `0x${string}`[],
+                            });
+                          }}
+                        >
+                          {isClaiming ? 'Claiming…' : `Claim ${formatCurrency(merkle.amountUSD, { compact: false })}`}
+                        </button>
+                      </div>
                     </div>
                   )}
 
@@ -561,6 +713,21 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
                     />
                   )}
 
+                  {justPlaced && (
+                    <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 flex items-center justify-between">
+                      <div className="text-sm text-emerald-800 font-medium">
+                        You staked ${justPlaced.amount.toFixed(2)} on “{justPlaced.optionLabel}”.
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setActiveTab('activity')}
+                        className="text-xs font-semibold text-emerald-700 hover:text-emerald-800 underline"
+                      >
+                        View activity
+                      </button>
+                    </div>
+                  )}
+
                   {/* Stake Input - Only shows after option selection */}
                   {isAuthenticated && selectedOptionId && (
                     <div className="bg-white rounded-2xl p-4 shadow-sm border space-y-3">
@@ -585,9 +752,9 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
                       
                       <div className="flex items-center justify-between text-sm">
                         <span className="text-gray-600">
-                          Available: {formatCurrency(userBalance, { compact: true })}
+                          Available: {isLoadingBalance ? 'Loading…' : formatCurrency(userBalance, { compact: true })}
                         </span>
-                        {stakeAmount && parseFloat(stakeAmount) > userBalance && (
+                        {stakeAmount && !isLoadingBalance && parseFloat(stakeAmount) > userBalance && (
                           <span className="text-red-600 font-medium">Insufficient balance</span>
                         )}
                       </div>
@@ -638,11 +805,31 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
       </main>
 
       {/* Fixed Bet Bar - Above Bottom Navigation - Only on Overview tab */}
-      {activeTab === 'overview' && isAuthenticated && selectedOptionId && (
-        <StickyBetBar
-          canBet={!!stakeAmount && parseFloat(stakeAmount) > 0 && parseFloat(stakeAmount) <= userBalance}
-          onPlace={handlePlaceBet}
-          loading={isPlacingBet}
+      {activeTab === 'overview' && !isClosedOrSettled && (
+        (() => {
+          const amt = parseFloat(stakeAmount || '0');
+          const need = Math.max(0, amt - availableToStake);
+          const computedLabel = !amt || amt <= 0 ? 'Place Bet' : (need > 0 ? `Add funds (need $${need.toFixed(2)})` : `Place Bet: $${amt.toFixed(2)}`);
+          const canBet = !!stakeAmount && amt > 0;
+          return (
+            <StickyBetBar
+              canBet={canBet}
+              onPlace={handlePlaceBet}
+              loading={isPlacingBet}
+              label={computedLabel}
+            />
+          );
+        })()
+      )}
+      
+      {/* Deposit Modal */}
+      {showDepositModal && currentUser?.id && (
+        <DepositUSDCModal
+          open={showDepositModal}
+          onClose={() => setShowDepositModal(false)}
+          onSuccess={() => setShowDepositModal(false)}
+          availableUSDC={walletUSDC}
+          userId={currentUser.id}
         />
       )}
     </>

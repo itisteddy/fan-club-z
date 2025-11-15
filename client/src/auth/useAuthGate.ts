@@ -15,5 +15,11 @@ export interface UseAuthGateReturn {
  */
 export const useAuthGate = (): UseAuthGateReturn => {
   // Use the adapter's useAuthGate hook directly
-  return useAuthGateAdapter();
+  const adapterResult = useAuthGateAdapter();
+  return {
+    isOpen: adapterResult.isOpen,
+    pendingIntent: adapterResult.pendingIntent ?? undefined,
+    intentMeta: adapterResult.intentMeta ?? undefined,
+    payload: adapterResult.payload,
+  };
 };

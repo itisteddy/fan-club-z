@@ -1,0 +1,8 @@
+# Fan Club Z Escrow Deployment
+Deployed At: 2025-11-01 00:41:18 UTC
+Contract Address: 0x30c60f688A0082D1b761610ec3c70f6dC1374E95
+Network: Base Sepolia
+Chain ID: 84532
+RPC URL: https://sepolia.base.org
+USDC Address: 0x036CbD53842c5426634e7929541eC2318f3dCF7e
+Explorer: https://sepolia.basescan.org/address/0x30c60f688A0082D1b761610ec3c70f6dC1374E95

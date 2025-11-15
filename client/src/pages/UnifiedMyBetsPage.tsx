@@ -10,7 +10,7 @@ import StatCard, { StatRow } from '../components/ui/card/StatCard';
 import EmptyState from '../components/ui/empty/EmptyState';
 import AuthRequiredState from '../components/ui/empty/AuthRequiredState';
 import { SkeletonStatRow, SkeletonCard } from '../components/ui/skeleton/Skeleton';
-import { formatUSDCompact } from '@lib/format';
+import { formatUSDCompact } from '@/lib/format';
 
 // TODO: Replace with PredictionCardV3 for consistency
 // import { PredictionCardV3 } from '../components/predictions/PredictionCardV3';
@@ -74,7 +74,7 @@ const MyBetsPage: React.FC<MyBetsPageProps> = ({ onNavigateBack }) => {
             icon={<Trophy />}
             title="Sign in to view your bets"
             description="Track your predictions and winnings."
-            intent="view_bets"
+            intent="view_my_bets"
           />
         </Page>
       </>
