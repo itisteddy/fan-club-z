@@ -1,6 +1,5 @@
 import React, { useEffect, useCallback, memo, Suspense, lazy } from 'react';
 import { Routes, Route, useLocation, useNavigate, useParams } from 'react-router-dom';
-import { FCZ_UNIFIED_CARDS } from './utils/environment';
 import { useWalletStore } from './store/walletStore';
 import { useAuthStore } from './store/authStore';
 import { useLikeStore } from './store/likeStore';
@@ -554,19 +553,13 @@ const AppContent: React.FC = () => {
               <Route path="/leaderboard" element={<LeaderboardPageWrapper />} />
               <Route path="/create" element={<CreatePredictionPageWrapper />} />
               <Route path="/profile" element={
-                FCZ_UNIFIED_CARDS
-                  ? <PageWrapper title="Profile"><LazyProfilePageV2 /></PageWrapper>
-                  : <MyProfilePageWrapper />
+                <PageWrapper title="Profile"><LazyProfilePageV2 /></PageWrapper>
               } />
               <Route path="/profile/:userId" element={
-                FCZ_UNIFIED_CARDS
-                  ? <PageWrapper title="Profile"><LazyProfilePageV2 /></PageWrapper>
-                  : <UserProfilePageWrapper />
+                <PageWrapper title="Profile"><LazyProfilePageV2 /></PageWrapper>
               } />
               <Route path="/wallet" element={
-                FCZ_UNIFIED_CARDS
-                  ? <PageWrapper title="Wallet"><LazyWalletPageV2 /></PageWrapper>
-                  : <WalletPageWrapper />
+                <PageWrapper title="Wallet"><LazyWalletPageV2 /></PageWrapper>
               } />
               <Route path="/rankings" element={<LeaderboardPageWrapper />} />
               <Route path="/prediction/:id" element={<PredictionDetailsRouteWrapper />} />
