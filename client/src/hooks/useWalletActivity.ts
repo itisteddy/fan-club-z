@@ -1,8 +1,8 @@
 import { useQuery, useInfiniteQuery } from '@tanstack/react-query';
 import { useEffect } from 'react';
 import { QK } from '@/lib/queryKeys';
-import type { ActivityItem } from '@fanclubz/shared/src/types/activity';
-import { normalizeWalletTransaction } from '@fanclubz/shared/src/types/activity';
+import type { ActivityItem } from '@fanclubz/shared';
+import { normalizeWalletTransaction } from '@fanclubz/shared';
 
 export type WalletActivityItem = ActivityItem;
 
