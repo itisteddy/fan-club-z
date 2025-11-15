@@ -243,25 +243,15 @@ httpServer.listen(PORT, async () => {
         // Resolve and validate addresses from registry
         const { usdc } = await resolveAndValidateAddresses();
         
-        // Create a simple pool for the watcher (using Supabase connection)
-        const pool = {
-          connect: async () => {
-            return {
-              query: async (sql: string, params?: any[]) => {
-                if (sql.includes('SELECT')) {
-                  const { data, error } = await supabase.rpc('exec_sql', { sql, params });
-                  if (error) throw error;
-                  return { rows: data || [] };
-                } else {
-                  const { error } = await supabase.rpc('exec_sql', { sql, params });
-                  if (error) throw error;
-                  return { rowCount: 1 };
-                }
-              },
-              release: () => {}
-            };
-          }
-        } as any;
+        // Use real PostgreSQL pool connection (not Supabase RPC)
+        const { getDbPool } = await import('./utils/dbPool');
+        const pool = getDbPool();
+        
+        if (!pool) {
+          console.error('[FCZ-PAY] ❌ Cannot start deposit watcher: DATABASE_URL not configured');
+          console.error('[FCZ-PAY] Deposit watcher requires direct PostgreSQL connection for transactions');
+          return;
+        }
         
         await startBaseDepositWatcher({ 
           pool, 
