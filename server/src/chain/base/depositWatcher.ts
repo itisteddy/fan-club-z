@@ -163,12 +163,15 @@ async function saveCheckpoint(ctx: Ctx, blockNumber: bigint): Promise<void> {
       console.error('[FCZ-PAY] Error detail:', (err as any).detail);
     }
     
-    // Better error serialization
+    // Better error serialization - handle PostgREST/Supabase error objects
     let errorMessage = 'Unknown error';
     if (err instanceof Error) {
       errorMessage = err.message || err.toString();
     } else if (typeof err === 'string') {
       errorMessage = err;
+    } else if (err && typeof err === 'object') {
+      // PostgREST/Supabase errors have message property
+      errorMessage = (err as any).message || String(err);
     } else if (err !== null && err !== undefined) {
       errorMessage = String(err);
     }
@@ -183,9 +186,9 @@ async function saveCheckpoint(ctx: Ctx, blockNumber: bigint): Promise<void> {
       errorDetails.stack = err.stack;
       errorDetails.name = err.name;
     } else if (err && typeof err === 'object') {
-      // Try to extract useful info from error-like objects
+      // Extract PostgREST/Supabase error properties
       errorDetails.code = (err as any).code;
-      errorDetails.detail = (err as any).detail;
+      errorDetails.details = (err as any).details;
       errorDetails.hint = (err as any).hint;
     }
     
