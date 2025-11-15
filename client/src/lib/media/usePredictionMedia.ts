@@ -161,12 +161,17 @@ export function usePredictionMedia(prediction?: {
   title: string;
   category?: string;
 }): MediaResult {
-  // Initialize with fallback to prevent flash of empty/wrong image
+  // Initialize by checking memory cache first to avoid image switching
   const [url, setUrl] = useState<string | null>(() => {
     if (!prediction) return getFallback('', 'general');
+    // Check memory cache synchronously first
+    if (memory.has(prediction.id)) {
+      return memory.get(prediction.id) || getFallback(prediction.id, prediction.category);
+    }
     return getFallback(prediction.id, prediction.category);
   });
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
+  const [initialized, setInitialized] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -175,6 +180,7 @@ export function usePredictionMedia(prediction?: {
     if (!prediction) {
       setUrl(getFallback('', 'general'));
       setStatus('ready');
+      setInitialized(true);
       return;
     }
     
@@ -183,35 +189,41 @@ export function usePredictionMedia(prediction?: {
     if (!id || !title) {
       setUrl(getFallback(id, category));
       setStatus('ready');
+      setInitialized(true);
       return;
     }
 
     (async () => {
-      // 1) Memory cache
+      // 1) Memory cache (already checked in useState, but double-check)
       if (memory.has(id)) {
         const cached = memory.get(id);
-        if (!cancelled) {
-          setUrl(cached || getFallback(id, category));
+        if (!cancelled && cached && cached !== url) {
+          setUrl(cached);
           setStatus('ready');
+          setInitialized(true);
+        } else if (!cancelled) {
+          setStatus('ready');
+          setInitialized(true);
         }
         return;
       }
 
-      // 2) DB cache
+      // 2) DB cache - check quickly before showing fallback
       const dbUrl = await getCached(id);
       if (cancelled) return;
       
       if (dbUrl) {
         memory.set(id, dbUrl);
-        // Only update if different from current fallback
+        // Only update if different from current (prevents unnecessary re-render)
         if (dbUrl !== url) {
           setUrl(dbUrl);
         }
         setStatus('ready');
+        setInitialized(true);
         return;
       }
 
-      // 3) Build smart query & search
+      // 3) Build smart query & search (only if no cache found)
       const query = buildImageQuery(title, category);
       
       // Try Unsplash first, then Pexels
@@ -220,15 +232,14 @@ export function usePredictionMedia(prediction?: {
       
       if (cancelled) return;
 
-      // 4) Store & set
-      const finalUrl = fetched || getFallback(id, category);
-      memory.set(id, fetched);
-      
-      // Only update if we have a new fetched image (prevents unnecessary flash)
+      // 4) Store & set - only update if we got a fetched image AND it's different
+      // This prevents the jarring "one image then another" experience
       if (fetched && fetched !== url) {
+        memory.set(id, fetched);
         setUrl(fetched);
       }
       setStatus('ready');
+      setInitialized(true);
       
       // Cache in background (don't await)
       setCached(id, fetched, query);

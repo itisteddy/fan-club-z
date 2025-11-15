@@ -15,7 +15,7 @@ The domain `app.fanclubz.app` is not whitelisted in your WalletConnect project s
 
 1. Go to https://cloud.reown.com (formerly cloud.walletconnect.com)
 2. Sign in with your WalletConnect account
-3. Select your project (Project ID: `a376a3c48ca99bd80c5b30a37652a5ae`)
+3. Select your project (Project ID: `00bf3e007580babfff66bd23c646f3ff`)
 4. Navigate to **Project Settings** → **Allowed Domains** (or **App URLs**)
 5. Add the following domains:
    - `https://app.fanclubz.app`
@@ -27,7 +27,7 @@ The domain `app.fanclubz.app` is not whitelisted in your WalletConnect project s
 
 Ensure `VITE_WALLETCONNECT_PROJECT_ID` is set in Vercel:
 1. Go to Vercel Dashboard → Your Project → Settings → Environment Variables
-2. Verify `VITE_WALLETCONNECT_PROJECT_ID=a376a3c48ca99bd80c5b30a37652a5ae` exists
+2. Verify `VITE_WALLETCONNECT_PROJECT_ID=00bf3e007580babfff66bd23c646f3ff` exists
 3. If missing, add it for Production, Preview, and Development environments
 4. Redeploy after adding
 

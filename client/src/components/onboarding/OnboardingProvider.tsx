@@ -243,10 +243,20 @@ export const OnboardingProvider: React.FC<{ children: React.ReactNode }> = ({
   const { user, loading: authLoading } = useAuthStore();
   
   // Gate: Don't run tour during auth flow or modals
+  // Check UI readiness based on current route, not just discover page
+  const checkUIReady = () => {
+    const path = location.toLowerCase();
+    if (path === '/' || path === '/discover') {
+      return !!document.querySelector('[data-tour="discover-header"]');
+    }
+    // For other pages, just check if user is signed in and auth is loaded
+    return true;
+  };
+
   const canRunTour = 
     user && // Signed in
     !authLoading && // Auth loaded
-    document.querySelector('[data-tour="discover-header"]'); // UI ready
+    checkUIReady(); // UI ready for current page
 
   // Store navigate function globally for onboarding steps
   useEffect(() => {
@@ -257,15 +267,28 @@ export const OnboardingProvider: React.FC<{ children: React.ReactNode }> = ({
   }, [navigate]);
 
   // Check if we should show onboarding on app start
+  // Reduced delay and check UI readiness before showing
   useEffect(() => {
-    const timer = setTimeout(() => {
-      if (shouldShowWelcomeModal()) {
-        setShowWelcome(true);
+    if (!user || authLoading) return; // Wait for auth
+    
+    const checkAndShow = () => {
+      // Only show welcome modal on discover page for first-time users
+      if ((location === '/' || location === '/discover') && shouldShowWelcomeModal()) {
+        // Check if UI is ready before showing
+        if (checkUIReady()) {
+          setShowWelcome(true);
+        } else {
+          // Retry after a short delay if UI not ready
+          setTimeout(checkAndShow, 200);
+        }
       }
-    }, 1000); // Small delay to ensure app is fully loaded
+    };
+
+    // Start checking immediately, but with a small delay for initial render
+    const timer = setTimeout(checkAndShow, 300);
 
     return () => clearTimeout(timer);
-  }, []);
+  }, [user, authLoading, location]);
 
   // URL-based tour triggers
   useEffect(() => {
@@ -281,18 +304,28 @@ export const OnboardingProvider: React.FC<{ children: React.ReactNode }> = ({
 
   const handleStartFullTour = useCallback(() => {
     setShowWelcome(false);
+    
     // Ensure we're on the discover page for the full tour
     if (location !== '/' && location !== '/discover') {
       navigate('/');
-      setTimeout(() => {
-        startOnboarding({
-          steps: FULL_TOUR_STEPS,
-          allowSkip: true,
-          showProgress: true,
-          persistent: true
-        });
-      }, 500);
+      // Wait for navigation and UI to be ready before starting tour
+      const checkAndStart = () => {
+        const header = document.querySelector('[data-tour="discover-header"]');
+        if (header) {
+          startOnboarding({
+            steps: FULL_TOUR_STEPS,
+            allowSkip: true,
+            showProgress: true,
+            persistent: true
+          });
+        } else {
+          // Retry if UI not ready yet
+          setTimeout(checkAndStart, 100);
+        }
+      };
+      setTimeout(checkAndStart, 200);
     } else {
+      // Already on discover page, start immediately
       startOnboarding({
         steps: FULL_TOUR_STEPS,
         allowSkip: true,
