@@ -248,8 +248,9 @@ httpServer.listen(PORT, async () => {
         const pool = getDbPool();
         
         if (!pool) {
-          console.error('[FCZ-PAY] ❌ Cannot start deposit watcher: DATABASE_URL not configured');
-          console.error('[FCZ-PAY] Deposit watcher requires direct PostgreSQL connection for transactions');
+          console.warn('[FCZ-PAY] ⚠️ Cannot start deposit watcher: DATABASE_URL not configured');
+          console.warn('[FCZ-PAY] Deposit watcher requires direct PostgreSQL connection for transactions');
+          console.warn('[FCZ-PAY] Watcher will not start, but server will continue running');
           return;
         }
         
@@ -260,10 +261,10 @@ httpServer.listen(PORT, async () => {
         
         console.log('[FCZ-PAY] ✅ Deposit watcher started successfully');
       } catch (e) {
-        console.error('[FCZ-PAY] watcher fatal', e);
-        if (process.env.NODE_ENV === 'production') {
-          process.exit(1); // Fail fast in production
-        }
+        // Don't crash the server if watcher fails to start
+        console.error('[FCZ-PAY] ⚠️ Deposit watcher failed to start (non-fatal):', e);
+        console.error('[FCZ-PAY] Server will continue running without deposit watcher');
+        // Don't exit in production - let the server continue
       }
     })();
   }

@@ -67,7 +67,20 @@ function log(level: 'info' | 'warn' | 'error', message: string, meta?: Record<st
  * Load checkpoint from database
  */
 async function loadCheckpoint(ctx: Ctx): Promise<bigint | null> {
-  const client = await ctx.pool.connect();
+  let client;
+  try {
+    client = await ctx.pool.connect();
+  } catch (connectErr) {
+    // Connection failed - log warning but don't crash
+    const err = connectErr as any;
+    log('warn', 'Failed to connect to database for checkpoint load', {
+      error: err instanceof Error ? err.message : String(err),
+      code: err?.code,
+      hint: 'Checkpoint loading skipped, will start from latest block'
+    });
+    return null; // Return null to start from latest block
+  }
+
   try {
     const { rows } = await client.query<Checkpoint>(
       `SELECT block_number, updated_at 
@@ -108,10 +121,12 @@ async function loadCheckpoint(ctx: Ctx): Promise<bigint | null> {
       errorDetails.name = err.name;
     }
     
-    log('error', 'Failed to load checkpoint', errorDetails);
-    return null;
+    log('warn', 'Failed to load checkpoint (non-fatal)', errorDetails);
+    return null; // Return null to start from latest block instead of crashing
   } finally {
-    client.release();
+    if (client) {
+      client.release();
+    }
   }
 }
 
@@ -119,7 +134,21 @@ async function loadCheckpoint(ctx: Ctx): Promise<bigint | null> {
  * Save checkpoint to database
  */
 async function saveCheckpoint(ctx: Ctx, blockNumber: bigint): Promise<void> {
-  const client = await ctx.pool.connect();
+  let client;
+  try {
+    client = await ctx.pool.connect();
+  } catch (connectErr) {
+    // Connection failed - log warning but don't crash
+    const err = connectErr as any;
+    log('warn', 'Failed to connect to database for checkpoint save (non-fatal)', {
+      error: err instanceof Error ? err.message : String(err),
+      code: err?.code,
+      block: blockNumber.toString(),
+      hint: 'Checkpoint not saved, will resume from latest block on next restart'
+    });
+    return; // Silently fail - checkpoint saving is not critical
+  }
+
   try {
     // Use UPSERT pattern: delete old checkpoint, insert new one
     // This avoids ON CONFLICT issues if unique constraint doesn't exist
@@ -152,17 +181,6 @@ async function saveCheckpoint(ctx: Ctx, blockNumber: bigint): Promise<void> {
       // Ignore rollback errors
     }
     
-    // Direct console.error to see actual error before serialization
-    console.error('[FCZ-PAY] Checkpoint save error (raw):', err);
-    console.error('[FCZ-PAY] Error type:', typeof err);
-    console.error('[FCZ-PAY] Error instanceof Error:', err instanceof Error);
-    if (err && typeof err === 'object') {
-      console.error('[FCZ-PAY] Error keys:', Object.keys(err));
-      console.error('[FCZ-PAY] Error message:', (err as any).message);
-      console.error('[FCZ-PAY] Error code:', (err as any).code);
-      console.error('[FCZ-PAY] Error detail:', (err as any).detail);
-    }
-    
     // Better error serialization - handle PostgREST/Supabase error objects
     let errorMessage = 'Unknown error';
     if (err instanceof Error) {
@@ -176,15 +194,14 @@ async function saveCheckpoint(ctx: Ctx, blockNumber: bigint): Promise<void> {
       errorMessage = String(err);
     }
     
-    // Log full error details for debugging
+    // Log as warning (not error) since checkpoint saving is not critical
     const errorDetails: Record<string, any> = { 
       error: errorMessage,
       block: blockNumber.toString()
     };
     
     if (err instanceof Error) {
-      errorDetails.stack = err.stack;
-      errorDetails.name = err.name;
+      errorDetails.code = (err as any).code;
     } else if (err && typeof err === 'object') {
       // Extract PostgREST/Supabase error properties
       errorDetails.code = (err as any).code;
@@ -192,9 +209,11 @@ async function saveCheckpoint(ctx: Ctx, blockNumber: bigint): Promise<void> {
       errorDetails.hint = (err as any).hint;
     }
     
-    log('error', 'Failed to save checkpoint', errorDetails);
+    log('warn', 'Failed to save checkpoint (non-fatal)', errorDetails);
   } finally {
-    client.release();
+    if (client) {
+      client.release();
+    }
   }
 }
 
