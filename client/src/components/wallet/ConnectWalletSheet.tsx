@@ -1,6 +1,6 @@
 import * as Dialog from '@radix-ui/react-dialog';
 import { VisuallyHidden } from '@radix-ui/react-visually-hidden';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useConnect } from 'wagmi';
 import toast from 'react-hot-toast';
 
@@ -24,7 +24,7 @@ export default function ConnectWalletSheet({ isOpen, onClose }: ConnectWalletShe
   const isMobile = isMobileDevice();
   const wcConnector = wcEnabled ? connectors.find(c => c.id === 'walletConnect') : null;
 
-  const handleConnect = async (connector: any) => {
+  const handleConnect = useCallback(async (connector: any) => {
     try {
       await connect({ connector });
       if (onClose) onClose();
@@ -42,7 +42,7 @@ export default function ConnectWalletSheet({ isOpen, onClose }: ConnectWalletShe
         toast.error(errorMessage);
       }
     }
-  };
+  }, [connect, onClose]);
 
   // On mobile, auto-connect WalletConnect when modal opens
   useEffect(() => {
@@ -50,7 +50,7 @@ export default function ConnectWalletSheet({ isOpen, onClose }: ConnectWalletShe
       // Auto-connect WalletConnect on mobile without showing modal
       handleConnect(wcConnector);
     }
-  }, [isMobile, open, wcConnector, wcEnabled, connect, onClose]);
+  }, [isMobile, open, wcConnector, wcEnabled, handleConnect]);
 
   useEffect(() => {
     // Controlled mode sync
@@ -72,7 +72,7 @@ export default function ConnectWalletSheet({ isOpen, onClose }: ConnectWalletShe
     };
     window.addEventListener('fcz:wallet:connect', handler as EventListener);
     return () => window.removeEventListener('fcz:wallet:connect', handler as EventListener);
-  }, [isOpen, isMobile, wcConnector, wcEnabled, connect, onClose]);
+  }, [isOpen, isMobile, wcConnector, wcEnabled, handleConnect]);
 
   const browserConnector = connectors.find(c => c.id === 'injected');
 
