@@ -164,14 +164,16 @@ export function usePredictionMedia(prediction?: {
   // Initialize by checking memory cache first to avoid image switching
   const [url, setUrl] = useState<string | null>(() => {
     if (!prediction) return getFallback('', 'general');
-    // Check memory cache synchronously first
+    // Check memory cache synchronously first - this prevents any image switching
     if (memory.has(prediction.id)) {
-      return memory.get(prediction.id) || getFallback(prediction.id, prediction.category);
+      const cached = memory.get(prediction.id);
+      if (cached) return cached; // Use cached image immediately
     }
+    // Use deterministic fallback - same ID always gets same fallback
     return getFallback(prediction.id, prediction.category);
   });
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
-  const [initialized, setInitialized] = useState(false);
+  const [imageLocked, setImageLocked] = useState(false); // Lock image once displayed
 
   useEffect(() => {
     let cancelled = false;
@@ -180,7 +182,7 @@ export function usePredictionMedia(prediction?: {
     if (!prediction) {
       setUrl(getFallback('', 'general'));
       setStatus('ready');
-      setInitialized(true);
+      setImageLocked(true);
       return;
     }
     
@@ -189,41 +191,54 @@ export function usePredictionMedia(prediction?: {
     if (!id || !title) {
       setUrl(getFallback(id, category));
       setStatus('ready');
-      setInitialized(true);
+      setImageLocked(true);
       return;
     }
+
+    // Lock the image after a short delay to prevent switching once displayed
+    const lockTimer = setTimeout(() => {
+      setImageLocked(true);
+    }, 100);
 
     (async () => {
       // 1) Memory cache (already checked in useState, but double-check)
       if (memory.has(id)) {
         const cached = memory.get(id);
-        if (!cancelled && cached && cached !== url) {
+        if (!cancelled && cached && !imageLocked && cached !== url) {
           setUrl(cached);
           setStatus('ready');
-          setInitialized(true);
         } else if (!cancelled) {
           setStatus('ready');
-          setInitialized(true);
         }
         return;
       }
 
-      // 2) DB cache - check quickly before showing fallback
+      // 2) DB cache - only update if image not locked
       const dbUrl = await getCached(id);
       if (cancelled) return;
       
-      if (dbUrl) {
+      if (dbUrl && !imageLocked) {
         memory.set(id, dbUrl);
-        // Only update if different from current (prevents unnecessary re-render)
-        if (dbUrl !== url) {
+        // Only update if we don't have a real image yet (still showing fallback)
+        const currentIsFallback = !url || url.includes('photo-1500530855697-b586d89ba3ee') || url.includes('photo-');
+        if (currentIsFallback && dbUrl !== url) {
           setUrl(dbUrl);
         }
         setStatus('ready');
-        setInitialized(true);
+        return;
+      } else if (dbUrl) {
+        // Cache found but image locked - just store in memory for next time
+        memory.set(id, dbUrl);
+        setStatus('ready');
         return;
       }
 
-      // 3) Build smart query & search (only if no cache found)
+      // 3) Build smart query & search (only if no cache found AND image not locked)
+      if (imageLocked) {
+        setStatus('ready');
+        return;
+      }
+
       const query = buildImageQuery(title, category);
       
       // Try Unsplash first, then Pexels
@@ -232,20 +247,31 @@ export function usePredictionMedia(prediction?: {
       
       if (cancelled) return;
 
-      // 4) Store & set - only update if we got a fetched image AND it's different
-      // This prevents the jarring "one image then another" experience
-      if (fetched && fetched !== url) {
+      // 4) Store & set - only update if we got a fetched image AND image not locked
+      // AND we're still showing a fallback (not a real image)
+      if (fetched && !imageLocked) {
+        const currentIsFallback = !url || url.includes('photo-1500530855697-b586d89ba3ee');
+        if (currentIsFallback && fetched !== url) {
+          memory.set(id, fetched);
+          setUrl(fetched);
+        } else {
+          // Store in memory for next time even if we don't update
+          memory.set(id, fetched);
+        }
+      } else if (fetched) {
+        // Store in memory for next time even if image is locked
         memory.set(id, fetched);
-        setUrl(fetched);
       }
       setStatus('ready');
-      setInitialized(true);
       
       // Cache in background (don't await)
       setCached(id, fetched, query);
     })();
 
-    return () => { cancelled = true; };
+    return () => { 
+      cancelled = true;
+      clearTimeout(lockTimer);
+    };
   }, [prediction?.id, prediction?.title, prediction?.category]);
 
   return {

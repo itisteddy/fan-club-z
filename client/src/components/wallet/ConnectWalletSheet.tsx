@@ -7,6 +7,12 @@ import toast from 'react-hot-toast';
 const WC_ID = import.meta.env.VITE_WC_PROJECT_ID || import.meta.env.VITE_WALLETCONNECT_PROJECT_ID || '';
 const wcEnabled = WC_ID.length >= 8;
 
+// Detect mobile device
+const isMobileDevice = () => {
+  return /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || 
+         (window.innerWidth <= 768 && 'ontouchstart' in window);
+};
+
 type ConnectWalletSheetProps = {
   isOpen?: boolean;
   onClose?: () => void;
@@ -15,36 +21,11 @@ type ConnectWalletSheetProps = {
 export default function ConnectWalletSheet({ isOpen, onClose }: ConnectWalletSheetProps) {
   const { connect, connectors, status, error } = useConnect();
   const [open, setOpen] = useState<boolean>(Boolean(isOpen));
-
-  useEffect(() => {
-    // Controlled mode sync
-    if (typeof isOpen === 'boolean') {
-      setOpen(isOpen);
-    }
-  }, [isOpen]);
-
-  useEffect(() => {
-    // Uncontrolled (global event) mode only when isOpen prop is not provided
-    if (typeof isOpen === 'boolean') return;
-    const handler = () => setOpen(true);
-    window.addEventListener('fcz:wallet:connect', handler as EventListener);
-    return () => window.removeEventListener('fcz:wallet:connect', handler as EventListener);
-  }, [isOpen]);
+  const isMobile = isMobileDevice();
+  const wcConnector = wcEnabled ? connectors.find(c => c.id === 'walletConnect') : null;
 
   const handleConnect = async (connector: any) => {
     try {
-      // For mobile browser wallets, check if we're on mobile first
-      const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-      
-      if (connector.id === 'injected' && isMobile) {
-        // On mobile, injected connector should work with browser wallets
-        // But we need to check if wallet is available
-        if (!window.ethereum && !(window as any).web3) {
-          toast.error('No wallet detected. Please install MetaMask or use WalletConnect.');
-          return;
-        }
-      }
-      
       await connect({ connector });
       if (onClose) onClose();
       else setOpen(false);
@@ -63,8 +44,37 @@ export default function ConnectWalletSheet({ isOpen, onClose }: ConnectWalletShe
     }
   };
 
+  // On mobile, auto-connect WalletConnect when modal opens
+  useEffect(() => {
+    if (isMobile && open && wcConnector && wcEnabled) {
+      // Auto-connect WalletConnect on mobile without showing modal
+      handleConnect(wcConnector);
+    }
+  }, [isMobile, open, wcConnector, wcEnabled, connect, onClose]);
+
+  useEffect(() => {
+    // Controlled mode sync
+    if (typeof isOpen === 'boolean') {
+      setOpen(isOpen);
+    }
+  }, [isOpen]);
+
+  useEffect(() => {
+    // Uncontrolled (global event) mode only when isOpen prop is not provided
+    if (typeof isOpen === 'boolean') return;
+    const handler = () => {
+      // On mobile, directly connect WalletConnect without showing modal
+      if (isMobile && wcConnector && wcEnabled) {
+        handleConnect(wcConnector);
+      } else {
+        setOpen(true);
+      }
+    };
+    window.addEventListener('fcz:wallet:connect', handler as EventListener);
+    return () => window.removeEventListener('fcz:wallet:connect', handler as EventListener);
+  }, [isOpen, isMobile, wcConnector, wcEnabled, connect, onClose]);
+
   const browserConnector = connectors.find(c => c.id === 'injected');
-  const wcConnector = wcEnabled ? connectors.find(c => c.id === 'walletConnect') : null;
 
   return (
     <Dialog.Root
@@ -96,25 +106,9 @@ export default function ConnectWalletSheet({ isOpen, onClose }: ConnectWalletShe
           </div>
 
           <div className="overflow-y-auto pb-safe px-4 pt-3">
-            <ul className="divide-y divide-gray-100 rounded-xl border border-gray-100 overflow-hidden">
-              <li>
-                <button
-                  type="button"
-                  disabled={!browserConnector}
-                  onClick={() => browserConnector && handleConnect(browserConnector)}
-                  className="flex w-full items-center justify-between px-4 py-4 hover:bg-gray-50 disabled:opacity-50"
-                >
-                  <div className="flex items-center gap-3">
-                    <span className="text-2xl">🦊</span>
-                    <div>
-                      <div className="font-medium">Browser Wallet</div>
-                      <div className="text-xs text-gray-500">MetaMask or compatible</div>
-                    </div>
-                  </div>
-                  <span className="text-gray-400">›</span>
-                </button>
-              </li>
-              <li>
+            {isMobile ? (
+              // On mobile, only show WalletConnect option
+              <div className="rounded-xl border border-gray-100 overflow-hidden">
                 <button
                   type="button"
                   disabled={!wcConnector || !wcEnabled}
@@ -126,7 +120,7 @@ export default function ConnectWalletSheet({ isOpen, onClose }: ConnectWalletShe
                     <div>
                       <div className="font-medium">WalletConnect</div>
                       <div className="text-xs text-gray-500">
-                        Mobile wallets (QR / deep link)
+                        Connect your mobile wallet
                         {!wcEnabled && (
                           <span className="ml-2 text-xs text-gray-500">(add VITE_WC_PROJECT_ID)</span>
                         )}
@@ -135,8 +129,51 @@ export default function ConnectWalletSheet({ isOpen, onClose }: ConnectWalletShe
                   </div>
                   <span className="text-gray-400">›</span>
                 </button>
-              </li>
-            </ul>
+              </div>
+            ) : (
+              // On desktop, show both options
+              <ul className="divide-y divide-gray-100 rounded-xl border border-gray-100 overflow-hidden">
+                <li>
+                  <button
+                    type="button"
+                    disabled={!browserConnector}
+                    onClick={() => browserConnector && handleConnect(browserConnector)}
+                    className="flex w-full items-center justify-between px-4 py-4 hover:bg-gray-50 disabled:opacity-50"
+                  >
+                    <div className="flex items-center gap-3">
+                      <span className="text-2xl">🦊</span>
+                      <div>
+                        <div className="font-medium">Browser Wallet</div>
+                        <div className="text-xs text-gray-500">MetaMask or compatible</div>
+                      </div>
+                    </div>
+                    <span className="text-gray-400">›</span>
+                  </button>
+                </li>
+                <li>
+                  <button
+                    type="button"
+                    disabled={!wcConnector || !wcEnabled}
+                    onClick={() => wcConnector && handleConnect(wcConnector)}
+                    className="flex w-full items-center justify-between px-4 py-4 hover:bg-gray-50 disabled:opacity-50"
+                  >
+                    <div className="flex items-center gap-3">
+                      <span className="text-2xl">🪢</span>
+                      <div>
+                        <div className="font-medium">WalletConnect</div>
+                        <div className="text-xs text-gray-500">
+                          Mobile wallets (QR / deep link)
+                          {!wcEnabled && (
+                            <span className="ml-2 text-xs text-gray-500">(add VITE_WC_PROJECT_ID)</span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    <span className="text-gray-400">›</span>
+                  </button>
+                </li>
+              </ul>
+            )}
 
             {status === 'error' && (
               <p className="px-4 pt-3 text-xs text-red-600">{String(error?.message ?? 'Failed to connect')}</p>
