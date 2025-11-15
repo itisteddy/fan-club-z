@@ -152,6 +152,17 @@ async function saveCheckpoint(ctx: Ctx, blockNumber: bigint): Promise<void> {
       // Ignore rollback errors
     }
     
+    // Direct console.error to see actual error before serialization
+    console.error('[FCZ-PAY] Checkpoint save error (raw):', err);
+    console.error('[FCZ-PAY] Error type:', typeof err);
+    console.error('[FCZ-PAY] Error instanceof Error:', err instanceof Error);
+    if (err && typeof err === 'object') {
+      console.error('[FCZ-PAY] Error keys:', Object.keys(err));
+      console.error('[FCZ-PAY] Error message:', (err as any).message);
+      console.error('[FCZ-PAY] Error code:', (err as any).code);
+      console.error('[FCZ-PAY] Error detail:', (err as any).detail);
+    }
+    
     // Better error serialization
     let errorMessage = 'Unknown error';
     if (err instanceof Error) {
@@ -171,6 +182,11 @@ async function saveCheckpoint(ctx: Ctx, blockNumber: bigint): Promise<void> {
     if (err instanceof Error) {
       errorDetails.stack = err.stack;
       errorDetails.name = err.name;
+    } else if (err && typeof err === 'object') {
+      // Try to extract useful info from error-like objects
+      errorDetails.code = (err as any).code;
+      errorDetails.detail = (err as any).detail;
+      errorDetails.hint = (err as any).hint;
     }
     
     log('error', 'Failed to save checkpoint', errorDetails);
