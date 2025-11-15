@@ -14,8 +14,10 @@ const USDC_ADDRESS = getAddress((import.meta.env.VITE_USDC_ADDRESS_BASE_SEPOLIA 
                                  import.meta.env.VITE_BASE_USDC_ADDRESS || 
                                  '0x036CbD53842c5426634e7929541eC2318f3dCF7e')) as `0x${string}`;
 
-// Escrow Contract Address
-const ESCROW_ADDR_ENV = getAddress((import.meta.env.VITE_BASE_ESCROW_ADDRESS ?? '')) as `0x${string}`;
+// Escrow Contract Address - Only validate if env var exists
+const ESCROW_ADDR_ENV: `0x${string}` | undefined = import.meta.env.VITE_BASE_ESCROW_ADDRESS 
+  ? getAddress(import.meta.env.VITE_BASE_ESCROW_ADDRESS) as `0x${string}`
+  : undefined;
 
 // USDC ERC20 ABI (approve + allowance functions)
 const ERC20_ABI = [
@@ -122,6 +124,26 @@ export default function DepositUSDCModal({
   }, [isModalOpen, onClose, submitting]);
 
   if (!isModalOpen) return null;
+
+  // Guard: Ensure escrowAddress is available before rendering
+  if (!escrowAddress) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onClose}>
+        <div className="bg-white rounded-lg p-6 max-w-md mx-4" onClick={(e) => e.stopPropagation()}>
+          <h2 className="text-lg font-semibold mb-2 text-red-600">Configuration Error</h2>
+          <p className="text-gray-600 mb-4">
+            Escrow contract address is not configured. Please contact support or check environment variables.
+          </p>
+          <button
+            onClick={onClose}
+            className="w-full px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition-colors"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   const cleanAmount = clamp2dp(amount || 0);
   const isOnBase = chainId === baseSepolia.id;
