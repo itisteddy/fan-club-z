@@ -40,6 +40,7 @@ const MAX_RETRIES = 5;
 const INITIAL_RETRY_DELAY_MS = 1000;
 const MAX_RETRY_DELAY_MS = 60000;
 const POLL_INTERVAL_MS = 10000;
+const CHECKPOINT_SAVE_INTERVAL_BLOCKS = 50n; // Save checkpoint every 50 blocks to reduce DB load
 
 function envOn(): boolean {
   return process.env.PAYMENTS_ENABLE === '1' && process.env.ENABLE_BASE_DEPOSITS === '1';
@@ -133,20 +134,22 @@ async function loadCheckpoint(ctx: Ctx): Promise<bigint | null> {
 /**
  * Save checkpoint to database
  */
-async function saveCheckpoint(ctx: Ctx, blockNumber: bigint): Promise<void> {
+async function saveCheckpoint(ctx: Ctx, blockNumber: bigint, logWarning: boolean = true): Promise<boolean> {
   let client;
   try {
     client = await ctx.pool.connect();
   } catch (connectErr) {
     // Connection failed - log warning but don't crash
     const err = connectErr as any;
-    log('warn', 'Failed to connect to database for checkpoint save (non-fatal)', {
-      error: err instanceof Error ? err.message : String(err),
-      code: err?.code,
-      block: blockNumber.toString(),
-      hint: 'Checkpoint not saved, will resume from latest block on next restart'
-    });
-    return; // Silently fail - checkpoint saving is not critical
+    if (logWarning) {
+      log('warn', 'Failed to connect to database for checkpoint save (non-fatal)', {
+        error: err instanceof Error ? err.message : String(err),
+        code: err?.code,
+        block: blockNumber.toString(),
+        hint: 'Checkpoint not saved, will resume from latest block on next restart'
+      });
+    }
+    return false; // Return false to indicate failure
   }
 
   try {
@@ -174,6 +177,7 @@ async function saveCheckpoint(ctx: Ctx, blockNumber: bigint): Promise<void> {
     
     await client.query('COMMIT');
     log('info', 'Checkpoint saved', { block: blockNumber.toString() });
+    return true; // Success
   } catch (err) {
     try {
       await client.query('ROLLBACK');
@@ -181,35 +185,39 @@ async function saveCheckpoint(ctx: Ctx, blockNumber: bigint): Promise<void> {
       // Ignore rollback errors
     }
     
-    // Better error serialization - handle PostgREST/Supabase error objects
-    let errorMessage = 'Unknown error';
-    if (err instanceof Error) {
-      errorMessage = err.message || err.toString();
-    } else if (typeof err === 'string') {
-      errorMessage = err;
-    } else if (err && typeof err === 'object') {
-      // PostgREST/Supabase errors have message property
-      errorMessage = (err as any).message || String(err);
-    } else if (err !== null && err !== undefined) {
-      errorMessage = String(err);
+    // Only log if logWarning is true (to reduce noise from repeated failures)
+    if (logWarning) {
+      // Better error serialization - handle PostgREST/Supabase error objects
+      let errorMessage = 'Unknown error';
+      if (err instanceof Error) {
+        errorMessage = err.message || err.toString();
+      } else if (typeof err === 'string') {
+        errorMessage = err;
+      } else if (err && typeof err === 'object') {
+        // PostgREST/Supabase errors have message property
+        errorMessage = (err as any).message || String(err);
+      } else if (err !== null && err !== undefined) {
+        errorMessage = String(err);
+      }
+      
+      // Log as warning (not error) since checkpoint saving is not critical
+      const errorDetails: Record<string, any> = { 
+        error: errorMessage,
+        block: blockNumber.toString()
+      };
+      
+      if (err instanceof Error) {
+        errorDetails.code = (err as any).code;
+      } else if (err && typeof err === 'object') {
+        // Extract PostgREST/Supabase error properties
+        errorDetails.code = (err as any).code;
+        errorDetails.details = (err as any).details;
+        errorDetails.hint = (err as any).hint;
+      }
+      
+      log('warn', 'Failed to save checkpoint (non-fatal)', errorDetails);
     }
-    
-    // Log as warning (not error) since checkpoint saving is not critical
-    const errorDetails: Record<string, any> = { 
-      error: errorMessage,
-      block: blockNumber.toString()
-    };
-    
-    if (err instanceof Error) {
-      errorDetails.code = (err as any).code;
-    } else if (err && typeof err === 'object') {
-      // Extract PostgREST/Supabase error properties
-      errorDetails.code = (err as any).code;
-      errorDetails.details = (err as any).details;
-      errorDetails.hint = (err as any).hint;
-    }
-    
-    log('warn', 'Failed to save checkpoint (non-fatal)', errorDetails);
+    return false; // Return false to indicate failure
   } finally {
     if (client) {
       client.release();
@@ -483,6 +491,8 @@ export async function startBaseDepositWatcher(ctx: Ctx) {
 
   // Load checkpoint or start from safe backfill window
   let fromBlock: bigint | null = await loadCheckpoint(ctx);
+  let lastCheckpointBlock = 0n;
+  let consecutiveCheckpointFailures = 0;
 
   const poll = async () => {
     try {
@@ -539,12 +549,27 @@ export async function startBaseDepositWatcher(ctx: Ctx) {
         lastBlock: result.lastBlock.toString()
       });
 
-      // Save checkpoint at latest block (or last processed block if errors occurred)
+      // Determine checkpoint block
       const checkpointBlock = result.errors > 0 && result.lastBlock > 0n 
         ? result.lastBlock 
         : latest;
       
-      await saveCheckpoint(ctx, checkpointBlock);
+      // Only save checkpoint periodically (every N blocks) to reduce DB load and noise
+      const blocksSinceLastCheckpoint = checkpointBlock - lastCheckpointBlock;
+      const shouldSaveCheckpoint = blocksSinceLastCheckpoint >= CHECKPOINT_SAVE_INTERVAL_BLOCKS;
+      
+      if (shouldSaveCheckpoint) {
+        // Suppress warnings if we've had many consecutive failures
+        const shouldLogWarning = consecutiveCheckpointFailures < 3;
+        const saved = await saveCheckpoint(ctx, checkpointBlock, shouldLogWarning);
+        if (saved) {
+          lastCheckpointBlock = checkpointBlock;
+          consecutiveCheckpointFailures = 0;
+        } else {
+          consecutiveCheckpointFailures++;
+        }
+      }
+      
       fromBlock = checkpointBlock + 1n;
 
     } catch (e) {
