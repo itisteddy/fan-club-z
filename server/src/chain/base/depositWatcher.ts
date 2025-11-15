@@ -84,7 +84,10 @@ async function loadCheckpoint(ctx: Ctx): Promise<bigint | null> {
     log('info', 'No checkpoint found, starting from latest block');
     return null;
   } catch (err) {
-    log('error', 'Failed to load checkpoint', { error: err instanceof Error ? err.message : 'Unknown' });
+    const errorMessage = err instanceof Error ? err.message : 
+                        typeof err === 'string' ? err : 
+                        err ? String(err) : 'Unknown error';
+    log('error', 'Failed to load checkpoint', { error: errorMessage });
     return null;
   } finally {
     client.release();
@@ -97,19 +100,36 @@ async function loadCheckpoint(ctx: Ctx): Promise<bigint | null> {
 async function saveCheckpoint(ctx: Ctx, blockNumber: bigint): Promise<void> {
   const client = await ctx.pool.connect();
   try {
+    // Use UPSERT pattern: delete old checkpoint, insert new one
+    // This avoids ON CONFLICT issues if unique constraint doesn't exist
+    await client.query('BEGIN');
+    
+    // Delete any existing checkpoint
+    await client.query(
+      `DELETE FROM event_log 
+       WHERE source = 'base-watcher-checkpoint' AND kind = $1`,
+      [CHECKPOINT_KEY]
+    );
+    
+    // Insert new checkpoint
     await client.query(
       `INSERT INTO event_log (source, kind, ref, payload)
-       VALUES ('base-watcher-checkpoint', $1, $2, $3)
-       ON CONFLICT DO NOTHING`,
+       VALUES ('base-watcher-checkpoint', $1, $2, $3)`,
       [
         CHECKPOINT_KEY,
         blockNumber.toString(),
         JSON.stringify({ block_number: blockNumber.toString(), updated_at: new Date().toISOString() })
       ]
     );
+    
+    await client.query('COMMIT');
     log('info', 'Checkpoint saved', { block: blockNumber.toString() });
   } catch (err) {
-    log('error', 'Failed to save checkpoint', { error: err instanceof Error ? err.message : 'Unknown' });
+    await client.query('ROLLBACK').catch(() => {});
+    const errorMessage = err instanceof Error ? err.message : 
+                        typeof err === 'string' ? err : 
+                        err ? String(err) : 'Unknown error';
+    log('error', 'Failed to save checkpoint', { error: errorMessage });
   } finally {
     client.release();
   }
