@@ -10,22 +10,39 @@ type ConnectorReturn =
   | ReturnType<typeof walletConnect>
   | ReturnType<typeof coinbaseWallet>;
 
-const connectors: ConnectorReturn[] = [injected()];
+// Always include injected connector (works for browser extensions and mobile browser wallets)
+const connectors: ConnectorReturn[] = [
+  injected({
+    // Better mobile browser wallet detection
+    shimDisconnect: true,
+  })
+];
 
+// Only add WalletConnect if project ID is valid
+// Note: Domain must be whitelisted at https://cloud.reown.com
 if (projectId && projectId.length >= 8) {
-  connectors.push(
-    walletConnect({
-      projectId,
-      showQrModal: true,
-      qrModalOptions: { themeMode: 'light' },
-      metadata: {
-        name: 'Fan Club Z',
-        description: 'Prediction Markets',
-        url: typeof window !== 'undefined' ? window.location.origin : 'https://app.fanclubz.app',
-        icons: ['https://app.fanclubz.app/icon.png'],
-      },
-    })
-  );
+  try {
+    connectors.push(
+      walletConnect({
+        projectId,
+        showQrModal: true,
+        qrModalOptions: { 
+          themeMode: 'light',
+          // Better mobile support
+          enableExplorer: true,
+        },
+        metadata: {
+          name: 'Fan Club Z',
+          description: 'Prediction Markets',
+          url: typeof window !== 'undefined' ? window.location.origin : 'https://app.fanclubz.app',
+          icons: ['https://app.fanclubz.app/icon.png'],
+        },
+      })
+    );
+  } catch (error) {
+    console.warn('[Wagmi] Failed to initialize WalletConnect connector:', error);
+    // Continue without WalletConnect - injected connector will still work
+  }
 }
 
 if (import.meta.env.VITE_ENABLE_COINBASE_CONNECTOR === '1') {

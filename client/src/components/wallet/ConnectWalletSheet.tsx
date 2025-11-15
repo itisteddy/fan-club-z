@@ -33,11 +33,33 @@ export default function ConnectWalletSheet({ isOpen, onClose }: ConnectWalletShe
 
   const handleConnect = async (connector: any) => {
     try {
+      // For mobile browser wallets, check if we're on mobile first
+      const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+      
+      if (connector.id === 'injected' && isMobile) {
+        // On mobile, injected connector should work with browser wallets
+        // But we need to check if wallet is available
+        if (!window.ethereum && !(window as any).web3) {
+          toast.error('No wallet detected. Please install MetaMask or use WalletConnect.');
+          return;
+        }
+      }
+      
       await connect({ connector });
       if (onClose) onClose();
       else setOpen(false);
     } catch (err: any) {
-      toast.error(err?.message || 'Failed to connect wallet');
+      const errorMessage = err?.message || 'Failed to connect wallet';
+      
+      // Provide helpful error messages
+      if (errorMessage.includes('403') || errorMessage.includes('Forbidden')) {
+        toast.error('WalletConnect configuration error. Please contact support.');
+        console.error('[WalletConnect] 403 Forbidden - Domain may not be whitelisted at cloud.reown.com');
+      } else if (errorMessage.includes('User rejected')) {
+        toast.error('Connection cancelled');
+      } else {
+        toast.error(errorMessage);
+      }
     }
   };
 
