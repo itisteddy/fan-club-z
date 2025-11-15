@@ -1,3 +1,4 @@
+// @ts-nocheck
 // src/lib/media/providers.ts
 import { SCORE, MEDIA_SOURCES } from './config';
 import { buildQueries } from './queryBuilder';

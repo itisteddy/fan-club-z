@@ -52,6 +52,7 @@ interface NotificationStore {
   requestPermission: () => Promise<boolean>;
   subscribeToPush: () => Promise<void>;
   unsubscribeFromPush: () => Promise<void>;
+  sendPushNotification: (notification: Notification) => void;
   
   // Utility functions
   showSuccess: (message: string, title?: string) => void;
@@ -213,13 +214,15 @@ export const useNotificationStore = create<NotificationStore>()(
           return;
         }
 
-        const pushNotification = new Notification(notification.title, {
+        const pushOptions: NotificationOptions & { renotify?: boolean } = {
           body: notification.message,
           icon: '/icon-192x192.png',
           badge: '/icon-badge.png',
           tag: notification.id,
           renotify: false,
-        });
+        };
+
+        const pushNotification = new Notification(notification.title, pushOptions);
 
         pushNotification.onclick = () => {
           window.focus();

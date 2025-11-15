@@ -218,13 +218,15 @@ class EnvironmentAuditor {
       };
     }
     
+    const normalizedValue = value ?? '';
+    
     // Run custom validation if provided
-    if (config.validation && !config.validation(value)) {
+    if (config.validation && !config.validation(normalizedValue)) {
       return {
         key: config.key,
         status: 'invalid',
         message: `Invalid format for ${config.description}`,
-        masked: config.sensitive ? this.maskValue(value, true) : value,
+        masked: config.sensitive ? this.maskValue(normalizedValue, true) : normalizedValue,
       };
     }
     
@@ -232,36 +234,36 @@ class EnvironmentAuditor {
     switch (config.type) {
       case 'url':
         try {
-          new URL(value);
+          new URL(normalizedValue);
         } catch {
           return {
             key: config.key,
             status: 'invalid',
             message: `Invalid URL format for ${config.description}`,
-            masked: value,
+            masked: normalizedValue,
           };
         }
         break;
         
       case 'number':
-        if (isNaN(Number(value))) {
+        if (isNaN(Number(normalizedValue))) {
           return {
             key: config.key,
             status: 'invalid',
             message: `Expected number for ${config.description}`,
-            masked: value,
+            masked: normalizedValue,
           };
         }
         break;
         
       case 'uuid':
         const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-        if (!uuidRegex.test(value)) {
+        if (!uuidRegex.test(normalizedValue)) {
           return {
             key: config.key,
             status: 'invalid',
             message: `Invalid UUID format for ${config.description}`,
-            masked: config.sensitive ? this.maskValue(value, true) : value,
+            masked: config.sensitive ? this.maskValue(normalizedValue, true) : normalizedValue,
           };
         }
         break;
@@ -270,23 +272,23 @@ class EnvironmentAuditor {
     // Check for potential security issues
     if (config.sensitive) {
       // Check if sensitive data might be exposed
-      if (value.length < 10) {
+      if (normalizedValue.length < 10) {
         return {
           key: config.key,
           status: 'insecure',
           message: `Sensitive value appears too short: ${config.description}`,
-          masked: this.maskValue(value, true),
+          masked: this.maskValue(normalizedValue, true),
         };
       }
       
       // Check for common insecure values
       const insecurePatterns = ['test', 'demo', 'local', 'development', '123'];
-      if (insecurePatterns.some(pattern => value.toLowerCase().includes(pattern))) {
+      if (insecurePatterns.some(pattern => normalizedValue.toLowerCase().includes(pattern))) {
         return {
           key: config.key,
           status: 'insecure',
           message: `Potentially insecure value for production: ${config.description}`,
-          masked: this.maskValue(value, true),
+          masked: this.maskValue(normalizedValue, true),
         };
       }
     }
@@ -295,8 +297,8 @@ class EnvironmentAuditor {
       key: config.key,
       status: 'valid',
       message: `Valid configuration for ${config.description}`,
-      value: config.sensitive ? undefined : value,
-      masked: config.sensitive ? this.maskValue(value, true) : value,
+      value: config.sensitive ? undefined : normalizedValue,
+      masked: config.sensitive ? this.maskValue(normalizedValue, true) : normalizedValue,
     };
   }
 

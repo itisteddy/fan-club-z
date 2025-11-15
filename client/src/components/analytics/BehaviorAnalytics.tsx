@@ -217,7 +217,7 @@ export const BehaviorAnalytics: React.FC = () => {
                 <div className="w-24 bg-gray-200 rounded-full h-2">
                   <div
                     className="bg-teal-600 h-2 rounded-full"
-                    style={{ width: `${(page.views / data.topPages[0].views) * 100}%` }}
+                    style={{ width: `${data.topPages?.[0]?.views ? (page.views / data.topPages[0].views) * 100 : 0}%` }}
                   ></div>
                 </div>
               </div>

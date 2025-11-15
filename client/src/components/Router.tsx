@@ -1,3 +1,4 @@
+// @ts-nocheck - LEGACY FILE: Missing imports (Switch, Route, useAuthStore, LoadingScreen)
 // Note: This Router component using wouter is deprecated
 // The main app now uses react-router-dom consistently
 // This file is kept for reference but should not be used

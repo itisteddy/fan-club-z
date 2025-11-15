@@ -1,32 +1,21 @@
 import { create } from 'zustand';
 import { devtools } from 'zustand/middleware';
-import { 
-  UserBet, 
-  validateUserBetList 
-} from '../api/schemas';
-import { get, post, ApiResult } from '../api/client';
+import type { PredictionEntry } from '../types/domain';
+import { validatePredictionEntryList } from '../api/schemas';
+import { get as apiGet, post, ApiResult } from '../api/client';
+import type { LoadStatus } from '../types/api';
 import { qaLog, qaError } from '../utils/devQa';
-
-export type LoadStatus =
-  | 'idle'
-  | 'loading'
-  | 'success'
-  | 'network_error'
-  | 'server_error'
-  | 'client_error'
-  | 'parse_error'
-  | 'schema_error';
 
 interface BetsState {
   // State
   status: LoadStatus;
-  bets: UserBet[];
+  bets: PredictionEntry[];
   lastUpdated: number | null;
   error: string | null;
 
   // Actions
   loadBets: (userId: string, limit?: number) => Promise<void>;
-  placeBet: (userId: string, predictionId: string, option: 'yes' | 'no', amount: number) => Promise<ApiResult<UserBet>>;
+  placeBet: (userId: string, predictionId: string, optionId: string, amount: number) => Promise<ApiResult<PredictionEntry>>;
   refresh: (userId: string) => Promise<void>;
   clear: () => void;
   setError: (error: string | null) => void;
@@ -59,13 +48,13 @@ export const useBetsStore = create<BetsState>()(
         });
 
         try {
-          const result: ApiResult<UserBet[]> = await get(
+          const result: ApiResult<PredictionEntry[]> = await apiGet(
             `/users/${userId}/bets?limit=${limit}`
           );
 
           if (result.kind === 'success') {
             // Validate the response
-            const issues = validateUserBetList(result.data);
+            const issues = validatePredictionEntryList(result.data);
             if (issues.length > 0) {
               qaError('Bets store: Schema validation failed', issues);
               set({
@@ -78,9 +67,7 @@ export const useBetsStore = create<BetsState>()(
               return;
             }
 
-            qaLog('Bets store: Bets loaded successfully', { 
-              count: result.data.length 
-            });
+            qaLog('Bets store: Bets loaded successfully', { count: result.data.length });
 
             set({
               status: 'success',
@@ -128,6 +115,7 @@ export const useBetsStore = create<BetsState>()(
           }
         } catch (error) {
           qaError('Bets store: Unexpected error', error);
+          
           set({
             status: 'network_error',
             error: 'An unexpected error occurred',
@@ -138,37 +126,32 @@ export const useBetsStore = create<BetsState>()(
         }
       },
 
-      placeBet: async (userId: string, predictionId: string, option: 'yes' | 'no', amount: number) => {
-        qaLog('Bets store: Placing bet', { userId, predictionId, option, amount });
+      placeBet: async (userId: string, predictionId: string, optionId: string, amount: number) => {
+        qaLog('Bets store: Placing bet', { userId, predictionId, optionId, amount });
 
         try {
-          const result: ApiResult<UserBet> = await post(
-            `/predictions/${predictionId}/bet`,
-            { userId, option, amount }
-          );
+          const result = await post(`/predictions/${predictionId}/bets`, {
+            user_id: userId,
+            option_id: optionId,
+            amount,
+          });
 
           if (result.kind === 'success') {
-            qaLog('Bets store: Bet placed successfully', result.data);
+            qaLog('Bets store: Bet placed successfully');
             
-            // Refresh the bets list after placing a bet
+            // Refresh bets
             await get().loadBets(userId);
-            
-            return result;
-          } else {
-            qaError('Bets store: Place bet failed', { kind: result.kind });
-            return result;
           }
+
+          return result;
         } catch (error) {
-          qaError('Bets store: Place bet unexpected error', error);
-          return {
-            kind: 'network_error',
-            error: error instanceof Error ? error : new Error('An unexpected error occurred'),
-          };
+          qaError('Bets store: Error placing bet', error);
+          throw error;
         }
       },
 
       refresh: async (userId: string) => {
-        qaLog('Bets store: Refreshing bets', { userId });
+        qaLog('Bets store: Refreshing bets');
         await get().loadBets(userId);
       },
 

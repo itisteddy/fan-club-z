@@ -46,6 +46,10 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({ isOpen, onClos
 
   const step = steps[index];
 
+  if (!step) {
+    return null;
+  }
+
   return (
     <AnimatePresence>
       {isOpen && (

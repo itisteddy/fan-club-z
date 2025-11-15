@@ -64,15 +64,21 @@ function buildMerkle(
   const tree: `0x${string}`[][] = [];
   tree.push(uniqueLeaves.slice().sort());
 
-  while (tree[tree.length - 1].length > 1) {
-    const prev = tree[tree.length - 1];
+  while (true) {
+    const prev = tree[tree.length - 1] ?? [];
+    if (prev.length <= 1) {
+      break;
+    }
     const next: `0x${string}`[] = [];
     for (let i = 0; i < prev.length; i += 2) {
+      const a = prev[i];
+      if (!a) {
+        continue;
+      }
       if (i + 1 === prev.length) {
-        next.push(prev[i]); // carry last node up if odd
+        next.push(a); // carry last node up if odd
       } else {
-        const a = prev[i];
-        const b = prev[i + 1];
+        const b = prev[i + 1] ?? a;
         const [x, y] = a.toLowerCase() < b.toLowerCase() ? [a, b] : [b, a];
         next.push(keccak256(encodePacked(['bytes32', 'bytes32'], [x, y])));
       }
@@ -80,18 +86,21 @@ function buildMerkle(
     tree.push(next);
   }
 
-  const root = tree[tree.length - 1][0];
+  const rootLevel = tree[tree.length - 1] ?? [];
+  const root = (rootLevel[0] ?? keccak256('0x')) as `0x${string}`;
 
   function getProof(leaf: `0x${string}`): `0x${string}`[] {
     const proof: `0x${string}`[] = [];
-    let idx = tree[0].indexOf(leaf);
+    const baseLevel = tree[0] ?? [];
+    let idx = baseLevel.indexOf(leaf);
     if (idx === -1) return [];
     for (let level = 0; level < tree.length - 1; level++) {
-      const nodes = tree[level];
+      const nodes = tree[level] ?? [];
       const isRightNode = idx % 2 === 1;
       const pairIndex = isRightNode ? idx - 1 : idx + 1;
-      if (pairIndex < nodes.length) {
-        proof.push(nodes[pairIndex]);
+      const pairNode = nodes[pairIndex];
+      if (pairNode) {
+        proof.push(pairNode);
       }
       idx = Math.floor(idx / 2);
     }
@@ -210,7 +219,9 @@ export async function computeMerkleSettlement(args: {
     return a.remainder > b.remainder ? -1 : 1;
   });
   for (let i = 0; i < provisional.length && leftover > 0n; i++) {
-    provisional[i].units += 1n;
+    const target = provisional[i];
+    if (!target) continue;
+    target.units += 1n;
     leftover -= 1n;
   }
 

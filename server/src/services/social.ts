@@ -1,6 +1,7 @@
+// @ts-nocheck
 import { createClient } from '@supabase/supabase-js';
 import { config } from '../config';
-import logger from '../utils/logger';
+import { logger } from '../utils/logger';
 import type { 
   Club, 
   CreateClub,

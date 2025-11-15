@@ -69,7 +69,7 @@ chainActivity.get('/activity', async (req, res) => {
   } catch (e) {
     const duration = Date.now() - startTime;
     chainLogger.error('Chain activity server error', e, { duration });
-    res.status(500).json({ error: 'Server error' });
+    return res.status(500).json({ error: 'Server error' });
   }
 });
 

@@ -1,22 +1,10 @@
 import { create } from 'zustand';
 import { devtools } from 'zustand/middleware';
-import { 
-  LeaderboardEntry, 
-  LeaderboardResponse, 
-  validateLeaderboardResponse 
-} from '../api/schemas';
-import { get, ApiResult } from '../api/client';
+import type { LeaderboardEntry, LeaderboardResponse } from '../types/domain';
+import { validateLeaderboardResponse } from '../api/schemas';
+import { get as apiGet, ApiResult } from '../api/client';
+import type { LoadStatus } from '../types/api';
 import { qaLog, qaError } from '../utils/devQa';
-
-export type LoadStatus =
-  | 'idle'
-  | 'loading'
-  | 'success'
-  | 'network_error'
-  | 'server_error'
-  | 'client_error'
-  | 'parse_error'
-  | 'schema_error';
 
 interface LeaderboardState {
   // State
@@ -74,7 +62,7 @@ export const useLeaderboardStore = create<LeaderboardState>()(
             sort,
           });
 
-          const result: ApiResult<LeaderboardResponse> = await get(
+          const result: ApiResult<LeaderboardResponse> = await apiGet(
             `/leaderboard?${queryParams.toString()}`
           );
 
@@ -96,7 +84,7 @@ export const useLeaderboardStore = create<LeaderboardState>()(
               return;
             }
 
-            const { entries, total, page: responsePage, limit: responseLimit } = result.data;
+            const { data: entries, total, page: responsePage, limit: responseLimit } = result.data;
 
             qaLog('Leaderboard store: Loaded successfully', { 
               count: entries.length, 
@@ -156,6 +144,7 @@ export const useLeaderboardStore = create<LeaderboardState>()(
           }
         } catch (error) {
           qaError('Leaderboard store: Unexpected error', error);
+          
           set({
             status: 'network_error',
             error: 'An unexpected error occurred',
@@ -170,7 +159,7 @@ export const useLeaderboardStore = create<LeaderboardState>()(
       },
 
       refresh: async () => {
-        qaLog('Leaderboard store: Refreshing leaderboard');
+        qaLog('Leaderboard store: Refreshing');
         await get().load({ page: 1 });
       },
 

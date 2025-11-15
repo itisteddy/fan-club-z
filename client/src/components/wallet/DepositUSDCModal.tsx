@@ -53,23 +53,27 @@ function clamp2dp(v: number) { return Math.max(0, Math.floor(v * 100) / 100); }
 function fmtUSD(n: number) { return `$${n.toLocaleString(undefined, { maximumFractionDigits: 2 })}`; }
 
 type DepositUSDCModalProps = {
-  open: boolean;
+  open?: boolean;
+  isOpen?: boolean;
   onClose: () => void;
-  availableUSDC: number;
-  userId: string;
+  availableUSDC?: number;
+  userId?: string;
   escrowAddress?: `0x${string}`;
   escrowAbi?: any;
   title?: string;
+  onSuccess?: () => void;
 };
 
 export default function DepositUSDCModal({
   open,
+  isOpen: controlledOpen,
   onClose,
-  availableUSDC,
-  userId,
+  availableUSDC = 0,
+  userId = '',
   escrowAddress = ESCROW_ADDR_ENV,
   escrowAbi = ESCROW_ABI_MIN,
   title = 'Add Funds (Base USDC)',
+  onSuccess,
 }: DepositUSDCModalProps) {
   const queryClient = useQueryClient();
   const { address, chainId, isConnected } = useAccount();
@@ -100,22 +104,24 @@ export default function DepositUSDCModal({
     },
   });
 
+  const isModalOpen = open ?? controlledOpen ?? false;
+
   React.useEffect(() => {
-    if (!open) {
+    if (!isModalOpen) {
       setAmount(0);
       setStep('input');
       cancelledRef.current = false;
     }
-  }, [open]);
+  }, [isModalOpen]);
 
   React.useEffect(() => {
-    if (!open) return;
+    if (!isModalOpen) return;
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && !submitting && onClose();
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [open, onClose, submitting]);
+  }, [isModalOpen, onClose, submitting]);
 
-  if (!open) return null;
+  if (!isModalOpen) return null;
 
   const cleanAmount = clamp2dp(amount || 0);
   const isOnBase = chainId === baseSepolia.id;
@@ -273,7 +279,10 @@ export default function DepositUSDCModal({
       // Broadcast a UI refresh event for any listeners (Wallet page listens)
       window.dispatchEvent(new CustomEvent('fcz:balance:refresh'));
       
-      if (mountedRef.current) onClose();
+      if (mountedRef.current) {
+        onClose();
+        onSuccess?.();
+      }
     } catch (err: any) {
       console.error('[deposit] failed:', err);
       

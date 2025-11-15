@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Download, Smartphone, Shield, CheckCircle2, FileText } from 'lucide-react';
-import AppHeader from '../components/layout/AppHeader';
+import AppHeader from '../../components/layout/AppHeader';
+import { VERSION as APP_VERSION } from '@fanclubz/shared';
 
 interface ChecksumData {
   'app-latest.apk': {
@@ -72,7 +73,7 @@ const DownloadPage: React.FC = () => {
                 Android APK
               </h2>
               <p className="text-gray-600 mb-4">
-                Version {checksumData?.['app-latest.apk']?.version || '2.0.76'}
+                Version {checksumData?.['app-latest.apk']?.version || APP_VERSION}
                 {checksumData?.['app-latest.apk']?.updated && (
                   <span className="text-gray-400 ml-2">
                     • Updated {formatDate(checksumData['app-latest.apk'].updated)}

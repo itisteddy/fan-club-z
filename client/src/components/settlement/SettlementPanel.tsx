@@ -1,6 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useSettlementStore } from '../../store/settlementStore';
-import { Settlement } from '../../../../shared/schema';
+
+// Local Settlement type definition
+interface Settlement {
+  id: string;
+  state: string;
+  proofs?: Array<{ type: string; value: string }>;
+  outcome?: 'YES' | 'NO' | string;
+}
 
 interface SettlementPanelProps {
   predictionId: string;

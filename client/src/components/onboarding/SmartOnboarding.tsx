@@ -100,7 +100,7 @@ export const SmartOnboarding: React.FC<SmartOnboardingProps> = ({
         case 'fund-wallet':
           // Open faucet in new tab
           window.open('https://faucet.circle.com/', '_blank');
-          toast.info('Get test USDC from the faucet, then refresh this page');
+          toast('Get test USDC from the faucet, then refresh this page', { icon: 'ℹ️' });
           break;
           
         case 'deposit':
@@ -272,7 +272,10 @@ export const SmartOnboarding: React.FC<SmartOnboardingProps> = ({
                   const steps: OnboardingStep[] = ['connect', 'fund-wallet', 'deposit', 'ready'];
                   const nextIndex = steps.indexOf(currentStep) + 1;
                   if (nextIndex < steps.length) {
-                    setCurrentStep(steps[nextIndex]);
+                    const nextStep = steps[nextIndex];
+                    if (nextStep) {
+                      setCurrentStep(nextStep);
+                    }
                   }
                 }}
                 className="mt-3 text-xs text-purple-200 hover:text-white underline"
@@ -285,12 +288,13 @@ export const SmartOnboarding: React.FC<SmartOnboardingProps> = ({
       </div>
       
       {/* Deposit Modal */}
-      {user?.id && (
+      {showDepositModal && user?.id && (
         <DepositUSDCModal
           open={showDepositModal}
           onClose={() => setShowDepositModal(false)}
           availableUSDC={walletUSDC}
           userId={user.id}
+          onSuccess={() => setShowDepositModal(false)}
         />
       )}
     </>

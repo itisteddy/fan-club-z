@@ -52,15 +52,15 @@ const DensePredictionCard: React.FC<DensePredictionCardProps> = ({
     if (!prediction.options || prediction.options.length === 0) return null;
     
     return prediction.options.reduce((highest, option) => {
-      const optionTotal = parseFloat(option.total_amount || '0');
-      const highestTotal = parseFloat(highest.total_amount || '0');
+      const optionTotal = parseFloat(String(option.total_staked ?? option.totalStaked ?? 0));
+      const highestTotal = parseFloat(String(highest.total_staked ?? highest.totalStaked ?? 0));
       return optionTotal > highestTotal ? option : highest;
     });
   };
 
   const highestOption = getHighestOption();
   const totalVolume = prediction.options?.reduce((sum, option) => 
-    sum + parseFloat(option.total_amount || '0'), 0
+    sum + parseFloat(String(option.total_staked ?? option.totalStaked ?? 0)), 0
   ) || 0;
 
   return (
@@ -92,24 +92,23 @@ const DensePredictionCard: React.FC<DensePredictionCardProps> = ({
           {/* Creator Info - Compact */}
           <div className="flex items-center gap-2 min-w-0 flex-1">
             <UserAvatar
-              email={prediction.creator?.email}
-              username={prediction.creator?.firstName || prediction.creator?.email?.split('@')[0]}
-              avatarUrl={prediction.creator?.avatar}
-              size="xs"
+              username={prediction.creator?.username || prediction.creator?.full_name || 'Anonymous'}
+              avatarUrl={prediction.creator?.avatar_url}
+              size="sm"
             />
             <div className="min-w-0 flex-1">
               <p className="text-sm font-medium text-gray-900 truncate">
-                {prediction.creator?.firstName || prediction.creator?.email?.split('@')[0] || 'Anonymous'}
+                {prediction.creator?.username || prediction.creator?.full_name || 'Anonymous'}
               </p>
             </div>
           </div>
           
           {/* Time Remaining Badge */}
-          <div className={`${formatTimeRemaining(prediction.end_date) === 'Ended' ? 'bg-red-100 text-red-600 border border-red-200' : 'bg-gray-100 text-gray-600'} flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium`}>
+          <div className={`${formatTimeRemaining(prediction.entry_deadline || '') === 'Ended' ? 'bg-red-100 text-red-600 border border-red-200' : 'bg-gray-100 text-gray-600'} flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium`}>
             <Clock size={12} />
-            {formatTimeRemaining(prediction.end_date) === 'Ended'
+            {formatTimeRemaining(prediction.entry_deadline || '') === 'Ended'
               ? 'Closed'
-              : `Ends in ${formatTimeRemaining(prediction.end_date)}`}
+              : `Ends in ${formatTimeRemaining(prediction.entry_deadline || '')}`}
           </div>
         </div>
 
@@ -123,7 +122,7 @@ const DensePredictionCard: React.FC<DensePredictionCardProps> = ({
           <div className="flex items-center justify-between text-xs mb-3">
             <div className="flex items-center gap-1 text-emerald-600">
               <TrendingUp size={12} />
-              <span className="font-medium truncate max-w-[120px]">{highestOption.title}</span>
+              <span className="font-medium truncate max-w-[120px]">{highestOption.label}</span>
             </div>
             <div className="text-gray-500">
               ${totalVolume.toLocaleString()}
@@ -135,7 +134,7 @@ const DensePredictionCard: React.FC<DensePredictionCardProps> = ({
         {prediction.options && prediction.options.length > 0 && (
           <div className="grid grid-cols-2 gap-1.5 mb-3">
             {prediction.options.slice(0, 2).map((option, idx) => {
-              const amount = parseFloat(option.total_amount || '0');
+              const amount = parseFloat(String(option.total_staked ?? option.totalStaked ?? 0));
               const percentage = totalVolume > 0 ? (amount / totalVolume) * 100 : 0;
               
               return (
@@ -152,7 +151,7 @@ const DensePredictionCard: React.FC<DensePredictionCardProps> = ({
                   {/* Content */}
                   <div className="relative">
                     <p className="text-xs font-medium text-gray-900 truncate">
-                      {option.title}
+                      {option.label}
                     </p>
                     <div className="flex items-center justify-between mt-0.5">
                       <span className="text-xs text-emerald-600 font-semibold">

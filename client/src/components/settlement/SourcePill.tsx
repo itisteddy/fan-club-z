@@ -1,5 +1,10 @@
 import React from 'react';
-import { SettlementSource } from '../../../../shared/schema';
+type SettlementSource = {
+  name: string;
+  url: string;
+  trust_level?: 'low' | 'medium' | 'high';
+  type?: string;
+};
 
 interface SourcePillProps {
   source: SettlementSource;

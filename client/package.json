@@ -1,6 +1,6 @@
 {
   "name": "@fanclubz/client",
-  "version": "2.0.76",
+  "version": "2.0.78",
   "description": "Fan Club Z React Client Application",
   "type": "module",
   "scripts": {
@@ -47,6 +47,7 @@
     "clsx": "^2.1.1",
     "date-fns": "^3.6.0",
     "framer-motion": "^10.16.16",
+    "html-to-image": "^1.11.13",
     "lucide-react": "^0.303.0",
     "postcss": "^8.4.32",
     "react": "^18.2.0",
@@ -62,6 +63,7 @@
     "viem": "^2.38.6",
     "vite": "^4.4.9",
     "vite-plugin-pwa": "^0.17.4",
+    "vitest": "^4.0.9",
     "wagmi": "^2.19.2",
     "wouter": "^3.0.0",
     "zod": "^3.25.76",

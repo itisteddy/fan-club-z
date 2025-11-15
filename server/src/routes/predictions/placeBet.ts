@@ -73,7 +73,7 @@ async function handlePlaceBet(req: any, res: any) {
     // Verify prediction exists and is open
     const { data: prediction, error: predError } = await supabase
       .from('predictions')
-      .select('id, status, entry_deadline, pool_total, participant_count')
+      .select('id, title, status, entry_deadline, pool_total, participant_count')
       .eq('id', predictionId)
       .single();
 
@@ -96,7 +96,7 @@ async function handlePlaceBet(req: any, res: any) {
     // Verify option exists
     const { data: option, error: optError } = await supabase
       .from('prediction_options')
-      .select('id, prediction_id')
+      .select('id, prediction_id, label')
       .eq('id', optionId)
       .eq('prediction_id', predictionId)
       .single();

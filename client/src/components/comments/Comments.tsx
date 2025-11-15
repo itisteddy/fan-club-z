@@ -22,6 +22,7 @@ export function Comments({ predictionId }: { predictionId: string }) {
   
   const comments = getComments(predictionId) || [];
   const commentCount = getCommentCount(predictionId);
+  const hasMoreComments = hasMore(predictionId);
 
   useEffect(() => {
     // Load initial comments
@@ -82,7 +83,7 @@ export function Comments({ predictionId }: { predictionId: string }) {
           <div className="text-sm text-gray-600">
             <span>Sign in to join the discussion. </span>
             <button
-              onClick={() => openAuthGate({ intent: 'comment' })}
+              onClick={() => openAuthGate({ intent: 'comment_prediction' })}
               className="text-emerald-600 hover:text-emerald-700 font-medium underline"
             >
               Sign in
@@ -97,9 +98,8 @@ export function Comments({ predictionId }: { predictionId: string }) {
           <li key={comment.id} className="rounded-2xl border border-gray-200 p-4">
             <div className="flex items-start gap-3">
               <UserAvatar
-                email={comment.user?.email}
-                username={comment.user?.username || comment.user?.firstName}
-                avatarUrl={comment.user?.avatarUrl}
+                username={comment.user?.username || comment.user?.full_name || 'Anonymous'}
+                avatarUrl={comment.user?.avatarUrl || comment.user?.avatar_url}
                 size="sm"
               />
               <div className="flex-1 min-w-0">
@@ -107,7 +107,7 @@ export function Comments({ predictionId }: { predictionId: string }) {
                   <span className="text-sm font-medium text-gray-900">
                   {comment.user?.username 
                   ? `@${comment.user.username}` 
-                  : comment.user?.firstName || 'User'
+                  : comment.user?.full_name || 'User'
                   }
                   </span>
                   <time className="text-xs text-gray-500 flex-shrink-0">
@@ -124,7 +124,7 @@ export function Comments({ predictionId }: { predictionId: string }) {
       </ul>
 
       {/* Load more button */}
-      {hasMore && (
+      {hasMoreComments && (
         <div className="flex justify-center mt-6">
           <button
             onClick={() => loadMore(predictionId)}

@@ -192,14 +192,20 @@ export class PullToRefresh {
     const scrollableParent = this.findScrollableParent(target);
     if (scrollableParent && scrollableParent.scrollTop > 5) return;
     
-    this.startY = e.touches[0].clientY;
+    const firstTouch = e.touches?.[0];
+    if (!firstTouch) return;
+    
+    this.startY = firstTouch.clientY;
     this.isPulling = false;
   }
 
   private onTouchMove(e: TouchEvent): void {
     if (this.disabled || this.isRefreshing) return;
     
-    this.currentY = e.touches[0].clientY;
+    const firstTouch = e.touches?.[0];
+    if (!firstTouch) return;
+    
+    this.currentY = firstTouch.clientY;
     this.pullDistance = Math.max(0, this.currentY - this.startY);
     
     // More restrictive conditions - prevent accidental triggers
@@ -238,12 +244,15 @@ export class PullToRefresh {
     
     this.indicatorElement.style.transform = `translateY(${translateY}px)`;
     
+    const textElement = this.indicatorElement.querySelector('.pull-to-refresh-text') as HTMLElement | null;
+    if (!textElement) return;
+    
     if (this.pullDistance >= this.options.threshold) {
       this.indicatorElement.classList.add('ready');
-      this.indicatorElement.querySelector('.pull-to-refresh-text')!.textContent = 'Release to refresh';
+      textElement.textContent = 'Release to refresh';
     } else {
       this.indicatorElement.classList.remove('ready');
-      this.indicatorElement.querySelector('.pull-to-refresh-text')!.textContent = 'Pull to refresh';
+      textElement.textContent = 'Pull to refresh';
     }
   }
 
@@ -253,7 +262,11 @@ export class PullToRefresh {
     this.isRefreshing = true;
     this.indicatorElement.classList.add('refreshing', 'visible');
     this.indicatorElement.style.transform = 'translateY(0)';
-    this.indicatorElement.querySelector('.pull-to-refresh-text')!.textContent = 'Refreshing...';
+    
+    const textElement = this.indicatorElement.querySelector('.pull-to-refresh-text');
+    if (textElement) {
+      textElement.textContent = 'Refreshing...';
+    }
     
     try {
       await this.options.onRefresh();
@@ -273,7 +286,11 @@ export class PullToRefresh {
     this.isRefreshing = false;
     this.indicatorElement.classList.remove('refreshing', 'ready', 'visible');
     this.indicatorElement.style.transform = 'translateY(-80px)';
-    this.indicatorElement.querySelector('.pull-to-refresh-text')!.textContent = 'Pull to refresh';
+    
+    const textElement = this.indicatorElement.querySelector('.pull-to-refresh-text');
+    if (textElement) {
+      textElement.textContent = 'Pull to refresh';
+    }
   }
 
   public setDisabled(disabled: boolean): void {

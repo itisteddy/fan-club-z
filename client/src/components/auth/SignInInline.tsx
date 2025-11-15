@@ -18,7 +18,10 @@ export default function SignInInline({
   const handleSignIn = () => {
     openAuthGate({
       intent: 'place_prediction',
-      message: 'Sign in to place predictions and win rewards'
+      metaOverride: {
+        title: 'Sign in to place predictions',
+        description: 'Sign in to place predictions and win rewards'
+      }
     });
   };
   

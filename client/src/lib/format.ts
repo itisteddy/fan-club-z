@@ -1,6 +1,22 @@
-export const formatCurrency = (n: number | string, opts?: { compact?: boolean; showSign?: boolean; currency?: string }) => {
-  const num = typeof n === "string" ? Number(n) : n;
-  const { compact = true, showSign = false, currency = 'USD' } = opts || {};
+type FormatCurrencyOptions = {
+  compact?: boolean;
+  showSign?: boolean;
+  currency?: string;
+};
+
+export function formatCurrency(n: number | string, opts?: FormatCurrencyOptions): string;
+export function formatCurrency(n: number | string, currency?: string, showSign?: boolean): string;
+export function formatCurrency(
+  n: number | string,
+  optsOrCurrency?: FormatCurrencyOptions | string,
+  legacyShowSign?: boolean
+): string {
+  const num = typeof n === 'string' ? Number(n) : n;
+  const resolvedOptions: FormatCurrencyOptions =
+    typeof optsOrCurrency === 'string'
+      ? { currency: optsOrCurrency, showSign: legacyShowSign }
+      : optsOrCurrency || {};
+  const { compact = true, showSign = false, currency = 'USD' } = resolvedOptions;
   
   if (compact) {
     const formatter = new Intl.NumberFormat(undefined, {

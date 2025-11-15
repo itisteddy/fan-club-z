@@ -20,24 +20,28 @@ function clamp2dp(v: number) { return Math.max(0, Math.floor(v * 100) / 100); }
 function fmtUSD(n: number) { return `$${n.toLocaleString(undefined, { maximumFractionDigits: 2 })}`; }
 
 type WithdrawUSDCModalProps = {
-  open: boolean;
+  open?: boolean;
+  isOpen?: boolean;
   onClose: () => void;
   // how much of escrow is available to withdraw (escrow − reserved)
-  availableUSDC: number;
-  userId: string;
+  availableUSDC?: number;
+  userId?: string;
   escrowAddress?: `0x${string}`;
   escrowAbi?: any;
   title?: string;
+  onSuccess?: () => void;
 };
 
 export default function WithdrawUSDCModal({
   open,
+  isOpen: controlledOpen,
   onClose,
-  availableUSDC,
-  userId,
+  availableUSDC = 0,
+  userId = '',
   escrowAddress = ESCROW_ADDR_ENV,
   escrowAbi = ESCROW_ABI_MIN,
   title = 'Withdraw from Base',
+  onSuccess,
 }: WithdrawUSDCModalProps) {
   const queryClient = useQueryClient();
   const { address, chainId, isConnected } = useAccount();
@@ -48,16 +52,18 @@ export default function WithdrawUSDCModal({
   const [amount, setAmount] = React.useState<number>(0);
   const [submitting, setSubmitting] = React.useState(false);
 
-  React.useEffect(() => { if (!open) setAmount(0); }, [open]);
+  const isModalOpen = open ?? controlledOpen ?? false;
+
+  React.useEffect(() => { if (!isModalOpen) setAmount(0); }, [isModalOpen]);
 
   React.useEffect(() => {
-    if (!open) return;
+    if (!isModalOpen) return;
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && !submitting && onClose();
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [open, onClose, submitting]);
+  }, [isModalOpen, onClose, submitting]);
 
-  if (!open) return null;
+  if (!isModalOpen) return null;
 
   const cleanAmount = clamp2dp(amount || 0);
   const overLimit = cleanAmount > clamp2dp(availableUSDC);
@@ -104,6 +110,7 @@ export default function WithdrawUSDCModal({
       });
 
       onClose();
+      onSuccess?.();
     } catch (err: any) {
       console.error('[withdraw] failed:', err);
       toast.error(err?.shortMessage ?? err?.message ?? 'Withdrawal failed');

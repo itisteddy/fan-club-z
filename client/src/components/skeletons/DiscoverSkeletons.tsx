@@ -5,9 +5,10 @@ import { cn } from '@/utils/cn';
 interface SkeletonProps {
   className?: string;
   animate?: boolean;
+  style?: React.CSSProperties;
 }
 
-const Skeleton: React.FC<SkeletonProps> = ({ className, animate = true }) => (
+const Skeleton: React.FC<SkeletonProps> = ({ className, animate = true, style }) => (
   <div
     className={cn(
       "bg-gradient-to-r from-gray-200 via-gray-100 to-gray-200 rounded",
@@ -17,6 +18,7 @@ const Skeleton: React.FC<SkeletonProps> = ({ className, animate = true }) => (
     style={{
       backgroundSize: '200% 100%',
       animation: animate ? 'shimmer 1.5s ease-in-out infinite' : undefined,
+      ...style,
     }}
   />
 );

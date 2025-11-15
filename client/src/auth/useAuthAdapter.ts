@@ -131,7 +131,7 @@ export const useAuthAdapter = (): UseAuthAdapter => {
         // If there's a pending action, run it
         if (pendingAction) {
           qaLog('Auth adapter: running pending action');
-          pendingAction().catch(error => {
+          pendingAction().catch((error: unknown) => {
             qaLog('Auth adapter: pending action failed', error);
           });
           setPendingAction(null);
@@ -156,7 +156,7 @@ export const useAuthAdapter = (): UseAuthAdapter => {
       
       // Run pending action if it exists
       if (pendingAction) {
-        pendingAction().catch(error => {
+        pendingAction().catch((error: unknown) => {
           qaLog('Auth adapter: pending action failed after auth', error);
         });
         setPendingAction(null);

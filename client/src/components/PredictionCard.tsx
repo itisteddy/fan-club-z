@@ -51,8 +51,8 @@ const PredictionCardContent: React.FC<PredictionCardProps> = ({
   const [isLiking, setIsLiking] = useState(false);
 
   // Get stores
-  const { likes, toggleLike } = useLikeStore();
-      const { getCommentCount } = useUnifiedCommentStore();
+  const { toggleLike, checkIfLiked, getLikeCount } = useLikeStore();
+  const { getCommentCount } = useUnifiedCommentStore();
 
   // Calculate real data with safe fallbacks
   const rawDeadline = prediction.entry_deadline ?? prediction.entryDeadline ?? null;
@@ -64,23 +64,24 @@ const PredictionCardContent: React.FC<PredictionCardProps> = ({
   const timeRemaining = entryDeadline ? formatTimeRemaining(entryDeadline) : null;
 
   // Use real participant count from database with fallbacks
-  const participantCount = prediction.participant_count || prediction.entries?.length || 0;
+  const participantCount = prediction.participantCount ?? prediction.entries?.length ?? 0;
   
   // Calculate total pool from options or use fallback
-  const totalPool = prediction.options?.reduce((sum, option) => {
-    const staked = option.total_staked || option.totalStaked || 0;
-    return sum + staked;
-  }, 0) || prediction.pool_total || prediction.poolTotal || 0;
+  const totalPool =
+    (prediction.options || []).reduce((sum, option) => {
+      const staked = option.totalStaked ?? option.total_staked ?? 0;
+      return sum + staked;
+    }, 0) || prediction.poolTotal || prediction.pool_total || 0;
 
   // Get like and comment counts
-  const likeCount = likes[prediction.id] || 0;
+  const likeCount = getLikeCount(prediction.id);
   const commentCount = getCommentCount(prediction.id);
-  const isLiked = false; // Simplified for now
+  const isLiked = checkIfLiked(prediction.id);
 
   // Get first two options for chips
   const chips = (prediction.options || []).slice(0, 2).map((option) => ({
-    label: option.text || option.option || option.label || 'Option',
-    odds: option.current_odds || option.odds || 1,
+    label: option.label ?? 'Option',
+    odds: option.currentOdds ?? option.current_odds ?? 1,
   }));
 
   const statusBadge = (() => {

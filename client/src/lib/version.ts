@@ -30,21 +30,31 @@ export class VersionManager {
 
   // Increment patch version (2.0.42 -> 2.0.43)
   incrementPatch(): string {
-    const [major, minor, patch] = this.currentVersion.split('.').map(Number);
+    const [majorRaw = 0, minorRaw = 0, patchRaw = 0] = this.currentVersion
+      .split('.')
+      .map((value) => Number(value) || 0);
+    const major = Number.isFinite(majorRaw) ? majorRaw : 0;
+    const minor = Number.isFinite(minorRaw) ? minorRaw : 0;
+    const patch = Number.isFinite(patchRaw) ? patchRaw : 0;
     this.currentVersion = `${major}.${minor}.${patch + 1}`;
     return this.currentVersion;
   }
 
   // Increment minor version (2.0.42 -> 2.1.0)
   incrementMinor(): string {
-    const [major, minor] = this.currentVersion.split('.').map(Number);
+    const [majorRaw = 0, minorRaw = 0] = this.currentVersion
+      .split('.')
+      .map((value) => Number(value) || 0);
+    const major = Number.isFinite(majorRaw) ? majorRaw : 0;
+    const minor = Number.isFinite(minorRaw) ? minorRaw : 0;
     this.currentVersion = `${major}.${minor + 1}.0`;
     return this.currentVersion;
   }
 
   // Increment major version (2.0.42 -> 3.0.0)
   incrementMajor(): string {
-    const [major] = this.currentVersion.split('.').map(Number);
+    const [majorRaw = 0] = this.currentVersion.split('.').map((value) => Number(value) || 0);
+    const major = Number.isFinite(majorRaw) ? majorRaw : 0;
     this.currentVersion = `${major + 1}.0.0`;
     return this.currentVersion;
   }

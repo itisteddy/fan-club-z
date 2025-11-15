@@ -4,6 +4,19 @@ import { VERSION } from '@fanclubz/shared';
 
 const router = Router();
 
+type MaybeArray<T> = T | T[] | null | undefined;
+
+const pickFirst = <T>(value: MaybeArray<T>): T | null => {
+  if (!value) {
+    return null;
+  }
+  return Array.isArray(value) ? value[0] ?? null : value;
+};
+
+const getOptionLabel = (option: MaybeArray<{ label?: string }>): string | null => {
+  return pickFirst(option)?.label ?? null;
+};
+
 // GET /api/v2/activity/predictions/:id - Get activity feed for a prediction
 router.get('/predictions/:id', async (req, res) => {
   try {
@@ -87,7 +100,7 @@ router.get('/predictions/:id', async (req, res) => {
         potential_payout: Number(entry.potential_payout || 0),
         status: entry.status,
         option_id: entry.option_id,
-        option_label: entry.option?.label ?? null,
+        option_label: getOptionLabel(entry.option as MaybeArray<{ label?: string }>),
       }
     }));
 
@@ -199,22 +212,25 @@ router.get('/user/:userId', async (req, res) => {
       });
     }
 
-    const betEvents = (betEntries || []).map((entry) => ({
+    const betEvents = (betEntries || []).map((entry) => {
+      const prediction = pickFirst(entry.prediction as MaybeArray<{ id?: string; title?: string; status?: string }>);
+      return {
       id: `bet_${entry.id}`,
       timestamp: entry.created_at,
       type: 'entry.create',
       actor: null,
-      predictionId: entry.prediction?.id ?? entry.prediction_id,
-      predictionTitle: entry.prediction?.title ?? null,
-      predictionStatus: entry.prediction?.status ?? null,
+      predictionId: prediction?.id ?? entry.prediction_id,
+      predictionTitle: prediction?.title ?? null,
+      predictionStatus: prediction?.status ?? null,
       data: {
         amount: Number(entry.amount || 0),
         potential_payout: Number(entry.potential_payout || 0),
         status: entry.status,
         option_id: entry.option_id,
-        option_label: entry.option?.label ?? null,
+        option_label: getOptionLabel(entry.option as MaybeArray<{ label?: string }>),
       }
-    }));
+    };
+    });
 
     const walletChannels = ['escrow_consumed', 'escrow_unlock', 'payout', 'platform_fee', 'creator_fee'];
 
@@ -253,7 +269,7 @@ router.get('/user/:userId', async (req, res) => {
             data: {
               amount,
               option_label: tx.meta?.option_label ?? null,
-              entry_id: tx.meta?.prediction_entry_id ?? tx.entry_id ?? null,
+              entry_id: tx.meta?.prediction_entry_id ?? (tx as Record<string, any>).entry_id ?? null,
             },
           };
         case 'platform_fee':

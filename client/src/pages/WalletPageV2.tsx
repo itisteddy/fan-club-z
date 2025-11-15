@@ -146,23 +146,24 @@ const WalletPageV2: React.FC<WalletPageV2Props> = ({ onNavigateBack }) => {
     setShowWithdraw(true);
   }, [ensureWalletReady]);
 
+  // Handle balance refresh after transactions
+  const handleRefresh = useCallback(() => {
+    console.log('[FCZ-PAY] Refreshing balances after transaction');
+    
+    // Force clear React Query cache for contract reads
+    queryClient.removeQueries({ queryKey: ['readContract'] });
+    
+    // Wait a moment for cache clear, then refetch
+    setTimeout(() => {
+      refetchBalances();
+    }, 500);
+  }, [refetchBalances, queryClient]);
+
   // Listen for balance refresh events from deposit/withdraw modals
   useEffect(() => {
-    const handleRefresh = () => {
-      console.log('[FCZ-PAY] Refreshing balances after transaction');
-      
-      // Force clear React Query cache for contract reads
-      queryClient.removeQueries({ queryKey: ['readContract'] });
-      
-      // Wait a moment for cache clear, then refetch
-      setTimeout(() => {
-        refetchBalances();
-      }, 500);
-    };
-    
     window.addEventListener('fcz:balance:refresh', handleRefresh);
     return () => window.removeEventListener('fcz:balance:refresh', handleRefresh);
-  }, [refetchBalances, queryClient]);
+  }, [handleRefresh]);
   
   // Display wallet balance (0 when no access)
   const displayWalletUSDC = (isConnected && chainId === baseSepolia.id) ? walletUSDC : 0;
@@ -646,18 +647,30 @@ const WalletPageV2: React.FC<WalletPageV2Props> = ({ onNavigateBack }) => {
       {/* Crypto Wallet Modals */}
       {user?.id && (
         <>
-          <DepositUSDCModal
-            open={showDeposit}
-            onClose={() => setShowDeposit(false)}
-            availableUSDC={walletUSDC}
-            userId={user?.id || ''}
-          />
-          <WithdrawUSDCModal
-            open={showWithdraw}
-            onClose={() => setShowWithdraw(false)}
-            availableUSDC={escrowAvailableUSD}
-            userId={user.id}
-          />
+          {showDeposit && (
+            <DepositUSDCModal
+              open={showDeposit}
+              onClose={() => setShowDeposit(false)}
+              onSuccess={() => {
+                setShowDeposit(false);
+                handleRefresh();
+              }}
+              availableUSDC={walletUSDC}
+              userId={user.id}
+            />
+          )}
+          {showWithdraw && (
+            <WithdrawUSDCModal
+              open={showWithdraw}
+              onClose={() => setShowWithdraw(false)}
+              onSuccess={() => {
+                setShowWithdraw(false);
+                handleRefresh();
+              }}
+              availableUSDC={escrowAvailableUSD}
+              userId={user.id}
+            />
+          )}
         </>
       )}
 

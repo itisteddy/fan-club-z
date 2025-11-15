@@ -21,6 +21,24 @@ interface HealthCheckSuite {
   results: HealthCheckResult[];
 }
 
+type FetchWithTimeoutOptions = RequestInit & { timeout?: number };
+
+async function fetchWithTimeout(input: RequestInfo | URL, options: FetchWithTimeoutOptions = {}) {
+  const { timeout, ...init } = options;
+  if (!timeout || timeout <= 0) {
+    return fetch(input, init);
+  }
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeout);
+
+  try {
+    return await fetch(input, { ...init, signal: controller.signal });
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
 class HealthChecker {
   private results: HealthCheckResult[] = [];
 
@@ -33,7 +51,7 @@ class HealthChecker {
     
     try {
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001';
-      const response = await fetch(`${apiUrl}/api/health`, {
+      const response = await fetchWithTimeout(`${apiUrl}/api/health`, {
         method: 'GET',
         timeout: 5000,
       });
@@ -78,7 +96,7 @@ class HealthChecker {
     
     try {
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001';
-      const response = await fetch(`${apiUrl}/api/v2/predictions?limit=1`, {
+      const response = await fetchWithTimeout(`${apiUrl}/api/v2/predictions?limit=1`, {
         method: 'GET',
         timeout: 5000,
       });
@@ -147,7 +165,7 @@ class HealthChecker {
       }
 
       // Test Supabase connection
-      const response = await fetch(`${supabaseUrl}/rest/v1/`, {
+      const response = await fetchWithTimeout(`${supabaseUrl}/rest/v1/`, {
         headers: {
           'apikey': supabaseKey,
           'Authorization': `Bearer ${supabaseKey}`,

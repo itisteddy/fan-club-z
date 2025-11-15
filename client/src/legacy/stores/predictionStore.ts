@@ -1,23 +1,10 @@
 import { create } from 'zustand';
 import { devtools } from 'zustand/middleware';
-import { 
-  Prediction, 
-  PredictionListResponse, 
-  validatePredictionListResponse,
-  isPredictionListResponse 
-} from '../api/schemas';
-import { get as apiGet, ApiResult } from '../api/client';
+import type { Prediction, PredictionListResponse } from '../types/domain';
+import { validatePredictionListResponse } from '../api/schemas';
+import { get as apiGet, post as apiPost, ApiResult } from '../api/client';
+import type { LoadStatus } from '../types/api';
 import { qaLog, qaError } from '../utils/devQa';
-
-export type LoadStatus =
-  | 'idle'
-  | 'loading'
-  | 'success'
-  | 'network_error'
-  | 'server_error'
-  | 'client_error'
-  | 'parse_error'
-  | 'schema_error';
 
 interface PredictionState {
   // State
@@ -35,6 +22,8 @@ interface PredictionState {
   loadMore: () => Promise<void>;
   refresh: () => Promise<void>;
   fetchPrediction: (id: string) => Promise<Prediction | null>;
+  fetchPredictionById: (id: string) => Promise<Prediction | null>;
+  placePrediction: (predictionId: string, optionId: string, amount: number, transactionHash: string, userId: string) => Promise<{ success: boolean; data?: any }>;
   clear: () => void;
   setError: (error: string | null) => void;
   closePrediction: (predictionId: string) => Promise<{ success: boolean; data?: unknown }>;
@@ -109,7 +98,7 @@ export const usePredictionStore = create<PredictionState>()(
               return;
             }
 
-            const { predictions, total, page: responsePage, limit: responseLimit, has_more } = responseData;
+            const { data: predictions, total, page: responsePage, limit: responseLimit, has_more } = responseData;
 
             qaLog('Prediction store: Loaded successfully', { 
               count: predictions.length, 
@@ -158,7 +147,6 @@ export const usePredictionStore = create<PredictionState>()(
 
             qaError('Prediction store: Load failed', { kind: result.kind, error: errorMessage });
 
-
             set({
               status: errorStatus,
               error: errorMessage,
@@ -173,7 +161,6 @@ export const usePredictionStore = create<PredictionState>()(
           }
         } catch (error) {
           qaError('Prediction store: Unexpected error', error);
-          
           
           set({
             status: 'network_error',
@@ -209,97 +196,95 @@ export const usePredictionStore = create<PredictionState>()(
       },
 
       refresh: async () => {
-      const currentState = get();
-      qaLog('Prediction store: Refreshing predictions');
-      
-      // Reset to first page and reload
-      await get().load({ page: 1 });
+        const currentState = get();
+        qaLog('Prediction store: Refreshing predictions');
+        
+        // Reset to first page and reload
+        await get().load({ page: 1 });
       },
 
-  fetchPredictionById: async (id: string) => {
-    qaLog('Prediction store: Fetching prediction by ID:', id);
-    
-    try {
-      // First check if it's already in the store with options
-      const { predictions } = get();
-      const existing = predictions.find(p => p.id === id);
-      if (existing && existing.options && existing.options.length > 0) {
-        qaLog('Found prediction in store with options:', existing.title, existing.options.length);
-        return existing;
-      }
-      
-      // Fetch directly from the API
-      const result: ApiResult<{ data: Prediction; message: string; version: string }> = await apiGet(`/v2/predictions/${id}`);
-      
-      if (result.kind === 'success') {
-        const prediction = result.data.data;
-        qaLog('Fetched prediction from API:', prediction.title);
-        qaLog('Prediction options:', prediction.options?.length || 0);
+      fetchPredictionById: async (id: string) => {
+        qaLog('Prediction store: Fetching prediction by ID:', id);
         
-        // Update the store with the fetched prediction
-        set(state => ({
-          predictions: state.predictions.some(p => p.id === id) 
-            ? state.predictions.map(p => p.id === id ? prediction : p)
-            : [...state.predictions, prediction]
-        }));
-        
-        return prediction;
-      } else {
-        qaError('Failed to fetch prediction by ID:', result);
-        return null;
-      }
-    } catch (error) {
-      qaError('Unexpected error fetching prediction by ID:', error);
-      return null;
-    }
-  },
+        try {
+          // First check if it's already in the store with options
+          const { predictions } = get();
+          const existing = predictions.find(p => p.id === id);
+          if (existing && existing.options && existing.options.length > 0) {
+            qaLog('Found prediction in store with options:', existing.title, existing.options.length);
+            return existing;
+          }
+          
+          // Fetch directly from the API
+          const result: ApiResult<{ data: Prediction; message: string; version: string }> = await apiGet(`/v2/predictions/${id}`);
+          
+          if (result.kind === 'success') {
+            const prediction = result.data.data;
+            qaLog('Fetched prediction from API:', prediction.title);
+            qaLog('Prediction options:', prediction.options?.length || 0);
+            
+            // Update the store with the fetched prediction
+            set(state => ({
+              predictions: state.predictions.some(p => p.id === id) 
+                ? state.predictions.map(p => p.id === id ? prediction : p)
+                : [...state.predictions, prediction]
+            }));
+            
+            return prediction;
+          } else {
+            qaError('Failed to fetch prediction by ID:', result);
+            return null;
+          }
+        } catch (error) {
+          qaError('Unexpected error fetching prediction by ID:', error);
+          return null;
+        }
+      },
 
-  placePrediction: async (predictionId: string, optionId: string, amount: number, transactionHash: string, userId: string) => {
-    qaLog('Prediction store: Placing prediction:', { predictionId, optionId, amount, transactionHash, userId });
-    
-    if (!predictionId || !optionId || !amount || !transactionHash || !userId) {
-      qaError('Prediction store: missing required fields');
-      throw new Error('All fields are required: predictionId, optionId, amount, transactionHash, userId');
-    }
-    
-    try {
-      const { post } = await import('../api/client');
-      
-      const payload = {
-        option_id: optionId,
-        amount: Number(amount),
-        transaction_hash: transactionHash,
-        user_id: userId
-      };
-      
-      qaLog('Prediction store: Sending payload:', payload);
-      
-      const result = await post(`/v2/predictions/${predictionId}/entries`, payload);
-      
-      if (result.kind === 'success') {
-        const data = result.data.data;
+      placePrediction: async (predictionId: string, optionId: string, amount: number, transactionHash: string, userId: string) => {
+        qaLog('Prediction store: Placing prediction:', { predictionId, optionId, amount, transactionHash, userId });
         
-        if (data.prediction) {
-          set(state => ({
-            predictions: state.predictions.map(pred => 
-              pred.id === predictionId 
-                ? { ...pred, ...data.prediction, user_entry: data.entry }
-                : pred
-            )
-          }));
+        if (!predictionId || !optionId || !amount || !transactionHash || !userId) {
+          qaError('Prediction store: missing required fields');
+          throw new Error('All fields are required: predictionId, optionId, amount, transactionHash, userId');
         }
         
-        qaLog('Prediction placed successfully');
-        return { success: true, data };
-      } else {
-        qaError('Failed to place prediction:', result);
-        throw new Error(`Failed to place prediction: ${result.kind}`);
-      }
-    } catch (error) {
-      qaError('Error placing prediction:', error);
-      throw error;
-    }
-  },
+        try {
+          const payload = {
+            option_id: optionId,
+            amount: Number(amount),
+            transaction_hash: transactionHash,
+            user_id: userId
+          };
+          
+          qaLog('Prediction store: Sending payload:', payload);
+          
+          const result = await apiPost(`/v2/predictions/${predictionId}/entries`, payload);
+          
+          if (result.kind === 'success') {
+            const data = result.data.data;
+            
+            if (data.prediction) {
+              set(state => ({
+                predictions: state.predictions.map(pred => 
+                  pred.id === predictionId 
+                    ? { ...pred, ...data.prediction, user_entry: data.entry }
+                    : pred
+                )
+              }));
+            }
+            
+            qaLog('Prediction placed successfully');
+            return { success: true, data };
+          } else {
+            qaError('Failed to place prediction:', result);
+            throw new Error(`Failed to place prediction: ${result.kind}`);
+          }
+        } catch (error) {
+          qaError('Error placing prediction:', error);
+          throw error;
+        }
+      },
 
       fetchPrediction: async (id: string) => {
         qaLog('Prediction store: Fetching prediction by ID:', id);
@@ -339,49 +324,11 @@ export const usePredictionStore = create<PredictionState>()(
         set({ error });
       },
 
-      // User-specific data fetching methods
-      fetchUserPredictionEntries: async (userId: string) => {
-        qaLog('Prediction store: Fetching user prediction entries for:', userId);
-        // This would be implemented when user entries are needed
-        // For now, return empty to prevent errors
-        return [];
-      },
-
-      fetchUserCreatedPredictions: async (userId: string) => {
-        qaLog('Prediction store: Fetching user created predictions for:', userId);
-        // This would be implemented when user created predictions are needed
-        // For now, return empty to prevent errors
-        return [];
-      },
-
-      // Utility methods for accessing user data
-      getUserPredictionEntries: (userId: string) => {
-        // This would access stored user entries
-        // For now, return empty to prevent errors
-        return [];
-      },
-
-      getUserCreatedPredictions: (userId: string) => {
-        // This would access stored user created predictions
-        // For now, return empty to prevent errors
-        return [];
-      },
-
-      // Social engagement methods
-      togglePredictionLike: async (predictionId: string) => {
-        qaLog('Prediction store: Toggling like for prediction:', predictionId);
-        // This would be implemented when like functionality is needed
-        // For now, just log to prevent errors
-        return Promise.resolve();
-      },
-
       closePrediction: async (predictionId: string) => {
         qaLog('Prediction store: Closing prediction:', predictionId);
 
         try {
-          const { post } = await import('../api/client');
-
-          const result = await post(`/v2/predictions/${predictionId}/close`, {});
+          const result = await apiPost(`/v2/predictions/${predictionId}/close`, {});
 
           if (result.kind === 'success') {
             const closedPrediction = result.data.data;
@@ -389,7 +336,7 @@ export const usePredictionStore = create<PredictionState>()(
             set(state => ({
               predictions: state.predictions.map(pred =>
                 pred.id === predictionId
-                  ? { ...pred, ...closedPrediction, status: 'closed' }
+                  ? { ...pred, ...closedPrediction, status: 'closed' as const }
                   : pred
               ),
             }));

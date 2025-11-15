@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { ArrowLeft, AlertTriangle, User, Home } from 'lucide-react';
-import { usePredictionStore } from '../../stores/predictionStore';
+import { usePredictionStore } from '../../store/predictionStore';
 import { useErrorHandling } from '../../hooks/useErrorHandling';
 import { openAuthGate } from '../../auth/authGateAdapter';
 import ErrorBanner from '../ui/ErrorBanner';

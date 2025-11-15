@@ -116,8 +116,23 @@ const ManagePredictionModal: React.FC<ManagePredictionModalProps> = ({
         console.log('🔄 ManagePredictionModal: Updated prediction with', fullPrediction.options.length, 'options');
         // Force update the prediction object with all data from API
         Object.assign(prediction, fullPrediction);
-        // Update state to force re-render of all components
-        setPredictionData({ ...fullPrediction });
+        // Update state to force re-render of all components (map to expected type)
+        setPredictionData({
+          id: fullPrediction.id,
+          title: fullPrediction.title,
+          category: fullPrediction.category,
+          totalPool: fullPrediction.pool_total || fullPrediction.poolTotal || 0,
+          participants: fullPrediction.participant_count || fullPrediction.participantCount || 0,
+          timeRemaining: formatTimeRemaining(fullPrediction.entry_deadline || fullPrediction.entryDeadline || ''),
+          yourCut: fullPrediction.creator_fee_percentage || 3.5,
+          status: fullPrediction.status || 'open',
+          description: fullPrediction.description,
+          pool_total: fullPrediction.pool_total || fullPrediction.poolTotal,
+          participant_count: fullPrediction.participant_count || fullPrediction.participantCount,
+          creator_fee_percentage: fullPrediction.creator_fee_percentage,
+          entry_deadline: fullPrediction.entry_deadline || fullPrediction.entryDeadline,
+          options: fullPrediction.options
+        });
       } else {
         console.warn('⚠️ ManagePredictionModal: No options found for prediction:', prediction.id);
         // Try to fetch again with a delay
@@ -126,7 +141,22 @@ const ManagePredictionModal: React.FC<ManagePredictionModalProps> = ({
           if (retryPrediction?.options?.length) {
             console.log('🔄 Retry successful: Found', retryPrediction.options.length, 'options');
             Object.assign(prediction, retryPrediction);
-            setPredictionData({ ...retryPrediction });
+            setPredictionData({
+              id: retryPrediction.id,
+              title: retryPrediction.title,
+              category: retryPrediction.category,
+              totalPool: retryPrediction.pool_total || retryPrediction.poolTotal || 0,
+              participants: retryPrediction.participant_count || retryPrediction.participantCount || 0,
+              timeRemaining: formatTimeRemaining(retryPrediction.entry_deadline || retryPrediction.entryDeadline || ''),
+              yourCut: retryPrediction.creator_fee_percentage || 3.5,
+              status: retryPrediction.status || 'open',
+              description: retryPrediction.description,
+              pool_total: retryPrediction.pool_total || retryPrediction.poolTotal,
+              participant_count: retryPrediction.participant_count || retryPrediction.participantCount,
+              creator_fee_percentage: retryPrediction.creator_fee_percentage,
+              entry_deadline: retryPrediction.entry_deadline || retryPrediction.entryDeadline,
+              options: retryPrediction.options
+            });
           }
         }, 1000);
       }

@@ -4,6 +4,7 @@ import { useLocation } from 'wouter';
 import { useAuthStore } from '../store/authStore';
 import { useAuthSession } from '../providers/AuthSessionProvider';
 import { usePredictionStore } from '../store/predictionStore';
+import type { Prediction, PredictionOption } from '../store/predictionStore';
 import { openAuthGate } from '../auth/authGateAdapter';
 import SignedOutGateCard from '../components/auth/SignedOutGateCard';
 import { 
@@ -25,6 +26,8 @@ import { useAccount } from 'wagmi';
 import { useMerkleClaim } from '@/hooks/useMerkleClaim';
 import { useClaimableClaims } from '@/hooks/useClaimableClaims';
 import { formatCurrency } from '@/lib/format';
+
+type TabKey = 'Active' | 'Created' | 'Completed';
 
 // Production BetsTab Component - Extracted from production bundle
 const PredictionsPage: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNavigateToDiscover }) => {
@@ -53,7 +56,7 @@ const PredictionsPage: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNa
     createdAt: sessionUser.created_at
   } : storeUser;
 
-  const [activeTab, setActiveTab] = useState("Active");
+  const [activeTab, setActiveTab] = useState<TabKey>('Active');
   const [showManageModal, setShowManageModal] = useState(false);
   const [selectedPrediction, setSelectedPrediction] = useState(null);
   const [entriesHydrated, setEntriesHydrated] = useState(false);
@@ -171,14 +174,14 @@ const PredictionsPage: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNa
   const counts = getCounts();
 
   // Tab configuration
-  const tabs = [
+  const tabs: Array<{ id: TabKey; label: string; icon: typeof TrendingUp; count: number }> = [
     { id: 'Active', label: 'Active', icon: TrendingUp, count: counts.active },
     { id: 'Created', label: 'Created', icon: Target, count: counts.created },
     { id: 'Completed', label: 'Completed', icon: CheckCircle, count: counts.completed }
   ];
 
   // Get user predictions data
-  const getUserPredictions = () => {
+  const getUserPredictions = (): Record<TabKey, (Prediction | null)[]> => {
     if (!isAuthenticated || !user) {
       return { Active: [], Created: [], Completed: [] };
     }
@@ -206,7 +209,7 @@ const PredictionsPage: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNa
           return null;
         }
 
-        const option = (entry as any).option || prediction.options?.find(o => o.id === entry.option_id);
+        const option = (entry as any).option || prediction.options?.find((o: PredictionOption) => o.id === entry.option_id);
         const timeRemaining = getTimeRemaining(prediction.entry_deadline, prediction.status);
         
         return {
@@ -282,7 +285,7 @@ const PredictionsPage: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNa
         return null;
     }
 
-        const option = (entry as any).option || prediction.options?.find(o => o.id === entry.option_id);
+        const option = (entry as any).option || prediction.options?.find((o: PredictionOption) => o.id === entry.option_id);
         const profit = (entry.actual_payout || 0) - entry.amount;
         
         // Determine display status and time with proper terminology
@@ -325,9 +328,9 @@ const PredictionsPage: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNa
       .filter(Boolean);
 
     return {
-      Active: activePredictions,
-      Created: createdPredictions,
-      Completed: completedPredictions
+      Active: activePredictions as unknown as (Prediction | null)[],
+      Created: createdPredictions as unknown as (Prediction | null)[],
+      Completed: completedPredictions as unknown as (Prediction | null)[]
     };
   };
 
@@ -384,7 +387,7 @@ const PredictionsPage: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNa
       });
   }, [isAuthenticated, user, userEntriesList, predictions, isEntryActive]);
 
-  const currentPredictions = userPredictions[activeTab] || [];
+  const currentPredictions = userPredictions[activeTab as TabKey] || [];
 
   // Helper functions for styling
   const getStatusColor = (status: string) => {
@@ -456,7 +459,7 @@ const PredictionsPage: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNa
       }
     };
 
-    const config = emptyStateConfig[tab];
+    const config = emptyStateConfig[tab as TabKey];
     const Icon = config.icon;
 
   return (
@@ -943,14 +946,14 @@ const PredictionsPage: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNa
             )
           ) : currentPredictions.length > 0 ? (
             <div className="space-y-4">
-              {activeTab === 'Created' && currentPredictions.map((prediction, index) => 
+              {activeTab === 'Created' && currentPredictions.map((prediction: Prediction | null, index: number) => 
                 !prediction || typeof prediction.id === 'undefined' ? (
                   console.warn('Invalid prediction object:', prediction), null
                 ) : (
                   <CreatedPredictionCard key={`created-${prediction.id}-${index}`} prediction={prediction} />
                 )
               )}
-              {activeTab === 'Completed' && currentPredictions.map((prediction, index) => 
+              {activeTab === 'Completed' && currentPredictions.map((prediction: Prediction | null, index: number) => 
                 !prediction || typeof prediction.id === 'undefined' ? (
                   console.warn('Invalid prediction object:', prediction), null
                 ) : (

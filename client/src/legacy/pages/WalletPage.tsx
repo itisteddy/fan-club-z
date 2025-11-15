@@ -1,17 +1,17 @@
 import React, { useState } from 'react';
 import { Plus, ArrowDownToLine, DollarSign, Lock, Wallet, RefreshCw } from 'lucide-react';
-import { useAuthStore } from '../store/authStore';
+import { useAuthStore } from '../../store/authStore';
 import { useAccount } from 'wagmi';
 import { useLocation } from 'wouter';
-import { openAuthGate } from '../auth/authGateAdapter';
-import AppHeader from '../components/layout/AppHeader';
+import { openAuthGate } from '../../auth/authGateAdapter';
+import AppHeader from '../../components/layout/AppHeader';
 import { formatCurrency } from '@/lib/format';
-import { useEscrowBalance } from '../hooks/useEscrowBalance';
-import { useUSDCBalance } from '../hooks/useUSDCBalance';
-import { useWalletActivity } from '../hooks/useWalletActivity';
-import DepositUSDCModal from '../components/wallet/DepositUSDCModal';
-import WithdrawUSDCModal from '../components/wallet/WithdrawUSDCModal';
-import ConnectWalletSheet from '../components/wallet/ConnectWalletSheet';
+import { useEscrowBalance } from '../../hooks/useEscrowBalance';
+import { useUSDCBalance } from '../../hooks/useUSDCBalance';
+import { useWalletActivity, WalletActivityItem } from '../../hooks/useWalletActivity';
+import DepositUSDCModal from '../../components/wallet/DepositUSDCModal';
+import WithdrawUSDCModal from '../../components/wallet/WithdrawUSDCModal';
+import ConnectWalletSheet from '../../components/wallet/ConnectWalletSheet';
 
 interface WalletPageProps {
   onNavigateBack?: () => void;
@@ -276,7 +276,7 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
                   </div>
                 ) : activities.length > 0 ? (
                   <div className="space-y-3">
-                    {activities.map((activity) => {
+                    {activities.map((activity: WalletActivityItem) => {
                       const { Icon, color } = getActivityIcon(activity.kind);
                       const isPositive =
                         activity.kind === 'deposit' ||
@@ -310,7 +310,7 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
                             <div className={`text-sm font-medium ${
                               isPositive ? 'text-green-600' : 'text-red-600'
                             }`}>
-                              {isPositive ? '+' : '-'}{formatCurrency(activity.amount, 'USD', true)}
+                              {isPositive ? '+' : '-'}{formatCurrency(activity.amountUSD ?? 0, 'USD', true)}
                             </div>
                             {activity.txHash && (
                               <a
@@ -348,7 +348,7 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
       {/* Modals */}
       {showDepositModal && (
         <DepositUSDCModal
-          isOpen={showDepositModal}
+          open={showDepositModal}
           onClose={() => setShowDepositModal(false)}
           onSuccess={() => {
             setShowDepositModal(false);
@@ -359,13 +359,13 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
       
       {showWithdrawModal && (
         <WithdrawUSDCModal
-          isOpen={showWithdrawModal}
+          open={showWithdrawModal}
           onClose={() => setShowWithdrawModal(false)}
           onSuccess={() => {
             setShowWithdrawModal(false);
             handleRefresh();
           }}
-          maxAmount={availableUSD}
+          availableUSDC={availableUSD}
         />
       )}
       

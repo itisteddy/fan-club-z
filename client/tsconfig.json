@@ -21,11 +21,13 @@
       "~server/*": ["../server/src/*"],
       "~shared/*": ["../shared/*"]
     },
-
+    "typeRoots": ["./src/types", "./node_modules/@types"],
+    "types": ["vite/client"],
     /* Linting - enabled strict */
     "strict": true,
     "noUncheckedIndexedAccess": true
   },
   "include": ["src", "vite-env.d.ts"],
+  "exclude": ["node_modules", "dist", "src/legacy/**/*"],
   "references": [{ "path": "./tsconfig.node.json" }]
 }

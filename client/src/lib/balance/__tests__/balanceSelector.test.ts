@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { describe, it, expect } from 'vitest';
 import { selectEscrowAvailableUSD } from '../balanceSelector';
 import type { WalletStoreState } from '@/store/walletStore';

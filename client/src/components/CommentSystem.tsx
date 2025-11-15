@@ -92,7 +92,7 @@ const CommentSystem: React.FC<CommentSystemProps> = ({ predictionId }) => {
 
   // Derived states from status
   const isLoading = status === 'loading';
-  const isSubmitting = status === 'posting' || isPosting;
+  const isSubmitting = isPosting;
   const error = ['network_error', 'server_error', 'client_error', 'parse_error'].includes(status) 
     ? getErrorMessage(status) : null;
 
@@ -168,14 +168,8 @@ const CommentSystem: React.FC<CommentSystemProps> = ({ predictionId }) => {
     }
 
     try {
-      // Pass user data to the comment creation
-      await addComment(content.trim(), parentId, {
-        id: user.id,
-        username: user.firstName || user.email?.split('@')[0] || 'Anonymous',
-        full_name: `${user.firstName} ${user.lastName}`.trim() || user.email?.split('@')[0] || 'Anonymous User',
-        avatar_url: user.avatar,
-        is_verified: false
-      });
+      // Add comment (predictionId is already bound in the hook)
+      await addComment(content.trim());
       
       // Clear the text input
       if (parentId) {
@@ -248,13 +242,7 @@ const CommentSystem: React.FC<CommentSystemProps> = ({ predictionId }) => {
               toast.dismiss(t.id);
               try {
                 // Re-create deleted comment (best-effort restore)
-                await addComment(deletedSnapshot.content, deletedSnapshot.parent_comment_id || undefined, user ? {
-                  id: user.id,
-                  username: user.firstName || user.email?.split('@')[0] || 'Anonymous',
-                  full_name: `${user.firstName} ${user.lastName}`.trim() || user.email?.split('@')[0] || 'Anonymous User',
-                  avatar_url: user.avatar,
-                  is_verified: false
-                } : undefined);
+                await addComment(deletedSnapshot.content);
                 toast.success('Comment restored');
               } catch {
                 toast.error('Unable to restore comment');

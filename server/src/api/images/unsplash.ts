@@ -43,17 +43,34 @@ export class UnsplashProvider implements ImageProvider {
         throw new Error(`Unsplash API error: ${response.status} ${response.statusText}`);
       }
 
-      const data = await response.json();
+      type UnsplashPhoto = {
+        urls?: {
+          regular?: string;
+          full?: string;
+          thumb?: string;
+          small?: string;
+        };
+        width?: number;
+        height?: number;
+        user?: { name?: string };
+        links?: { html?: string };
+      };
+
+      type UnsplashResponse = {
+        results?: UnsplashPhoto[];
+      };
+
+      const data = (await response.json()) as UnsplashResponse;
       
-      return data.results?.map((photo: any): StockImage => ({
-        url: photo.urls?.regular || photo.urls?.full,
-        previewUrl: photo.urls?.thumb || photo.urls?.small,
+      return (data.results ?? []).map((photo): StockImage => ({
+        url: photo.urls?.regular || photo.urls?.full || '',
+        previewUrl: photo.urls?.thumb || photo.urls?.small || '',
         width: photo.width || 800,
         height: photo.height || 600,
-        photographer: photo.user?.name,
+        photographer: photo.user?.name ?? 'Unknown',
         provider: 'unsplash' as const,
-        sourceUrl: photo.links?.html
-      })) || [];
+        sourceUrl: photo.links?.html || ''
+      }));
 
     } catch (error) {
       console.error('Unsplash search error:', error);

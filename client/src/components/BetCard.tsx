@@ -42,23 +42,10 @@ const BetCard: React.FC<BetCardProps> = ({
 }) => {
   const [showAllOptions, setShowAllOptions] = React.useState(false);
   const [isCommentModalOpen, setIsCommentModalOpen] = useState(false);
-  const { getCommentCount, updateCommentCount, initialize } = useUnifiedCommentStore();
+  const { getCommentCount } = useUnifiedCommentStore();
   
-  // Initialize comment store once
-  useEffect(() => {
-    initialize();
-  }, []);
-  
-  // Sync comment count from bet data only when it changes
-  useEffect(() => {
-    if (bet.comments_count !== undefined || bet.comments !== undefined) {
-      const count = bet.comments_count || bet.comments || 0;
-      updateCommentCount(bet.id, count);
-    }
-  }, [bet.id, bet.comments_count, bet.comments, updateCommentCount]);
-  
-  // Get comment count for this bet
-  const commentCount = getCommentCount(bet.id);
+  // Get comment count for this bet (from store or bet data)
+  const commentCount = getCommentCount(bet.id) || bet.comments_count || bet.comments || 0;
   
   // Calculate display logic for options
   const options = bet.options || [];
@@ -69,7 +56,7 @@ const BetCard: React.FC<BetCardProps> = ({
   const explicitPool = toNumber(bet.pool_total ?? bet.poolTotal);
   const derivedPool = options.reduce((sum, option) => sum + toNumber(option.total_staked ?? option.totalStaked), 0);
   const totalPool = explicitPool > 0 ? explicitPool : derivedPool;
-  const participantCount = toNumber(bet.participant_count ?? bet.participants);
+  const participantCount = toNumber(bet.participant_count ?? 0);
   const rawDeadline = bet.entry_deadline ?? bet.entryDeadline ?? null;
   const entryDeadline = typeof rawDeadline === 'string' && !Number.isNaN(Date.parse(rawDeadline))
     ? rawDeadline
@@ -419,7 +406,7 @@ const BetCard: React.FC<BetCardProps> = ({
                     { bg: 'from-purple-50 to-violet-50', border: 'border-purple-200 hover:border-purple-300', text: 'text-purple-700', bar: 'bg-purple-500' },
                     { bg: 'from-amber-50 to-yellow-50', border: 'border-amber-200 hover:border-amber-300', text: 'text-amber-700', bar: 'bg-amber-500' },
                   ];
-                  const colorScheme = colors[index % colors.length];
+                  const colorScheme = colors[index % colors.length] ?? colors[0] ?? { bg: 'from-gray-50 to-gray-50', border: 'border-gray-200 hover:border-gray-300', text: 'text-gray-700', bar: 'bg-gray-500' };
                   
                   return (
                     <motion.button

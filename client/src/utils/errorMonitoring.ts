@@ -4,6 +4,7 @@
  */
 
 import React from 'react';
+import { createRoutesFromChildren, matchRoutes, useLocation, useNavigationType } from 'react-router-dom';
 
 interface ErrorContext {
   user?: {
@@ -109,11 +110,11 @@ class ErrorMonitor {
         release: import.meta.env.VITE_APP_VERSION || 'unknown',
         
         // Error filtering
-        beforeSend(event) {
+        beforeSend(event: any) {
           // Filter out non-critical errors in production
           if (environment === 'production') {
             // Skip cancelled requests
-            if (event.exception?.values?.some(e => 
+            if (event.exception?.values?.some((e: any) => 
               e.value?.includes('AbortError') || 
               e.value?.includes('cancelled')
             )) {
@@ -121,7 +122,7 @@ class ErrorMonitor {
             }
             
             // Skip network errors that are expected
-            if (event.exception?.values?.some(e => 
+            if (event.exception?.values?.some((e: any) => 
               e.value?.includes('NetworkError') || 
               e.value?.includes('Failed to fetch')
             )) {
@@ -133,7 +134,7 @@ class ErrorMonitor {
         },
         
         // Performance filtering
-        beforeTransaction(event) {
+        beforeTransaction(event: any) {
           // Sample navigation transactions
           if (event.transaction?.includes('navigation')) {
             return Math.random() > 0.5 ? null : event;

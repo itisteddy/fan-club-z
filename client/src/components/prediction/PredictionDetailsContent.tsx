@@ -14,7 +14,7 @@ import {
   Users,
   BarChart3
 } from 'lucide-react';
-import { usePredictionStore } from '../../stores/predictionStore';
+import { usePredictionStore } from '../../store/predictionStore';
 import { useAuthSession } from '../../providers/AuthSessionProvider';
 import { openAuthGate } from '../../auth/authGateAdapter';
 import { useErrorHandling } from '../../hooks/useErrorHandling';
@@ -65,11 +65,6 @@ const PredictionDetailsContent: React.FC<PredictionDetailsContentProps> = ({
     return !prediction?.creator || !prediction.creator.id;
   }, [prediction]);
 
-  // Handle missing prediction
-  const predictionMissing = useMemo(() => {
-    return !prediction;
-  }, [prediction]);
-
   // Load prediction data
   const loadPrediction = useCallback(async () => {
     if (!predictionId) return;
@@ -107,7 +102,7 @@ const PredictionDetailsContent: React.FC<PredictionDetailsContentProps> = ({
         successMessage: isLiked ? 'Unliked prediction' : 'Liked prediction',
       }
     );
-  }, [isAuthenticated, open, isLiked, executeWithErrorHandling]);
+  }, [isAuthenticated, isLiked, executeWithErrorHandling, predictionId]);
 
   // Handle share
   const handleShare = useCallback(async () => {
@@ -173,7 +168,7 @@ const PredictionDetailsContent: React.FC<PredictionDetailsContentProps> = ({
     );
 
     setIsPlacingBet(false);
-  }, [isAuthenticated, open, selectedOption, stakeAmount, executeWithErrorHandling]);
+  }, [isAuthenticated, selectedOption, stakeAmount, executeWithErrorHandling, predictionId]);
 
   // Format time remaining
   const formatTimeRemaining = (endDate: string) => {
@@ -210,7 +205,7 @@ const PredictionDetailsContent: React.FC<PredictionDetailsContentProps> = ({
   }
 
   // Missing prediction
-  if (predictionMissing) {
+  if (!prediction) {
     return (
       <EmptyState
         icon={AlertTriangle}
@@ -218,11 +213,13 @@ const PredictionDetailsContent: React.FC<PredictionDetailsContentProps> = ({
         description="The prediction you're looking for doesn't exist or has been removed."
         action={{
           label: "Go Back",
-          onClick: onNavigateBack,
+          onClick: () => onNavigateBack?.(),
         }}
       />
     );
   }
+
+  const entryDeadline = prediction.entryDeadline ?? prediction.entry_deadline ?? '';
 
   // Render prediction details
   return (
@@ -251,7 +248,7 @@ const PredictionDetailsContent: React.FC<PredictionDetailsContentProps> = ({
                 {prediction.creator?.username || 'Unknown User'}
               </p>
               <p className="text-sm text-gray-500">
-                {prediction.creator?.displayName || 'User'}
+                {prediction.creator?.full_name || prediction.creator?.username || 'User'}
               </p>
             </div>
           </div>
@@ -275,7 +272,7 @@ const PredictionDetailsContent: React.FC<PredictionDetailsContentProps> = ({
             </div>
             <p className="text-sm text-gray-500">Time Left</p>
             <p className="font-semibold text-gray-900">
-              {formatTimeRemaining(prediction.entry_deadline)}
+              {entryDeadline ? formatTimeRemaining(entryDeadline) : 'TBD'}
             </p>
           </div>
           

@@ -34,7 +34,7 @@ const PredictionPlacementModal: React.FC<PredictionPlacementModalProps> = ({
   const [amount, setAmount] = useState<string>('');
   const [showAdvanced, setShowAdvanced] = useState(false);
 
-  const totalPool = (prediction.options || []).reduce((sum, option) => sum + option.totalStaked, 0);
+  const totalPool = (prediction.options || []).reduce((sum, option) => sum + (option.totalStaked ?? option.total_staked ?? 0), 0);
   const numericAmount = parseFloat(amount) || 0;
   const selectedOption = (prediction.options || []).find(opt => opt.id === selectedOptionId);
 
@@ -42,7 +42,8 @@ const PredictionPlacementModal: React.FC<PredictionPlacementModalProps> = ({
   const potentialPayout = useMemo(() => {
     if (!selectedOption || numericAmount <= 0) return 0;
     
-    const newOptionTotal = selectedOption.totalStaked + numericAmount;
+    const optionStaked = selectedOption.totalStaked ?? selectedOption.total_staked ?? 0;
+    const newOptionTotal = optionStaked + numericAmount;
     const newTotalPool = totalPool + numericAmount;
     const winProbability = newOptionTotal / newTotalPool;
     
@@ -52,8 +53,10 @@ const PredictionPlacementModal: React.FC<PredictionPlacementModalProps> = ({
 
   const getOptionAnalysis = (option: PredictionOption) => {
     const optionsLength = (prediction.options || []).length;
-    const percentage = totalPool > 0 ? (option.totalStaked / totalPool * 100) : (100 / optionsLength);
-    const isLeading = option.totalStaked === Math.max(...(prediction.options || []).map(o => o.totalStaked));
+    const optionStaked = option.totalStaked ?? option.total_staked ?? 0;
+    const percentage = totalPool > 0 ? (optionStaked / totalPool * 100) : (100 / optionsLength);
+    const optionStakes = (prediction.options || []).map(o => o.totalStaked ?? o.total_staked ?? 0);
+    const isLeading = optionStaked === Math.max(...optionStakes);
     const confidence = percentage > 60 ? 'high' : percentage > 30 ? 'medium' : 'low';
     
     return { percentage: Math.round(percentage), isLeading, confidence };
@@ -78,7 +81,7 @@ const PredictionPlacementModal: React.FC<PredictionPlacementModalProps> = ({
 
   const quickAmounts = [10, 25, 50, 100];
   const canAfford = numericAmount <= userBalance;
-  const meetsMinimum = numericAmount >= prediction.stakeMin;
+  const meetsMinimum = numericAmount >= (prediction.stakeMin ?? prediction.stake_min ?? 0);
   const isValidAmount = canAfford && meetsMinimum && numericAmount > 0;
 
   if (!isOpen) return null;
@@ -127,11 +130,11 @@ const PredictionPlacementModal: React.FC<PredictionPlacementModalProps> = ({
                 </div>
                 <div className="flex items-center gap-1">
                   <Users size={14} />
-                  <span>{prediction.participantCount || 0} predictors</span>
+                  <span>{prediction.participantCount ?? prediction.participant_count ?? 0} predictors</span>
                 </div>
                 <div className="flex items-center gap-1">
                   <Clock size={14} />
-                  <span>{Math.floor((new Date(prediction.entryDeadline).getTime() - Date.now()) / (1000 * 60 * 60))}h left</span>
+                  <span>{prediction.entryDeadline || prediction.entry_deadline ? Math.floor((new Date(prediction.entryDeadline || prediction.entry_deadline || '').getTime() - Date.now()) / (1000 * 60 * 60)) : 0}h left</span>
                 </div>
               </div>
             </div>
@@ -253,7 +256,7 @@ const PredictionPlacementModal: React.FC<PredictionPlacementModalProps> = ({
                 {amount && !meetsMinimum && canAfford && (
                   <div className="flex items-center gap-2 mt-2 text-amber-600">
                     <Info size={16} />
-                    <span className="text-sm">Minimum amount: ${prediction.stakeMin}</span>
+                    <span className="text-sm">Minimum amount: ${prediction.stakeMin ?? prediction.stake_min ?? 0}</span>
                   </div>
                 )}
               </motion.div>
@@ -306,7 +309,7 @@ const PredictionPlacementModal: React.FC<PredictionPlacementModalProps> = ({
                 >
                   <div className="text-sm text-gray-600 space-y-2">
                     <p><strong>Pool Impact:</strong> Your prediction will represent {totalPool > 0 ? ((numericAmount / (totalPool + numericAmount)) * 100).toFixed(1) : 0}% of total pool</p>
-                    <p><strong>Settlement:</strong> {prediction.settlementMethod === 'auto' ? 'Automatic' : 'Manual'} settlement</p>
+                    <p><strong>Settlement:</strong> {(prediction.settlementMethod ?? prediction.settlement_method ?? 'manual') === 'auto' ? 'Automatic' : 'Manual'} settlement</p>
                     <p><strong>Category:</strong> {prediction.category}</p>
                   </div>
                 </motion.div>

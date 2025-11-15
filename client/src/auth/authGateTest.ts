@@ -1,7 +1,7 @@
 // Testing the Auth Gate Implementation
 // Run this in browser console to test the system
 
-import { openAuthGate, resolveAuthGate, getPendingIntent, restorePendingAuth } from './auth/authGateAdapter';
+import { openAuthGate, resolveAuthGate, getPendingIntent, restorePendingAuth } from './authGateAdapter';
 
 export const testAuthGate = {
   // Test opening the modal with different intents

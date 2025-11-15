@@ -34,6 +34,7 @@ export interface Prediction {
   id: string;
   creator_id: string;
   title: string;
+  question?: string;
   description?: string;
   category: 'sports' | 'pop_culture' | 'custom' | 'esports' | 'celebrity_gossip' | 'politics';
   type: 'binary' | 'multi_outcome' | 'pool';
@@ -62,6 +63,11 @@ export interface Prediction {
   participant_count: number;
   likes_count: number;
   comments_count: number;
+  stakeMin: number;
+  settlementMethod: 'auto' | 'manual';
+  participantCount: number;
+  likeCount: number;
+  commentCount: number;
   user_entry?: {
     option_id: string;
     amount: number;
@@ -73,6 +79,8 @@ export interface Prediction {
   entries?: any[];
   likes?: number;
   comments?: number;
+  settledAt?: string;
+  settled_at?: string;
 }
 
 export interface PredictionOption {
@@ -83,6 +91,7 @@ export interface PredictionOption {
   current_odds: number;
   percentage: number;
   totalStaked?: number; // Compatibility alias
+  currentOdds?: number; // Compatibility alias
 }
 
 export interface PredictionEntry {
@@ -96,6 +105,11 @@ export interface PredictionEntry {
   status: 'active' | 'won' | 'lost' | 'refunded';
   created_at: string;
   updated_at: string;
+  selected_option?: string;
+  odds?: number;
+  prediction?: Partial<Prediction> & { question?: string; title?: string };
+  option?: { id?: string; label?: string };
+  metadata?: Record<string, unknown>;
 }
 
 export interface ActivityItem {
@@ -106,6 +120,9 @@ export interface ActivityItem {
   participantCount?: number;
   timestamp: string;
   timeAgo: string;
+  kind?: 'deposit' | 'withdraw' | 'lock' | 'unlock' | 'bet_refund' | 'payout' | 'creator_fee' | 'platform_fee' | 'entry' | 'release' | 'claim';
+  createdAt?: string;
+  txHash?: string;
 }
 
 export interface Participant {
@@ -125,6 +142,73 @@ export interface PlatformStats {
   rawVolume: number;
   rawUsers: number;
 }
+
+type OptionLike = Partial<PredictionOption> & Record<string, any>;
+type PredictionLike = Partial<Prediction> & Record<string, any>;
+
+const normalizePredictionOption = (option: OptionLike = {}): PredictionOption => {
+  const totalStaked = option.totalStaked ?? option.total_staked ?? 0;
+  const currentOdds = option.currentOdds ?? option.current_odds ?? option.odds ?? 1;
+
+  return {
+    id: option.id ?? '',
+    prediction_id: option.prediction_id ?? option.predictionId ?? '',
+    label: option.label ?? option.text ?? 'Option',
+    total_staked: option.total_staked ?? totalStaked,
+    current_odds: option.current_odds ?? currentOdds,
+    percentage: option.percentage ?? option.share ?? 0,
+    totalStaked,
+    currentOdds,
+  };
+};
+
+const normalizePrediction = (prediction: PredictionLike = {}): Prediction => {
+  const options = Array.isArray(prediction.options)
+    ? prediction.options.map(normalizePredictionOption)
+    : [];
+
+  const poolTotal = prediction.pool_total ?? prediction.poolTotal ?? prediction.totalPool ?? 0;
+  const stakeMin = prediction.stake_min ?? prediction.stakeMin ?? prediction.minimum_stake ?? 0;
+  const entryDeadline = prediction.entry_deadline ?? prediction.entryDeadline ?? prediction.deadline;
+  const settlementMethod = prediction.settlement_method ?? prediction.settlementMethod ?? 'manual';
+  const participantCount =
+    prediction.participant_count ??
+    prediction.participantCount ??
+    prediction.participants ??
+    0;
+  const likeCount =
+    prediction.likes_count ??
+    prediction.likeCount ??
+    (Array.isArray((prediction as any).likes) ? (prediction as any).likes.length : Number((prediction as any).likes ?? 0));
+  const commentCount =
+    prediction.comments_count ??
+    prediction.commentCount ??
+    (Array.isArray((prediction as any).comments)
+      ? (prediction as any).comments.length
+      : Number((prediction as any).comments ?? 0));
+
+  return {
+    ...prediction,
+    options,
+    pool_total: prediction.pool_total ?? poolTotal,
+    poolTotal,
+    stake_min: prediction.stake_min ?? stakeMin,
+    stakeMin,
+    entry_deadline: prediction.entry_deadline ?? entryDeadline,
+    entryDeadline,
+    settlement_method: prediction.settlement_method ?? settlementMethod,
+    settlementMethod,
+    participant_count: prediction.participant_count ?? participantCount,
+    participantCount,
+    likes_count: prediction.likes_count ?? likeCount,
+    likeCount,
+    comments_count: prediction.comments_count ?? commentCount,
+    commentCount,
+  } as Prediction;
+};
+
+const normalizePredictions = (items: PredictionLike[] = []): Prediction[] =>
+  items.map(normalizePrediction);
 
 interface PredictionState {
   predictions: Prediction[];
@@ -269,7 +353,7 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
         retryOptions: { maxRetries: 3 }
       });
 
-      const newPredictions = data.data || [];
+      const newPredictions = normalizePredictions(data.data || []);
       const pagination = data.pagination || {};
       
       console.log(`✅ Predictions fetched successfully: ${newPredictions.length} items (${pagination.total} total)`);
@@ -386,7 +470,7 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
       }
 
       const data = await response.json();
-      const trendingPredictions = data.data || [];
+      const trendingPredictions = normalizePredictions(data.data || []);
       
       set({ 
         trendingPredictions,
@@ -416,7 +500,7 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
       }
 
       const data = await response.json();
-      const userPredictions = data.data || [];
+      const userPredictions = normalizePredictions(data.data || []);
       
       set({ 
         userPredictions,
@@ -444,7 +528,7 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
       }
 
       const data = await response.json();
-      const createdPredictions = data.data || [];
+      const createdPredictions = normalizePredictions(data.data || []);
 
       set({
         createdPredictions,
@@ -480,7 +564,7 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
       }
 
       const data = await response.json();
-      const freshPrediction = data.data;
+      const freshPrediction = normalizePrediction(data.data);
 
       if (!freshPrediction) {
         return existing;
@@ -539,7 +623,7 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
         throw new Error('Invalid response: no prediction data returned');
       }
       
-      const newPrediction = data.data;
+      const newPrediction = normalizePrediction(data.data);
 
       // Validate the prediction has required fields
       if (!newPrediction || !newPrediction.id) {

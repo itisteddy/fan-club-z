@@ -67,9 +67,13 @@ const toCache = (id: string, url: string) => {
   } catch {}
 };
 
-const pickFallback = (category?: string) => {
+const pickFallback = (category?: string): string => {
   const list = CATEGORY_FALLBACKS[(category || '').toLowerCase()] || CATEGORY_FALLBACKS.default;
-  return list[Math.floor(Math.random() * list.length)];
+  if (!list || list.length === 0) {
+    return CATEGORY_FALLBACKS.default?.[0] ?? '';
+  }
+  const index = Math.floor(Math.random() * list.length);
+  return list[index] ?? CATEGORY_FALLBACKS.default?.[0] ?? '';
 };
 
 export async function fetchPredictionThumb(
@@ -88,11 +92,10 @@ export async function fetchPredictionThumb(
     if (res.ok) {
       const json = await res.json();
       const result = json?.results?.[0];
-      const url: string | null =
+      const url: string | null | undefined =
         result?.thumbnail ||
-        result?.url ||
-        null;
-      if (url) {
+        result?.url;
+      if (url && typeof url === 'string') {
         toCache(predictionId, url);
         return url;
       }

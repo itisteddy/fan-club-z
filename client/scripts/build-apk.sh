@@ -17,6 +17,20 @@ KEYSTORE_PATH="$CLIENT_DIR/android/keystore.jks"
 KEYSTORE_PASSWORD="${KEYSTORE_PASSWORD:-}"
 KEYSTORE_ALIAS="${KEYSTORE_ALIAS:-fcz-key}"
 
+# Resolve version from root package.json to avoid hardcoding
+if ! APP_VERSION=$(node -p "require(process.argv[1]).version" "$ROOT_DIR/package.json"); then
+  error "Unable to read version from $ROOT_DIR/package.json"
+fi
+
+if [[ "$APP_VERSION" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
+  MAJOR="${BASH_REMATCH[1]}"
+  MINOR="${BASH_REMATCH[2]}"
+  PATCH="${BASH_REMATCH[3]}"
+  APP_VERSION_CODE=$(printf "%d%02d%02d" "$MAJOR" "$MINOR" "$PATCH")
+else
+  error "Invalid semantic version '$APP_VERSION'. Expected format MAJOR.MINOR.PATCH"
+fi
+
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -75,8 +89,8 @@ if [ ! -d "$TWA_DIR" ]; then
     --manifest="$MANIFEST_URL" \
     --directory="$TWA_DIR" \
     --packageId="$PACKAGE_ID" \
-    --appVersionName="2.0.76" \
-    --appVersionCode="20076" \
+    --appVersionName="$APP_VERSION" \
+    --appVersionCode="$APP_VERSION_CODE" \
     --appName="$APP_NAME" \
     --keyPath="$KEYSTORE_PATH" \
     --keyAlias="$KEYSTORE_ALIAS" \
@@ -179,7 +193,7 @@ if [ -d "$DOWNLOADS_DIR" ]; then
   "app-latest.apk": {
     "sha256": "$CHECKSUM",
     "size": $(stat -f%z "$APK_PATH" 2>/dev/null || stat -c%s "$APK_PATH" 2>/dev/null),
-    "version": "2.0.76",
+    "version": "$APP_VERSION",
     "updated": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
   }
 }

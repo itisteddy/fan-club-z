@@ -823,10 +823,11 @@ const userBalance = isAuthenticated ? availableToStake : 0;
       )}
       
       {/* Deposit Modal */}
-      {currentUser?.id && (
+      {showDepositModal && currentUser?.id && (
         <DepositUSDCModal
           open={showDepositModal}
           onClose={() => setShowDepositModal(false)}
+          onSuccess={() => setShowDepositModal(false)}
           availableUSDC={walletUSDC}
           userId={currentUser.id}
         />

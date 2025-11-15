@@ -12,7 +12,11 @@ export type ActivityKind =
   | 'release'
   | 'entry'
   | 'claim'
-  | 'payout';
+  | 'payout'
+  | 'unlock'
+  | 'bet_refund'
+  | 'creator_fee'
+  | 'platform_fee';
 
 export interface ActivityItem {
   id: string;
@@ -46,6 +50,10 @@ export const ACTIVITY_ICONS: Record<ActivityKind, string> = {
   entry: 'TrendingUp',
   claim: 'Gift',
   payout: 'DollarSign',
+  unlock: 'RefreshCw',
+  bet_refund: 'Undo',
+  creator_fee: 'PiggyBank',
+  platform_fee: 'Building',
 };
 
 /**
@@ -59,6 +67,10 @@ export const ACTIVITY_LABELS: Record<ActivityKind, string> = {
   entry: 'Bet Placed',
   claim: 'Claimed',
   payout: 'Payout',
+  unlock: 'Funds Released',
+  bet_refund: 'Bet Refunded',
+  creator_fee: 'Creator Fee',
+  platform_fee: 'Platform Fee',
 };
 
 /**
@@ -161,6 +173,10 @@ function mapTransactionTypeToKind(
     return 'withdraw';
   }
 
+  if (type === 'unlock') {
+    return 'unlock';
+  }
+
   // Locks
   if (type === 'bet_lock' || channel === 'escrow_consumed') {
     return 'lock';
@@ -174,6 +190,18 @@ function mapTransactionTypeToKind(
   // Entries
   if (type === 'bet_entry' || channel === 'prediction_entry') {
     return 'entry';
+  }
+
+  if (type === 'bet_refund') {
+    return 'bet_refund';
+  }
+
+  if (type === 'creator_fee') {
+    return 'creator_fee';
+  }
+
+  if (type === 'platform_fee') {
+    return 'platform_fee';
   }
 
   // Claims

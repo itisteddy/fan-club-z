@@ -1,28 +1,15 @@
 import { create } from 'zustand';
 import { devtools } from 'zustand/middleware';
-import { 
-  WalletSummary, 
-  Transaction, 
-  validateWalletSummary,
-  validateTransactionList 
-} from '../api/schemas';
-import { get, post, ApiResult } from '../api/client';
+import type { WalletBalance, Transaction } from '../types/domain';
+import { validateWalletBalance, validateTransactionList } from '../api/schemas';
+import { get as apiGet, post, ApiResult } from '../api/client';
+import type { LoadStatus } from '../types/api';
 import { qaLog, qaError } from '../utils/devQa';
-
-export type LoadStatus =
-  | 'idle'
-  | 'loading'
-  | 'success'
-  | 'network_error'
-  | 'server_error'
-  | 'client_error'
-  | 'parse_error'
-  | 'schema_error';
 
 interface WalletState {
   // State
   status: LoadStatus;
-  walletSummary: WalletSummary | null;
+  walletSummary: WalletBalance | null;
   transactions: Transaction[];
   lastUpdated: number | null;
   error: string | null;
@@ -64,13 +51,13 @@ export const useWalletStore = create<WalletState>()(
         });
 
         try {
-          const result: ApiResult<WalletSummary> = await get(
+          const result: ApiResult<WalletBalance> = await apiGet(
             `/wallet/${userId}/summary`
           );
 
           if (result.kind === 'success') {
             // Validate the response
-            const issues = validateWalletSummary(result.data);
+            const issues = validateWalletBalance(result.data);
             if (issues.length > 0) {
               qaError('Wallet store: Schema validation failed', issues);
               set({
@@ -131,6 +118,7 @@ export const useWalletStore = create<WalletState>()(
           }
         } catch (error) {
           qaError('Wallet store: Unexpected error', error);
+          
           set({
             status: 'network_error',
             error: 'An unexpected error occurred',
@@ -141,18 +129,11 @@ export const useWalletStore = create<WalletState>()(
         }
       },
 
-      loadTransactions: async (userId: string, limit = 20) => {
-        const currentState = get();
-
+      loadTransactions: async (userId: string, limit = 50) => {
         qaLog('Wallet store: Loading transactions', { userId, limit });
 
-        set({ 
-          status: 'loading', 
-          error: null
-        });
-
         try {
-          const result: ApiResult<Transaction[]> = await get(
+          const result: ApiResult<Transaction[]> = await apiGet(
             `/wallet/${userId}/transactions?limit=${limit}`
           );
 
@@ -160,74 +141,20 @@ export const useWalletStore = create<WalletState>()(
             // Validate the response
             const issues = validateTransactionList(result.data);
             if (issues.length > 0) {
-              qaError('Wallet store: Schema validation failed', issues);
-              set({
-                status: 'schema_error',
-                error: `Schema validation failed: ${issues.join(', ')}`,
-                // Keep previous data on schema error
-                transactions: currentState.transactions,
-                lastUpdated: currentState.lastUpdated,
-              });
+              qaError('Wallet store: Transaction validation failed', issues);
               return;
             }
 
-            qaLog('Wallet store: Transactions loaded successfully', { 
-              count: result.data.length 
-            });
+            qaLog('Wallet store: Transactions loaded successfully', { count: result.data.length });
 
             set({
-              status: 'success',
               transactions: result.data,
-              lastUpdated: Date.now(),
-              error: null,
             });
           } else {
-            // Handle different error types
-            let errorMessage = 'Failed to load transactions';
-            let errorStatus: LoadStatus = 'server_error';
-
-            switch (result.kind) {
-              case 'network_error':
-                errorMessage = 'Network error. Please check your connection.';
-                errorStatus = 'network_error';
-                break;
-              case 'server_error':
-                errorMessage = 'Server error. Please try again later.';
-                errorStatus = 'server_error';
-                break;
-              case 'client_error':
-                errorMessage = 'Request failed. Please check your input.';
-                errorStatus = 'client_error';
-                break;
-              case 'parse_error':
-                errorMessage = 'Failed to parse response.';
-                errorStatus = 'parse_error';
-                break;
-              case 'schema_error':
-                errorMessage = `Data validation failed: ${result.issues.join(', ')}`;
-                errorStatus = 'schema_error';
-                break;
-            }
-
-            qaError('Wallet store: Load failed', { kind: result.kind, error: errorMessage });
-
-            set({
-              status: errorStatus,
-              error: errorMessage,
-              // Keep previous data on error
-              transactions: currentState.transactions,
-              lastUpdated: currentState.lastUpdated,
-            });
+            qaError('Wallet store: Failed to load transactions', result);
           }
         } catch (error) {
-          qaError('Wallet store: Unexpected error', error);
-          set({
-            status: 'network_error',
-            error: 'An unexpected error occurred',
-            // Keep previous data on unexpected error
-            transactions: currentState.transactions,
-            lastUpdated: currentState.lastUpdated,
-          });
+          qaError('Wallet store: Unexpected error loading transactions', error);
         }
       },
 
@@ -235,36 +162,32 @@ export const useWalletStore = create<WalletState>()(
         qaLog('Wallet store: Adding funds', { userId, amount, currency });
 
         try {
-          const result: ApiResult<Transaction> = await post(
-            `/wallet/${userId}/add-funds`,
-            { amount, currency }
-          );
+          const result = await post(`/wallet/${userId}/deposit`, {
+            amount,
+            currency,
+          });
 
           if (result.kind === 'success') {
-            qaLog('Wallet store: Funds added successfully', result.data);
+            qaLog('Wallet store: Funds added successfully');
             
-            // Refresh the wallet summary after adding funds
+            // Refresh wallet summary and transactions
             await get().loadSummary(userId);
-            
-            return result;
-          } else {
-            qaError('Wallet store: Add funds failed', { kind: result.kind });
-            return result;
+            await get().loadTransactions(userId);
           }
+
+          return result;
         } catch (error) {
-          qaError('Wallet store: Add funds unexpected error', error);
-          return {
-            kind: 'network_error',
-            error: error instanceof Error ? error : new Error('An unexpected error occurred'),
-          };
+          qaError('Wallet store: Error adding funds', error);
+          throw error;
         }
       },
 
       refresh: async (userId: string) => {
-        qaLog('Wallet store: Refreshing wallet data', { userId });
+        qaLog('Wallet store: Refreshing wallet data');
+        
         await Promise.all([
           get().loadSummary(userId),
-          get().loadTransactions(userId)
+          get().loadTransactions(userId),
         ]);
       },
 

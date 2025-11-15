@@ -72,8 +72,12 @@ async function loadCheckpoint(ctx: Ctx): Promise<bigint | null> {
     );
 
     if (rows.length > 0) {
-      const checkpoint = BigInt(rows[0].block_number);
-      log('info', `Loaded checkpoint`, { block: checkpoint.toString(), updated: rows[0].updated_at });
+      const row = rows[0];
+      if (!row) {
+        return null;
+      }
+      const checkpoint = BigInt(row.block_number);
+      log('info', `Loaded checkpoint`, { block: checkpoint.toString(), updated: row.updated_at });
       return checkpoint;
     }
 
@@ -258,7 +262,8 @@ async function processTransferLogs(ctx: Ctx, logs: Log[]): Promise<ProcessResult
           );
 
           // Only update balance if this is a new transaction
-          if (insertResult.rowCount > 0) {
+          const insertedCount = insertResult.rowCount ?? 0;
+          if (insertedCount > 0) {
             await client.query(
               `UPDATE wallets
                SET available_balance = available_balance + $1,

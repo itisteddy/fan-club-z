@@ -226,7 +226,7 @@ export const isAuthError = (error: unknown): boolean => {
 export const isValidationError = (error: unknown): boolean => {
   if (error instanceof AppError) {
     return error.code === 'VALIDATION_ERROR' || 
-           (error.status && error.status >= 400 && error.status < 500);
+           (typeof error.status === 'number' && error.status >= 400 && error.status < 500);
   }
   
   return false;

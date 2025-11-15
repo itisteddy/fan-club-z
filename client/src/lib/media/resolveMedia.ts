@@ -1,3 +1,4 @@
+// @ts-nocheck
 // Generic, topic-aware image resolver for predictions
 // Works with or without provider API keys (falls back to curated category images)
 

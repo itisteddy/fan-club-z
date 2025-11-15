@@ -31,7 +31,7 @@ export const formatCurrency = (amount: number, currency: string = 'USD'): string
     }),
   };
 
-  const formatter = formatters[currency] || formatters.USD;
+  const formatter: Intl.NumberFormat = formatters[currency] ?? formatters.USD ?? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
   
   if (currency === 'USDT') {
     return `${formatter.format(amount)} USDT`;

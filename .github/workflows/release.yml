@@ -6,7 +6,7 @@ on:
       skip_apk:
         description: 'Skip APK build'
         required: false
-        default: 'false'
+        default: false
         type: boolean
   push:
     branches:

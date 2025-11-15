@@ -438,8 +438,8 @@ router.get('/:id', async (req, res) => {
 
 // GET /api/v2/predictions/created/:userId - Get user's created predictions
 router.get('/created/:userId', async (req, res) => {
+  const { userId } = req.params;
   try {
-    const { userId } = req.params;
     console.log(`📊 User created predictions endpoint called for ID: ${userId} - origin:`, req.headers.origin);
 
     // Auto-close any expired predictions for this creator before returning results

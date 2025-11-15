@@ -1,13 +1,28 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '../lib/api';
 import { useAuthStore } from '../store/authStore';
-import type { Comment, CreateComment, ApiResponse, PaginatedResponse } from '@fanclubz/shared';
+import type { Comment, CreateComment, PaginatedResponse } from '@fanclubz/shared';
+
+type ApiResponse<T> = {
+  data: T;
+  message?: string;
+  version?: string;
+};
+
+type RichComment = Comment & {
+  replies?: RichComment[];
+  replies_count?: number;
+  likes_count?: number;
+  is_liked?: boolean;
+};
+
+type CommentList = PaginatedResponse<RichComment>;
 
 // Fetch comments for a prediction - FIXED API ENDPOINT
 export const useComments = (predictionId: string, page: number = 1, limit: number = 20) => {
   return useQuery({
     queryKey: ['comments', predictionId, page, limit],
-    queryFn: async (): Promise<PaginatedResponse<Comment>> => {
+    queryFn: async (): Promise<CommentList> => {
       try {
         // Fixed endpoint to match server routes
         const response = await apiClient.get(
@@ -50,7 +65,7 @@ export const useComments = (predictionId: string, page: number = 1, limit: numbe
           };
         }
         
-        return response;
+        return response as CommentList;
       } catch (error) {
         console.error('Comments API error:', error);
         
@@ -79,7 +94,7 @@ export const useCreateComment = () => {
   const { user } = useAuthStore();
 
   return useMutation({
-    mutationFn: async (commentData: CreateComment): Promise<Comment> => {
+    mutationFn: async (commentData: CreateComment): Promise<RichComment> => {
       try {
         // Fixed endpoint to match server routes
         const response = await apiClient.post(`/social/predictions/${commentData.prediction_id}/comments`, {
@@ -120,7 +135,7 @@ export const useCreateComment = () => {
         // Create mock comment for demo purposes
         console.warn('Comment API not available, creating mock comment:', error);
         
-        const mockComment: Comment = {
+        const mockComment: RichComment = {
           id: Date.now().toString(),
           prediction_id: commentData.prediction_id,
           user_id: user?.id || 'current-user',
@@ -145,11 +160,11 @@ export const useCreateComment = () => {
         return mockComment;
       }
     },
-    onSuccess: (newComment) => {
+    onSuccess: (newComment: RichComment) => {
       // Update the comments cache with the new comment
       queryClient.setQueryData(
         ['comments', newComment.prediction_id, 1, 50],
-        (oldData: PaginatedResponse<Comment> | undefined) => {
+        (oldData: CommentList | undefined) => {
           if (!oldData) return oldData;
           
           // If it's a reply, add it to the parent comment's replies
@@ -195,7 +210,7 @@ export const useUpdateComment = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ commentId, content }: { commentId: string; content: string }): Promise<Comment> => {
+    mutationFn: async ({ commentId, content }: { commentId: string; content: string }): Promise<RichComment> => {
       try {
         const response = await apiClient.put(`/social/comments/${commentId}`, { content });
         
@@ -209,11 +224,11 @@ export const useUpdateComment = () => {
         throw error;
       }
     },
-    onSuccess: (updatedComment) => {
+    onSuccess: (updatedComment: RichComment) => {
       // Update the comments cache
       queryClient.setQueryData(
         ['comments', updatedComment.prediction_id],
-        (oldData: PaginatedResponse<Comment> | undefined) => {
+        (oldData: CommentList | undefined) => {
           if (!oldData) return oldData;
           
           return {
@@ -280,10 +295,10 @@ export const useToggleCommentLike = () => {
       // Update the comment in cache with new like status
       queryClient.setQueriesData(
         { queryKey: ['comments'] },
-        (oldData: PaginatedResponse<Comment> | undefined) => {
+        (oldData: CommentList | undefined) => {
           if (!oldData) return oldData;
           
-          const updateComment = (comment: Comment): Comment => {
+          const updateComment = (comment: RichComment): RichComment => {
             if (comment.id === commentId) {
               return {
                 ...comment,
@@ -314,7 +329,7 @@ export const useToggleCommentLike = () => {
 export const useCommentReplies = (commentId: string, page: number = 1, limit: number = 10) => {
   return useQuery({
     queryKey: ['comment-replies', commentId, page, limit],
-    queryFn: async (): Promise<PaginatedResponse<Comment>> => {
+    queryFn: async (): Promise<CommentList> => {
       try {
         const response = await apiClient.get(
           `/social/comments/${commentId}/replies?page=${page}&limit=${limit}`

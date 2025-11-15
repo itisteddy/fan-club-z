@@ -39,13 +39,13 @@ const CommentList: React.FC<CommentListProps> = ({
   // Intersection Observer for infinite loading
   useEffect(() => {
     const loadMoreElement = loadMoreRef.current;
-    if (!loadMoreElement || !hasMore || status === 'paginating') {
+    if (!loadMoreElement || !hasMore || status === 'paginating' || status === 'loading') {
       return;
     }
 
     const observer = new IntersectionObserver(
       (entries) => {
-        if (entries[0].isIntersecting) {
+        if (entries[0]?.isIntersecting) {
           qaLog('Loading more comments via intersection observer');
           onLoadMore();
         }
@@ -160,14 +160,14 @@ const CommentList: React.FC<CommentListProps> = ({
       </div>
 
       {/* Loading more indicator */}
-      {status === 'paginating' && (
+      {(status === 'paginating' || status === 'loading') && (
         <div className="p-4">
           <CommentSkeleton count={2} />
         </div>
       )}
 
       {/* Load more trigger (invisible) */}
-      {hasMore && status !== 'paginating' && (
+      {hasMore && status !== 'paginating' && status !== 'loading' && (
         <div 
           ref={loadMoreRef}
           className="h-4" // Small invisible element for intersection observer
@@ -176,14 +176,14 @@ const CommentList: React.FC<CommentListProps> = ({
       )}
 
       {/* Manual load more button (fallback) */}
-      {hasMore && status !== 'paginating' && items.length >= 10 && (
+      {hasMore && status !== 'paginating' && status !== 'loading' && items.length >= 10 && (
         <div className="p-4">
           <button
             onClick={onLoadMore}
             className="comments-load-more"
-            disabled={status === 'paginating'}
+            disabled={false}
           >
-            {status === 'paginating' ? 'Loading...' : 'Load more comments'}
+            Load more comments
           </button>
         </div>
       )}

@@ -1,14 +1,14 @@
 import React from 'react';
-import { LucideIcon } from 'lucide-react';
 import EmptyState from './EmptyState';
 import { openAuthGate } from '../../../auth/authGateAdapter';
+import type { AuthIntent } from '../../../auth/authIntents';
 
 type AuthRequiredStateProps = {
   icon: React.ReactElement<{ className?: string }>;
   title: string;
   description: string;
-  intent?: 'view_bets' | 'view_wallet' | 'edit_profile' | 'place_prediction' | string;
-  payload?: Record<string, any>;
+  intent?: AuthIntent;
+  payload?: Record<string, unknown>;
   className?: string;
 };
 
@@ -20,7 +20,7 @@ export function AuthRequiredState({
   icon, 
   title, 
   description, 
-  intent = 'view_bets',
+  intent = 'view_my_bets',
   payload,
   className 
 }: AuthRequiredStateProps) {

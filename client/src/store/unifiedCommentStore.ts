@@ -35,9 +35,9 @@ export type Status = 'idle' | 'loading' | 'loaded' | 'paginating' |
                      'network_error' | 'server_error' | 'client_error' | 'parse_error';
 
 interface PredictionCommentsState {
-  items: Comment[];          // last good data only
+  items?: Comment[];          // last good data only
   nextCursor?: string | null;
-  status: Status;
+  status?: Status;
   posting?: boolean;
   draft?: string;           // session-persisted
   highlightedId?: string;   // #comment-id
@@ -428,7 +428,7 @@ export const useUnifiedCommentStore = create<CommentsState & CommentsActions>()(
               ...state.byPrediction,
               [predictionId]: {
                 ...state.byPrediction[predictionId],
-                items: state.byPrediction[predictionId]?.items.map(item =>
+                items: (state.byPrediction[predictionId]?.items ?? []).map(item =>
                   item.id === tempId ? serverComment : item
                 ) || [serverComment],
                 posting: false,
@@ -453,7 +453,7 @@ export const useUnifiedCommentStore = create<CommentsState & CommentsActions>()(
               ...state.byPrediction,
               [predictionId]: {
                 ...state.byPrediction[predictionId],
-                items: state.byPrediction[predictionId]?.items.filter(item => item.id !== tempId) || [],
+                items: (state.byPrediction[predictionId]?.items ?? []).filter(item => item.id !== tempId),
                 posting: false,
               },
             },
@@ -477,7 +477,7 @@ export const useUnifiedCommentStore = create<CommentsState & CommentsActions>()(
         qaLog(`Editing comment ${commentId} in ${predictionId}`);
 
         // Store original for rollback
-        const originalComment = get().byPrediction[predictionId]?.items.find(c => c.id === commentId);
+        const originalComment = get().byPrediction[predictionId]?.items?.find(c => c.id === commentId);
         if (!originalComment) {
           throw new Error('Comment not found');
         }
@@ -488,7 +488,7 @@ export const useUnifiedCommentStore = create<CommentsState & CommentsActions>()(
             ...state.byPrediction,
             [predictionId]: {
               ...state.byPrediction[predictionId],
-              items: state.byPrediction[predictionId]?.items.map(item =>
+              items: (state.byPrediction[predictionId]?.items ?? []).map(item =>
                 item.id === commentId
                   ? { ...item, text: trimmedText, edited: true, updatedAt: new Date().toISOString() }
                   : item
@@ -522,7 +522,7 @@ export const useUnifiedCommentStore = create<CommentsState & CommentsActions>()(
               ...state.byPrediction,
               [predictionId]: {
                 ...state.byPrediction[predictionId],
-                items: state.byPrediction[predictionId]?.items.map(item =>
+                items: (state.byPrediction[predictionId]?.items ?? []).map(item =>
                   item.id === commentId ? updatedComment : item
                 ) || [],
               },
@@ -538,7 +538,7 @@ export const useUnifiedCommentStore = create<CommentsState & CommentsActions>()(
               ...state.byPrediction,
               [predictionId]: {
                 ...state.byPrediction[predictionId],
-                items: state.byPrediction[predictionId]?.items.map(item =>
+                items: (state.byPrediction[predictionId]?.items ?? []).map(item =>
                   item.id === commentId ? originalComment : item
                 ) || [],
               },
@@ -558,7 +558,7 @@ export const useUnifiedCommentStore = create<CommentsState & CommentsActions>()(
         qaLog(`Deleting comment ${commentId} from ${predictionId}`);
 
         // Store original for rollback
-        const originalItems = get().byPrediction[predictionId]?.items || [];
+        const originalItems = get().byPrediction[predictionId]?.items ?? [];
         const commentToDelete = originalItems.find(c => c.id === commentId);
         if (!commentToDelete) {
           throw new Error('Comment not found');
@@ -570,7 +570,7 @@ export const useUnifiedCommentStore = create<CommentsState & CommentsActions>()(
             ...state.byPrediction,
             [predictionId]: {
               ...state.byPrediction[predictionId],
-              items: state.byPrediction[predictionId]?.items.filter(item => item.id !== commentId) || [],
+              items: (state.byPrediction[predictionId]?.items ?? []).filter(item => item.id !== commentId),
             },
           },
         }));
@@ -674,7 +674,7 @@ export const useUnifiedCommentStore = create<CommentsState & CommentsActions>()(
     }),
     {
       name: 'fcz-unified-comments',
-      partialize: (state) => ({}), // Don't persist to localStorage - using sessionStorage for drafts
+      partialize: (_state: CommentsState & CommentsActions) => ({}), // Don't persist to localStorage - using sessionStorage for drafts
     }
   )
 );

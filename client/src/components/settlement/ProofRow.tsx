@@ -1,5 +1,16 @@
 import React from 'react';
-import { SettlementProof } from '../../../../shared/schema';
+
+// Local SettlementProof type definition
+interface SettlementProof {
+  type: string;
+  value: string;
+  hash?: string;
+  content_hash?: string;
+  source_url?: string;
+  screenshot_url?: string;
+  fetched_at?: string;
+  parser_note?: string;
+}
 
 interface ProofRowProps {
   proof: SettlementProof;
@@ -9,15 +20,19 @@ interface ProofRowProps {
 export const ProofRow: React.FC<ProofRowProps> = ({ proof, className = "" }) => {
   const handleCopyHash = async () => {
     try {
-      await navigator.clipboard.writeText(proof.content_hash);
-      // You might want to show a toast notification here
+      if (proof.content_hash) {
+        await navigator.clipboard.writeText(proof.content_hash);
+        // You might want to show a toast notification here
+      }
     } catch (err) {
       console.error('Failed to copy hash:', err);
     }
   };
 
   const handleOpenSource = () => {
-    window.open(proof.source_url, '_blank', 'noopener,noreferrer');
+    if (proof.source_url) {
+      window.open(proof.source_url, '_blank', 'noopener,noreferrer');
+    }
   };
 
   const formatTimestamp = (timestamp: string) => {
@@ -53,9 +68,11 @@ export const ProofRow: React.FC<ProofRowProps> = ({ proof, className = "" }) => 
             <h4 className="text-sm font-semibold text-gray-900 truncate">
               Settlement Proof
             </h4>
-            <span className="text-xs text-gray-500 ml-2 flex-shrink-0">
-              {formatTimestamp(proof.fetched_at)}
-            </span>
+            {proof.fetched_at && (
+              <span className="text-xs text-gray-500 ml-2 flex-shrink-0">
+                {formatTimestamp(proof.fetched_at)}
+              </span>
+            )}
           </div>
           
           {proof.parser_note && (
@@ -72,19 +89,23 @@ export const ProofRow: React.FC<ProofRowProps> = ({ proof, className = "" }) => 
               Open source ↗
             </button>
             
-            <button
-              onClick={handleCopyHash}
-              className="text-xs text-gray-600 hover:text-gray-800 font-medium"
-              title={`Hash: ${proof.content_hash}`}
-            >
-              Copy hash
-            </button>
+            {proof.content_hash && (
+              <button
+                onClick={handleCopyHash}
+                className="text-xs text-gray-600 hover:text-gray-800 font-medium"
+                title={`Hash: ${proof.content_hash}`}
+              >
+                Copy hash
+              </button>
+            )}
           </div>
           
           {/* Hash display (truncated) */}
-          <div className="mt-2 text-xs text-gray-500 font-mono truncate">
-            {proof.content_hash.slice(0, 16)}...{proof.content_hash.slice(-8)}
-          </div>
+          {proof.content_hash && (
+            <div className="mt-2 text-xs text-gray-500 font-mono truncate">
+              {proof.content_hash.slice(0, 16)}...{proof.content_hash.slice(-8)}
+            </div>
+          )}
         </div>
       </div>
     </div>

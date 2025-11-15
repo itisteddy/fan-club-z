@@ -31,12 +31,14 @@ export function SegmentedTabs({
                   e.preventDefault();
                   const currentIndex = tabs.findIndex(tab => tab.key === value);
                   const prevIndex = currentIndex > 0 ? currentIndex - 1 : tabs.length - 1;
-                  onChange(tabs[prevIndex].key);
+                  const prevTab = tabs[prevIndex];
+                  if (prevTab) onChange(prevTab.key);
                 } else if (e.key === 'ArrowRight') {
                   e.preventDefault();
                   const currentIndex = tabs.findIndex(tab => tab.key === value);
                   const nextIndex = currentIndex < tabs.length - 1 ? currentIndex + 1 : 0;
-                  onChange(tabs[nextIndex].key);
+                  const nextTab = tabs[nextIndex];
+                  if (nextTab) onChange(nextTab.key);
                 }
               }}
             >

@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
-import { supabase, auth } from '../lib/supabase';
+import { supabase, auth, clientDb } from '../lib/supabase';
 import toast from 'react-hot-toast';
 import { showSuccess, showError } from './notificationStore';
 import type { Provider } from '@supabase/supabase-js';
@@ -22,6 +22,10 @@ interface User {
   rank?: number;
   level?: string;
   createdAt?: string;
+  username?: string;
+  full_name?: string;
+  avatar_url?: string;
+  is_verified?: boolean;
 }
 
 interface AuthState {
@@ -38,7 +42,7 @@ interface AuthState {
   updateProfile: (profileData: any) => Promise<void>;
   uploadAvatar: (file: File) => Promise<string>;
   initializeAuth: () => Promise<void>;
-  handleOAuthCallback: () => Promise<void>;
+  handleOAuthCallback: () => Promise<User | null | void>;
 }
 
 // Convert Supabase user to our User interface
@@ -70,6 +74,8 @@ const convertSupabaseUser = (supabaseUser: any): User | null => {
   } else if (metadata.photo) {
     avatar = metadata.photo; // Apple
   }
+  const username = metadata.username || metadata.preferred_username || metadata.full_name || supabaseUser.email?.split('@')[0] || '';
+  const fullName = metadata.full_name || `${firstName} ${lastName}`.trim();
   
   return {
     id: supabaseUser.id,
@@ -78,6 +84,7 @@ const convertSupabaseUser = (supabaseUser: any): User | null => {
     lastName,
     phone: supabaseUser.phone,
     avatar,
+     avatar_url: avatar,
     provider: appMetadata.provider || 'email',
     bio: metadata.bio,
     totalEarnings: metadata.totalEarnings || 0,
@@ -87,7 +94,10 @@ const convertSupabaseUser = (supabaseUser: any): User | null => {
     totalPredictions: metadata.totalPredictions || 0,
     rank: metadata.rank || 0,
     level: metadata.level || 'New Predictor',
-    createdAt: supabaseUser.created_at || new Date().toISOString()
+    createdAt: supabaseUser.created_at || new Date().toISOString(),
+    username,
+    full_name: fullName,
+    is_verified: Boolean(metadata.is_verified || metadata.verified),
   };
 };
 
@@ -231,14 +241,17 @@ export const useAuthStore = create<AuthState>()(
             throw new Error(userMessage);
           }
 
-          if (data.user && data.session) {
-            const convertedUser = convertSupabaseUser(data.user);
+          const authUser = data?.user;
+          const session = data?.session;
+
+          if (authUser && session) {
+            const convertedUser = convertSupabaseUser(authUser);
             console.log('✅ Login successful for:', convertedUser?.firstName);
             
             set({ 
               isAuthenticated: true, 
               user: convertedUser,
-              token: data.session.access_token,
+              token: session.access_token,
               loading: false,
               initialized: true,
               lastAuthCheck: Date.now()
@@ -291,12 +304,14 @@ export const useAuthStore = create<AuthState>()(
             throw new Error(userMessage);
           }
 
-          if (data.user) {
-            const convertedUser = convertSupabaseUser(data.user);
+          const authUser = data?.user;
+
+          if (authUser) {
+            const convertedUser = convertSupabaseUser(authUser);
             console.log('✅ Registration successful for:', convertedUser?.firstName);
             
             // If we have a session, log them in immediately
-            if (data.session) {
+            if (data?.session) {
               set({ 
                 isAuthenticated: true,
                 user: convertedUser,
@@ -381,7 +396,7 @@ export const useAuthStore = create<AuthState>()(
           }
 
           if (data.session?.user) {
-            const convertedUser = convertSupabaseUser(data.session.user);
+              const convertedUser = convertSupabaseUser(data.session.user);
             console.log('✅ OAuth authentication successful for:', convertedUser?.firstName);
             
             set({ 
@@ -393,7 +408,8 @@ export const useAuthStore = create<AuthState>()(
               lastAuthCheck: Date.now()
             });
             
-            const providerName = convertedUser?.provider?.charAt(0).toUpperCase() + convertedUser?.provider?.slice(1);
+            const providerId = convertedUser?.provider || 'email';
+            const providerName = providerId.charAt(0).toUpperCase() + providerId.slice(1);
             showSuccess(`Welcome ${convertedUser?.firstName}! Signed in with ${providerName}.`);
             
             return convertedUser;
@@ -469,7 +485,7 @@ export const useAuthStore = create<AuthState>()(
             throw new Error(error.message);
           }
 
-          if (data.user) {
+          if (data?.user) {
             const updatedUser = convertSupabaseUser(data.user);
             set({ 
               user: updatedUser,
@@ -522,8 +538,10 @@ export const useAuthStore = create<AuthState>()(
         await clientDb.users.updateProfile(userId, { avatar_url: publicUrl });
 
         // 5) Update local state
-        const updatedUser = convertSupabaseUser(authUpdate.user);
-        set({ user: updatedUser, lastAuthCheck: Date.now() });
+        const updatedUser = authUpdate?.user ? convertSupabaseUser(authUpdate.user) : null;
+        if (updatedUser) {
+          set({ user: updatedUser, lastAuthCheck: Date.now() });
+        }
         showSuccess('Profile photo updated.');
         return publicUrl;
       },

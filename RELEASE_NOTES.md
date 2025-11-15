@@ -1,8 +1,8 @@
-# Release Notes - v2.0.76
+# Release Notes - v2.0.78
 
-**Release Date:** November 14, 2025  
-**Release Branch:** `release/v2.0.76`  
-**Stable Snapshot Tag:** `dev-stable-20251114-1646`
+**Release Date:** November 15, 2025  
+**Release Branch:** `release/v2.0.78`  
+**Stable Snapshot Tag:** `dev-stable-20251114-2246`
 
 ## 🚀 What's New
 
@@ -12,11 +12,12 @@
 - Health endpoint verification and post-deploy checks
 
 ### Android APK Release
-- First Android APK build from PWA using Bubblewrap (Trusted Web Activity)
+- Android APK build remains powered by Bubblewrap (Trusted Web Activity)
 - APK available for download at `/downloads/app-latest.apk`
 - Dedicated download page at `/download`
 - SHA-256 checksum verification for APK integrity
 - Installation instructions and security information
+- APK versioning is now read directly from `package.json` to avoid hardcoding
 
 ### Infrastructure
 - GitHub Actions CI/CD workflow for automated releases
@@ -33,11 +34,14 @@
 - `RELEASE_NOTES.md` - This file
 
 ### Files Modified
-- `package.json` - Version bumped to 2.0.76
-- `client/package.json` - Version bumped to 2.0.76
-- `server/package.json` - Version bumped to 2.0.76
-- `shared/package.json` - Version bumped to 2.0.76
-- `client/src/App.tsx` - Added `/download` route
+- `package.json` - Version bumped to 2.0.78
+- `client/package.json` - Version bumped to 2.0.78
+- `server/package.json` - Version bumped to 2.0.78
+- `shared/package.json` - Version bumped to 2.0.78
+- `shared/src/index.ts` - Exported VERSION updated to 2.0.78
+- `client/scripts/build-apk.sh` - Reads version/code dynamically from root `package.json`
+- `client/src/pages/DownloadPage.tsx` - APK version display sourced from shared VERSION constant
+- `client/public/downloads/checksums.json` - Placeholder metadata references latest version
 
 ## 🔧 Setup Instructions
 
@@ -174,6 +178,6 @@ After deployment, verify:
 ---
 
 **Release Captain:** Automated Release Process  
-**Git Tag:** `dev-stable-20251114-1646`  
+**Git Tag:** `dev-stable-20251114-2246`  
 **Commit SHA:** [To be set after commit]
 

@@ -74,7 +74,7 @@ const MyBetsPage: React.FC<MyBetsPageProps> = ({ onNavigateBack }) => {
             icon={<Trophy />}
             title="Sign in to view your bets"
             description="Track your predictions and winnings."
-            intent="view_bets"
+            intent="view_my_bets"
           />
         </Page>
       </>

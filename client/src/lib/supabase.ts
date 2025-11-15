@@ -46,9 +46,7 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     autoRefreshToken: true,
     persistSession: true,
     detectSessionInUrl: true,
-    flowType: 'pkce',
-    // Use dynamic redirect URL that works with any origin
-    redirectTo: getRedirectUrl()
+    flowType: 'pkce'
   },
   db: {
     schema: 'public',

@@ -29,7 +29,7 @@ export function initDbPool(): Pool | null {
       connectionTimeoutMillis: 10000,
     });
 
-    pool.on('error', (err) => {
+    pool.on('error', (err: Error) => {
       console.error('[FCZ-DB] Unexpected pool error', err);
     });
 
@@ -148,8 +148,12 @@ class SupabaseTransactionClient {
   }
 }
 
-// Initialize pool on module load
-if (typeof window === 'undefined') {
+// Initialize pool on module load (server-side only)
+const hasWindow =
+  typeof globalThis !== 'undefined' &&
+  typeof (globalThis as { window?: unknown }).window !== 'undefined';
+
+if (!hasWindow) {
   initDbPool();
 }
 

@@ -116,10 +116,10 @@ export function qaCryptoMock() {
         console.log(`[FCZ-PAY] Mock deposit duplicate (idempotent): ${ext}`);
       }
       
-      res.json({ ok: true, credited: isNewTransaction });
+      return res.json({ ok: true, credited: isNewTransaction });
     } catch (e) {
       console.error('[FCZ-PAY] mock deposit error', e);
-      res.status(500).json({ ok: false, error: 'mock failed', details: e instanceof Error ? e.message : 'unknown' });
+      return res.status(500).json({ ok: false, error: 'mock failed', details: e instanceof Error ? e.message : 'unknown' });
     }
   });
 

@@ -198,11 +198,8 @@ const SettlementModal: React.FC<SettlementModalProps> = ({
                       const isSelected = selectedOptionId === option.id;
                       // Try multiple possible field names for staked amount
                       const optionStaked = Number(
-                        option.total_staked || 
-                        option.staked_amount || 
-                        option.amount_staked || 
-                        option.total_amount ||
-                        option.totalStaked ||
+                        option.total_staked ?? 
+                        option.totalStaked ??
                         0
                       );
                       

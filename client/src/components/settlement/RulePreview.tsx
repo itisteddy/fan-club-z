@@ -1,5 +1,16 @@
 import React from 'react';
-import { SettlementConfig } from '../../../../shared/schema';
+type SettlementSource = {
+  name: string;
+  type?: string;
+  url?: string;
+};
+
+type SettlementConfig = {
+  rule_text: string;
+  primary_source: SettlementSource;
+  backup_source?: SettlementSource;
+  timezone?: string;
+};
 
 interface RulePreviewProps {
   settlement: SettlementConfig;
@@ -51,10 +62,12 @@ export const RulePreview: React.FC<RulePreviewProps> = ({ settlement, className 
           </div>
         )}
         
-        <div className="flex items-center gap-2">
-          <span className="text-xs font-medium text-gray-500">Timezone:</span>
-          <span className="text-xs text-gray-700">{settlement.timezone}</span>
-        </div>
+        {settlement.timezone && (
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-medium text-gray-500">Timezone:</span>
+            <span className="text-xs text-gray-700">{settlement.timezone}</span>
+          </div>
+        )}
       </div>
     </div>
   );

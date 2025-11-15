@@ -1,6 +1,14 @@
 import React, { useState } from 'react';
 import { useSettlementStore } from '../../store/settlementStore';
-import { Dispute } from '../../../../shared/schema';
+
+// Local Dispute type definition
+interface Dispute {
+  id: string;
+  state: 'open' | 'under_review' | 'upheld' | 'overturned';
+  reason: 'wrong_source' | 'timing' | 'source_updated' | 'other';
+  evidence?: Array<{ type: 'link' | 'text'; value: string }>;
+  created_at?: string;
+}
 
 interface DisputeModalProps {
   predictionId: string;

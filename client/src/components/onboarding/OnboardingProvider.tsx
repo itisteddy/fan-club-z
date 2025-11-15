@@ -324,7 +324,7 @@ export const OnboardingProvider: React.FC<{ children: React.ReactNode }> = ({
 
   // Context value
   const contextValue: OnboardingContextValue = {
-    isActive: state.isActive && canRunTour,
+    isActive: !!(state.isActive && canRunTour),
     showWelcome,
     startFullTour: handleStartFullTour,
     startQuickTour: handleStartQuickTour,

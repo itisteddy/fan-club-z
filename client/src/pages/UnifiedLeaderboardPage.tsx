@@ -91,6 +91,7 @@ const UnifiedLeaderboardPage: React.FC = () => {
   useEffect(() => {
     const observer = new IntersectionObserver(
       ([entry]) => {
+        if (!entry) return;
         setIsSticky(entry.intersectionRatio < 1);
       },
       { threshold: [1] }

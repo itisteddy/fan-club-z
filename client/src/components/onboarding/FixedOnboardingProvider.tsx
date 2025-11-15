@@ -4,7 +4,8 @@ import { isDev } from '@/utils/environment';
 import { 
   EnhancedOnboardingSystem, 
   WelcomeModal, 
-  useEnhancedOnboarding
+  useEnhancedOnboarding,
+  type OnboardingStep
 } from './EnhancedOnboardingSystem';
 import { 
   Compass, 
@@ -35,7 +36,7 @@ interface OnboardingContextValue {
 const OnboardingContext = createContext<OnboardingContextValue | undefined>(undefined);
 
 // Fixed tour configurations with proper target IDs
-const FULL_TOUR_STEPS = [
+const FULL_TOUR_STEPS: OnboardingStep[] = [
   // Welcome & Discover Tab
   {
     id: 'welcome-discover',
@@ -151,7 +152,7 @@ const FULL_TOUR_STEPS = [
   }
 ];
 
-const QUICK_TOUR_STEPS = [
+const QUICK_TOUR_STEPS: OnboardingStep[] = [
   {
     id: 'quick-discover',
     title: 'Discover Predictions',

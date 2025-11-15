@@ -32,17 +32,25 @@ interface AnalyticsData {
 
 export const UserAnalyticsDashboard: React.FC = () => {
   const { user } = useAuthStore();
-  const { userPredictions } = usePredictionStore();
+  const { userPredictionEntries, getUserPredictionEntries } = usePredictionStore();
   const [analytics, setAnalytics] = useState<AnalyticsData | null>(null);
   const [timeframe, setTimeframe] = useState<'7d' | '30d' | '90d' | '1y'>('30d');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    calculateAnalytics();
-  }, [userPredictions, timeframe]);
+    if (user?.id) {
+      calculateAnalytics();
+    }
+  }, [user?.id, userPredictionEntries, timeframe]);
 
   const calculateAnalytics = () => {
-    if (!userPredictions?.length) {
+    if (!user?.id) {
+      setLoading(false);
+      return;
+    }
+
+    const entries = getUserPredictionEntries(user.id);
+    if (!entries?.length) {
       setLoading(false);
       return;
     }
@@ -56,16 +64,16 @@ export const UserAnalyticsDashboard: React.FC = () => {
       '1y': 365 * 24 * 60 * 60 * 1000,
     };
 
-    const filteredPredictions = userPredictions.filter(prediction => {
-      const predictionDate = new Date(prediction.createdAt);
-      return now.getTime() - predictionDate.getTime() <= timeframeMs[timeframe];
+    const filteredEntries = entries.filter(entry => {
+      const entryDate = new Date(entry.created_at);
+      return now.getTime() - entryDate.getTime() <= timeframeMs[timeframe];
     });
 
-    const settledPredictions = filteredPredictions.filter(p => p.status === 'settled');
-    const correctPredictions = settledPredictions.filter(p => p.won);
+    const settledEntries = filteredEntries.filter(e => e.status === 'won' || e.status === 'lost');
+    const correctEntries = settledEntries.filter(e => e.status === 'won');
     
-    const totalStaked = filteredPredictions.reduce((sum, p) => sum + p.amount, 0);
-    const totalEarnings = settledPredictions.reduce((sum, p) => sum + (p.payout || 0), 0);
+    const totalStaked = filteredEntries.reduce((sum, e) => sum + e.amount, 0);
+    const totalEarnings = settledEntries.reduce((sum, e) => sum + (e.actual_payout || e.potential_payout || 0), 0);
     const profitLoss = totalEarnings - totalStaked;
 
     // Calculate streak
@@ -75,12 +83,13 @@ export const UserAnalyticsDashboard: React.FC = () => {
     let tempStreak = 0;
     let tempType: 'win' | 'loss' = 'win';
 
-    const sortedPredictions = settledPredictions
-      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    const sortedEntries = settledEntries
+      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
-    for (let i = 0; i < sortedPredictions.length; i++) {
-      const prediction = sortedPredictions[i];
-      const isWin = prediction.won;
+    for (let i = 0; i < sortedEntries.length; i++) {
+      const entry = sortedEntries[i];
+      if (!entry) continue;
+      const isWin = entry.status === 'won';
 
       if (i === 0) {
         currentStreak = 1;
@@ -88,7 +97,9 @@ export const UserAnalyticsDashboard: React.FC = () => {
         tempStreak = 1;
         tempType = isWin ? 'win' : 'loss';
       } else {
-        const previousWin = sortedPredictions[i - 1].won;
+        const previousEntry = sortedEntries[i - 1];
+        if (!previousEntry) continue;
+        const previousWin = previousEntry.status === 'won';
         if ((isWin && previousWin) || (!isWin && !previousWin)) {
           currentStreak++;
           tempStreak++;
@@ -115,25 +126,25 @@ export const UserAnalyticsDashboard: React.FC = () => {
       date.setMonth(date.getMonth() - i);
       const monthKey = date.toISOString().slice(0, 7);
       
-      const monthPredictions = settledPredictions.filter(p => 
-        p.createdAt.slice(0, 7) === monthKey
+      const monthEntries = settledEntries.filter(e => 
+        e.created_at.slice(0, 7) === monthKey
       );
       
-      const monthWins = monthPredictions.filter(p => p.won);
-      const monthEarnings = monthPredictions.reduce((sum, p) => sum + (p.payout || 0), 0);
+      const monthWins = monthEntries.filter(e => e.status === 'won');
+      const monthEarnings = monthEntries.reduce((sum, e) => sum + (e.actual_payout || e.potential_payout || 0), 0);
 
       monthlyData.push({
         month: date.toLocaleDateString('en-US', { month: 'short' }),
-        predictions: monthPredictions.length,
+        predictions: monthEntries.length,
         earnings: monthEarnings,
-        winRate: monthPredictions.length > 0 ? (monthWins.length / monthPredictions.length) * 100 : 0,
+        winRate: monthEntries.length > 0 ? (monthWins.length / monthEntries.length) * 100 : 0,
       });
     }
 
     // Category breakdown
     const categoryMap = new Map();
-    settledPredictions.forEach(prediction => {
-      const category = prediction.category || 'Other';
+    settledEntries.forEach(entry => {
+      const category = entry.prediction?.category || 'Other';
       if (!categoryMap.has(category)) {
         categoryMap.set(category, {
           category,
@@ -144,9 +155,11 @@ export const UserAnalyticsDashboard: React.FC = () => {
       }
       
       const data = categoryMap.get(category);
-      data.predictions++;
-      if (prediction.won) data.wins++;
-      data.earnings += prediction.payout || 0;
+      if (data) {
+        data.predictions++;
+        if (entry.status === 'won') data.wins++;
+        data.earnings += entry.actual_payout || entry.potential_payout || 0;
+      }
     });
 
     const categoryBreakdown = Array.from(categoryMap.values()).map(data => ({
@@ -157,12 +170,12 @@ export const UserAnalyticsDashboard: React.FC = () => {
     }));
 
     setAnalytics({
-      totalPredictions: filteredPredictions.length,
-      correctPredictions: correctPredictions.length,
+      totalPredictions: filteredEntries.length,
+      correctPredictions: correctEntries.length,
       totalEarnings,
       totalStaked,
-      winRate: settledPredictions.length > 0 ? (correctPredictions.length / settledPredictions.length) * 100 : 0,
-      avgStakeSize: filteredPredictions.length > 0 ? totalStaked / filteredPredictions.length : 0,
+      winRate: settledEntries.length > 0 ? (correctEntries.length / settledEntries.length) * 100 : 0,
+      avgStakeSize: filteredEntries.length > 0 ? totalStaked / filteredEntries.length : 0,
       profitLoss,
       streak: {
         current: currentStreak,

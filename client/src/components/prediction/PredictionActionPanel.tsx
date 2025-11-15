@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { Heart, MessageCircle, DollarSign, TrendingUp } from 'lucide-react';
 import { useAccount, useSwitchChain } from 'wagmi';
+import { baseSepolia } from 'wagmi/chains';
 import AuthRequiredState from '../ui/empty/AuthRequiredState';
 import { selectEscrowAvailableUSD } from '@/lib/balance/balanceSelector';
 import { useWalletStore } from '@/store/walletStore';
@@ -31,6 +32,7 @@ interface PredictionActionPanelProps {
   onPlaceBet: () => void;
   onLike: () => void;
   onComment: () => void;
+  onAddFunds?: () => void;
 }
 
 const PredictionActionPanel: React.FC<PredictionActionPanelProps> = ({
@@ -44,7 +46,8 @@ const PredictionActionPanel: React.FC<PredictionActionPanelProps> = ({
   onStakeChange,
   onPlaceBet,
   onLike,
-  onComment
+  onComment,
+  onAddFunds
 }) => {
   const canPlaceBet = prediction.status === 'open';
   const walletStore = useWalletStore();
@@ -54,7 +57,7 @@ const PredictionActionPanel: React.FC<PredictionActionPanelProps> = ({
   // Feature flags
   const BASE_ENABLED = import.meta.env.VITE_FCZ_BASE_ENABLE === '1';
   const BETS_ONCHAIN = import.meta.env.VITE_FCZ_BASE_BETS === '1';
-  const BASE_CHAIN_ID = Number(import.meta.env.VITE_CHAIN_ID || 84532);
+  const BASE_CHAIN_ID = baseSepolia.id as 84532;
 
   // Real escrow-available balance
   const escrowAvailable = useMemo(
@@ -219,7 +222,11 @@ const PredictionActionPanel: React.FC<PredictionActionPanelProps> = ({
                   onClick={() => {
                     // Open deposit modal
                     console.log('[FCZ-PAY] ui: Add funds requested');
-                    walletStore?.openDepositModal?.();
+                    if (onAddFunds) {
+                      onAddFunds();
+                    } else {
+                      console.log('[FCZ-PAY] ui: Add funds requested');
+                    }
                   }}
                   className="w-full py-4 rounded-xl font-bold text-lg transition-all transform bg-gradient-to-r from-amber-500 to-orange-500 text-white hover:from-amber-600 hover:to-orange-600 active:scale-[0.98] shadow-lg hover:shadow-xl"
                   style={{ position: 'relative', zIndex: 10 }}

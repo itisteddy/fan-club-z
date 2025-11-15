@@ -101,7 +101,7 @@ router.get('/', async (req, res) => {
     const selectedIndex = seededIndex(seed, images.length);
     const selectedImages = images.slice(0, take);
 
-    res.json({
+    return res.json({
       success: true,
       images: selectedImages,
       selectedIndex,
@@ -111,7 +111,7 @@ router.get('/', async (req, res) => {
 
   } catch (error) {
     console.error('Image API error:', error);
-    res.status(500).json({
+    return res.status(500).json({
       error: 'Internal server error',
       fallback: true
     });
@@ -122,7 +122,7 @@ router.get('/', async (req, res) => {
 router.get('/health', (req, res) => {
   const stats = imageCache.getStats();
   
-  res.json({
+  return res.json({
     success: true,
     providers: {
       pexels: !!pexelsProvider,

@@ -649,10 +649,11 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
       )}
       
       {/* Deposit Modal */}
-      {currentUser?.id && (
+      {showDepositModal && currentUser?.id && (
         <DepositUSDCModal
           open={showDepositModal}
           onClose={() => setShowDepositModal(false)}
+          onSuccess={() => setShowDepositModal(false)}
           availableUSDC={selectOverviewBalances(walletStore).walletUSDC}
           userId={currentUser.id}
         />

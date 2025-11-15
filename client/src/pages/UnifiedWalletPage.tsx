@@ -286,7 +286,7 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
                             <p className={`text-sm font-semibold ${
                               isPositive ? 'text-green-600' : 'text-red-600'
                             }`}>
-                              {isPositive ? '+' : '-'}{formatUSDCompact(activity.amount)}
+                              {isPositive ? '+' : '-'}{formatUSDCompact(activity.amountUSD ?? 0)}
                             </p>
                             {activity.txHash && (
                               <a
@@ -327,7 +327,8 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
       {showDepositModal && user?.id && (
         <DepositUSDCModal
           open={showDepositModal}
-          onClose={() => {
+          onClose={() => setShowDepositModal(false)}
+          onSuccess={() => {
             setShowDepositModal(false);
             handleRefresh();
           }}
@@ -339,7 +340,8 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
       {showWithdrawModal && user?.id && (
         <WithdrawUSDCModal
           open={showWithdrawModal}
-          onClose={() => {
+          onClose={() => setShowWithdrawModal(false)}
+          onSuccess={() => {
             setShowWithdrawModal(false);
             handleRefresh();
           }}

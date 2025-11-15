@@ -305,12 +305,3 @@ export class BlockchainEscrowService {
 // Export singleton instance
 export const escrowService = new BlockchainEscrowService();
 
-// Type declarations for window.ethereum
-declare global {
-  interface Window {
-    ethereum?: {
-      request: (args: { method: string; params?: any[] }) => Promise<any>;
-      isMetaMask?: boolean;
-    };
-  }
-}

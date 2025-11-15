@@ -57,7 +57,11 @@ class PerformanceMonitor {
     try {
       const fidObserver = new PerformanceObserver((list) => {
         for (const entry of list.getEntries()) {
-          console.log('⚡ FID:', entry.processingStart - entry.startTime + 'ms');
+          const perfEntry = entry as PerformanceEventTiming;
+          const processingStart = 'processingStart' in perfEntry && perfEntry.processingStart !== undefined 
+            ? perfEntry.processingStart 
+            : perfEntry.startTime;
+          console.log('⚡ FID:', Math.max(0, processingStart - perfEntry.startTime) + 'ms');
         }
       });
       fidObserver.observe({ type: 'first-input', buffered: true });
@@ -136,13 +140,14 @@ class PerformanceMonitor {
       return;
     }
 
-    const navigation = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming;
+    const navigation = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming | undefined;
     if (navigation) {
+      const startReference = typeof navigation.startTime === 'number' ? navigation.startTime : 0;
       const metrics: PerformanceMetrics = {
         timestamp: Date.now(),
         url,
-        loadTime: navigation.loadEventEnd - navigation.navigationStart,
-        renderTime: navigation.domContentLoadedEventEnd - navigation.navigationStart,
+        loadTime: navigation.loadEventEnd - startReference,
+        renderTime: navigation.domContentLoadedEventEnd - startReference,
         memoryUsage: this.recordMemoryUsage(),
       };
 

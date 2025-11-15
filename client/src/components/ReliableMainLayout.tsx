@@ -1,5 +1,5 @@
 import React from 'react';
-import ReliableBottomNavigation from './ReliableBottomNavigation';
+// import ReliableBottomNavigation from './ReliableBottomNavigation'; // Module not found - commented out
 
 interface ReliableMainLayoutProps {
   children: React.ReactNode;
@@ -21,7 +21,7 @@ const ReliableMainLayout: React.FC<ReliableMainLayoutProps> = ({ children }) => 
       </main>
 
       {/* Bottom Navigation */}
-      <ReliableBottomNavigation />
+      {/* <ReliableBottomNavigation /> */} {/* Module not found - commented out */}
     </div>
   );
 };

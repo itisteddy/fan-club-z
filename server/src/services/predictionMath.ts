@@ -80,11 +80,13 @@ export async function recomputePredictionState(predictionId: string): Promise<Re
     console.error('[PredictionMath] Failed to count participants:', countError);
   }
 
+  const normalizedParticipantCount = typeof participantCount === 'number' ? participantCount : 0;
+
   const { data: predictionRow, error: predictionUpdateError } = await supabase
     .from('predictions')
     .update({
       pool_total: poolTotal,
-      participant_count: participantCount,
+      participant_count: normalizedParticipantCount,
       updated_at: nowIso as any,
     })
     .eq('id', predictionId)
@@ -115,7 +117,7 @@ export async function recomputePredictionState(predictionId: string): Promise<Re
 
   return {
     poolTotal,
-    participantCount,
+    participantCount: normalizedParticipantCount,
     options: refreshedOptions || [],
     prediction: fullPrediction,
   };

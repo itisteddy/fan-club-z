@@ -28,7 +28,7 @@ export function useIdempotentRequest() {
     
     if (cachedRequest) {
       console.log('[IDEMPOTENT] Request already in progress:', cacheKey);
-      toast.info('Request already in progress. Please wait...');
+      toast('Request already in progress. Please wait...', { icon: 'ℹ️' });
       
       try {
         return await cachedRequest;
@@ -144,7 +144,7 @@ export function useIdempotentBet() {
       onError: (error) => {
         if (error.message.includes('409')) {
           // Request already being processed
-          toast.info('Your bet is being processed...');
+          toast('Your bet is being processed...', { icon: 'ℹ️' });
         } else {
           toast.error(`Failed to place bet: ${error.message}`);
         }
@@ -188,7 +188,7 @@ export function useIdempotentDeposit() {
       },
       onError: (error) => {
         if (error.message.includes('409')) {
-          toast.info('This deposit is already being processed');
+          toast('This deposit is already being processed', { icon: 'ℹ️' });
         } else {
           toast.error(`Failed to record deposit: ${error.message}`);
         }
@@ -232,7 +232,7 @@ export function useIdempotentWithdraw() {
       },
       onError: (error) => {
         if (error.message.includes('409')) {
-          toast.info('Withdrawal already in progress');
+          toast('Withdrawal already in progress', { icon: 'ℹ️' });
         } else {
           toast.error(`Failed to withdraw: ${error.message}`);
         }

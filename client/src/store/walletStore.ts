@@ -23,11 +23,16 @@ interface WalletBalance {
   total: number;
 }
 
-interface WalletState {
+export interface WalletState {
   balances: WalletBalance[];
   transactions: Transaction[];
   isLoading: boolean;
   error: string | null;
+  walletSummary?: {
+    available_balance?: number;
+    reserved_balance?: number;
+    total_balance?: number;
+  } | null;
   
   // Computed properties for easy access
   balance: number; // Available USD balance
@@ -55,6 +60,7 @@ export const useWalletStore = create<WalletState>()(
       transactions: [],
       isLoading: false,
       error: null,
+      walletSummary: null,
       
       // Computed properties
       get balance() {

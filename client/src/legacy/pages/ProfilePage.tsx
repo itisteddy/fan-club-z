@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { Edit3, User, Activity, DollarSign } from 'lucide-react';
-import { useAuthStore } from '../store/authStore';
-import { usePredictionStore } from '../store/predictionStore';
-import { openAuthGate } from '../auth/authGateAdapter';
-import UserAvatar from '../components/common/UserAvatar';
-import AppHeader from '../components/layout/AppHeader';
-import { SignOutButton } from '../components/profile/SignOutButton';
+import { useAuthStore } from '../../store/authStore';
+import { usePredictionStore, PredictionEntry, Prediction } from '../../store/predictionStore';
+import { openAuthGate } from '../../auth/authGateAdapter';
+import UserAvatar from '../../components/common/UserAvatar';
+import AppHeader from '../../components/layout/AppHeader';
+import { SignOutButton } from '../../components/profile/SignOutButton';
 import { formatCurrency, formatInt, formatPercent } from '@/lib/format';
 
 interface ProfilePageProps {
@@ -31,10 +31,10 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigateBack, userId }) => 
   // Calculate user stats
   const userEntries = getUserPredictionEntries(user?.id || '') || [];
   const userCreated = getUserCreatedPredictions(user?.id || '') || [];
-  const completedEntries = userEntries.filter(entry => entry?.status === 'won' || entry?.status === 'lost');
-  const wonEntries = userEntries.filter(entry => entry?.status === 'won');
-  const totalInvested = userEntries.reduce((sum, entry) => sum + (entry?.amount || 0), 0);
-  const totalEarnings = wonEntries.reduce((sum, entry) => sum + (entry?.actual_payout || 0), 0);
+  const completedEntries = userEntries.filter((entry: PredictionEntry) => entry?.status === 'won' || entry?.status === 'lost');
+  const wonEntries = userEntries.filter((entry: PredictionEntry) => entry?.status === 'won');
+  const totalInvested = userEntries.reduce((sum: number, entry: PredictionEntry) => sum + (entry?.amount || 0), 0);
+  const totalEarnings = wonEntries.reduce((sum: number, entry: PredictionEntry) => sum + (entry?.actual_payout || 0), 0);
   const winRate = completedEntries.length > 0 ? Math.round((wonEntries.length / completedEntries.length) * 100) : 0;
   const balance = totalEarnings - totalInvested;
 
@@ -159,7 +159,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigateBack, userId }) => 
                     </p>
                     <div className="flex space-x-4 mt-2 text-xs text-gray-500">
                       <span>{completedEntries.length} completed</span>
-                      <span>{userEntries.filter(e => e.status === 'active').length} active</span>
+                      <span>{userEntries.filter((e: PredictionEntry) => e.status === 'active').length} active</span>
                     </div>
                   </div>
                 </div>
