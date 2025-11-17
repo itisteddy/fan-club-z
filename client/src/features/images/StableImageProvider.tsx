@@ -17,6 +17,10 @@ import { getApiUrl } from '@/utils/environment';
 
 const API_BASE = `${getApiUrl()}/api`;
 
+// Global memory cache shared across all component instances
+// This prevents re-fetching the same image when components re-render
+const globalMemoryCache = new Map<string, StockImage>();
+
 export interface StableImageResult {
   image: StockImage | null;
   loading: boolean;
@@ -72,6 +76,27 @@ export function useStableImage({
       return;
     }
 
+    // Generate stable query and seed FIRST (before any async operations)
+    const seed = generateSeed(prediction);
+    const cacheKey = `${prediction.id}@${seed}`;
+
+    // Check global memory cache FIRST (synchronous, instant)
+    const memoryCached = globalMemoryCache.get(cacheKey);
+    if (memoryCached) {
+      qaLog(`[stable-image] Using global memory cache for ${prediction.id}`);
+      setImage(memoryCached);
+      setProvider(memoryCached.provider);
+      imageLocked.current = true;
+      setLoading(false);
+      return;
+    }
+
+    // If we already have an image set, don't fetch again
+    if (image) {
+      imageLocked.current = true;
+      return;
+    }
+
     fetchedRef.current = true;
     let cancelled = false;
 
@@ -79,9 +104,7 @@ export function useStableImage({
       setLoading(true);
       setError(null);
 
-      // Generate stable query and seed
       const query = sanitizeQuery(buildImageQuery(prediction));
-      const seed = generateSeed(prediction);
 
       qaLog(`[stable-image] Fetching for prediction ${prediction.id}:`, {
         query,
@@ -96,6 +119,7 @@ export function useStableImage({
         qaLog(`[stable-image] Using cached Pexels image for ${prediction.id}`);
         setImage(cachedPexels);
         setProvider('pexels');
+        globalMemoryCache.set(cacheKey, cachedPexels);
         imageLocked.current = true;
         setLoading(false);
         return;
@@ -108,6 +132,7 @@ export function useStableImage({
         setImage(cachedUnsplash);
         setProvider('unsplash');
         setUsedFallback(true);
+        globalMemoryCache.set(cacheKey, cachedUnsplash);
         imageLocked.current = true;
         setLoading(false);
         return;
@@ -119,6 +144,7 @@ export function useStableImage({
         qaLog(`[stable-image] Got Pexels image for ${prediction.id}`);
         setImage(pexelsImage);
         setProvider('pexels');
+        globalMemoryCache.set(cacheKey, pexelsImage);
         await imageCache.set(prediction.id, 'pexels', seed, pexelsImage);
         imageLocked.current = true;
         setLoading(false);
@@ -133,6 +159,7 @@ export function useStableImage({
         setImage(unsplashImage);
         setProvider('unsplash');
         setUsedFallback(true);
+        globalMemoryCache.set(cacheKey, unsplashImage);
         await imageCache.set(prediction.id, 'unsplash', seed, unsplashImage);
         imageLocked.current = true;
         setLoading(false);

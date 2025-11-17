@@ -349,7 +349,7 @@ export const useAuthStore = create<AuthState>()(
           console.log(`🔑 Starting ${provider} OAuth login...`);
           const currentPath = `${window.location.pathname}${window.location.search}${window.location.hash}`;
           captureReturnTo(currentPath);
-          
+
           const { data, error } = await auth.signInWithOAuth(provider, { next: currentPath });
 
           if (error) {

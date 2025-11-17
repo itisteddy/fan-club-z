@@ -86,57 +86,11 @@ export const AutoImage: React.FC<AutoImageProps> = ({
     '2xl': 'rounded-2xl'
   }[rounded];
 
-  // Show fallback if no image, error, or explicitly requested
-  const shouldShowFallback = usedFallback || error || imageError || !image || !showFallback;
+  // Show fallback if error or explicitly requested
+  const shouldShowFallback = (usedFallback && !image) || error || imageError || (!showFallback && !image);
 
-  if (shouldShowFallback && showFallback) {
-    const gradientClass = getCategoryGradient(prediction.category);
-    
-    return (
-      <div 
-        className={cn(
-          'relative overflow-hidden bg-gradient-to-br',
-          aspectClass,
-          roundedClass,
-          gradientClass,
-          className
-        )}
-        role="img"
-        aria-label={generateAltText(prediction)}
-      >
-        {/* Subtle pattern overlay */}
-        <div className="absolute inset-0 bg-black/10" />
-        
-        {/* Category icon or text overlay */}
-        <div className="absolute inset-0 flex items-center justify-center">
-          <div className="text-white/80 text-center">
-            <div className="text-2xl mb-2">📊</div>
-            <div className="text-sm font-medium capitalize">
-              {prediction.category || 'Prediction'}
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (!image) {
-    // Loading state
-    return (
-      <div 
-        className={cn(
-          'relative overflow-hidden bg-gray-200 animate-pulse',
-          aspectClass,
-          roundedClass,
-          className
-        )}
-        role="img"
-        aria-label="Loading image..."
-      >
-        <div className="absolute inset-0 bg-gradient-to-br from-gray-300 to-gray-400" />
-      </div>
-    );
-  }
+  // Get gradient for loading/fallback states
+  const gradientClass = getCategoryGradient(prediction.category);
 
   return (
     <div 
@@ -147,37 +101,77 @@ export const AutoImage: React.FC<AutoImageProps> = ({
         className
       )}
     >
-      {/* Preview image (LQIP) */}
-      {image.previewUrl && !imageLoaded && (
-        <img
-          src={image.previewUrl}
-          alt=""
-          className="absolute inset-0 h-full w-full object-cover filter blur-sm scale-110"
+      {/* Loading skeleton - always show when loading or no image yet */}
+      {(loading || !image) && !imageLoaded && !shouldShowFallback && (
+        <div 
+          className="absolute inset-0 bg-gradient-to-br from-gray-200 via-gray-300 to-gray-200 animate-pulse"
           aria-hidden="true"
         />
       )}
 
-      {/* Main image */}
-      <img
-        src={image.url}
-        alt={generateAltText(prediction)}
-        className={cn(
-          'absolute inset-0 h-full w-full object-cover transition-opacity duration-300',
-          imageLoaded ? 'opacity-100' : 'opacity-0'
-        )}
-        loading={priority ? 'eager' : 'lazy'}
-        decoding="async"
-        onLoad={handleImageLoad}
-        onError={handleImageError}
-        sizes={
-          aspect === '16/9' 
-            ? '(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw'
-            : '(max-width: 640px) 100vw, (max-width: 1024px) 25vw, 20vw'
-        }
-      />
+      {/* Fallback gradient - show when error or no image available */}
+      {shouldShowFallback && showFallback && (
+        <div 
+          className={cn(
+            'absolute inset-0 bg-gradient-to-br',
+            gradientClass
+          )}
+          role="img"
+          aria-label={generateAltText(prediction)}
+        >
+          {/* Subtle pattern overlay */}
+          <div className="absolute inset-0 bg-black/10" />
+          
+          {/* Category icon or text overlay */}
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className="text-white/80 text-center">
+              <div className="text-2xl mb-2">📊</div>
+              <div className="text-sm font-medium capitalize">
+                {prediction.category || 'Prediction'}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
-      {/* Gradient overlay for text contrast */}
-      <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-black/20 to-transparent" />
+      {/* Preview image (blur-up technique) - show immediately if available */}
+      {image?.previewUrl && !imageLoaded && (
+        <img
+          src={image.previewUrl}
+          alt=""
+          className="absolute inset-0 h-full w-full object-cover filter blur-sm scale-110 opacity-60"
+          aria-hidden="true"
+          loading="eager"
+        />
+      )}
+
+      {/* Main image - fade in smoothly when loaded */}
+      {image && !shouldShowFallback && (
+        <>
+          <img
+            src={image.url}
+            alt={generateAltText(prediction)}
+            className={cn(
+              'absolute inset-0 h-full w-full object-cover transition-opacity duration-500 ease-out',
+              imageLoaded ? 'opacity-100' : 'opacity-0'
+            )}
+            loading={priority ? 'eager' : 'lazy'}
+            decoding="async"
+            onLoad={handleImageLoad}
+            onError={handleImageError}
+            sizes={
+              aspect === '16/9' 
+                ? '(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw'
+                : '(max-width: 640px) 100vw, (max-width: 1024px) 25vw, 20vw'
+            }
+          />
+          
+          {/* Gradient overlay for text contrast (only when image is loaded) */}
+          {imageLoaded && (
+            <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-black/20 to-transparent pointer-events-none" />
+          )}
+        </>
+      )}
     </div>
   );
 };

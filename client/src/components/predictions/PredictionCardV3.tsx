@@ -92,17 +92,22 @@ export default function PredictionCardV3({ prediction }: PredictionCardProps) {
       </div>
 
         {/* Right: thumbnail (fixed) */}
-        <div className="h-[72px] w-[96px] shrink-0 overflow-hidden rounded-xl bg-gray-100">
+        <div className="h-[72px] w-[96px] shrink-0 overflow-hidden rounded-xl bg-gray-100 relative">
+          {/* Loading skeleton */}
+          <div className="absolute inset-0 bg-gradient-to-br from-gray-200 to-gray-300 animate-pulse" />
+          
+          {/* Image with smooth fade-in */}
           <img
             src={media.url}
             alt={media.alt || prediction.title}
-            className="h-full w-full object-cover transition-opacity duration-300"
+            className="relative h-full w-full object-cover transition-opacity duration-500 ease-out"
             loading="lazy"
+            decoding="async"
             onLoad={(e) => {
-              // Ensure smooth fade-in when image loads
+              // Smooth fade-in when image loads
               (e.target as HTMLImageElement).style.opacity = '1';
             }}
-            style={{ opacity: 0.95 }}
+            style={{ opacity: 0 }}
           />
         </div>
       </div>

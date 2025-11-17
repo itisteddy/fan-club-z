@@ -142,7 +142,7 @@ export const AuthSessionProvider: React.FC<AuthSessionProviderProps> = ({ childr
       const currentPath = `${window.location.pathname}${window.location.search}${window.location.hash}`;
       const next = currentPath;
       const redirectUrl = buildAuthRedirectUrl(next);
-      
+        
       console.log('🔐 Google OAuth redirect URL:', redirectUrl);
       console.log('🔐 Current path:', currentPath);
       console.log('🔐 Next param:', next);

@@ -77,7 +77,7 @@ const ensureNativeAuthListener = () => {
       // The AuthCallback route component will process it
     } catch (err) {
       console.error('❌ Native auth listener exception:', err);
-    }
+}
   });
 };
 
@@ -176,32 +176,32 @@ export const auth = {
           console.log('🔐 OAuth redirect URL:', redirectUrl);
 
           const { data, error} = await supabase.auth.signInWithOAuth({
-            provider,
-            options: {
+        provider,
+        options: {
               redirectTo: redirectUrl,
               skipBrowserRedirect: native,
               queryParams: {
                 access_type: 'offline',
                 prompt: 'consent',
               },
-            },
-          });
-          
-          if (error) {
-            console.error('Auth signInWithOAuth error:', error);
+        },
+      });
+      
+      if (error) {
+        console.error('Auth signInWithOAuth error:', error);
           } else if (native && data?.url) {
             await Browser.open({
               url: data.url,
               presentationStyle: 'fullscreen',
             });
-          }
-          
-          return { data, error };
-        } catch (error: any) {
-          console.error('Auth signInWithOAuth exception:', error);
-          return { data: null, error: { message: error.message || 'An unexpected error occurred' } };
-        }
-      },
+      }
+      
+      return { data, error };
+    } catch (error: any) {
+      console.error('Auth signInWithOAuth exception:', error);
+      return { data: null, error: { message: error.message || 'An unexpected error occurred' } };
+    }
+  },
 
   signOut: async () => {
     try {

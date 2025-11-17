@@ -68,7 +68,14 @@ const ENTITY_OVERRIDES: Array<{ keywords: string[]; query: string }> = [
   { keywords: ['tesla'], query: 'tesla electric car futuristic automotive' },
   { keywords: ['apple', 'iphone', 'macbook'], query: 'apple product render minimalist tech' },
   { keywords: ['marvel', 'avengers'], query: 'marvel movie cinematic superhero film poster' },
-  { keywords: ['nigeria', 'lagos'], query: 'lagos nigeria city skyline modern africa' }
+  { keywords: ['nigeria', 'lagos'], query: 'lagos nigeria city skyline modern africa' },
+  // Celebrity names
+  { keywords: ['haaland', 'erling haaland'], query: 'soccer football player athlete striker' },
+  { keywords: ['brad pitt'], query: 'hollywood actor celebrity portrait red carpet' },
+  { keywords: ['messi'], query: 'lionel messi soccer football player argentina' },
+  { keywords: ['ronaldo', 'cristiano ronaldo'], query: 'cristiano ronaldo soccer football player portugal' },
+  { keywords: ['lebron', 'lebron james'], query: 'lebron james basketball nba player' },
+  { keywords: ['curry', 'stephen curry'], query: 'stephen curry basketball nba player' }
 ];
 
 type ThemeRule = {
@@ -136,6 +143,22 @@ const THEME_RULES: ThemeRule[] = [
   {
     pattern: /\b(military|war|defense|army|navy|missile|conflict|ukraine|gaza|troops)\b/i,
     enrichment: 'military strategy defense technology'
+  },
+  {
+    pattern: /\b(taller|shorter|bigger|smaller|better|worse|faster|slower|stronger|weaker|more|less|than)\b/i,
+    enrichment: 'comparison contrast comparison chart data visualization'
+  },
+  {
+    pattern: /\b(celebrity|actor|actress|singer|musician|athlete|player|star|famous|person|people)\b/i,
+    enrichment: 'celebrity portrait red carpet entertainment media'
+  },
+  {
+    pattern: /\b(users|subscribers|followers|members|growth|hits|reaches|achieves|launches|releases)\b/i,
+    enrichment: 'technology growth chart analytics dashboard startup'
+  },
+  {
+    pattern: /\b(custom|random|misc|general|other|question|prediction)\b/i,
+    enrichment: 'abstract modern business concept illustration'
   }
 ];
 
@@ -202,15 +225,24 @@ function addKeywords(target: Set<string>, words: string[] = []) {
 }
 
 export function buildImageQuery(prediction: PredictionContext): string {
+  // 1. Check entity overrides first (celebrity names, specific entities)
   const override = matchEntityOverride(prediction);
   if (override) {
     return override;
   }
 
   const keywordSet = new Set<string>();
+  
+  // 2. Extract keywords from title (most important)
   addKeywords(keywordSet, extractKeywords(prediction.title, 5));
+  
+  // 3. Add description keywords
   addKeywords(keywordSet, extractKeywords(prediction.description, 3));
+  
+  // 4. Add tags
   addKeywords(keywordSet, prediction.tags ?? []);
+  
+  // 5. Add option labels (can contain useful context)
   addKeywords(
     keywordSet,
     prediction.options
@@ -219,30 +251,43 @@ export function buildImageQuery(prediction: PredictionContext): string {
       .filter(Boolean) ?? []
   );
 
+  // 6. Add year if detected
   const year = detectYear(prediction);
   if (year) {
     keywordSet.add(year);
   }
 
-  if (prediction.category) {
-    const normalizedCategory = prediction.category.replace('_', ' ').toLowerCase();
-    keywordSet.add(normalizedCategory);
-
-    const categoryQuery = CATEGORY_QUERIES[normalizedCategory];
-    if (categoryQuery) {
-      addKeywords(keywordSet, categoryQuery.split(' '));
-    }
-  }
-
+  // 7. Get theme enrichments (celebrity, comparison, etc.)
   const themeEnrichments = getThemeEnrichments(prediction);
   themeEnrichments.forEach(phrase => addKeywords(keywordSet, phrase.split(' ')));
 
+  // 8. Add category context (but prioritize theme enrichments)
+  if (prediction.category) {
+    const normalizedCategory = prediction.category.replace('_', ' ').toLowerCase();
+    
+    // For "custom" category, rely more on theme enrichments and title keywords
+    if (normalizedCategory === 'custom') {
+      // Only add category if we don't have enough keywords from theme/title
+      if (keywordSet.size < 3) {
+        keywordSet.add('comparison question');
+      }
+    } else {
+      keywordSet.add(normalizedCategory);
+      const categoryQuery = CATEGORY_QUERIES[normalizedCategory];
+      if (categoryQuery) {
+        addKeywords(keywordSet, categoryQuery.split(' '));
+      }
+    }
+  }
+
   const keywords = Array.from(keywordSet).slice(0, MAX_KEYWORDS);
 
+  // 9. Return query if we have enough keywords
   if (keywords.length >= 2) {
     return keywords.join(' ');
   }
 
+  // 10. Fallback to category query
   const fallbackCategory = prediction.category
     ? CATEGORY_QUERIES[prediction.category.toLowerCase()] ?? prediction.category.toLowerCase()
     : null;
@@ -251,6 +296,7 @@ export function buildImageQuery(prediction: PredictionContext): string {
     return fallbackCategory;
   }
 
+  // 11. Final fallback
   return 'abstract business technology';
 }
 
