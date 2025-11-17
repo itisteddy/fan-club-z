@@ -13,8 +13,26 @@ interface GuidedTourProps {
   onPrev: () => void;
 }
 
+const resolveTourElement = (selector: string): HTMLElement | null => {
+  if (!selector) return null;
+
+  if (/^[.#\[]/.test(selector) || selector.includes(' ')) {
+    try {
+      return document.querySelector(selector) as HTMLElement | null;
+    } catch (error) {
+      console.warn('Invalid guided tour selector:', selector, error);
+      return null;
+    }
+  }
+
+  return (
+    (document.querySelector(`[data-tour-id="${selector}"]`) as HTMLElement | null) ||
+    (document.querySelector(`[data-tour="${selector}"]`) as HTMLElement | null)
+  );
+};
+
 const getTargetRect = (selector: string) => {
-  const el = document.querySelector(`[data-tour-id="${selector}"]`) as HTMLElement | null;
+  const el = resolveTourElement(selector);
   if (!el) return null;
   const rect = el.getBoundingClientRect();
   return { rect, el };

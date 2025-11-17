@@ -8,18 +8,10 @@ import {
   useOnboarding,
   type OnboardingStep 
 } from './OnboardingSystem';
-import { 
-  Compass, 
-  Target, 
-  TrendingUp, 
-  Wallet, 
-  User, 
-  Plus,
-  Search,
-  Filter,
-  BarChart3,
-  Settings
-} from 'lucide-react';
+import {
+  FULL_CONTEXTUAL_TOUR,
+  QUICK_DISCOVER_TOUR
+} from '@/config/contextualOnboardingTours';
 
 // Enhanced onboarding context
 interface OnboardingContextValue {
@@ -36,172 +28,9 @@ interface OnboardingContextValue {
 
 const OnboardingContext = createContext<OnboardingContextValue | undefined>(undefined);
 
-// Comprehensive tour configurations with proper target IDs matching current UI
-const FULL_TOUR_STEPS: OnboardingStep[] = [
-  // Welcome & Discover Tab
-  {
-    id: 'welcome-discover',
-    title: 'Welcome to FanClubZ!',
-    description: 'This is where you\'ll find active predictions and explore new markets. Browse through the list to see all available predictions you can participate in.',
-    target: 'discover-list',
-    placement: 'bottom',
-    offset: { y: 24 },
-    icon: <Compass className="w-5 h-5" />,
-    delay: 500
-  },
-  
-  // Search functionality
-  {
-    id: 'search-feature',
-    title: 'Search Predictions',
-    description: 'Use the search bar to find specific topics, events, or types of predictions that interest you.',
-    target: 'search-bar',
-    placement: 'bottom',
-    icon: <Search className="w-5 h-5" />
-  },
-  
-  // Category filters
-  {
-    id: 'category-filters',
-    title: 'Browse by Category',
-    description: 'Filter predictions by category - Sports, Pop Culture, Tech, Finance, and more. Tap a category to filter the list.',
-    target: 'category-filters',
-    placement: 'bottom',
-    icon: <Filter className="w-5 h-5" />
-  },
-  
-  // FAB for creating predictions
-  {
-    id: 'create-prediction',
-    title: 'Create Your Own Prediction',
-    description: 'Have an insight you want to share? Tap the plus button to create your own prediction and invite others to participate.',
-    target: 'create-fab',
-    placement: 'left',
-    offset: { y: -80 },
-    icon: <Plus className="w-5 h-5" />
-  },
-  
-  // My Bets tab
-  {
-    id: 'my-bets-tab',
-    title: 'Track Your Bets',
-    description: 'View all your active bets, predictions you\'ve created, and your completed bets with results here.',
-    target: 'tab-bets',
-    placement: 'top',
-    offset: { y: -40 },
-    icon: <TrendingUp className="w-5 h-5" />,
-    onNext: async () => {
-      // Navigate to bets page
-      const navigate = (window as any).__router_navigate;
-      if (navigate) {
-        navigate('/bets');
-        // Wait for navigation to complete
-        await new Promise(resolve => setTimeout(resolve, 300));
-      }
-    }
-  },
-  
-  // Wallet tab
-  {
-    id: 'wallet-tab',
-    title: 'Manage Your Wallet',
-    description: 'Keep track of your balance, view transaction history, and manage your funds securely.',
-    target: 'tab-wallet',
-    placement: 'top',
-    // Step 7/10: raise tooltip above bottom nav
-    offset: { y: -40 },
-    icon: <Wallet className="w-5 h-5" />,
-    onNext: async () => {
-      const navigate = (window as any).__router_navigate;
-      if (navigate) {
-        navigate('/wallet');
-        await new Promise(resolve => setTimeout(resolve, 300));
-      }
-    }
-  },
-  
-  // Leaderboard tab
-  {
-    id: 'leaderboard-tab',
-    title: 'Rankings & Leaderboard',
-    description: 'See how you stack up against other players and track top performers.',
-    target: 'tab-leaderboard',
-    placement: 'top',
-    offset: { y: -40 },
-    icon: <BarChart3 className="w-5 h-5" />
-  },
-  
-  // Profile tab
-  {
-    id: 'profile-tab',
-    title: 'Your Profile',
-    description: 'Access your profile settings, view your stats, and manage your account.',
-    target: 'tab-profile',
-    placement: 'top',
-    offset: { y: -40 },
-    icon: <User className="w-5 h-5" />,
-    onNext: async () => {
-      const navigate = (window as any).__router_navigate;
-      if (navigate) {
-        navigate('/profile');
-        await new Promise(resolve => setTimeout(resolve, 300));
-      }
-    }
-  },
-  
-  // Tour complete
-  {
-    id: 'tour-complete',
-    title: 'You\'re Ready!',
-    description: 'You now know how to navigate FanClubZ. Start exploring, place bets, and have fun!',
-    target: 'tab-discover',
-    placement: 'top',
-    offset: { y: -40 },
-    icon: <Target className="w-5 h-5" />,
-    onNext: async () => {
-      const navigate = (window as any).__router_navigate;
-      if (navigate) {
-        navigate('/');
-        await new Promise(resolve => setTimeout(resolve, 200));
-      }
-    }
-  }
-];
-
-const QUICK_TOUR_STEPS: OnboardingStep[] = [
-  {
-    id: 'quick-discover',
-    title: 'Discover Predictions',
-    description: 'Browse and participate in predictions from the community.',
-    target: 'tab-discover',
-    placement: 'top',
-    icon: <Compass className="w-5 h-5" />
-  },
-  {
-    id: 'quick-create',
-    title: 'Create Predictions',
-    description: 'Share your insights by creating your own predictions.',
-    target: 'create-fab',
-    placement: 'left',
-    icon: <Plus className="w-5 h-5" />
-  },
-  {
-    id: 'quick-track',
-    title: 'Track Progress',
-    description: 'Monitor your active and completed predictions.',
-    target: 'tab-bets',
-    placement: 'top',
-    icon: <TrendingUp className="w-5 h-5" />
-  },
-  {
-    id: 'quick-wallet',
-    title: 'Manage Funds',
-    description: 'View your balance and transaction history.',
-    target: 'tab-wallet',
-    placement: 'top',
-    icon: <Wallet className="w-5 h-5" />
-  }
-];
+// Use contextual tours imported from config
+const FULL_TOUR_STEPS: OnboardingStep[] = FULL_CONTEXTUAL_TOUR;
+const QUICK_TOUR_STEPS: OnboardingStep[] = QUICK_DISCOVER_TOUR;
 
 // Smart trigger conditions
 const shouldShowOnboarding = () => {

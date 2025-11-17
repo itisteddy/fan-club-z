@@ -1,7 +1,7 @@
 import React, { useState, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { Heart, MessageCircle, TrendingUp, Clock, Users, ChevronRight } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { Prediction } from '../../store/predictionStore';
 import { useLikeStore } from '../../store/likeStore';
 import { useUnifiedCommentStore } from '../../store/unifiedCommentStore';
@@ -20,6 +20,8 @@ const DensePredictionCard: React.FC<DensePredictionCardProps> = ({
   className,
   index = 0
 }) => {
+  const location = useLocation();
+  const fromPath = `${location.pathname}${location.search}${location.hash}`;
   const navigate = useNavigate();
   const [isLiking, setIsLiking] = useState(false);
   
@@ -31,8 +33,10 @@ const DensePredictionCard: React.FC<DensePredictionCardProps> = ({
   const commentCount = getCommentCount(prediction.id);
 
   const handleCardClick = useCallback(() => {
-    navigate(`/prediction/${prediction.id}`);
-  }, [navigate, prediction.id]);
+    navigate(`/prediction/${prediction.id}`, {
+      state: { from: fromPath }
+    });
+  }, [navigate, prediction.id, fromPath]);
 
   const handleLike = useCallback(async (e: React.MouseEvent) => {
     e.stopPropagation();

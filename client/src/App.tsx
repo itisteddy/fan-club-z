@@ -232,8 +232,11 @@ const DiscoverPageWrapper: React.FC = () => {
   const handleNavigateToPrediction = useCallback((predictionId: string) => {
     // Save scroll position before navigating to details
     saveScrollPosition(location.pathname);
-    navigate(`/prediction/${predictionId}`);
-  }, [navigate, location.pathname]);
+    const fromPath = `${location.pathname}${location.search}${location.hash}`;
+    navigate(`/prediction/${predictionId}`, {
+      state: { from: fromPath }
+    });
+  }, [navigate, location.pathname, location.search, location.hash]);
 
   return (
       <LazyDiscoverPage 

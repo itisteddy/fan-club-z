@@ -1,5 +1,10 @@
 import { createClient } from '@supabase/supabase-js';
+import { Capacitor } from '@capacitor/core';
+import { App as CapacitorApp } from '@capacitor/app';
+import { Browser } from '@capacitor/browser';
+import type { PluginListenerHandle } from '@capacitor/core';
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from '@/utils/environment';
+import { captureReturnTo } from '@/lib/returnTo';
 
 // Environment variables from centralized config
 const supabaseUrl = SUPABASE_URL;
@@ -22,23 +27,59 @@ if (!supabaseUrl || !supabaseAnonKey) {
   );
 }
 
+const isNativePlatform = () => typeof window !== 'undefined' && Boolean(Capacitor?.isNativePlatform?.());
+
 // Helper to get the proper redirect URL for any environment
-function getRedirectUrl() {
-  // In production, always use the production URL
+// Uses HTTPS redirects for all platforms (Web OAuth client supports both web and native)
+function getRedirectUrl(next?: string) {
+  const appendNext = (base: string) => {
+    if (!next) return base;
+    const separator = base.includes('?') ? '&' : '?';
+    return `${base}${separator}next=${encodeURIComponent(next)}`;
+  };
+
+  // In production, always use the production URL (works for web, PWA, and native)
   if (import.meta.env.PROD) {
-    return 'https://app.fanclubz.app/auth/callback';
+    return appendNext('https://app.fanclubz.app/auth/callback');
   }
   
   // In development, check if we have a custom redirect URL override
   if (import.meta.env.VITE_AUTH_REDIRECT_URL) {
-    return import.meta.env.VITE_AUTH_REDIRECT_URL;
+    return appendNext(import.meta.env.VITE_AUTH_REDIRECT_URL);
   }
   
   // Use current origin (works for localhost, network IPs, etc.)
   const currentOrigin = window.location.origin;
-  console.log('🔧 Auth redirect URL:', `${currentOrigin}/auth/callback`);
-  return `${currentOrigin}/auth/callback`;
+  const fallback = `${currentOrigin}/auth/callback`;
+  console.log('🔧 Auth redirect URL:', fallback);
+  return appendNext(fallback);
 }
+
+export const buildAuthRedirectUrl = (next?: string) => getRedirectUrl(next);
+
+let nativeAuthListener: Promise<PluginListenerHandle> | null = null;
+
+const ensureNativeAuthListener = () => {
+  if (!isNativePlatform() || nativeAuthListener) return;
+
+  nativeAuthListener = CapacitorApp.addListener('appUrlOpen', async ({ url }) => {
+    try {
+      // Handle HTTPS callback URLs (app.fanclubz.app/auth/callback)
+      if (!url || (!url.includes('app.fanclubz.app/auth/callback') && !url.includes('localhost') && !url.includes('127.0.0.1'))) {
+        return;
+      }
+
+      console.log('🔐 Native auth callback received:', url);
+
+      await Browser.close().catch(() => undefined);
+
+      // Supabase will automatically handle the session from the URL
+      // The AuthCallback route component will process it
+    } catch (err) {
+      console.error('❌ Native auth listener exception:', err);
+    }
+  });
+};
 
 // Create Supabase client with proper OAuth configuration
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
@@ -81,6 +122,8 @@ if (isDev) {
 }
 
 // Auth helpers with better error handling and dynamic redirect URLs
+type OAuthProvider = 'google' | 'github' | 'discord' | 'apple';
+
 export const auth = {
   signUp: async (email: string, password: string, userData: any = {}) => {
     try {
@@ -122,26 +165,43 @@ export const auth = {
     }
   },
 
-  signInWithOAuth: async (provider: 'google' | 'github' | 'discord') => {
-    try {
-      const { data, error } = await supabase.auth.signInWithOAuth({
-        provider,
-        options: {
-          redirectTo: getRedirectUrl(),
-          skipBrowserRedirect: false,
-        },
-      });
-      
-      if (error) {
-        console.error('Auth signInWithOAuth error:', error);
-      }
-      
-      return { data, error };
-    } catch (error: any) {
-      console.error('Auth signInWithOAuth exception:', error);
-      return { data: null, error: { message: error.message || 'An unexpected error occurred' } };
-    }
-  },
+      signInWithOAuth: async (provider: OAuthProvider, options?: { next?: string }) => {
+        const native = isNativePlatform();
+        if (native) {
+          ensureNativeAuthListener();
+        }
+
+        try {
+          const redirectUrl = getRedirectUrl(options?.next);
+          console.log('🔐 OAuth redirect URL:', redirectUrl);
+
+          const { data, error} = await supabase.auth.signInWithOAuth({
+            provider,
+            options: {
+              redirectTo: redirectUrl,
+              skipBrowserRedirect: native,
+              queryParams: {
+                access_type: 'offline',
+                prompt: 'consent',
+              },
+            },
+          });
+          
+          if (error) {
+            console.error('Auth signInWithOAuth error:', error);
+          } else if (native && data?.url) {
+            await Browser.open({
+              url: data.url,
+              presentationStyle: 'fullscreen',
+            });
+          }
+          
+          return { data, error };
+        } catch (error: any) {
+          console.error('Auth signInWithOAuth exception:', error);
+          return { data: null, error: { message: error.message || 'An unexpected error occurred' } };
+        }
+      },
 
   signOut: async () => {
     try {
@@ -393,6 +453,10 @@ export const clientDb = {
     },
   },
 };
+
+if (isNativePlatform()) {
+  ensureNativeAuthListener();
+}
 
 // Real-time subscriptions
 export const realtime = {

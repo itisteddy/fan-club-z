@@ -90,6 +90,8 @@ const StableBottomNavigation: React.FC<StableBottomNavigationProps> = ({
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
                   data-testid={`nav-tab-${tab.id}`}
+                  data-tour={`tab-${tab.id}`}
+                  data-tour-id={`tab-${tab.id}`}
                   aria-label={`Navigate to ${tab.label}`}
                   role="tab"
                   aria-selected={isActive}
@@ -195,6 +197,8 @@ const StableBottomNavigation: React.FC<StableBottomNavigationProps> = ({
             whileTap={{ scale: 0.95 }}
             onClick={onFABClick}
             data-testid="create-fab"
+            data-tour="create-fab"
+            data-tour-id="create-fab"
             aria-label="Create new prediction"
             transition={{ type: "spring", stiffness: 300, damping: 25 }}
           >

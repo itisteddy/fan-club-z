@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { Share2, BarChart3, Users, Calendar, DollarSign, ArrowLeft, Clock, User } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { QK } from '@/lib/queryKeys';
@@ -50,11 +50,17 @@ interface PredictionDetailsPageProps {
   predictionId?: string;
 }
 
+type DetailsLocationState = { from?: string } | null;
+
 const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
   predictionId: propPredictionId
 }) => {
   const navigate = useNavigate();
+  const location = useLocation();
   const params = useParams<{ id?: string; predictionId?: string }>();
+  const locationState = (location.state as DetailsLocationState) ?? null;
+  const preservedStateRef = useRef<DetailsLocationState>(locationState);
+  const returnToRef = useRef<string | null>(locationState?.from ?? null);
   const { user: sessionUser } = useAuthSession();
   const reduceMotion = prefersReducedMotion();
   const { isAuthenticated: storeAuth, user: storeUser } = useAuthStore();
@@ -223,13 +229,21 @@ const userBalance = isAuthenticated ? availableToStake : 0;
     try {
       const targetPath = `/predictions/${slug}`;
       if (window.location.pathname !== targetPath) {
-        navigate(targetPath, { replace: true });
+        navigate(targetPath, { 
+          replace: true,
+          state: preservedStateRef.current ?? locationState ?? undefined
+        });
       }
     } catch {}
-  }, [prediction?.title, predictionId]);
+  }, [prediction?.title, predictionId, navigate, locationState]);
 
   // Handle navigation
   const handleBack = () => {
+    const returnTo = returnToRef.current;
+    if (returnTo) {
+      navigate(returnTo, { replace: true });
+      return;
+    }
     if (window.history.length > 1) {
       window.history.back();
     } else {

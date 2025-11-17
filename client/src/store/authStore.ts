@@ -3,7 +3,7 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 import { supabase, auth, clientDb } from '../lib/supabase';
 import toast from 'react-hot-toast';
 import { showSuccess, showError } from './notificationStore';
-import type { Provider } from '@supabase/supabase-js';
+import { captureReturnTo } from '@/lib/returnTo';
 
 interface User {
   id: string;
@@ -347,24 +347,10 @@ export const useAuthStore = create<AuthState>()(
         
         try {
           console.log(`🔑 Starting ${provider} OAuth login...`);
+          const currentPath = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+          captureReturnTo(currentPath);
           
-          // Get the correct redirect URL based on current domain
-          const currentOrigin = window.location.origin;
-          const redirectTo = `${currentOrigin}/auth/callback`;
-
-          console.log('🔗 Current origin:', currentOrigin);
-          console.log('🔗 OAuth redirect URL:', redirectTo);
-
-          const { data, error } = await supabase.auth.signInWithOAuth({
-            provider: provider as Provider,
-            options: {
-              redirectTo,
-              queryParams: {
-                access_type: 'offline',
-                prompt: 'consent',
-              },
-            },
-          });
+          const { data, error } = await auth.signInWithOAuth(provider, { next: currentPath });
 
           if (error) {
             console.error(`❌ ${provider} OAuth error:`, error.message);
@@ -572,16 +558,37 @@ if (typeof window !== 'undefined' && !authStateChangeListenerSet) {
     
     // Prevent rapid duplicate events (max 1 per second)
     if (lastAuthEvent === event && (now - lastAuthEventTime) < 1000) {
+      console.log('⏭️ Skipping duplicate auth event:', event);
       return;
     }
     
     lastAuthEvent = event;
     lastAuthEventTime = now;
     
-    console.log('🔄 Auth state change:', event);
+    console.log('🔄 Auth state change:', event, session?.user?.email || 'no user');
     
-    // Only handle specific critical events to prevent loops
-    if (event === 'SIGNED_OUT') {
+    const currentState = useAuthStore.getState();
+    
+    // Handle SIGNED_IN - critical for OAuth flows
+    if (event === 'SIGNED_IN' && session?.user) {
+      // Only update if we don't already have this user authenticated
+      if (!currentState.isAuthenticated || currentState.user?.id !== session.user.id) {
+        console.log('✅ User signed in via OAuth/callback');
+        const convertedUser = convertSupabaseUser(session.user);
+        useAuthStore.setState({
+          isAuthenticated: true,
+          user: convertedUser,
+          token: session.access_token,
+          loading: false,
+          initialized: true,
+          lastAuthCheck: now
+        });
+      } else {
+        console.log('⏭️ User already authenticated, skipping SIGNED_IN update');
+      }
+    }
+    // Handle SIGNED_OUT
+    else if (event === 'SIGNED_OUT') {
       console.log('🔓 User signed out');
       useAuthStore.setState({
         isAuthenticated: false,
@@ -589,7 +596,9 @@ if (typeof window !== 'undefined' && !authStateChangeListenerSet) {
         token: null,
         lastAuthCheck: 0
       });
-    } else if (event === 'TOKEN_REFRESHED' && session?.user) {
+    }
+    // Handle TOKEN_REFRESHED
+    else if (event === 'TOKEN_REFRESHED' && session?.user) {
       console.log('🔄 Token refreshed');
       const convertedUser = convertSupabaseUser(session.user);
       useAuthStore.setState({
@@ -598,6 +607,9 @@ if (typeof window !== 'undefined' && !authStateChangeListenerSet) {
         lastAuthCheck: now
       });
     }
-    // Deliberately ignore SIGNED_IN, INITIAL_SESSION to prevent re-auth loops
+    // Ignore INITIAL_SESSION to prevent double initialization
+    else if (event === 'INITIAL_SESSION') {
+      console.log('⏭️ Ignoring INITIAL_SESSION (handled by initializeAuth)');
+    }
   });
 }

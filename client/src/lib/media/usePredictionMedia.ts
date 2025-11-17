@@ -9,7 +9,13 @@ const PEXELS_KEY = import.meta.env.VITE_MEDIA_PEXELS_KEY;
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 const sb = (supabaseUrl && supabaseKey)
-  ? createClient(supabaseUrl, supabaseKey, { auth: { persistSession: false } })
+  ? createClient(supabaseUrl, supabaseKey, { 
+      auth: { 
+        persistSession: false,
+        detectSessionInUrl: false,
+        storageKey: 'prediction-media-cache'
+      } 
+    })
   : null;
 
 type MediaResult = {

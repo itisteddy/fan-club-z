@@ -415,8 +415,26 @@ export const EnhancedOnboardingSystem: React.FC<EnhancedOnboardingSystemProps> =
       return;
     }
 
+    const selectTourElement = (target: string): Element | null => {
+      if (!target) return null;
+
+      if (/^[.#\[]/.test(target) || target.includes(' ')) {
+        try {
+          return document.querySelector(target);
+        } catch (error) {
+          console.warn('Invalid tour selector:', target, error);
+          return null;
+        }
+      }
+
+      return (
+        document.querySelector(`[data-tour-id="${target}"]`) ||
+        document.querySelector(`[data-tour="${target}"]`)
+      );
+    };
+
     const updateTargetPosition = () => {
-      const element = document.querySelector(`[data-tour-id="${step.target}"]`);
+      const element = selectTourElement(step.target);
       if (element) {
         const rect = element.getBoundingClientRect();
         setTargetElement(element);

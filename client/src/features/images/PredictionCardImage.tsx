@@ -10,7 +10,6 @@ export const PredictionCardImage: React.FC<PredictionCardImageProps> = ({
   prediction,
   priority = false,
   className = '',
-  provider = 'pexels',
   children,
   ...props
 }) => {
@@ -21,7 +20,6 @@ export const PredictionCardImage: React.FC<PredictionCardImageProps> = ({
         aspect="16/9"
         rounded="xl"
         priority={priority}
-        provider={provider}
         {...props}
       />
       

@@ -1,5 +1,6 @@
 import React, { useState, useCallback } from 'react';
-import { useAutoImage, Prediction } from './useAutoImage';
+import { useStableImage } from './StableImageProvider';
+import type { Prediction } from './useAutoImage';
 import { cn } from '../../utils/cn';
 
 export interface AutoImageProps {
@@ -8,7 +9,6 @@ export interface AutoImageProps {
   priority?: boolean;
   className?: string;
   rounded?: 'lg' | 'xl' | '2xl';
-  provider?: 'pexels' | 'unsplash' | 'none';
   showFallback?: boolean;
 }
 
@@ -52,15 +52,14 @@ export const AutoImage: React.FC<AutoImageProps> = ({
   priority = false,
   className = '',
   rounded = 'xl',
-  provider = 'pexels',
   showFallback = true
 }) => {
   const [imageLoaded, setImageLoaded] = useState(false);
   const [imageError, setImageError] = useState(false);
   
-  const { image, loading, error, fallback } = useAutoImage({
+  // Use stable image provider for contextual, non-flickering images
+  const { image, loading, error, usedFallback } = useStableImage({
     prediction,
-    provider,
     enabled: true
   });
 
@@ -88,7 +87,7 @@ export const AutoImage: React.FC<AutoImageProps> = ({
   }[rounded];
 
   // Show fallback if no image, error, or explicitly requested
-  const shouldShowFallback = fallback || error || imageError || !image || !showFallback;
+  const shouldShowFallback = usedFallback || error || imageError || !image || !showFallback;
 
   if (shouldShowFallback && showFallback) {
     const gradientClass = getCategoryGradient(prediction.category);

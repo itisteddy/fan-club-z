@@ -5,6 +5,16 @@
  * Simple working version for deployment with settlement support
  */
 
+// CRITICAL: Set DNS to prefer IPv4 first to avoid IPv6 connectivity issues on Render
+// Render doesn't support IPv6, but Supabase uses IPv6 by default
+import dns from 'dns';
+if (typeof dns.setDefaultResultOrder === 'function') {
+  dns.setDefaultResultOrder('ipv4first');
+  console.log('[FCZ-DB] DNS configured to prefer IPv4 connections');
+} else {
+  console.warn('[FCZ-DB] DNS.setDefaultResultOrder not available - IPv6 connectivity issues may occur on Render');
+}
+
 import express from 'express';
 import http from 'http';
 import cors from 'cors';
@@ -244,8 +254,8 @@ httpServer.listen(PORT, async () => {
         const { usdc } = await resolveAndValidateAddresses();
         
         // Use real PostgreSQL pool connection (not Supabase RPC)
-        const { getDbPool } = await import('./utils/dbPool');
-        const pool = getDbPool();
+        const { ensureDbPool } = await import('./utils/dbPool');
+        const pool = await ensureDbPool();
         
         if (!pool) {
           console.warn('[FCZ-PAY] ⚠️ Cannot start deposit watcher: DATABASE_URL not configured');

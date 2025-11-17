@@ -21,6 +21,9 @@
     "check:dupes": "node scripts/check-duplicates.mjs"
   },
   "dependencies": {
+    "@capacitor/app": "^7.0.0",
+    "@capacitor/browser": "^7.0.0",
+    "@capacitor/core": "^7.4.4",
     "@coinbase/wallet-sdk": "^4.3.7",
     "@fanclubz/shared": "file:../shared",
     "@hookform/resolvers": "^3.3.2",
@@ -70,6 +73,8 @@
     "zustand": "^4.4.7"
   },
   "devDependencies": {
+    "@capacitor/android": "^7.4.4",
+    "@capacitor/cli": "^7.4.4",
     "@types/node": "^24.5.2",
     "@types/react": "^18.2.45",
     "@types/react-dom": "^18.2.18",

@@ -1,12 +1,6 @@
 // Service Worker for Fan Club Z PWA
 const CACHE_NAME = 'fanclubz-cache';
-const STATIC_ASSETS = [
-  '/',
-  '/index.html',
-  '/manifest.json',
-  '/icons/icon-192x192.png',
-  '/icons/icon-512x512.png'
-];
+const STATIC_ASSETS = ['/', '/index.html', '/manifest.json', '/icons/icon-192.png', '/icons/icon-512.png'];
 
 // Install event - cache static assets
 self.addEventListener('install', (event) => {
@@ -96,8 +90,8 @@ self.addEventListener('sync', (event) => {
 self.addEventListener('push', (event) => {
   const options = {
     body: event.data ? event.data.text() : 'New update from Fan Club Z!',
-    icon: '/icons/icon-192x192.png',
-    badge: '/icons/icon-96x96.png',
+    icon: '/icons/icon-192.png',
+    badge: '/icons/icon-96.png',
     vibrate: [200, 100, 200],
     data: {
       dateOfArrival: Date.now(),
@@ -107,12 +101,12 @@ self.addEventListener('push', (event) => {
       {
         action: 'explore',
         title: 'View Predictions',
-        icon: '/icons/action-view.png'
+        icon: '/icons/icon-96.png'
       },
       {
         action: 'close',
         title: 'Close',
-        icon: '/icons/action-close.png'
+        icon: '/icons/icon-96.png'
       }
     ]
   };

@@ -16,6 +16,10 @@ export default defineConfig(({ mode }) => {
 
   // Only expose VITE_* to client (Vite handles this automatically in code),
   // but we can also use env here to configure dev server safely.
+  // Prefer the framework-agnostic PORT env var (used by Vercel `vercel dev`),
+  // then fall back to VITE_PORT, then a sensible default.
+  const resolvedPort = Number(env.PORT || env.VITE_PORT || 5174);
+
   return {
   plugins: [
     react() as PluginOption,
@@ -56,7 +60,7 @@ export default defineConfig(({ mode }) => {
     },
   },
   server: {
-    port: Number(env.VITE_PORT ?? 5174),
+      port: resolvedPort,
     host: true,
     strictPort: false,
     hmr: env.VITE_HMR_CLIENT_PORT

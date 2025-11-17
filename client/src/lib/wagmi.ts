@@ -1,6 +1,7 @@
 import { createConfig, http } from 'wagmi';
 import { baseSepolia } from 'wagmi/chains';
 import { walletConnect, injected, coinbaseWallet } from 'wagmi/connectors';
+import { Capacitor } from '@capacitor/core';
 
 // Get project ID from environment (no fallback - require a real ID)
 const projectId = import.meta.env.VITE_WALLETCONNECT_PROJECT_ID as string | undefined;
@@ -22,6 +23,10 @@ const connectors: ConnectorReturn[] = [
 // Note: Domain must be whitelisted at https://cloud.reown.com
 if (projectId && projectId.length >= 8) {
   try {
+    const metadataUrl = typeof window !== 'undefined'
+      ? (Capacitor?.isNativePlatform?.() ? 'https://app.fanclubz.app' : window.location.origin)
+      : 'https://app.fanclubz.app';
+
     connectors.push(
       walletConnect({
         projectId,
@@ -33,9 +38,9 @@ if (projectId && projectId.length >= 8) {
         },
         metadata: {
           name: 'Fan Club Z',
-          description: 'Prediction Markets',
-          url: typeof window !== 'undefined' ? window.location.origin : 'https://app.fanclubz.app',
-          icons: ['https://app.fanclubz.app/icon.png'],
+          description: 'Prediction Platform',
+          url: metadataUrl,
+          icons: ['https://app.fanclubz.app/icons/icon-192.png'],
         },
       })
     );

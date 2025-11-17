@@ -1,4 +1,5 @@
 import { envClient } from "@/config/env.client";
+import { Capacitor } from '@capacitor/core';
 // NB: do NOT import envServer into client bundles
 
 export const isDev = envClient.DEV;
@@ -45,6 +46,8 @@ export interface EnvironmentConfig {
 export function getEnvironmentConfig(): EnvironmentConfig {
   const hostname = window.location.hostname;
   const protocol = window.location.protocol;
+  const runningInNativeApp = typeof window !== 'undefined' && Boolean(Capacitor?.isNativePlatform?.());
+  const productionApi = 'https://fan-club-z.onrender.com';
   
   if (DEBUG_ENABLED) {
     console.log('🌍 Environment Detection:');
@@ -57,8 +60,8 @@ export function getEnvironmentConfig(): EnvironmentConfig {
   // Production environment
   if (hostname === 'app.fanclubz.app' || hostname === 'fanclubz.app' || hostname === 'www.fanclubz.app') {
     const config: EnvironmentConfig = {
-      apiUrl: 'https://fan-club-z.onrender.com',
-      socketUrl: 'https://fan-club-z.onrender.com',
+      apiUrl: productionApi,
+      socketUrl: productionApi,
       environment: 'production',
       isDevelopment: false,
       isProduction: true
@@ -83,13 +86,26 @@ export function getEnvironmentConfig(): EnvironmentConfig {
   // Vercel deployments (default to production)
   if (hostname.includes('vercel.app')) {
     const config: EnvironmentConfig = {
-      apiUrl: 'https://fan-club-z.onrender.com',
-      socketUrl: 'https://fan-club-z.onrender.com',
+      apiUrl: productionApi,
+      socketUrl: productionApi,
       environment: 'production',
       isDevelopment: false,
       isProduction: true
     };
     if (DEBUG_ENABLED) console.log('🚀 Vercel deployment detected, using single service:', config);
+    return config;
+  }
+
+  // Capacitor / native shell builds always target production API
+  if (runningInNativeApp && !isDev) {
+    const config: EnvironmentConfig = {
+      apiUrl: productionApi,
+      socketUrl: productionApi,
+      environment: 'production',
+      isDevelopment: false,
+      isProduction: true,
+    };
+    if (DEBUG_ENABLED) console.log('📱 Native shell detected -> using production API:', config);
     return config;
   }
   
@@ -124,7 +140,7 @@ export function getEnvironmentConfig(): EnvironmentConfig {
   }
   
   // Local development
-  if (hostname === 'localhost' || hostname.startsWith('127.0.0.1') || hostname.startsWith('192.168.')) {
+  if (!runningInNativeApp && (hostname === 'localhost' || hostname.startsWith('127.0.0.1') || hostname.startsWith('192.168.'))) {
     const config: EnvironmentConfig = {
       apiUrl: 'http://localhost:3001',
       socketUrl: 'http://localhost:3001',
@@ -138,8 +154,8 @@ export function getEnvironmentConfig(): EnvironmentConfig {
   
   // Fallback to production
   const config: EnvironmentConfig = {
-    apiUrl: 'https://fan-club-z.onrender.com',
-    socketUrl: 'https://fan-club-z.onrender.com',
+    apiUrl: productionApi,
+    socketUrl: productionApi,
     environment: 'production',
     isDevelopment: false,
     isProduction: true

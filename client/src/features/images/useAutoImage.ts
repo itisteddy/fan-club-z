@@ -3,6 +3,7 @@ import { StockImage, imageCache } from './cache';
 import { buildImageQuery, generateSeed, sanitizeQuery } from './queries';
 import { selectImage } from './select';
 import { qaLog } from '../../utils/devQa';
+import { getApiUrl } from '@/utils/environment';
 
 export interface Prediction {
   id: string;
@@ -25,7 +26,7 @@ export interface UseAutoImageResult {
   fallback: boolean;
 }
 
-const API_BASE = import.meta.env.VITE_API_BASE || '/api';
+const API_BASE = `${getApiUrl()}/api`;
 
 export function useAutoImage({
   prediction,

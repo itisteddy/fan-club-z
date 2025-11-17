@@ -40,9 +40,13 @@ const CategoryFilters = React.memo(function CategoryFilters({
   ];
 
   return (
-    <div className="category-filters bg-white border-b border-gray-100 px-4 py-3">
+    <div
+      className="category-filters bg-white border-b border-gray-100 px-4 py-3"
+      data-tour="category-filters"
+      data-tour-id="category-filters"
+    >
       <div className="overflow-x-auto -mx-2 px-2">
-        <div className="flex gap-2 pb-1" data-tour="category-chips">
+        <div className="flex gap-2 pb-1">
           {categories.map((category) => (
             <motion.button
               key={category.id}
@@ -79,11 +83,15 @@ const DiscoverHeaderContent = React.memo(function DiscoverHeaderContent({
   onSearchChange: (query: string) => void;
 }) {
   return (
-    <div className="px-4 pt-4 pb-4 bg-white" data-tour="discover-header">
+    <div
+      className="px-4 pt-4 pb-4 bg-white"
+      data-tour="discover-header"
+      data-tour-id="discover-header"
+    >
       {/* Live market stats removed per request */}
 
       {/* Search bar */}
-      <div className="relative" data-tour-id="search-bar">
+      <div className="relative" data-tour="search-bar" data-tour-id="search-bar">
         <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
           <Search className="h-5 w-5 text-gray-400" />
         </div>
@@ -366,7 +374,11 @@ const DiscoverPage = React.memo(function DiscoverPage({ onNavigateToProfile, onN
           animate={{ opacity: 1, y: 0 }}
           className="px-4 mb-4"
         >
-          <h2 className="text-xl font-bold text-gray-900 mb-1" data-tour-id="discover-list">
+          <h2
+            className="text-xl font-bold text-gray-900 mb-1"
+            data-tour="discover-list"
+            data-tour-id="discover-list"
+          >
             {(() => {
               const categoryLabels: Record<string, string> = {
                 'all': 'All Predictions',

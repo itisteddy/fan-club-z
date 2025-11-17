@@ -507,9 +507,28 @@ export const OnboardingSystem: React.FC<OnboardingSystemProps> = ({
       return;
     }
 
+    const selectTourElement = (target: string): Element | null => {
+      if (!target) return null;
+
+      // Allow raw CSS selectors for flexibility
+      if (/^[.#\[]/.test(target) || target.includes(' ')) {
+        try {
+          return document.querySelector(target);
+        } catch (error) {
+          console.warn('Invalid tour selector:', target, error);
+          return null;
+        }
+      }
+
+      return (
+        document.querySelector(`[data-tour-id="${target}"]`) ||
+        document.querySelector(`[data-tour="${target}"]`)
+      );
+    };
+
     const updateTargetPosition = () => {
       try {
-        const element = document.querySelector(`[data-tour-id="${step.target}"]`);
+        const element = selectTourElement(step.target);
         if (element) {
           const rect = element.getBoundingClientRect();
           setTargetElement(element);

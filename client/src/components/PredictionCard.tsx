@@ -46,6 +46,8 @@ const PredictionCardContent: React.FC<PredictionCardProps> = ({
     return <PredictionCardErrorFallback error="Invalid prediction data" />;
   }
 
+  const location = useLocation();
+  const fromPath = `${location.pathname}${location.search}${location.hash}`;
   const navigate = useNavigate();
   const [commentModalOpen, setCommentModalOpen] = useState(false);
   const [isLiking, setIsLiking] = useState(false);
@@ -194,7 +196,11 @@ const PredictionCardContent: React.FC<PredictionCardProps> = ({
       >
         <div className="grid grid-cols-[1fr,auto] gap-4">
           {/* LEFT: content */}
-          <Link to={`/prediction/${prediction.id}`} className="min-w-0">
+          <Link
+            to={`/prediction/${prediction.id}`}
+            state={{ from: fromPath }}
+            className="min-w-0"
+          >
             <div className="flex items-start gap-2 text-xs text-slate-500">
               {prediction.category && (
                 <span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5">

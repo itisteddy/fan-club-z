@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 import { useSupabase } from './SupabaseProvider';
 import { User, Session } from '@supabase/supabase-js';
 import { captureReturnTo } from '../lib/returnTo';
+import { auth as authHelpers, buildAuthRedirectUrl } from '@/lib/supabase';
 
 interface AuthSessionContextType {
   user: User | null;
@@ -139,25 +140,14 @@ export const AuthSessionProvider: React.FC<AuthSessionProviderProps> = ({ childr
       
       // Build redirect URL with next parameter
       const currentPath = `${window.location.pathname}${window.location.search}${window.location.hash}`;
-      const next = encodeURIComponent(currentPath);
-      const redirectUrl = import.meta.env.DEV 
-        ? `${window.location.origin}/auth/callback?next=${next}`
-        : `https://app.fanclubz.app/auth/callback?next=${next}`;
-        
+      const next = currentPath;
+      const redirectUrl = buildAuthRedirectUrl(next);
+      
       console.log('🔐 Google OAuth redirect URL:', redirectUrl);
       console.log('🔐 Current path:', currentPath);
       console.log('🔐 Next param:', next);
       
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-          redirectTo: redirectUrl,
-          queryParams: {
-            access_type: 'offline',
-            prompt: 'consent',
-          },
-        },
-      });
+      const { error } = await authHelpers.signInWithOAuth('google', { next });
       
       if (error) {
         console.error('🔐 Google OAuth error:', error);
@@ -177,10 +167,8 @@ export const AuthSessionProvider: React.FC<AuthSessionProviderProps> = ({ childr
       
       // Build redirect URL with next parameter
       const currentPath = `${window.location.pathname}${window.location.search}${window.location.hash}`;
-      const next = encodeURIComponent(currentPath);
-      const emailRedirectTo = import.meta.env.DEV 
-        ? `${window.location.origin}/auth/callback?next=${next}`
-        : `https://app.fanclubz.app/auth/callback?next=${next}`;
+      const next = currentPath;
+      const emailRedirectTo = buildAuthRedirectUrl(next);
         
       const { error } = await supabase.auth.signInWithOtp({
         email,

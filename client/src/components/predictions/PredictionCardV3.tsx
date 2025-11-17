@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { useMedia } from '../../hooks/useMedia';
 import { formatNumberShort, formatDurationShort } from '@/lib/format';
 import CreatorByline from './CreatorByline';
@@ -29,6 +29,9 @@ export default function PredictionCardV3({ prediction }: PredictionCardProps) {
     return null;
   }
 
+  const location = useLocation();
+  const fromPath = `${location.pathname}${location.search}${location.hash}`;
+
   const { media } = useMedia(prediction.id, {
     id: prediction.id,
     title: prediction.title,
@@ -44,6 +47,7 @@ export default function PredictionCardV3({ prediction }: PredictionCardProps) {
   return (
     <Link
       to={`/prediction/${prediction.id}`}
+      state={{ from: fromPath }}
       className="block rounded-2xl border border-black/5 bg-white hover:shadow-sm focus-visible:ring-2 focus-visible:ring-indigo-500 transition"
     >
       <div className="flex items-stretch gap-3 p-3">

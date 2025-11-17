@@ -12,7 +12,7 @@ import toast from 'react-hot-toast';
 import { formatCurrency, formatLargeNumber, formatPercentage } from '@/lib/format';
 import { useClaimableClaims, type ClaimableItem } from '@/hooks/useClaimableClaims';
 import { useMerkleClaim } from '@/hooks/useMerkleClaim';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import SignedOutGateCard from '../components/auth/SignedOutGateCard';
 import DepositUSDCModal from '../components/wallet/DepositUSDCModal';
 import WithdrawUSDCModal from '../components/wallet/WithdrawUSDCModal';
@@ -44,6 +44,8 @@ const WalletPageV2: React.FC<WalletPageV2Props> = ({ onNavigateBack }) => {
   const { disconnect } = useDisconnect();
   const { switchChain } = useSwitchChain();
   const navigate = useNavigate();
+  const location = useLocation();
+  const fromPath = `${location.pathname}${location.search}${location.hash}`;
   
   // Crypto wallet modal state
   const [showDeposit, setShowDeposit] = useState(false);
@@ -851,7 +853,9 @@ const WalletPageV2: React.FC<WalletPageV2Props> = ({ onNavigateBack }) => {
                     <div className="flex items-center gap-2 flex-shrink-0">
                       <button
                         className="h-9 px-3 rounded-lg border text-sm text-gray-700 hover:bg-gray-50"
-                        onClick={() => navigate(`/predictions/${c.predictionId}`)}
+                        onClick={() => navigate(`/predictions/${c.predictionId}`, {
+                          state: { from: fromPath }
+                        })}
                       >
                         View
                       </button>
