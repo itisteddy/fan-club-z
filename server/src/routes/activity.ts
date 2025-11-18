@@ -235,7 +235,7 @@ router.get('/user/:userId', async (req, res) => {
     };
     });
 
-    const walletChannels = ['escrow_consumed', 'escrow_unlock', 'payout', 'platform_fee', 'creator_fee'];
+    const walletChannels = ['escrow_consumed', 'escrow_unlock', 'escrow_deposit', 'escrow_withdraw', 'payout', 'platform_fee', 'creator_fee'];
 
     const { data: betTransactions, error: txError } = await supabase
       .from('wallet_transactions')
@@ -313,6 +313,34 @@ router.get('/user/:userId', async (req, res) => {
             data: {
               amount,
               reason: tx.description ?? null,
+            },
+          };
+        case 'escrow_deposit':
+          return {
+            id: `wallet_${tx.id}`,
+            timestamp: tx.created_at,
+            type: 'wallet.deposit',
+            actor: null,
+            predictionId: null,
+            predictionTitle: null,
+            predictionStatus: null,
+            data: {
+              amount,
+              txHash: tx.meta?.txHash ?? tx.meta?.external_ref ?? null,
+            },
+          };
+        case 'escrow_withdraw':
+          return {
+            id: `wallet_${tx.id}`,
+            timestamp: tx.created_at,
+            type: 'wallet.withdraw',
+            actor: null,
+            predictionId: null,
+            predictionTitle: null,
+            predictionStatus: null,
+            data: {
+              amount,
+              txHash: tx.meta?.txHash ?? tx.meta?.external_ref ?? tx.external_ref ?? null,
             },
           };
         default:

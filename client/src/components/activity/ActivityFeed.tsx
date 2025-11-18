@@ -15,7 +15,8 @@ import { formatCurrency, formatTimeAgo } from '@/lib/format';
 import { L } from '@/lib/lexicon';
 
 interface ActivityFeedProps {
-  predictionId: string;
+  predictionId?: string;
+  userId?: string;
   className?: string;
 }
 
@@ -98,6 +99,18 @@ function ActivityItemComponent({ item }: ActivityItemComponentProps) {
           details: data.amount ? `${formatCurrency(data.amount, { compact: true })}${data.prediction_title ? ` · ${data.prediction_title}` : ''}` : (data.prediction_title ?? ''),
           icon: DollarSign,
         };
+      case 'wallet.deposit':
+        return {
+          message: 'Deposit completed',
+          details: data.amount ? formatCurrency(data.amount, { compact: true }) : '',
+          icon: DollarSign,
+        };
+      case 'wallet.withdraw':
+        return {
+          message: 'Withdrawal completed',
+          details: data.amount ? formatCurrency(data.amount, { compact: true }) : '',
+          icon: DollarSign,
+        };
       default:
         return {
           message: 'Activity occurred',
@@ -162,9 +175,10 @@ function ActivityItemComponent({ item }: ActivityItemComponentProps) {
 /**
  * Main activity feed component
  */
-export function ActivityFeed({ predictionId, className = '' }: ActivityFeedProps) {
+export function ActivityFeed({ predictionId, userId, className = '' }: ActivityFeedProps) {
   const { items, loading, error, hasMore, loadMore, refresh } = useActivityFeed({
     predictionId,
+    userId,
     limit: 25,
     autoLoad: true
   });

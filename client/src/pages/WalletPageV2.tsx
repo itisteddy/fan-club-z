@@ -16,7 +16,8 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import SignedOutGateCard from '../components/auth/SignedOutGateCard';
 import DepositUSDCModal from '../components/wallet/DepositUSDCModal';
 import WithdrawUSDCModal from '../components/wallet/WithdrawUSDCModal';
-import TransactionBanner from '../components/wallet/TransactionBanner';
+import { useUserActivity } from '../hooks/useActivityFeed';
+import { ActivityFeed } from '../components/activity/ActivityFeed';
 import { useOnchainActivity, formatActivityKind } from '../hooks/useOnchainActivity';
 import { useUnifiedBalance } from '../hooks/useUnifiedBalance';
 import { useWalletActivity, type WalletActivityItem } from '../hooks/useWalletActivity';
@@ -58,7 +59,6 @@ const WalletPageV2: React.FC<WalletPageV2Props> = ({ onNavigateBack }) => {
   const [bulkTotal, setBulkTotal] = useState(0);
   const [bulkDone, setBulkDone] = useState(0);
   const { claim, isClaiming } = useMerkleClaim();
-  const [txNotice, setTxNotice] = useState<{ hash: string; kind: string; predictionId?: string; amount?: number; currency?: string; status?: 'pending' | 'success' | 'failed' } | null>(null);
   const [selectedActivity, setSelectedActivity] = useState<WalletActivityItem | null>(null);
   
   // Unified balance hook - SINGLE SOURCE OF TRUTH
@@ -81,48 +81,25 @@ const WalletPageV2: React.FC<WalletPageV2Props> = ({ onNavigateBack }) => {
     window.dispatchEvent(new CustomEvent('fcz:wallet:connect'));
   }, []);
 
-  // Listen for transaction submission events to surface tx hash to the user
+  // User activity feed for displaying transactions in activity feed
+  const { items: activityItems, loading: loadingUserActivity, refresh: refreshActivity } = useUserActivity(user?.id || '', {
+    limit: 20,
+    autoLoad: Boolean(user?.id)
+  });
+
+  // Refresh activity feed when transactions occur
   useEffect(() => {
     function onTx(e: any) {
       if (!e || !e.detail) return;
-      const { txHash, kind, predictionId, amount, currency, status } = e.detail || {};
-      if (txHash) {
-        setTxNotice({ 
-          hash: String(txHash), 
-          kind: String(kind || 'tx'), 
-          predictionId,
-          amount: amount !== undefined ? Number(amount) : undefined,
-          currency: currency || 'USDC',
-          status: status || 'pending',
-        });
+      const { txHash } = e.detail || {};
+      if (txHash && user?.id) {
+        // Refresh activity feed to show new transaction
+        setTimeout(() => refreshActivity(), 2000);
       }
     }
     window.addEventListener('fcz:tx', onTx as any);
     return () => window.removeEventListener('fcz:tx', onTx as any);
-  }, []);
-
-  // Fallback: if an event was missed (e.g., user posted root on another route),
-  // read the last stored tx from localStorage on mount and show the banner once.
-  useEffect(() => {
-    try {
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i) || '';
-        if (!key.startsWith('fcz:lastTx:')) continue;
-        const hash = localStorage.getItem(key) || '';
-        if (!hash) continue;
-        if (sessionStorage.getItem(`fcz:tx:dismissed:${hash}`) === 'true') {
-          continue;
-        }
-        const parts = key.split(':'); // fcz:lastTx:<kind>:<predictionId>[:address]
-        const kind = parts[2] || 'tx';
-        const predictionId = parts[3];
-        setTxNotice({ hash, kind, predictionId });
-        break;
-      }
-    } catch {
-      // ignore
-    }
-  }, []);
+  }, [user?.id, refreshActivity]);
 
   const handleSwitchToBase = useCallback(() => {
     try {
@@ -230,22 +207,6 @@ const WalletPageV2: React.FC<WalletPageV2Props> = ({ onNavigateBack }) => {
     return normalized.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
   };
 
-  const dismissTxBanner = useCallback((hash?: string) => {
-    setTxNotice(null);
-    if (!hash) return;
-    try {
-      sessionStorage.setItem(`fcz:tx:dismissed:${hash}`, 'true');
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i) || '';
-        if (!key.startsWith('fcz:lastTx:')) continue;
-        if (localStorage.getItem(key) === hash) {
-          localStorage.removeItem(key);
-        }
-      }
-    } catch {
-      // ignore
-    }
-  }, []);
 
   // Handle authentication required - NO UPSELL, clean experience
   if (!authenticated) {
@@ -589,8 +550,12 @@ const WalletPageV2: React.FC<WalletPageV2Props> = ({ onNavigateBack }) => {
                   )}
                 </div>
                 
-                {/* Recent Activity */}
-                {walletActivity?.items && walletActivity.items.length > 0 ? (
+                {/* Recent Activity - Using ActivityFeed component for consistent design */}
+                <div className="mt-6 pt-4 border-t border-blue-100">
+                  <ActivityFeed userId={user?.id} className="border-0 shadow-none" />
+                </div>
+                {/* Legacy wallet activity display (keeping for reference, but ActivityFeed is primary) */}
+                {false && walletActivity?.items && walletActivity.items.length > 0 && (
                   <div className="mt-6 pt-4 border-t border-blue-100">
                     <h4 className="text-xs font-semibold text-gray-700 mb-3">Recent Activity</h4>
                     <div className="space-y-2">
@@ -771,17 +736,6 @@ const WalletPageV2: React.FC<WalletPageV2Props> = ({ onNavigateBack }) => {
         </div>
       )}
 
-      {/* Transaction Banner */}
-      {txNotice && (
-        <TransactionBanner
-          txHash={txNotice.hash}
-          kind={txNotice.kind as 'withdraw' | 'deposit' | 'bet' | 'tx'}
-          amount={txNotice.amount}
-          currency={txNotice.currency}
-          status={txNotice.status || 'pending'}
-          onDismiss={() => dismissTxBanner(txNotice.hash)}
-        />
-      )}
 
       {/* Claims Sheet */}
       {showClaims && (
