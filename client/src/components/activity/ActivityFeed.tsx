@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { useActivityFeed, ActivityItem } from '../../hooks/useActivityFeed';
 import { formatCurrency, formatTimeAgo } from '@/lib/format';
+import { L } from '@/lib/lexicon';
 
 interface ActivityFeedProps {
   predictionId: string;
@@ -48,7 +49,7 @@ function ActivityItemComponent({ item }: ActivityItemComponentProps) {
       
       case 'entry.create':
         return {
-          message: `${actorName} placed a bet`,
+          message: `${actorName} ${L("betPlaced").toLowerCase()}`,
           details: `${formatCurrency(data.amount, { compact: true })}${data.option_label ? ` on ${data.option_label}` : ''}`,
           icon: DollarSign
         };
@@ -62,7 +63,7 @@ function ActivityItemComponent({ item }: ActivityItemComponentProps) {
       
       case 'prediction.open':
         return {
-          message: 'Prediction is now open for betting',
+          message: `Prediction is now open for ${L("betting")}`,
           details: '',
           icon: TrendingUp
         };
@@ -202,7 +203,7 @@ export function ActivityFeed({ predictionId, className = '' }: ActivityFeedProps
         <div className="text-center py-6">
           <Clock className="w-8 h-8 mx-auto mb-2 text-gray-300" />
           <p className="text-sm text-gray-600">No activity yet</p>
-          <p className="text-xs text-gray-500 mt-1">Be the first to comment or place a bet!</p>
+          <p className="text-xs text-gray-500 mt-1">Be the first to comment or {L("betVerb").toLowerCase()}!</p>
         </div>
       </div>
     );

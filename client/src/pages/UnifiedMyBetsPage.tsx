@@ -11,6 +11,7 @@ import EmptyState from '../components/ui/empty/EmptyState';
 import AuthRequiredState from '../components/ui/empty/AuthRequiredState';
 import { SkeletonStatRow, SkeletonCard } from '../components/ui/skeleton/Skeleton';
 import { formatUSDCompact } from '@/lib/format';
+import { L } from '@/lib/lexicon';
 
 // TODO: Replace with PredictionCardV3 for consistency
 // import { PredictionCardV3 } from '../components/predictions/PredictionCardV3';
@@ -68,12 +69,12 @@ const MyBetsPage: React.FC<MyBetsPageProps> = ({ onNavigateBack }) => {
   if (!isAuthenticated) {
     return (
       <>
-        <Header title="My Bets" />
+        <Header title={L("myBets")} />
         <Page>
           <AuthRequiredState
             icon={<Trophy />}
-            title="Sign in to view your bets"
-            description="Track your predictions and winnings."
+            title={`Sign in to view your ${L("bets")}`}
+            description={`Track your predictions and ${L("winnings")}.`}
             intent="view_my_bets"
           />
         </Page>
@@ -83,7 +84,7 @@ const MyBetsPage: React.FC<MyBetsPageProps> = ({ onNavigateBack }) => {
 
   return (
     <>
-      <Header title="My Bets">
+      <Header title={L("myBets")}>
         <Subnav>
           <button
             onClick={() => setActiveTab('active')}
@@ -150,7 +151,7 @@ const MyBetsPage: React.FC<MyBetsPageProps> = ({ onNavigateBack }) => {
 
             {/* Predictions List */}
             <Card>
-              <CardHeader title={`${activeTab.charAt(0).toUpperCase() + activeTab.slice(1)} Bets`} />
+              <CardHeader title={`${activeTab.charAt(0).toUpperCase() + activeTab.slice(1)} ${L("bets")}`} />
               <CardContent>
                 {displayEntries.length > 0 ? (
                   <div className="space-y-4">
@@ -170,12 +171,12 @@ const MyBetsPage: React.FC<MyBetsPageProps> = ({ onNavigateBack }) => {
                         </div>
                         <div className="flex items-center justify-between text-sm text-gray-600">
                           <div className="flex items-center space-x-4">
-                            <span>Bet: {formatUSDCompact(entry.amount || 0)}</span>
+                            <span>{L("bet")}: {formatUSDCompact(entry.amount || 0)}</span>
                             {entry.selected_option && (
                               <span>On: {entry.selected_option}</span>
                             )}
                             {entry.odds && (
-                              <span>Odds: {entry.odds}x</span>
+                              <span>{L("odds")}: {entry.odds}x</span>
                             )}
                           </div>
                           <div className="text-right">
@@ -200,13 +201,13 @@ const MyBetsPage: React.FC<MyBetsPageProps> = ({ onNavigateBack }) => {
                 ) : (
                   <EmptyState
                     icon={activeTab === 'active' ? <Clock /> : activeTab === 'won' ? <Trophy /> : <AlertCircle />}
-                    title={`No ${activeTab} bets`}
+                    title={`No ${activeTab} ${L("bets")}`}
                     description={
                       activeTab === 'active' 
                         ? "You don't have any active predictions yet." 
                         : activeTab === 'won'
-                        ? "No winning bets yet. Keep predicting!"
-                        : "No losing bets yet. Great job!"
+                        ? `No winning ${L("bets")} yet. Keep predicting!`
+                        : `No losing ${L("bets")} yet. Great job!`
                     }
                     primaryAction={
                       activeTab === 'active' ? (

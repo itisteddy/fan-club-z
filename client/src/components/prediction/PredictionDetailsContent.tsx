@@ -20,6 +20,7 @@ import { openAuthGate } from '../../auth/authGateAdapter';
 import { useErrorHandling } from '../../hooks/useErrorHandling';
 import { showSuccessToast, showErrorToast } from '../../utils/toasts';
 import { qaLog } from '../../utils/devQa';
+import { L } from '@/lib/lexicon';
 import { AppError } from '../../utils/errorHandling';
 import ErrorBanner from '../ui/ErrorBanner';
 import LoadingState from '../ui/LoadingState';
@@ -138,7 +139,7 @@ const PredictionDetailsContent: React.FC<PredictionDetailsContentProps> = ({
     }
   }, [showComments]);
 
-  // Handle bet placement
+  // Handle stake placement
   const handlePlaceBet = useCallback(async () => {
     if (!isAuthenticated) {
       openAuthGate({ intent: 'place_prediction', payload: { predictionId } });
@@ -155,15 +156,15 @@ const PredictionDetailsContent: React.FC<PredictionDetailsContentProps> = ({
     await executeWithErrorHandling(
       async () => {
         // TODO: Implement bet placement
-        qaLog('[PredictionDetailsContent] Placing bet:', { selectedOption, stakeAmount });
+        qaLog('[PredictionDetailsContent] Placing stake:', { selectedOption, stakeAmount });
         await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate API call
-        showSuccessToast('Bet placed successfully');
+        showSuccessToast(`${L("betPlaced")} successfully`);
         setSelectedOption(null);
         setStakeAmount('');
       },
       { 
         isUserAction: true,
-        successMessage: 'Bet placed successfully',
+        successMessage: `${L("betPlaced")} successfully`,
       }
     );
 
@@ -339,10 +340,10 @@ const PredictionDetailsContent: React.FC<PredictionDetailsContentProps> = ({
         </div>
       </div>
 
-      {/* Betting Options */}
+      {/* Stake Options */}
       {prediction.options && prediction.options.length > 0 && (
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-          <h2 className="text-xl font-bold text-gray-900 mb-4">Betting Options</h2>
+          <h2 className="text-xl font-bold text-gray-900 mb-4">Stake Options</h2>
           <div className="space-y-3">
             {prediction.options.map((option: any, index: number) => (
               <div
@@ -371,7 +372,7 @@ const PredictionDetailsContent: React.FC<PredictionDetailsContentProps> = ({
                     <p className="font-semibold text-gray-900">
                       {option.current_odds ? `${option.current_odds}x` : 'N/A'}
                     </p>
-                    <p className="text-sm text-gray-500">Odds</p>
+                    <p className="text-sm text-gray-500">{L("odds")}</p>
                   </div>
                 </div>
               </div>
@@ -398,7 +399,7 @@ const PredictionDetailsContent: React.FC<PredictionDetailsContentProps> = ({
                   disabled={isPlacingBet || !stakeAmount}
                   className="px-6 py-2 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
-                  {isPlacingBet ? 'Placing...' : 'Place Bet'}
+                  {isPlacingBet ? `${L("betVerb")}...` : L("betVerb")}
                 </button>
               </div>
             </div>
@@ -406,7 +407,7 @@ const PredictionDetailsContent: React.FC<PredictionDetailsContentProps> = ({
             <div className="mt-6">
               <AuthRequiredState
                 icon={<TrendingUp />}
-                title="Sign in to place your bet"
+                title={`Sign in to ${L("betVerb").toLowerCase()}`}
                 description="Create an account or sign in to make predictions and win rewards."
                 intent="place_prediction"
                 payload={{ predictionId }}

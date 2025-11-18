@@ -20,6 +20,7 @@ import ManagePredictionModal from '../components/modals/ManagePredictionModal';
 import { cn } from '../utils/cn';
 import { AppHeader } from '../components/layout/AppHeader';
 import { formatTimeRemaining } from '@/lib/utils';
+import { L } from '@/lib/lexicon';
 import { getApiUrl } from '@/utils/environment';
 import toast from 'react-hot-toast';
 import { useAccount } from 'wagmi';
@@ -413,7 +414,7 @@ const PredictionsPage: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNa
   if (!isAuthenticated) {
     return (
       <>
-        <AppHeader title="My Bets" />
+        <AppHeader title={L("myBets")} />
         <div className="min-h-screen bg-gray-50 px-4 py-6">
           <SignedOutGateCard
             icon={<TrendingUp />}
@@ -573,7 +574,7 @@ const PredictionsPage: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNa
             <p className="font-semibold text-emerald-900">${prediction.potentialReturn.toLocaleString()}</p>
           </div>
           <div>
-            <p className="text-xs text-emerald-600 mb-1">Odds</p>
+            <p className="text-xs text-emerald-600 mb-1">{L("odds")}</p>
             <p className="font-semibold text-emerald-900">{prediction.odds}</p>
           </div>
         </div>
@@ -871,7 +872,7 @@ const PredictionsPage: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNa
 
   return (
     <>
-      <AppHeader title="My Bets" />
+      <AppHeader title={L("myBets")} />
       <div className="bg-white border-b border-gray-200">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="flex space-x-4 py-3">

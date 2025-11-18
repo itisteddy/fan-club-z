@@ -11,6 +11,7 @@ import EmptyState from '../components/ui/empty/EmptyState';
 import AuthRequiredState from '../components/ui/empty/AuthRequiredState';
 import { SkeletonStatRow, SkeletonCard } from '../components/ui/skeleton/Skeleton';
 import { formatUSDCompact, truncateText } from '@/lib/format';
+import { L } from '@/lib/lexicon';
 // Use unified escrow snapshot (server-computed: on-chain + DB locks)
 import { useEscrowSnapshot } from '../hooks/useEscrowSnapshot';
 import { useUSDCBalance } from '../hooks/useUSDCBalance';
@@ -105,9 +106,9 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
       case 'unlock':
         return 'Funds Released';
       case 'bet_placed':
-        return 'Bet Placed';
+        return L("betPlaced");
       case 'bet_refund':
-        return 'Bet Refunded';
+        return 'Stake Refunded';
       case 'payout':
         return 'Payout';
       case 'creator_fee':
@@ -200,7 +201,7 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
                 subtitle="Ready to stake"
               />
               <StatCard 
-                label="In Bets" 
+                label={`In ${L("bets")}`} 
                 value={reservedUSD}
                 variant="currency"
                 icon={<Lock className="w-4 h-4" />}

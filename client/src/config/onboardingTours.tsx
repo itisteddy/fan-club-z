@@ -8,6 +8,7 @@ import {
   User,
   TrendingUp
 } from 'lucide-react';
+import { L } from '../lib/lexicon';
 
 // Updated onboarding steps that match current UI/UX
 export const DISCOVER_PAGE_TOUR = {
@@ -43,7 +44,7 @@ export const DISCOVER_PAGE_TOUR = {
     {
       id: 'prediction-list',
       title: 'Browse Predictions',
-      description: 'Scroll through active predictions. Tap any card to see details and place your bet.',
+      description: `Scroll through active predictions. Tap any card to see details and ${L("betVerb").toLowerCase()}.`,
       target: 'discover-list',
       placement: 'top',
       icon: <BarChart3 className="w-5 h-5" />,
@@ -70,7 +71,7 @@ export const PREDICTION_DETAILS_TOUR = {
     {
       id: 'prediction-options',
       title: 'Choose Your Position',
-      description: 'Select which outcome you want to bet on. Each option shows the current pool size.',
+      description: `Select which outcome you want to ${L("betVerb").toLowerCase()} on. Each option shows the current pool size.`,
       placement: 'center',
       icon: <DollarSign className="w-5 h-5" />,
       action: 'modal'
@@ -78,7 +79,7 @@ export const PREDICTION_DETAILS_TOUR = {
     {
       id: 'place-bet',
       title: 'Enter Your Stake',
-      description: 'Enter the amount you want to bet and tap "Place Bet" to confirm. The button is positioned above the bottom navigation for easy access.',
+      description: `Enter the amount you want to ${L("betVerb").toLowerCase()} and tap "${L("betVerb")}" to confirm. The button is positioned above the bottom navigation for easy access.`,
       placement: 'center',
       icon: <DollarSign className="w-5 h-5" />,
       action: 'modal'
@@ -130,7 +131,7 @@ export const WALLET_PAGE_TOUR = {
     {
       id: 'transactions',
       title: 'Transaction History',
-      description: 'View all your deposits, withdrawals, bets, and winnings in your transaction history.',
+      description: `View all your deposits, withdrawals, ${L("bets")}, and ${L("winnings")} in your transaction history.`,
       target: 'transaction-history',
       placement: 'top',
       icon: <BarChart3 className="w-5 h-5" />,

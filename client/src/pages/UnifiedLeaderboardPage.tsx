@@ -12,6 +12,7 @@ import { getApiUrl } from '../config';
 import { formatNumberShort, formatUSDCompact, formatPercent, formatPercentage } from '@/lib/format';
 import { cn } from '../utils/cn';
 import { KeyboardNavigation, AriaUtils } from '../utils/accessibility';
+import { L } from '@/lib/lexicon';
 
 // TODO: Replace leaderboard user cards with PredictionCardV3 for consistency
 // when showing user's top predictions or recent activity
@@ -377,7 +378,7 @@ const UnifiedLeaderboardPage: React.FC = () => {
               <EmptyState
                 icon={<Trophy className="w-8 h-8" />}
                 title="No leaders yet"
-                description="Be the first to appear on the leaderboard by creating predictions and placing bets!"
+                description={`Be the first to appear on the leaderboard by creating predictions and ${L("betting")}!`}
                 primaryAction={
                   <motion.button
                     onClick={() => window.location.href = '/'}

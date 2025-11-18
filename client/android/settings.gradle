@@ -1,0 +1,6 @@
+// Capacitor Android Settings
+include ':app'
+
+// Include Capacitor Android
+apply from: 'capacitor.settings.gradle'
+

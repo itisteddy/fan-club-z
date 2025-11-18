@@ -42,6 +42,7 @@ import { formatCurrency } from '@/lib/format';
 import { useMerkleProof } from '@/hooks/useMerkleProof';
 import { useMerkleClaim } from '@/hooks/useMerkleClaim';
 import { usePredictionActivity } from '@/hooks/useActivityFeed';
+import { L } from '@/lib/lexicon';
 
 const showSuccessToast = (message: string) => toast.success(message);
 const showErrorToast = (message: string) => toast.error(message);
@@ -288,7 +289,7 @@ const userBalance = isAuthenticated ? availableToStake : 0;
     }
   };
 
-  // Handle placing bet
+  // Handle placing stake
   const handlePlaceBet = async () => {
     if (!isAuthenticated) {
       openAuthGate({
@@ -342,11 +343,11 @@ const userBalance = isAuthenticated ? availableToStake : 0;
         walletAddress
       );
 
-      showSuccessToast(`Bet placed: $${stakeAmount} | lock consumed`);
+      showSuccessToast(`${L("betPlaced")}: $${stakeAmount} | lock consumed`);
       AriaUtils.announce(`Prediction placed successfully for ${stakeAmount} dollars`);
       
       // Inline confirmation chip (keep user on overview)
-      const optionLabel = prediction.options.find(o => o.id === selectedOptionId)?.label || 'Your bet';
+      const optionLabel = prediction.options.find(o => o.id === selectedOptionId)?.label || 'Your stake';
       setJustPlaced({ amount, optionLabel });
       setTimeout(() => setJustPlaced(null), 6000);
       
@@ -643,7 +644,7 @@ const userBalance = isAuthenticated ? availableToStake : 0;
                     <div className="bg-yellow-50 border border-yellow-200 rounded-2xl p-3">
                       <div className="text-sm text-yellow-900 font-medium">This prediction is closed.</div>
                       <div className="text-xs text-yellow-800 mt-1">
-                        {isSettled ? 'Results are finalized.' : 'No new bets can be placed.'}
+                        {isSettled ? 'Results are finalized.' : `No new ${L("bets")} can be placed.`}
                       </div>
                     </div>
                   )}
@@ -660,7 +661,7 @@ const userBalance = isAuthenticated ? availableToStake : 0;
                     </div>
                   )}
 
-                  {/* Claim Winnings - shown when a connected wallet has a claimable amount and not locally claimed */}
+                  {/* Claim Payout - shown when a connected wallet has a claimable amount and not locally claimed */}
                   {!!walletAddress && !!merkle && Number(merkle.amountUnits) > 0 && !(() => {
                     try {
                       return Boolean(localStorage.getItem(`fcz:claimed:${predictionId}:${walletAddress.toLowerCase()}`));
@@ -670,7 +671,7 @@ const userBalance = isAuthenticated ? availableToStake : 0;
                       <div className="flex items-center justify-between gap-2">
                         <div>
                           <h3 className="text-base font-semibold text-gray-900">
-                            You have winnings to claim
+                            You have {L("winnings")} to claim
                           </h3>
                           <p className="text-sm text-gray-600 mt-0.5">
                             Connected: <span className="font-mono">{walletAddress.slice(0, 6)}…{walletAddress.slice(-4)}</span>
@@ -703,8 +704,8 @@ const userBalance = isAuthenticated ? availableToStake : 0;
                     <ul className="space-y-1.5 text-sm text-gray-600">
                       <li>• Choose an outcome you believe will happen</li>
                       <li>• Stake an amount you're comfortable with</li>
-                      <li>• If you're right, win based on the current odds</li>
-                      <li>• Betting closes when the prediction expires</li>
+                      <li>• If you're right, win based on the current {L("odds")}</li>
+                      <li>• {L("betting")} closes when the prediction expires</li>
                     </ul>
                   </div>
 
@@ -818,12 +819,12 @@ const userBalance = isAuthenticated ? availableToStake : 0;
 
       </main>
 
-      {/* Fixed Bet Bar - Above Bottom Navigation - Only on Overview tab */}
+      {/* Fixed Stake Bar - Above Bottom Navigation - Only on Overview tab */}
       {activeTab === 'overview' && !isClosedOrSettled && (
         (() => {
           const amt = parseFloat(stakeAmount || '0');
           const need = Math.max(0, amt - availableToStake);
-          const computedLabel = !amt || amt <= 0 ? 'Place Bet' : (need > 0 ? `Add funds (need $${need.toFixed(2)})` : `Place Bet: $${amt.toFixed(2)}`);
+          const computedLabel = !amt || amt <= 0 ? L("betVerb") : (need > 0 ? `Add funds (need $${need.toFixed(2)})` : `${L("betVerb")}: $${amt.toFixed(2)}`);
           const canBet = !!stakeAmount && amt > 0;
           return (
             <StickyBetBar

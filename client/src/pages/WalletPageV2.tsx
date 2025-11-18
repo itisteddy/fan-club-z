@@ -16,11 +16,13 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import SignedOutGateCard from '../components/auth/SignedOutGateCard';
 import DepositUSDCModal from '../components/wallet/DepositUSDCModal';
 import WithdrawUSDCModal from '../components/wallet/WithdrawUSDCModal';
+import TransactionBanner from '../components/wallet/TransactionBanner';
 import { useOnchainActivity, formatActivityKind } from '../hooks/useOnchainActivity';
 import { useUnifiedBalance } from '../hooks/useUnifiedBalance';
 import { useWalletActivity, type WalletActivityItem } from '../hooks/useWalletActivity';
 import { useAutoNetworkSwitch } from '../hooks/useAutoNetworkSwitch';
 import { QK } from '@/lib/queryKeys';
+import { L } from '@/lib/lexicon';
 
 interface WalletPageV2Props {
   onNavigateBack?: () => void;
@@ -56,7 +58,7 @@ const WalletPageV2: React.FC<WalletPageV2Props> = ({ onNavigateBack }) => {
   const [bulkTotal, setBulkTotal] = useState(0);
   const [bulkDone, setBulkDone] = useState(0);
   const { claim, isClaiming } = useMerkleClaim();
-  const [txNotice, setTxNotice] = useState<{ hash: string; kind: string; predictionId?: string } | null>(null);
+  const [txNotice, setTxNotice] = useState<{ hash: string; kind: string; predictionId?: string; amount?: number; currency?: string; status?: 'pending' | 'success' | 'failed' } | null>(null);
   const [selectedActivity, setSelectedActivity] = useState<WalletActivityItem | null>(null);
   
   // Unified balance hook - SINGLE SOURCE OF TRUTH
@@ -83,9 +85,16 @@ const WalletPageV2: React.FC<WalletPageV2Props> = ({ onNavigateBack }) => {
   useEffect(() => {
     function onTx(e: any) {
       if (!e || !e.detail) return;
-      const { txHash, kind, predictionId } = e.detail || {};
+      const { txHash, kind, predictionId, amount, currency, status } = e.detail || {};
       if (txHash) {
-        setTxNotice({ hash: String(txHash), kind: String(kind || 'tx'), predictionId });
+        setTxNotice({ 
+          hash: String(txHash), 
+          kind: String(kind || 'tx'), 
+          predictionId,
+          amount: amount !== undefined ? Number(amount) : undefined,
+          currency: currency || 'USDC',
+          status: status || 'pending',
+        });
       }
     }
     window.addEventListener('fcz:tx', onTx as any);
@@ -213,7 +222,7 @@ const WalletPageV2: React.FC<WalletPageV2Props> = ({ onNavigateBack }) => {
       withdraw: 'Withdrawal',
       lock: 'Funds locked',
       release: 'Funds released',
-      entry: 'Bet placed',
+      entry: `${L("betPlaced")}`,
       claim: 'Claimed',
       payout: 'Settlement payout',
     };
@@ -337,9 +346,9 @@ const WalletPageV2: React.FC<WalletPageV2Props> = ({ onNavigateBack }) => {
     
     setBulkClaiming(false);
     if (successCount === claimables.length) {
-      toast.success(`Successfully claimed all ${successCount} winnings!`);
+      toast.success(`Successfully claimed all ${successCount} ${L("winnings")}!`);
     } else if (successCount > 0) {
-      toast.success(`Successfully claimed ${successCount} of ${claimables.length} winnings`);
+      toast.success(`Successfully claimed ${successCount} of ${claimables.length} ${L("winnings")}`);
     } else {
       toast.error(`No claims were processed`);
     }
@@ -521,7 +530,7 @@ const WalletPageV2: React.FC<WalletPageV2Props> = ({ onNavigateBack }) => {
                   {escrowReservedUSD > 0 && (
                     <div className="flex items-center justify-between text-sm">
                       <span className="text-gray-700 flex items-center gap-2 whitespace-nowrap">
-                        <span className="inline-block h-1.5 w-3 rounded bg-amber-500" />In active bets
+                        <span className="inline-block h-1.5 w-3 rounded bg-amber-500" />In active {L("bets")}
                       </span>
                       <span className="font-mono font-medium text-amber-600 tabular-nums whitespace-nowrap">
                         {isLoadingBalance ? 'Loading...' : `${(escrowReservedUSD ?? 0).toFixed(2)}`}
@@ -762,54 +771,16 @@ const WalletPageV2: React.FC<WalletPageV2Props> = ({ onNavigateBack }) => {
         </div>
       )}
 
-      {/* Transaction details banner */}
+      {/* Transaction Banner */}
       {txNotice && (
-        <div className="fixed left-1/2 -translate-x-1/2 bottom-[calc(88px+env(safe-area-inset-bottom,0px))] z-modal">
-          <div className="mx-auto flex items-center gap-3 rounded-2xl bg-white shadow-lg border border-black/[0.06] px-4 py-2">
-            <div className="flex items-center gap-2">
-              <span className="text-[11px] text-gray-600">
-                {txNotice.kind === 'claim' ? 'Claim' : txNotice.kind === 'settlement' ? 'Settlement' : prettyKind(txNotice.kind)}
-              </span>
-              <span className="font-mono text-[11px] text-gray-500">
-                {txNotice.hash.slice(0, 10)}…{txNotice.hash.slice(-6)}
-              </span>
-            </div>
-            <div className="flex items-center gap-1">
-              <button
-                className="p-1.5 rounded-lg hover:bg-gray-100"
-                aria-label="View transaction"
-                title="View transaction"
-                onClick={() => {
-                  const url = `https://sepolia.basescan.org/tx/${txNotice.hash}`;
-                  window.open(url, '_blank');
-                }}
-              >
-                <ExternalLink className="w-4 h-4 text-gray-700" />
-              </button>
-              <button
-                className="p-1.5 rounded-lg hover:bg-gray-100"
-                aria-label="Copy hash"
-                title="Copy hash"
-                onClick={async () => {
-                  try {
-                    await navigator.clipboard.writeText(txNotice.hash);
-                    toast.success('Copied transaction hash');
-                  } catch { /* ignore */ }
-                }}
-              >
-                <Copy className="w-4 h-4 text-gray-700" />
-              </button>
-              <button
-                className="p-1.5 rounded-lg hover:bg-gray-100"
-                aria-label="Dismiss"
-                title="Dismiss"
-                onClick={() => dismissTxBanner(txNotice.hash)}
-              >
-                <X className="w-4 h-4 text-gray-700" />
-              </button>
-            </div>
-          </div>
-        </div>
+        <TransactionBanner
+          txHash={txNotice.hash}
+          kind={txNotice.kind as 'withdraw' | 'deposit' | 'bet' | 'tx'}
+          amount={txNotice.amount}
+          currency={txNotice.currency}
+          status={txNotice.status || 'pending'}
+          onDismiss={() => dismissTxBanner(txNotice.hash)}
+        />
       )}
 
       {/* Claims Sheet */}
@@ -819,7 +790,7 @@ const WalletPageV2: React.FC<WalletPageV2Props> = ({ onNavigateBack }) => {
           {/* Push sheet above bottom nav (approx 72px) and safe-area */}
           <div className="relative w-full md:max-w-lg bg-white rounded-t-2xl md:rounded-2xl shadow-xl p-4 pb-[calc(16px+env(safe-area-inset-bottom,0px))] mb-[calc(72px+env(safe-area-inset-bottom,0px))] max-h-[80vh] md:max-h-[75vh] overflow-y-auto">
             <div className="sticky top-0 bg-white/90 backdrop-blur px-4 pt-2 pb-3 -mx-4 border-b border-gray-100 flex items-center justify-between">
-              <h3 className="text-base font-semibold text-gray-900">Your claimable winnings</h3>
+              <h3 className="text-base font-semibold text-gray-900">Your claimable {L("winnings")}</h3>
               <div className="flex items-center gap-2">
                 {Array.isArray(claimables) && claimables.length > 1 && (
                   <button
@@ -890,6 +861,13 @@ const WalletPageV2: React.FC<WalletPageV2Props> = ({ onNavigateBack }) => {
           </div>
         </div>
       )}
+
+      {/* Compliance Disclaimer - Store-safe text only */}
+      <div className="px-4 pb-6 pt-4">
+        <p className="text-xs text-gray-500 text-center leading-relaxed">
+          Crypto features may be unavailable in your region. Not investment advice. Must be 18+ to use.
+        </p>
+      </div>
     </div>
   );
 };

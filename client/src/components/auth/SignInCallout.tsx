@@ -1,5 +1,6 @@
 import React from 'react';
 import { LogIn } from 'lucide-react';
+import { L } from '@/lib/lexicon';
 
 interface SignInCalloutProps {
   onSignIn: () => void;
@@ -13,7 +14,7 @@ interface SignInCalloutProps {
  */
 export default function SignInCallout({ 
   onSignIn,
-  title = 'Sign in to place a bet',
+  title = `Sign in to ${L("betVerb").toLowerCase()}`,
   description = 'Create an account or sign in to participate.'
 }: SignInCalloutProps) {
   return (

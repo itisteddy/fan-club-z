@@ -21,15 +21,36 @@ type ConnectWalletSheetProps = {
 export default function ConnectWalletSheet({ isOpen, onClose }: ConnectWalletSheetProps) {
   const { connect, connectors, status, error } = useConnect();
   const [open, setOpen] = useState<boolean>(Boolean(isOpen));
+  const [connecting, setConnecting] = useState(false);
   const isMobile = isMobileDevice();
   const wcConnector = wcEnabled ? connectors.find(c => c.id === 'walletConnect') : null;
 
   const handleConnect = useCallback(async (connector: any) => {
+    if (connecting) return; // Prevent multiple simultaneous connection attempts
+    
+    setConnecting(true);
+    const connectTimeout = 20000; // 20 seconds timeout
+    let timeoutFired = false;
+    const timeoutId = setTimeout(() => {
+      timeoutFired = true;
+      setConnecting(false);
+      toast.error('Connection timeout. Please try again or check your network connection.');
+      console.error('[WalletConnect] Connection timeout after', connectTimeout, 'ms');
+    }, connectTimeout);
+
     try {
       await connect({ connector });
-      if (onClose) onClose();
-      else setOpen(false);
+      clearTimeout(timeoutId);
+      if (!timeoutFired) {
+        setConnecting(false);
+        if (onClose) onClose();
+        else setOpen(false);
+      }
     } catch (err: any) {
+      clearTimeout(timeoutId);
+      if (!timeoutFired) {
+        setConnecting(false);
+      }
       const errorMessage = err?.message || 'Failed to connect wallet';
       
       // Provide helpful error messages
@@ -38,11 +59,13 @@ export default function ConnectWalletSheet({ isOpen, onClose }: ConnectWalletShe
         console.error('[WalletConnect] 403 Forbidden - Domain may not be whitelisted at cloud.reown.com');
       } else if (errorMessage.includes('User rejected')) {
         toast.error('Connection cancelled');
+      } else if (errorMessage.includes('timeout') || errorMessage.includes('Timeout')) {
+        toast.error('Connection timeout. Please try again.');
       } else {
         toast.error(errorMessage);
       }
     }
-  }, [connect, onClose]);
+  }, [connect, onClose, connecting]);
 
   // On mobile, auto-connect WalletConnect when modal opens
   useEffect(() => {
@@ -111,7 +134,7 @@ export default function ConnectWalletSheet({ isOpen, onClose }: ConnectWalletShe
               <div className="rounded-xl border border-gray-100 overflow-hidden">
                 <button
                   type="button"
-                  disabled={!wcConnector || !wcEnabled}
+                  disabled={!wcConnector || !wcEnabled || connecting}
                   onClick={() => wcConnector && handleConnect(wcConnector)}
                   className="flex w-full items-center justify-between px-4 py-4 hover:bg-gray-50 disabled:opacity-50"
                 >
@@ -120,8 +143,8 @@ export default function ConnectWalletSheet({ isOpen, onClose }: ConnectWalletShe
                     <div>
                       <div className="font-medium">WalletConnect</div>
                       <div className="text-xs text-gray-500">
-                        Connect your mobile wallet
-                        {!wcEnabled && (
+                        {connecting ? 'Connecting...' : 'Connect your mobile wallet'}
+                        {!wcEnabled && !connecting && (
                           <span className="ml-2 text-xs text-gray-500">(add VITE_WC_PROJECT_ID)</span>
                         )}
                       </div>
@@ -153,7 +176,7 @@ export default function ConnectWalletSheet({ isOpen, onClose }: ConnectWalletShe
                 <li>
                   <button
                     type="button"
-                    disabled={!wcConnector || !wcEnabled}
+                    disabled={!wcConnector || !wcEnabled || connecting}
                     onClick={() => wcConnector && handleConnect(wcConnector)}
                     className="flex w-full items-center justify-between px-4 py-4 hover:bg-gray-50 disabled:opacity-50"
                   >
@@ -162,8 +185,8 @@ export default function ConnectWalletSheet({ isOpen, onClose }: ConnectWalletShe
                       <div>
                         <div className="font-medium">WalletConnect</div>
                         <div className="text-xs text-gray-500">
-                          Mobile wallets (QR / deep link)
-                          {!wcEnabled && (
+                          {connecting ? 'Connecting...' : 'Mobile wallets (QR / deep link)'}
+                          {!wcEnabled && !connecting && (
                             <span className="ml-2 text-xs text-gray-500">(add VITE_WC_PROJECT_ID)</span>
                           )}
                         </div>

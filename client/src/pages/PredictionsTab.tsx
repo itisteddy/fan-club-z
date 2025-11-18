@@ -16,6 +16,7 @@ import AppHeader from '../components/layout/AppHeader';
 import Page from '../components/ui/layout/Page';
 import EmptyState from '../components/ui/empty/EmptyState';
 import { formatTimeRemaining } from '@/lib/utils';
+import { L } from '@/lib/lexicon';
 
 const PredictionsTab: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNavigateToDiscover }) => {
   const navigate = useNavigate();
@@ -149,7 +150,7 @@ const PredictionsTab: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNav
   if (!isAuthenticated) {
     return (
       <>
-        <AppHeader title="My Bets" />
+        <AppHeader title={L("myBets")} />
         <Page>
           <EmptyState
             icon={<TrendingUp />}
@@ -233,7 +234,7 @@ const PredictionsTab: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNav
                 <p className="font-semibold text-emerald-900">${prediction.potentialReturn.toLocaleString()}</p>
               </div>
               <div>
-                <p className="text-xs text-emerald-600 mb-1">Odds</p>
+                <p className="text-xs text-emerald-600 mb-1">{L("odds")}</p>
                 <p className="font-semibold text-emerald-900">{prediction.odds}</p>
               </div>
             </div>
@@ -298,7 +299,7 @@ const PredictionsTab: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNav
   return (
     <>
       {/* Unified header with tabs */}
-      <AppHeader title="My Bets" />
+      <AppHeader title={L("myBets")} />
       <div className="bg-white border-b border-gray-200">
         <div className="px-4 py-3">
           <div className="flex space-x-4">

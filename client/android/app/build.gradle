@@ -1,0 +1,44 @@
+apply plugin: 'com.android.application'
+
+android {
+    namespace "com.fanclubz.app"
+    compileSdkVersion rootProject.ext.compileSdkVersion ?: 35
+    defaultConfig {
+        applicationId "com.fanclubz.app"
+        minSdkVersion rootProject.ext.minSdkVersion ?: 24
+        targetSdkVersion rootProject.ext.targetSdkVersion ?: 34
+        versionCode 20079
+        versionName "20241117-r1"
+    }
+    buildTypes {
+        release {
+            minifyEnabled true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            shrinkResources true
+        }
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+repositories {
+    google()
+    mavenCentral()
+    flatDir {
+        dirs '../capacitor-cordova-android-plugins/src/main/libs', 'libs'
+    }
+}
+
+dependencies {
+    implementation fileTree(dir: 'libs', include: ['*.jar'])
+    implementation project(':capacitor-android')
+    // AndroidX dependencies (required by Capacitor)
+    implementation 'androidx.appcompat:appcompat:1.7.0'
+    implementation 'androidx.core:core:1.12.0'
+}
+
+// Apply Capacitor build configuration (applies cordova.variables.gradle and handles postBuildExtras)
+apply from: 'capacitor.build.gradle'
+

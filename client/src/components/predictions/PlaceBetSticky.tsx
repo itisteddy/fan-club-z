@@ -1,5 +1,6 @@
 import React from 'react';
 import { Loader2 } from 'lucide-react';
+import { L } from '@/lib/lexicon';
 
 interface PlaceBetStickyProps {
   visible: boolean;
@@ -10,7 +11,7 @@ interface PlaceBetStickyProps {
 }
 
 /**
- * Floating "Place Bet" button that appears above bottom navigation
+ * Floating "Lock stake" button that appears above bottom navigation
  * Only visible when user has selected an option and entered a stake
  */
 export default function PlaceBetSticky({
@@ -18,9 +19,10 @@ export default function PlaceBetSticky({
   onClick,
   disabled = false,
   loading = false,
-  label = 'Place Bet'
+  label
 }: PlaceBetStickyProps) {
   if (!visible) return null;
+  const displayLabel = label || L("betVerb");
 
   return (
     <div className="pointer-events-none fixed inset-x-0 bottom-20 z-30 px-4 sm:bottom-6">
@@ -29,10 +31,10 @@ export default function PlaceBetSticky({
           onClick={onClick}
           disabled={disabled || loading}
           className="w-full rounded-2xl bg-emerald-500 py-3 sm:py-3.5 text-white font-semibold shadow-lg shadow-black/10 hover:bg-emerald-600 active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-          aria-label={label}
+          aria-label={displayLabel}
         >
           {loading && <Loader2 className="size-5 animate-spin" />}
-          <span>{loading ? 'Placing Bet...' : label}</span>
+          <span>{loading ? `${L("betVerb")}...` : displayLabel}</span>
         </button>
       </div>
     </div>

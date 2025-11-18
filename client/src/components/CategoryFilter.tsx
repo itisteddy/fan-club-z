@@ -19,7 +19,7 @@ export const CategoryFilter: React.FC<CategoryFilterProps> = ({
   onCategoryChange,
 }) => {
   return (
-    <div className="overflow-x-auto -mx-4 px-4">
+    <div className="overflow-x-auto -mx-4 px-4 scrollbar-hide">
       <div className="flex gap-2 pb-2" data-tour="category-chips">
         {categories.map((category) => (
           <motion.button

@@ -1,0 +1,12 @@
+{
+  "name": "landing-page",
+  "version": "1.0.0",
+  "scripts": {
+    "dev": "cd ../client && echo \"Using VITE_BUILD_TARGET=landing for landing-page dev\" && VITE_BUILD_TARGET=landing npm run dev",
+    "build": "cd ../client && VITE_BUILD_TARGET=landing npm run build",
+    "install": "cd ../client && npm install"
+  },
+  "dependencies": {
+    "html-to-image": "^1.11.13"
+  }
+}

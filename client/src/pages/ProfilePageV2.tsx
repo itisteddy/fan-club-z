@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Edit3, User, Activity, DollarSign, TrendingUp, Target, Trophy, MoreVertical, LogOut, Upload, X } from 'lucide-react';
+import { Edit3, User, Activity, DollarSign, TrendingUp, Target, Trophy, LogOut, Upload, X } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { useAuthSession } from '../providers/AuthSessionProvider';
 import { usePredictionStore } from '../store/predictionStore';
@@ -8,6 +8,7 @@ import UserAvatar from '../components/common/UserAvatar';
 import AppHeader from '../components/layout/AppHeader';
 import { formatLargeNumber, formatCurrency, formatPercentage, formatTimeAgo } from '@/lib/format';
 import { useUserActivity, ActivityItem as FeedActivityItem } from '@/hooks/useActivityFeed';
+import { L } from '@/lib/lexicon';
 
 interface ProfilePageV2Props {
   onNavigateBack?: () => void;
@@ -26,7 +27,6 @@ const ProfilePageV2: React.FC<ProfilePageV2Props> = ({ onNavigateBack, userId })
   const [loading, setLoading] = useState(true);
   const [showActivityModal, setShowActivityModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
-  const [showMenu, setShowMenu] = useState(false);
   const [editFirstName, setEditFirstName] = useState('');
   const [editLastName, setEditLastName] = useState('');
   const [editBio, setEditBio] = useState('');
@@ -81,7 +81,7 @@ const ProfilePageV2: React.FC<ProfilePageV2Props> = ({ onNavigateBack, userId })
         return {
           iconBg: 'bg-blue-100',
           icon: <Target className="w-4 h-4 text-blue-600" />, 
-          title: item.predictionTitle ? `Bet on ${item.predictionTitle}` : 'Bet placed',
+          title: item.predictionTitle ? `${L("betVerb")} on ${item.predictionTitle}` : L("betPlaced"),
           subtitle: item.data?.option_label ? `Option: ${item.data.option_label}` : '',
           amount: item.data?.amount ? formatCurrency(Number(item.data.amount), { compact: true }) : null,
           badge: 'placed',
@@ -277,7 +277,7 @@ const ProfilePageV2: React.FC<ProfilePageV2Props> = ({ onNavigateBack, userId })
                     {formatLargeNumber(totalPredictions)}
                   </div>
                   <div className="text-xs text-gray-500 mt-1">
-                    {userEntries.length} bets, {userCreated.length} created
+                    {userEntries.length} {L("bets")}, {userCreated.length} created
                   </div>
                 </div>
                 
@@ -330,13 +330,6 @@ const ProfilePageV2: React.FC<ProfilePageV2Props> = ({ onNavigateBack, userId })
                         >
                           <Edit3 className="w-4 h-4" />
                         </button>
-                        <button
-                          onClick={() => setShowMenu(v => !v)}
-                          className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
-                          title="More"
-                        >
-                          <MoreVertical className="w-4 h-4" />
-                        </button>
                       </div>
                     </div>
                   )}
@@ -361,7 +354,7 @@ const ProfilePageV2: React.FC<ProfilePageV2Props> = ({ onNavigateBack, userId })
                     <div className="flex items-center space-x-4 text-xs">
                       <span className="flex items-center gap-1 text-emerald-600">
                         <div className="w-2 h-2 bg-emerald-500 rounded-full"></div>
-                        {userEntries.filter(e => e.status === 'active').length} active bets
+                        {userEntries.filter(e => e.status === 'active').length} active {L("bets")}
                       </span>
                       <span className="text-gray-500">
                         {completedEntries.length} completed
@@ -579,9 +572,10 @@ const ProfilePageV2: React.FC<ProfilePageV2Props> = ({ onNavigateBack, userId })
             <h2 className="text-sm font-semibold text-gray-900">All Activity</h2>
             <button
               onClick={() => setShowActivityModal(false)}
-              className="text-xs text-gray-500 hover:text-gray-700"
+              className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center hover:bg-gray-200 transition-colors"
+              aria-label="Close activity modal"
             >
-              Close
+              <X className="w-4 h-4 text-gray-600" />
             </button>
           </div>
           <div className="overflow-y-auto divide-y divide-gray-100 max-h-[calc(80vh-3.5rem)] sm:max-h-[calc(80vh-3rem)] pr-1">

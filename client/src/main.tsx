@@ -27,6 +27,23 @@ const queryClient = new QueryClient({
 // Centralized version management
 console.log(`🚀 Fan Club Z ${APP_VERSION} - CONSOLIDATED ARCHITECTURE - SINGLE SOURCE OF TRUTH`)
 
+// Log betting mode configuration on startup (helps diagnose production issues)
+const FLAG_BASE_BETS = import.meta.env.VITE_FCZ_BASE_BETS === '1' || 
+                       import.meta.env.ENABLE_BASE_BETS === '1' ||
+                       import.meta.env.FCZ_ENABLE_BASE_BETS === '1' ||
+                       import.meta.env.VITE_FCZ_BASE_ENABLE === '1';
+const FLAG_DEMO = import.meta.env.VITE_FCZ_ENABLE_DEMO === '1';
+const isCryptoMode = FLAG_BASE_BETS && !FLAG_DEMO;
+
+console.log('🔍 Betting Mode Configuration:', {
+  VITE_FCZ_BASE_BETS: import.meta.env.VITE_FCZ_BASE_BETS,
+  VITE_FCZ_ENABLE_DEMO: import.meta.env.VITE_FCZ_ENABLE_DEMO,
+  FLAG_BASE_BETS,
+  FLAG_DEMO,
+  isCryptoMode,
+  mode: isCryptoMode ? '✅ ON-CHAIN' : '⚠️ DEMO MODE (check VITE_FCZ_BASE_BETS=1 in Vercel)'
+});
+
 const isLandingBuild = import.meta.env.VITE_BUILD_TARGET === 'landing';
 const RootComponent = isLandingBuild ? LandingPage : App;
 

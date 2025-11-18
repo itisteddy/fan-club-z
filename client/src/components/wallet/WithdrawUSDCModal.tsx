@@ -7,6 +7,7 @@ import toast from 'react-hot-toast';
 import { useAuthStore } from '../../store/authStore';
 import { QK } from '@/lib/queryKeys';
 import { invalidateAfterWithdraw } from '@/utils/queryInvalidation';
+import { getApiUrl } from '@/utils/environment';
 
 const ESCROW_ADDR_ENV = (import.meta.env.VITE_BASE_ESCROW_ADDRESS ?? '') as `0x${string}`;
 const ESCROW_ABI_MIN = [
@@ -90,12 +91,72 @@ export default function WithdrawUSDCModal({
         args: [units],
       } as any);
 
+      const currentUserId = useAuthStore.getState().user?.id || userId;
+
+      // Log transaction to database immediately (before confirmation)
+      try {
+        const apiUrl = getApiUrl();
+        await fetch(`${apiUrl}/api/wallet/log-transaction`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userId: currentUserId,
+            txHash: txHash,
+            amount: cleanAmount,
+            currency: 'USDC',
+            direction: 'debit',
+            channel: 'escrow_withdraw',
+            status: 'pending',
+            description: `Withdrew ${fmtUSD(cleanAmount)} USDC from escrow`,
+            meta: {
+              escrowAddress: escrowAddress,
+              chainId: baseSepolia.id,
+            },
+          }),
+        });
+        console.log(`[FCZ-PAY] Transaction logged to database:`, txHash);
+      } catch (logError) {
+        console.warn('[FCZ-PAY] Failed to log transaction (non-blocking):', logError);
+        // Don't block the flow if logging fails
+      }
+
+      // Emit transaction event for banner display
+      window.dispatchEvent(new CustomEvent('fcz:tx', {
+        detail: {
+          txHash: txHash,
+          kind: 'withdraw',
+          amount: cleanAmount,
+          currency: 'USDC',
+        },
+      }));
+
+      // Wait for transaction confirmation
+      let receipt = null;
       if (publicClient) {
-        await waitForTransactionReceipt(publicClient as any, { hash: txHash });
+        receipt = await waitForTransactionReceipt(publicClient as any, { hash: txHash });
       }
       
       console.log(`[FCZ-PAY] ui: withdraw success`, txHash);
       
+      // Update transaction status to 'success' after confirmation
+      try {
+        const apiUrl = getApiUrl();
+        await fetch(`${apiUrl}/api/wallet/update-transaction-status`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            txHash: txHash,
+            status: 'success',
+            meta: {
+              blockNumber: receipt?.blockNumber?.toString(),
+              confirmations: receipt?.confirmations,
+            },
+          }),
+        });
+      } catch (updateError) {
+        console.warn('[FCZ-PAY] Failed to update transaction status (non-blocking):', updateError);
+      }
+
       // Show success toast with transaction hash
       const truncatedHash = `${txHash.slice(0, 6)}...${txHash.slice(-4)}`;
       toast.success(`Withdrew ${fmtUSD(cleanAmount)}! Tx: ${truncatedHash}`, {
@@ -103,7 +164,6 @@ export default function WithdrawUSDCModal({
       });
 
       // Invalidate all related queries using centralized utility
-      const currentUserId = useAuthStore.getState().user?.id || userId;
       invalidateAfterWithdraw(queryClient, {
         userId: currentUserId,
         txHash: txHash,

@@ -29,8 +29,13 @@ if (!supabaseUrl || !supabaseAnonKey) {
 
 const isNativePlatform = () => typeof window !== 'undefined' && Boolean(Capacitor?.isNativePlatform?.());
 
+// Android OAuth Client ID (for native Android app)
+const ANDROID_CLIENT_ID = '347030494027-onlrov5htjv0eeuouf644a00e72cosnp';
+const ANDROID_REDIRECT_SCHEME = `com.googleusercontent.apps.${ANDROID_CLIENT_ID}:/oauth2redirect`;
+
 // Helper to get the proper redirect URL for any environment
-// Uses HTTPS redirects for all platforms (Web OAuth client supports both web and native)
+// Native Android: Uses custom scheme (Android OAuth client)
+// Web/PWA: Uses HTTPS redirect (Web OAuth client)
 function getRedirectUrl(next?: string) {
   const appendNext = (base: string) => {
     if (!next) return base;
@@ -38,17 +43,22 @@ function getRedirectUrl(next?: string) {
     return `${base}${separator}next=${encodeURIComponent(next)}`;
   };
 
-  // In production, always use the production URL (works for web, PWA, and native)
+  // Native Android: Use custom scheme for Android OAuth client
+  if (isNativePlatform()) {
+    return appendNext(ANDROID_REDIRECT_SCHEME);
+  }
+
+  // Web/PWA: Use HTTPS redirect for Web OAuth client
   if (import.meta.env.PROD) {
     return appendNext('https://app.fanclubz.app/auth/callback');
   }
   
-  // In development, check if we have a custom redirect URL override
+  // Development: Check for custom redirect URL override
   if (import.meta.env.VITE_AUTH_REDIRECT_URL) {
     return appendNext(import.meta.env.VITE_AUTH_REDIRECT_URL);
   }
   
-  // Use current origin (works for localhost, network IPs, etc.)
+  // Development fallback: Use current origin
   const currentOrigin = window.location.origin;
   const fallback = `${currentOrigin}/auth/callback`;
   console.log('🔧 Auth redirect URL:', fallback);
@@ -64,20 +74,58 @@ const ensureNativeAuthListener = () => {
 
   nativeAuthListener = CapacitorApp.addListener('appUrlOpen', async ({ url }) => {
     try {
-      // Handle HTTPS callback URLs (app.fanclubz.app/auth/callback)
-      if (!url || (!url.includes('app.fanclubz.app/auth/callback') && !url.includes('localhost') && !url.includes('127.0.0.1'))) {
+      // Handle both HTTPS callback URLs (web) and custom scheme (Android OAuth client)
+      const isHttpsCallback = url?.includes('app.fanclubz.app/auth/callback') || 
+                               url?.includes('localhost') || 
+                               url?.includes('127.0.0.1');
+      const isAndroidOAuthCallback = url?.includes(ANDROID_REDIRECT_SCHEME);
+      
+      if (!url || (!isHttpsCallback && !isAndroidOAuthCallback)) {
         return;
       }
 
       console.log('🔐 Native auth callback received:', url);
 
+      // Close browser if it's still open
       await Browser.close().catch(() => undefined);
+
+      // Retry/poll for session establishment (fixes "first attempt fails" issue)
+      // Supabase PKCE flow may need a moment to exchange the code
+      let sessionEstablished = false;
+      const maxRetries = 8;
+      const retryDelay = 250; // 250ms between retries
+
+      for (let attempt = 0; attempt < maxRetries; attempt++) {
+        try {
+          const { data: { session }, error } = await supabase.auth.getSession();
+          
+          if (session && !error) {
+            console.log(`✅ Session established on attempt ${attempt + 1}`);
+            sessionEstablished = true;
+            break;
+          }
+          
+          if (attempt < maxRetries - 1) {
+            await new Promise(resolve => setTimeout(resolve, retryDelay));
+          }
+        } catch (err) {
+          console.warn(`⚠️ Session check attempt ${attempt + 1} failed:`, err);
+          if (attempt < maxRetries - 1) {
+            await new Promise(resolve => setTimeout(resolve, retryDelay));
+          }
+        }
+      }
+
+      if (!sessionEstablished) {
+        console.warn('⚠️ Session not established after retries, but continuing...');
+        // Don't throw - let AuthCallback component handle it
+      }
 
       // Supabase will automatically handle the session from the URL
       // The AuthCallback route component will process it
     } catch (err) {
       console.error('❌ Native auth listener exception:', err);
-}
+    }
   });
 };
 
@@ -174,15 +222,16 @@ export const auth = {
         try {
           const redirectUrl = getRedirectUrl(options?.next);
           console.log('🔐 OAuth redirect URL:', redirectUrl);
+          console.log('🔐 Platform:', native ? 'Native Android' : 'Web/PWA');
 
           const { data, error} = await supabase.auth.signInWithOAuth({
         provider,
         options: {
               redirectTo: redirectUrl,
-              skipBrowserRedirect: native,
+              skipBrowserRedirect: native, // Native uses custom scheme, web uses browser redirect
               queryParams: {
                 access_type: 'offline',
-                prompt: 'consent',
+                prompt: native ? 'select_account' : 'consent', // Better UX on native
               },
         },
       });
@@ -190,6 +239,7 @@ export const auth = {
       if (error) {
         console.error('Auth signInWithOAuth error:', error);
           } else if (native && data?.url) {
+            // Native: Open OAuth in browser, will redirect to custom scheme
             await Browser.open({
               url: data.url,
               presentationStyle: 'fullscreen',

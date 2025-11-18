@@ -6,6 +6,7 @@ import { baseSepolia } from 'wagmi/chains';
 import AuthRequiredState from '../ui/empty/AuthRequiredState';
 import { selectEscrowAvailableUSD } from '@/lib/balance/balanceSelector';
 import { useWalletStore } from '@/store/walletStore';
+import { L } from '@/lib/lexicon';
 
 interface PredictionOption {
   id: string;
@@ -120,7 +121,7 @@ const PredictionActionPanel: React.FC<PredictionActionPanelProps> = ({
         <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-6">
           <AuthRequiredState
             icon={<TrendingUp />}
-            title="Sign in to place your bet"
+            title={`Sign in to ${L("betVerb").toLowerCase()}`}
             description="Create an account or sign in to make predictions and win rewards."
             intent="place_prediction"
             payload={{ predictionId: prediction.id }}
@@ -250,14 +251,14 @@ const PredictionActionPanel: React.FC<PredictionActionPanelProps> = ({
                   {isPlacingBet ? (
                     <div className="flex items-center justify-center space-x-2">
                       <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                      <span>Placing Bet...</span>
+                      <span>{L("betVerb")}...</span>
                     </div>
                   ) : (BASE_ENABLED && BETS_ONCHAIN ? needsFunds : parseFloat(stakeAmount) > userBalance) ? (
                     'Insufficient Balance'
                   ) : parseFloat(stakeAmount) <= 0 || !stakeAmount ? (
                     'Enter Amount'
                   ) : (
-                    `Place Bet: $${parseFloat(stakeAmount).toFixed(2)}`
+                    `${L("betVerb")}: $${parseFloat(stakeAmount).toFixed(2)}`
                   )}
                 </button>
               )}

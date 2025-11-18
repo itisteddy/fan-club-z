@@ -14,6 +14,7 @@ import useScrollPreservation from '../hooks/useScrollPreservation';
 import AppHeader from '../components/layout/AppHeader';
 import { formatUSDCompact, formatNumberShort } from '@/lib/format';
 import { useNavigate } from 'react-router-dom';
+import { L } from '@/lib/lexicon';
 
 interface DiscoverPageProps {
   onNavigateToProfile?: () => void;
@@ -45,7 +46,7 @@ const CategoryFilters = React.memo(function CategoryFilters({
       data-tour="category-filters"
       data-tour-id="category-filters"
     >
-      <div className="overflow-x-auto -mx-2 px-2">
+      <div className="overflow-x-auto -mx-2 px-2 scrollbar-hide">
         <div className="flex gap-2 pb-1">
           {categories.map((category) => (
             <motion.button
@@ -379,28 +380,8 @@ const DiscoverPage = React.memo(function DiscoverPage({ onNavigateToProfile, onN
             data-tour="discover-list"
             data-tour-id="discover-list"
           >
-            {(() => {
-              const categoryLabels: Record<string, string> = {
-                'all': 'All Predictions',
-                'sports': 'Sports Predictions',
-                'pop_culture': 'Pop Culture Predictions',
-                'custom': 'Custom Predictions',
-                'politics': 'Politics Predictions',
-                'crypto': 'Crypto Predictions',
-                'tech': 'Tech Predictions',
-                'finance': 'Finance Predictions'
-              };
-              return categoryLabels[filters.category] || 'All Predictions';
-            })()}
-            {filters.search && ` - "${filters.search}"`}
+            {filters.search ? `Search: "${filters.search}"` : ''}
           </h2>
-          {/* Show pagination info instead of static count */}
-          {pagination.total > 0 && (
-            <p className="text-sm text-gray-600">
-              Showing {displayPredictions.length} of {pagination.total} predictions
-              {pagination.hasNext && ' • Scroll for more'}
-            </p>
-          )}
         </motion.div>
 
         {/* Predictions Grid with infinite scroll */}
