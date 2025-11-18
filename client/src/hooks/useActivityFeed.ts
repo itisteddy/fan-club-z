@@ -86,10 +86,29 @@ export function useActivityFeed({
       const url = getApiUrl(cursorParam);
       console.log('🔍 Fetching activity feed:', url);
       
-      const response = await fetch(url);
+      const response = await fetch(url, {
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      // Check content type before parsing
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        const text = await response.text();
+        console.error('❌ Activity feed returned non-JSON:', {
+          status: response.status,
+          statusText: response.statusText,
+          contentType,
+          preview: text.substring(0, 200)
+        });
+        throw new Error(`Expected JSON but got ${contentType}. Status: ${response.status}`);
+      }
       
       if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        const errorData = await response.json().catch(() => ({ message: response.statusText }));
+        throw new Error(errorData.message || `HTTP ${response.status}: ${response.statusText}`);
       }
       
       const data: ActivityFeedResponse = await response.json();

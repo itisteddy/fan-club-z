@@ -142,6 +142,9 @@ router.get('/predictions/:id', async (req, res) => {
 
 // GET /api/v2/activity/user/:userId - Get activity feed for a user across all predictions
 router.get('/user/:userId', async (req, res) => {
+  // Ensure JSON response header is set early to prevent HTML error pages
+  res.setHeader('Content-Type', 'application/json');
+  
   try {
     const { userId } = req.params;
     const { cursor, limit = '25' } = req.query;
@@ -360,12 +363,16 @@ router.get('/user/:userId', async (req, res) => {
       version: VERSION
     });
   } catch (error) {
-    console.error('User activity feed error:', error);
-    return res.status(500).json({
-      error: 'Internal Server Error',
-      message: 'Failed to fetch user activity feed',
-      version: VERSION
-    });
+    console.error('[activity] User activity feed error:', error);
+    // Ensure we always return JSON, never HTML
+    if (!res.headersSent) {
+      return res.status(500).json({
+        error: 'Internal Server Error',
+        message: 'Failed to fetch user activity feed',
+        details: error instanceof Error ? error.message : String(error),
+        version: VERSION
+      });
+    }
   }
 });
 

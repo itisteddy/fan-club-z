@@ -115,6 +115,7 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
     available: escrowAvailableUSD,
     locked: escrowLockedUSD,
     total: escrowTotalUSD,
+    summary,
     isLoading: isLoadingBalance,
     refetch: refetchBalances
   } = useUnifiedBalance();
@@ -130,9 +131,10 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
   const { data: merkle, isLoading: loadingProof } = useMerkleProof(isSettled ? predictionId : undefined, walletAddress);
   const { claim, isClaiming } = useMerkleClaim();
   
-  // Server snapshot for database locks (if still needed)
-  // Available to stake = on-chain available balance
-  const availableToStake = escrowAvailableUSD;
+  // CRITICAL: Use server-computed availableToStakeUSDC which accounts for pending database locks
+  // This matches what the server checks in placeBet.ts, preventing INSUFFICIENT_ESCROW errors
+  // Priority: summary.availableToStakeUSDC > escrowAvailableUSD (fallback to contract balance if summary not loaded)
+  const availableToStake = summary?.availableToStakeUSDC ?? escrowAvailableUSD;
   
   // Get prediction from store
   const prediction = useMemo(() => {
@@ -171,12 +173,14 @@ const userBalance = isAuthenticated ? availableToStake : 0;
       console.log('💰 PredictionDetailsPageV2 - Balance:', { 
         escrowTotal: escrowAvailableUSD,
         availableToStake,
+        summaryAvailableToStakeUSDC: summary?.availableToStakeUSDC,
         userBalance,
         isLoadingBalance,
-        formatted: `${userBalance.toFixed(2)}`
+        formatted: `${userBalance.toFixed(2)}`,
+        note: summary?.availableToStakeUSDC ? 'Using server-computed balance (accounts for locks)' : 'Using contract balance (fallback)'
       });
     }
-  }, [isAuthenticated, escrowAvailableUSD, availableToStake, userBalance, isLoadingBalance]);
+  }, [isAuthenticated, escrowAvailableUSD, availableToStake, summary, userBalance, isLoadingBalance]);
 
   // Load prediction data
   const loadPrediction = useCallback(async () => {
@@ -330,6 +334,9 @@ const userBalance = isAuthenticated ? availableToStake : 0;
         stakeAmount, 
         parsedAmount: amount, 
         availableBalance: userBalance,
+        availableToStake: availableToStake,
+        summaryAvailableToStakeUSDC: summary?.availableToStakeUSDC,
+        escrowAvailableUSD: escrowAvailableUSD,
         userId: currentUser.id,
         isNaN: isNaN(amount), 
         isPositive: amount > 0 
