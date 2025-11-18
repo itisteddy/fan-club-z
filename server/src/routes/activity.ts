@@ -141,15 +141,22 @@ router.get('/predictions/:id', async (req, res) => {
 });
 
 // GET /api/v2/activity/user/:userId - Get activity feed for a user across all predictions
-router.get('/user/:userId', async (req, res) => {
-  // Ensure JSON response header is set early to prevent HTML error pages
+router.get('/user/:userId', async (req, res, next) => {
+  // CRITICAL: Set JSON response header IMMEDIATELY to prevent any HTML error pages
+  // This must be done BEFORE any async operations
   res.setHeader('Content-Type', 'application/json');
   
+  // Log the request for debugging
+  const userId = req.params.userId;
+  console.log(`[activity] GET /user/:userId - userId: ${userId}, origin: ${req.headers.origin}`);
+  
+  // Wrap in try-catch to catch ALL errors, including unhandled promise rejections
   try {
-    const { userId } = req.params;
     const { cursor, limit = '25' } = req.query;
 
-    if (!userId) {
+    // Use the userId we already extracted above
+    if (!userId || userId.trim() === '') {
+      console.error('[activity] Missing userId in request');
       return res.status(400).json({
         error: 'Bad Request',
         message: 'User ID is required',
@@ -239,7 +246,7 @@ router.get('/user/:userId', async (req, res) => {
 
     const { data: betTransactions, error: txError } = await supabase
       .from('wallet_transactions')
-      .select('id, created_at, amount, currency, meta, prediction_id, channel, description')
+      .select('id, created_at, amount, currency, meta, prediction_id, channel, description, external_ref')
       .in('channel', walletChannels)
       .eq('user_id', userId)
       .order('created_at', { ascending: false })
@@ -384,6 +391,11 @@ router.get('/user/:userId', async (req, res) => {
       (betTransactions?.length ?? 0) === limitNum;
     const nextCursor = hasMore ? items[items.length - 1]?.timestamp : null;
 
+    // Ensure JSON content type is set before sending response
+    res.setHeader('Content-Type', 'application/json');
+    
+    console.log(`[activity] Successfully returning ${items.length} items for user ${userId}`);
+    
     return res.json({
       items,
       nextCursor,
@@ -392,15 +404,25 @@ router.get('/user/:userId', async (req, res) => {
     });
   } catch (error) {
     console.error('[activity] User activity feed error:', error);
-    // Ensure we always return JSON, never HTML
-    if (!res.headersSent) {
-      return res.status(500).json({
-        error: 'Internal Server Error',
-        message: 'Failed to fetch user activity feed',
-        details: error instanceof Error ? error.message : String(error),
-        version: VERSION
-      });
+    console.error('[activity] Error stack:', error instanceof Error ? error.stack : 'No stack trace');
+    
+    // CRITICAL: Ensure we always return JSON, never HTML
+    // Check if headers have been sent - if so, we can't send a response
+    if (res.headersSent) {
+      console.error('[activity] Headers already sent, cannot send error response');
+      return;
     }
+    
+    // Force JSON content type before sending error
+    res.setHeader('Content-Type', 'application/json');
+    
+    // Send error response
+    return res.status(500).json({
+      error: 'Internal Server Error',
+      message: 'Failed to fetch user activity feed',
+      details: error instanceof Error ? error.message : String(error),
+      version: VERSION
+    });
   }
 });
 
