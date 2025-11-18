@@ -554,66 +554,6 @@ const WalletPageV2: React.FC<WalletPageV2Props> = ({ onNavigateBack }) => {
                 <div className="mt-6 pt-4 border-t border-blue-100">
                   <ActivityFeed userId={user?.id} className="border-0 shadow-none" />
                 </div>
-                {/* Legacy wallet activity display (keeping for reference, but ActivityFeed is primary) */}
-                {false && walletActivity?.items && walletActivity.items.length > 0 && (
-                  <div className="mt-6 pt-4 border-t border-blue-100">
-                    <h4 className="text-xs font-semibold text-gray-700 mb-3">Recent Activity</h4>
-                    <div className="space-y-2">
-                      {walletActivity.items.slice(0, 8).map((item) => {
-                        const iconMap: Record<string, any> = {
-                          deposit: Download,
-                          withdraw: ArrowUpRight,
-                          lock: Lock,
-                          release: Unlock,
-                          entry: Target,
-                          claim: Receipt,
-                          payout: DollarSign
-                        };
-                        const IconComponent = iconMap[item.kind] || Wallet;
-                        const description = (() => {
-                          if (item.kind === 'entry' && item.meta?.option_label) {
-                            return `on ${item.meta.option_label}`;
-                          }
-                          if (item.kind === 'payout' && item.meta?.prediction_title) {
-                            return `for ${item.meta.prediction_title}`;
-                          }
-                          if (item.kind === 'claim' && item.meta?.prediction_title) {
-                            return `from ${item.meta.prediction_title}`;
-                          }
-                          return '';
-                        })();
-
-                        return (
-                          <div 
-                            key={item.id} 
-                            className="flex items-center justify-between text-sm gap-2 hover:bg-gray-50 rounded-lg p-2 -mx-2 cursor-pointer transition-colors"
-                            onClick={() => setSelectedActivity(item)}
-                          >
-                            <div className="flex items-center gap-2 min-w-0 flex-1">
-                              {IconComponent && <IconComponent className="w-4 h-4 text-gray-500 flex-shrink-0" />}
-                              <div className="flex flex-col min-w-0">
-                                <span className="text-gray-700 text-xs font-medium truncate">{prettyKind(item.kind)}</span>
-                                {description && (
-                                  <span className="text-[11px] text-gray-500 truncate">{description}</span>
-                                )}
-                              </div>
-                            </div>
-                            <div className="flex items-center gap-2 flex-shrink-0">
-                              <span className="text-[11px] text-gray-500 whitespace-nowrap">
-                                {item.createdAt ? formatTimeAgo(item.createdAt) : ''}
-                              </span>
-                              <span className="font-mono text-xs font-medium whitespace-nowrap">{formatCurrency(item.amountUSD, { compact: false })}</span>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                ) : !isLoadingActivity ? (
-                  <div className="mt-6 pt-4 border-t border-blue-100">
-                    <div className="text-center py-3 text-xs text-gray-500">No transactions yet</div>
-                  </div>
-                ) : null}
               </div>
             </>
           )}
