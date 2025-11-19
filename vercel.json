@@ -4,6 +4,10 @@
   "installCommand": "cd client && npm install",
   "rewrites": [
     {
+      "source": "/api/(.*)",
+      "destination": "https://fan-club-z.onrender.com/api/$1"
+    },
+    {
       "source": "/(.*)",
       "destination": "/index.html"
     }
