@@ -345,6 +345,7 @@ const userBalance = isAuthenticated ? availableToStake : 0;
       showSuccessToast(`Bet placed: $${stakeAmount} | lock consumed`);
       AriaUtils.announce(`Prediction placed successfully for ${stakeAmount} dollars`);
       
+      // IMPORTANT: Keep user on prediction details page - do not navigate away
       // Inline confirmation chip (keep user on overview)
       const optionLabel = prediction.options.find(o => o.id === selectedOptionId)?.label || 'Your bet';
       setJustPlaced({ amount, optionLabel });
@@ -375,6 +376,9 @@ const userBalance = isAuthenticated ? availableToStake : 0;
       
       // Reload the prediction to get updated pool totals
       await loadPrediction();
+      
+      // Explicitly ensure we stay on this page - no navigation
+      // The user should remain on the prediction details page to see their bet
       
     } catch (error) {
       console.error('[FCZ-BET] Error placing prediction:', error);

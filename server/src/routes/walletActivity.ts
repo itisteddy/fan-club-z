@@ -41,7 +41,7 @@ walletActivity.get('/activity', async (req, res) => {
     // Support multiple provider formats: 'crypto-base-usdc', 'base/usdc', 'base-usdc'
     const { data: transactions, error: txError } = await supabase
       .from('wallet_transactions')
-      .select('id, user_id, direction, channel, amount, currency, external_ref, created_at, meta')
+      .select('id, user_id, direction, channel, amount, currency, external_ref, created_at, meta, provider, type, description, prediction_id, entry_id')
       .eq('user_id', userId)
       .in('provider', ['crypto-base-usdc', 'base/usdc', 'base-usdc'])
       .in('channel', ['crypto', 'escrow_deposit', 'escrow_withdraw', 'escrow_consumed'])
@@ -96,13 +96,27 @@ walletActivity.get('/activity', async (req, res) => {
         }
 
         if (kind) {
+          // Return structure that matches what normalizeWalletTransaction expects
           activityItems.push({
             id: tx.id,
             kind,
             amount: Math.abs(Number(tx.amount || 0)),
             txHash: tx.external_ref || undefined,
-            createdAt: tx.created_at
-          });
+            createdAt: tx.created_at,
+            // Include additional fields for normalization
+            user_id: tx.user_id,
+            type: tx.type,
+            channel: tx.channel,
+            direction: tx.direction,
+            currency: tx.currency,
+            provider: tx.provider,
+            description: tx.description,
+            prediction_id: tx.prediction_id,
+            entry_id: tx.entry_id,
+            meta: tx.meta || {},
+            external_ref: tx.external_ref,
+            created_at: tx.created_at
+          } as any);
         }
       }
     }
@@ -116,16 +130,40 @@ walletActivity.get('/activity', async (req, res) => {
             kind: 'lock',
             amount: Number(lock.amount || 0),
             txHash: lock.tx_ref || undefined,
-            createdAt: lock.created_at
-          });
+            createdAt: lock.created_at,
+            // Include fields for normalization compatibility
+            user_id: lock.user_id,
+            type: 'debit',
+            channel: 'escrow_locked',
+            direction: 'debit',
+            currency: 'USD',
+            provider: 'crypto-base-usdc',
+            description: 'Funds locked',
+            prediction_id: lock.prediction_id,
+            meta: {},
+            external_ref: lock.tx_ref,
+            created_at: lock.created_at
+          } as any);
         } else if (lock.status === 'released') {
           activityItems.push({
             id: `unlock_${lock.id}`,
             kind: 'unlock',
             amount: Number(lock.amount || 0),
             txHash: lock.tx_ref || undefined,
-            createdAt: lock.created_at
-          });
+            createdAt: lock.created_at,
+            // Include fields for normalization compatibility
+            user_id: lock.user_id,
+            type: 'credit',
+            channel: 'escrow_released',
+            direction: 'credit',
+            currency: 'USD',
+            provider: 'crypto-base-usdc',
+            description: 'Funds released',
+            prediction_id: lock.prediction_id,
+            meta: {},
+            external_ref: lock.tx_ref,
+            created_at: lock.created_at
+          } as any);
         }
       }
     }

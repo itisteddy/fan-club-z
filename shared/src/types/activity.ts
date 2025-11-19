@@ -166,7 +166,7 @@ function mapTransactionTypeToKind(
   }
 
   // Withdrawals
-  if (type === 'debit' && channel === 'escrow_withdrawal') {
+  if (type === 'debit' && (channel === 'escrow_withdrawal' || channel === 'escrow_withdraw')) {
     return 'withdraw';
   }
   if (type === 'debit' && channel === 'crypto') {

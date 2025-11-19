@@ -195,22 +195,25 @@ export default function DepositUSDCModal({
         
         toast.loading('Approving USDC...', { id: 'approve' });
         
-        // Request approval for the exact amount (or unlimited: 2^256-1)
-        const approveTxHash = await requestTimeout(
-          writeContractAsync({
+        // Request approval - writeContractAsync will trigger wallet modal
+        // Don't wrap in timeout for the initial call - let wallet modal appear
+        console.log('[FCZ-PAY] Calling writeContractAsync to trigger wallet approval...');
+        const approveTxHash = await writeContractAsync({
           address: USDC_ADDRESS,
           abi: ERC20_ABI,
           functionName: 'approve',
           args: [escrowAddress, units], // Approve exact amount
-        }),
-          120000,
-          'Approval'
-        );
+        });
 
         console.log('[FCZ-PAY] Approval transaction sent:', approveTxHash);
 
+        // Now wait for receipt with timeout
         if (publicClient) {
-          await requestTimeout(waitForTransactionReceipt(publicClient as any, { hash: approveTxHash }), 240000, 'Approval receipt');
+          await requestTimeout(
+            waitForTransactionReceipt(publicClient as any, { hash: approveTxHash }), 
+            240000, 
+            'Approval receipt'
+          );
         }
 
         toast.success('USDC approved!', { id: 'approve' });

@@ -8,7 +8,7 @@ import {
   useOnboarding,
   type OnboardingStep 
 } from './OnboardingSystem';
-import {
+import { 
   FULL_CONTEXTUAL_TOUR,
   QUICK_DISCOVER_TOUR
 } from '@/config/contextualOnboardingTours';
