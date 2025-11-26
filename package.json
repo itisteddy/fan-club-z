@@ -24,7 +24,9 @@
     "test:e2e": "npm --prefix client run test:e2e",
     "test:smoke": "npm run typecheck && npm run lint && npm run test:unit",
     "verify-env": "tsx scripts/verify-env.ts",
-    "ledger:check": "tsx scripts/ledger-check.ts"
+    "ledger:check": "tsx scripts/ledger-check.ts",
+    "perf:bundle": "npm --prefix client run perf:bundle",
+    "perf:lighthouse": "npm --prefix client run perf:lighthouse"
   },
   "engines": {
     "node": ">=20.0.0"

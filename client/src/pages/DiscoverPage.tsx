@@ -45,24 +45,45 @@ const CategoryFilters = React.memo(function CategoryFilters({
       data-tour="category-filters"
       data-tour-id="category-filters"
     >
-      <div className="overflow-x-auto -mx-2 px-2">
-        <div className="flex gap-2 pb-1">
+      <div className="overflow-x-auto overflow-y-hidden scrollbar-hide">
+        <div className="flex gap-2">
           {categories.map((category) => (
-            <motion.button
+            <button
               key={category.id}
               onClick={() => onSelect(category.id)}
-              className={
-                `flex-shrink-0 inline-flex items-center px-3 h-[25px] rounded-full text-sm font-medium ` +
-                `transition-all duration-200 whitespace-nowrap ` +
-                (selectedCategory === category.id
-                  ? 'bg-purple-500 text-white shadow-sm'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200')
-              }
-              whileTap={{ scale: 0.96 }}
+              style={{
+                height: '28px',
+                minHeight: '28px',
+                padding: '0 12px',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '13px',
+                fontWeight: 500,
+                lineHeight: 1,
+                borderRadius: '14px',
+                border: 'none',
+                cursor: 'pointer',
+                whiteSpace: 'nowrap',
+                flexShrink: 0,
+                transition: 'all 0.2s',
+                backgroundColor: selectedCategory === category.id ? '#7B2FF7' : '#f1f5f9',
+                color: selectedCategory === category.id ? '#ffffff' : '#475569',
+              }}
+              onMouseEnter={(e) => {
+                if (selectedCategory !== category.id) {
+                  e.currentTarget.style.backgroundColor = '#e2e8f0';
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (selectedCategory !== category.id) {
+                  e.currentTarget.style.backgroundColor = '#f1f5f9';
+                }
+              }}
               data-tour="category-chips-item"
             >
               {category.label}
-            </motion.button>
+            </button>
           ))}
         </div>
       </div>
@@ -197,14 +218,14 @@ const DiscoverPage = React.memo(function DiscoverPage({ onNavigateToProfile, onN
   // Backend now handles filtering - no additional filtering needed
   const displayPredictions = useMemo(() => {
     if (!Array.isArray(predictions)) {
-      console.log('🔍 DiscoverPage Debug - No valid predictions array:', predictions);
+      // Silently return empty array - excessive logging removed
       return [];
     }
 
     const now = Date.now();
     const activePredictions = predictions.filter((prediction) => {
       if (!prediction || !prediction.id || !prediction.title) {
-        console.warn('⚠️ DiscoverPage: Invalid prediction object:', prediction);
+        // Silently filter invalid predictions - excessive logging removed
         return false;
       }
 
@@ -215,7 +236,7 @@ const DiscoverPage = React.memo(function DiscoverPage({ onNavigateToProfile, onN
       return isOpen && !isExpired;
     });
 
-    console.log(`🔍 DiscoverPage Debug - Displaying ${activePredictions.length} active predictions (raw: ${predictions.length})`);
+    // Excessive logging removed - only log errors if needed
     return activePredictions;
   }, [predictions]);
 
@@ -346,7 +367,7 @@ const DiscoverPage = React.memo(function DiscoverPage({ onNavigateToProfile, onN
       ref={containerRef} 
       className="discover-page content-with-bottom-nav" 
       data-scroll-container
-      style={{ position: 'relative', zIndex: 1, overflowY: 'auto', height: '100vh' }}
+      style={{ position: 'relative', zIndex: 1, overflowY: 'auto', overflowX: 'hidden', height: '100vh' }}
     >
       {/* Unified Header - Minimal (no logo, no descriptive text) */}
       <AppHeader title="Discover" />
@@ -368,41 +389,6 @@ const DiscoverPage = React.memo(function DiscoverPage({ onNavigateToProfile, onN
 
       {/* Content with proper spacing */}
       <div className="prediction-cards-container">
-        {/* Section header */}
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="px-4 mb-4"
-        >
-          <h2
-            className="text-xl font-bold text-gray-900 mb-1"
-            data-tour="discover-list"
-            data-tour-id="discover-list"
-          >
-            {(() => {
-              const categoryLabels: Record<string, string> = {
-                'all': 'All Predictions',
-                'sports': 'Sports Predictions',
-                'pop_culture': 'Pop Culture Predictions',
-                'custom': 'Custom Predictions',
-                'politics': 'Politics Predictions',
-                'crypto': 'Crypto Predictions',
-                'tech': 'Tech Predictions',
-                'finance': 'Finance Predictions'
-              };
-              return categoryLabels[filters.category] || 'All Predictions';
-            })()}
-            {filters.search && ` - "${filters.search}"`}
-          </h2>
-          {/* Show pagination info instead of static count */}
-          {pagination.total > 0 && (
-            <p className="text-sm text-gray-600">
-              Showing {displayPredictions.length} of {pagination.total} predictions
-              {pagination.hasNext && ' • Scroll for more'}
-            </p>
-          )}
-        </motion.div>
-
         {/* Predictions Grid with infinite scroll */}
         <div className="space-y-2">
           <AnimatePresence mode="wait">

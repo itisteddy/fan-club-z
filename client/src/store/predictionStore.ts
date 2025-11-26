@@ -81,6 +81,9 @@ export interface Prediction {
   comments?: number;
   settledAt?: string;
   settled_at?: string;
+  participants?: number;
+  settlement_criteria?: string;
+  total_volume?: number;
 }
 
 export interface PredictionOption {
@@ -92,6 +95,8 @@ export interface PredictionOption {
   percentage: number;
   totalStaked?: number; // Compatibility alias
   currentOdds?: number; // Compatibility alias
+  title?: string;
+  text?: string;
 }
 
 export interface PredictionEntry {

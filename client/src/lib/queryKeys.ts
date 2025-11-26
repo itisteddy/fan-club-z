@@ -22,5 +22,9 @@ export const QK = {
     ['readContract', address, functionName, args ?? []] as const,
   
   onchainActivity: (userId: string, limit = 20) => ['onchain-activity', userId, limit] as const,
+  
+  // Image queries (for React Query if needed in future)
+  predictionImage: (predictionId: string, query: string, seed: string, provider: 'pexels' | 'unsplash') =>
+    ['prediction-image', predictionId, query, seed, provider] as const,
 } as const;
 

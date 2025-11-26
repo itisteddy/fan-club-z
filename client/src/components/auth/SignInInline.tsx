@@ -1,6 +1,7 @@
 import React from 'react';
 import { LogIn } from 'lucide-react';
 import { openAuthGate } from '@/auth/authGateAdapter';
+import { t } from '@/lib/lexicon';
 
 interface SignInInlineProps {
   message?: string;
@@ -12,8 +13,8 @@ interface SignInInlineProps {
  * Used in prediction details and other pages where auth is needed
  */
 export default function SignInInline({ 
-  message = 'Sign in to place a bet',
-  description = 'Create an account or sign in to participate'
+  message = `Sign in to ${t('betVerb').toLowerCase()}`,
+  description = `Create an account or sign in to ${t('bet')}`
 }: SignInInlineProps) {
   const handleSignIn = () => {
     openAuthGate({

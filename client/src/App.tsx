@@ -19,6 +19,7 @@ import { OnboardingProvider } from './components/onboarding/OnboardingProvider';
 import MobileShell from './components/layout/MobileShell';
 import { NetworkStatusProvider } from './providers/NetworkStatusProvider';
 import PageLoadingSpinner from './components/ui/PageLoadingSpinner';
+import { OAuthDiagnostic } from './components/diagnostics/OAuthDiagnostic';
 
 // Lazy-loaded pages for code splitting
 const LazyDiscoverPage = lazy(() => import('./pages/DiscoverPage'));
@@ -170,8 +171,6 @@ const BootstrapEffects: React.FC = () => {
         
         // Only update if there's a meaningful change
         if (!currentStoreAuth || !currentStoreUser || currentStoreUser.id !== sessionUser.id) {
-          console.log('🔄 Syncing session user to auth store...', sessionUser.email);
-          
           // Convert session user to store format
           const convertedUser = {
             id: sessionUser.id,
@@ -193,13 +192,10 @@ const BootstrapEffects: React.FC = () => {
             initialized: true,
             lastAuthCheck: Date.now()
           });
-          
-          console.log('✅ Auth store synced with session user:', convertedUser.firstName);
         }
       }
       // If no session user but store thinks we're authenticated, clear the store
       else if (!sessionUser && storeAuthenticated) {
-        console.log('🔄 No session user, clearing auth store...');
         
         useAuthStore.setState({
           isAuthenticated: false,
@@ -589,6 +585,7 @@ const AppContent: React.FC = () => {
 function App() {
   return (
     <NetworkStatusProvider>
+      <OAuthDiagnostic />
       <SupabaseProvider>
         <AuthSessionProvider>
           <RealtimeProvider>

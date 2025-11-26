@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useCallback, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { Home, TrendingUp, Trophy, User, Wallet, Plus } from 'lucide-react';
+import { t } from '@/lib/lexicon';
 
 interface BottomNavigationProps {
   activeTab?: string;
@@ -9,21 +10,27 @@ interface BottomNavigationProps {
   onFABClick?: () => void;
 }
 
+// [PERF] Memoize tab configuration as it never changes
+const TABS = [
+  { id: 'discover', label: 'Discover', icon: Home },
+  { id: 'bets', label: t('myBets'), icon: TrendingUp },
+  { id: 'leaderboard', label: 'Rankings', icon: Trophy },
+  { id: 'wallet', label: 'Wallet', icon: Wallet },
+  { id: 'profile', label: 'Profile', icon: User },
+] as const;
+
 const BottomNavigation: React.FC<BottomNavigationProps> = ({ 
   activeTab = 'discover', 
   onTabChange,
   showFAB = false,
   onFABClick
 }) => {
-  const tabs = [
-    { id: 'discover', label: 'Discover', icon: Home },
-    { id: 'bets', label: 'My Bets', icon: TrendingUp },
-    { id: 'leaderboard', label: 'Rankings', icon: Trophy },
-    { id: 'wallet', label: 'Wallet', icon: Wallet },
-    { id: 'profile', label: 'Profile', icon: User },
-  ];
+  // [PERF] Use useMemo for tabs since t() might create new strings
+  const tabs = useMemo(() => TABS, []);
 
-  const handleTabClick = (tabId: string) => {
+  // [PERF] Memoize click handler to prevent unnecessary re-renders
+  // [PERF] Memoize click handler to prevent unnecessary re-renders
+  const handleTabClick = useCallback((tabId: string) => {
     // Scroll to top when navigating to any tab
     if (typeof window !== 'undefined') {
       window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -32,7 +39,7 @@ const BottomNavigation: React.FC<BottomNavigationProps> = ({
     if (onTabChange) {
       onTabChange(tabId);
     }
-  };
+  }, [onTabChange]);
 
   return (
     <div 
@@ -187,4 +194,5 @@ const BottomNavigation: React.FC<BottomNavigationProps> = ({
   );
 };
 
-export default BottomNavigation;
+// [PERF] React.memo to prevent re-renders when parent re-renders with same props
+export default React.memo(BottomNavigation);

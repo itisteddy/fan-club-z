@@ -1,7 +1,14 @@
 import { Router } from 'express';
+import crypto from 'crypto';
 import { supabase } from '../config/database';
 import { VERSION } from '@fanclubz/shared';
 import { reconcileWallet } from '../services/walletReconciliation';
+
+// [PERF] Helper to generate ETag from response data
+function generateETag(data: unknown): string {
+  const hash = crypto.createHash('md5').update(JSON.stringify(data)).digest('hex');
+  return `"${hash}"`;
+}
 
 export const walletRead = Router();
 
@@ -105,6 +112,19 @@ walletRead.get('/summary/:userId', async (req, res) => {
     };
 
     console.log(`[walletRead] Summary for ${userId}:`, summary);
+
+    // [PERF] Generate ETag and check for conditional GET (304 response)
+    const etag = generateETag(summary);
+    const ifNoneMatch = req.headers['if-none-match'];
+    
+    if (ifNoneMatch && ifNoneMatch === etag) {
+      // [PERF] Return 304 Not Modified if ETag matches
+      return res.status(304).end();
+    }
+
+    // [PERF] Set caching headers for wallet summary
+    res.setHeader('Cache-Control', 'private, max-age=15');
+    res.setHeader('ETag', etag);
 
     return res.json(summary);
   } catch (error) {

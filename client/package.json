@@ -3,6 +3,9 @@
   "version": "2.0.78",
   "description": "Fan Club Z React Client Application",
   "type": "module",
+  "sideEffects": [
+    "**/*.css"
+  ],
   "scripts": {
     "dev": "vite",
     "clean": "rimraf dist .turbo .vite .cache",
@@ -18,7 +21,9 @@
     "generate-icons": "bash ../generate-pwa-icons.sh",
     "pwa-audit": "lighthouse --view --chrome-flags='--headless' --only-categories=pwa http://localhost:5173",
     "check-manifest": "node -e \"console.log('Checking manifest...'); fetch('http://localhost:5173/manifest.json').then(r=>r.json()).then(console.log).catch(console.error)\"",
-    "check:dupes": "node scripts/check-duplicates.mjs"
+    "check:dupes": "node scripts/check-duplicates.mjs",
+    "perf:bundle": "vite build && node scripts/perf/bundle-report.mjs",
+    "perf:lighthouse": "npx lighthouse http://localhost:5174 --view --preset=desktop"
   },
   "dependencies": {
     "@capacitor/app": "^7.0.0",
@@ -68,6 +73,7 @@
     "vite-plugin-pwa": "^0.17.4",
     "vitest": "^4.0.9",
     "wagmi": "^2.19.2",
+    "web-vitals": "^3.5.2",
     "wouter": "^3.0.0",
     "zod": "^3.25.76",
     "zustand": "^4.4.7"
@@ -85,6 +91,8 @@
     "eslint-plugin-react-refresh": "^0.4.5",
     "globby": "^13.2.2",
     "rimraf": "^3.0.2",
+    "rollup-plugin-visualizer": "^5.12.0",
+    "source-map-explorer": "^2.5.3",
     "typescript": "^5.3.3"
   },
   "engines": {

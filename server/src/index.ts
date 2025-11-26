@@ -3,6 +3,12 @@
 /**
  * Fan Club Z Server Entry Point
  * Simple working version for deployment with settlement support
+ * 
+ * [PERF] Performance optimizations:
+ * - compression middleware for response compression
+ * - helmet for security headers
+ * - Static asset caching with immutable headers
+ * - API response caching with ETag support
  */
 
 // CRITICAL: Set DNS to prefer IPv4 first to avoid IPv6 connectivity issues on Render
@@ -18,6 +24,9 @@ if (typeof dns.setDefaultResultOrder === 'function') {
 import express from 'express';
 import http from 'http';
 import cors from 'cors';
+import compression from 'compression';
+import helmet from 'helmet';
+import path from 'path';
 import { config } from './config';
 import { supabase } from './config/database';
 import { db } from './config/database';
@@ -30,13 +39,32 @@ console.log(`🚀 Fan Club Z Server v${VERSION} - CORS FIXED - WITH SETTLEMENT`)
 console.log('📡 Starting server with enhanced CORS support and settlement functionality...');
 console.log('✅ Clubs table references removed - Ready for production');
 
+// [PERF] Enable gzip/brotli compression for all responses
+app.use(compression({
+  // [PERF] Compress responses larger than 1KB
+  threshold: 1024,
+  // [PERF] Don't compress responses with this header
+  filter: (req, res) => {
+    if (req.headers['x-no-compression']) {
+      return false;
+    }
+    return compression.filter(req, res);
+  },
+}));
+
+// [PERF] Security headers via helmet (CSP disabled to avoid breaking inline scripts)
+app.use(helmet({
+  contentSecurityPolicy: false, // Disable CSP - frontend handles this
+  crossOriginEmbedderPolicy: false, // Required for some wallet integrations
+}));
+
 // Enhanced CORS middleware - Allow all origins for now to fix immediate issue
 app.use(cors({
   origin: true, // Allow all origins temporarily
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'Origin', 'X-Requested-With', 'Cache-Control'],
-  exposedHeaders: ['Content-Range', 'X-Content-Range']
+  allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'Origin', 'X-Requested-With', 'Cache-Control', 'If-None-Match'],
+  exposedHeaders: ['Content-Range', 'X-Content-Range', 'ETag']
 }));
 
 // Explicit OPTIONS preflight handler (some hosts require this)
@@ -44,7 +72,7 @@ app.options('*', (req, res) => {
   res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
   res.header('Access-Control-Allow-Credentials', 'true');
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, Accept, Origin, X-Requested-With, Cache-Control');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, Accept, Origin, X-Requested-With, Cache-Control, If-None-Match');
   res.sendStatus(200);
 });
 
@@ -53,7 +81,7 @@ app.use((req, res, next) => {
   res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
   res.header('Access-Control-Allow-Credentials', 'true');
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, Accept, Origin, X-Requested-With, Cache-Control');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, Accept, Origin, X-Requested-With, Cache-Control, If-None-Match');
   
   // Handle preflight requests
   if (req.method === 'OPTIONS') {
@@ -66,6 +94,39 @@ app.use((req, res, next) => {
 
 app.use(express.json());
 
+// [PERF] Static assets with immutable cache headers (1 year)
+// Note: In production, these are typically served by CDN/Vercel, but this helps for direct server access
+app.use('/assets', express.static(path.join(__dirname, '../dist/assets'), {
+  immutable: true,
+  maxAge: '365d',
+  etag: true,
+}));
+
+// [PERF] Helper function to generate ETag from response data
+function generateETag(data: unknown): string {
+  const crypto = require('crypto');
+  const hash = crypto.createHash('md5').update(JSON.stringify(data)).digest('hex');
+  return `"${hash}"`;
+}
+
+// [PERF] Helper function to set cache headers for API responses
+function setCacheHeaders(res: express.Response, maxAge: number = 15, etag?: string) {
+  res.setHeader('Cache-Control', `private, max-age=${maxAge}`);
+  if (etag) {
+    res.setHeader('ETag', etag);
+  }
+}
+
+// [PERF] Helper function to check conditional GET (304 responses)
+function checkConditionalGet(req: express.Request, res: express.Response, etag: string): boolean {
+  const ifNoneMatch = req.headers['if-none-match'];
+  if (ifNoneMatch && ifNoneMatch === etag) {
+    res.status(304).end();
+    return true;
+  }
+  return false;
+}
+
 // Health check endpoint
 app.get('/health', (req, res) => {
   res.status(200).json({
@@ -75,7 +136,8 @@ app.get('/health', (req, res) => {
     environment: config.server.nodeEnv || 'production',
     uptime: process.uptime(),
     cors: 'enabled',
-    settlement: 'enabled'
+    settlement: 'enabled',
+    compression: 'enabled', // [PERF] Added compression indicator
   });
 });
 
@@ -135,6 +197,7 @@ import { chainActivity } from './routes/chain/activity';
 import { healthPayments } from './routes/healthPayments';
 import { healthBase } from './routes/healthBase';
 import { healthApp } from './routes/healthApp';
+import transactionLogRouter from './routes/wallet/transactionLog';
 import { qaCryptoMock } from './routes/qaCryptoMock';
 import { startBaseDepositWatcher } from './chain/base/depositWatcher';
 import { resolveAndValidateAddresses } from './chain/base/addressRegistry';
@@ -161,6 +224,7 @@ app.use('/api/wallet', walletSummary);
 app.use('/api/wallet', walletActivity);
 app.use('/api/wallet', walletReconcile);
 app.use('/api/wallet', walletMaintenance);
+app.use('/api/wallet', transactionLogRouter);
 app.use('/api/chain', chainActivity);
 app.use(healthPayments);
 app.use(healthBase);
@@ -188,6 +252,8 @@ console.log('  - /api/health/base (Base chain health)');
 if (process.env.BASE_DEPOSITS_MOCK === '1') {
   console.log('  - /api/qa/crypto/mock-deposit (QA mock deposits)');
 }
+console.log('[PERF] ✅ Compression enabled');
+console.log('[PERF] ✅ Security headers (helmet) enabled');
 
 // CORS test endpoint
 app.get('/api/v2/test-cors', (req, res) => {
@@ -221,6 +287,9 @@ app.use((error: any, req: express.Request, res: express.Response, next: express.
     version: VERSION
   });
 });
+
+// [PERF] Export helper functions for use in route handlers
+export { generateETag, setCacheHeaders, checkConditionalGet };
 
 // Start server (HTTP + Socket.io)
 const httpServer = http.createServer(app);

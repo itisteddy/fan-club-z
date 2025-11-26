@@ -1,9 +1,16 @@
 import { Router } from 'express';
+import crypto from 'crypto';
 import { supabase } from '../config/database';
 import { VERSION } from '@fanclubz/shared';
 import { reconcileWallet } from '../services/walletReconciliation';
 
 export const walletSummary = Router();
+
+// [PERF] Helper to generate ETag from response data
+function generateETag(data: unknown): string {
+  const hash = crypto.createHash('md5').update(JSON.stringify(data)).digest('hex');
+  return `"${hash}"`;
+}
 
 /**
  * GET /api/wallet/summary?userId=<id>
@@ -11,6 +18,8 @@ export const walletSummary = Router();
  * 
  * NOTE: walletUSDC is NOT returned here - it must come from on-chain data
  * via useUSDCBalance hook (reading ERC20 balanceOf from blockchain)
+ * 
+ * [PERF] Caching: private, max-age=15, ETag support for 304 responses
  * 
  * Response:
  * {
@@ -90,6 +99,19 @@ walletSummary.get('/summary', async (req, res) => {
 
     console.log(`[FCZ-PAY] Wallet summary for ${userId}:`, response);
 
+    // [PERF] Generate ETag and check for conditional GET (304 response)
+    const etag = generateETag(response);
+    const ifNoneMatch = req.headers['if-none-match'];
+    
+    if (ifNoneMatch && ifNoneMatch === etag) {
+      // [PERF] Return 304 Not Modified if ETag matches
+      return res.status(304).end();
+    }
+
+    // [PERF] Set caching headers for wallet summary
+    res.setHeader('Cache-Control', 'private, max-age=15');
+    res.setHeader('ETag', etag);
+
     return res.json(response);
   } catch (error) {
     console.error('[FCZ-PAY] Unhandled error in wallet summary:', error);
@@ -106,4 +128,3 @@ walletSummary.get('/summary', async (req, res) => {
     });
   }
 });
-

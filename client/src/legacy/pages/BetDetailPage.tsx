@@ -5,6 +5,7 @@ import { useWalletStore } from '../store/walletStore';
 import { useAuthStore } from '../store/authStore';
 import CommentSystem from '../components/CommentSystem';
 import { useCommentsForPrediction } from '../store/unifiedCommentStore';
+import { t } from '@/lib/lexicon';
 
 const BetDetailPage: React.FC = () => {
   const [, params] = useRoute('/bet/:id');
@@ -22,9 +23,9 @@ const BetDetailPage: React.FC = () => {
       <div className="page-container">
         <div className="empty-state">
           <div className="empty-state-icon">🔍</div>
-          <h3 className="empty-state-title">Bet Not Found</h3>
+          <h3 className="empty-state-title">Entry Not Found</h3>
           <p className="empty-state-message">
-            The bet you're looking for doesn't exist or has been removed.
+            The prediction entry you're looking for doesn't exist or has been removed.
           </p>
         </div>
       </div>
@@ -143,7 +144,7 @@ const BetDetailPage: React.FC = () => {
             marginBottom: 'calc(env(safe-area-inset-bottom) + 80px)'
           }}
         >
-          {parseFloat(stakeAmount) > balance ? 'Insufficient Balance' : 'Place Bet'}
+          {parseFloat(stakeAmount) > balance ? 'Insufficient Balance' : t('betVerb')}
         </button>
       </div>
 
@@ -181,7 +182,7 @@ const BetDetailPage: React.FC = () => {
       {/* Success Toast */}
       {showSuccessToast && (
         <div className="success-toast">
-          Bet placed successfully! 
+          Stake locked successfully! 
           <button 
             onClick={() => setShowSuccessToast(false)}
             style={{ 

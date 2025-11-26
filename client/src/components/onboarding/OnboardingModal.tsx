@@ -1,6 +1,7 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { CheckCircle, Sparkles, Target, Wallet, Compass, X } from 'lucide-react';
+import { t } from '@/lib/lexicon';
 
 interface OnboardingModalProps {
   isOpen: boolean;
@@ -22,7 +23,7 @@ const steps = [
   },
   {
     id: 'bets',
-    title: 'Track My Bets',
+    title: `Track ${t('myBets')}`,
     icon: <Target className="w-5 h-5" />,
     description: 'See Active, Created and Completed predictions in one place.'
   },

@@ -2,6 +2,7 @@ import React, { useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Home, TrendingUp, Trophy, User, Wallet, Plus } from 'lucide-react';
 import { cn } from '@/utils/cn';
+import { t } from '@/lib/lexicon';
 
 interface NavigationTab {
   id: string;
@@ -28,7 +29,7 @@ const StableBottomNavigation: React.FC<StableBottomNavigationProps> = ({
 }) => {
   const tabs: NavigationTab[] = [
     { id: 'discover', label: 'Discover', icon: Home, path: '/' },
-    { id: 'bets', label: 'My Bets', icon: TrendingUp, path: '/bets', badge: 0 },
+    { id: 'bets', label: t('myBets'), icon: TrendingUp, path: '/bets', badge: 0 },
     { id: 'leaderboard', label: 'Rankings', icon: Trophy, path: '/leaderboard' },
     { id: 'wallet', label: 'Wallet', icon: Wallet, path: '/wallet' },
     { id: 'profile', label: 'Profile', icon: User, path: '/profile' },

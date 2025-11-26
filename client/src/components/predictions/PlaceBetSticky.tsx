@@ -1,5 +1,6 @@
 import React from 'react';
 import { Loader2 } from 'lucide-react';
+import { t } from '@/lib/lexicon';
 
 interface PlaceBetStickyProps {
   visible: boolean;
@@ -18,7 +19,7 @@ export default function PlaceBetSticky({
   onClick,
   disabled = false,
   loading = false,
-  label = 'Place Bet'
+  label = t('betVerb')
 }: PlaceBetStickyProps) {
   if (!visible) return null;
 
@@ -32,7 +33,7 @@ export default function PlaceBetSticky({
           aria-label={label}
         >
           {loading && <Loader2 className="size-5 animate-spin" />}
-          <span>{loading ? 'Placing Bet...' : label}</span>
+          <span>{loading ? `${t('betVerb')}…` : label}</span>
         </button>
       </div>
     </div>

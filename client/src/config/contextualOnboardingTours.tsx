@@ -8,6 +8,7 @@ import {
   Sparkles
 } from 'lucide-react';
 import type { OnboardingStep } from '../components/onboarding/OnboardingSystem';
+import { t } from '@/lib/lexicon';
 
 /**
  * Streamlined Contextual Onboarding Tour
@@ -26,7 +27,7 @@ export const FULL_CONTEXTUAL_TOUR: OnboardingStep[] = [
   {
     id: 'welcome',
     title: 'Welcome to FanClubZ!',
-    description: 'Let\'s show you the essentials in just 5 quick steps. You\'ll learn how to discover predictions, create your own, track bets, and manage your wallet.',
+    description: `Let's show you the essentials in just 5 quick steps. You'll learn how to discover predictions, create your own, track ${t('bets')}, and manage your wallet.`,
     placement: 'center',
     icon: <Sparkles className="w-6 h-6" />,
     action: 'modal',
@@ -37,7 +38,7 @@ export const FULL_CONTEXTUAL_TOUR: OnboardingStep[] = [
   {
     id: 'discover-feed',
     title: 'Discover Predictions',
-    description: 'Browse active predictions here. Each card shows the title, category, pool size, and closing date. Tap any card to place your bet!',
+    description: `Browse active predictions here. Each card shows the title, category, pool size, and closing date. Tap any card to ${t('betVerb').toLowerCase()}!`,
     target: 'discover-list',
     placement: 'top',
     offset: { y: -40 },
@@ -60,8 +61,8 @@ export const FULL_CONTEXTUAL_TOUR: OnboardingStep[] = [
   // Step 4: Track Bets (Navigate to Bets page)
   {
     id: 'navigate-to-bets',
-    title: 'Track Your Bets',
-    description: 'Visit the Bets tab to track all your active predictions, see predictions you\'ve created, and review completed bets.',
+    title: 'Track Your Stakes',
+    description: `Visit the ${t('myBets')} tab to track all your active predictions, see predictions you've created, and review completed ${t('bets')}.`,
     target: 'tab-bets',
     placement: 'top',
     offset: { y: -40 },
@@ -81,7 +82,7 @@ export const FULL_CONTEXTUAL_TOUR: OnboardingStep[] = [
   {
     id: 'navigate-to-wallet',
     title: 'Manage Your Wallet',
-    description: 'Your Wallet is where you add funds, withdraw winnings, and track all transactions. Let\'s check it out!',
+    description: `Your Wallet is where you add funds, withdraw ${t('winnings').toLowerCase()}, and track all transactions. Let's check it out!`,
     target: 'tab-wallet',
     placement: 'top',
     offset: { y: -40 },

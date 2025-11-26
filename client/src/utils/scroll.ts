@@ -37,7 +37,7 @@ class ScrollManager {
     const observer = new MutationObserver(() => {
       const currentUrl = window.location.pathname;
       if (currentUrl !== lastUrl) {
-        console.log(`🔄 Route change detected: ${lastUrl} → ${currentUrl}`);
+        // Route change logging removed - excessive logging issue
         this.handleRouteChange(lastUrl, currentUrl);
         lastUrl = currentUrl;
       }
@@ -50,7 +50,7 @@ class ScrollManager {
 
     // Listen for popstate (browser back/forward)
     window.addEventListener('popstate', () => {
-      console.log('⬅️ Browser navigation detected');
+      // Browser navigation logging removed - excessive logging issue
       this.isNavigating = true;
       setTimeout(() => {
         this.restoreScrollPosition(window.location.pathname);
@@ -98,7 +98,7 @@ class ScrollManager {
         timestamp: Date.now(),
         route: routeKey
       });
-      console.log(`💾 Saved scroll position for ${routeKey}: ${scrollY}px`);
+      // Scroll position logging removed - excessive logging issue
     }
   }
 
@@ -110,19 +110,19 @@ class ScrollManager {
     const context = this.scrollPositions.get(route);
     
     if (!context) {
-      console.log(`📍 No saved scroll position for ${route}`);
+      // Scroll position logging removed - excessive logging issue
       return false;
     }
 
     // Check if the saved position is still valid (within 10 minutes)
     const isRecent = Date.now() - context.timestamp < 10 * 60 * 1000;
     if (!isRecent) {
-      console.log(`⏰ Scroll position for ${route} is too old, ignoring`);
+      // Scroll position logging removed - excessive logging issue
       this.scrollPositions.delete(route);
       return false;
     }
 
-    console.log(`🔄 Restoring scroll position for ${route}: ${context.scrollY}px`);
+    // Scroll position logging removed - excessive logging issue
     
     // Use smooth scrolling with fallback
     this.scrollToPosition(context.scrollY, 'smooth');
@@ -208,7 +208,7 @@ class ScrollManager {
     for (const [route, context] of this.scrollPositions.entries()) {
       if (now - context.timestamp > tenMinutes) {
         this.scrollPositions.delete(route);
-        console.log(`🗑️ Cleared old scroll position for ${route}`);
+        // Scroll cleanup logging removed - excessive logging issue
       }
     }
   }

@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronLeft, Plus, X, Calendar, DollarSign, Users, Settings, Sparkles, Check, Globe, Clock, Shield, CheckCircle } from 'lucide-react';
+import { ChevronLeft, Plus, X, Calendar, DollarSign, Users, Settings, Sparkles, Check, Globe, Clock, Shield, CheckCircle, AlertCircle } from 'lucide-react';
 import { usePredictionStore } from '../store/predictionStore';
 import { useSettlementStore } from '../store/settlementStore';
 import { useAuthStore } from '../store/authStore';
@@ -10,6 +10,7 @@ import { scrollToTop } from '../utils/scroll';
 import { SourcePill } from '../components/settlement/SourcePill';
 import { RulePreview } from '../components/settlement/RulePreview';
 import UnifiedHeader from '../components/layout/UnifiedHeader';
+import { openAuthGate } from '../auth/authGateAdapter';
 
 interface PredictionOption {
   id: string;
@@ -28,11 +29,15 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
   const { user, isAuthenticated } = useAuthStore();
   const [, setLocation] = useLocation();
   
+  // Draft persistence key
+  const DRAFT_KEY = 'fcz_create_prediction_draft';
+  const [hasDraft, setHasDraft] = useState(false);
+
   // Scroll to top when component mounts (UI/UX best practice)
   useEffect(() => {
     scrollToTop({ delay: 200 });
   }, []);
-  
+
   // Use individual state variables instead of one large object to prevent re-renders
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -57,6 +62,96 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
     postponed: 'auto_void' as 'auto_void' | 'extend_lock' | 'keep_open',
     source_down: 'use_backup' as 'use_backup' | 'pause_and_escalate'
   });
+
+  // Check for existing draft on mount
+  useEffect(() => {
+    const draft = sessionStorage.getItem(DRAFT_KEY);
+    if (draft) {
+      setHasDraft(true);
+    }
+  }, []);
+
+  // Restore draft from sessionStorage
+  const restoreDraft = useCallback(() => {
+    const draftStr = sessionStorage.getItem(DRAFT_KEY);
+    if (!draftStr) return false;
+    
+    try {
+      const draft = JSON.parse(draftStr);
+      setTitle(draft.title || '');
+      setDescription(draft.description || '');
+      setCategory(draft.category || '');
+      setType(draft.type || 'binary');
+      setOptions(draft.options || [{ id: '1', label: 'Yes' }, { id: '2', label: 'No' }]);
+      setEntryDeadline(draft.entryDeadline || '');
+      setStakeMin(draft.stakeMin || '1');
+      setStakeMax(draft.stakeMax || '1000');
+      setSettlementMethod(draft.settlementMethod || 'manual');
+      setIsPrivate(draft.isPrivate || false);
+      setPrimarySource(draft.primarySource || null);
+      setBackupSource(draft.backupSource || null);
+      setRuleText(draft.ruleText || '');
+      setTimezone(draft.timezone || 'Africa/Lagos');
+      setContingencies(draft.contingencies || {
+        postponed: 'auto_void',
+        source_down: 'use_backup'
+      });
+      if (draft.step) setStep(draft.step);
+      return true;
+    } catch (error) {
+      console.error('Failed to restore draft:', error);
+      return false;
+    }
+  }, []);
+
+  // Save draft to sessionStorage
+  const saveDraft = useCallback(() => {
+    const draft = {
+      title,
+      description,
+      category,
+      type,
+      options,
+      entryDeadline,
+      stakeMin,
+      stakeMax,
+      settlementMethod,
+      isPrivate,
+      primarySource,
+      backupSource,
+      ruleText,
+      timezone,
+      contingencies,
+      step
+    };
+    sessionStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+    setHasDraft(true);
+  }, [title, description, category, type, options, entryDeadline, stakeMin, stakeMax, settlementMethod, isPrivate, primarySource, backupSource, ruleText, timezone, contingencies, step]);
+
+  // Discard draft
+  const discardDraft = useCallback(() => {
+    sessionStorage.removeItem(DRAFT_KEY);
+    setHasDraft(false);
+  }, []);
+
+  // Auto-resume draft after successful auth
+  useEffect(() => {
+    if (isAuthenticated && user && hasDraft) {
+      const draftStr = sessionStorage.getItem(DRAFT_KEY);
+      if (draftStr) {
+        // Small delay to ensure auth state is fully settled
+        const timer = setTimeout(() => {
+          const restored = restoreDraft();
+          if (restored) {
+            toast.success('Draft restored! You can continue creating your prediction.');
+            // If we were on step 4, the user can now submit manually
+            // The form will be pre-filled and ready
+          }
+        }, 300);
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [isAuthenticated, user, hasDraft, restoreDraft]);
 
   const categories = [
     { id: 'sports', label: 'Sports', icon: '⚽', gradient: 'from-orange-500 to-red-500' },
@@ -158,9 +253,29 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
         throw new Error('Entry deadline must be in the future');
       }
 
-      // Check authentication
+      // Check authentication - if not authenticated, save draft and open auth gate
       if (!isAuthenticated || !user?.id) {
-        throw new Error('You must be logged in to create predictions');
+        // Save draft to sessionStorage
+        saveDraft();
+        
+        // Open auth gate
+        const result = await openAuthGate({
+          intent: 'create_prediction',
+          payload: { step: 4 }
+        });
+        
+        if (result.status === 'success') {
+          // Auth successful - draft will be restored by useEffect above
+          // and form will auto-submit if on step 4
+          return;
+        } else {
+          // User cancelled or error - don't proceed
+          setIsSubmitting(false);
+          if (result.status === 'cancel') {
+            toast('Sign in cancelled. Your draft has been saved.');
+          }
+          return;
+        }
       }
 
       // Prepare prediction data
@@ -216,6 +331,10 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
         }
       }
       
+      // Clear draft after successful submission
+      sessionStorage.removeItem(DRAFT_KEY);
+      setHasDraft(false);
+      
       toast.success('🎉 Prediction created successfully!');
       setSubmitSuccess(true);
       
@@ -255,7 +374,7 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
       toast.error(errorMessage);
       setIsSubmitting(false);
     }
-  }, [validateStep, title, category, entryDeadline, description, type, options, stakeMin, stakeMax, settlementMethod, isPrivate, createPrediction, onNavigateBack, setLocation]);
+  }, [validateStep, title, category, entryDeadline, description, type, options, stakeMin, stakeMax, settlementMethod, isPrivate, isAuthenticated, user, createPrediction, onNavigateBack, setLocation, saveDraft]);
 
   // Success View
   if (submitSuccess) {
@@ -307,6 +426,39 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
           />
         </div>
       </div>
+
+      {/* Resume Draft Banner */}
+      {hasDraft && !isAuthenticated && (
+        <div className="px-6 pt-4 pb-2">
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-center justify-between gap-4"
+          >
+            <div className="flex items-center gap-3 flex-1">
+              <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0" />
+              <div>
+                <p className="text-sm font-medium text-amber-900">Resume draft?</p>
+                <p className="text-xs text-amber-700">You have a saved draft from a previous session.</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={restoreDraft}
+                className="px-4 py-2 text-sm font-semibold text-amber-900 bg-amber-100 rounded-lg hover:bg-amber-200 transition-colors"
+              >
+                Resume
+              </button>
+              <button
+                onClick={discardDraft}
+                className="px-4 py-2 text-sm font-medium text-amber-700 hover:text-amber-900 transition-colors"
+              >
+                Discard
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
 
       {/* Content */}
       <div className="px-6 -mt-4 pb-8 relative z-20">

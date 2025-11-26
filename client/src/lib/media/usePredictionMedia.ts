@@ -1,6 +1,6 @@
 // Simplified media hook using direct Unsplash/Pexels calls with smart query building
-import { useEffect, useState } from 'react';
-import { buildImageQuery } from '@/lib/media/buildQuery';
+import { useEffect, useState, useRef } from 'react';
+import { buildImageQuery, type SemanticImageContext } from '@/lib/media/buildQuery';
 import { createClient } from '@supabase/supabase-js';
 
 const UNSPLASH_KEY = import.meta.env.VITE_MEDIA_UNSPLASH_KEY;
@@ -25,7 +25,13 @@ type MediaResult = {
   status: 'loading' | 'ready' | 'error';
 };
 
-const memory = new Map<string, string | null>();
+type PredictionMedia = SemanticImageContext & {
+  id: string;
+  entryDeadline?: string | null;
+};
+
+// Global memory cache - persists across component instances
+const memory = new Map<string, string>();
 
 // Fallback images by category
 const FALLBACKS: Record<string, string[]> = {
@@ -162,128 +168,125 @@ function getFallback(id: string, category?: string): string {
   return pool[index] ?? pool[0] ?? 'https://images.unsplash.com/photo-1500530855697-b586d89ba3ee';
 }
 
-export function usePredictionMedia(prediction?: {
-  id: string;
-  title: string;
-  category?: string;
-}): MediaResult {
-  // Initialize by checking memory cache first to avoid image switching
-  const [url, setUrl] = useState<string | null>(() => {
-    if (!prediction) return getFallback('', 'general');
-    // Check memory cache synchronously first - this prevents any image switching
-    if (memory.has(prediction.id)) {
-      const cached = memory.get(prediction.id);
-      if (cached) return cached; // Use cached image immediately
-    }
-    // Use deterministic fallback - same ID always gets same fallback
-    return getFallback(prediction.id, prediction.category);
-  });
-  const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
-  const [imageLocked, setImageLocked] = useState(false); // Lock image once displayed
+/**
+ * Get the URL for a prediction, checking cache first.
+ * This is the source of truth for image URLs.
+ */
+function getImageUrl(id: string, category?: string): string {
+  // Memory cache is the source of truth
+  const cached = memory.get(id);
+  if (cached) return cached;
+  
+  // Return deterministic fallback
+  return getFallback(id, category);
+}
+
+export function usePredictionMedia(prediction?: PredictionMedia): MediaResult {
+  const predictionId = prediction?.id || '';
+  const category = prediction?.category;
+  
+  // Track if we've started fetching to avoid duplicate requests
+  const fetchingRef = useRef<string | null>(null);
+  
+  // Get initial URL from cache or fallback - this is synchronous and deterministic
+  const initialUrl = getImageUrl(predictionId, category);
+  
+  const [url, setUrl] = useState<string>(initialUrl);
+  const [status, setStatus] = useState<'loading' | 'ready' | 'error'>(
+    memory.has(predictionId) ? 'ready' : 'loading'
+  );
 
   useEffect(() => {
-    let cancelled = false;
-    
-    // Return early if prediction is undefined
-    if (!prediction) {
+    // If no prediction, use fallback and mark ready
+    if (!prediction || !prediction.id) {
       setUrl(getFallback('', 'general'));
       setStatus('ready');
-      setImageLocked(true);
       return;
     }
     
     const { id, title, category } = prediction;
     
-    if (!id || !title) {
-      setUrl(getFallback(id, category));
+    // If already in memory cache, just use it
+    if (memory.has(id)) {
+      const cached = memory.get(id)!;
+      setUrl(cached);
       setStatus('ready');
-      setImageLocked(true);
       return;
     }
-
-    // Lock the image after a short delay to prevent switching once displayed
-    const lockTimer = setTimeout(() => {
-      setImageLocked(true);
-    }, 100);
+    
+    // If we're already fetching this ID, don't start another fetch
+    if (fetchingRef.current === id) {
+      return;
+    }
+    
+    // Mark as fetching
+    fetchingRef.current = id;
+    
+    let cancelled = false;
 
     (async () => {
-      // 1) Memory cache (already checked in useState, but double-check)
-      if (memory.has(id)) {
-        const cached = memory.get(id);
-        if (!cancelled && cached && !imageLocked && cached !== url) {
-          setUrl(cached);
-          setStatus('ready');
-        } else if (!cancelled) {
-          setStatus('ready');
-        }
-        return;
-      }
-
-      // 2) DB cache - only update if image not locked
+      // 1) Check DB cache first
       const dbUrl = await getCached(id);
+      
       if (cancelled) return;
       
-      if (dbUrl && !imageLocked) {
+      if (dbUrl) {
+        // Store in memory and update
         memory.set(id, dbUrl);
-        // Only update if we don't have a real image yet (still showing fallback)
-        const currentIsFallback = !url || url.includes('photo-1500530855697-b586d89ba3ee') || url.includes('photo-');
-        if (currentIsFallback && dbUrl !== url) {
-          setUrl(dbUrl);
-        }
+        setUrl(dbUrl);
         setStatus('ready');
-        return;
-      } else if (dbUrl) {
-        // Cache found but image locked - just store in memory for next time
-        memory.set(id, dbUrl);
-        setStatus('ready');
+        fetchingRef.current = null;
         return;
       }
 
-      // 3) Build smart query & search (only if no cache found AND image not locked)
-      if (imageLocked) {
+      // 2) No cache - build query and search
+      if (!title) {
         setStatus('ready');
+        fetchingRef.current = null;
         return;
       }
 
-      const query = buildImageQuery(title, category);
+      const query = buildImageQuery({
+        title,
+        category,
+        description: prediction.description ?? prediction.question ?? '',
+        question: prediction.question,
+        tags: prediction.tags,
+        options: prediction.options,
+        entry_deadline: prediction.entry_deadline ?? prediction.entryDeadline ?? null,
+        keywords: prediction.keywords,
+        attributes: prediction.attributes,
+        identity: prediction.identity,
+        popularity: prediction.popularity,
+      });
       
-      // Try Unsplash first, then Pexels
-      let fetched = await searchUnsplash(query);
-      if (!fetched) fetched = await searchPexels(query);
+      // Try Pexels first (primary), then Unsplash as backup
+      let fetched = await searchPexels(query);
+      if (!fetched) fetched = await searchUnsplash(query);
       
       if (cancelled) return;
 
-      // 4) Store & set - only update if we got a fetched image AND image not locked
-      // AND we're still showing a fallback (not a real image)
-      if (fetched && !imageLocked) {
-        const currentIsFallback = !url || url.includes('photo-1500530855697-b586d89ba3ee');
-        if (currentIsFallback && fetched !== url) {
-          memory.set(id, fetched);
-          setUrl(fetched);
-        } else {
-          // Store in memory for next time even if we don't update
-          memory.set(id, fetched);
-        }
-      } else if (fetched) {
-        // Store in memory for next time even if image is locked
+      // 3) Store result
+      if (fetched) {
         memory.set(id, fetched);
+        setUrl(fetched);
+        // Cache in DB (don't await)
+        setCached(id, fetched, query);
       }
-      setStatus('ready');
       
-      // Cache in background (don't await)
-      setCached(id, fetched, query);
+      setStatus('ready');
+      fetchingRef.current = null;
     })();
 
     return () => { 
       cancelled = true;
-      clearTimeout(lockTimer);
     };
-  }, [prediction?.id, prediction?.title, prediction?.category]);
+  }, [predictionId]); // Only re-run when prediction ID changes
 
   return {
-    url: url || getFallback(prediction?.id || '', prediction?.category),
+    url: url || getFallback(predictionId, category),
     alt: prediction?.title || '',
-    provider: url ? 'api' : 'fallback',
+    provider: memory.has(predictionId) ? 'api' : 'fallback',
     status,
   };
 }

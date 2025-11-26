@@ -1,5 +1,6 @@
 import React from 'react';
 import { LogIn } from 'lucide-react';
+import { t } from '@/lib/lexicon';
 
 interface SignInCalloutProps {
   onSignIn: () => void;
@@ -13,8 +14,8 @@ interface SignInCalloutProps {
  */
 export default function SignInCallout({ 
   onSignIn,
-  title = 'Sign in to place a bet',
-  description = 'Create an account or sign in to participate.'
+  title = `Sign in to ${t('betVerb').toLowerCase()}`,
+  description = `Create an account or sign in to ${t('bet')}.`
 }: SignInCalloutProps) {
   return (
     <div className="rounded-2xl border shadow-sm bg-white p-4 flex items-center justify-between gap-3">

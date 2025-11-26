@@ -434,6 +434,12 @@ export const EnhancedOnboardingSystem: React.FC<EnhancedOnboardingSystemProps> =
     };
 
     const updateTargetPosition = () => {
+      if (!step?.target) {
+        setTargetElement(null);
+        setTargetRect(null);
+        return;
+      }
+
       const element = selectTourElement(step.target);
       if (element) {
         const rect = element.getBoundingClientRect();

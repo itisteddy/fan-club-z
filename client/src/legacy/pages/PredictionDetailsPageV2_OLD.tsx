@@ -101,14 +101,66 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
     return predictions.find(p => p.id === predictionId) || null;
   }, [predictions, predictionId]);
 
+  const mediaMetadata = useMemo(() => {
+    if (!prediction) return undefined;
+
+    const baseKeywords = [
+      prediction.category,
+      prediction.status,
+      prediction.creator?.username ?? undefined,
+      prediction.creator?.full_name ?? undefined,
+    ].filter((value): value is string => Boolean(value));
+
+    const attributeHints = [
+      prediction.settlement_method,
+      prediction.creator?.is_verified ? 'verified creator' : undefined,
+    ].filter((value): value is string => Boolean(value));
+
+    const poolTotal =
+      typeof prediction.pool_total === 'number'
+        ? prediction.pool_total
+        : typeof prediction.pool_total === 'string'
+          ? Number(prediction.pool_total)
+          : null;
+
+    const participantCount =
+      typeof prediction.participant_count === 'number'
+        ? prediction.participant_count
+        : typeof prediction.participants === 'number'
+          ? prediction.participants
+          : null;
+
+    return {
+      id: prediction.id,
+      title: prediction.title,
+      description: prediction.description ?? prediction.question ?? '',
+      question: prediction.question ?? undefined,
+      category: prediction.category,
+      options: prediction.options?.map(option => ({
+        label: option?.label ?? option?.title ?? option?.text ?? '',
+      })),
+      keywords: baseKeywords,
+      attributes: attributeHints,
+      tags: baseKeywords,
+      identity: {
+        creator: prediction.creator?.full_name || prediction.creator?.username || null,
+        community: prediction.creator?.username
+          ? `${prediction.creator.username} community`
+          : null,
+        personas: attributeHints,
+      },
+      popularity: {
+        pool: poolTotal,
+        players: participantCount,
+        comments: typeof prediction.comments === 'number' ? prediction.comments : null,
+      },
+    };
+  }, [prediction]);
+
   // Use the unified media system for consistent, relevant images (after prediction is defined)
   const { media, status: mediaStatus } = useMedia(
     prediction?.id || '', 
-    prediction ? { 
-      id: prediction.id, 
-      title: prediction.title, 
-      category: prediction.category 
-    } : undefined
+    mediaMetadata
   );
 
   // Log for debugging consistency (as requested in acceptance criteria)

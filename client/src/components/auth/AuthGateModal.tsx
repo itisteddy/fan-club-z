@@ -184,8 +184,9 @@ const AuthGateModal: React.FC = () => {
               ref={firstButtonRef}
               onClick={handleGoogleSignIn}
               disabled={isOffline}
-              className="w-full flex items-center justify-center gap-3 bg-emerald-500 hover:bg-emerald-600 disabled:bg-gray-300 text-white py-4 px-6 rounded-xl font-semibold transition-colors disabled:cursor-not-allowed shadow-lg"
+              className="w-full flex items-center justify-center gap-3 bg-emerald-500 hover:bg-emerald-600 disabled:bg-gray-300 text-white py-4 px-6 rounded-xl font-semibold transition-colors disabled:cursor-not-allowed shadow-lg relative group"
               data-qa="auth-gate-google"
+              title="You'll sign in with Google to FanClubZ"
             >
               <Chrome className="w-5 h-5" />
               {displayMeta.primaryCta}
@@ -226,7 +227,7 @@ const AuthGateModal: React.FC = () => {
          {/* Footer */}
          <div className="px-6 pb-6">
            <p className="text-xs text-gray-500 text-center">
-             By continuing, you agree to our Terms of Service and Privacy Policy.
+             By continuing, you agree to FanClubZ's Terms of Service and Privacy Policy.
            </p>
          </div>
        </div>

@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OAuth Debug Test</title>
+    <style>
+        body {
+            font-family: 'Courier New', monospace;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #1a1a1a;
+            color: #00ff00;
+        }
+        .box {
+            border: 2px solid #00ff00;
+            padding: 20px;
+            margin: 20px 0;
+            background: #0a0a0a;
+        }
+        .error { color: #ff0000; }
+        .success { color: #00ff00; }
+        .warning { color: #ffff00; }
+        h1, h2 { color: #00ff00; border-bottom: 2px solid #00ff00; padding-bottom: 10px; }
+        code { background: #2a2a2a; padding: 2px 6px; }
+    </style>
+</head>
+<body>
+    <h1>🔍 OAuth Redirect Debug Test</h1>
+    
+    <div class="box">
+        <h2>Current Location</h2>
+        <div id="location"></div>
+    </div>
+
+    <div class="box">
+        <h2>Environment Variables (from import.meta.env)</h2>
+        <div id="env-vars"></div>
+    </div>
+
+    <div class="box">
+        <h2>Expected OAuth Redirect URL</h2>
+        <div id="redirect-url"></div>
+    </div>
+
+    <div class="box">
+        <h2>Diagnostic Status</h2>
+        <div id="status"></div>
+    </div>
+
+    <script type="module">
+        // Display location info
+        document.getElementById('location').innerHTML = `
+            <strong>hostname:</strong> <code>${window.location.hostname}</code><br>
+            <strong>origin:</strong> <code>${window.location.origin}</code><br>
+            <strong>href:</strong> <code>${window.location.href}</code>
+        `;
+
+        // Display environment variables
+        const envVars = import.meta.env;
+        let envHtml = '';
+        
+        const importantVars = [
+            'VITE_APP_URL',
+            'VITE_API_URL',
+            'VITE_AUTH_REDIRECT_URL',
+            'MODE',
+            'DEV',
+            'PROD'
+        ];
+
+        importantVars.forEach(key => {
+            const value = envVars[key];
+            const valueStr = value === undefined ? '<span class="error">UNDEFINED</span>' : 
+                             value === true ? '<span class="success">true</span>' :
+                             value === false ? '<span class="warning">false</span>' :
+                             `<code>${value}</code>`;
+            envHtml += `<strong>${key}:</strong> ${valueStr}<br>`;
+        });
+
+        document.getElementById('env-vars').innerHTML = envHtml;
+
+        // Calculate expected redirect URL
+        const isLocalDev = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+        const expectedUrl = isLocalDev 
+            ? `${window.location.origin}/auth/callback`
+            : 'https://app.fanclubz.app/auth/callback';
+
+        const redirectClass = isLocalDev ? 'success' : 'warning';
+        document.getElementById('redirect-url').innerHTML = `
+            <strong>isLocalDev:</strong> <span class="${redirectClass}">${isLocalDev}</span><br>
+            <strong>Should redirect to:</strong> <span class="${redirectClass}"><code>${expectedUrl}</code></span>
+        `;
+
+        // Overall status
+        let status = '';
+        let hasErrors = false;
+
+        if (!isLocalDev) {
+            status += '<p class="error">❌ Not running on localhost - you are on production!</p>';
+            hasErrors = true;
+        } else {
+            status += '<p class="success">✅ Running on localhost</p>';
+        }
+
+        if (envVars.DEV !== true) {
+            status += '<p class="error">❌ DEV is not true - cache issue or wrong build mode</p>';
+            hasErrors = true;
+        } else {
+            status += '<p class="success">✅ DEV mode is enabled</p>';
+        }
+
+        if (envVars.PROD !== false) {
+            status += '<p class="error">❌ PROD is not false - cache issue or wrong build mode</p>';
+            hasErrors = true;
+        } else {
+            status += '<p class="success">✅ PROD mode is disabled</p>';
+        }
+
+        if (envVars.VITE_APP_URL && !envVars.VITE_APP_URL.includes('localhost')) {
+            status += '<p class="error">❌ VITE_APP_URL is not localhost - check .env.local</p>';
+            hasErrors = true;
+        } else if (envVars.VITE_APP_URL && envVars.VITE_APP_URL.includes('localhost')) {
+            status += '<p class="success">✅ VITE_APP_URL points to localhost</p>';
+        }
+
+        if (!hasErrors) {
+            status += '<br><h3 class="success">🎉 ALL CHECKS PASSED!</h3>';
+            status += '<p>OAuth should redirect to localhost. If it still doesn\'t work, check Supabase dashboard "Site URL" setting.</p>';
+        } else {
+            status += '<br><h3 class="error">⚠️  ERRORS DETECTED!</h3>';
+            status += '<p>Run the nuclear-cache-clear.sh script and restart your dev server.</p>';
+        }
+
+        document.getElementById('status').innerHTML = status;
+
+        // Also log to console
+        console.log('═══════════════════════════════════════');
+        console.log('🔍 OAUTH DEBUG TEST PAGE');
+        console.log('═══════════════════════════════════════');
+        console.log('Location:', window.location.hostname);
+        console.log('isLocalDev:', isLocalDev);
+        console.log('Expected redirect:', expectedUrl);
+        console.log('Environment:', envVars);
+        console.log('═══════════════════════════════════════');
+    </script>
+</body>
+</html>

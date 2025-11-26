@@ -63,8 +63,9 @@ export function useStableImage({
       return;
     }
 
-    // Check if images are enabled globally
-    const imagesEnabled = import.meta.env.VITE_IMAGES_FEATURE_FLAG === 'true';
+    // CRITICAL FIX: Images should be enabled by default
+    // Only disable if explicitly set to 'false'
+    const imagesEnabled = import.meta.env.VITE_IMAGES_FEATURE_FLAG !== 'false';
     if (!imagesEnabled) {
       setUsedFallback(true);
       setProvider('none');
@@ -173,8 +174,9 @@ export function useStableImage({
           take: '1'
         });
 
+        // PERFORMANCE FIX: Reduced timeout to prevent hanging
         const response = await fetch(`${API_BASE}/images?${params}`, {
-          signal: AbortSignal.timeout(10000) // 10 second timeout
+          signal: AbortSignal.timeout(5000) // 5 second timeout (reduced from 10s)
         });
 
         if (!response.ok) {
@@ -200,6 +202,8 @@ export function useStableImage({
     };
   }, [prediction, enabled]);
 
+  // CRITICAL FIX: Fetch images immediately - don't delay with idle callback
+  // Images are essential for UX and should load as soon as possible
   useEffect(() => {
     fetchStableImage();
   }, [fetchStableImage]);

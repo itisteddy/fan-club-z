@@ -1,4 +1,6 @@
-import { usePredictionMedia } from '@/lib/media/usePredictionMedia';
+import type { PredictionMediaInput } from '@/lib/media';
+import { useStableImage } from '@/features/images/StableImageProvider';
+import type { Prediction } from '@/features/images/useAutoImage';
 
 export type MediaItem = {
   id: string;
@@ -12,36 +14,57 @@ type Status = 'idle' | 'loading' | 'ready' | 'error';
 // For backwards compatibility with existing code
 export function useMedia(
   id: string,
-  prediction?: {
-    id: string;
-    title: string;
-    description?: string;
-    category?: string;
-  }
+  prediction?: PredictionMediaInput
 ) {
-  // Always call the underlying hook to preserve hooks order across renders.
-  // When prediction is undefined, fall back to a safe placeholder object.
-  const safePrediction = prediction ?? {
+  // Normalize input so we always have a stable prediction object
+  const safePrediction: PredictionMediaInput = prediction ?? {
     id: id || '',
     title: '',
-    category: undefined as string | undefined,
+    category: undefined,
   };
 
-  // Use the new hook with a safe prediction object
-  const result = usePredictionMedia(safePrediction);
-
-  // Transform to legacy format
-  const media: MediaItem = {
+  // Map the semantic media input into the stable image prediction shape
+  const stablePrediction: Prediction = {
     id: safePrediction.id,
-    url: result.url,
-    alt: result.alt,
-    provider: result.provider,
+    title: safePrediction.title || safePrediction.question || 'Prediction',
+    category: safePrediction.category,
+    description:
+      safePrediction.description ??
+      safePrediction.question ??
+      '',
   };
 
-  return {
-    media,
-    status: result.status as Status,
+  // Use the stable image pipeline backed by /api/images + IndexedDB cache.
+  // This guarantees:
+  // - Deterministic image selection per prediction (seeded)
+  // - Pexels primary, Unsplash fallback
+  // - No image "flapping" across reloads
+  const {
+    image,
+    loading,
+    error,
+    usedFallback,
+  } = useStableImage({
+    prediction: stablePrediction,
+    enabled: true,
+  });
+
+  const media: MediaItem = {
+    id: stablePrediction.id,
+    url: image?.url ?? '',
+    alt: image
+      ? `Image related to: ${stablePrediction.title}`
+      : stablePrediction.title,
+    provider: image?.provider ?? (usedFallback ? 'fallback' : 'none'),
   };
+
+  let status: Status;
+  if (loading && !image) status = 'loading';
+  else if (image) status = 'ready';
+  else if (error) status = 'error';
+  else status = 'idle';
+
+  return { media, status };
 }
 
 // Legacy prefetch - now a no-op since we have caching

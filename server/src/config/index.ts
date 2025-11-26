@@ -1,9 +1,12 @@
 import dotenv from 'dotenv';
 import path from 'path';
 
-// Load environment variables
-dotenv.config({ path: path.join(__dirname, '../../../.env.local') });
-dotenv.config({ path: path.join(__dirname, '../../../.env') });
+// Load environment variables from multiple locations
+// Priority: server/.env > root/.env.local > root/.env
+dotenv.config({ path: path.join(__dirname, '../../.env') }); // server/.env (when running from src)
+dotenv.config({ path: path.join(__dirname, '../.env') }); // server/.env (when running from dist)
+dotenv.config({ path: path.join(__dirname, '../../../.env.local') }); // root/.env.local
+dotenv.config({ path: path.join(__dirname, '../../../.env') }); // root/.env
 
 export const config = {
   // Server Configuration

@@ -16,7 +16,11 @@ export type ActivityKind =
   | 'unlock'
   | 'bet_refund'
   | 'creator_fee'
-  | 'platform_fee';
+  | 'platform_fee'
+  | 'settlement'
+  | 'win'
+  | 'loss'
+  | 'bet_placed';
 
 export interface ActivityItem {
   id: string;
@@ -54,6 +58,10 @@ export const ACTIVITY_ICONS: Record<ActivityKind, string> = {
   bet_refund: 'Undo',
   creator_fee: 'PiggyBank',
   platform_fee: 'Building',
+  settlement: 'CheckCircle',
+  win: 'Trophy',
+  loss: 'XCircle',
+  bet_placed: 'Target',
 };
 
 /**
@@ -71,22 +79,29 @@ export const ACTIVITY_LABELS: Record<ActivityKind, string> = {
   bet_refund: 'Bet Refunded',
   creator_fee: 'Creator Fee',
   platform_fee: 'Platform Fee',
+  settlement: 'Settlement Posted',
+  win: 'Won',
+  loss: 'Lost',
+  bet_placed: 'Bet Placed',
 };
 
 /**
  * Normalize wallet transaction to ActivityItem
  */
 export function normalizeWalletTransaction(tx: any): ActivityItem {
-  const kind = mapTransactionTypeToKind(tx.type, tx.channel, tx.direction);
+  // If the backend already set `kind`, trust it; otherwise derive from type/channel/direction
+  const kind: ActivityKind = isValidActivityKind(tx.kind)
+    ? tx.kind
+    : mapTransactionTypeToKind(tx.type, tx.channel, tx.direction);
   
   return {
     id: tx.id,
     kind,
-    amountUSD: Math.abs(Number(tx.amount || 0)),
-    txHash: tx.meta?.txHash || tx.external_ref?.split(':')[0],
-    createdAt: tx.created_at || tx.timestamp,
+    amountUSD: Math.abs(Number(tx.amount || tx.amountUSD || 0)),
+    txHash: tx.txHash || tx.meta?.txHash || tx.external_ref?.split(':')[0],
+    createdAt: tx.createdAt || tx.created_at || tx.timestamp,
     meta: {
-      predictionId: tx.prediction_id,
+      predictionId: tx.prediction_id || tx.meta?.prediction_id,
       predictionTitle: tx.meta?.prediction_title || tx.description,
       optionId: tx.meta?.option_id,
       optionLabel: tx.meta?.option_label,
@@ -99,6 +114,18 @@ export function normalizeWalletTransaction(tx: any): ActivityItem {
       ...tx.meta,
     },
   };
+}
+
+/**
+ * Check if a string is a valid ActivityKind
+ */
+function isValidActivityKind(kind: any): kind is ActivityKind {
+  const validKinds: ActivityKind[] = [
+    'deposit', 'withdraw', 'lock', 'release', 'entry', 'claim', 'payout',
+    'unlock', 'bet_refund', 'creator_fee', 'platform_fee', 'settlement',
+    'win', 'loss', 'bet_placed'
+  ];
+  return typeof kind === 'string' && validKinds.includes(kind as ActivityKind);
 }
 
 /**
@@ -157,11 +184,22 @@ function mapTransactionTypeToKind(
   channel?: string,
   direction?: string
 ): ActivityKind {
+  // Win/Loss from settlement
+  if (type === 'win' || channel === 'payout') {
+    return 'win';
+  }
+  if (type === 'loss' || channel === 'settlement_loss') {
+    return 'loss';
+  }
+
   // Deposits
   if (type === 'credit' && channel === 'escrow_deposit') {
     return 'deposit';
   }
   if (type === 'credit' && channel === 'crypto') {
+    return 'deposit';
+  }
+  if (type === 'deposit' || channel === 'blockchain_deposit') {
     return 'deposit';
   }
 
@@ -172,18 +210,24 @@ function mapTransactionTypeToKind(
   if (type === 'debit' && channel === 'crypto') {
     return 'withdraw';
   }
+  if (type === 'withdraw' || channel === 'blockchain_withdraw') {
+    return 'withdraw';
+  }
 
-  if (type === 'unlock') {
+  if (type === 'unlock' || channel === 'escrow_unlock') {
     return 'unlock';
   }
 
   // Locks
-  if (type === 'bet_lock' || channel === 'escrow_consumed') {
+  if (type === 'bet_lock' || channel === 'escrow_consumed' || channel === 'blockchain_bet_lock') {
+    return 'lock';
+  }
+  if (channel === 'escrow_locked') {
     return 'lock';
   }
 
   // Releases
-  if (type === 'bet_release' || channel === 'escrow_release') {
+  if (type === 'bet_release' || channel === 'escrow_release' || channel === 'escrow_released' || channel === 'blockchain_bet_release') {
     return 'release';
   }
 
@@ -196,20 +240,25 @@ function mapTransactionTypeToKind(
     return 'bet_refund';
   }
 
-  if (type === 'creator_fee') {
+  if (type === 'settlement' || channel === 'blockchain_settlement') {
+    return 'settlement';
+  }
+
+  // Creator fee
+  if (type === 'creator_fee' || channel === 'creator_fee' || channel === 'blockchain_fee') {
     return 'creator_fee';
   }
 
-  if (type === 'platform_fee') {
+  if (type === 'platform_fee' || channel === 'platform_fee') {
     return 'platform_fee';
   }
 
   // Claims
-  if (type === 'claim' || channel === 'settlement_claim') {
+  if (type === 'claim' || channel === 'settlement_claim' || channel === 'blockchain_claim') {
     return 'claim';
   }
 
-  // Payouts
+  // Payouts (different from win - this is generic payout)
   if (type === 'payout' || channel === 'settlement_payout') {
     return 'payout';
   }

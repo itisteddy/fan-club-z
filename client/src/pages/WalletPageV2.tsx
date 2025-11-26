@@ -1,10 +1,12 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { Plus, Download, DollarSign, TrendingUp, CreditCard, User, Wallet, ArrowRightLeft, Copy, ExternalLink, X, Target, Clock, Receipt, Lock, Unlock, ArrowUpRight, XCircle } from 'lucide-react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { Plus, Download, DollarSign, TrendingUp, CreditCard, User, Wallet, ArrowRightLeft, Copy, ExternalLink, X, Target, Clock, Receipt, Lock, Unlock, ArrowUpRight, XCircle, Trophy, Gift } from 'lucide-react';
 import { useAccount, useDisconnect, useSwitchChain } from 'wagmi';
+import { useStableWalletConnection } from '@/hooks/useStableWalletConnection';
 import { baseSepolia } from 'wagmi/chains';
 import { useQueryClient } from '@tanstack/react-query';
 import { formatTimeAgo } from '@/lib/format';
 import { useAuthStore } from '../store/authStore';
+import { useShallow } from 'zustand/react/shallow';
 import { useAuthSession } from '../providers/AuthSessionProvider';
 import { openAuthGate } from '../auth/authGateAdapter';
 import AppHeader from '../components/layout/AppHeader';
@@ -21,6 +23,9 @@ import { useUnifiedBalance } from '../hooks/useUnifiedBalance';
 import { useWalletActivity, type WalletActivityItem } from '../hooks/useWalletActivity';
 import { useAutoNetworkSwitch } from '../hooks/useAutoNetworkSwitch';
 import { QK } from '@/lib/queryKeys';
+import { t } from '@/lib/lexicon';
+import { useWeb3Recovery } from '@/providers/Web3Provider';
+import { computeWalletStatus } from '@/utils/walletStatus';
 
 interface WalletPageV2Props {
   onNavigateBack?: () => void;
@@ -28,7 +33,12 @@ interface WalletPageV2Props {
 
 const WalletPageV2: React.FC<WalletPageV2Props> = ({ onNavigateBack }) => {
   const { user: sessionUser } = useAuthSession();
-  const { user: storeUser, isAuthenticated: storeAuth } = useAuthStore();
+  const { user: storeUser, isAuthenticated: storeAuth } = useAuthStore(
+    useShallow((state) => ({
+      user: state.user,
+      isAuthenticated: state.isAuthenticated,
+    })),
+  );
   const [loading, setLoading] = useState(true);
   
   // Auto-switch to Base Sepolia when connected on wrong network
@@ -38,14 +48,36 @@ const WalletPageV2: React.FC<WalletPageV2Props> = ({ onNavigateBack }) => {
   const user = sessionUser || storeUser;
   const authenticated = !!sessionUser || storeAuth;
   
-  // Wallet connection
+  // Wallet connection - use stable hook to prevent flicker during page transitions
   const queryClient = useQueryClient();
-  const { address, isConnected, chainId, status } = useAccount();
+  const { address: rawAddress, isConnected: rawIsConnected, chainId: rawChainId, status: rawStatus } = useAccount();
+  const { 
+    isEffectivelyConnected, 
+    isTransitioning, 
+    address: stableAddress, 
+    chainId: stableChainId,
+    status: stableStatus 
+  } = useStableWalletConnection();
+  
+  // Use stable values for UI, raw values for actions
+  const address = stableAddress;
+  const isConnected = isEffectivelyConnected;
+  const chainId = stableChainId;
+  const status = stableStatus;
+  
   const { disconnect } = useDisconnect();
   const { switchChain } = useSwitchChain();
+  const { sessionHealthy, triggerRecovery } = useWeb3Recovery();
   const navigate = useNavigate();
   const location = useLocation();
   const fromPath = `${location.pathname}${location.search}${location.hash}`;
+  
+  // Debug: Track connection state changes (only in development with explicit flag)
+  useEffect(() => {
+    if (import.meta.env.DEV && import.meta.env.VITE_DEBUG_WALLET === 'true') {
+      console.log('[FCZ-PAY] Wallet:', { isConnected, address: address?.slice(0, 10), status });
+    }
+  }, [isConnected, address, status]);
   
   // Crypto wallet modal state
   const [showDeposit, setShowDeposit] = useState(false);
@@ -58,6 +90,18 @@ const WalletPageV2: React.FC<WalletPageV2Props> = ({ onNavigateBack }) => {
   const { claim, isClaiming } = useMerkleClaim();
   const [txNotice, setTxNotice] = useState<{ hash: string; kind: string; predictionId?: string } | null>(null);
   const [selectedActivity, setSelectedActivity] = useState<WalletActivityItem | null>(null);
+  const [needsReconnect, setNeedsReconnect] = useState(false);
+  const effectiveSessionHealthy = sessionHealthy && !needsReconnect;
+  const walletStatus = computeWalletStatus({
+    isConnected,
+    address,
+    chainId,
+    expectedChainId: baseSepolia.id,
+    sessionHealthy: effectiveSessionHealthy,
+    status,
+    isTransitioning,
+  });
+  const effectiveWalletStatus = needsReconnect ? 'session_unhealthy' : walletStatus.code;
   
   // Unified balance hook - SINGLE SOURCE OF TRUTH
   const { 
@@ -69,6 +113,36 @@ const WalletPageV2: React.FC<WalletPageV2Props> = ({ onNavigateBack }) => {
     error: balanceError,
     refetch: refetchBalances
   } = useUnifiedBalance();
+  const [lastReadyBalances, setLastReadyBalances] = useState({
+    wallet: walletUSDC ?? 0,
+    available: escrowAvailableUSD ?? 0,
+    reserved: escrowReservedUSD ?? 0,
+    total: escrowTotalUSD ?? 0,
+  });
+  useEffect(() => {
+    if (walletStatus.code !== 'ready') {
+      return;
+    }
+    setLastReadyBalances(prev => {
+      const next = {
+        wallet: typeof walletUSDC === 'number' ? walletUSDC : prev.wallet,
+        available: typeof escrowAvailableUSD === 'number' ? escrowAvailableUSD : prev.available,
+        reserved: typeof escrowReservedUSD === 'number' ? escrowReservedUSD : prev.reserved,
+        total: typeof escrowTotalUSD === 'number' ? escrowTotalUSD : prev.total,
+      };
+
+      if (
+        next.wallet === prev.wallet &&
+        next.available === prev.available &&
+        next.reserved === prev.reserved &&
+        next.total === prev.total
+      ) {
+        return prev;
+      }
+
+      return next;
+    });
+  }, [walletStatus.code, walletUSDC, escrowAvailableUSD, escrowReservedUSD, escrowTotalUSD]);
   
   // Wallet activity (from database - transaction history only)
   const { data: walletActivity, isLoading: isLoadingActivity } = useWalletActivity(user?.id, 20);
@@ -91,6 +165,27 @@ const WalletPageV2: React.FC<WalletPageV2Props> = ({ onNavigateBack }) => {
     window.addEventListener('fcz:tx', onTx as any);
     return () => window.removeEventListener('fcz:tx', onTx as any);
   }, []);
+
+  useEffect(() => {
+    const onReconnectRequired = () => {
+      // Only set needsReconnect if wallet is NOT already connected
+      // Stale WC errors can fire even when wallet is healthy
+      if (!isConnected || !address) {
+        setNeedsReconnect(true);
+      }
+      // Silently ignore reconnect events when wallet is already connected
+    };
+
+    window.addEventListener('fcz:wallet:reconnect-required', onReconnectRequired);
+    return () => window.removeEventListener('fcz:wallet:reconnect-required', onReconnectRequired);
+  }, [isConnected, address]);
+
+  // Reset needsReconnect when wallet becomes connected and healthy
+  useEffect(() => {
+    if (isConnected && address && chainId === baseSepolia.id && sessionHealthy) {
+      setNeedsReconnect(false);
+    }
+  }, [isConnected, address, chainId, sessionHealthy]);
 
   // Fallback: if an event was missed (e.g., user posted root on another route),
   // read the last stored tx from localStorage on mount and show the banner once.
@@ -126,17 +221,84 @@ const WalletPageV2: React.FC<WalletPageV2Props> = ({ onNavigateBack }) => {
     }
   }, [openConnectSheet, switchChain]);
 
+  const handleReconnectNow = useCallback(() => {
+    triggerRecovery();
+    openConnectSheet();
+  }, [openConnectSheet, triggerRecovery]);
+
+  const walletCalloutActions = useMemo(() => {
+    const buttons: React.ReactNode[] = [];
+    const baseBtn =
+      'inline-flex items-center rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors';
+
+    // Don't show any action buttons while reconnecting - wagmi is handling it
+    if (effectiveWalletStatus === 'reconnecting') {
+      return null;
+    }
+
+    if (effectiveWalletStatus === 'disconnected') {
+      buttons.push(
+        <button
+          key="connect"
+          onClick={openConnectSheet}
+          className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700 transition-colors"
+        >
+          <Wallet className="w-4 h-4" /> Connect wallet
+        </button>,
+      );
+    }
+
+    if (effectiveWalletStatus === 'wrong_network') {
+      buttons.push(
+        <button
+          key="switch"
+          onClick={handleSwitchToBase}
+          className={baseBtn}
+        >
+          <ArrowRightLeft className="w-4 h-4" /> Switch network
+        </button>,
+      );
+    }
+
+    if (effectiveWalletStatus === 'session_unhealthy') {
+      buttons.push(
+        <button
+          key="reconnect"
+          onClick={handleReconnectNow}
+          className="inline-flex items-center gap-2 rounded-lg bg-amber-500 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-600 transition-colors"
+        >
+          <XCircle className="w-4 h-4" /> Reconnect wallet
+        </button>,
+      );
+    }
+
+    return buttons.length ? <div className="flex flex-wrap gap-2">{buttons}</div> : null;
+  }, [handleReconnectNow, handleSwitchToBase, openConnectSheet, effectiveWalletStatus]);
+
   const ensureWalletReady = useCallback(() => {
-    if (!isConnected) {
-      openConnectSheet();
-      return false;
+    switch (walletStatus.code) {
+      case 'ready':
+        return true;
+      case 'reconnecting':
+        // Wallet is reconnecting - wait for it to complete
+        toast('Wallet is reconnecting, please wait...');
+        return false;
+      case 'disconnected':
+        toast.error('Connect your wallet to continue.');
+        openConnectSheet();
+        return false;
+      case 'wrong_network':
+        toast.error('Switch to Base Sepolia to continue.');
+        handleSwitchToBase();
+        return false;
+      case 'session_unhealthy':
+        toast.error('Wallet session expired. Please reconnect.');
+        handleReconnectNow();
+        return false;
+      default:
+        return false;
     }
-    if (chainId !== baseSepolia.id) {
-      handleSwitchToBase();
-      return false;
-    }
-    return true;
-  }, [chainId, handleSwitchToBase, isConnected, openConnectSheet]);
+  }, [walletStatus.code, openConnectSheet, handleReconnectNow, handleSwitchToBase]);
 
   const handleDeposit = useCallback(() => {
     if (!ensureWalletReady()) return;
@@ -148,10 +310,93 @@ const WalletPageV2: React.FC<WalletPageV2Props> = ({ onNavigateBack }) => {
     setShowWithdraw(true);
   }, [ensureWalletReady]);
 
+  const actionButtons = useMemo(() => {
+    const disabledSecondary =
+      <button
+        disabled
+        className="h-11 rounded-xl border-2 border-gray-300 text-gray-400 font-semibold cursor-not-allowed"
+      >
+        Withdraw
+      </button>;
+
+    switch (effectiveWalletStatus) {
+      case 'reconnecting':
+        return (
+          <>
+            <button
+              disabled
+              className="h-11 rounded-xl bg-gray-200 text-gray-500 font-semibold cursor-wait flex items-center justify-center gap-2"
+            >
+              <span className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
+              Reconnecting…
+            </button>
+            {disabledSecondary}
+          </>
+        );
+      case 'disconnected':
+        return (
+          <>
+            <button
+              onClick={openConnectSheet}
+              className="h-11 rounded-xl bg-emerald-600 text-white font-semibold hover:bg-emerald-700 transition-colors"
+            >
+              Connect Wallet
+            </button>
+            {disabledSecondary}
+          </>
+        );
+      case 'wrong_network':
+        return (
+          <>
+            <button
+              onClick={handleSwitchToBase}
+              className="h-11 rounded-xl bg-amber-500 text-white font-semibold hover:bg-amber-600 transition-colors"
+            >
+              Switch Network
+            </button>
+            <button
+              disabled
+              className="h-11 rounded-xl border-2 border-gray-300 text-gray-400 font-semibold cursor-not-allowed"
+            >
+              + Deposit
+            </button>
+          </>
+        );
+      case 'session_unhealthy':
+        return (
+          <>
+            <button
+              onClick={handleReconnectNow}
+              className="h-11 rounded-xl bg-amber-500 text-white font-semibold hover:bg-amber-600 transition-colors"
+            >
+              Reconnect Wallet
+            </button>
+            {disabledSecondary}
+          </>
+        );
+      default:
+        return (
+          <>
+            <button
+              onClick={handleDeposit}
+              className="h-11 rounded-xl bg-emerald-600 text-white font-semibold hover:bg-emerald-700 transition-colors"
+            >
+              + Deposit
+            </button>
+            <button
+              onClick={handleWithdraw}
+              className="h-11 rounded-xl border-2 border-gray-300 text-gray-700 font-semibold hover:border-gray-400 transition-colors disabled:opacity-50"
+              disabled={!escrowAvailableUSD || escrowAvailableUSD === 0}
+            >
+              Withdraw
+            </button>
+          </>
+        );
+    }
+  }, [effectiveWalletStatus, handleReconnectNow, handleSwitchToBase, handleDeposit, handleWithdraw, openConnectSheet, escrowAvailableUSD]);
+
   // Handle balance refresh after transactions
   const handleRefresh = useCallback(() => {
-    console.log('[FCZ-PAY] Refreshing balances after transaction');
-    
     // Force clear React Query cache for contract reads
     queryClient.removeQueries({ queryKey: ['readContract'] });
     
@@ -167,25 +412,45 @@ const WalletPageV2: React.FC<WalletPageV2Props> = ({ onNavigateBack }) => {
     return () => window.removeEventListener('fcz:balance:refresh', handleRefresh);
   }, [handleRefresh]);
   
-  // Display wallet balance (0 when no access)
-  const displayWalletUSDC = (isConnected && chainId === baseSepolia.id) ? walletUSDC : 0;
+  // Display balances using last confirmed values during reconnects to avoid UI flicker
+  const resolveValue = (current: number | undefined, fallback: number) =>
+    typeof current === 'number' ? current : fallback;
+  const resolvedWalletUSDC =
+    walletStatus.code === 'ready'
+      ? resolveValue(walletUSDC, lastReadyBalances.wallet)
+      : lastReadyBalances.wallet;
+  const resolvedEscrowAvailable =
+    walletStatus.code === 'ready'
+      ? resolveValue(escrowAvailableUSD, lastReadyBalances.available)
+      : lastReadyBalances.available;
+  const resolvedEscrowReserved =
+    walletStatus.code === 'ready'
+      ? resolveValue(escrowReservedUSD, lastReadyBalances.reserved)
+      : lastReadyBalances.reserved;
+  const resolvedEscrowTotal =
+    walletStatus.code === 'ready'
+      ? resolveValue(escrowTotalUSD, lastReadyBalances.total)
+      : lastReadyBalances.total;
   
-  // Debug log
-  useEffect(() => {
-    if (isConnected && chainId === baseSepolia.id) {
-      console.log('[FCZ-PAY] WalletPage balance state:', {
-        walletUSDC,
-        escrowAvailableUSD,
-        escrowReservedUSD,
-        escrowTotalUSD,
-        isLoadingBalance,
-      });
-    }
-  }, [walletUSDC, escrowAvailableUSD, escrowReservedUSD, escrowTotalUSD, isLoadingBalance, isConnected, chainId]);
+  // Debug log - disabled to reduce console spam
+  // Enable with VITE_DEBUG_WALLET=true in .env
 
   // Auto-refresh after wallet connect or chain change
+  const lastConnectionRef = useRef<{ address: string | null; chainId: number | null }>({
+    address: null,
+    chainId: null,
+  });
   useEffect(() => {
-    if (!isConnected || !address) return;
+    if (!isConnected || !address || typeof chainId !== 'number') {
+      return;
+    }
+
+    const prev = lastConnectionRef.current;
+    if (prev.address === address && prev.chainId === chainId) {
+      return;
+    }
+
+    lastConnectionRef.current = { address, chainId };
 
     // Ensure all wallet-related data refresh immediately after connect or chain change
     void queryClient.invalidateQueries({ queryKey: ['wallet'] });
@@ -195,7 +460,7 @@ const WalletPageV2: React.FC<WalletPageV2Props> = ({ onNavigateBack }) => {
     if (user?.id) {
       void queryClient.invalidateQueries({ queryKey: QK.walletActivity(user.id) });
     }
-  }, [isConnected, address, chainId, status, queryClient, user?.id]);
+  }, [isConnected, address, chainId, queryClient, user?.id]);
 
   useEffect(() => {
     if (authenticated && user?.id) {
@@ -213,12 +478,34 @@ const WalletPageV2: React.FC<WalletPageV2Props> = ({ onNavigateBack }) => {
       withdraw: 'Withdrawal',
       lock: 'Funds locked',
       release: 'Funds released',
+      unlock: 'Funds released',
       entry: 'Bet placed',
+      bet_placed: 'Bet placed',
       claim: 'Claimed',
       payout: 'Settlement payout',
+      win: 'Won prediction',
+      loss: 'Lost prediction',
+      creator_fee: 'Creator fee',
+      platform_fee: 'Platform fee',
+      settlement: 'Settlement posted',
+      bet_refund: 'Bet refunded',
     };
     if (map[normalized]) return map[normalized];
-    return normalized.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+    return formatActivityKind(normalized);
+  };
+
+  const formatTxHash = (hash?: string | null) => {
+    if (!hash) return null;
+    const clean = hash.split(':')[0] ?? '';
+    if (!clean.startsWith('0x')) return null;
+    return `${clean.slice(0, 6)}…${clean.slice(-4)}`;
+  };
+
+  const buildExplorerTxUrl = (hash?: string | null) => {
+    if (!hash) return null;
+    const clean = hash.split(':')[0] ?? '';
+    if (!clean.startsWith('0x')) return null;
+    return `https://sepolia.basescan.org/tx/${clean}`;
   };
 
   const dismissTxBanner = useCallback((hash?: string) => {
@@ -337,9 +624,9 @@ const WalletPageV2: React.FC<WalletPageV2Props> = ({ onNavigateBack }) => {
     
     setBulkClaiming(false);
     if (successCount === claimables.length) {
-      toast.success(`Successfully claimed all ${successCount} winnings!`);
+      toast.success(`Successfully claimed all ${successCount} ${t('winnings').toLowerCase()}!`);
     } else if (successCount > 0) {
-      toast.success(`Successfully claimed ${successCount} of ${claimables.length} winnings`);
+      toast.success(`Successfully claimed ${successCount} of ${claimables.length} ${t('winnings').toLowerCase()}`);
     } else {
       toast.error(`No claims were processed`);
     }
@@ -387,7 +674,7 @@ const WalletPageV2: React.FC<WalletPageV2Props> = ({ onNavigateBack }) => {
                   <div className="text-lg font-bold text-gray-900 font-mono truncate">
                     {isLoadingBalance
                       ? '...' 
-                      : formatCurrency(displayWalletUSDC ?? 0, { compact: true })}
+                      : formatCurrency(resolvedWalletUSDC ?? 0, { compact: true })}
                   </div>
                   <div className="text-xs text-gray-500 mt-1">
                     USDC on Base
@@ -403,17 +690,17 @@ const WalletPageV2: React.FC<WalletPageV2Props> = ({ onNavigateBack }) => {
                   <div className="text-lg font-bold text-gray-900 font-mono truncate">
                     {isLoadingBalance
                       ? '...' 
-                      : formatCurrency(escrowTotalUSD ?? 0, { compact: true })}
+                      : formatCurrency(resolvedEscrowTotal ?? 0, { compact: true })}
                   </div>
                   <div className="text-xs text-gray-500 mt-1 flex items-center gap-2">
                     <span className="text-emerald-600 font-medium">
-                      {formatCurrency(escrowAvailableUSD ?? 0, { compact: true })} free
+                      {formatCurrency(resolvedEscrowAvailable ?? 0, { compact: true })} free
                     </span>
-                    {escrowReservedUSD > 0 && (
+                    {resolvedEscrowReserved > 0 && (
                       <>
                         <span className="text-gray-400">·</span>
                         <span className="text-amber-600 font-medium">
-                          {formatCurrency(escrowReservedUSD, { compact: true })} locked
+                          {formatCurrency(resolvedEscrowReserved, { compact: true })} locked
                         </span>
                       </>
                     )}
@@ -421,37 +708,23 @@ const WalletPageV2: React.FC<WalletPageV2Props> = ({ onNavigateBack }) => {
                 </div>
               </div>
 
-              {/* Network Warning - Inline */}
-              {isConnected && chainId !== baseSepolia.id && (
-                <div className="p-4 bg-amber-50 border-2 border-amber-200 rounded-2xl flex items-start gap-3">
-                  <span className="text-2xl">⚠️</span>
-                  <div className="flex-1">
-                    <h4 className="text-sm font-bold text-amber-900 mb-1">Switch to Base Sepolia</h4>
-                    <p className="text-xs text-amber-800 mb-3">
-                      You are connected to <strong>{chainId ?? 'Unknown network'}</strong>. Switch to <strong>Base Sepolia</strong> to continue.
-                    </p>
-                    <button
-                      onClick={handleSwitchToBase}
-                      className="inline-flex items-center gap-2 rounded-lg bg-amber-500 text-white text-xs font-semibold px-3 py-2 hover:bg-amber-600 transition-colors"
-                    >
-                      <ArrowRightLeft className="w-4 h-4" /> Switch Network
-                    </button>
-                  </div>
-                </div>
-              )}
-              
               {/* On-chain Balance Card - Detailed breakdown */}
               <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-2xl border border-blue-100 p-4">
                 <div className="flex items-center justify-between mb-4 gap-2">
                   <div className="flex items-center gap-2 min-w-0">
                     <span className="text-xs font-medium text-blue-600 bg-blue-100 px-2 py-1 rounded-full whitespace-nowrap">Base Sepolia</span>
                     {isConnected && address && (
-                      <span className="inline-flex items-center rounded-md bg-gray-100 px-2 py-1 text-xs font-mono text-gray-700 truncate max-w-[100px]">
+                    <span className="inline-flex items-center rounded-md bg-gray-100 px-2 py-1 text-xs font-mono text-gray-700 truncate max-w-[100px]">
                         {address.slice(0,4)}…{address.slice(-3)}
                       </span>
                     )}
                   </div>
-                  {isConnected && address ? (
+                  {isTransitioning ? (
+                    <span className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 px-3 py-1 text-xs font-medium text-gray-500">
+                      <span className="w-2 h-2 border border-gray-400 border-t-transparent rounded-full animate-spin" />
+                      Reconnecting...
+                    </span>
+                  ) : isConnected && address ? (
                     <button
                       type="button"
                       onClick={() => {
@@ -501,8 +774,8 @@ const WalletPageV2: React.FC<WalletPageV2Props> = ({ onNavigateBack }) => {
                       Wallet USDC <span className="ml-1 text-[10px] px-1 py-0.5 rounded bg-gray-100">ERC20</span>
                     </span>
                     <span className="font-mono font-medium tabular-nums whitespace-nowrap">
-                      {displayWalletUSDC !== undefined 
-                        ? `${displayWalletUSDC.toFixed(2)}` 
+                      {resolvedWalletUSDC !== undefined 
+                        ? `${resolvedWalletUSDC.toFixed(2)}`
                         : isLoadingBalance 
                           ? 'Loading...' 
                           : balanceError 
@@ -515,69 +788,29 @@ const WalletPageV2: React.FC<WalletPageV2Props> = ({ onNavigateBack }) => {
                       <span className="inline-block h-1.5 w-3 rounded bg-green-500" />Available
                     </span>
                     <span className="font-mono font-semibold text-green-600 tabular-nums whitespace-nowrap">
-                      {isLoadingBalance ? 'Loading...' : `${(escrowAvailableUSD ?? 0).toFixed(2)}`}
+                      {isLoadingBalance ? 'Loading...' : `${(resolvedEscrowAvailable ?? 0).toFixed(2)}`}
                     </span>
                   </div>
-                  {escrowReservedUSD > 0 && (
+                  {resolvedEscrowReserved > 0 && (
                     <div className="flex items-center justify-between text-sm">
                       <span className="text-gray-700 flex items-center gap-2 whitespace-nowrap">
-                        <span className="inline-block h-1.5 w-3 rounded bg-amber-500" />In active bets
+                        <span className="inline-block h-1.5 w-3 rounded bg-amber-500" />In active {t('bets')}
                       </span>
                       <span className="font-mono font-medium text-amber-600 tabular-nums whitespace-nowrap">
-                        {isLoadingBalance ? 'Loading...' : `${(escrowReservedUSD ?? 0).toFixed(2)}`}
+                        {isLoadingBalance ? 'Loading...' : `${(resolvedEscrowReserved ?? 0).toFixed(2)}`}
                       </span>
                     </div>
                   )}
                 </div>
                 
+                {needsReconnect && (
+                  <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 text-amber-800 text-xs p-3">
+                    Wallet session expired. Please reconnect your wallet before making deposits, withdrawals, or bets.
+                  </div>
+                )}
+                
                 <div className="grid grid-cols-2 gap-3 mt-6">
-                  {!isConnected ? (
-                    <>
-                      <button
-                        onClick={openConnectSheet}
-                        className="h-11 rounded-xl bg-emerald-600 text-white font-semibold hover:bg-emerald-700 transition-colors"
-                      >
-                        Connect Wallet
-                      </button>
-                      <button
-                        disabled
-                        className="h-11 rounded-xl border-2 border-gray-300 text-gray-400 font-semibold cursor-not-allowed"
-                      >
-                        Withdraw
-                      </button>
-                    </>
-                  ) : chainId !== baseSepolia.id ? (
-                    <>
-                      <button
-                        onClick={handleSwitchToBase}
-                        className="h-11 rounded-xl bg-amber-500 text-white font-semibold hover:bg-amber-600 transition-colors"
-                      >
-                        Switch Network
-                      </button>
-                      <button
-                        onClick={handleDeposit}
-                        className="h-11 rounded-xl bg-emerald-600 text-white font-semibold hover:bg-emerald-700 transition-colors"
-                      >
-                        + Deposit
-                      </button>
-                    </>
-                  ) : (
-                    <>
-                      <button
-                        onClick={handleDeposit}
-                        className="h-11 rounded-xl bg-emerald-600 text-white font-semibold hover:bg-emerald-700 transition-colors"
-                      >
-                        + Deposit
-                      </button>
-                      <button
-                        onClick={handleWithdraw}
-                        className="h-11 rounded-xl border-2 border-gray-300 text-gray-700 font-semibold hover:border-gray-400 transition-colors disabled:opacity-50"
-                        disabled={!escrowAvailableUSD || escrowAvailableUSD === 0}
-                      >
-                        Withdraw
-                      </button>
-                    </>
-                  )}
+                  {actionButtons}
                 </div>
                 
                 {/* Recent Activity */}
@@ -591,9 +824,17 @@ const WalletPageV2: React.FC<WalletPageV2Props> = ({ onNavigateBack }) => {
                           withdraw: ArrowUpRight,
                           lock: Lock,
                           release: Unlock,
+                          unlock: Unlock,
                           entry: Target,
+                          bet_placed: Target,
                           claim: Receipt,
-                          payout: DollarSign
+                          payout: DollarSign,
+                          win: Trophy,
+                          loss: XCircle,
+                          creator_fee: DollarSign,
+                          platform_fee: DollarSign,
+                          settlement: Receipt,
+                          bet_refund: Unlock,
                         };
                         const IconComponent = iconMap[item.kind] || Wallet;
                         const description = (() => {
@@ -605,6 +846,18 @@ const WalletPageV2: React.FC<WalletPageV2Props> = ({ onNavigateBack }) => {
                           }
                           if (item.kind === 'claim' && item.meta?.prediction_title) {
                             return `from ${item.meta.prediction_title}`;
+                          }
+                          if (item.kind === 'win' && item.meta?.prediction_title) {
+                            return item.meta.prediction_title;
+                          }
+                          if (item.kind === 'loss' && item.meta?.prediction_title) {
+                            return item.meta.prediction_title;
+                          }
+                          if (item.kind === 'creator_fee' && item.meta?.prediction_title) {
+                            return item.meta.prediction_title;
+                          }
+                          if (item.kind === 'settlement' && item.meta?.prediction_title) {
+                            return item.meta.prediction_title;
                           }
                           return '';
                         })();
@@ -819,7 +1072,7 @@ const WalletPageV2: React.FC<WalletPageV2Props> = ({ onNavigateBack }) => {
           {/* Push sheet above bottom nav (approx 72px) and safe-area */}
           <div className="relative w-full md:max-w-lg bg-white rounded-t-2xl md:rounded-2xl shadow-xl p-4 pb-[calc(16px+env(safe-area-inset-bottom,0px))] mb-[calc(72px+env(safe-area-inset-bottom,0px))] max-h-[80vh] md:max-h-[75vh] overflow-y-auto">
             <div className="sticky top-0 bg-white/90 backdrop-blur px-4 pt-2 pb-3 -mx-4 border-b border-gray-100 flex items-center justify-between">
-              <h3 className="text-base font-semibold text-gray-900">Your claimable winnings</h3>
+              <h3 className="text-base font-semibold text-gray-900">Your claimable {t('winnings').toLowerCase()}</h3>
               <div className="flex items-center gap-2">
                 {Array.isArray(claimables) && claimables.length > 1 && (
                   <button

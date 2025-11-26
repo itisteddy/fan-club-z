@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useMedia } from '../../hooks/useMedia';
 import { formatNumberShort, formatDurationShort } from '@/lib/format';
@@ -11,7 +12,7 @@ type PredictionCardProps = {
     endsAt?: string;       // ISO
     pool?: number;         // total pool in base units
     players?: number;      // participants
-    options?: Array<{ label: string; odds?: number }>;
+    options?: Array<{ label?: string; title?: string; text?: string; odds?: number }>;
     description?: string | null;
     creator?: {
       id?: string;
@@ -32,12 +33,45 @@ export default function PredictionCardV3({ prediction }: PredictionCardProps) {
   const location = useLocation();
   const fromPath = `${location.pathname}${location.search}${location.hash}`;
 
-  const { media } = useMedia(prediction.id, {
+  const derivedKeywords = [
+    prediction.category,
+    prediction.creator?.username ?? undefined,
+    prediction.creator?.full_name ?? undefined,
+  ].filter((value): value is string => Boolean(value));
+
+  const identityAttributes = [
+    prediction.creator?.is_verified ? 'verified creator' : undefined,
+  ].filter((value): value is string => Boolean(value));
+
+  const metadata = {
     id: prediction.id,
     title: prediction.title,
     description: prediction.description ?? '',
     category: prediction.category,
-  });
+    options: prediction.options?.map((option) => ({
+      label: option?.label ?? option?.title ?? option?.text ?? '',
+    })),
+    keywords: derivedKeywords,
+    attributes: identityAttributes,
+    tags: derivedKeywords,
+    identity: {
+      creator: prediction.creator?.full_name || prediction.creator?.username || null,
+      community: prediction.category ? `${prediction.category} community` : null,
+      personas: identityAttributes,
+    },
+    popularity: {
+      pool: typeof prediction.pool === 'number' ? prediction.pool : null,
+      players: typeof prediction.players === 'number' ? prediction.players : null,
+    },
+  };
+
+  const { media } = useMedia(prediction.id, metadata);
+
+  const [imageLoaded, setImageLoaded] = useState(false);
+
+  useEffect(() => {
+    setImageLoaded(false);
+  }, [media.url]);
 
   // formatDurationShort expects milliseconds; provide ms to avoid truncation to minutes
   const endsIn = prediction.endsAt
@@ -75,35 +109,58 @@ export default function PredictionCardV3({ prediction }: PredictionCardProps) {
             {typeof prediction.players === 'number' && <span>{prediction.players} players</span>}
             {prediction.options?.length ? (
               <div className="flex items-center gap-1">
-                {prediction.options.slice(0, 2).map((o) => (
-              <span
-                    key={o.label}
+                {prediction.options.slice(0, 2).map((o, index) => {
+                  const optionLabel = o.label ?? o.title ?? o.text ?? `Option ${index + 1}`;
+                  return (
+                    <span
+                    key={`${optionLabel}-${index}`}
                     className="rounded-md border border-gray-200 px-1.5 py-0.5 text-[11px] font-medium text-gray-700"
                   >
-                    {o.label}
+                    {optionLabel}
                     {o.odds ? (
                       <span className="ml-1 text-gray-500">{o.odds.toFixed(2)}x</span>
                     ) : null}
-              </span>
-            ))}
+                    </span>
+                  );
+                })}
           </div>
             ) : null}
         </div>
       </div>
 
         {/* Right: thumbnail (fixed) */}
-        <div className="h-[72px] w-[96px] shrink-0 overflow-hidden rounded-xl bg-gray-100">
-          <img
-            src={media.url}
-            alt={media.alt || prediction.title}
-            className="h-full w-full object-cover transition-opacity duration-300"
-            loading="lazy"
-            onLoad={(e) => {
-              // Ensure smooth fade-in when image loads
-              (e.target as HTMLImageElement).style.opacity = '1';
-            }}
-            style={{ opacity: 0.95 }}
-          />
+        <div className="relative h-[72px] w-[96px] shrink-0 overflow-hidden rounded-xl bg-gray-100">
+          {media.url ? (
+            <>
+              {!imageLoaded && (
+                <div className="absolute inset-0 animate-pulse bg-gray-200" />
+              )}
+              <img
+                src={media.url}
+                alt={media.alt || prediction.title}
+                className="h-full w-full object-cover transition-opacity duration-300"
+                loading="lazy"
+                onLoad={() => setImageLoaded(true)}
+                onError={() => setImageLoaded(false)}
+                style={{ opacity: imageLoaded ? 1 : 0, transition: 'opacity 200ms ease' }}
+              />
+            </>
+          ) : (
+            // CRITICAL FIX: Show contextual fallback when image is not available
+            <div className="h-full w-full flex items-center justify-center bg-gradient-to-br from-purple-100 to-indigo-100">
+              <div className="text-center">
+                <div className="text-2xl mb-1">
+                  {prediction.category === 'crypto' ? '₿' : 
+                   prediction.category === 'sports' ? '⚽' :
+                   prediction.category === 'tech' ? '💻' :
+                   prediction.category === 'politics' ? '🏛️' : '📊'}
+                </div>
+                <div className="text-[10px] font-medium text-gray-600 capitalize truncate px-1">
+                  {prediction.category || 'Prediction'}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </Link>

@@ -1,10 +1,33 @@
 import express from 'express';
+import crypto from 'crypto';
 import { z } from 'zod';
 import { config } from '../config';
 import { supabase } from '../config/database';
 import { VERSION } from '@fanclubz/shared';
 import { recomputePredictionState } from '../services/predictionMath';
 import { emitPredictionUpdate } from '../services/realtime';
+
+// [PERF] Helper to generate ETag from response data
+function generateETag(data: unknown): string {
+  const hash = crypto.createHash('md5').update(JSON.stringify(data)).digest('hex');
+  return `"${hash}"`;
+}
+
+// [PERF] Helper to check conditional GET and return 304 if ETag matches
+function checkETag(req: express.Request, res: express.Response, data: unknown): boolean {
+  const etag = generateETag(data);
+  const ifNoneMatch = req.headers['if-none-match'];
+  
+  if (ifNoneMatch && ifNoneMatch === etag) {
+    res.status(304).end();
+    return true;
+  }
+  
+  // [PERF] Set caching headers
+  res.setHeader('Cache-Control', 'private, max-age=15');
+  res.setHeader('ETag', etag);
+  return false;
+}
 
 const router = express.Router();
 
@@ -220,7 +243,8 @@ router.get('/', async (req, res) => {
 
     console.log(`✅ Successfully fetched ${predictions?.length || 0} predictions (${count} total)`);
 
-    return res.json({
+    // [PERF] Prepare response and check ETag for conditional GET
+    const response = {
       data: predictions || [],
       message: 'Predictions fetched successfully',
       version: VERSION,
@@ -233,7 +257,12 @@ router.get('/', async (req, res) => {
         hasPrev,
         currentCount: predictions?.length || 0
       }
-    });
+    };
+    
+    // [PERF] Check ETag - returns true if 304 was sent
+    if (checkETag(req, res, response)) return;
+    
+    return res.json(response);
   } catch (error) {
     console.error('Error fetching predictions:', error);
     console.error('Error details:', {

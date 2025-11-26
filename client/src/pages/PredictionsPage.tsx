@@ -26,6 +26,7 @@ import { useAccount } from 'wagmi';
 import { useMerkleClaim } from '@/hooks/useMerkleClaim';
 import { useClaimableClaims } from '@/hooks/useClaimableClaims';
 import { formatCurrency } from '@/lib/format';
+import { t } from '@/lib/lexicon';
 
 type TabKey = 'Active' | 'Created' | 'Completed';
 
@@ -413,7 +414,7 @@ const PredictionsPage: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNa
   if (!isAuthenticated) {
     return (
       <>
-        <AppHeader title="My Bets" />
+        <AppHeader title={t('myBets')} />
         <div className="min-h-screen bg-gray-50 px-4 py-6">
           <SignedOutGateCard
             icon={<TrendingUp />}
@@ -433,7 +434,7 @@ const PredictionsPage: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNa
       'Active': {
         icon: TrendingUp,
         title: 'No active predictions',
-        description: "You haven't placed any bets yet. Start by exploring trending topics and making your first prediction!",
+        description: `You haven't placed any ${t('bets')} yet. Start by exploring trending topics and making your first prediction!`,
         buttonText: 'Discover Predictions',
         buttonColor: 'from-emerald-500 to-emerald-600',
         iconBg: 'bg-emerald-100',
@@ -573,7 +574,7 @@ const PredictionsPage: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNa
             <p className="font-semibold text-emerald-900">${prediction.potentialReturn.toLocaleString()}</p>
           </div>
           <div>
-            <p className="text-xs text-emerald-600 mb-1">Odds</p>
+            <p className="text-xs text-emerald-600 mb-1">{t('odds')}</p>
             <p className="font-semibold text-emerald-900">{prediction.odds}</p>
           </div>
         </div>
@@ -871,7 +872,7 @@ const PredictionsPage: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNa
 
   return (
     <>
-      <AppHeader title="My Bets" />
+      <AppHeader title={t('myBets')} />
       <div className="bg-white border-b border-gray-200">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="flex space-x-4 py-3">

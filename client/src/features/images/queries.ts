@@ -1,12 +1,28 @@
 // Keyword extraction and query building utilities
 
-type PredictionContext = {
+export type PredictionContext = {
   title: string;
   category?: string;
   description?: string;
+  question?: string | null;
   tags?: string[];
   options?: Array<{ label?: string | null } | null | undefined>;
   entry_deadline?: string | null;
+  keywords?: string[];
+  attributes?: string[];
+  identity?: {
+    creator?: string | null;
+    community?: string | null;
+    personas?: string[];
+  };
+  popularity?: {
+    pool?: number | null;
+    players?: number | null;
+    totalVolume?: number | null;
+    score?: number | null;
+    likes?: number | null;
+    comments?: number | null;
+  };
 };
 
 const STOPWORDS = new Set([
@@ -68,7 +84,11 @@ const ENTITY_OVERRIDES: Array<{ keywords: string[]; query: string }> = [
   { keywords: ['tesla'], query: 'tesla electric car futuristic automotive' },
   { keywords: ['apple', 'iphone', 'macbook'], query: 'apple product render minimalist tech' },
   { keywords: ['marvel', 'avengers'], query: 'marvel movie cinematic superhero film poster' },
-  { keywords: ['nigeria', 'lagos'], query: 'lagos nigeria city skyline modern africa' }
+  // Brand-aware override so Fanclubz predictions feel on-brand instead of generic stadiums
+  {
+    keywords: ['fanclubz', 'fan club z'],
+    query: 'mobile app interface prediction cards clean ui analytics dashboard soft gradient'
+  }
 ];
 
 type ThemeRule = {
@@ -84,6 +104,12 @@ const THEME_RULES: ThemeRule[] = [
   {
     pattern: /\b(soccer|football|premier league|champions league|world cup|uefa|goal|striker|super eagles|laliga|serie a)\b/i,
     enrichment: 'soccer football stadium crowd energy'
+  },
+  {
+    // Nigeria / Super Eagles specific football enrichment so we bias toward stadium imagery,
+    // not generic city skylines, for these predictions.
+    pattern: /\b(super eagles|nigeria national football team|nigerian national team)\b/i,
+    enrichment: 'nigeria football super eagles national team stadium match night lights crowd'
   },
   {
     pattern: /\b(nba|basketball|wnba|lebron|curry|lakers|warriors|celtics|bucks|slam dunk)\b/i,
@@ -140,11 +166,28 @@ const THEME_RULES: ThemeRule[] = [
 ];
 
 function buildTextHaystack(prediction: PredictionContext): string {
+  const identityValues = [
+    prediction.identity?.creator,
+    prediction.identity?.community,
+    ...(prediction.identity?.personas ?? []),
+  ];
+
+  const popularityDescriptors = [
+    prediction.popularity?.players ? `${prediction.popularity.players} participants` : '',
+    prediction.popularity?.pool ? `${prediction.popularity.pool} stake` : '',
+    prediction.popularity?.totalVolume ? `${prediction.popularity.totalVolume} volume` : '',
+  ];
+
   return [
     prediction.title,
     prediction.description,
+    prediction.question,
     ...(prediction.options?.map(opt => opt?.label ?? '') ?? []),
-    ...(prediction.tags ?? [])
+    ...(prediction.tags ?? []),
+    ...(prediction.keywords ?? []),
+    ...(prediction.attributes ?? []),
+    ...identityValues,
+    ...popularityDescriptors,
   ]
     .filter(Boolean)
     .join(' ')
@@ -201,6 +244,54 @@ function addKeywords(target: Set<string>, words: string[] = []) {
   }
 }
 
+function normalizeNumber(value?: number | string | null): number | null {
+  if (typeof value === 'number' && !Number.isNaN(value)) {
+    return value;
+  }
+  if (typeof value === 'string') {
+    const numeric = parseFloat(value.replace(/[^\d.]/g, ''));
+    return Number.isNaN(numeric) ? null : numeric;
+  }
+  return null;
+}
+
+function popularityKeywords(popularity?: PredictionContext['popularity']): string[] {
+  if (!popularity) return [];
+  const keywords: string[] = [];
+
+  const pool = normalizeNumber(popularity.pool ?? popularity.totalVolume);
+  const players = normalizeNumber(popularity.players);
+  const score = normalizeNumber(popularity.score);
+  const comments = normalizeNumber(popularity.comments);
+  const likes = normalizeNumber(popularity.likes);
+
+  if (pool && pool >= 10000) {
+    keywords.push('high stakes spotlight premium');
+  } else if (pool && pool >= 2000) {
+    keywords.push('high stakes trending excitement');
+  }
+
+  if (players && players >= 100) {
+    keywords.push('massive crowd fans community buzz');
+  } else if (players && players >= 20) {
+    keywords.push('community challenge social energy');
+  }
+
+  if (score && score >= 70) {
+    keywords.push('viral trend spotlight momentum');
+  }
+
+  if (comments && comments >= 25) {
+    keywords.push('heated debate discussion panel');
+  }
+
+  if (likes && likes >= 50) {
+    keywords.push('fan favorite popular culture');
+  }
+
+  return keywords;
+}
+
 export function buildImageQuery(prediction: PredictionContext): string {
   const override = matchEntityOverride(prediction);
   if (override) {
@@ -210,6 +301,7 @@ export function buildImageQuery(prediction: PredictionContext): string {
   const keywordSet = new Set<string>();
   addKeywords(keywordSet, extractKeywords(prediction.title, 5));
   addKeywords(keywordSet, extractKeywords(prediction.description, 3));
+  addKeywords(keywordSet, extractKeywords(prediction.question ?? '', 3));
   addKeywords(keywordSet, prediction.tags ?? []);
   addKeywords(
     keywordSet,
@@ -218,6 +310,12 @@ export function buildImageQuery(prediction: PredictionContext): string {
       .flat()
       .filter(Boolean) ?? []
   );
+  addKeywords(keywordSet, prediction.keywords ?? []);
+  addKeywords(keywordSet, prediction.attributes ?? []);
+  addKeywords(keywordSet, prediction.identity?.personas ?? []);
+  addKeywords(keywordSet, extractKeywords(prediction.identity?.creator ?? '', 2));
+  addKeywords(keywordSet, extractKeywords(prediction.identity?.community ?? '', 2));
+  addKeywords(keywordSet, popularityKeywords(prediction.popularity));
 
   const year = detectYear(prediction);
   if (year) {

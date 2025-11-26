@@ -39,6 +39,7 @@ import { StickyBetBar } from '../components/predictions/StickyBetBar';
 
 import toast from 'react-hot-toast';
 import { formatCurrency } from '@/lib/format';
+import { t } from '@/lib/lexicon';
 import { useMerkleProof } from '@/hooks/useMerkleProof';
 import { useMerkleClaim } from '@/hooks/useMerkleClaim';
 import { usePredictionActivity } from '@/hooks/useActivityFeed';
@@ -69,14 +70,7 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
   const isAuthenticated = !!sessionUser || storeAuth;
   const currentUser = sessionUser || storeUser;
 
-  // Debug: Log auth state
-  console.log('🔍 PredictionDetailsPageV2 Auth State:', { 
-    sessionUser: !!sessionUser,
-    storeAuth,
-    isAuthenticated,
-    hasUser: !!currentUser,
-    userEmail: currentUser?.email 
-  });
+  // Auth state logging removed - excessive logging issue
 
   // Get prediction ID from multiple sources (URL params, props)
   const predictionId = propPredictionId || params.id || params.predictionId || '';
@@ -144,14 +138,69 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
     return isSettled || status === 'closed' || status === 'settled' || status === 'cancelled';
   }, [prediction, isSettled]);
 
+  const mediaMetadata = useMemo(() => {
+    if (!prediction) return undefined;
+
+    const poolTotal =
+      typeof prediction.pool_total === 'number'
+        ? prediction.pool_total
+        : typeof prediction.pool_total === 'string'
+          ? Number(prediction.pool_total)
+          : null;
+
+    const participantCount =
+      typeof prediction.participant_count === 'number'
+        ? prediction.participant_count
+        : typeof prediction.participants === 'number'
+          ? prediction.participants
+          : null;
+
+    const baseKeywords = [
+      prediction.category,
+      prediction.status,
+      prediction.type,
+      prediction.creator?.username ?? undefined,
+      prediction.creator?.full_name ?? undefined,
+    ].filter((value): value is string => Boolean(value));
+
+    const attributeHints = [
+      prediction.settlement_method,
+      prediction.settlement_criteria,
+      prediction.creator?.is_verified ? 'verified creator' : undefined,
+    ].filter((value): value is string => Boolean(value));
+
+    return {
+      id: prediction.id,
+      title: prediction.title,
+      description: prediction.description ?? prediction.question ?? '',
+      question: prediction.question ?? undefined,
+      category: prediction.category,
+      options: prediction.options?.map(option => ({
+        label: option?.label ?? option?.title ?? option?.text ?? '',
+      })),
+      keywords: baseKeywords,
+      attributes: attributeHints,
+      tags: baseKeywords,
+      identity: {
+        creator: prediction.creator?.full_name || prediction.creator?.username || null,
+        community: prediction.creator?.username
+          ? `${prediction.creator.username} community`
+          : null,
+        personas: attributeHints,
+      },
+      popularity: {
+        pool: poolTotal,
+        totalVolume: typeof prediction.total_volume === 'number' ? prediction.total_volume : null,
+        players: participantCount,
+        comments: typeof prediction.comments === 'number' ? prediction.comments : null,
+      },
+    };
+  }, [prediction]);
+
   // Use the unified media system for consistent, relevant images (after prediction is defined)
   const { media, status: mediaStatus } = useMedia(
-    prediction?.id || '', 
-    prediction ? { 
-      id: prediction.id, 
-      title: prediction.title, 
-      category: prediction.category 
-    } : undefined
+    prediction?.id || '',
+    mediaMetadata
   );
 
   // Log for debugging consistency (as requested in acceptance criteria)
@@ -347,7 +396,7 @@ const userBalance = isAuthenticated ? availableToStake : 0;
       
       // IMPORTANT: Keep user on prediction details page - do not navigate away
       // Inline confirmation chip (keep user on overview)
-      const optionLabel = prediction.options.find(o => o.id === selectedOptionId)?.label || 'Your bet';
+      const optionLabel = prediction.options.find(o => o.id === selectedOptionId)?.label || `Your ${t('bet')}`;
       setJustPlaced({ amount, optionLabel });
       setTimeout(() => setJustPlaced(null), 6000);
       
@@ -647,7 +696,7 @@ const userBalance = isAuthenticated ? availableToStake : 0;
                     <div className="bg-yellow-50 border border-yellow-200 rounded-2xl p-3">
                       <div className="text-sm text-yellow-900 font-medium">This prediction is closed.</div>
                       <div className="text-xs text-yellow-800 mt-1">
-                        {isSettled ? 'Results are finalized.' : 'No new bets can be placed.'}
+                        {isSettled ? 'Results are finalized.' : `No new ${t('bets')} can be placed.`}
                       </div>
                     </div>
                   )}
@@ -674,7 +723,7 @@ const userBalance = isAuthenticated ? availableToStake : 0;
                       <div className="flex items-center justify-between gap-2">
                         <div>
                           <h3 className="text-base font-semibold text-gray-900">
-                            You have winnings to claim
+                            You have {t('winnings').toLowerCase()} to claim
                           </h3>
                           <p className="text-sm text-gray-600 mt-0.5">
                             Connected: <span className="font-mono">{walletAddress.slice(0, 6)}…{walletAddress.slice(-4)}</span>
@@ -827,7 +876,9 @@ const userBalance = isAuthenticated ? availableToStake : 0;
         (() => {
           const amt = parseFloat(stakeAmount || '0');
           const need = Math.max(0, amt - availableToStake);
-          const computedLabel = !amt || amt <= 0 ? 'Place Bet' : (need > 0 ? `Add funds (need $${need.toFixed(2)})` : `Place Bet: $${amt.toFixed(2)}`);
+          const computedLabel = !amt || amt <= 0
+            ? t('betVerb')
+            : (need > 0 ? `Add funds (need $${need.toFixed(2)})` : `${t('betVerb')}: $${amt.toFixed(2)}`);
           const canBet = !!stakeAmount && amt > 0;
           return (
             <StickyBetBar

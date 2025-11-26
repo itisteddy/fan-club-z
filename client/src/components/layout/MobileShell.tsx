@@ -2,7 +2,7 @@ import React from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { FCZ_UNIFIED_HEADER } from '@/utils/environment';
 import MobileHeader from './MobileHeader';
-import { qaLog } from '../../utils/devQa';
+import { t } from '@/lib/lexicon';
 
 interface MobileShellProps {
   children: React.ReactNode;
@@ -35,8 +35,6 @@ const MobileShell: React.FC<MobileShellProps> = ({
   const location = useLocation();
   const navigate = useNavigate();
 
-  qaLog('[MobileShell] Rendering for route:', location.pathname);
-
   // Get header configuration based on current route
   const getHeaderConfig = () => {
     if (overrideHeader) {
@@ -57,7 +55,7 @@ const MobileShell: React.FC<MobileShellProps> = ({
 
       case path === '/my-bets':
         return {
-          title: 'My Bets',
+          title: t('myBets'),
           leftAction: { type: 'none' as const },
           rightAction: { type: 'none' as const }
         };

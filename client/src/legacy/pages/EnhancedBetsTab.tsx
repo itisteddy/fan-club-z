@@ -10,6 +10,7 @@ import { Prediction } from '../store/predictionStore';
 import BetCard from '../components/BetCard';
 import ManagePredictionModal from '../components/modals/ManagePredictionModal';
 import { openAuthGate } from '../auth/authGateAdapter';
+import { t } from '@/lib/lexicon';
 
 interface BetsTabProps {
   onNavigateToDiscover?: () => void;
@@ -374,7 +375,7 @@ const BetsTab: React.FC<BetsTabProps> = ({ onNavigateToDiscover }) => {
               <p className="font-bold text-teal-900 text-lg">${prediction.potentialReturn.toLocaleString()}</p>
             </div>
             <div className="text-center">
-              <p className="text-xs text-teal-600 mb-1 font-medium">Odds</p>
+              <p className="text-xs text-teal-600 mb-1 font-medium">{t('odds')}</p>
               <p className="font-bold text-teal-900 text-lg">{prediction.odds}</p>
             </div>
           </div>

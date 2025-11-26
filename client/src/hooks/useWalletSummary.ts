@@ -21,14 +21,29 @@ type WalletSummaryOptions = {
   refetchIntervalMs?: number;
 };
 
+/**
+ * Hook to fetch wallet summary from the server
+ * 
+ * PERFORMANCE FIX v2:
+ * - Default refetch interval increased to 30s (was 10s)
+ * - Added staleTime and gcTime for better caching
+ * - Disabled refetchOnWindowFocus
+ */
 export function useWalletSummary(userId?: string, options: WalletSummaryOptions = {}) {
-  const { walletAddress, enabled = true, refetchIntervalMs = 10_000 } = options;
+  // PERFORMANCE FIX: Default interval increased from 10s to 30s
+  const { walletAddress, enabled = true, refetchIntervalMs = 30_000 } = options;
   const walletAddr = walletAddress?.toLowerCase() ?? null;
 
   return useQuery({
     queryKey: QK.walletSummary(userId ?? 'anon', walletAddr),
     enabled: Boolean(userId) && enabled,
     refetchInterval: refetchIntervalMs,
+    // PERFORMANCE FIX: Better caching settings
+    staleTime: 20_000, // Data fresh for 20 seconds
+    gcTime: 60_000, // Keep in cache for 1 minute
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
+    retry: 2,
     queryFn: async (): Promise<WalletSummary> => {
       if (!userId) {
         throw new Error('userId is required to load wallet summary');

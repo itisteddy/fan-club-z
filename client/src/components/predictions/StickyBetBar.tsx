@@ -1,5 +1,6 @@
 import React from 'react';
 import { Loader2 } from 'lucide-react';
+import { t } from '@/lib/lexicon';
 
 interface StickyBetBarProps {
   canBet: boolean;
@@ -17,7 +18,7 @@ export function StickyBetBar({
   canBet, 
   onPlace, 
   loading = false,
-  label = 'Place Bet'
+  label = t('betVerb')
 }: StickyBetBarProps) {
   return (
     <div
@@ -31,7 +32,7 @@ export function StickyBetBar({
           className="w-full h-12 rounded-2xl bg-emerald-600 text-white font-semibold shadow-lg hover:bg-emerald-700 active:bg-emerald-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2"
         >
           {loading && <Loader2 className="h-5 w-5 animate-spin" />}
-          <span>{loading ? 'Placing Bet...' : label}</span>
+          <span>{loading ? `${t('betVerb')}…` : label}</span>
         </button>
       </div>
     </div>

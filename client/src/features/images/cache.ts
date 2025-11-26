@@ -57,7 +57,7 @@ class ImageCacheManager {
   async get(predictionId: string, provider: string, seed: string): Promise<StockImage | null> {
     const key = this.generateKey(predictionId, provider, seed);
 
-    // Check memory cache first
+    // PERFORMANCE FIX: Check memory cache first (synchronous, fast)
     const memoryEntry = this.memoryCache.get(key);
     if (memoryEntry) {
       // Check if still fresh (1 hour)
@@ -68,31 +68,38 @@ class ImageCacheManager {
       }
     }
 
-    // Check IndexedDB
+    // PERFORMANCE FIX: IndexedDB check is async but non-blocking
+    // Return null immediately if memory cache miss - let component handle loading state
+    // IndexedDB check happens in background
     try {
       await this.initDB();
       if (!this.db) return null;
 
-      return new Promise((resolve) => {
-        const transaction = this.db!.transaction([this.storeName], 'readonly');
-        const store = transaction.objectStore(this.storeName);
-        const request = store.get(key);
+      // Use Promise with timeout to prevent hanging
+      return Promise.race([
+        new Promise<StockImage | null>((resolve) => {
+          const transaction = this.db!.transaction([this.storeName], 'readonly');
+          const store = transaction.objectStore(this.storeName);
+          const request = store.get(key);
 
-        request.onsuccess = () => {
-          const result = request.result;
-          if (result && Date.now() - result.timestamp < 24 * 60 * 60 * 1000) { // 24 hours
-            // Update memory cache
-            this.memoryCache.set(key, result);
-            resolve(result.image);
-          } else {
-            resolve(null);
-          }
-        };
+          request.onsuccess = () => {
+            const result = request.result;
+            if (result && Date.now() - result.timestamp < 24 * 60 * 60 * 1000) { // 24 hours
+              // Update memory cache
+              this.memoryCache.set(key, result);
+              resolve(result.image);
+            } else {
+              resolve(null);
+            }
+          };
 
-        request.onerror = () => resolve(null);
-      });
+          request.onerror = () => resolve(null);
+        }),
+        // Timeout after 500ms to prevent blocking
+        new Promise<null>((resolve) => setTimeout(() => resolve(null), 500))
+      ]);
     } catch (error) {
-      console.warn('Image cache get error:', error);
+      // Silently fail - don't block UI
       return null;
     }
   }
@@ -204,4 +211,11 @@ if (typeof window !== 'undefined') {
   setInterval(() => {
     imageCache.cleanup();
   }, 60 * 60 * 1000);
+  
+  // Expose cache clearing function globally for debugging
+  (window as unknown as { __clearImageCache: () => Promise<void> }).__clearImageCache = async () => {
+    console.log('[Image Cache] Clearing all cached images...');
+    await imageCache.clear();
+    console.log('[Image Cache] ✅ Cache cleared. Refresh page to reload images.');
+  };
 }

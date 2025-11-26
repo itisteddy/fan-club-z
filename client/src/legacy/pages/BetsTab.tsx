@@ -22,6 +22,7 @@ import { cn } from '../utils/cn';
 import { formatTimeAgo } from '../lib/format';
 import { formatTimeRemaining } from '@/lib/utils';
 import PredictionCardV3, { PredictionCardV3Skeleton } from '../components/predictions/PredictionCardV3';
+import { t } from '@/lib/lexicon';
 
 // Production BetsTab Component - Extracted from production bundle
 const BetsTab: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNavigateToDiscover }) => {
@@ -404,7 +405,7 @@ const BetsTab: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNavigateTo
       'Active': {
         icon: TrendingUp,
         title: 'No active predictions',
-        description: "You haven't placed any bets yet. Start by exploring trending topics and making your first prediction!",
+        description: `You haven't placed any ${t('bets')} yet. Start by exploring trending topics and making your first prediction!`,
         buttonText: 'Discover Predictions',
         buttonColor: 'from-emerald-500 to-emerald-600',
         iconBg: 'bg-emerald-100',
@@ -733,7 +734,7 @@ const BetsTab: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNavigateTo
         <div className="px-6 pt-12 pb-6">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">My Predictions</h1>
           <p className="text-gray-600">
-            Track your active bets, created predictions, and completed results
+            Track your active {t('bets')}, created predictions, and completed results
           </p>
         </div>
         

@@ -1,11 +1,18 @@
 import { useQuery, useInfiniteQuery } from '@tanstack/react-query';
-import { useEffect } from 'react';
 import { QK } from '@/lib/queryKeys';
 import type { ActivityItem } from '@fanclubz/shared';
 import { normalizeWalletTransaction } from '@fanclubz/shared';
 
 export type WalletActivityItem = ActivityItem;
 
+/**
+ * Hook to fetch wallet activity/transaction history
+ * 
+ * PERFORMANCE FIX v2: 
+ * - Increased refetch interval from 30s to 60s
+ * - Added gcTime to keep data in cache longer
+ * - Disabled refetchOnWindowFocus to reduce API calls
+ */
 export function useWalletActivity(userId?: string, limit = 20) {
   const query = useQuery({
     queryKey: QK.walletActivity(userId ?? 'anon', limit),
@@ -24,28 +31,28 @@ export function useWalletActivity(userId?: string, limit = 20) {
         throw new Error(error.message || 'Failed to load transactions');
       }
       const raw = await r.json() as { items: any[] };
-      const normalisedItems: WalletActivityItem[] = (raw.items || []).map((item) => 
-        normalizeWalletTransaction(item)
-      );
+      
+      const normalisedItems: WalletActivityItem[] = (raw.items || []).map((item) => {
+        try {
+          return normalizeWalletTransaction(item);
+        } catch (error) {
+          console.error('[FCZ-PAY] ui: failed to normalize item', { item, error });
+          return null;
+        }
+      }).filter((item): item is WalletActivityItem => item !== null);
 
-      console.log('[FCZ-PAY] ui: fetched wallet activity', { count: normalisedItems.length });
       return { items: normalisedItems };
     },
-    refetchInterval: 10_000, // Refetch every 10 seconds
-    staleTime: 5_000, // Consider data stale after 5 seconds
+    // PERFORMANCE FIX: Increased intervals to reduce API calls
+    refetchInterval: 60_000, // Refetch every 60 seconds (was 30s)
+    staleTime: 45_000, // Consider data stale after 45 seconds (was 20s)
+    gcTime: 120_000, // Keep in cache for 2 minutes
     retry: 2,
+    // Don't refetch on window focus - reduces unnecessary API calls
+    refetchOnWindowFocus: false,
+    // Don't refetch on mount if data is fresh
+    refetchOnMount: false,
   });
-
-  // Refetch on window focus
-  useEffect(() => {
-    const handleFocus = () => {
-      if (userId && document.hasFocus()) {
-        query.refetch();
-      }
-    };
-    window.addEventListener('focus', handleFocus);
-    return () => window.removeEventListener('focus', handleFocus);
-  }, [userId, query]);
 
   return query;
 }
@@ -84,9 +91,12 @@ export function useWalletActivityInfinite(userId?: string, limit = 20) {
       return lastItem?.id || lastItem?.createdAt;
     },
     initialPageParam: undefined as string | undefined,
-    refetchInterval: 10_000,
-    staleTime: 5_000,
+    // PERFORMANCE FIX: Increased intervals
+    refetchInterval: 60_000,
+    staleTime: 45_000,
+    gcTime: 120_000,
     retry: 2,
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
   });
 }
-

@@ -1,4 +1,4 @@
-import { createClient } from '@supabase/supabase-js';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { Capacitor } from '@capacitor/core';
 import { App as CapacitorApp } from '@capacitor/app';
 import { Browser } from '@capacitor/browser';
@@ -32,27 +32,37 @@ const isNativePlatform = () => typeof window !== 'undefined' && Boolean(Capacito
 // Helper to get the proper redirect URL for any environment
 // Uses HTTPS redirects for all platforms (Web OAuth client supports both web and native)
 function getRedirectUrl(next?: string) {
+  console.log('🔍 getRedirectUrl called - hostname:', window.location.hostname);
+  
   const appendNext = (base: string) => {
     if (!next) return base;
     const separator = base.includes('?') ? '&' : '?';
     return `${base}${separator}next=${encodeURIComponent(next)}`;
   };
 
-  // In production, always use the production URL (works for web, PWA, and native)
-  if (import.meta.env.PROD) {
-    return appendNext('https://app.fanclubz.app/auth/callback');
+  // Check for explicit dev/local environment first
+  const isLocalDev = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+  
+  console.log('🔍 isLocalDev check:', isLocalDev);
+  
+  // In local development, always use current origin
+  if (isLocalDev) {
+    const currentOrigin = window.location.origin;
+    const fallback = `${currentOrigin}/auth/callback`;
+    console.log('🔧 Auth redirect URL (local dev):', fallback);
+    return appendNext(fallback);
   }
   
-  // In development, check if we have a custom redirect URL override
+  // Check if we have a custom redirect URL override
   if (import.meta.env.VITE_AUTH_REDIRECT_URL) {
+    console.log('🔧 Auth redirect URL (override):', import.meta.env.VITE_AUTH_REDIRECT_URL);
     return appendNext(import.meta.env.VITE_AUTH_REDIRECT_URL);
   }
   
-  // Use current origin (works for localhost, network IPs, etc.)
-  const currentOrigin = window.location.origin;
-  const fallback = `${currentOrigin}/auth/callback`;
-  console.log('🔧 Auth redirect URL:', fallback);
-  return appendNext(fallback);
+  // In production, use the production URL
+  const prodUrl = 'https://app.fanclubz.app/auth/callback';
+  console.log('🔧 Auth redirect URL (production):', prodUrl);
+  return appendNext(prodUrl);
 }
 
 export const buildAuthRedirectUrl = (next?: string) => getRedirectUrl(next);
@@ -81,13 +91,22 @@ const ensureNativeAuthListener = () => {
   });
 };
 
-// Create Supabase client with proper OAuth configuration
-export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+const getAuthStorage = () => {
+  if (typeof window === 'undefined') return undefined;
+  try {
+    return window.localStorage;
+  } catch (error) {
+    console.warn('⚠️ Unable to access localStorage for Supabase auth storage:', error);
+    return undefined;
+  }
+};
+
+const supabaseOptions: any = {
   auth: {
     autoRefreshToken: true,
     persistSession: true,
     detectSessionInUrl: true,
-    flowType: 'pkce'
+    flowType: 'pkce',
   },
   db: {
     schema: 'public',
@@ -97,7 +116,33 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
       'X-Client-Info': 'fanclubz-web@1.0.0',
     },
   },
-});
+};
+
+const authStorage = getAuthStorage();
+if (authStorage) {
+  supabaseOptions.auth = {
+    ...supabaseOptions.auth,
+    storage: authStorage,
+    storageKey: 'fcz-auth-storage',
+  };
+}
+
+type TypedSupabaseClient = SupabaseClient<any, any, any>;
+
+type GlobalWithSupabase = typeof globalThis & {
+  __fanclubzSupabase?: TypedSupabaseClient;
+};
+
+const globalWithSupabase = globalThis as GlobalWithSupabase;
+
+// Create Supabase client with proper OAuth configuration
+export const supabase: TypedSupabaseClient =
+  globalWithSupabase.__fanclubzSupabase ??
+  (createClient(supabaseUrl, supabaseAnonKey, supabaseOptions) as TypedSupabaseClient);
+
+if (!globalWithSupabase.__fanclubzSupabase) {
+  globalWithSupabase.__fanclubzSupabase = supabase;
+}
 
 // Test the connection on initialization
 const testConnection = async () => {
@@ -172,8 +217,17 @@ export const auth = {
         }
 
         try {
+          console.log('═══════════════════════════════════════');
+          console.log('🔐 OAUTH SIGN IN STARTED');
+          console.log('  Provider:', provider);
+          console.log('  Next param:', options?.next);
+          console.log('  Current hostname:', window.location.hostname);
+          console.log('  Current origin:', window.location.origin);
+          console.log('═══════════════════════════════════════');
+          
           const redirectUrl = getRedirectUrl(options?.next);
-          console.log('🔐 OAuth redirect URL:', redirectUrl);
+          console.log('🔐 Final OAuth redirect URL:', redirectUrl);
+          console.log('═══════════════════════════════════════');
 
           const { data, error} = await supabase.auth.signInWithOAuth({
             provider,

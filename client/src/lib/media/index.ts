@@ -1,7 +1,10 @@
 // src/lib/media/index.ts
 // Central export point for media utilities
 
+import type { SemanticImageContext } from './buildQuery';
+
 export { buildImageQuery } from './buildQuery';
+export type { SemanticImageContext } from './buildQuery';
 export { usePredictionMedia } from './usePredictionMedia';
 
 // Re-export for convenience (if you keep the old system around during migration)
@@ -10,10 +13,8 @@ export { usePredictionMedia } from './usePredictionMedia';
 // export { MEDIA_PROVIDERS } from './providers';
 
 // Type definitions
-export type PredictionMediaInput = {
+export type PredictionMediaInput = SemanticImageContext & {
   id: string;
-  title: string;
-  category?: string;
 };
 
 export type MediaProvider = 'pexels' | 'unsplash' | 'pixabay';

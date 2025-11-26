@@ -30,7 +30,7 @@ export function useUnifiedBalance() {
     refetch: refetchSummary
   } = useWalletSummary(user?.id, {
     walletAddress: address,
-    refetchIntervalMs: 10_000,
+    refetchIntervalMs: 30_000, // Reduced from 10s to 30s to prevent excessive refetching
     enabled: Boolean(user?.id)
   });
 
@@ -71,7 +71,6 @@ export function useUnifiedBalance() {
   // Listen for balance refresh events
   useEffect(() => {
     const handleRefresh = () => {
-      console.log('[FCZ] Balance refresh requested');
       refetchAll();
     };
     

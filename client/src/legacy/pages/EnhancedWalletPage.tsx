@@ -30,6 +30,7 @@ import { scrollToTop } from '../utils/scroll';
 import toast from 'react-hot-toast';
 import { openAuthGate } from '../auth/authGateAdapter';
 import SignedOutGateCard from '../components/auth/SignedOutGateCard';
+import { t } from '@/lib/lexicon';
 
 interface WalletPageProps {
   onNavigateBack?: () => void;
@@ -699,7 +700,7 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
                       <TrendingUp className="w-5 h-5 text-teal-600" />
                     </div>
                     <div>
-                      <h4 className="font-semibold text-gray-900">Total Winnings</h4>
+                      <h4 className="font-semibold text-gray-900">Total {t('winnings')}</h4>
                       <p className="text-sm text-gray-600">From predictions</p>
                     </div>
                   </div>

@@ -1,8 +1,6 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { WagmiProvider } from 'wagmi'
 import App from './App.tsx'
 import LandingPage from './landing/LandingPage'
 import ErrorBoundary from './components/ErrorBoundary.tsx'
@@ -10,19 +8,11 @@ import { NetworkStatusProvider } from './providers/NetworkStatusProvider'
 import { SupabaseProvider } from './providers/SupabaseProvider'
 import { AuthSessionProvider } from './providers/AuthSessionProvider'
 import { ErrorHandlingProvider } from './components/ErrorHandlingProvider'
-import { config } from './lib/wagmi'
+import { Web3Provider } from './providers/Web3Provider'
 import './index.css'
 import { APP_VERSION, BUILD_TIMESTAMP } from './lib/version.ts'
-
-// Create a client
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      staleTime: 1000 * 60 * 5, // 5 minutes
-      retry: 1,
-    },
-  },
-})
+// [PERF] Web Vitals monitoring
+import { initWebVitals } from './lib/vitals'
 
 // Centralized version management
 console.log(`🚀 Fan Club Z ${APP_VERSION} - CONSOLIDATED ARCHITECTURE - SINGLE SOURCE OF TRUTH`)
@@ -30,46 +20,38 @@ console.log(`🚀 Fan Club Z ${APP_VERSION} - CONSOLIDATED ARCHITECTURE - SINGLE
 const isLandingBuild = import.meta.env.VITE_BUILD_TARGET === 'landing';
 const RootComponent = isLandingBuild ? LandingPage : App;
 
-// Global error handler for unhandled promise rejections
-window.addEventListener('unhandledrejection', (event) => {
-  console.error('Unhandled promise rejection:', event.reason);
-  // Optionally prevent the default browser behavior
-  // event.preventDefault();
-});
-
-// Global error handler for general errors
-window.addEventListener('error', (event) => {
-  console.error('Global error:', event.error);
-});
+// Note: Global error handlers are now managed by Web3Provider for WalletConnect errors
+// This provides coordinated error handling with automatic session recovery
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <WagmiProvider config={config}>
-      <QueryClientProvider client={queryClient}>
-        <ErrorBoundary
-          onError={(error, errorInfo) => {
-            if (import.meta.env.DEV) {
-              console.error('React Error Boundary triggered:', error, errorInfo);
-            }
-            // You can add error reporting service here (e.g., Sentry)
-          }}
-        >
-          <ErrorHandlingProvider>
-            <NetworkStatusProvider>
-              <SupabaseProvider>
-                <AuthSessionProvider>
-                  <BrowserRouter>
-                    <RootComponent />
-                  </BrowserRouter>
-                </AuthSessionProvider>
-              </SupabaseProvider>
-            </NetworkStatusProvider>
-          </ErrorHandlingProvider>
-        </ErrorBoundary>
-      </QueryClientProvider>
-    </WagmiProvider>
+    <Web3Provider>
+      <ErrorBoundary
+        onError={(error, errorInfo) => {
+          if (import.meta.env.DEV) {
+            console.error('React Error Boundary triggered:', error, errorInfo);
+          }
+          // You can add error reporting service here (e.g., Sentry)
+        }}
+      >
+        <ErrorHandlingProvider>
+          <NetworkStatusProvider>
+            <SupabaseProvider>
+              <AuthSessionProvider>
+                <BrowserRouter>
+                  <RootComponent />
+                </BrowserRouter>
+              </AuthSessionProvider>
+            </SupabaseProvider>
+          </NetworkStatusProvider>
+        </ErrorHandlingProvider>
+      </ErrorBoundary>
+    </Web3Provider>
   </React.StrictMode>,
 )
 
 console.log(`✅ Fan Club Z ${APP_VERSION} - Application started successfully`);
 console.log('🚀 Build timestamp:', BUILD_TIMESTAMP);
+
+// [PERF] Initialize Web Vitals monitoring after app mounts
+initWebVitals();

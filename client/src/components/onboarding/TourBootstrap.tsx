@@ -1,6 +1,7 @@
 import React from 'react';
 import { useLocation } from 'wouter';
 import { useTour } from './TourProvider';
+import { t } from '@/lib/lexicon';
 
 const TourBootstrap: React.FC = () => {
   const { startTour } = useTour();
@@ -26,14 +27,14 @@ const TourBootstrap: React.FC = () => {
         {
           id: 'bets-tab',
           target: 'tab-bets',
-          title: 'My Bets',
+          title: t('myBets'),
           description: 'Track Active, Created, and Completed predictions.',
           onNext: () => navigate('/predictions'),
         },
         {
           id: 'bets-tabs',
           target: 'bets-tabs',
-          title: 'Bet Management',
+          title: 'Stake Management',
           description: 'Switch between Active, Created, and Completed.',
         },
         {

@@ -1,15 +1,25 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Zap, X } from 'lucide-react';
+import { Zap, X, Wallet as WalletIcon, ArrowUpRight } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Card, CardContent } from '../ui/card';
 import { Prediction } from '../../store/predictionStore';
-import { useWalletStore } from '../../store/walletStore';
 import { usePredictionStore } from '../../store/predictionStore';
+import { useWalletStore } from '../../store/walletStore';
 import { useAuthStore } from '../../store/authStore';
 import toast from 'react-hot-toast';
 import { formatTimeRemaining } from '@/lib/utils';
+import { useUnifiedBalance } from '@/hooks/useUnifiedBalance';
+import DepositUSDCModal from '@/components/wallet/DepositUSDCModal';
+import { useAccount } from 'wagmi';
+import { baseSepolia } from 'wagmi/chains';
+import { useQueryClient } from '@tanstack/react-query';
+import { QK } from '@/lib/queryKeys';
+import { invalidateAfterBet } from '@/utils/queryInvalidation';
+import { cn } from '@/lib/utils';
+import { ensureWalletReady, WalletStateError } from '@/services/onchainTransactionService';
+import { useWeb3Recovery } from '@/providers/Web3Provider';
 
 interface PlacePredictionModalProps {
   prediction: Prediction | null;
@@ -31,10 +41,6 @@ const calculatePotentialPayout = (amount: number, odds: number) => {
   return amount * odds;
 };
 
-const cn = (...classes: (string | undefined | null | false)[]) => {
-  return classes.filter(Boolean).join(' ');
-};
-
 export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
   prediction,
   isOpen,
@@ -46,16 +52,50 @@ export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
   const [selectedOptionId, setSelectedOptionId] = useState<string>('');
   const [amount, setAmount] = useState<string>('');
   const [isLoading, setIsLoading] = useState(false);
+  const [showDepositModal, setShowDepositModal] = useState(false);
   
   const { user } = useAuthStore();
-  const { getBalance, lockFunds } = useWalletStore();
   const { placePrediction } = usePredictionStore();
+  const queryClient = useQueryClient();
+  const { address, chainId, isConnected } = useAccount();
+  const { sessionHealthy } = useWeb3Recovery();
+  const walletAddressLower = address?.toLowerCase() ?? null;
+  const { wallet: walletUSDC, available: escrowAvailable, refetch: refetchBalances } = useUnifiedBalance();
+  const demoGetBalance = useWalletStore((state) => state.getBalance);
+  const demoBalance = demoGetBalance('USD') || 0;
 
-  const usdBalance = getBalance('USD') || 0; // Use real balance, no mock data
+  const BASE_BETS_ENABLED =
+    import.meta.env.VITE_FCZ_BASE_BETS === '1' ||
+    import.meta.env.ENABLE_BASE_BETS === '1' ||
+    import.meta.env.VITE_FCZ_BASE_ENABLE === '1';
+  const DEMO_MODE = import.meta.env.VITE_FCZ_ENABLE_DEMO === '1';
+  const isCryptoMode = BASE_BETS_ENABLED && !DEMO_MODE;
+
   const numAmount = parseFloat(amount) || 0;
   const selectedOption = prediction?.options?.find(o => o.id === selectedOptionId);
   const selectedOptionOdds = selectedOption?.current_odds || (selectedOption?.total_staked ? (prediction?.pool_total / selectedOption.total_staked) : 2.0);
   const potentialPayout = selectedOption ? calculatePotentialPayout(numAmount, selectedOptionOdds) : 0;
+  const displayBalance = isCryptoMode ? escrowAvailable : demoBalance;
+  const needsDeposit = isCryptoMode && numAmount > escrowAvailable;
+  const insufficientBalance = numAmount > displayBalance;
+
+  const ensureCryptoWalletReady = useCallback(() => {
+    if (!isCryptoMode) return true;
+    try {
+      ensureWalletReady({
+        address,
+        chainId,
+        expectedChainId: baseSepolia.id,
+        isConnected,
+        sessionHealthy,
+      });
+      return true;
+    } catch (err) {
+      const message = err instanceof WalletStateError ? err.message : 'Wallet is not ready. Please reconnect and switch to Base Sepolia.';
+      toast.error(message);
+      return false;
+    }
+  }, [address, chainId, isConnected, isCryptoMode, sessionHealthy]);
 
   const quickAmounts = [5, 10, 25, 50, 100, 250];
 
@@ -80,28 +120,50 @@ export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
       return;
     }
 
-    if (numAmount > usdBalance) {
-      toast.error(`Insufficient balance. You have ${formatCurrency(usdBalance)} available, but tried to stake ${formatCurrency(numAmount)}.`);
-      return;
-    }
-
     if (!user?.id) {
       toast.error('You must be logged in to place predictions');
       return;
     }
 
+    if (needsDeposit) {
+      toast.error(`Insufficient escrow balance. You have ${formatCurrency(escrowAvailable)}, but tried to stake ${formatCurrency(numAmount)}.`);
+      setShowDepositModal(true);
+      return;
+    }
+
+    if (!isCryptoMode && numAmount > demoBalance) {
+      toast.error(`Insufficient balance. You have ${formatCurrency(demoBalance)} available, but tried to stake ${formatCurrency(numAmount)}.`);
+      return;
+    }
+
+    if (!ensureCryptoWalletReady()) {
+      return;
+    }
+
     setIsLoading(true);
     try {
-      // Lock funds in wallet first
-      await lockFunds(numAmount, 'USD');
-      
-      // Place the prediction
-      await placePrediction(prediction.id, selectedOptionId, numAmount, user.id);
+      await placePrediction(
+        prediction.id,
+        selectedOptionId,
+        numAmount,
+        user.id,
+        address ?? undefined
+      );
       
       toast.success(`Prediction placed successfully! You staked ${formatCurrency(numAmount)} on ${selectedOption?.label}.`);
       onClose();
       setAmount('');
       setSelectedOptionId('');
+
+      // Invalidate queries & refresh balances
+      invalidateAfterBet(queryClient, { userId: user.id, predictionId: prediction.id });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: QK.walletSummary(user.id, walletAddressLower) }),
+        queryClient.invalidateQueries({ queryKey: QK.walletActivity(user.id) }),
+        queryClient.invalidateQueries({ queryKey: ['readContract'] }),
+      ]);
+      await refetchBalances();
+      window.dispatchEvent(new CustomEvent('fcz:balance:refresh'));
     } catch (error: any) {
       const errorMessage = error?.message || 'Unknown error occurred';
       toast.error(`Failed to place prediction: ${errorMessage}. Please try again.`);
@@ -175,6 +237,34 @@ export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
                   </div>
                 </div>
 
+                {isCryptoMode && (
+                  <div className="flex items-center justify-between bg-purple-50 border border-purple-100 rounded-xl px-3 py-2 text-xs text-purple-900">
+                    <div className="flex items-center gap-2">
+                      <WalletIcon className="w-4 h-4" />
+                      <div>
+                        <p className="font-semibold">Available to stake</p>
+                        <p className="text-purple-700">${escrowAvailable.toFixed(2)} USDC</p>
+                      </div>
+                    </div>
+                    <button
+                      className="inline-flex items-center gap-1 text-xs font-semibold text-purple-800 hover:text-purple-900"
+                        onClick={() => {
+                        if (!user?.id) {
+                          toast.error('Sign in to deposit funds.');
+                          return;
+                        }
+                          if (!ensureCryptoWalletReady()) {
+                            return;
+                          }
+                        setShowDepositModal(true);
+                      }}
+                    >
+                      <ArrowUpRight className="w-3 h-3" />
+                      Add funds
+                    </button>
+                  </div>
+                )}
+
                 {/* Options */}
                 <div className="space-y-3">
                   <h4 className="font-medium text-gray-900">Select your prediction:</h4>
@@ -240,16 +330,16 @@ export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
                             onChange={(e) => setAmount(e.target.value)}
                             className="pl-8 pr-4 h-12 text-lg font-medium"
                             min={prediction.stake_min}
-                            max={prediction.stake_max || usdBalance}
+                            max={prediction.stake_max || displayBalance}
                           />
                           <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 font-medium">
                             $
                           </span>
                         </div>
                         <div className="flex items-center justify-between text-xs text-gray-500 mt-2">
-                          <span>Balance: {formatCurrency(usdBalance)}</span>
+                          <span>Balance: {formatCurrency(displayBalance)}</span>
                           <button
-                            onClick={() => setAmount(usdBalance.toString())}
+                            onClick={() => setAmount(displayBalance.toString())}
                             className="text-blue-600 hover:text-blue-700 font-medium"
                           >
                             Max
@@ -266,7 +356,7 @@ export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
                               variant="outline"
                               size="sm"
                               onClick={() => setAmount(quickAmount.toString())}
-                              disabled={quickAmount > usdBalance}
+                                  disabled={quickAmount > displayBalance}
                               className="text-sm h-10"
                             >
                               ${quickAmount}
@@ -308,7 +398,7 @@ export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
               <div className="flex-shrink-0 p-4 border-t border-gray-200 bg-white">
                 <Button
                   onClick={handleSubmit}
-                  disabled={!selectedOptionId || !numAmount || isLoading || numAmount > usdBalance}
+                  disabled={!selectedOptionId || !numAmount || isLoading || insufficientBalance}
                   className="w-full h-12 bg-teal-500 hover:bg-teal-600 disabled:bg-gray-400 text-white font-semibold rounded-xl transition-all duration-200 shadow-lg flex items-center justify-center"
                 >
                   {isLoading ? (
@@ -326,6 +416,19 @@ export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
               </div>
             </motion.div>
           </div>
+
+          {showDepositModal && user?.id && (
+            <DepositUSDCModal
+              open={showDepositModal}
+              onClose={() => setShowDepositModal(false)}
+              onSuccess={() => {
+                setShowDepositModal(false);
+                refetchBalances();
+              }}
+              availableUSDC={walletUSDC}
+              userId={user.id}
+            />
+          )}
         </>
       )}
     </AnimatePresence>

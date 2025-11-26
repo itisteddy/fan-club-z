@@ -527,6 +527,12 @@ export const OnboardingSystem: React.FC<OnboardingSystemProps> = ({
     };
 
     const updateTargetPosition = () => {
+      if (!step?.target) {
+        setTargetElement(null);
+        setTargetRect(null);
+        return;
+      }
+
       try {
         const element = selectTourElement(step.target);
         if (element) {

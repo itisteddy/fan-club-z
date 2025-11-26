@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useAuthStore } from '@/store/authStore';
 import { useAccount } from 'wagmi';
 
-interface ActivityItem {
+export interface ChainActivityItem {
   id: string;
   kind: string;
   amount: number;
@@ -10,10 +10,16 @@ interface ActivityItem {
   chainId: number;
   txHash?: string;
   createdAt: string;
+  channel?: string | null;
+  direction?: string | null;
+  description?: string | null;
+  feeUSD?: number | null;
+  meta?: Record<string, any> | null;
+  status?: 'pending' | 'completed' | 'failed' | string;
 }
 
 interface ActivityResponse {
-  items: ActivityItem[];
+  items: ChainActivityItem[];
 }
 
 async function fetchActivity(userId: string, limit: number): Promise<ActivityResponse> {
@@ -30,8 +36,7 @@ async function fetchActivity(userId: string, limit: number): Promise<ActivityRes
   }
 
   const data = await response.json();
-  console.log(`[FCZ-PAY] ui: Fetched ${data?.items?.length || 0} activity items`);
-  
+  // Removed excessive logging - only log errors
   return data;
 }
 
@@ -43,7 +48,8 @@ export function useOnchainActivity(limit = 20) {
     queryKey: ['onchain-activity', address, limit],
     queryFn: () => fetchActivity(user?.id || '', limit),
     enabled: !!address && isConnected && !!user?.id,
-    refetchInterval: 10_000,
+    refetchInterval: 60_000, // Reduced from 10s to 60s to prevent excessive refetching
+    staleTime: 45_000, // Consider data fresh for 45 seconds
     refetchOnWindowFocus: true,
   });
 }
@@ -58,6 +64,7 @@ export function formatActivityKind(kind: string): string {
     win: 'Win payout',
     transaction: 'Transaction',
     transfer: 'Transfer',
+    fee: 'Fee',
   };
 
   return kindMap[kind.toLowerCase()] || kind;

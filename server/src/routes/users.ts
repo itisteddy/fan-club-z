@@ -1,6 +1,29 @@
 import express from 'express';
+import crypto from 'crypto';
 import { supabase } from '../config/database';
 import { VERSION } from '@fanclubz/shared';
+
+// [PERF] Helper to generate ETag from response data
+function generateETag(data: unknown): string {
+  const hash = crypto.createHash('md5').update(JSON.stringify(data)).digest('hex');
+  return `"${hash}"`;
+}
+
+// [PERF] Helper to check conditional GET and return 304 if ETag matches
+function checkETag(req: express.Request, res: express.Response, data: unknown): boolean {
+  const etag = generateETag(data);
+  const ifNoneMatch = req.headers['if-none-match'];
+  
+  if (ifNoneMatch && ifNoneMatch === etag) {
+    res.status(304).end();
+    return true;
+  }
+  
+  // [PERF] Set caching headers
+  res.setHeader('Cache-Control', 'private, max-age=30');
+  res.setHeader('ETag', etag);
+  return false;
+}
 
 const router = express.Router();
 
@@ -107,11 +130,17 @@ router.get('/leaderboard', async (req, res) => {
       leaderboard.sort((a, b) => b.predictions_count - a.predictions_count);
     }
 
-    return res.json({
+    // [PERF] Prepare response and check ETag for conditional GET
+    const response = {
       data: leaderboard.slice(0, limit),
       message: 'Leaderboard fetched successfully',
       version: VERSION
-    });
+    };
+    
+    // [PERF] Check ETag - returns true if 304 was sent
+    if (checkETag(req, res, response)) return;
+    
+    return res.json(response);
   } catch (error: any) {
     return res.status(500).json({
       error: 'Internal server error',

@@ -2,6 +2,7 @@ import React from 'react';
 import { useLocation } from 'wouter';
 import { Home, BarChart3, Plus, Users, Wallet, Bell, User } from 'lucide-react';
 import { scrollToTop } from '../../utils/scroll';
+import { t } from '@/lib/lexicon';
 
 interface MainLayoutProps {
   children: React.ReactNode;
@@ -24,7 +25,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
       isActive: location === '/' || location === '/discover'
     },
     { 
-      label: 'My Bets', 
+      label: t('myBets'), 
       href: '/predictions', 
       icon: BarChart3,
       isActive: location === '/predictions'

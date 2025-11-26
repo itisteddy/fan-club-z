@@ -1,6 +1,6 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode, useRef } from 'react';
 import { useSupabase } from './SupabaseProvider';
-import { User, Session } from '@supabase/supabase-js';
+import { User, Session, AuthChangeEvent } from '@supabase/supabase-js';
 import { captureReturnTo } from '../lib/returnTo';
 import { auth as authHelpers, buildAuthRedirectUrl } from '@/lib/supabase';
 
@@ -31,18 +31,28 @@ interface AuthSessionProviderProps {
   children: ReactNode;
 }
 
+// PERFORMANCE FIX: Debounce time for auth state changes
+const AUTH_DEBOUNCE_MS = 3000;
+
 export const AuthSessionProvider: React.FC<AuthSessionProviderProps> = ({ children }) => {
   const { supabase } = useSupabase();
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const [initialized, setInitialized] = useState(false);
+  
+  // PERFORMANCE FIX: Track last processed event to avoid duplicates
+  const lastEventRef = useRef<{ event: AuthChangeEvent; userId: string; time: number } | null>(null);
 
   useEffect(() => {
+    let mounted = true;
+    
     // Get initial session
     const getInitialSession = async () => {
       try {
         const { data: { session }, error } = await supabase.auth.getSession();
+        if (!mounted) return;
+        
         if (error) {
           console.error('Error getting initial session:', error);
         } else {
@@ -52,35 +62,38 @@ export const AuthSessionProvider: React.FC<AuthSessionProviderProps> = ({ childr
       } catch (error) {
         console.error('Exception getting initial session:', error);
       } finally {
-        setLoading(false);
-        setInitialized(true);
+        if (mounted) {
+          setLoading(false);
+          setInitialized(true);
+        }
       }
     };
 
     getInitialSession();
 
-    // Listen for auth changes
+    // Listen for auth changes with better deduplication
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
-        console.log('🔐 Auth state change:', event, session?.user?.email);
-        console.log('🔐 Full auth event details:', { event, session });
+        if (!mounted) return;
         
-        // Handle different auth events
-        switch (event) {
-          case 'SIGNED_IN':
-            console.log('✅ User signed in successfully');
-            break;
-          case 'SIGNED_OUT':
-            console.log('👋 User signed out');
-            break;
-          case 'TOKEN_REFRESHED':
-            console.log('🔄 Token refreshed');
-            break;
-          case 'PASSWORD_RECOVERY':
-            console.log('🔑 Password recovery initiated');
-            break;
-          default:
-            console.log(`🔐 Auth event: ${event}`);
+        const now = Date.now();
+        const userId = session?.user?.id || '';
+        const lastEvent = lastEventRef.current;
+        
+        // PERFORMANCE FIX: Skip duplicate events within debounce window
+        if (lastEvent && 
+            lastEvent.event === event && 
+            lastEvent.userId === userId && 
+            (now - lastEvent.time) < AUTH_DEBOUNCE_MS) {
+          return;
+        }
+        
+        // Update tracking
+        lastEventRef.current = { event, userId, time: now };
+        
+        // Only log significant events in development
+        if (import.meta.env.DEV && (event === 'SIGNED_IN' || event === 'SIGNED_OUT')) {
+          console.log('🔐 Auth:', event, session?.user?.email || '');
         }
         
         setSession(session);
@@ -90,6 +103,7 @@ export const AuthSessionProvider: React.FC<AuthSessionProviderProps> = ({ childr
     );
 
     return () => {
+      mounted = false;
       subscription.unsubscribe();
     };
   }, [supabase]);
@@ -143,9 +157,9 @@ export const AuthSessionProvider: React.FC<AuthSessionProviderProps> = ({ childr
       const next = currentPath;
       const redirectUrl = buildAuthRedirectUrl(next);
       
-      console.log('🔐 Google OAuth redirect URL:', redirectUrl);
-      console.log('🔐 Current path:', currentPath);
-      console.log('🔐 Next param:', next);
+      if (import.meta.env.DEV) {
+        console.log('🔐 Google OAuth redirect URL:', redirectUrl);
+      }
       
       const { error } = await authHelpers.signInWithOAuth('google', { next });
       

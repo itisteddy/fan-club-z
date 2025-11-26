@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Edit3, User, Activity, DollarSign, TrendingUp, Target, Trophy, MoreVertical, LogOut, Upload, X } from 'lucide-react';
+import { Edit3, User, Activity, DollarSign, TrendingUp, Target, Trophy, MoreVertical, LogOut, Upload, X, Mail } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { useAuthSession } from '../providers/AuthSessionProvider';
 import { usePredictionStore } from '../store/predictionStore';
@@ -8,6 +8,7 @@ import UserAvatar from '../components/common/UserAvatar';
 import AppHeader from '../components/layout/AppHeader';
 import { formatLargeNumber, formatCurrency, formatPercentage, formatTimeAgo } from '@/lib/format';
 import { useUserActivity, ActivityItem as FeedActivityItem } from '@/hooks/useActivityFeed';
+import { t } from '@/lib/lexicon';
 
 interface ProfilePageV2Props {
   onNavigateBack?: () => void;
@@ -277,7 +278,7 @@ const ProfilePageV2: React.FC<ProfilePageV2Props> = ({ onNavigateBack, userId })
                     {formatLargeNumber(totalPredictions)}
                   </div>
                   <div className="text-xs text-gray-500 mt-1">
-                    {userEntries.length} bets, {userCreated.length} created
+                    {userEntries.length} {t('bets')}, {userCreated.length} created
                   </div>
                 </div>
                 
@@ -361,7 +362,7 @@ const ProfilePageV2: React.FC<ProfilePageV2Props> = ({ onNavigateBack, userId })
                     <div className="flex items-center space-x-4 text-xs">
                       <span className="flex items-center gap-1 text-emerald-600">
                         <div className="w-2 h-2 bg-emerald-500 rounded-full"></div>
-                        {userEntries.filter(e => e.status === 'active').length} active bets
+                        {userEntries.filter(e => e.status === 'active').length} active {t('bets')}
                       </span>
                       <span className="text-gray-500">
                         {completedEntries.length} completed
@@ -455,6 +456,27 @@ const ProfilePageV2: React.FC<ProfilePageV2Props> = ({ onNavigateBack, userId })
                     </button>
                   </div>
                 )}
+              </div>
+
+              {/* Contact Support CTA */}
+              <div className="bg-gradient-to-br from-emerald-500 via-teal-500 to-indigo-500 rounded-2xl shadow-lg border border-white/10 p-4 sm:p-5 text-white">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.2em] text-white/70 font-semibold">Need help?</p>
+                    <h3 className="text-lg font-bold mt-1">Contact the FanClubZ team</h3>
+                    <p className="text-sm text-white/80 mt-1">
+                      Have a question or spotted an issue? Email us and we’ll follow up quickly.
+                    </p>
+                    <p className="text-xs text-white/70 font-mono mt-2">tech@fanclubz.app</p>
+                  </div>
+                  <a
+                    href="mailto:tech@fanclubz.app"
+                    className="inline-flex items-center justify-center gap-2 rounded-xl bg-white/15 px-4 py-2 text-sm font-semibold backdrop-blur hover:bg-white/25 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-white/50"
+                  >
+                    <Mail className="w-4 h-4" />
+                    Email support
+                  </a>
+                </div>
               </div>
             </>
           )}

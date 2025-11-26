@@ -23,7 +23,8 @@ export function formatCurrency(
       style: "currency",
       currency,
       notation: "compact",
-      maximumFractionDigits: 1,
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
     });
     const formatted = formatter.format(num || 0);
     return showSign && num > 0 ? `+${formatted}` : formatted;
@@ -32,7 +33,7 @@ export function formatCurrency(
   const formatter = new Intl.NumberFormat(undefined, {
     style: "currency",
     currency,
-    minimumFractionDigits: 0,
+    minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   });
   const formatted = formatter.format(num || 0);

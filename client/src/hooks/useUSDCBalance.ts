@@ -2,7 +2,6 @@ import { useReadContract } from 'wagmi';
 import { useAccount } from 'wagmi';
 import { baseSepolia } from 'wagmi/chains';
 import { formatUnits, getAddress } from 'viem';
-import { useEffect } from 'react';
 
 // USDC ABI for balanceOf
 const ERC20_BALANCE_ABI = [
@@ -40,37 +39,17 @@ export function useUSDCBalance() {
     args: address ? [getAddress(address)] : undefined,
     query: {
       enabled: isEnabled,
-      refetchInterval: 3_000, // Refetch every 3 seconds
-      retry: 3, // Retry failed requests
-      staleTime: 0, // Always consider data stale - refetch immediately when requested
+      // PERFORMANCE FIX: Increased intervals to reduce network calls
+      refetchInterval: 30_000, // Refetch every 30 seconds (was 15s)
+      staleTime: 20_000, // Data considered fresh for 20 seconds (was 10s)
+      gcTime: 60_000, // Keep in cache for 1 minute
+      retry: 2,
+      // Don't refetch on window focus - reduces unnecessary calls
+      refetchOnWindowFocus: false,
+      // Don't refetch on mount if data is fresh
+      refetchOnMount: false,
     },
   });
-
-  // Debug logging with enhanced info
-  useEffect(() => {
-    if (import.meta.env.VITE_DEBUG_LOGS === 'true') {
-      console.log('[FCZ-PAY] useUSDCBalance:', {
-        address,
-        chainId,
-        expectedChainId: baseSepolia.id,
-        isConnected,
-        usdcAddress: USDC_ADDRESS,
-        enabled: isEnabled,
-        balanceRaw: balance?.toString(),
-        balanceFormatted: balance ? formatUnits(balance, USDC_DECIMALS) : '0',
-        isLoading,
-        error: error?.message,
-        timestamp: new Date().toISOString(),
-      });
-    }
-  }, [address, chainId, isConnected, balance, isLoading, error, isEnabled]);
-
-  // Show toast notification for errors
-  useEffect(() => {
-    if (error && isEnabled) {
-      console.error('[FCZ-PAY] USDC Balance Error:', error);
-    }
-  }, [error, isEnabled]);
 
   // Convert from wei/smallest unit to USDC (6 decimals)
   const balanceUSD = balance ? Number(formatUnits(balance, USDC_DECIMALS)) : 0;

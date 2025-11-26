@@ -48,13 +48,42 @@ const AuthCallback: React.FC = () => {
         
         // Get the next parameter from URL
         const searchParams = new URLSearchParams(window.location.search);
-        const nextFromUrl = searchParams.get('next');
+        let nextFromUrl = searchParams.get('next');
+        
+        // Decode and sanitize the next parameter
+        if (nextFromUrl) {
+          try {
+            nextFromUrl = decodeURIComponent(nextFromUrl);
+            // If it's a full production URL, strip it to just the path
+            if (nextFromUrl.includes('app.fanclubz.app') && !import.meta.env.PROD) {
+              console.warn('⚠️ Blocked production URL in next parameter, using path only');
+              const url = new URL(nextFromUrl);
+              nextFromUrl = url.pathname + url.search + url.hash;
+            }
+          } catch (e) {
+            console.warn('Failed to decode next parameter:', e);
+            nextFromUrl = null;
+          }
+        }
+        
         console.log('Next from URL:', nextFromUrl);
-        console.log('Decoded next:', nextFromUrl ? decodeURIComponent(nextFromUrl) : null);
+        console.log('Decoded next:', nextFromUrl);
         
         // Get from sessionStorage as fallback
         const nextFromStorage = consumeReturnTo();
         console.log('Next from storage:', nextFromStorage);
+        
+        // Sanitize storage value too
+        let sanitizedStorage = nextFromStorage;
+        if (sanitizedStorage && sanitizedStorage.includes('app.fanclubz.app') && !import.meta.env.PROD) {
+          console.warn('⚠️ Blocked production URL in returnTo storage, using path only');
+          try {
+            const url = new URL(sanitizedStorage);
+            sanitizedStorage = url.pathname + url.search + url.hash;
+          } catch {
+            sanitizedStorage = null;
+          }
+        }
         
         // For PKCE/callback flows: exchange code for session
         const code = searchParams.get('code');
@@ -170,8 +199,10 @@ const AuthCallback: React.FC = () => {
         }
         
         // Determine where to redirect
-        const target = sanitizeInternalPath(nextFromUrl ?? nextFromStorage ?? '/');
+        const target = sanitizeInternalPath(nextFromUrl ?? sanitizedStorage ?? '/');
         console.log('Final redirect target:', target);
+        console.log('Current origin:', window.location.origin);
+        console.log('Environment PROD:', import.meta.env.PROD);
         console.log('================================================================================');
         
         // Small delay to ensure session is fully established

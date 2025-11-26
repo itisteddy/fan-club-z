@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import BottomNavigation from './BottomNavigation';
 import { NotificationCenter } from './notifications/NotificationCenter';
@@ -20,6 +20,10 @@ const MainLayout: React.FC<MainLayoutProps> = ({
   const [isNotificationCenterOpen, setIsNotificationCenterOpen] = useState(false);
   const { toasts, removeToast } = useNotificationStore();
 
+  // [PERF] Memoize callbacks to prevent child re-renders
+  const openNotificationCenter = useCallback(() => setIsNotificationCenterOpen(true), []);
+  const closeNotificationCenter = useCallback(() => setIsNotificationCenterOpen(false), []);
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-100">
       {/* Sophisticated background pattern */}
@@ -33,7 +37,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({
       {showNotificationBell && (
         <div className="fixed top-4 right-4 z-[9000]">
           <NotificationBell
-            onClick={() => setIsNotificationCenterOpen(true)}
+            onClick={openNotificationCenter}
           />
         </div>
       )}
@@ -63,7 +67,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({
       {/* Notification Center */}
       <NotificationCenter
         isOpen={isNotificationCenterOpen}
-        onClose={() => setIsNotificationCenterOpen(false)}
+        onClose={closeNotificationCenter}
       />
 
       {/* Toast Notifications */}
@@ -75,4 +79,5 @@ const MainLayout: React.FC<MainLayoutProps> = ({
   );
 };
 
-export default MainLayout;
+// [PERF] React.memo to prevent re-renders when parent re-renders with same props
+export default React.memo(MainLayout);

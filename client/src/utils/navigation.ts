@@ -1,3 +1,5 @@
+import { t } from '@/lib/lexicon';
+
 /**
  * Navigation utilities for consistent spacing and bottom navigation handling
  */
@@ -74,7 +76,7 @@ export interface NavigationTabConfig {
  */
 export const DEFAULT_NAV_TABS: NavigationTabConfig[] = [
   { id: 'discover', label: 'Discover', path: '/', requiresAuth: false },
-  { id: 'bets', label: 'My Bets', path: '/bets', requiresAuth: true },
+  { id: 'bets', label: t('myBets'), path: '/bets', requiresAuth: true },
   { id: 'leaderboard', label: 'Rankings', path: '/leaderboard', requiresAuth: false },
   { id: 'wallet', label: 'Wallet', path: '/wallet', requiresAuth: true },
   { id: 'profile', label: 'Profile', path: '/profile', requiresAuth: true },

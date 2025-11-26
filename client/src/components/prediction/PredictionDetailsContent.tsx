@@ -25,6 +25,7 @@ import ErrorBanner from '../ui/ErrorBanner';
 import LoadingState from '../ui/LoadingState';
 import EmptyState from '../ui/EmptyState';
 import AuthRequiredState from '../ui/empty/AuthRequiredState';
+import { t } from '@/lib/lexicon';
 
 interface PredictionDetailsContentProps {
   predictionId: string;
@@ -398,7 +399,7 @@ const PredictionDetailsContent: React.FC<PredictionDetailsContentProps> = ({
                   disabled={isPlacingBet || !stakeAmount}
                   className="px-6 py-2 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
-                  {isPlacingBet ? 'Placing...' : 'Place Bet'}
+                  {isPlacingBet ? `${t('betVerb')}…` : t('betVerb')}
                 </button>
               </div>
             </div>
@@ -406,7 +407,7 @@ const PredictionDetailsContent: React.FC<PredictionDetailsContentProps> = ({
             <div className="mt-6">
               <AuthRequiredState
                 icon={<TrendingUp />}
-                title="Sign in to place your bet"
+                title={`Sign in to ${t('bet')}`}
                 description="Create an account or sign in to make predictions and win rewards."
                 intent="place_prediction"
                 payload={{ predictionId }}

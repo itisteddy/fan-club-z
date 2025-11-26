@@ -4,6 +4,7 @@ export type AuthIntent =
   | 'view_my_bets'
   | 'edit_profile'
   | 'place_prediction'
+  | 'create_prediction'
   | 'comment_prediction'
   | 'like_prediction'
   | 'add_funds'
@@ -22,32 +23,39 @@ export type IntentMeta = {
 
 export const INTENT_MAP: Record<AuthIntent, IntentMeta> = {
   view_wallet: {
-    title: 'Sign in to view your wallet',
+    title: 'Sign in to FanClubZ',
     description: 'See your balance, deposits, and transactions.',
     primaryCta: 'Continue with Google',
     secondaryCta: 'Continue with Email',
     analyticsKey: 'auth.view_wallet',
   },
   view_my_bets: {
-    title: 'Sign in to view your predictions',
+    title: 'Sign in to FanClubZ',
     description: 'Track your predictions and manage your portfolio.',
     primaryCta: 'Continue with Google',
     secondaryCta: 'Continue with Email',
     analyticsKey: 'auth.view_my_bets',
   },
   edit_profile: {
-    title: 'Sign in to edit your profile',
+    title: 'Sign in to FanClubZ',
     description: 'Customize your handle and avatar.',
     primaryCta: 'Continue with Google',
     secondaryCta: 'Continue with Email',
     analyticsKey: 'auth.edit_profile',
   },
   place_prediction: {
-    title: 'Sign in to place a prediction',
+    title: 'Sign in to FanClubZ',
     description: 'Stake, share, and compete on the leaderboard.',
     primaryCta: 'Continue with Google',
     secondaryCta: 'Continue with Email',
     analyticsKey: 'auth.place_prediction',
+  },
+  create_prediction: {
+    title: 'Sign in to FanClubZ',
+    description: 'Create your own prediction and invite others to participate.',
+    primaryCta: 'Continue with Google',
+    secondaryCta: 'Continue with Email',
+    analyticsKey: 'auth.create_prediction',
   },
   comment_prediction: {
     title: 'Sign in to comment',

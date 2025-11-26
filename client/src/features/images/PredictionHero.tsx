@@ -10,7 +10,6 @@ export interface PredictionHeroProps extends Omit<AutoImageProps, 'aspect' | 'ro
 export const PredictionHero: React.FC<PredictionHeroProps> = ({
   prediction,
   priority = true, // Hero images should load with priority
-  provider = 'pexels',
   children,
   className = '',
   ...props
@@ -24,7 +23,6 @@ export const PredictionHero: React.FC<PredictionHeroProps> = ({
           aspect="16/9" // We'll handle responsive with CSS
           rounded="2xl"
           priority={priority}
-          provider={provider}
           className="lg:rounded-none lg:aspect-[21/9]"
           {...props}
         />

@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { cn } from '../../utils/cn';
 import { scrollToTop } from '../../utils/scroll';
+import { t } from '@/lib/lexicon';
 
 const navigationItems = [
   {
@@ -21,7 +22,7 @@ const navigationItems = [
   },
   {
     id: 'mybets',
-    label: 'My Bets',
+    label: t('myBets'),
     icon: TrendingUp,
     path: '/mybets',
     tourAttr: 'nav-wallet',

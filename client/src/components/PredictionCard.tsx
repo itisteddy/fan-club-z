@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Heart, MessageCircle, Share2 } from 'lucide-react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { Prediction, PredictionEntry } from '../store/predictionStore';
 import { useLikeStore } from '../store/likeStore';
 import { useUnifiedCommentStore } from '../store/unifiedCommentStore';
@@ -286,13 +286,20 @@ const PredictionCardContent: React.FC<PredictionCardProps> = ({
   );
 };
 
+// [PERF] Memoized inner content to prevent unnecessary re-renders
+const MemoizedPredictionCardContent = React.memo(PredictionCardContent);
+
 // Main component wrapped in error boundary
-const PredictionCard: React.FC<PredictionCardProps> = (props) => {
+// [PERF] React.memo on outer component - only re-renders when props change
+const PredictionCard: React.FC<PredictionCardProps> = React.memo((props) => {
   return (
     <ErrorBoundary>
-      <PredictionCardContent {...props} />
+      <MemoizedPredictionCardContent {...props} />
     </ErrorBoundary>
   );
-};
+});
+
+// [PERF] Display name for DevTools debugging
+PredictionCard.displayName = 'PredictionCard';
 
 export default PredictionCard;

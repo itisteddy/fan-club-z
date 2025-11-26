@@ -104,8 +104,12 @@ const convertSupabaseUser = (supabaseUser: any): User | null => {
 // Flags to prevent multiple auth state listeners and initializations
 let authStateChangeListenerSet = false;
 let initializationInProgress = false;
-let lastAuthEvent = '';
-let lastAuthEventTime = 0;
+
+// ENHANCED: Better debouncing with event + userId tracking
+let lastProcessedEvent = '';
+let lastProcessedUserId = '';
+let lastEventTime = 0;
+const AUTH_EVENT_DEBOUNCE_MS = 5000; // Increased from 2000ms to 5000ms
 
 export const useAuthStore = create<AuthState>()(
   persist(
@@ -123,22 +127,16 @@ export const useAuthStore = create<AuthState>()(
         
         // Prevent multiple concurrent initializations
         if (initializationInProgress) {
-          console.log('🔄 Auth initialization already in progress, waiting...');
           return;
         }
 
         // Prevent frequent re-initialization (max once per 30 seconds)
         if (state.initialized && (now - state.lastAuthCheck < 30000)) {
-          console.log('🔄 Auth recently checked, skipping initialization');
           return;
         }
 
         // If we have valid persisted data and it's recent, use it
         if (state.isAuthenticated && state.user && state.token && (now - state.lastAuthCheck < 300000)) { // 5 minutes
-          // Only log once per session for cached auth
-          if (!state.initialized) {
-            console.log('✅ Using cached auth state for:', state.user.firstName);
-          }
           set({ 
             loading: false, 
             initialized: true,
@@ -149,7 +147,6 @@ export const useAuthStore = create<AuthState>()(
 
         // Prevent concurrent initialization attempts
         if (state.loading) {
-          console.log('🔄 Auth check already in progress...');
           return;
         }
 
@@ -157,13 +154,10 @@ export const useAuthStore = create<AuthState>()(
         set({ loading: true, lastAuthCheck: now });
 
         try {
-          console.log('🔐 Initializing authentication...');
-
           // Get current session without triggering auth state change
           const { data: { session }, error } = await supabase.auth.getSession();
 
           if (error) {
-            console.log('⚠️ Session check error:', error.message);
             set({ 
               isAuthenticated: false, 
               user: null, 
@@ -177,9 +171,6 @@ export const useAuthStore = create<AuthState>()(
 
           if (session?.user) {
             const convertedUser = convertSupabaseUser(session.user);
-            if (!state.initialized) {
-              console.log('✅ Found active session for:', convertedUser?.firstName);
-            }
             
             set({ 
               isAuthenticated: true, 
@@ -190,9 +181,6 @@ export const useAuthStore = create<AuthState>()(
               lastAuthCheck: now
             });
           } else {
-            if (!state.initialized) {
-              console.log('ℹ️ No active session found');
-            }
             set({ 
               isAuthenticated: false, 
               user: null, 
@@ -222,12 +210,9 @@ export const useAuthStore = create<AuthState>()(
         set({ loading: true });
         
         try {
-          console.log('🔑 Logging in user:', email);
-
           const { data, error } = await auth.signIn(email, password);
 
           if (error) {
-            console.error('❌ Login error:', error.message);
             let userMessage = 'Login failed. Please check your credentials.';
             
             if (error.message.includes('Invalid login credentials')) {
@@ -246,7 +231,6 @@ export const useAuthStore = create<AuthState>()(
 
           if (authUser && session) {
             const convertedUser = convertSupabaseUser(authUser);
-            console.log('✅ Login successful for:', convertedUser?.firstName);
             
             set({ 
               isAuthenticated: true, 
@@ -261,7 +245,6 @@ export const useAuthStore = create<AuthState>()(
           }
 
         } catch (error: any) {
-          console.error('❌ Login exception:', error.message);
           set({ loading: false });
           throw error;
         }
@@ -271,8 +254,6 @@ export const useAuthStore = create<AuthState>()(
         set({ loading: true });
         
         try {
-          console.log('📝 Registering user:', email);
-
           if (password.length < 6) {
             throw new Error('Password must be at least 6 characters long');
           }
@@ -290,7 +271,6 @@ export const useAuthStore = create<AuthState>()(
           const { data, error } = await auth.signUp(email, password, userData);
 
           if (error) {
-            console.error('❌ Registration error:', error.message);
             let userMessage = 'Registration failed. Please try again.';
             
             if (error.message.includes('User already registered')) {
@@ -308,7 +288,6 @@ export const useAuthStore = create<AuthState>()(
 
           if (authUser) {
             const convertedUser = convertSupabaseUser(authUser);
-            console.log('✅ Registration successful for:', convertedUser?.firstName);
             
             // If we have a session, log them in immediately
             if (data?.session) {
@@ -336,7 +315,6 @@ export const useAuthStore = create<AuthState>()(
           }
 
         } catch (error: any) {
-          console.error('❌ Registration exception:', error.message);
           set({ loading: false });
           throw error;
         }
@@ -346,24 +324,20 @@ export const useAuthStore = create<AuthState>()(
         set({ loading: true });
         
         try {
-          console.log(`🔑 Starting ${provider} OAuth login...`);
           const currentPath = `${window.location.pathname}${window.location.search}${window.location.hash}`;
           captureReturnTo(currentPath);
           
           const { data, error } = await auth.signInWithOAuth(provider, { next: currentPath });
 
           if (error) {
-            console.error(`❌ ${provider} OAuth error:`, error.message);
             set({ loading: false });
             showError(`${provider} sign-in failed. Please try again.`);
             throw new Error(error.message);
           }
 
           // OAuth redirect will handle the rest
-          console.log(`✅ ${provider} OAuth initiated, redirecting...`);
           
         } catch (error: any) {
-          console.error(`❌ ${provider} OAuth exception:`, error.message);
           set({ loading: false });
           throw error;
         }
@@ -371,19 +345,15 @@ export const useAuthStore = create<AuthState>()(
 
       handleOAuthCallback: async () => {
         try {
-          console.log('🔄 Handling OAuth callback...');
-          
           const { data, error } = await supabase.auth.getSession();
           
           if (error) {
-            console.error('❌ OAuth callback error:', error.message);
             showError('Authentication failed. Please try again.');
             throw new Error(error.message);
           }
 
           if (data.session?.user) {
               const convertedUser = convertSupabaseUser(data.session.user);
-            console.log('✅ OAuth authentication successful for:', convertedUser?.firstName);
             
             set({ 
               isAuthenticated: true, 
@@ -404,7 +374,6 @@ export const useAuthStore = create<AuthState>()(
           }
           
         } catch (error: any) {
-          console.error('❌ OAuth callback exception:', error.message);
           set({ loading: false });
           throw error;
         }
@@ -414,8 +383,6 @@ export const useAuthStore = create<AuthState>()(
         set({ loading: true });
         
         try {
-          console.log('🚪 Logging out...');
-          
           const { error } = await auth.signOut();
           
           if (error) {
@@ -434,8 +401,6 @@ export const useAuthStore = create<AuthState>()(
           showSuccess('Signed out successfully');
           
         } catch (error: any) {
-          console.error('❌ Logout exception:', error.message);
-          
           // Force logout regardless of error
           set({ 
             isAuthenticated: false, 
@@ -456,8 +421,6 @@ export const useAuthStore = create<AuthState>()(
           if (!currentUser) {
             throw new Error('No user logged in');
           }
-
-          console.log('📝 Updating profile...');
 
           const { data, error } = await supabase.auth.updateUser({
             data: {
@@ -482,7 +445,6 @@ export const useAuthStore = create<AuthState>()(
           }
 
         } catch (error: any) {
-          console.error('❌ Profile update error:', error.message);
           set({ loading: false });
           showError(error.message || 'Failed to update profile');
           throw error;
@@ -547,25 +509,27 @@ export const useAuthStore = create<AuthState>()(
   )
 );
 
-// Set up auth state change listener only once per session with better event filtering
+// Set up auth state change listener only once per session with ENHANCED event filtering
 if (typeof window !== 'undefined' && !authStateChangeListenerSet) {
   authStateChangeListenerSet = true;
   
-  console.log('🔧 Setting up auth state listener...');
-  
   supabase.auth.onAuthStateChange((event, session) => {
     const now = Date.now();
+    const userId = session?.user?.id || '';
     
-    // Prevent rapid duplicate events (max 1 per second)
-    if (lastAuthEvent === event && (now - lastAuthEventTime) < 1000) {
-      console.log('⏭️ Skipping duplicate auth event:', event);
+    // ENHANCED: Create a unique key combining event + userId
+    const eventKey = `${event}:${userId}`;
+    
+    // Skip if this exact event+user combo was processed recently
+    if (eventKey === `${lastProcessedEvent}:${lastProcessedUserId}` && 
+        (now - lastEventTime) < AUTH_EVENT_DEBOUNCE_MS) {
       return;
     }
     
-    lastAuthEvent = event;
-    lastAuthEventTime = now;
-    
-    console.log('🔄 Auth state change:', event, session?.user?.email || 'no user');
+    // Update tracking
+    lastProcessedEvent = event;
+    lastProcessedUserId = userId;
+    lastEventTime = now;
     
     const currentState = useAuthStore.getState();
     
@@ -573,8 +537,10 @@ if (typeof window !== 'undefined' && !authStateChangeListenerSet) {
     if (event === 'SIGNED_IN' && session?.user) {
       // Only update if we don't already have this user authenticated
       if (!currentState.isAuthenticated || currentState.user?.id !== session.user.id) {
-        console.log('✅ User signed in via OAuth/callback');
         const convertedUser = convertSupabaseUser(session.user);
+        if (import.meta.env.DEV) {
+          console.log('🔐 Auth state change: SIGNED_IN', convertedUser?.email);
+        }
         useAuthStore.setState({
           isAuthenticated: true,
           user: convertedUser,
@@ -583,13 +549,13 @@ if (typeof window !== 'undefined' && !authStateChangeListenerSet) {
           initialized: true,
           lastAuthCheck: now
         });
-      } else {
-        console.log('⏭️ User already authenticated, skipping SIGNED_IN update');
       }
     }
     // Handle SIGNED_OUT
     else if (event === 'SIGNED_OUT') {
-      console.log('🔓 User signed out');
+      if (import.meta.env.DEV) {
+        console.log('🔐 Auth state change: SIGNED_OUT');
+      }
       useAuthStore.setState({
         isAuthenticated: false,
         user: null,
@@ -597,19 +563,16 @@ if (typeof window !== 'undefined' && !authStateChangeListenerSet) {
         lastAuthCheck: 0
       });
     }
-    // Handle TOKEN_REFRESHED
+    // Handle TOKEN_REFRESHED - only update token, not full state
     else if (event === 'TOKEN_REFRESHED' && session?.user) {
-      console.log('🔄 Token refreshed');
-      const convertedUser = convertSupabaseUser(session.user);
-      useAuthStore.setState({
-        user: convertedUser,
-        token: session.access_token,
-        lastAuthCheck: now
-      });
+      // Only update if we're already authenticated as this user
+      if (currentState.isAuthenticated && currentState.user?.id === session.user.id) {
+        useAuthStore.setState({
+          token: session.access_token,
+          lastAuthCheck: now
+        });
+      }
     }
-    // Ignore INITIAL_SESSION to prevent double initialization
-    else if (event === 'INITIAL_SESSION') {
-      console.log('⏭️ Ignoring INITIAL_SESSION (handled by initializeAuth)');
-    }
+    // INITIAL_SESSION is handled by initializeAuth and AuthSessionProvider, skip it
   });
 }

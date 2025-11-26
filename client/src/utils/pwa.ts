@@ -23,12 +23,30 @@ export class PWAManager {
   }
 
   private init() {
-    // Register service worker
+    // In development, do NOT register or use the PWA service worker.
+    // It interferes with localhost testing by caching old bundles (including landing builds).
+    if (import.meta.env.DEV) {
+      console.log('[PWA] Skipping service worker registration in development');
+      if ('serviceWorker' in navigator) {
+        // Proactively unregister any existing SW so localhost always serves fresh dev code
+        navigator.serviceWorker.getRegistrations().then((registrations) => {
+          registrations.forEach((registration) => {
+            console.log('[PWA] Unregistering existing service worker in dev:', registration.scope);
+            registration.unregister();
+          });
+        }).catch((err) => {
+          console.warn('[PWA] Failed to unregister service workers in dev:', err);
+        });
+      }
+      return;
+    }
+
+    // Register service worker (production only)
     this.registerServiceWorker();
-    
+
     // Check if app is already installed
     this.checkInstallStatus();
-    
+
     // Listen for install prompt
     this.setupInstallPrompt();
   }

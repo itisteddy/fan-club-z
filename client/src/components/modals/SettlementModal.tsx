@@ -367,11 +367,12 @@ const SettlementModal: React.FC<SettlementModalProps> = ({
 
                 {/* Warning */}
                 <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
-                  <div className="flex items-center gap-2">
-                    <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0" />
-                    <p className="text-amber-800 text-sm">
-                      <strong>Warning:</strong> This action cannot be undone. All participants will be notified of the settlement result.
-                    </p>
+                  <div className="flex items-start gap-2">
+                    <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+                    <div className="text-amber-800 text-sm">
+                      <p><strong>Warning:</strong> This action cannot be undone.</p>
+                      <p className="mt-1">All participants will be notified of the settlement result.</p>
+                    </div>
                   </div>
                 </div>
 

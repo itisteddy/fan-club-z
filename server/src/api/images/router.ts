@@ -1,4 +1,5 @@
 import express from 'express';
+import crypto from 'crypto';
 import { PexelsProvider } from './pexels';
 import { UnsplashProvider } from './unsplash';
 import { imageCache } from './cache';
@@ -6,14 +7,30 @@ import { StockImage } from './types';
 
 const router = express.Router();
 
+// [PERF] Helper to generate ETag from response data
+function generateETag(data: unknown): string {
+  const hash = crypto.createHash('md5').update(JSON.stringify(data)).digest('hex');
+  return `"${hash}"`;
+}
+
 // Initialize providers based on environment variables
-const pexelsProvider = process.env.PEXELS_API_KEY 
-  ? new PexelsProvider(process.env.PEXELS_API_KEY)
+// CRITICAL: Server needs PEXELS_API_KEY and UNSPLASH_ACCESS_KEY env vars
+const pexelsApiKey = process.env.PEXELS_API_KEY;
+const unsplashApiKey = process.env.UNSPLASH_ACCESS_KEY;
+
+const pexelsProvider = pexelsApiKey 
+  ? new PexelsProvider(pexelsApiKey)
   : null;
 
-const unsplashProvider = process.env.UNSPLASH_ACCESS_KEY 
-  ? new UnsplashProvider(process.env.UNSPLASH_ACCESS_KEY)
+const unsplashProvider = unsplashApiKey 
+  ? new UnsplashProvider(unsplashApiKey)
   : null;
+
+// Log provider status on startup
+console.log('[Images API] Provider status:', {
+  pexels: pexelsProvider ? '✅ Available' : '❌ Missing PEXELS_API_KEY',
+  unsplash: unsplashProvider ? '✅ Available' : '❌ Missing UNSPLASH_ACCESS_KEY'
+});
 
 // Seeded index function for deterministic selection
 function seededIndex(seed: string, len: number): number {
@@ -53,13 +70,25 @@ router.get('/', async (req, res) => {
       const selectedIndex = seededIndex(seed, cachedImages.length);
       const selectedImages = cachedImages.slice(0, take);
       
-      return res.json({
+      const response = {
         success: true,
         images: selectedImages,
         selectedIndex,
         cached: true,
         provider
-      });
+      };
+
+      // [PERF] ETag support for cached responses
+      const etag = generateETag(response);
+      res.setHeader('ETag', etag);
+      res.setHeader('Cache-Control', 'public, max-age=3600'); // 1 hour cache
+      
+      // Check if client has cached version
+      if (req.headers['if-none-match'] === etag) {
+        return res.status(304).end();
+      }
+      
+      return res.json(response);
     }
 
     // Get the appropriate provider
@@ -71,6 +100,11 @@ router.get('/', async (req, res) => {
     }
 
     if (!imageProvider) {
+      console.error(`[Images API] Provider ${provider} not available:`, {
+        pexelsAvailable: !!pexelsProvider,
+        unsplashAvailable: !!unsplashProvider,
+        requestedProvider: provider
+      });
       return res.status(503).json({
         error: `${provider} provider not available. Check API keys.`,
         fallback: true
@@ -101,13 +135,25 @@ router.get('/', async (req, res) => {
     const selectedIndex = seededIndex(seed, images.length);
     const selectedImages = images.slice(0, take);
 
-    return res.json({
+    const response = {
       success: true,
       images: selectedImages,
       selectedIndex,
       cached: false,
       provider
-    });
+    };
+
+    // [PERF] ETag support for fresh responses
+    const etag = generateETag(response);
+    res.setHeader('ETag', etag);
+    res.setHeader('Cache-Control', 'public, max-age=3600'); // 1 hour cache
+    
+    // Check if client has cached version
+    if (req.headers['if-none-match'] === etag) {
+      return res.status(304).end();
+    }
+
+    return res.json(response);
 
   } catch (error) {
     console.error('Image API error:', error);

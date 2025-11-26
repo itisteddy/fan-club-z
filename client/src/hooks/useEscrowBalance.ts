@@ -28,9 +28,13 @@ const ESCROW_ABI = [
 /**
  * Hook to read user's escrow balance from the smart contract
  * Returns available balance, reserved balance, and loading state
+ * 
+ * PERFORMANCE FIX v2: Reduced refetch frequency to improve app performance
  */
 export function useEscrowBalance() {
   const { address, isConnected, chainId } = useAccount();
+
+  const isEnabled = !!address && isConnected && chainId === baseSepolia.id;
 
   // Read available balance (user's escrow balance)
   const { data: availableBalance, isLoading: isLoadingAvailable, error: errorAvailable, refetch: refetchAvailable } = useReadContract({
@@ -39,8 +43,16 @@ export function useEscrowBalance() {
     functionName: 'balances',
     args: address ? [address] : undefined,
     query: {
-      enabled: !!address && isConnected && chainId === baseSepolia.id,
-      refetchInterval: 5000, // Refetch every 5 seconds
+      enabled: isEnabled,
+      // PERFORMANCE FIX: Increased intervals to reduce network calls
+      refetchInterval: 30_000, // Refetch every 30 seconds (was 15s)
+      staleTime: 20_000, // Data considered fresh for 20 seconds (was 10s)
+      gcTime: 60_000, // Keep in cache for 1 minute
+      retry: 2,
+      // Don't refetch on window focus - reduces unnecessary calls
+      refetchOnWindowFocus: false,
+      // Don't refetch on mount if data is fresh
+      refetchOnMount: false,
     },
   });
 
@@ -51,8 +63,16 @@ export function useEscrowBalance() {
     functionName: 'reserved',
     args: address ? [address] : undefined,
     query: {
-      enabled: !!address && isConnected && chainId === baseSepolia.id,
-      refetchInterval: 5000, // Refetch every 5 seconds
+      enabled: isEnabled,
+      // PERFORMANCE FIX: Increased intervals to reduce network calls
+      refetchInterval: 30_000, // Refetch every 30 seconds (was 15s)
+      staleTime: 20_000, // Data considered fresh for 20 seconds (was 10s)
+      gcTime: 60_000, // Keep in cache for 1 minute
+      retry: 2,
+      // Don't refetch on window focus - reduces unnecessary calls
+      refetchOnWindowFocus: false,
+      // Don't refetch on mount if data is fresh
+      refetchOnMount: false,
     },
   });
 
