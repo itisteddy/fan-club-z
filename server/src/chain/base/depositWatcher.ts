@@ -20,6 +20,7 @@ import { payLogger } from '../../utils/logger';
 type Ctx = {
   pool: Pool;
   usdc: Address;
+  escrow: Address;
 };
 
 interface Checkpoint {
@@ -291,25 +292,33 @@ async function processTransferLogs(ctx: Ctx, logs: Log[]): Promise<ProcessResult
 
   log('info', `Processing transfer logs`, { count: logs.length });
 
-  // Extract unique recipient addresses
-  const tos = new Set<string>();
+  const escrowLower = ctx.escrow.toLowerCase();
+  
+  // Filter for transfers TO the escrow contract and extract unique FROM addresses (user wallets)
+  const froms = new Set<string>();
   const blockNumbers = new Set<bigint>();
   
   for (const l of logs) {
     const args: any = (l as any).args;
     const to = String(args?.to ?? '').toLowerCase();
-    if (to) tos.add(to);
+    const from = String(args?.from ?? '').toLowerCase();
+    
+    // Only process transfers TO the escrow contract
+    if (to === escrowLower && from) {
+      froms.add(from);
+    }
     
     const blockNumber = BigInt((l as any).blockNumber || 0);
     if (blockNumber > 0n) blockNumbers.add(blockNumber);
   }
 
-  log('info', `Found unique addresses and blocks`, { 
-    addresses: tos.size, 
-    blocks: blockNumbers.size 
+  log('info', `Found unique deposit addresses and blocks`, { 
+    addresses: froms.size, 
+    blocks: blockNumbers.size,
+    escrow: escrowLower
   });
 
-  if (tos.size === 0) {
+  if (froms.size === 0) {
     return { processed: 0, skipped: 0, errors: 0, lastBlock: 0n };
   }
 
@@ -320,24 +329,24 @@ async function processTransferLogs(ctx: Ctx, logs: Log[]): Promise<ProcessResult
   let lastBlock = 0n;
 
   try {
-    // Resolve addresses to user IDs
+    // Resolve FROM addresses (user wallets) to user IDs
     const { rows: addrRows } = await client.query<{ address: string; user_id: string }>(
       `SELECT lower(address) AS address, user_id
        FROM crypto_addresses
        WHERE lower(address) = ANY($1)`,
-      [Array.from(tos)]
+      [Array.from(froms)]
     );
 
-    log('info', `Resolved addresses to users`, { matched: addrRows.length, total: tos.size });
+    log('info', `Resolved addresses to users`, { matched: addrRows.length, total: froms.size });
 
     if (addrRows.length === 0) {
       log('info', 'No matching deposit addresses found');
       return { processed: 0, skipped: 0, errors: 0, lastBlock: 0n };
     }
 
-    const toUser = new Map<string, string>();
+    const fromUser = new Map<string, string>();
     for (const r of addrRows) {
-      toUser.set(r.address, r.user_id);
+      fromUser.set(r.address, r.user_id);
     }
 
     // Process each log with retry logic
@@ -347,13 +356,20 @@ async function processTransferLogs(ctx: Ctx, logs: Log[]): Promise<ProcessResult
       const blockNumber = BigInt((l as any).blockNumber || 0);
       const args: any = (l as any).args;
       const to = String(args?.to ?? '').toLowerCase();
+      const from = String(args?.from ?? '').toLowerCase();
       const value = BigInt(args?.value ?? 0n);
 
       if (blockNumber > lastBlock) {
         lastBlock = blockNumber;
       }
 
-      const userId = toUser.get(to);
+      // Only process transfers TO escrow contract
+      if (to !== escrowLower) {
+        skipped++;
+        continue;
+      }
+
+      const userId = fromUser.get(from);
       if (!userId || value <= 0n) {
         skipped++;
         continue;
@@ -371,10 +387,11 @@ async function processTransferLogs(ctx: Ctx, logs: Log[]): Promise<ProcessResult
           await client.query('BEGIN');
 
           // Idempotent insert - ON CONFLICT ensures we never credit twice
+          // Use escrow_deposit channel to match walletActivity normalization
           const insertResult = await client.query(
             `INSERT INTO wallet_transactions
                (user_id, direction, type, channel, provider, amount, status, external_ref, description, meta)
-             VALUES ($1, 'credit', 'credit', 'crypto', 'crypto-base-usdc', $2, 'success', $3, $4, $5)
+             VALUES ($1, 'credit', 'credit', 'escrow_deposit', 'crypto-base-usdc', $2, 'success', $3, $4, $5)
              ON CONFLICT (provider, external_ref) DO NOTHING
              RETURNING id`,
             [
@@ -382,7 +399,7 @@ async function processTransferLogs(ctx: Ctx, logs: Log[]): Promise<ProcessResult
               amount,
               externalRef,
               'Base USDC deposit detected',
-              JSON.stringify({ txHash, logIndex, blockNumber: blockNumber.toString() })
+              JSON.stringify({ txHash, logIndex, blockNumber: blockNumber.toString(), from, to: escrowLower })
             ]
           );
 
@@ -496,10 +513,12 @@ export async function startBaseDepositWatcher(ctx: Ctx) {
 
   const client = makePublicClient();
   const usdc = ctx.usdc;
+  const escrow = ctx.escrow;
 
   log('info', 'Starting Base USDC deposit watcher', {
     mode: 'HTTP polling',
     usdc,
+    escrow,
     pollIntervalMs: POLL_INTERVAL_MS,
     backfillWindow: BACKFILL_WINDOW_BLOCKS.toString()
   });

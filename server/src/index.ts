@@ -320,7 +320,12 @@ httpServer.listen(PORT, async () => {
     (async () => {
       try {
         // Resolve and validate addresses from registry
-        const { usdc } = await resolveAndValidateAddresses();
+        const { usdc, escrow } = await resolveAndValidateAddresses();
+        
+        if (!escrow) {
+          console.warn('[FCZ-PAY] ⚠️ Escrow address not found in registry, deposit watcher cannot start');
+          return;
+        }
         
         // Use real PostgreSQL pool connection (not Supabase RPC)
         const { ensureDbPool } = await import('./utils/dbPool');
@@ -335,7 +340,8 @@ httpServer.listen(PORT, async () => {
         
         await startBaseDepositWatcher({ 
           pool, 
-          usdc: usdc as `0x${string}`
+          usdc: usdc as `0x${string}`,
+          escrow: escrow as `0x${string}`
         });
         
         console.log('[FCZ-PAY] ✅ Deposit watcher started successfully');
