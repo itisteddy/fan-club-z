@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import toast from 'react-hot-toast';
+import { getApiUrl } from '@/utils/environment';
 
 interface IdempotentRequestOptions extends RequestInit {
   idempotencyKey?: string;
@@ -129,7 +130,8 @@ export function useIdempotentBet() {
     // Generate a unique key for this bet
     const idempotencyKey = `bet-${predictionId}-${optionId}-${amount}-${Date.now()}`;
     
-    const response = await execute('/api/predictions/place-bet', {
+    const apiBase = getApiUrl();
+    const response = await execute(`${apiBase}/api/predictions/place-bet`, {
       method: 'POST',
       body: JSON.stringify({
         predictionId,
@@ -175,7 +177,8 @@ export function useIdempotentDeposit() {
     // Use transaction hash as part of idempotency key
     const idempotencyKey = `deposit-${txHash}`;
     
-    const response = await execute('/api/wallet/deposit', {
+    const apiBase = getApiUrl();
+    const response = await execute(`${apiBase}/api/wallet/deposit`, {
       method: 'POST',
       body: JSON.stringify({
         amount,
