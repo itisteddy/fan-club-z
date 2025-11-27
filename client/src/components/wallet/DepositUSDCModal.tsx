@@ -17,13 +17,27 @@ import {
 } from '@/services/onchainTransactionService';
 import { useWeb3Recovery } from '@/providers/Web3Provider';
 
-// USDC Contract Address
-const USDC_ADDRESS = getAddress((import.meta.env.VITE_USDC_ADDRESS_BASE_SEPOLIA || 
-                                 import.meta.env.VITE_BASE_USDC_ADDRESS || 
-                                 '0x036CbD53842c5426634e7929541eC2318f3dCF7e')) as `0x${string}`;
+// USDC Contract Address - ensure proper checksumming
+function getChecksummedAddress(address: string | undefined): `0x${string}` {
+  if (!address) {
+    throw new Error('USDC address not configured');
+  }
+  // Trim whitespace and ensure it's a valid hex string
+  const trimmed = address.trim();
+  if (!trimmed.startsWith('0x') || trimmed.length !== 42) {
+    throw new Error(`Invalid address format: ${trimmed}`);
+  }
+  // getAddress() will validate checksum and return properly checksummed address
+  return getAddress(trimmed as `0x${string}`);
+}
+
+const USDC_ADDRESS_RAW = import.meta.env.VITE_USDC_ADDRESS_BASE_SEPOLIA || 
+                          import.meta.env.VITE_BASE_USDC_ADDRESS || 
+                          '0x036CbD53842c5426634e7929541eC2318f3dCF7e';
+const USDC_ADDRESS = getChecksummedAddress(USDC_ADDRESS_RAW);
 
 const ESCROW_ADDR_ENV: `0x${string}` | undefined = import.meta.env.VITE_BASE_ESCROW_ADDRESS 
-  ? getAddress(import.meta.env.VITE_BASE_ESCROW_ADDRESS) as `0x${string}`
+  ? getChecksummedAddress(import.meta.env.VITE_BASE_ESCROW_ADDRESS)
   : undefined;
 
 const ERC20_ABI = [

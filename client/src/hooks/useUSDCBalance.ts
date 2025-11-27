@@ -21,10 +21,24 @@ const ERC20_BALANCE_ABI = [
   },
 ] as const;
 
+// Ensure proper checksumming of USDC address
+function getChecksummedAddress(address: string | undefined): `0x${string}` {
+  if (!address) {
+    throw new Error('USDC address not configured');
+  }
+  // Trim whitespace and ensure it's a valid hex string
+  const trimmed = address.trim();
+  if (!trimmed.startsWith('0x') || trimmed.length !== 42) {
+    throw new Error(`Invalid address format: ${trimmed}`);
+  }
+  // getAddress() will validate checksum and return properly checksummed address
+  return getAddress(trimmed as `0x${string}`);
+}
+
 const USDC_ADDRESS_RAW = import.meta.env.VITE_USDC_ADDRESS_BASE_SEPOLIA || 
                           import.meta.env.VITE_BASE_USDC_ADDRESS || 
                           '0x036CbD53842c5426634e7929541eC2318f3dCF7e';
-const USDC_ADDRESS = getAddress(USDC_ADDRESS_RAW) as `0x${string}`;
+const USDC_ADDRESS = getChecksummedAddress(USDC_ADDRESS_RAW);
 const USDC_DECIMALS = Number(import.meta.env.VITE_USDC_DECIMALS || 6);
 
 export function useUSDCBalance() {
