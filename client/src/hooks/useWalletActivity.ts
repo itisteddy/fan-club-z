@@ -2,6 +2,7 @@ import { useQuery, useInfiniteQuery } from '@tanstack/react-query';
 import { QK } from '@/lib/queryKeys';
 import type { ActivityItem } from '@fanclubz/shared';
 import { normalizeWalletTransaction } from '@fanclubz/shared';
+import { getApiUrl } from '@/utils/environment';
 
 export type WalletActivityItem = ActivityItem;
 
@@ -25,7 +26,8 @@ export function useWalletActivity(userId?: string, limit = 20) {
         limit: String(limit) 
       });
       
-      const r = await fetch(`/api/wallet/activity?${params.toString()}`);
+      const apiBase = getApiUrl();
+      const r = await fetch(`${apiBase}/api/wallet/activity?${params.toString()}`);
       if (!r.ok) {
         const error = await r.json().catch(() => ({ message: r.statusText }));
         throw new Error(error.message || 'Failed to load transactions');
@@ -74,7 +76,8 @@ export function useWalletActivityInfinite(userId?: string, limit = 20) {
         params.set('cursor', pageParam);
       }
       
-      const r = await fetch(`/api/wallet/activity?${params.toString()}`);
+      const apiBase = getApiUrl();
+      const r = await fetch(`${apiBase}/api/wallet/activity?${params.toString()}`);
       if (!r.ok) {
         const error = await r.json().catch(() => ({ message: r.statusText }));
         throw new Error(error.message || 'Failed to load transactions');
