@@ -18,6 +18,7 @@ import type { QueryClient } from '@tanstack/react-query';
 import { config as wagmiBaseConfig } from '@/lib/wagmi';
 import { getAddress, type Address, type Hash, createPublicClient, http, formatUnits } from 'viem';
 import { baseSepolia } from 'wagmi/chains';
+import { getApiUrl } from '@/utils/environment';
 
 const wagmiConfig = wagmiBaseConfig;
 
@@ -361,11 +362,13 @@ interface StoredLog extends TransactionLogPayload {
 }
 
 export async function logTransaction(payload: TransactionLogPayload, retries = 3): Promise<boolean> {
+  const apiBase = getApiUrl();
+  const endpoint = `${apiBase}/api/wallet/log-transaction`;
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
       console.log(`[FCZ-TX] Logging ${payload.type} tx: ${payload.txHash.slice(0, 10)}... (${payload.status}) - attempt ${attempt}`);
       
-      const response = await fetch('/api/wallet/log-transaction', {
+      const response = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

@@ -32,8 +32,6 @@ const isNativePlatform = () => typeof window !== 'undefined' && Boolean(Capacito
 // Helper to get the proper redirect URL for any environment
 // Uses HTTPS redirects for all platforms (Web OAuth client supports both web and native)
 function getRedirectUrl(next?: string) {
-  console.log('🔍 getRedirectUrl called - hostname:', window.location.hostname);
-  
   const appendNext = (base: string) => {
     if (!next) return base;
     const separator = base.includes('?') ? '&' : '?';
@@ -43,25 +41,29 @@ function getRedirectUrl(next?: string) {
   // Check for explicit dev/local environment first
   const isLocalDev = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
   
-  console.log('🔍 isLocalDev check:', isLocalDev);
-  
   // In local development, always use current origin
   if (isLocalDev) {
     const currentOrigin = window.location.origin;
     const fallback = `${currentOrigin}/auth/callback`;
-    console.log('🔧 Auth redirect URL (local dev):', fallback);
+    if (import.meta.env.DEV) {
+      console.log('🔧 Auth redirect URL (local dev):', fallback);
+    }
     return appendNext(fallback);
   }
   
-  // Check if we have a custom redirect URL override
+  // Check if we have a custom redirect URL override (highest priority)
   if (import.meta.env.VITE_AUTH_REDIRECT_URL) {
-    console.log('🔧 Auth redirect URL (override):', import.meta.env.VITE_AUTH_REDIRECT_URL);
+    if (import.meta.env.DEV) {
+      console.log('🔧 Auth redirect URL (override):', import.meta.env.VITE_AUTH_REDIRECT_URL);
+    }
     return appendNext(import.meta.env.VITE_AUTH_REDIRECT_URL);
   }
   
-  // In production, use the production URL
+  // In production, always use the production URL (never localhost)
   const prodUrl = 'https://app.fanclubz.app/auth/callback';
-  console.log('🔧 Auth redirect URL (production):', prodUrl);
+  if (import.meta.env.DEV) {
+    console.log('🔧 Auth redirect URL (production):', prodUrl);
+  }
   return appendNext(prodUrl);
 }
 
