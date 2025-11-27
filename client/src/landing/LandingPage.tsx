@@ -1,7 +1,7 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
-import { openAuthGate } from '../auth/authGateAdapter';
+import AuthGateModal from '../components/auth/AuthGateModal';
 
 const CURRENT_YEAR = new Date().getFullYear();
 
@@ -17,19 +17,9 @@ const LandingPage: React.FC = () => {
   const PROD_APP_URL = 'https://app.fanclubz.app';
 
   // Handle "Get started" CTA
-  // In production: If authenticated, navigate to app.fanclubz.app/discover
-  //                If not authenticated, open auth modal
-  // In local dev: Navigate to /discover (same behavior)
+  // Always redirect to main app - let the app handle authentication
   const handleGetStarted = () => {
-    if (isAuthenticated) {
-      if (import.meta.env.PROD) {
-        window.location.href = `${PROD_APP_URL}/discover`;
-      } else {
-        navigate('/discover');
-      }
-    } else {
-      openAuthGate({ intent: 'place_prediction' });
-    }
+    window.location.href = import.meta.env.PROD ? `${PROD_APP_URL}/discover` : '/discover';
   };
 
 
@@ -324,6 +314,9 @@ const LandingPage: React.FC = () => {
           © {CURRENT_YEAR} FanClubZ. All rights reserved.
         </div>
       </footer>
+
+      {/* Auth modal for any auth interactions */}
+      <AuthGateModal />
     </div>
   );
 };
