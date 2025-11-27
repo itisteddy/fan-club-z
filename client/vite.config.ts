@@ -4,7 +4,7 @@ import { VitePWA } from 'vite-plugin-pwa'
 import path from 'path'
 import { fileURLToPath } from 'url'
 
-// [PERF] Import visualizer for bundle analysis
+// [PERF] Import visualizer for bundle analysis (now in dependencies)
 import { visualizer } from 'rollup-plugin-visualizer'
 
 // Ensure plugin types are correctly resolved
