@@ -105,11 +105,13 @@ export async function initDbPool(): Promise<Pool | null> {
     // For pooler connections, use connectionString directly (handles password encoding better)
     // For direct connections, resolve IPv4 and use individual fields
     if (isPooler) {
-      // Use connectionString directly for pooler - pg library handles encoding automatically
-      // But we still need to explicitly set SSL options to avoid certificate validation errors
+      // Remove sslmode from connection string to avoid conflicts with explicit SSL config
+      // The pg library may prioritize connection string SSL params over explicit options
+      const cleanUrl = databaseUrl.replace(/[?&]sslmode=[^&]*/g, '').replace(/[?&]ssl=true/g, '');
+      
       console.log('[FCZ-DB] Using connection string directly for pooler (better password handling)');
       pool = new Pool({
-        connectionString: databaseUrl,
+        connectionString: cleanUrl,
         ssl: {
           rejectUnauthorized: false, // Supabase uses self-signed certs, we trust them
         },
@@ -166,9 +168,12 @@ export async function initDbPool(): Promise<Pool | null> {
     console.error('[FCZ-DB] Failed to initialize pool', error);
     // Fallback: try with connectionString directly
     try {
+      // Remove sslmode from connection string to avoid conflicts with explicit SSL config
+      const cleanUrl = databaseUrl.replace(/[?&]sslmode=[^&]*/g, '').replace(/[?&]ssl=true/g, '');
+      
       console.log('[FCZ-DB] Attempting fallback connection with connectionString');
       pool = new Pool({
-        connectionString: databaseUrl,
+        connectionString: cleanUrl,
         ssl: {
           rejectUnauthorized: false, // Supabase uses self-signed certs, we trust them
         },
