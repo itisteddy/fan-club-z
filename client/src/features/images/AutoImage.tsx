@@ -99,23 +99,14 @@ export const AutoImage: React.FC<AutoImageProps> = ({
           aspectClass,
           roundedClass,
           gradientClass,
+          'from-gray-200 to-gray-300',
           className
         )}
         role="img"
         aria-label={generateAltText(prediction)}
       >
-        {/* Subtle pattern overlay */}
-        <div className="absolute inset-0 bg-black/10" />
-        
-        {/* Category icon or text overlay */}
-        <div className="absolute inset-0 flex items-center justify-center">
-          <div className="text-white/80 text-center">
-            <div className="text-2xl mb-2">📊</div>
-            <div className="text-sm font-medium capitalize">
-              {prediction.category || 'Prediction'}
-            </div>
-          </div>
-        </div>
+        <div className="absolute inset-0 bg-white/30" />
+        <div className="absolute inset-0 border border-white/40 rounded-[inherit]" />
       </div>
     );
   }

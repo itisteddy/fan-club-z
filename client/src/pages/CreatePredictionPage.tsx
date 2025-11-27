@@ -11,6 +11,7 @@ import { SourcePill } from '../components/settlement/SourcePill';
 import { RulePreview } from '../components/settlement/RulePreview';
 import UnifiedHeader from '../components/layout/UnifiedHeader';
 import { openAuthGate } from '../auth/authGateAdapter';
+import { useAuthSession } from '../providers/AuthSessionProvider';
 
 interface PredictionOption {
   id: string;
@@ -26,7 +27,10 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitSuccess, setSubmitSuccess] = useState(false);
   const { createPrediction } = usePredictionStore();
-  const { user, isAuthenticated } = useAuthStore();
+  const { user: storeUser, isAuthenticated: storeIsAuthenticated } = useAuthStore();
+  const { user: sessionUser } = useAuthSession();
+  const currentUser = sessionUser ?? storeUser ?? null;
+  const isAuthenticated = !!sessionUser || storeIsAuthenticated;
   const [, setLocation] = useLocation();
   
   // Draft persistence key
@@ -136,7 +140,7 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
 
   // Auto-resume draft after successful auth
   useEffect(() => {
-    if (isAuthenticated && user && hasDraft) {
+    if (isAuthenticated && currentUser && hasDraft) {
       const draftStr = sessionStorage.getItem(DRAFT_KEY);
       if (draftStr) {
         // Small delay to ensure auth state is fully settled
@@ -151,7 +155,7 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
         return () => clearTimeout(timer);
       }
     }
-  }, [isAuthenticated, user, hasDraft, restoreDraft]);
+  }, [isAuthenticated, currentUser, hasDraft, restoreDraft]);
 
   const categories = [
     { id: 'sports', label: 'Sports', icon: '⚽', gradient: 'from-orange-500 to-red-500' },
@@ -254,7 +258,7 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
       }
 
       // Check authentication - if not authenticated, save draft and open auth gate
-      if (!isAuthenticated || !user?.id) {
+      if (!isAuthenticated || !currentUser?.id) {
         // Save draft to sessionStorage
         saveDraft();
         
@@ -297,7 +301,7 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
         stakeMax: stakeMax ? Math.max(parseFloat(stakeMin) || 100, parseFloat(stakeMax)) : undefined,
         settlementMethod: settlementMethod as 'auto' | 'manual',
         isPrivate: isPrivate,
-        creatorId: user.id // Add the real user ID
+        creatorId: currentUser.id // Add the real user ID
       };
 
       // Validate options
@@ -374,7 +378,7 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
       toast.error(errorMessage);
       setIsSubmitting(false);
     }
-  }, [validateStep, title, category, entryDeadline, description, type, options, stakeMin, stakeMax, settlementMethod, isPrivate, isAuthenticated, user, createPrediction, onNavigateBack, setLocation, saveDraft]);
+  }, [validateStep, title, category, entryDeadline, description, type, options, stakeMin, stakeMax, settlementMethod, isPrivate, isAuthenticated, currentUser, createPrediction, onNavigateBack, setLocation, saveDraft]);
 
   // Success View
   if (submitSuccess) {

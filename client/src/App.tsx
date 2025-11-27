@@ -1,10 +1,10 @@
-import React, { useEffect, useCallback, memo, Suspense, lazy } from 'react';
+import React, { useEffect, useCallback, memo, Suspense, lazy, useRef } from 'react';
 import { Routes, Route, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useWalletStore } from './store/walletStore';
 import { useAuthStore } from './store/authStore';
 import { useLikeStore } from './store/likeStore';
 import { useUnifiedCommentStore } from './store/unifiedCommentStore';
-import { restorePendingAuth } from './auth/authGateAdapter';
+import { openAuthGate, restorePendingAuth } from './auth/authGateAdapter';
 import { useAuthSession } from './providers/AuthSessionProvider';
 import { SupabaseProvider } from './providers/SupabaseProvider';
 import { AuthSessionProvider } from './providers/AuthSessionProvider';
@@ -40,6 +40,9 @@ const LazyAuthCallback = lazy(() => import('./pages/auth/AuthCallback'));
 import StableBottomNavigation from './components/navigation/StableBottomNavigation';
 import ErrorBoundary from './components/ErrorBoundary';
 import ConnectWalletSheet from './components/wallet/ConnectWalletSheet';
+import AuthRequiredState from './components/ui/empty/AuthRequiredState';
+import { Sparkles } from 'lucide-react';
+import { captureReturnTo } from './lib/returnTo';
 
 // Simple Loading Component
 const LoadingSpinner: React.FC<{ message?: string }> = ({ message = "Loading..." }) => (
@@ -56,6 +59,8 @@ const LoadingSpinner: React.FC<{ message?: string }> = ({ message = "Loading..."
 const MainLayout: React.FC<{ children: React.ReactNode }> = memo(({ children }) => {
   const location = useLocation();
   const navigate = useNavigate();
+  const { user: sessionUser } = useAuthSession();
+  const isAuthenticated = !!sessionUser;
   
   const getCurrentTab = useCallback(() => {
     const path = location.pathname.toLowerCase();
@@ -105,12 +110,25 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = memo(({ children }) 
     }, 50);
   }, [navigate, getCurrentTab, location]);
 
+  const requestCreateAccess = useCallback(async () => {
+    if (!isAuthenticated) {
+      captureReturnTo('/create');
+      const result = await openAuthGate({ intent: 'create_prediction' });
+      return result.status === 'success';
+    }
+    return true;
+  }, [isAuthenticated]);
+
   const handleFABClick = useCallback(() => {
-    // Save current scroll position
-    saveScrollPosition(location.pathname);
-    markNavigationAsIntentional();
-    navigate('/create');
-  }, [navigate, location.pathname]);
+    const run = async () => {
+      const allowed = await requestCreateAccess();
+      if (!allowed) return;
+      saveScrollPosition(location.pathname);
+      markNavigationAsIntentional();
+      navigate('/create');
+    };
+    void run();
+  }, [navigate, location.pathname, requestCreateAccess]);
 
   const showFAB = getCurrentTab() === 'discover';
 
@@ -259,12 +277,38 @@ const PredictionsPageWrapper: React.FC = () => {
 const CreatePredictionPageWrapper: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
+  const { user: sessionUser, loading: sessionLoading } = useAuthSession();
+  const isAuthenticated = !!sessionUser;
+  const authPromptedRef = useRef(false);
   
   const handleNavigateBack = useCallback(() => {
     // Don't save scroll position when going back from create
     markNavigationAsIntentional();
     navigate('/');
   }, [navigate]);
+
+  useEffect(() => {
+    if (!isAuthenticated && !sessionLoading && !authPromptedRef.current) {
+      authPromptedRef.current = true;
+      captureReturnTo('/create');
+      void openAuthGate({ intent: 'create_prediction' });
+    }
+  }, [isAuthenticated, sessionLoading]);
+
+  if (!isAuthenticated) {
+    return (
+      <PageWrapper title="Create Prediction">
+        <div className="px-4 py-12">
+          <AuthRequiredState
+            icon={<Sparkles className="w-10 h-10 text-emerald-500" />}
+            title="Sign in to create predictions"
+            description="You need to be signed in to create and publish predictions. Your progress will be saved automatically."
+            intent="create_prediction"
+          />
+        </div>
+      </PageWrapper>
+    );
+  }
 
   return (
     <PageWrapper title="Create Prediction">

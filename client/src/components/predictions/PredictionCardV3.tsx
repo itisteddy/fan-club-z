@@ -146,20 +146,7 @@ export default function PredictionCardV3({ prediction }: PredictionCardProps) {
               />
             </>
           ) : (
-            // CRITICAL FIX: Show contextual fallback when image is not available
-            <div className="h-full w-full flex items-center justify-center bg-gradient-to-br from-purple-100 to-indigo-100">
-              <div className="text-center">
-                <div className="text-2xl mb-1">
-                  {prediction.category === 'crypto' ? '₿' : 
-                   prediction.category === 'sports' ? '⚽' :
-                   prediction.category === 'tech' ? '💻' :
-                   prediction.category === 'politics' ? '🏛️' : '📊'}
-                </div>
-                <div className="text-[10px] font-medium text-gray-600 capitalize truncate px-1">
-                  {prediction.category || 'Prediction'}
-                </div>
-              </div>
-            </div>
+            <div className="absolute inset-0 bg-gradient-to-br from-gray-200 via-gray-100 to-gray-300" />
           )}
         </div>
       </div>
