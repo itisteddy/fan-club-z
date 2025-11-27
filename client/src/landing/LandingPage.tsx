@@ -1,5 +1,5 @@
 import React from 'react';
-import { useLocation } from 'wouter';
+import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import { openAuthGate } from '../auth/authGateAdapter';
 
@@ -10,7 +10,7 @@ const CURRENT_YEAR = new Date().getFullYear();
 // updated to point at the latest FanClubZ.apk (v2.0.78).
 // Landing page ready for production deployment.
 const LandingPage: React.FC = () => {
-  const [, setLocation] = useLocation();
+  const navigate = useNavigate();
   const { isAuthenticated } = useAuthStore();
   
   // Production URLs
@@ -25,7 +25,7 @@ const LandingPage: React.FC = () => {
       if (import.meta.env.PROD) {
         window.location.href = `${PROD_APP_URL}/discover`;
       } else {
-        setLocation('/discover');
+        navigate('/discover');
       }
     } else {
       openAuthGate({ intent: 'place_prediction' });
@@ -259,7 +259,7 @@ const LandingPage: React.FC = () => {
                 <a 
                   href={import.meta.env.PROD ? `${PROD_APP_URL}` : '#'} 
                   className="hover:text-white"
-                  {...(import.meta.env.PROD ? {} : { onClick: (e) => { e.preventDefault(); setLocation('/discover'); } })}
+                  {...(import.meta.env.PROD ? {} : { onClick: (e) => { e.preventDefault(); navigate('/discover'); } })}
                 >
                   Web App
                 </a>
