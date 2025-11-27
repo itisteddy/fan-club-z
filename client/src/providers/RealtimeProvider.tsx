@@ -26,15 +26,30 @@ export const RealtimeProvider: React.FC<Props> = ({ children }) => {
 
   useEffect(() => {
     const url = getSocketUrl().replace(/\/$/, '');
+    console.log('[REALTIME] Connecting to Socket.io:', url);
     const socket = io(url, {
-      transports: ['websocket'],
+      transports: ['websocket', 'polling'], // Add polling fallback for Render compatibility
       withCredentials: true,
       autoConnect: true,
       reconnection: true,
       reconnectionAttempts: 10,
       reconnectionDelay: 500,
+      timeout: 20000,
     });
     socketRef.current = socket;
+
+    socket.on('connect', () => {
+      console.log('[REALTIME] ✅ Connected to Socket.io server');
+      console.log('[REALTIME] Transport:', socket.io.engine?.transport?.name || 'unknown');
+    });
+
+    socket.on('connect_error', (error) => {
+      console.error('[REALTIME] ❌ Connection error:', error.message);
+    });
+
+    socket.on('disconnect', (reason) => {
+      console.warn('[REALTIME] 🔌 Disconnected:', reason);
+    });
 
     const onWalletUpdate = (payload: { userId: string }) => {
       if (!user?.id || payload.userId !== user.id) return;

@@ -100,7 +100,20 @@ async function loadCheckpoint(ctx: Ctx): Promise<bigint | null> {
       }
       // ref contains the block number as a string
       const checkpoint = BigInt(row.ref);
-      const payload = row.payload ? JSON.parse(row.payload) : {};
+      // Handle payload - it might be a string (JSON) or already an object (JSONB)
+      let payload: any = {};
+      if (row.payload) {
+        if (typeof row.payload === 'string') {
+          try {
+            payload = JSON.parse(row.payload);
+          } catch (e) {
+            // If parsing fails, payload might be malformed, but checkpoint is still valid
+            log('warn', 'Failed to parse checkpoint payload', { error: String(e) });
+          }
+        } else {
+          payload = row.payload; // Already an object (JSONB)
+        }
+      }
       log('info', `Loaded checkpoint`, { block: checkpoint.toString(), updated: payload.updated_at || row.ts });
       return checkpoint;
     }
