@@ -26,10 +26,11 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
   }
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
-    // Log error details only in development
-    if (import.meta.env.DEV) {
-      console.error('ErrorBoundary caught an error:', error, errorInfo);
-    }
+    // Always log errors to console for debugging (even in production)
+    console.error('❌ ErrorBoundary caught an error:', error);
+    console.error('Error stack:', error.stack);
+    console.error('Error info:', errorInfo);
+    console.error('Component stack:', errorInfo.componentStack);
     
     this.setState({
       error,
@@ -95,13 +96,16 @@ const DefaultErrorFallback: React.FC<{ error?: Error; resetError: () => void }> 
           </p>
         </div>
 
-        {error && import.meta.env.DEV && (
-          <div className="mb-6 p-4 bg-gray-100 rounded-lg text-left">
-            <h3 className="font-semibold text-sm text-gray-800 mb-2">Error Details:</h3>
-            <pre className="text-xs text-gray-600 whitespace-pre-wrap">
+        {error && (
+          <details className="mb-6 p-4 bg-gray-100 rounded-lg text-left">
+            <summary className="font-semibold text-sm text-gray-800 mb-2 cursor-pointer">
+              Error Details (click to expand)
+            </summary>
+            <pre className="text-xs text-gray-600 whitespace-pre-wrap mt-2">
               {error.message}
+              {error.stack && `\n\nStack:\n${error.stack}`}
             </pre>
-          </div>
+          </details>
         )}
 
         <div className="flex flex-col gap-3">
