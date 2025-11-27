@@ -448,6 +448,7 @@ async function handlePlaceBet(req: any, res: any) {
       .insert({
         user_id: userId,
         type: 'bet_lock',
+        direction: 'debit', // CRITICAL: Must be 'debit' for walletActivity to classify as bet_placed
         status: 'completed',
         channel: 'escrow_consumed',
         provider: 'crypto-base-usdc',

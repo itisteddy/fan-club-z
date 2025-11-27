@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { getApiUrl } from '@/utils/environment';
 
 export interface ActivityItem {
   id: string;
@@ -59,8 +60,9 @@ export function useActivityFeed({
   const hasLoadedRef = useRef(false);
 
   // Build API URL based on whether we're fetching prediction or user activity
-  const getApiUrl = useCallback((cursorParam?: string) => {
-    const baseUrl = '/api/v2/activity';
+  const buildApiEndpoint = useCallback((cursorParam?: string) => {
+    const apiBase = getApiUrl();
+    const baseUrl = `${apiBase}/api/v2/activity`;
     const params = new URLSearchParams();
     
     if (limit) params.set('limit', limit.toString());
@@ -83,7 +85,7 @@ export function useActivityFeed({
     setError(null);
 
     try {
-      const url = getApiUrl(cursorParam);
+      const url = buildApiEndpoint(cursorParam);
       console.log('🔍 Fetching activity feed:', url);
       
       const response = await fetch(url);
@@ -116,7 +118,7 @@ export function useActivityFeed({
     } finally {
       setLoading(false);
     }
-  }, [loading, getApiUrl]);
+  }, [loading, buildApiEndpoint]);
 
   // Load more items (pagination)
   const loadMore = useCallback(async () => {
