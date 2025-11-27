@@ -109,19 +109,23 @@ router.post('/log-transaction', async (req, res) => {
     }
 
     // Create wallet_transaction record for completed deposits/withdrawals
+    // IMPORTANT: channel + direction must align with walletActivity normalization
     if (body.status === 'completed' && (body.type === 'deposit' || body.type === 'withdraw') && body.amount) {
+      const isDeposit = body.type === 'deposit';
       await supabase
         .from('wallet_transactions')
         .insert({
           user_id: body.userId,
           type: body.type,
           status: 'completed',
-          channel: 'blockchain',
+          channel: isDeposit ? 'escrow_deposit' : 'escrow_withdraw',
+          direction: isDeposit ? 'credit' : 'debit',
           provider: 'crypto-base-usdc',
           amount: body.amount,
           currency: 'USD',
+          tx_hash: body.txHash,
           external_ref: body.txHash,
-          description: `${body.type === 'deposit' ? 'Deposited' : 'Withdrew'} ${body.amount} USDC on Base`,
+          description: `${isDeposit ? 'Deposited' : 'Withdrew'} ${body.amount} USDC on Base`,
           meta: {
             tx_hash: body.txHash,
             wallet_address: body.walletAddress,
@@ -136,7 +140,7 @@ router.post('/log-transaction', async (req, res) => {
         });
     }
 
-    // Create wallet_transaction record for completed claims
+    // Create wallet_transaction record for completed claims (payouts)
     if (body.status === 'completed' && body.type === 'claim' && body.amount) {
       await supabase
         .from('wallet_transactions')
@@ -144,10 +148,12 @@ router.post('/log-transaction', async (req, res) => {
           user_id: body.userId,
           type: 'claim',
           status: 'completed',
-          channel: 'blockchain',
+          channel: 'payout',
+          direction: 'credit',
           provider: 'crypto-base-usdc',
           amount: body.amount,
           currency: 'USD',
+          tx_hash: body.txHash,
           external_ref: body.txHash,
           description: `Claimed ${body.amount} USDC from prediction ${body.predictionId?.slice(0, 8) || 'unknown'}`,
           meta: {
@@ -166,6 +172,7 @@ router.post('/log-transaction', async (req, res) => {
     }
 
     // Create wallet_transaction record for completed settlements
+    // NOTE: actual win/loss records are handled separately; this is for audit
     if (body.status === 'completed' && body.type === 'settlement' && body.predictionId) {
       await supabase
         .from('wallet_transactions')
@@ -173,10 +180,12 @@ router.post('/log-transaction', async (req, res) => {
           user_id: body.userId,
           type: 'settlement',
           status: 'completed',
-          channel: 'blockchain',
+          channel: 'settlement_loss',
+          direction: 'debit',
           provider: 'crypto-base-usdc',
           amount: body.amount || 0,
           currency: 'USD',
+          tx_hash: body.txHash,
           external_ref: body.txHash,
           description: `Settlement posted for prediction ${body.predictionId.slice(0, 8)}`,
           meta: {
@@ -202,10 +211,12 @@ router.post('/log-transaction', async (req, res) => {
           user_id: body.userId,
           type: 'fee',
           status: 'completed',
-          channel: 'escrow_fee',
+          channel: 'platform_fee',
+          direction: 'debit',
           provider: 'crypto-base-usdc',
           amount: body.amount,
           currency: 'USD',
+          tx_hash: body.txHash,
           external_ref: body.txHash,
           description: `Fee charged (${body.amount} USDC)`,
           meta: {

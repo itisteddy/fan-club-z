@@ -239,10 +239,11 @@ export async function placeBetAtomically(
     );
 
     // Step 7: Record wallet transaction (idempotent)
+    // IMPORTANT: channel/direction must align with walletActivity normalization
     await client.query(
       `INSERT INTO wallet_transactions
        (user_id, type, direction, channel, provider, amount, status, external_ref, description, prediction_id, entry_id, meta)
-       VALUES ($1, 'bet_lock', 'debit', 'crypto', 'crypto-base-usdc', $2, 'completed', $3, $4, $5, $6, $7)
+       VALUES ($1, 'bet_lock', 'debit', 'escrow_consumed', 'crypto-base-usdc', $2, 'completed', $3, $4, $5, $6, $7)
        ON CONFLICT (provider, external_ref) DO NOTHING`,
       [
         userId,
