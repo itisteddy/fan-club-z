@@ -3,6 +3,7 @@ import { SettlementQueue } from './SettlementQueue';
 import { DisputeResolution } from './DisputeResolution';
 import { SettlementAnalytics } from './SettlementAnalytics';
 import { Settings, Clock, AlertTriangle, BarChart3, Users } from 'lucide-react';
+import { getApiUrl } from '@/utils/environment';
 
 interface AdminStats {
   pending_settlements: number;
@@ -30,7 +31,8 @@ export const AdminDashboard: React.FC = () => {
   const fetchAdminStats = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('/api/v2/settlement/analytics', {
+      const apiBase = getApiUrl();
+      const response = await fetch(`${apiBase}/api/v2/settlement/analytics`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'

@@ -22,6 +22,7 @@ import { useWalletConnectSession } from '@/hooks/useWalletConnectSession';
 import { useWeb3Recovery } from '@/providers/Web3Provider';
 import { computeWalletStatus } from '@/utils/walletStatus';
 import StatusCallout from '@/components/ui/StatusCallout';
+import { getApiUrl } from '@/utils/environment';
 
 const ESCROW_ADDR_ENV = (import.meta.env.VITE_BASE_ESCROW_ADDRESS 
   ? getAddress(import.meta.env.VITE_BASE_ESCROW_ADDRESS) 
@@ -438,7 +439,8 @@ export default function WithdrawUSDCModal({
       // Reconcile wallet balance with backend
       if (currentUserId && address) {
         try {
-          await fetch('/api/wallet/reconcile', {
+          const apiBase = getApiUrl();
+          await fetch(`${apiBase}/api/wallet/reconcile`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({

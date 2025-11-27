@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Clock, Eye, CheckCircle, AlertCircle, ExternalLink, User, DollarSign } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
+import { getApiUrl } from '@/utils/environment';
 
 interface PendingPrediction {
   id: string;
@@ -217,9 +218,10 @@ export const SettlementQueue: React.FC = () => {
     try {
       setLoading(true);
       setError(null);
+      const apiBase = getApiUrl();
       
       const token = localStorage.getItem('token');
-      const response = await fetch('/api/v2/settlement/pending', {
+      const response = await fetch(`${apiBase}/api/v2/settlement/pending`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -243,7 +245,8 @@ export const SettlementQueue: React.FC = () => {
   const handleSettle = async (predictionId: string, winningOptionId: string, proofUrl?: string, reason?: string) => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('/api/v2/settlement/settle-manual', {
+      const apiBase = getApiUrl();
+      const response = await fetch(`${apiBase}/api/v2/settlement/settle-manual`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,

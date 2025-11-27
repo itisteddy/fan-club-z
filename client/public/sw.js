@@ -1,6 +1,24 @@
 // Service Worker for Fan Club Z PWA
 const CACHE_NAME = 'fanclubz-cache';
 const STATIC_ASSETS = ['/', '/index.html', '/manifest.json', '/icons/icon-192.png', '/icons/icon-512.png'];
+const API_BASE = (() => {
+  try {
+    const origin = self.location.origin;
+    const url = new URL(origin);
+    const hostname = url.hostname || '';
+    const isLocal =
+      hostname === 'localhost' ||
+      hostname.startsWith('127.') ||
+      hostname.startsWith('192.168.') ||
+      hostname.endsWith('.local');
+    if (isLocal) {
+      return `${url.protocol}//${hostname}:3001`;
+    }
+  } catch (err) {
+    console.warn('SW: Failed to detect origin for API_BASE, defaulting to production', err);
+  }
+  return 'https://fan-club-z.onrender.com';
+})();
 
 // Install event - cache static assets
 self.addEventListener('install', (event) => {
@@ -142,7 +160,7 @@ async function syncPredictions() {
     
     for (const prediction of pendingPredictions) {
       try {
-        const response = await fetch('/api/predictions', {
+        const response = await fetch(`${API_BASE}/api/predictions`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

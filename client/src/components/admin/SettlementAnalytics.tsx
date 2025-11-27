@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { BarChart3, TrendingUp, TrendingDown, Clock, DollarSign, CheckCircle, AlertTriangle, Target } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
+import { getApiUrl } from '@/utils/environment';
 
 interface AnalyticsData {
   total_settled: number;
@@ -71,9 +72,10 @@ export const SettlementAnalytics: React.FC = () => {
     try {
       setLoading(true);
       setError(null);
+      const apiBase = getApiUrl();
       
       const token = localStorage.getItem('token');
-      const response = await fetch('/api/v2/settlement/analytics', {
+      const response = await fetch(`${apiBase}/api/v2/settlement/analytics`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'

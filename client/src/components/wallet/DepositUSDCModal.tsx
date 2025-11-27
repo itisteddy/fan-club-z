@@ -15,6 +15,7 @@ import {
   cleanupWalletConnectStorage,
   isSessionError,
 } from '@/services/onchainTransactionService';
+import { getApiUrl } from '@/utils/environment';
 import { useWeb3Recovery } from '@/providers/Web3Provider';
 
 // USDC Contract Address - ensure proper checksumming
@@ -330,7 +331,8 @@ export default function DepositUSDCModal({
       }).catch(() => {});
 
       // Reconcile with backend (async)
-      fetch('/api/wallet/reconcile', {
+      const apiBase = getApiUrl();
+      fetch(`${apiBase}/api/wallet/reconcile`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId: currentUserId, walletAddress: address, txHash: depositTxHash }),

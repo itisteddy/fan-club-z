@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { AlertTriangle, Eye, CheckCircle, XCircle, ExternalLink, User, Calendar, FileText } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
+import { getApiUrl } from '@/utils/environment';
 
 interface Dispute {
   id: string;
@@ -337,9 +338,10 @@ export const DisputeResolution: React.FC = () => {
     try {
       setLoading(true);
       setError(null);
+      const apiBase = getApiUrl();
       
       const token = localStorage.getItem('token');
-      const response = await fetch('/api/v2/settlement/disputes', {
+      const response = await fetch(`${apiBase}/api/v2/settlement/disputes`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -368,7 +370,8 @@ export const DisputeResolution: React.FC = () => {
   ) => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('/api/v2/settlement/resolve-dispute', {
+      const apiBase = getApiUrl();
+      const response = await fetch(`${apiBase}/api/v2/settlement/resolve-dispute`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,

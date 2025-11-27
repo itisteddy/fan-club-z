@@ -20,6 +20,7 @@ import {
   ensureWalletReady,
 } from '@/services/onchainTransactionService';
 import { useWeb3Recovery } from '@/providers/Web3Provider';
+import { getApiUrl } from '@/utils/environment';
 
 function toBytes32FromUuid(uuid: string): `0x${string}` {
   const hex = uuid.replace(/-/g, '').toLowerCase().padEnd(64, '0');
@@ -276,7 +277,8 @@ export function useMerkleClaim() {
         // PERFORMANCE FIX: Reconcile wallet balance with backend (non-blocking)
         // Don't await - let it happen in background
         if (userId && address) {
-          fetch('/api/wallet/reconcile', {
+          const apiBase = getApiUrl();
+          fetch(`${apiBase}/api/wallet/reconcile`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({

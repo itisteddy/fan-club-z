@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
 import { escrowService } from '../services/BlockchainEscrowService';
+import { getApiUrl } from '@/utils/environment';
 
 interface UseSettlementIntegrationReturn {
   // Blockchain operations
@@ -27,6 +28,7 @@ export const useSettlementIntegration = (): UseSettlementIntegrationReturn => {
   const [error, setError] = useState<string | null>(null);
   const [isWalletConnected, setIsWalletConnected] = useState(false);
   const [walletAddress, setWalletAddress] = useState<string | null>(null);
+  const apiBase = getApiUrl();
 
   const clearError = useCallback(() => setError(null), []);
 
@@ -44,7 +46,7 @@ export const useSettlementIntegration = (): UseSettlementIntegrationReturn => {
       
       // Log the transaction to the database
       const token = localStorage.getItem('token');
-      await fetch('/api/v2/settlement/blockchain-transaction', {
+      await fetch(`${apiBase}/api/v2/settlement/blockchain-transaction`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -85,7 +87,7 @@ export const useSettlementIntegration = (): UseSettlementIntegrationReturn => {
       
       // Log the transaction to the database
       const token = localStorage.getItem('token');
-      await fetch('/api/v2/settlement/blockchain-transaction', {
+      await fetch(`${apiBase}/api/v2/settlement/blockchain-transaction`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -134,7 +136,7 @@ export const useSettlementIntegration = (): UseSettlementIntegrationReturn => {
       const token = localStorage.getItem('token');
       
       // First, settle on the backend
-      const response = await fetch('/api/v2/settlement/settle-manual', {
+      const response = await fetch(`${apiBase}/api/v2/settlement/settle-manual`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -178,7 +180,7 @@ export const useSettlementIntegration = (): UseSettlementIntegrationReturn => {
       clearError();
       
       const token = localStorage.getItem('token');
-      const response = await fetch('/api/v2/settlement/dispute', {
+      const response = await fetch(`${apiBase}/api/v2/settlement/dispute`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -219,7 +221,7 @@ export const useSettlementIntegration = (): UseSettlementIntegrationReturn => {
       clearError();
       
       const token = localStorage.getItem('token');
-      const response = await fetch('/api/v2/settlement/resolve-dispute', {
+      const response = await fetch(`${apiBase}/api/v2/settlement/resolve-dispute`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,

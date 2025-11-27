@@ -1,5 +1,5 @@
 // PWA utility functions for service worker registration and management
-import { VAPID_PUBLIC_KEY } from '@/utils/environment';
+import { VAPID_PUBLIC_KEY, getApiUrl } from '@/utils/environment';
 
 export interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
@@ -224,7 +224,8 @@ export class PWAManager {
 
   private async sendSubscriptionToServer(subscription: PushSubscription): Promise<void> {
     try {
-      await fetch('/api/notifications/subscribe', {
+      const apiBase = getApiUrl();
+      await fetch(`${apiBase}/api/notifications/subscribe`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
