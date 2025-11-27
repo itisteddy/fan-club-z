@@ -102,42 +102,65 @@ export async function initDbPool(): Promise<Pool | null> {
     // Pooler URLs typically support IPv4 better than direct connections
     const isPooler = config.port === 6543 || config.host.includes('pooler');
     
-    // Resolve hostname to IPv4 to avoid IPv6 connectivity issues
-    // This is especially important for Supabase on Render
-    const ipv4Host = await resolveIPv4(config.host);
-    
-    // If we got IPv6 and this isn't a pooler, warn about using pooler
-    if (!isPooler && ipv4Host === config.host && config.host.includes('supabase')) {
-      console.warn('[FCZ-DB] ⚠️ Consider using Supabase connection pooler (port 6543) for better IPv4 support on Render');
-      console.warn('[FCZ-DB] Pooler URL format: postgresql://postgres.[PROJECT_REF]:[PASSWORD]@aws-0-[REGION].pooler.supabase.com:6543/postgres');
+    // For pooler connections, use connectionString directly (handles password encoding better)
+    // For direct connections, resolve IPv4 and use individual fields
+    if (isPooler) {
+      // Use connectionString directly for pooler - pg library handles encoding automatically
+      console.log('[FCZ-DB] Using connection string directly for pooler (better password handling)');
+      pool = new Pool({
+        connectionString: databaseUrl,
+        max: 20,
+        idleTimeoutMillis: 30000,
+        connectionTimeoutMillis: 10000,
+      });
+    } else {
+      // Resolve hostname to IPv4 to avoid IPv6 connectivity issues
+      const ipv4Host = await resolveIPv4(config.host);
+      
+      // If we got IPv6, warn about using pooler
+      if (ipv4Host === config.host && config.host.includes('supabase')) {
+        console.warn('[FCZ-DB] ⚠️ Consider using Supabase connection pooler (port 6543) for better IPv4 support on Render');
+        console.warn('[FCZ-DB] Pooler URL format: postgresql://postgres.[PROJECT_REF]:[PASSWORD]@aws-0-[REGION].pooler.supabase.com:6543/postgres');
+      }
+      
+      pool = new Pool({
+        host: ipv4Host,
+        port: config.port,
+        database: config.database,
+        user: config.user,
+        password: config.password,
+        ssl: config.ssl,
+        max: 20,
+        idleTimeoutMillis: 30000,
+        connectionTimeoutMillis: 10000,
+      });
     }
-    
-    pool = new Pool({
-      host: ipv4Host,
-      port: config.port,
-      database: config.database,
-      user: config.user,
-      password: config.password,
-      ssl: config.ssl,
-      max: 20,
-      idleTimeoutMillis: 30000,
-      connectionTimeoutMillis: 10000,
-    });
 
     pool.on('error', (err: Error) => {
       console.error('[FCZ-DB] Unexpected pool error', err);
     });
 
+    // Test connection with a simple query
+    try {
+      const client = await pool.connect();
+      await client.query('SELECT 1');
+      client.release();
+      console.log('[FCZ-DB] ✅ Connection test successful');
+    } catch (testError: any) {
+      console.error('[FCZ-DB] ❌ Connection test failed:', testError.message);
+      // Don't throw - let the pool exist, but log the error
+    }
+
     console.log('[FCZ-DB] PostgreSQL connection pool initialized', {
       host: config.host,
-      resolvedTo: ipv4Host,
       port: config.port,
       isPooler,
+      method: isPooler ? 'connectionString' : 'individual fields',
     });
     return pool;
   } catch (error) {
-    console.error('[FCZ-DB] Failed to initialize pool with IPv4', error);
-    // Fallback: try with connectionString if IPv4 resolution fails
+    console.error('[FCZ-DB] Failed to initialize pool', error);
+    // Fallback: try with connectionString directly
     try {
       console.log('[FCZ-DB] Attempting fallback connection with connectionString');
       pool = new Pool({
@@ -149,11 +172,22 @@ export async function initDbPool(): Promise<Pool | null> {
       pool.on('error', (err: Error) => {
         console.error('[FCZ-DB] Unexpected pool error', err);
       });
+      
+      // Test connection
+      try {
+        const client = await pool.connect();
+        await client.query('SELECT 1');
+        client.release();
+        console.log('[FCZ-DB] ✅ Fallback connection test successful');
+      } catch (testError: any) {
+        console.error('[FCZ-DB] ❌ Fallback connection test failed:', testError.message);
+      }
+      
       console.log('[FCZ-DB] PostgreSQL connection pool initialized (fallback mode)');
       return pool;
     } catch (fallbackError) {
       console.error('[FCZ-DB] Fallback connection also failed', fallbackError);
-    return null;
+      return null;
     }
   }
 }
