@@ -8,6 +8,7 @@ const CURRENT_YEAR = new Date().getFullYear();
 // Simple, static marketing landing page used when VITE_BUILD_TARGET=landing.
 // Content adapted from the saved production HTML snapshot, with APK links
 // updated to point at the latest FanClubZ.apk (v2.0.78).
+// Landing page ready for production deployment.
 const LandingPage: React.FC = () => {
   const [, setLocation] = useLocation();
   const { isAuthenticated } = useAuthStore();
