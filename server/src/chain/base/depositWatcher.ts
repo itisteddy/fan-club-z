@@ -83,8 +83,8 @@ async function loadCheckpoint(ctx: Ctx): Promise<bigint | null> {
   }
 
   try {
-    const { rows } = await client.query<Checkpoint>(
-      `SELECT block_number, updated_at 
+    const { rows } = await client.query<{ ref: string; payload: string; ts: string }>(
+      `SELECT ref, payload, ts 
        FROM event_log 
        WHERE source = 'base-watcher-checkpoint' 
          AND kind = $1 
@@ -95,11 +95,13 @@ async function loadCheckpoint(ctx: Ctx): Promise<bigint | null> {
 
     if (rows.length > 0) {
       const row = rows[0];
-      if (!row) {
+      if (!row || !row.ref) {
         return null;
       }
-      const checkpoint = BigInt(row.block_number);
-      log('info', `Loaded checkpoint`, { block: checkpoint.toString(), updated: row.updated_at });
+      // ref contains the block number as a string
+      const checkpoint = BigInt(row.ref);
+      const payload = row.payload ? JSON.parse(row.payload) : {};
+      log('info', `Loaded checkpoint`, { block: checkpoint.toString(), updated: payload.updated_at || row.ts });
       return checkpoint;
     }
 
