@@ -106,9 +106,13 @@ export async function initDbPool(): Promise<Pool | null> {
     // For direct connections, resolve IPv4 and use individual fields
     if (isPooler) {
       // Use connectionString directly for pooler - pg library handles encoding automatically
+      // But we still need to explicitly set SSL options to avoid certificate validation errors
       console.log('[FCZ-DB] Using connection string directly for pooler (better password handling)');
       pool = new Pool({
         connectionString: databaseUrl,
+        ssl: {
+          rejectUnauthorized: false, // Supabase uses self-signed certs, we trust them
+        },
         max: 20,
         idleTimeoutMillis: 30000,
         connectionTimeoutMillis: 10000,
@@ -165,6 +169,9 @@ export async function initDbPool(): Promise<Pool | null> {
       console.log('[FCZ-DB] Attempting fallback connection with connectionString');
       pool = new Pool({
         connectionString: databaseUrl,
+        ssl: {
+          rejectUnauthorized: false, // Supabase uses self-signed certs, we trust them
+        },
         max: 20,
         idleTimeoutMillis: 30000,
         connectionTimeoutMillis: 10000,
