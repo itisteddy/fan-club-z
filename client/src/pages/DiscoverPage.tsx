@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import { usePredictionStore, Prediction } from '../store/predictionStore';
 import { toast } from 'react-hot-toast';
 import PredictionCard from '../components/PredictionCard';
@@ -10,7 +10,6 @@ import PredictionCardSkeleton from '../components/PredictionCardSkeleton';
 import { PlacePredictionModal } from '../components/predictions/PlacePredictionModal';
 import { useInfiniteScroll } from '../hooks/useInfiniteScroll';
 import Logo from '../components/common/Logo';
-import useScrollPreservation from '../hooks/useScrollPreservation';
 import AppHeader from '../components/layout/AppHeader';
 import { formatUSDCompact, formatNumberShort } from '@/lib/format';
 import { useNavigate } from 'react-router-dom';
@@ -147,15 +146,6 @@ const DiscoverPage = React.memo(function DiscoverPage({ onNavigateToProfile, onN
   
   const [selectedPrediction, setSelectedPrediction] = useState<Prediction | null>(null);
   const [isPredictionModalOpen, setIsPredictionModalOpen] = useState(false);
-  
-  // Scroll preservation setup
-  const containerRef = useRef<HTMLDivElement>(null);
-  const { saveScroll } = useScrollPreservation(containerRef, {
-    saveOnUnmount: true,
-    restoreOnMount: true,
-    preserveFor: 15, // 15 minutes
-    threshold: 100 // Only save if scrolled more than 100px
-  });
 
   const [platformStats, setPlatformStats] = useState({
     totalVolume: '0',
@@ -185,7 +175,7 @@ const DiscoverPage = React.memo(function DiscoverPage({ onNavigateToProfile, onN
     }
   }, []);
 
-  // Setup infinite scroll on container
+  // Setup infinite scroll using window scroll (no custom container)
   useInfiniteScroll({
     hasNext: pagination.hasNext,
     loading: loadingMore,
@@ -198,8 +188,7 @@ const DiscoverPage = React.memo(function DiscoverPage({ onNavigateToProfile, onN
       });
       loadMorePredictions();
     },
-    threshold: 300,
-    container: containerRef.current
+    threshold: 300
   });
 
   // Initialize data on mount
@@ -247,25 +236,20 @@ const DiscoverPage = React.memo(function DiscoverPage({ onNavigateToProfile, onN
   }, []);
 
   const handleNavigateToPrediction = useCallback((predictionId: string) => {
-    // Save scroll position before navigating
-    saveScroll('/discover');
-    
     if (onNavigateToPrediction) {
       onNavigateToPrediction(predictionId);
     } else {
       window.location.href = `/prediction/${predictionId}`;
     }
-  }, [onNavigateToPrediction, saveScroll]);
+  }, [onNavigateToPrediction]);
 
   const handleLike = useCallback((predictionId: string) => {
     toast.success('Prediction liked!');
   }, []);
 
   const handleComment = useCallback((predictionId: string) => {
-    // Save scroll before navigating to comments
-    saveScroll('/discover');
     handleNavigateToPrediction(predictionId);
-  }, [handleNavigateToPrediction, saveScroll]);
+  }, [handleNavigateToPrediction]);
 
   const handleShare = useCallback((prediction: Prediction) => {
     const shareText = `Check out this prediction: ${prediction.title}`;
@@ -364,10 +348,7 @@ const DiscoverPage = React.memo(function DiscoverPage({ onNavigateToProfile, onN
 
   return (
     <div 
-      ref={containerRef} 
-      className="discover-page content-with-bottom-nav" 
-      data-scroll-container
-      style={{ position: 'relative', zIndex: 1, overflowY: 'auto', overflowX: 'hidden', height: '100vh' }}
+      className="discover-page content-with-bottom-nav"
     >
       {/* Unified Header - Minimal (no logo, no descriptive text) */}
       <AppHeader title="Discover" />
