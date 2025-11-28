@@ -45,21 +45,43 @@ const SettlementModal: React.FC<SettlementModalProps> = ({
     }
 
     try {
-      // Merkle-based on-chain settlement. Creator signs the tx to post the root.
+      // Try Merkle-based on-chain settlement first
       const tx = await settleWithMerkle({
         predictionId: prediction.id,
         winningOptionId: selectedOptionId,
         reason: reason.trim(),
         userId: prediction.creator_id || '',
       });
+      
       if (tx) {
         toast.success('Settlement root posted on-chain!');
         setShowConfirmation(false);
         onClose();
         if (onSettlementComplete) onSettlementComplete();
+        return;
+      }
+      
+      // If on-chain failed, fall back to off-chain settlement
+      console.log('[SETTLEMENT] On-chain failed, trying off-chain settlement...');
+      toast.loading('On-chain failed, settling off-chain...', { id: 'settle-fallback' });
+      
+      const offchainResult = await settleManually({
+        predictionId: prediction.id,
+        winningOptionId: selectedOptionId,
+        reason: reason.trim(),
+      });
+      
+      if (offchainResult) {
+        toast.success('Settlement completed (off-chain)!', { id: 'settle-fallback' });
+        setShowConfirmation(false);
+        onClose();
+        if (onSettlementComplete) onSettlementComplete();
+      } else {
+        toast.error('Settlement failed. Please try again.', { id: 'settle-fallback' });
       }
     } catch (error) {
       console.error('Settlement submit error:', error);
+      toast.error('Settlement failed. Please try again.');
     }
   };
 
