@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Plus, ArrowDownToLine, DollarSign, Lock, Wallet, RefreshCw } from 'lucide-react';
+import { useNavigate, Link } from 'react-router-dom';
+import { Plus, ArrowDownToLine, DollarSign, Lock, Wallet, RefreshCw, HelpCircle } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { useAccount } from 'wagmi';
 import { baseSepolia } from 'wagmi/chains';
@@ -24,6 +25,7 @@ interface WalletPageProps {
 }
 
 const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
+  const navigate = useNavigate();
   const { user, isAuthenticated } = useAuthStore();
   const { address, isConnected, chainId } = useAccount();
   
@@ -173,6 +175,17 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
                 >
                   Connect Wallet
                 </button>
+                {/* Funding Guide Link */}
+                <div className="mt-6 pt-4 border-t border-gray-100">
+                  <p className="text-sm text-gray-500 mb-2">Don't have a wallet yet?</p>
+                  <Link
+                    to="/docs/funding-guide"
+                    className="inline-flex items-center space-x-1 text-sm font-medium text-emerald-600 hover:text-emerald-700 transition-colors"
+                  >
+                    <HelpCircle className="w-4 h-4" />
+                    <span>Learn how to get started</span>
+                  </Link>
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -305,18 +318,31 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
                     })}
                   </div>
                 ) : (
-                  <EmptyState
-                    title="No activity yet"
-                    description="Your transaction history will appear here."
-                    primaryAction={
-                      <button
-                        onClick={handleDeposit}
-                        className="px-4 py-2 bg-emerald-600 text-white rounded-lg font-medium hover:bg-emerald-700 transition-colors"
+                  <div className="py-8 text-center">
+                    <EmptyState
+                      title="No activity yet"
+                      description="Your transaction history will appear here."
+                      primaryAction={
+                        <button
+                          onClick={handleDeposit}
+                          className="px-4 py-2 bg-emerald-600 text-white rounded-lg font-medium hover:bg-emerald-700 transition-colors"
+                        >
+                          Make Your First Deposit
+                        </button>
+                      }
+                    />
+                    {/* Funding Guide Link */}
+                    <div className="mt-6 pt-4 border-t border-gray-100">
+                      <p className="text-sm text-gray-500 mb-2">New to crypto wallets?</p>
+                      <Link
+                        to="/docs/funding-guide"
+                        className="inline-flex items-center space-x-1 text-sm font-medium text-emerald-600 hover:text-emerald-700 transition-colors"
                       >
-                        Make Your First Deposit
-                      </button>
-                    }
-                  />
+                        <HelpCircle className="w-4 h-4" />
+                        <span>Learn how to fund your wallet</span>
+                      </Link>
+                    </div>
+                  </div>
                 )}
               </CardContent>
             </Card>

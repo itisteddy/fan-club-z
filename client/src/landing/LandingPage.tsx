@@ -193,6 +193,12 @@ const LandingPage: React.FC = () => {
                 answer:
                   'We use modern security practices for auth and data storage. You can delete your data anytime.',
               },
+              {
+                question: 'How do I fund my wallet?',
+                answer:
+                  'FanClubZ uses the Base Sepolia testnet. You\'ll need to install a wallet like MetaMask, add the Base Sepolia network, and get test ETH and USDC from faucets.',
+                hasLink: true,
+              },
             ].map((item) => (
               <details
                 key={item.question}
@@ -218,7 +224,21 @@ const LandingPage: React.FC = () => {
                     </svg>
                   </div>
                 </summary>
-                <p className="mt-2 text-sm text-white/70">{item.answer}</p>
+                <p className="mt-2 text-sm text-white/70">
+                  {item.answer}
+                  {item.hasLink && (
+                    <>
+                      {' '}
+                      <a
+                        href={import.meta.env.PROD ? `${PROD_APP_URL}/docs/funding-guide` : '/docs/funding-guide'}
+                        className="text-emerald-400 hover:text-emerald-300 underline"
+                        {...(import.meta.env.PROD ? {} : { onClick: (e) => { e.preventDefault(); navigate('/docs/funding-guide'); } })}
+                      >
+                        View our step-by-step funding guide →
+                      </a>
+                    </>
+                  )}
+                </p>
               </details>
             ))}
           </div>
@@ -260,6 +280,20 @@ const LandingPage: React.FC = () => {
                   className="hover:text-white"
                 >
                   Contact
+                </a>
+              </li>
+            </ul>
+          </div>
+          <div>
+            <div className="mb-2 text-sm font-semibold text-white/80">Resources</div>
+            <ul className="space-y-2 text-sm text-white/70">
+              <li>
+                <a 
+                  href={import.meta.env.PROD ? `${PROD_APP_URL}/docs/funding-guide` : '/docs/funding-guide'} 
+                  className="hover:text-white"
+                  {...(import.meta.env.PROD ? {} : { onClick: (e) => { e.preventDefault(); navigate('/docs/funding-guide'); } })}
+                >
+                  Docs
                 </a>
               </li>
             </ul>
