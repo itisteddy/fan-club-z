@@ -391,7 +391,7 @@ const userBalance = isAuthenticated ? availableToStake : 0;
         walletAddress
       );
 
-      showSuccessToast(`Bet placed: $${stakeAmount} | lock consumed`);
+      showSuccessToast(`Stake placed: $${stakeAmount} | lock consumed`);
       AriaUtils.announce(`Prediction placed successfully for ${stakeAmount} dollars`);
       
       // IMPORTANT: Keep user on prediction details page - do not navigate away

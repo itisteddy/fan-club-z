@@ -105,6 +105,7 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
       case 'unlock':
         return 'Funds Released';
       case 'bet_placed':
+        return 'Stake Placed';
         return 'Bet Placed';
       case 'bet_refund':
         return 'Bet Refunded';

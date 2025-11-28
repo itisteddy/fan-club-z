@@ -82,7 +82,7 @@ const ProfilePageV2: React.FC<ProfilePageV2Props> = ({ onNavigateBack, userId })
         return {
           iconBg: 'bg-blue-100',
           icon: <Target className="w-4 h-4 text-blue-600" />, 
-          title: item.predictionTitle ? `Bet on ${item.predictionTitle}` : 'Bet placed',
+          title: item.predictionTitle ? `Staked on ${item.predictionTitle}` : 'Stake placed',
           subtitle: item.data?.option_label ? `Option: ${item.data.option_label}` : '',
           amount: item.data?.amount ? formatCurrency(Number(item.data.amount), { compact: true }) : null,
           badge: 'placed',

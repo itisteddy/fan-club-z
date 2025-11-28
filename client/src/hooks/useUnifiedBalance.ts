@@ -36,32 +36,49 @@ export function useUnifiedBalance() {
     enabled: Boolean(user?.id)
   });
 
-  // On-chain escrow is the primary source of truth.
-  // Prefer contract balances when they are available, and fall back to
-  // server summary only when on-chain data is missing.
-  const onchainAvailable = typeof availableUSD === 'number' ? availableUSD : 0;
+  // ARCHITECTURE:
+  // - On-chain escrow: tracks deposits/withdrawals (source of truth for total deposited)
+  // - Database escrow_locks: tracks stakes (consumed amounts for active bets)
+  // - Available = on-chain balance - consumed locks (computed by backend)
+  //
+  // The backend's availableToStakeUSDC is the correct "available" value because
+  // it subtracts consumed locks from the on-chain balance.
+  // The on-chain balance alone doesn't reflect stakes (which are off-chain).
+  
+  const onchainBalance = typeof availableUSD === 'number' ? availableUSD : 0;
   const onchainReserved = typeof reservedUSD === 'number' ? reservedUSD : 0;
   const onchainTotal =
     typeof totalUSD === 'number' && !Number.isNaN(totalUSD)
       ? totalUSD
-      : onchainAvailable + onchainReserved;
+      : onchainBalance + onchainReserved;
 
   const summaryAvailable = Number(summary?.availableToStakeUSDC ?? summary?.available ?? 0);
   const summaryReserved = Number(summary?.reservedUSDC ?? summary?.reserved ?? 0);
+  const summaryEscrow = Number(summary?.escrowUSDC ?? 0);
   const summaryTotal =
     typeof summaryAvailable === 'number' && typeof summaryReserved === 'number'
       ? summaryAvailable + summaryReserved
       : 0;
 
-  const computedAvailable = Math.max(onchainAvailable, summaryAvailable);
+  // CRITICAL FIX:
+  // After a stake, the backend's availableToStakeUSDC is LOWER than on-chain balance
+  // because it subtracts consumed locks. We should use the MINIMUM of the two
+  // to show the correct available balance after staking.
+  // 
+  // However, if the backend hasn't caught up yet (summaryAvailable is 0 but onchainBalance > 0),
+  // we should use the on-chain balance as a fallback.
+  const hasValidSummary = summary && summaryAvailable >= 0;
+  const computedAvailable = hasValidSummary 
+    ? Math.min(onchainBalance, summaryAvailable) // Use lower value (reflects consumed locks)
+    : onchainBalance; // Fallback to on-chain if no summary
+  
+  // Reserved should be the MAX since we want to show all locked funds
   const computedReserved = Math.max(onchainReserved, summaryReserved);
-  const computedTotal =
-    Math.max(
-      onchainTotal,
-      summary
-        ? summaryTotal
-        : computedAvailable + computedReserved
-    );
+  
+  // Total is the on-chain escrow balance (deposits - withdrawals)
+  const computedTotal = hasValidSummary
+    ? Math.max(onchainTotal, summaryTotal)
+    : onchainTotal;
 
   const normalizedAvailable = Math.max(computedAvailable, 0);
   const normalizedReserved = Math.max(computedReserved, 0);

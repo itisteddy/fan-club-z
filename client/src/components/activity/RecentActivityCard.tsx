@@ -94,7 +94,7 @@ function getActivityDisplay(item: ActivityDisplayItem): ActivityDisplay {
       return {
         iconBg: 'bg-purple-100',
         icon: <Target className="w-4 h-4 text-purple-600" />,
-        title: item.meta?.predictionTitle ? `Bet on "${item.meta.predictionTitle}"` : 'Bet placed',
+        title: item.meta?.predictionTitle ? `Staked on "${item.meta.predictionTitle}"` : 'Stake placed',
         subtitle: item.meta?.optionLabel ? `Option: ${item.meta.optionLabel}` : undefined,
         amount: formatCurrency(item.amountUSD, { compact: true }),
         badge: 'placed',

@@ -156,15 +156,15 @@ const PredictionDetailsContent: React.FC<PredictionDetailsContentProps> = ({
     await executeWithErrorHandling(
       async () => {
         // TODO: Implement bet placement
-        qaLog('[PredictionDetailsContent] Placing bet:', { selectedOption, stakeAmount });
+        qaLog('[PredictionDetailsContent] Placing stake:', { selectedOption, stakeAmount });
         await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate API call
-        showSuccessToast('Bet placed successfully');
+        showSuccessToast('Stake placed successfully');
         setSelectedOption(null);
         setStakeAmount('');
       },
       { 
         isUserAction: true,
-        successMessage: 'Bet placed successfully',
+        successMessage: 'Stake placed successfully',
       }
     );
 

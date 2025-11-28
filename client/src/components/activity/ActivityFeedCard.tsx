@@ -112,14 +112,14 @@ export function getActivityDisplay(item: ActivityItemData): ActivityDisplayInfo 
         isPositive: false,
       };
       
-    // Bets placed
+    // Stakes placed
     case 'bet_placed':
     case 'entry':
     case 'entry.create':
       return {
         iconBg: 'bg-blue-100',
         icon: <Target className="w-4 h-4 text-blue-600" />,
-        title: predTitle ? `Bet on ${predTitle}` : 'Bet placed',
+        title: predTitle ? `Staked on ${predTitle}` : 'Stake placed',
         subtitle: optionLabel ? `Option: ${optionLabel}` : '',
         amount: formattedAmount,
         badge: 'placed',

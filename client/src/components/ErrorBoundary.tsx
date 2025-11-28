@@ -32,6 +32,27 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
     console.error('Error info:', errorInfo);
     console.error('Component stack:', errorInfo.componentStack);
     
+    // CRITICAL: Handle dynamic module loading errors (stale Vercel chunks)
+    // These occur when Vercel deploys new code but the browser has cached old chunk references
+    const isModuleLoadError = 
+      error.message.includes('Failed to fetch dynamically imported module') ||
+      error.message.includes('Failed to load module script') ||
+      error.message.includes('Loading chunk') ||
+      error.message.includes('ChunkLoadError');
+    
+    if (isModuleLoadError) {
+      console.warn('🔄 Module loading error detected - triggering hard reload to fetch fresh chunks');
+      // Clear any cached service worker data
+      if ('caches' in window) {
+        caches.keys().then(names => {
+          names.forEach(name => caches.delete(name));
+        });
+      }
+      // Force a hard reload bypassing cache
+      window.location.reload();
+      return;
+    }
+    
     this.setState({
       error,
       errorInfo

@@ -148,10 +148,10 @@ walletActivity.get('/activity', async (req, res) => {
           description = description || 'Withdrew USDC from escrow';
         } else if (tx.channel === 'escrow_consumed' && tx.direction === 'debit') {
           kind = 'bet_placed';
-          description = description || 'Bet placed';
+          description = description || 'Stake placed';
         } else if (tx.channel === 'escrow_consumed' && tx.direction === 'credit') {
           kind = 'bet_refund';
-          description = description || 'Bet refunded';
+          description = description || 'Stake refunded';
         } else if (tx.channel === 'payout' && tx.direction === 'credit') {
           // Win payout from settlement
           kind = 'win';
@@ -226,11 +226,11 @@ walletActivity.get('/activity', async (req, res) => {
             break;
           case 'bet_lock':
             kind = 'lock';
-            description = 'Bet locked';
+            description = 'Stake locked';
             break;
           case 'bet_release':
             kind = 'unlock';
-            description = 'Bet released';
+            description = 'Stake released';
             break;
         }
         

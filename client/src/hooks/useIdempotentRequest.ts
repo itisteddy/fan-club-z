@@ -141,7 +141,7 @@ export function useIdempotentBet() {
       }),
       idempotencyKey,
       onSuccess: () => {
-        toast.success('Bet placed successfully!');
+        toast.success('Stake placed successfully!');
       },
       onError: (error) => {
         if (error.message.includes('409')) {

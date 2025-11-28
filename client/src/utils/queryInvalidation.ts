@@ -7,6 +7,7 @@
 
 import { QueryClient } from '@tanstack/react-query';
 import { QK } from '@/lib/queryKeys';
+import { broadcastBalanceRefresh } from '@/services/onchainTransactionService';
 
 // All wallet-related query keys
 const WALLET_QUERY_KEYS = [
@@ -138,7 +139,8 @@ export function invalidateAfterWithdraw(
 }
 
 /**
- * Invalidate queries after bet placement
+ * Invalidate queries after stake placement
+ * CRITICAL: Must broadcast balance refresh to update UI immediately
  */
 export function invalidateAfterBet(
   queryClient: QueryClient,
@@ -153,6 +155,10 @@ export function invalidateAfterBet(
 
   // Also invalidate prediction stats
   queryClient.invalidateQueries({ queryKey: ['prediction-stats', options.predictionId] });
+  
+  // CRITICAL: Broadcast balance refresh to force immediate UI update
+  // The backend has updated escrow_locks, so we need to refetch wallet summary
+  broadcastBalanceRefresh();
 }
 
 /**
