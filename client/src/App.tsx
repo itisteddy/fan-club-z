@@ -11,7 +11,7 @@ import { AuthSessionProvider } from './providers/AuthSessionProvider';
 import { RealtimeProvider } from './providers/RealtimeProvider';
 import AuthGateModal from './components/auth/AuthGateModal';
 import { Toaster } from 'react-hot-toast';
-import { scrollToTop, saveScrollPosition, markNavigationAsIntentional } from './utils/scroll';
+import { scrollToTop, saveScrollPosition, markNavigationAsIntentional, handleRouterNavigation } from './utils/scroll';
 import NotificationContainer from './components/ui/NotificationContainer';
 import PWAInstallManager from './components/PWAInstallManager';
 import PageWrapper from './components/PageWrapper';
@@ -61,6 +61,24 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = memo(({ children }) 
   const navigate = useNavigate();
   const { user: sessionUser } = useAuthSession();
   const isAuthenticated = !!sessionUser;
+  const prevLocationRef = useRef<string>(location.pathname);
+  
+  // Initialize navigation history on mount
+  useEffect(() => {
+    prevLocationRef.current = location.pathname;
+  }, []);
+  
+  // Handle location changes for proper scroll behavior
+  useEffect(() => {
+    const currentPath = location.pathname;
+    const prevPath = prevLocationRef.current;
+    
+    if (currentPath !== prevPath) {
+      // Use scroll manager to handle navigation (detects forward vs back)
+      handleRouterNavigation(prevPath, currentPath);
+      prevLocationRef.current = currentPath;
+    }
+  }, [location.pathname]);
   
   const getCurrentTab = useCallback(() => {
     const path = location.pathname.toLowerCase();

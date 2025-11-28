@@ -14,11 +14,15 @@ class ScrollManager {
   private scrollTimeout: number | null = null;
   private isNavigating: boolean = false;
   private restoreTimeout: number | null = null;
+  private navigationHistory: string[] = []; // Track navigation history to detect back navigation
+  private isBackNavigation: boolean = false; // Flag to track if current navigation is back
 
   private constructor() {
     // Initialize with current location
     if (typeof window !== 'undefined') {
       this.currentRoute = window.location.pathname;
+      // Initialize navigation history with current route
+      this.navigationHistory = [this.currentRoute];
       this.setupNavigationListeners();
     }
   }
@@ -31,30 +35,29 @@ class ScrollManager {
   }
 
   private setupNavigationListeners(): void {
-    // Listen for route changes to save/restore scroll positions
-    let lastUrl = window.location.pathname;
-    
-    const observer = new MutationObserver(() => {
-      const currentUrl = window.location.pathname;
-      if (currentUrl !== lastUrl) {
-        // Route change logging removed - excessive logging issue
-        this.handleRouteChange(lastUrl, currentUrl);
-        lastUrl = currentUrl;
-      }
-    });
-
-    observer.observe(document.documentElement, {
-      subtree: true,
-      childList: true
-    });
+    // Note: React Router navigation is handled by App.tsx useEffect
+    // This scroll manager focuses on browser back/forward (popstate) events
 
     // Listen for popstate (browser back/forward)
     window.addEventListener('popstate', () => {
       // Browser navigation logging removed - excessive logging issue
       this.isNavigating = true;
+      this.isBackNavigation = true; // Browser back/forward is always back navigation
+      
+      // Update navigation history for browser navigation
+      const currentPath = window.location.pathname;
+      if (this.navigationHistory.length > 0) {
+        // Remove last entry if it matches (going back)
+        if (this.navigationHistory[this.navigationHistory.length - 1] === this.currentRoute) {
+          this.navigationHistory.pop();
+        }
+      }
+      
       setTimeout(() => {
-        this.restoreScrollPosition(window.location.pathname);
+        this.restoreScrollPosition(currentPath);
+        this.currentRoute = currentPath;
         this.isNavigating = false;
+        this.isBackNavigation = false;
       }, 100);
     });
 
@@ -68,10 +71,34 @@ class ScrollManager {
     // Save scroll position for the route we're leaving
     if (fromRoute !== toRoute) {
       this.saveScrollPosition(fromRoute);
-      this.currentRoute = toRoute;
       
-      // Don't restore immediately, let the new page render first
-      this.scheduleScrollRestore(toRoute);
+      // Detect if this is a back navigation by checking if toRoute is in our history
+      const isBackNav = this.navigationHistory.length > 1 && 
+                        this.navigationHistory[this.navigationHistory.length - 2] === toRoute;
+      
+      // Update navigation history
+      if (!isBackNav) {
+        // Forward navigation - add to history
+        this.navigationHistory.push(toRoute);
+        // Keep history limited to last 10 routes
+        if (this.navigationHistory.length > 10) {
+          this.navigationHistory.shift();
+        }
+      } else {
+        // Back navigation - remove last entry from history
+        this.navigationHistory.pop();
+      }
+      
+      this.currentRoute = toRoute;
+      this.isBackNavigation = isBackNav;
+      
+      if (isBackNav) {
+        // Back navigation - restore scroll position
+        this.scheduleScrollRestore(toRoute);
+      } else {
+        // Forward navigation - always scroll to top
+        this.scrollToTop({ behavior: 'instant', delay: 50 });
+      }
     }
   }
 
@@ -80,9 +107,9 @@ class ScrollManager {
       clearTimeout(this.restoreTimeout);
     }
 
-    // Wait for page to render, then restore scroll
+    // Wait for page to render, then restore scroll (only if back navigation)
     this.restoreTimeout = window.setTimeout(() => {
-      if (!this.isNavigating) {
+      if (!this.isNavigating && this.isBackNavigation) {
         this.restoreScrollPosition(route);
       }
     }, 150);
@@ -213,12 +240,54 @@ class ScrollManager {
     }
   }
 
-  // Mark current navigation as intentional (prevent auto-restore)
+  // Mark current navigation as intentional (prevent auto-restore, scroll to top)
   markNavigationAsIntentional(): void {
     this.isNavigating = true;
+    this.isBackNavigation = false; // Intentional navigation is forward navigation
     setTimeout(() => {
       this.isNavigating = false;
     }, 500);
+  }
+  
+  // Mark navigation as back navigation (allow scroll restore)
+  markAsBackNavigation(): void {
+    this.isBackNavigation = true;
+  }
+  
+  // Handle React Router navigation change
+  handleRouterNavigation(fromRoute: string, toRoute: string): void {
+    // Save scroll position for the route we're leaving
+    this.saveScrollPosition(fromRoute);
+    
+    // Detect if this is a back navigation by checking if toRoute is in our history
+    const isBackNav = this.navigationHistory.length > 1 && 
+                      this.navigationHistory[this.navigationHistory.length - 2] === toRoute;
+    
+    // Update navigation history
+    if (!isBackNav) {
+      // Forward navigation - add to history
+      this.navigationHistory.push(toRoute);
+      // Keep history limited to last 10 routes
+      if (this.navigationHistory.length > 10) {
+        this.navigationHistory.shift();
+      }
+    } else {
+      // Back navigation - remove last entry from history
+      this.navigationHistory.pop();
+    }
+    
+    this.currentRoute = toRoute;
+    this.isBackNavigation = isBackNav;
+    
+    if (isBackNav) {
+      // Back navigation - restore scroll position
+      setTimeout(() => {
+        this.restoreScrollPosition(toRoute);
+      }, 150);
+    } else {
+      // Forward navigation - always scroll to top
+      this.scrollToTop({ behavior: 'instant', delay: 50 });
+    }
   }
 
   // Get debug info
@@ -267,6 +336,10 @@ export const restoreScrollPosition = (route: string) => {
 
 export const markNavigationAsIntentional = () => {
   scrollManager.markNavigationAsIntentional();
+};
+
+export const handleRouterNavigation = (fromRoute: string, toRoute: string) => {
+  scrollManager.handleRouterNavigation(fromRoute, toRoute);
 };
 
 export const clearScrollTimeout = () => {
