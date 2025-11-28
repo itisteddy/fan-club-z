@@ -45,43 +45,29 @@ const SettlementModal: React.FC<SettlementModalProps> = ({
     }
 
     try {
-      // Try Merkle-based on-chain settlement first
-      const tx = await settleWithMerkle({
+      // Use off-chain settlement (bets are off-chain, so settlement must be too)
+      // On-chain settlement via postSettlementRoot requires on-chain lockFunds which we don't use
+      console.log('[SETTLEMENT] Starting off-chain settlement...');
+      toast.loading('Settling prediction...', { id: 'settle' });
+      
+      const result = await settleManually({
         predictionId: prediction.id,
         winningOptionId: selectedOptionId,
         reason: reason.trim(),
         userId: prediction.creator_id || '',
       });
       
-      if (tx) {
-        toast.success('Settlement root posted on-chain!');
-        setShowConfirmation(false);
-        onClose();
-        if (onSettlementComplete) onSettlementComplete();
-        return;
-      }
-      
-      // If on-chain failed, fall back to off-chain settlement
-      console.log('[SETTLEMENT] On-chain failed, trying off-chain settlement...');
-      toast.loading('On-chain failed, settling off-chain...', { id: 'settle-fallback' });
-      
-      const offchainResult = await settleManually({
-        predictionId: prediction.id,
-        winningOptionId: selectedOptionId,
-        reason: reason.trim(),
-      });
-      
-      if (offchainResult) {
-        toast.success('Settlement completed (off-chain)!', { id: 'settle-fallback' });
+      if (result) {
+        toast.success('Settlement completed! Winners have been credited.', { id: 'settle' });
         setShowConfirmation(false);
         onClose();
         if (onSettlementComplete) onSettlementComplete();
       } else {
-        toast.error('Settlement failed. Please try again.', { id: 'settle-fallback' });
+        toast.error(settlementError || 'Settlement failed. Please try again.', { id: 'settle' });
       }
     } catch (error) {
       console.error('Settlement submit error:', error);
-      toast.error('Settlement failed. Please try again.');
+      toast.error('Settlement failed. Please try again.', { id: 'settle' });
     }
   };
 
