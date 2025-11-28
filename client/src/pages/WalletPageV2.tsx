@@ -149,8 +149,11 @@ const WalletPageV2: React.FC<WalletPageV2Props> = ({ onNavigateBack }) => {
   }, [walletStatus.code, walletUSDC, escrowAvailableUSD, escrowReservedUSD, escrowTotalUSD]);
   
   // Wallet activity (from database - transaction history only)
+  // Show first 20 in main view, all transactions in modal
   const { data: walletActivity, isLoading: isLoadingActivity } = useWalletActivity(user?.id, 20);
+  const { data: allWalletActivity, isLoading: isLoadingAllActivity } = useWalletActivity(user?.id, 1000);
   const { data: claimables } = useClaimableClaims(address, 100);
+  const [showAllTransactions, setShowAllTransactions] = useState(false);
   
   // Connection helpers
   const openConnectSheet = useCallback(() => {
@@ -833,9 +836,19 @@ const WalletPageV2: React.FC<WalletPageV2Props> = ({ onNavigateBack }) => {
                 {/* Recent Activity */}
                 {walletActivity?.items && walletActivity.items.length > 0 ? (
                   <div className="mt-6 pt-4 border-t border-blue-100">
-                    <h4 className="text-xs font-semibold text-gray-700 mb-3">Recent Activity</h4>
+                    <div className="flex items-center justify-between mb-3">
+                      <h4 className="text-xs font-semibold text-gray-700">Recent Activity</h4>
+                      {(walletActivity.items.length >= 20 || (allWalletActivity?.items && allWalletActivity.items.length > 20)) && (
+                        <button
+                          onClick={() => setShowAllTransactions(true)}
+                          className="text-xs text-emerald-600 hover:text-emerald-700 font-medium"
+                        >
+                          View All
+                        </button>
+                      )}
+                    </div>
                     <div className="space-y-2">
-                      {walletActivity.items.slice(0, 8).map((item) => {
+                      {walletActivity.items.slice(0, 20).map((item) => {
                         const iconMap: Record<string, any> = {
                           deposit: Download,
                           withdraw: ArrowUpRight,
@@ -1168,6 +1181,106 @@ const WalletPageV2: React.FC<WalletPageV2Props> = ({ onNavigateBack }) => {
                 ))}
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* View All Transactions Modal */}
+      {showAllTransactions && (
+        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-end md:items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xl max-h-[80vh] overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+              <h2 className="text-sm font-semibold text-gray-900">All Transactions</h2>
+              <button
+                onClick={() => setShowAllTransactions(false)}
+                className="text-xs text-gray-500 hover:text-gray-700"
+              >
+                Close
+              </button>
+            </div>
+            <div className="overflow-y-auto divide-y divide-gray-100 max-h-[calc(80vh-3.5rem)] sm:max-h-[calc(80vh-3rem)] pr-1">
+              {isLoadingAllActivity && (!allWalletActivity?.items || allWalletActivity.items.length === 0) ? (
+                <div className="p-6 text-sm text-gray-500">Loading transactions…</div>
+              ) : !allWalletActivity?.items || allWalletActivity.items.length === 0 ? (
+                <div className="p-6 text-sm text-gray-500">No transactions yet.</div>
+              ) : (
+                allWalletActivity.items.map((item) => {
+                  const iconMap: Record<string, any> = {
+                    deposit: Download,
+                    withdraw: ArrowUpRight,
+                    lock: Lock,
+                    release: Unlock,
+                    unlock: Unlock,
+                    entry: Target,
+                    bet_placed: Target,
+                    claim: Receipt,
+                    payout: DollarSign,
+                    win: Trophy,
+                    loss: XCircle,
+                    creator_fee: DollarSign,
+                    platform_fee: DollarSign,
+                    settlement: Receipt,
+                    bet_refund: Unlock,
+                  };
+                  const IconComponent = iconMap[item.kind] || Wallet;
+                  const description = (() => {
+                    if (item.kind === 'entry' && item.meta?.option_label) {
+                      return `on ${item.meta.option_label}`;
+                    }
+                    if (item.kind === 'payout' && item.meta?.prediction_title) {
+                      return `for ${item.meta.prediction_title}`;
+                    }
+                    if (item.kind === 'claim' && item.meta?.prediction_title) {
+                      return `from ${item.meta.prediction_title}`;
+                    }
+                    if (item.kind === 'win' && item.meta?.prediction_title) {
+                      return item.meta.prediction_title;
+                    }
+                    if (item.kind === 'loss' && item.meta?.prediction_title) {
+                      return item.meta.prediction_title;
+                    }
+                    if (item.kind === 'creator_fee' && item.meta?.prediction_title) {
+                      return item.meta.prediction_title;
+                    }
+                    if (item.kind === 'settlement' && item.meta?.prediction_title) {
+                      return item.meta.prediction_title;
+                    }
+                    return '';
+                  })();
+
+                  return (
+                    <div
+                      key={item.id}
+                      className="flex items-center justify-between gap-4 px-4 py-3 hover:bg-gray-50 cursor-pointer transition-colors"
+                      onClick={() => {
+                        setSelectedActivity(item);
+                        setShowAllTransactions(false);
+                      }}
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="w-9 h-9 rounded-full flex items-center justify-center bg-gray-100 flex-shrink-0">
+                          {IconComponent && <IconComponent className="w-4 h-4 text-gray-500" />}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium text-gray-900 truncate">{prettyKind(item.kind)}</p>
+                          {description && (
+                            <p className="text-xs text-gray-500 truncate">{description}</p>
+                          )}
+                          <p className="text-[11px] text-gray-400">
+                            {item.createdAt ? formatTimeAgo(item.createdAt) : 'Recently'}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="text-right flex-shrink-0 min-w-[80px]">
+                        <div className="text-sm font-mono font-medium text-gray-700">
+                          {formatCurrency(item.amountUSD, { compact: false })}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
           </div>
         </div>
       )}
