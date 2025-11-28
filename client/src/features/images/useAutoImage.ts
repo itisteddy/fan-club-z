@@ -11,6 +11,7 @@ export interface Prediction {
   category?: string;
   description?: string;
   slug?: string;
+  image_url?: string | null; // Stable image URL stored in database
 }
 
 export interface UseAutoImageOptions {

@@ -3,9 +3,16 @@
  * 
  * Ensures:
  * 1. Images are contextual to prediction title + category
- * 2. Once assigned, images never change for a prediction
+ * 2. Once assigned, images never change for a prediction (stored in DB)
  * 3. Primary provider (Pexels) with automatic fallback to backup (Unsplash)
  * 4. No flickering - image is locked once loaded
+ * 
+ * Priority order:
+ * 1. Database image_url (permanent, never changes)
+ * 2. IndexedDB cache (local persistence)
+ * 3. Pexels API (primary provider)
+ * 4. Unsplash API (fallback provider)
+ * 5. Gradient fallback (if all else fails)
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
@@ -16,6 +23,27 @@ import { qaLog } from '../../utils/devQa';
 import { getApiUrl } from '@/utils/environment';
 
 const API_BASE = `${getApiUrl()}/api`;
+
+/**
+ * Save image URL to database for permanent storage
+ * Only saves if not already set (prevents changing)
+ */
+async function saveImageToDatabase(predictionId: string, imageUrl: string): Promise<void> {
+  try {
+    const response = await fetch(`${API_BASE}/v2/predictions/${predictionId}/image`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ imageUrl }),
+    });
+    
+    if (response.ok) {
+      qaLog(`[stable-image] Saved image to database for ${predictionId}`);
+    }
+  } catch (err) {
+    // Non-critical - cache will still work
+    qaLog(`[stable-image] Failed to save image to database:`, err);
+  }
+}
 
 export interface StableImageResult {
   image: StockImage | null;
@@ -88,8 +116,28 @@ export function useStableImage({
         query,
         seed,
         title: prediction.title,
-        category: prediction.category
+        category: prediction.category,
+        dbImageUrl: prediction.image_url
       });
+
+      // 0. PRIORITY: Check if prediction has image_url in database (permanent storage)
+      if (prediction.image_url && !cancelled) {
+        qaLog(`[stable-image] Using database image for ${prediction.id}: ${prediction.image_url.slice(0, 50)}...`);
+        setImage({
+          id: `db-${prediction.id}`,
+          url: prediction.image_url,
+          width: 800,
+          height: 600,
+          alt: prediction.title,
+          photographer: '',
+          photographerUrl: '',
+          provider: 'database'
+        } as StockImage);
+        setProvider('pexels'); // Treat as primary provider
+        imageLocked.current = true;
+        setLoading(false);
+        return;
+      }
 
       // 1. Check cache for Pexels first
       const cachedPexels = await imageCache.get(prediction.id, 'pexels', seed);
@@ -99,6 +147,10 @@ export function useStableImage({
         setProvider('pexels');
         imageLocked.current = true;
         setLoading(false);
+        // Save to database for permanent storage (non-blocking)
+        if (cachedPexels.url) {
+          saveImageToDatabase(prediction.id, cachedPexels.url);
+        }
         return;
       }
 
@@ -111,6 +163,10 @@ export function useStableImage({
         setUsedFallback(true);
         imageLocked.current = true;
         setLoading(false);
+        // Save to database for permanent storage (non-blocking)
+        if (cachedUnsplash.url) {
+          saveImageToDatabase(prediction.id, cachedUnsplash.url);
+        }
         return;
       }
 
@@ -123,6 +179,10 @@ export function useStableImage({
         await imageCache.set(prediction.id, 'pexels', seed, pexelsImage);
         imageLocked.current = true;
         setLoading(false);
+        // Save to database for permanent storage (non-blocking)
+        if (pexelsImage.url) {
+          saveImageToDatabase(prediction.id, pexelsImage.url);
+        }
         return;
       }
 
@@ -137,6 +197,10 @@ export function useStableImage({
         await imageCache.set(prediction.id, 'unsplash', seed, unsplashImage);
         imageLocked.current = true;
         setLoading(false);
+        // Save to database for permanent storage (non-blocking)
+        if (unsplashImage.url) {
+          saveImageToDatabase(prediction.id, unsplashImage.url);
+        }
         return;
       }
 

@@ -895,7 +895,10 @@ router.get('/:predictionId/merkle-proof', async (req, res) => {
 });
 
 // GET /api/v2/settlement/claimable?address=0x...&limit=20
+// Returns claimable settlements for a given wallet address
+// Optimized to avoid slow on-chain calls where possible
 router.get('/claimable', async (req, res) => {
+  const startTime = Date.now();
   try {
     const { address, limit: limitStr } = req.query as { address?: string; limit?: string };
     if (!address) {
@@ -904,18 +907,40 @@ router.get('/claimable', async (req, res) => {
     const normalized = String(address).toLowerCase();
     const limit = Math.min(parseInt(limitStr || '20', 10) || 20, 100);
 
-    const { data: preds, error } = await supabase
-      .from('predictions')
-      .select('id, title, settled_at, winning_option_id')
-      .not('settled_at', 'is', null)
-      .order('settled_at', { ascending: false })
-      .limit(limit * 3);
+    console.log(`[SETTLEMENT] Fetching claimable for ${normalized.slice(0, 10)}...`);
 
-    if (error) {
-      console.error('[SETTLEMENT] claimable query failed:', error);
-      return res.status(500).json({ error: 'internal', message: 'Failed to query predictions', details: (error as any)?.message || String(error), version: VERSION });
+    // First, only fetch predictions that have bet_settlements with onchain_posted status
+    // This avoids expensive on-chain calls for predictions that haven't been posted yet
+    const { data: settledPreds, error: settledError } = await supabase
+      .from('bet_settlements')
+      .select('bet_id, winning_option_id, status, meta')
+      .eq('status', 'onchain_posted')
+      .order('created_at', { ascending: false })
+      .limit(limit * 2);
+
+    if (settledError) {
+      console.error('[SETTLEMENT] claimable query failed:', settledError);
+      return res.status(500).json({ error: 'internal', message: 'Failed to query settlements', version: VERSION });
     }
 
+    if (!settledPreds || settledPreds.length === 0) {
+      console.log(`[SETTLEMENT] No onchain_posted settlements found (${Date.now() - startTime}ms)`);
+      return res.json({ success: true, data: { claims: [] }, version: VERSION });
+    }
+
+    // Fetch prediction details for the settled predictions
+    const predictionIds = settledPreds.map(s => s.bet_id);
+    const { data: preds, error: predsError } = await supabase
+      .from('predictions')
+      .select('id, title, settled_at, winning_option_id')
+      .in('id', predictionIds);
+
+    if (predsError) {
+      console.error('[SETTLEMENT] claimable predictions query failed:', predsError);
+      return res.status(500).json({ error: 'internal', message: 'Failed to query predictions', version: VERSION });
+    }
+
+    const predMap = new Map((preds || []).map(p => [p.id, p]));
     const results: Array<{
       predictionId: string;
       title: string;
@@ -925,34 +950,38 @@ router.get('/claimable', async (req, res) => {
       merkleRoot: `0x${string}`;
     }> = [];
 
-    for (const p of preds || []) {
+    // Process each settled prediction
+    for (const s of settledPreds) {
+      if (results.length >= limit) break;
+      
+      const p = predMap.get(s.bet_id);
+      if (!p) continue;
+
       try {
-        // Require on-chain posted settlement to surface as claimable
-        let { data: s } = await supabase
-          .from('bet_settlements')
-          .select('winning_option_id,status,meta')
-          .eq('bet_id', p.id)
-          .maybeSingle();
-        const winningOptionId = (s?.winning_option_id ?? p.winning_option_id) as string | null;
+        const winningOptionId = (s.winning_option_id ?? p.winning_option_id) as string | null;
         if (!winningOptionId) continue;
-        if (!s || s.status !== 'onchain_posted') {
-          // Try on-chain read to auto-heal status
-          const postedRoot = await ensureOnchainPosted(p.id);
-          if (!postedRoot) continue;
-          // Re-fetch settlement row to include latest status
-          const resRow = await supabase
-            .from('bet_settlements')
-            .select('winning_option_id,status,meta')
-            .eq('bet_id', p.id)
-            .maybeSingle();
-          s = resRow.data || s;
-        }
+
+        // Compute merkle settlement (uses cached data, no on-chain calls)
         const settlement = await computeMerkleSettlement({ predictionId: p.id, winningOptionId });
         const leaf = settlement.leaves.find((l) => l.address.toLowerCase() === normalized);
         if (!leaf || (leaf.amountUnits ?? 0n) === 0n) continue;
-        // Exclude already-claimed leaves (on-chain)
-        const alreadyClaimed = await isClaimedOnchain(p.id, normalized);
+
+        // Check if already claimed on-chain (with timeout protection)
+        let alreadyClaimed = false;
+        try {
+          const claimCheckPromise = isClaimedOnchain(p.id, normalized);
+          const timeoutPromise = new Promise<boolean>((_, reject) => 
+            setTimeout(() => reject(new Error('Claim check timeout')), 5000)
+          );
+          alreadyClaimed = await Promise.race([claimCheckPromise, timeoutPromise]);
+        } catch (claimErr) {
+          // If claim check fails/times out, assume not claimed (fail-open)
+          console.warn(`[SETTLEMENT] Claim check failed for ${p.id}, assuming not claimed:`, claimErr);
+          alreadyClaimed = false;
+        }
+
         if (alreadyClaimed) continue;
+
         results.push({
           predictionId: p.id,
           title: p.title,
@@ -961,13 +990,14 @@ router.get('/claimable', async (req, res) => {
           proof: (leaf.proof ?? []) as `0x${string}`[],
           merkleRoot: settlement.root,
         });
-        if (results.length >= limit) break;
-      } catch {
-        // skip errors per prediction
+      } catch (err) {
+        // Skip errors per prediction but log them
+        console.warn(`[SETTLEMENT] Error processing claimable for ${p.id}:`, err);
         continue;
       }
     }
 
+    console.log(`[SETTLEMENT] Found ${results.length} claimable for ${normalized.slice(0, 10)}... (${Date.now() - startTime}ms)`);
     return res.json({ success: true, data: { claims: results }, version: VERSION });
   } catch (e) {
     console.error('[SETTLEMENT] claimable error', e);

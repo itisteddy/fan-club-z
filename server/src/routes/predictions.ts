@@ -543,7 +543,8 @@ router.post('/', async (req, res) => {
       stakeMin,
       stakeMax,
       settlementMethod,
-      isPrivate
+      isPrivate,
+      imageUrl // Stable image URL for the prediction
     } = req.body;
 
     // Validate required fields
@@ -612,7 +613,8 @@ router.post('/', async (req, res) => {
         tags: [category],
         participant_count: 0,
         likes_count: 0,
-        comments_count: 0
+        comments_count: 0,
+        image_url: imageUrl || null // Store stable image URL
       })
       .select()
       .single();
@@ -1225,7 +1227,7 @@ router.put('/:id', async (req, res) => {
     console.log(`🔄 Updating prediction ${id}:`, updates);
     
     // Validate allowed fields
-    const allowedFields = ['title', 'description', 'is_private', 'entry_deadline'];
+    const allowedFields = ['title', 'description', 'is_private', 'entry_deadline', 'image_url'];
     const filteredUpdates = Object.keys(updates)
       .filter(key => allowedFields.includes(key))
       .reduce((obj, key) => {
@@ -1273,6 +1275,78 @@ router.put('/:id', async (req, res) => {
     return res.status(500).json({
       error: 'Internal server error',
       message: 'Failed to update prediction',
+      version: VERSION
+    });
+  }
+});
+
+// PATCH /api/v2/predictions/:id/image - Set stable image URL (only if not already set)
+router.patch('/:id/image', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { imageUrl } = req.body;
+    
+    if (!imageUrl || typeof imageUrl !== 'string') {
+      return res.status(400).json({
+        error: 'Bad Request',
+        message: 'imageUrl is required',
+        version: VERSION
+      });
+    }
+
+    // Only set image if not already set (prevents changing)
+    const { data: existing } = await supabase
+      .from('predictions')
+      .select('id, image_url')
+      .eq('id', id)
+      .single();
+    
+    if (!existing) {
+      return res.status(404).json({
+        error: 'Not Found',
+        message: 'Prediction not found',
+        version: VERSION
+      });
+    }
+
+    // If image already set, return success without updating
+    if (existing.image_url) {
+      return res.json({
+        success: true,
+        message: 'Image already set',
+        imageUrl: existing.image_url,
+        version: VERSION
+      });
+    }
+
+    // Set the image URL
+    const { error } = await supabase
+      .from('predictions')
+      .update({ image_url: imageUrl, updated_at: new Date().toISOString() })
+      .eq('id', id);
+
+    if (error) {
+      console.error('[PREDICTIONS] Error setting image:', error);
+      return res.status(500).json({
+        error: 'Database error',
+        message: 'Failed to set image',
+        version: VERSION
+      });
+    }
+
+    console.log(`[PREDICTIONS] ✅ Image set for prediction ${id}: ${imageUrl.slice(0, 50)}...`);
+    
+    return res.json({
+      success: true,
+      message: 'Image set successfully',
+      imageUrl,
+      version: VERSION
+    });
+  } catch (error) {
+    console.error('[PREDICTIONS] Error setting image:', error);
+    return res.status(500).json({
+      error: 'Internal server error',
+      message: 'Failed to set image',
       version: VERSION
     });
   }
