@@ -298,10 +298,16 @@ async function processTransferLogs(ctx: Ctx, logs: Log[]): Promise<ProcessResult
   const froms = new Set<string>();
   const blockNumbers = new Set<bigint>();
   
+  // Debug: Log all transfers to understand what we're seeing
+  const allTransfers: Array<{ from: string; to: string; value: string }> = [];
+  
   for (const l of logs) {
     const args: any = (l as any).args;
     const to = String(args?.to ?? '').toLowerCase();
     const from = String(args?.from ?? '').toLowerCase();
+    const value = String(args?.value ?? '0');
+    
+    allTransfers.push({ from, to, value });
     
     // Only process transfers TO the escrow contract
     if (to === escrowLower && from) {
@@ -312,10 +318,15 @@ async function processTransferLogs(ctx: Ctx, logs: Log[]): Promise<ProcessResult
     if (blockNumber > 0n) blockNumbers.add(blockNumber);
   }
 
+  // Log detailed info about transfers to help debug
+  const toEscrowCount = allTransfers.filter(t => t.to === escrowLower).length;
   log('info', `Found unique deposit addresses and blocks`, { 
     addresses: froms.size, 
     blocks: blockNumbers.size,
-    escrow: escrowLower
+    escrow: escrowLower,
+    totalTransfers: allTransfers.length,
+    transfersToEscrow: toEscrowCount,
+    fromAddresses: Array.from(froms).slice(0, 5), // Log first 5 addresses for debugging
   });
 
   if (froms.size === 0) {

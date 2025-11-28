@@ -212,6 +212,9 @@ router.get('/user/:userId', async (req, res) => {
       });
     }
 
+    // Create a Set of entry IDs to avoid duplicates when wallet_transactions also has the same bet
+    const entryIds = new Set((betEntries || []).map(e => e.id));
+
     const betEvents = (betEntries || []).map((entry) => {
       const prediction = pickFirst(entry.prediction as MaybeArray<{ id?: string; title?: string; status?: string }>);
       return {
@@ -232,7 +235,9 @@ router.get('/user/:userId', async (req, res) => {
     };
     });
 
-    const walletChannels = ['escrow_consumed', 'escrow_unlock', 'payout', 'platform_fee', 'creator_fee'];
+    // IMPORTANT: Exclude 'escrow_consumed' from wallet channels since we already have prediction_entries
+    // This prevents duplicate "bet placed" entries in the activity feed
+    const walletChannels = ['escrow_unlock', 'payout', 'settlement_loss', 'platform_fee', 'creator_fee'];
 
     console.log(`[activity] Fetching wallet_transactions for user: ${userId}, channels: ${walletChannels.join(', ')}`);
 
@@ -325,17 +330,33 @@ router.get('/user/:userId', async (req, res) => {
               reason: tx.description ?? null,
             },
           };
-        default:
+        case 'settlement_loss':
           return {
             id: `wallet_${tx.id}`,
             timestamp: tx.created_at,
-            type: 'bet_placed',
+            type: 'wallet.loss',
             actor: null,
             predictionId,
             predictionTitle,
             predictionStatus: null,
             data: {
               amount,
+              option_label: tx.meta?.option_label ?? null,
+            },
+          };
+        default:
+          // For any other channel, skip it to avoid duplicates
+          return {
+            id: `wallet_${tx.id}`,
+            timestamp: tx.created_at,
+            type: 'wallet.other',
+            actor: null,
+            predictionId,
+            predictionTitle,
+            predictionStatus: null,
+            data: {
+              amount,
+              channel: tx.channel,
               option_label: tx.meta?.option_label ?? null,
               option_id: tx.meta?.option_id ?? null,
             },
