@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { QK } from '@/lib/queryKeys';
+import { getApiUrl } from '@/utils/environment';
 
 export type WalletSummary = {
   currency: 'USD';
@@ -54,7 +55,8 @@ export function useWalletSummary(userId?: string, options: WalletSummaryOptions 
         params.set('walletAddress', walletAddr);
       }
 
-      const response = await fetch(`/api/wallet/summary/${userId}${params.size ? `?${params.toString()}` : ''}`, {
+      const apiBase = getApiUrl();
+      const response = await fetch(`${apiBase}/api/wallet/summary/${userId}${params.size ? `?${params.toString()}` : ''}`, {
         headers: {
           'Accept': 'application/json'
         }

@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useAuthStore } from '@/store/authStore';
 import { useAccount } from 'wagmi';
+import { getApiUrl } from '@/utils/environment';
 
 export interface ChainActivityItem {
   id: string;
@@ -28,7 +29,8 @@ async function fetchActivity(userId: string, limit: number): Promise<ActivityRes
     limit: String(limit),
   });
 
-  const response = await fetch(`/api/chain/activity?${params}`);
+  const apiBase = getApiUrl();
+  const response = await fetch(`${apiBase}/api/chain/activity?${params}`);
   
   if (!response.ok) {
     console.error('[FCZ-PAY] ui: Failed to fetch activity:', response.statusText);

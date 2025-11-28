@@ -43,7 +43,8 @@ const DisputeModal: React.FC<DisputeModalProps> = ({ dispute, onClose, onResolve
     try {
       setLoadingOptions(true);
       const token = localStorage.getItem('token');
-      const response = await fetch(`/api/v2/predictions/${dispute.prediction.id}`, {
+      const apiBase = getApiUrl();
+      const response = await fetch(`${apiBase}/api/v2/predictions/${dispute.prediction.id}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'

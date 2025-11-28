@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { AlertCircle, CheckCircle, ExternalLink, Info, Clock, Shield } from 'lucide-react';
+import { getApiUrl } from '@/utils/environment';
 
 interface SettlementCriteria {
   type: string;
@@ -58,14 +59,15 @@ export const SettlementCriteriaSetup: React.FC<SettlementCriteriaSetupProps> = (
     try {
       setLoading(true);
       const token = localStorage.getItem('token');
+      const apiBase = getApiUrl();
       
       // Fetch templates for category
-      const templatesResponse = await fetch(`/api/v2/settlement/criteria-templates?category=${category}`, {
+      const templatesResponse = await fetch(`${apiBase}/api/v2/settlement/criteria-templates?category=${category}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       
       // Fetch verification sources
-      const sourcesResponse = await fetch(`/api/v2/settlement/verification-sources?category=${category}`, {
+      const sourcesResponse = await fetch(`${apiBase}/api/v2/settlement/verification-sources?category=${category}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       

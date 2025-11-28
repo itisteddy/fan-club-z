@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useEffect } from 'react';
 import { QK } from '@/lib/queryKeys';
+import { getApiUrl } from '@/utils/environment';
 
 export type EscrowSnapshot = {
   currency: 'USD';
@@ -34,7 +35,8 @@ export function useEscrowSnapshot(userId?: string, options: Options = {}) {
       if (walletAddress) params.set('walletAddress', walletAddress);
       if (options.forceRefresh) params.set('refresh', '1');
 
-      const r = await fetch(`/api/wallet/summary?${params.toString()}`);
+      const apiBase = getApiUrl();
+      const r = await fetch(`${apiBase}/api/wallet/summary?${params.toString()}`);
       if (!r.ok) {
         const error = await r.json().catch(() => ({ message: r.statusText }));
         throw new Error(error.message || 'Failed to load escrow snapshot');
