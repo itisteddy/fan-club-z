@@ -36,15 +36,6 @@ export function useUnifiedBalance() {
     enabled: Boolean(user?.id)
   });
 
-  // ARCHITECTURE:
-  // - On-chain escrow: tracks deposits/withdrawals (source of truth for total deposited)
-  // - Database escrow_locks: tracks stakes (consumed amounts for active bets)
-  // - Available = on-chain balance - consumed locks (computed by backend)
-  //
-  // The backend's availableToStakeUSDC is the correct "available" value because
-  // it subtracts consumed locks from the on-chain balance.
-  // The on-chain balance alone doesn't reflect stakes (which are off-chain).
-  
   const onchainBalance = typeof availableUSD === 'number' ? availableUSD : 0;
   const onchainReserved = typeof reservedUSD === 'number' ? reservedUSD : 0;
   const onchainTotal =
@@ -59,61 +50,35 @@ export function useUnifiedBalance() {
     typeof summaryAvailable === 'number' && typeof summaryReserved === 'number'
       ? summaryAvailable + summaryReserved
       : 0;
+  const hasLoadedSummary = !!summary && !summaryLoading && !summaryError;
 
-  // CRITICAL FIX: Balance calculation logic
-  // 
-  // Architecture:
-  // - On-chain balance: Total funds in escrow contract (doesn't account for consumed locks)
-  // - Summary availableToStakeUSDC: On-chain balance MINUS consumed locks (correct available)
+  // CRITICAL ARCHITECTURE DECISION:
+  // - Available balance for staking MUST come from walletSummary (reconcileWallet),
+  //   because it subtracts consumed locks for active bets.
+  // - On-chain escrow contract does NOT know about off-chain locks, so its balance
+  //   will not decrease when you stake on a prediction.
   //
-  // Priority order:
-  // 1. If summary has loaded successfully AND shows a value → use summary (it knows about consumed locks)
-  // 2. If summary is loading/unavailable OR shows 0 while on-chain shows > 0 → use on-chain balance
+  // Therefore:
+  // - When summary is available → trust summary.availableToStakeUSDC completely.
+  // - When summary is NOT available (e.g. initial load, error) → fall back to on-chain.
   //
-  // The summary is the source of truth for "available" when it's loaded and shows a value.
-  // We fall back to on-chain when summary is unavailable or appears incorrect.
-  
-  const hasLoadedSummary = summary && !summaryLoading && !summaryError;
-  const summaryShowsValue = summaryAvailable > 0;
-  const onchainShowsValue = onchainBalance > 0;
-  
-  let computedAvailable: number;
-  if (hasLoadedSummary && summaryShowsValue) {
-    // Summary has loaded and shows funds → trust it (it correctly subtracts consumed locks)
-    // Use Math.min to ensure we don't show more than on-chain (safety check)
-    computedAvailable = Math.min(onchainBalance, summaryAvailable);
-  } else if (hasLoadedSummary && !summaryShowsValue && onchainShowsValue) {
-    // Summary loaded but shows 0 while on-chain shows funds → summary might be stale, trust on-chain
-    computedAvailable = onchainBalance;
-  } else if (!hasLoadedSummary && onchainShowsValue) {
-    // Summary not loaded yet but on-chain shows funds → use on-chain as fallback
-    computedAvailable = onchainBalance;
-  } else {
-    // Default: use summary if available, otherwise on-chain, but never less than 0
-    computedAvailable = Math.max(0, hasLoadedSummary ? summaryAvailable : onchainBalance);
-  }
-  
-  // Debug logging (only in dev or when balance seems incorrect)
-  if (import.meta.env.DEV || (computedAvailable === 0 && onchainBalance > 0)) {
-    console.log('[FCZ-BALANCE] Balance calculation:', {
-      onchainBalance,
-      summaryAvailable,
-      summaryLoading,
-      summaryError: summaryError?.message,
-      hasLoadedSummary,
-      summaryShowsValue,
-      computedAvailable
-    });
-  }
-  
-  // Reserved should be the MAX since we want to show all locked funds
-  const computedReserved = Math.max(onchainReserved, summaryReserved);
-  
-  // Total is the on-chain escrow balance (deposits - withdrawals)
-  // Use summary total if it's loaded and shows a value, otherwise use on-chain
-  const computedTotal = hasLoadedSummary && summaryTotal > 0
-    ? Math.max(onchainTotal, summaryTotal)
-    : onchainTotal;
+  // This guarantees:
+  // - After stake: available decreases correctly (because locks are counted in summary).
+  // - After settlement/unlock: available increases correctly when locks are released.
+
+  const computedAvailable = hasLoadedSummary
+    ? Math.max(0, summaryAvailable)
+    : Math.max(0, onchainBalance);
+
+  // Reserved balance: prefer summary (locks), fall back to on-chain reserved snapshot
+  const computedReserved = hasLoadedSummary
+    ? Math.max(0, summaryReserved)
+    : Math.max(0, onchainReserved);
+
+  // Total escrow: prefer summaryEscrow (which reflects reconciled view), fall back to on-chain
+  const computedTotal = hasLoadedSummary
+    ? Math.max(0, summaryEscrow || summaryTotal || onchainTotal)
+    : Math.max(0, onchainTotal);
 
   const normalizedAvailable = Math.max(computedAvailable, 0);
   const normalizedReserved = Math.max(computedReserved, 0);
