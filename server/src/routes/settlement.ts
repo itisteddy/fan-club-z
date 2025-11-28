@@ -936,9 +936,14 @@ router.get('/claimable', async (req, res) => {
       .order('settled_at', { ascending: false })
       .limit(limit);
     
-    // Combine all settlements
-    const settledPreds: Array<{ bet_id: string; winning_option_id: string | null; status: string; meta?: any }> = [];
-    if (onchainSettled) settledPreds.push(...onchainSettled);
+    // Combine all settlements, deduplicated by bet_id
+    const settledMap = new Map<string, { bet_id: string; winning_option_id: string | null; status: string; meta?: any }>();
+    
+    if (onchainSettled) {
+      for (const s of onchainSettled) {
+        settledMap.set(s.bet_id, s);
+      }
+    }
     if (offchainSettled) {
       // For off-chain, check if Merkle root can be posted/claimed
       for (const s of offchainSettled) {
@@ -946,10 +951,10 @@ router.get('/claimable', async (req, res) => {
         const existingRoot = await ensureOnchainPosted(s.bet_id);
         if (existingRoot) {
           // Root exists on-chain, treat as onchain_posted
-          settledPreds.push({ ...s, status: 'onchain_posted', meta: { ...s.meta, merkle_root: existingRoot } });
+          settledMap.set(s.bet_id, { ...s, status: 'onchain_posted', meta: { ...s.meta, merkle_root: existingRoot } });
         } else {
-          // Root not posted yet, but include it so we can compute Merkle and show it
-          settledPreds.push(s);
+          // Root not posted yet - do NOT include for claimable list
+          // Winners are already credited off-chain; on-chain claim would revert.
         }
       }
     }
@@ -957,14 +962,18 @@ router.get('/claimable', async (req, res) => {
       // Add predictions without bet_settlements entry
       for (const p of settledPredsWithoutEntry) {
         const existingRoot = await ensureOnchainPosted(p.id);
-        settledPreds.push({
-          bet_id: p.id,
-          winning_option_id: p.winning_option_id,
-          status: existingRoot ? 'onchain_posted' : 'completed',
-          meta: existingRoot ? { merkle_root: existingRoot } : {}
-        });
+        if (existingRoot) {
+          settledMap.set(p.id, {
+            bet_id: p.id,
+            winning_option_id: p.winning_option_id,
+            status: 'onchain_posted',
+            meta: { merkle_root: existingRoot }
+          });
+        }
       }
     }
+    
+    const settledPreds = Array.from(settledMap.values());
     
     const settledError = onchainError || offchainError;
 
