@@ -34,6 +34,8 @@ const SettlementModal: React.FC<SettlementModalProps> = ({
   const { notifySettlementReady } = useNotificationStore();
 
   const handleSubmit = async () => {
+    clearError();
+
     if (!selectedOptionId) {
       toast.error('Please select a winning option');
       return;
@@ -45,29 +47,47 @@ const SettlementModal: React.FC<SettlementModalProps> = ({
     }
 
     try {
-      // Use off-chain settlement (bets are off-chain, so settlement must be too)
-      // On-chain settlement via postSettlementRoot requires on-chain lockFunds which we don't use
-      console.log('[SETTLEMENT] Starting off-chain settlement...');
-      toast.loading('Settling prediction...', { id: 'settle' });
-      
+      // 1) Try on-chain Merkle settlement first
+      console.log('[SETTLEMENT] Attempting on-chain Merkle settlement...');
+      const tx = await settleWithMerkle({
+        predictionId: prediction.id,
+        winningOptionId: selectedOptionId,
+        reason: reason.trim(),
+        userId: prediction.creator_id || '',
+      });
+
+      if (tx) {
+        // On-chain path succeeded – prediction is settled, root is posted, winners can claim on-chain
+        console.log('[SETTLEMENT] On-chain settlement completed:', tx);
+        setShowConfirmation(false);
+        onClose();
+        if (onSettlementComplete) onSettlementComplete();
+        return;
+      }
+
+      // 2) If Merkle flow returned null (e.g. user cancelled, session error, or prepare failed),
+      // fall back to off-chain manual settlement so users are not blocked.
+      console.log('[SETTLEMENT] Merkle settlement returned null, falling back to off-chain manual settlement...');
+      toast.loading('On-chain settlement unavailable. Settling off-chain...', { id: 'settle-fallback' });
+
       const result = await settleManually({
         predictionId: prediction.id,
         winningOptionId: selectedOptionId,
         reason: reason.trim(),
         userId: prediction.creator_id || '',
       });
-      
+
       if (result) {
-        toast.success('Settlement completed! Winners have been credited.', { id: 'settle' });
+        toast.success('Settlement completed off-chain. Winners have been credited.', { id: 'settle-fallback' });
         setShowConfirmation(false);
         onClose();
         if (onSettlementComplete) onSettlementComplete();
       } else {
-        toast.error(settlementError || 'Settlement failed. Please try again.', { id: 'settle' });
+        toast.error(settlementError || 'Settlement failed. Please try again.', { id: 'settle-fallback' });
       }
     } catch (error) {
       console.error('Settlement submit error:', error);
-      toast.error('Settlement failed. Please try again.', { id: 'settle' });
+      toast.error('Settlement failed. Please try again.', { id: 'settle-fallback' });
     }
   };
 
