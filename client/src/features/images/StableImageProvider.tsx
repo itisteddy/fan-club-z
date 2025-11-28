@@ -29,6 +29,12 @@ const API_BASE = `${getApiUrl()}/api`;
  * Only saves if not already set (prevents changing)
  */
 async function saveImageToDatabase(predictionId: string, imageUrl: string): Promise<void> {
+  // Guard: Don't save if prediction ID is missing or empty
+  if (!predictionId || predictionId.trim() === '') {
+    qaLog(`[stable-image] Skipping database save - no prediction ID`);
+    return;
+  }
+  
   try {
     const response = await fetch(`${API_BASE}/v2/predictions/${predictionId}/image`, {
       method: 'PATCH',

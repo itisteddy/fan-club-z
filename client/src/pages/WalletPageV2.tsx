@@ -20,6 +20,7 @@ import DepositUSDCModal from '../components/wallet/DepositUSDCModal';
 import WithdrawUSDCModal from '../components/wallet/WithdrawUSDCModal';
 import { useOnchainActivity, formatActivityKind } from '../hooks/useOnchainActivity';
 import { useUnifiedBalance } from '../hooks/useUnifiedBalance';
+import { useEscrowBalance } from '../hooks/useEscrowBalance';
 import { useWalletActivity, type WalletActivityItem } from '../hooks/useWalletActivity';
 import { useAutoNetworkSwitch } from '../hooks/useAutoNetworkSwitch';
 import { QK } from '@/lib/queryKeys';
@@ -113,6 +114,9 @@ const WalletPageV2: React.FC<WalletPageV2Props> = ({ onNavigateBack }) => {
     error: balanceError,
     refetch: refetchBalances
   } = useUnifiedBalance();
+  
+  // On-chain escrow balance - for withdrawals (what user can actually withdraw from contract)
+  const { availableUSD: onchainEscrowBalance } = useEscrowBalance();
   const [lastReadyBalances, setLastReadyBalances] = useState({
     wallet: walletUSDC ?? 0,
     available: escrowAvailableUSD ?? 0,
@@ -922,7 +926,7 @@ const WalletPageV2: React.FC<WalletPageV2Props> = ({ onNavigateBack }) => {
                 setShowWithdraw(false);
                 handleRefresh();
               }}
-              availableUSDC={escrowAvailableUSD}
+              availableUSDC={onchainEscrowBalance}
               userId={user.id}
             />
           )}
