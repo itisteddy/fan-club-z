@@ -234,9 +234,11 @@ router.get('/user/:userId', async (req, res) => {
 
     const walletChannels = ['escrow_consumed', 'escrow_unlock', 'payout', 'platform_fee', 'creator_fee'];
 
+    console.log(`[activity] Fetching wallet_transactions for user: ${userId}, channels: ${walletChannels.join(', ')}`);
+
     const { data: betTransactions, error: txError } = await supabase
       .from('wallet_transactions')
-      .select('id, created_at, amount, currency, meta, prediction_id, channel, description')
+      .select('id, created_at, amount, currency, meta, prediction_id, channel, description, direction, provider')
       .in('channel', walletChannels)
       .eq('user_id', userId)
       .order('created_at', { ascending: false })
@@ -250,6 +252,17 @@ router.get('/user/:userId', async (req, res) => {
         version: VERSION
       });
     }
+
+    console.log(`[activity] Found ${betTransactions?.length ?? 0} wallet transactions for user ${userId}`, {
+      sampleTx: betTransactions?.slice(0, 3).map(tx => ({
+        id: tx.id,
+        channel: tx.channel,
+        direction: (tx as any).direction,
+        provider: (tx as any).provider,
+        amount: tx.amount,
+        prediction_id: tx.prediction_id
+      }))
+    });
 
     const transactionEvents = (betTransactions || []).map((tx) => {
       const amount = Math.abs(Number(tx.amount || 0));

@@ -48,27 +48,45 @@ walletActivity.get('/activity', async (req, res) => {
     // Fetch wallet transactions (crypto only)
     // Support multiple provider formats: 'crypto-base-usdc', 'base/usdc', 'base-usdc', 'onchain-escrow'
     // Include ALL channels: deposits, withdraws, payouts (wins), losses, fees
+    const providers = ['crypto-base-usdc', 'base/usdc', 'base-usdc', 'onchain-escrow'];
+    const channels = [
+      'crypto', 
+      'escrow_deposit', 
+      'escrow_withdraw', 
+      'escrow_consumed',
+      'payout',           // Settlement win payout
+      'settlement_loss',  // Settlement loss record
+      'creator_fee',      // Creator fee received
+      'platform_fee',     // Platform fee
+      'escrow_unlock'     // Escrow release/unlock
+    ];
+
+    console.log(`[FCZ-PAY] Querying wallet_transactions for user: ${userId}`, {
+      providers,
+      channels
+    });
+
     const { data: transactions, error: txError } = await supabase
       .from('wallet_transactions')
       .select('id, user_id, direction, channel, amount, currency, external_ref, created_at, meta, provider, type, description, prediction_id, entry_id, tx_hash')
       .eq('user_id', userId)
-      .in('provider', ['crypto-base-usdc', 'base/usdc', 'base-usdc', 'onchain-escrow'])
-      .in('channel', [
-        'crypto', 
-        'escrow_deposit', 
-        'escrow_withdraw', 
-        'escrow_consumed',
-        'payout',           // Settlement win payout
-        'settlement_loss',  // Settlement loss record
-        'creator_fee',      // Creator fee received
-        'platform_fee',     // Platform fee
-        'escrow_unlock'     // Escrow release/unlock
-      ])
+      .in('provider', providers)
+      .in('channel', channels)
       .order('created_at', { ascending: false })
       .limit(limitNum * 2); // Fetch more to account for filtering
 
     if (txError) {
       console.error('[FCZ-PAY] Error fetching transactions:', txError);
+    } else {
+      console.log(`[FCZ-PAY] Found ${transactions?.length ?? 0} raw wallet_transactions`, {
+        sampleTx: transactions?.slice(0, 3).map(tx => ({
+          id: tx.id,
+          channel: tx.channel,
+          direction: tx.direction,
+          provider: tx.provider,
+          amount: tx.amount
+        }))
+      });
     }
 
     // Fetch blockchain transactions (all types)

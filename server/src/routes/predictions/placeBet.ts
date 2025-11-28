@@ -443,33 +443,41 @@ async function handlePlaceBet(req: any, res: any) {
       console.warn('[FCZ-BET] Failed to mark lock as consumed:', e);
     }
 
-    const { error: walletTxError } = await supabase
-      .from('wallet_transactions')
-      .insert({
-        user_id: userId,
-        type: 'bet_lock',
-        direction: 'debit', // CRITICAL: Must be 'debit' for walletActivity to classify as bet_placed
-        status: 'completed',
-        channel: 'escrow_consumed',
-        provider: 'crypto-base-usdc',
-        amount: amountUSD,
-        currency: 'USD',
-        external_ref: `bet_${entryId}`,
+    const walletTxPayload = {
+      user_id: userId,
+      type: 'bet_lock',
+      direction: 'debit', // CRITICAL: Must be 'debit' for walletActivity to classify as bet_placed
+      status: 'completed',
+      channel: 'escrow_consumed',
+      provider: 'crypto-base-usdc',
+      amount: amountUSD,
+      currency: 'USD',
+      external_ref: `bet_${entryId}`,
+      prediction_id: predictionId,
+      entry_id: entryId,
+      description: `Bet on "${prediction.title}"`,
+      meta: {
         prediction_id: predictionId,
+        option_id: optionId,
+        option_label: option?.label ?? null,
+        prediction_title: prediction.title,
         entry_id: entryId,
-        description: `Bet on "${prediction.title}"`,
-        meta: {
-          prediction_id: predictionId,
-          option_id: optionId,
-          option_label: option?.label ?? null,
-          prediction_title: prediction.title,
-          entry_id: entryId,
-          lock_id: lockId
-        }
-      });
+        lock_id: lockId
+      }
+    };
+
+    console.log('[FCZ-BET] Inserting wallet_transaction:', JSON.stringify(walletTxPayload));
+
+    const { data: walletTxData, error: walletTxError } = await supabase
+      .from('wallet_transactions')
+      .insert(walletTxPayload)
+      .select('id')
+      .single();
 
     if (walletTxError) {
-      console.error('[FCZ-BET] Failed to record wallet transaction:', walletTxError);
+      console.error('[FCZ-BET] ❌ Failed to record wallet transaction:', walletTxError);
+    } else {
+      console.log('[FCZ-BET] ✅ Wallet transaction recorded:', walletTxData?.id);
     }
 
     // Emit event_log
