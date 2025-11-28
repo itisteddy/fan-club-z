@@ -17,6 +17,7 @@ import {
 } from '@/services/onchainTransactionService';
 import { getApiUrl } from '@/utils/environment';
 import { useWeb3Recovery } from '@/providers/Web3Provider';
+import { useWalletConnectSession } from '@/hooks/useWalletConnectSession';
 
 // USDC Contract Address - ensure proper checksumming
 function getChecksummedAddress(address: string | undefined): `0x${string}` {
@@ -75,6 +76,9 @@ const ESCROW_ABI_MIN = [
   { type: 'function', name: 'deposit', stateMutability: 'nonpayable', inputs: [{ name: 'amount', type: 'uint256' }], outputs: [] },
 ] as const;
 
+// Minimum deposit amount (matches contract MIN_DEPOSIT = 1_000_000 = 1 USDC)
+const MIN_DEPOSIT_USD = 1.0;
+
 function usdToUsdcUnits(n: number): bigint {
   return BigInt(Math.round(n * 1_000_000));
 }
@@ -112,6 +116,7 @@ export default function DepositUSDCModal({
   const { switchChainAsync } = useSwitchChain();
   const { writeContractAsync, reset: resetWrite } = useWriteContract();
   const { sessionHealthy } = useWeb3Recovery();
+  const { withSessionRecovery, isSessionError: checkSessionError } = useWalletConnectSession();
 
   const [amount, setAmount] = React.useState<number>(0);
   const [submitting, setSubmitting] = React.useState(false);
@@ -172,7 +177,8 @@ export default function DepositUSDCModal({
   }
 
   const cleanAmount = clamp2dp(amount || 0);
-  const disabled = !walletReady || submitting || cleanAmount <= 0 || cleanAmount > clamp2dp(availableUSDC);
+  const isBelowMinimum = cleanAmount > 0 && cleanAmount < MIN_DEPOSIT_USD;
+  const disabled = !walletReady || submitting || cleanAmount <= 0 || cleanAmount > clamp2dp(availableUSDC) || isBelowMinimum;
 
   async function readAllowance(): Promise<bigint> {
     if (!publicClient || !address || !escrowAddress) return BigInt(0);
@@ -192,6 +198,13 @@ export default function DepositUSDCModal({
   async function handleDeposit() {
     if (!address || !escrowAddress || !publicClient) {
       toast.error('Wallet not connected');
+      return;
+    }
+
+    // Validate minimum deposit amount
+    if (cleanAmount < MIN_DEPOSIT_USD) {
+      setError(`Minimum deposit is ${MIN_DEPOSIT_USD} USDC`);
+      toast.error(`Minimum deposit is ${MIN_DEPOSIT_USD} USDC`);
       return;
     }
 
@@ -218,12 +231,36 @@ export default function DepositUSDCModal({
         setStep('approving');
         setStatusMessage('Approve USDC in your wallet...');
         
-        const approveTxHash = await writeContractAsync({
-          address: USDC_ADDRESS,
-          abi: ERC20_ABI,
-          functionName: 'approve',
-          args: [escrowAddress, units],
+        console.log('[Deposit] Requesting approval:', {
+          usdcAddress: USDC_ADDRESS,
+          escrowAddress,
+          amount: formatUnits(units, 6),
+          currentAllowance: formatUnits(currentAllowance, 6),
         });
+        
+        let approveTxHash: Hash;
+        try {
+          approveTxHash = await withSessionRecovery(async () => {
+            console.log('[Deposit] Calling writeContractAsync for approval...');
+            const result = await writeContractAsync({
+              address: USDC_ADDRESS,
+              abi: ERC20_ABI,
+              functionName: 'approve',
+              args: [escrowAddress, units],
+            });
+            console.log('[Deposit] writeContractAsync returned:', result);
+            return result as Hash;
+          }, { maxRetries: 1, operationTimeoutMs: 20000 });
+        } catch (approveErr) {
+          if (isUserRejection(approveErr)) {
+            throw new Error('Approval cancelled');
+          }
+          if (checkSessionError(approveErr)) {
+            throw new Error('Wallet session expired. Please reconnect and try again.');
+          }
+          const parsed = parseOnchainError(approveErr);
+          throw new Error(`Approval failed: ${parsed.message}`);
+        }
 
         console.log('[Deposit] Approval tx:', approveTxHash);
         setStatusMessage('Waiting for approval confirmation...');
@@ -290,12 +327,26 @@ export default function DepositUSDCModal({
         }
       }
 
-      const depositTxHash = await writeContractAsync({
-        address: escrowAddress,
-        abi: escrowAbi,
-        functionName: 'deposit',
-        args: [units],
-      } as any);
+      let depositTxHash: Hash;
+      try {
+        depositTxHash = await withSessionRecovery(async () => {
+          return await writeContractAsync({
+            address: escrowAddress,
+            abi: escrowAbi,
+            functionName: 'deposit',
+            args: [units],
+          } as any) as Hash;
+        }, { maxRetries: 1, operationTimeoutMs: 20000 });
+      } catch (depositErr) {
+        if (isUserRejection(depositErr)) {
+          throw new Error('Deposit cancelled');
+        }
+        if (checkSessionError(depositErr)) {
+          throw new Error('Wallet session expired. Please reconnect and try again.');
+        }
+        const parsed = parseOnchainError(depositErr);
+        throw new Error(`Deposit failed: ${parsed.message}`);
+      }
 
       console.log('[Deposit] Deposit tx:', depositTxHash);
       setStatusMessage('Waiting for deposit confirmation...');
@@ -456,6 +507,11 @@ export default function DepositUSDCModal({
               <span>Available in wallet</span>
               <span className="font-medium text-gray-700">{fmtUSD(availableUSDC)}</span>
             </div>
+            {isBelowMinimum && (
+              <div className="mt-2 text-amber-700 bg-amber-50 border border-amber-200 p-2 rounded-lg">
+                Minimum deposit is {MIN_DEPOSIT_USD} USDC
+              </div>
+            )}
             <div className="mt-2 text-slate-600 bg-slate-50 border border-slate-100 p-2 rounded-lg">
               Deposits USDC into escrow on Base Sepolia. May require 2 transactions.
             </div>

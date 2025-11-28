@@ -47,9 +47,28 @@ export const AuthSessionProvider: React.FC<AuthSessionProviderProps> = ({ childr
   useEffect(() => {
     let mounted = true;
     
+    const restorePendingSession = async () => {
+      try {
+        const cached = sessionStorage.getItem('fcz:update:session');
+        if (!cached) return;
+
+        sessionStorage.removeItem('fcz:update:session');
+        const parsed = JSON.parse(cached);
+        if (parsed?.access_token && parsed?.refresh_token) {
+          await supabase.auth.setSession({
+            access_token: parsed.access_token,
+            refresh_token: parsed.refresh_token,
+          });
+        }
+      } catch (error) {
+        console.warn('[Auth] Failed to restore session after update:', error);
+      }
+    };
+
     // Get initial session
     const getInitialSession = async () => {
       try {
+        await restorePendingSession();
         const { data: { session }, error } = await supabase.auth.getSession();
         if (!mounted) return;
         

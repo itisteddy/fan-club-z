@@ -1,11 +1,27 @@
 import { useReadContract, useAccount } from 'wagmi';
 import { baseSepolia } from 'wagmi/chains';
 import { getAddress } from 'viem';
+import { useEffect } from 'react';
 
-// Escrow Contract Address
-const ESCROW_ADDRESS = getAddress((import.meta.env.VITE_BASE_ESCROW_ADDRESS ?? 
-                                   import.meta.env.VITE_ESCROW_ADDRESS_BASE_SEPOLIA ?? 
-                                   '0x5b73C5498c1E3b4dbA84de0F1833c4a029d90519')) as `0x${string}`;
+// Escrow Contract Address - MUST come from env, never hardcoded
+function resolveEscrowAddress(): `0x${string}` {
+  const raw =
+    import.meta.env.VITE_BASE_ESCROW_ADDRESS ??
+    import.meta.env.VITE_ESCROW_ADDRESS_BASE_SEPOLIA;
+
+  if (!raw) {
+    // Fail fast and surface configuration issue in console
+    console.error(
+      '[FCZ-PAY] Escrow address not configured. Set VITE_BASE_ESCROW_ADDRESS in Vercel env.'
+    );
+    throw new Error('Escrow address not configured');
+  }
+
+  const checksummed = getAddress(raw as `0x${string}`);
+  return checksummed as `0x${string}`;
+}
+
+const ESCROW_ADDRESS = resolveEscrowAddress();
 
 // Escrow ABI - just the functions we need to read balances
 const ESCROW_ABI = [
@@ -34,25 +50,40 @@ const ESCROW_ABI = [
 export function useEscrowBalance() {
   const { address, isConnected, chainId } = useAccount();
 
-  const isEnabled = !!address && isConnected && chainId === baseSepolia.id;
+  const persistedAddress = typeof window !== 'undefined' ? getPersistedAddress() : undefined;
+  const effectiveAddress = address ?? persistedAddress;
+  
+  // CRITICAL FIX: Enable query even if chainId is undefined during hydration
+  // We know we're on Base Sepolia if we have an address (from persisted state or connected)
+  const isEnabled = !!effectiveAddress && (chainId === baseSepolia.id || chainId === undefined);
+
+  // AGGRESSIVE DEBUGGING
+  if (typeof window !== 'undefined') {
+    console.log('[FCZ-PAY] useEscrowBalance state:', {
+      address,
+      persistedAddress,
+      effectiveAddress,
+      chainId,
+      isEnabled,
+      escrowAddress: ESCROW_ADDRESS,
+    });
+  }
 
   // Read available balance (user's escrow balance)
   const { data: availableBalance, isLoading: isLoadingAvailable, error: errorAvailable, refetch: refetchAvailable } = useReadContract({
     address: ESCROW_ADDRESS,
     abi: ESCROW_ABI,
     functionName: 'balances',
-    args: address ? [address] : undefined,
+    args: effectiveAddress ? [effectiveAddress] : undefined,
     query: {
       enabled: isEnabled,
-      // PERFORMANCE FIX: Increased intervals to reduce network calls
-      refetchInterval: 30_000, // Refetch every 30 seconds (was 15s)
-      staleTime: 20_000, // Data considered fresh for 20 seconds (was 10s)
-      gcTime: 60_000, // Keep in cache for 1 minute
-      retry: 2,
-      // Don't refetch on window focus - reduces unnecessary calls
-      refetchOnWindowFocus: false,
-      // Don't refetch on mount if data is fresh
-      refetchOnMount: false,
+      // CRITICAL FIX: Force refetch on mount to ensure we get latest balance
+      refetchOnMount: true,
+      refetchInterval: 10_000, // Refetch every 10 seconds for faster updates
+      staleTime: 5_000, // Data considered fresh for only 5 seconds
+      gcTime: 30_000, // Keep in cache for 30 seconds
+      retry: 3, // More retries
+      refetchOnWindowFocus: true, // Refetch when user returns to tab
     },
   });
 
@@ -61,18 +92,16 @@ export function useEscrowBalance() {
     address: ESCROW_ADDRESS,
     abi: ESCROW_ABI,
     functionName: 'reserved',
-    args: address ? [address] : undefined,
+    args: effectiveAddress ? [effectiveAddress] : undefined,
     query: {
       enabled: isEnabled,
-      // PERFORMANCE FIX: Increased intervals to reduce network calls
-      refetchInterval: 30_000, // Refetch every 30 seconds (was 15s)
-      staleTime: 20_000, // Data considered fresh for 20 seconds (was 10s)
-      gcTime: 60_000, // Keep in cache for 1 minute
-      retry: 2,
-      // Don't refetch on window focus - reduces unnecessary calls
-      refetchOnWindowFocus: false,
-      // Don't refetch on mount if data is fresh
-      refetchOnMount: false,
+      // CRITICAL FIX: Force refetch on mount to ensure we get latest balance
+      refetchOnMount: true,
+      refetchInterval: 10_000, // Refetch every 10 seconds for faster updates
+      staleTime: 5_000, // Data considered fresh for only 5 seconds
+      gcTime: 30_000, // Keep in cache for 30 seconds
+      retry: 3, // More retries
+      refetchOnWindowFocus: true, // Refetch when user returns to tab
     },
   });
 
@@ -81,12 +110,40 @@ export function useEscrowBalance() {
   const reservedUSD = reservedBalance ? Number(reservedBalance) / 1_000_000 : 0;
   const totalUSD = availableUSD + reservedUSD;
 
+  // AGGRESSIVE DEBUGGING - Always log in production too for troubleshooting
+  if (typeof window !== 'undefined' && isEnabled) {
+    console.log('[FCZ-PAY] Escrow balance (on-chain):', {
+      effectiveAddress,
+      availableBalance: availableBalance?.toString(),
+      reservedBalance: reservedBalance?.toString(),
+      availableUSD,
+      reservedUSD,
+      totalUSD,
+      isLoadingAvailable,
+      isLoadingReserved,
+      errorAvailable: errorAvailable?.message,
+      errorReserved: errorReserved?.message,
+    });
+  }
+
   const isLoading = isLoadingAvailable || isLoadingReserved;
   const error = errorAvailable || errorReserved;
 
   const refetch = async () => {
     await Promise.all([refetchAvailable(), refetchReserved()]);
   };
+
+  // CRITICAL FIX: Force immediate refetch when address becomes available
+  useEffect(() => {
+    if (isEnabled && effectiveAddress) {
+      // Small delay to ensure wagmi is ready
+      const timer = setTimeout(() => {
+        console.log('[FCZ-PAY] Forcing escrow balance refetch for:', effectiveAddress);
+        refetch();
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [isEnabled, effectiveAddress]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return {
     // Raw values (in USDC units - 6 decimals)
@@ -108,4 +165,32 @@ export function useEscrowBalance() {
     chainId,
     isCorrectChain: chainId === baseSepolia.id,
   };
+}
+
+function getPersistedAddress(): `0x${string}` | undefined {
+  try {
+    const store = localStorage.getItem('wagmi.store');
+    if (!store) return undefined;
+    const parsed = JSON.parse(store);
+    const connections = parsed?.state?.connections?.value;
+    const current = parsed?.state?.current;
+    if (current && Array.isArray(connections)) {
+      const match = connections.find(
+        (entry: any) => Array.isArray(entry) && entry[0] === current && entry[1]?.accounts?.length
+      );
+      if (match) {
+        return match[1].accounts[0] as `0x${string}`;
+      }
+    }
+    if (Array.isArray(connections)) {
+      for (const entry of connections) {
+        if (Array.isArray(entry) && entry[1]?.accounts?.length) {
+          return entry[1].accounts[0] as `0x${string}`;
+        }
+      }
+    }
+  } catch {
+    // Ignore store errors
+  }
+  return undefined;
 }

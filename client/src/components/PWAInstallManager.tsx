@@ -4,6 +4,7 @@ import IOSInstallModal from './IOSInstallModal';
 import SmartInstallPrompt from './SmartInstallPrompt';
 import TopUpdateToast from './TopUpdateToast';
 import { pwaManager } from '../utils/pwa';
+import { supabase } from '@/lib/supabase';
 
 const PWAInstallManager: React.FC = () => {
   const [showIOSModal, setShowIOSModal] = useState(false);
@@ -83,7 +84,22 @@ const PWAInstallManager: React.FC = () => {
     };
   }, []);
 
-  const handleUpdateApp = () => {
+  const handleUpdateApp = async () => {
+    try {
+      const { data } = await supabase.auth.getSession();
+      if (data?.session?.access_token && data.session.refresh_token) {
+        sessionStorage.setItem(
+          'fcz:update:session',
+          JSON.stringify({
+            access_token: data.session.access_token,
+            refresh_token: data.session.refresh_token,
+          }),
+        );
+      }
+    } catch (error) {
+      console.warn('[PWA] Failed to capture session before update:', error);
+    }
+
     // Track update acceptance
     if (typeof window !== 'undefined' && 'gtag' in window && typeof window.gtag === 'function') {
       window.gtag('event', 'pwa_update_accepted', {

@@ -34,11 +34,32 @@ export function useUnifiedBalance() {
     enabled: Boolean(user?.id)
   });
 
-  const computedAvailable = Number(summary?.availableToStakeUSDC ?? summary?.available ?? availableUSD ?? 0);
-  const computedReserved = Number(summary?.reservedUSDC ?? summary?.reserved ?? reservedUSD ?? 0);
-  const computedTotal = Number(
-    summary ? (summary.availableToStakeUSDC ?? 0) + (summary.reservedUSDC ?? 0) : (totalUSD ?? computedAvailable + computedReserved)
-  );
+  // On-chain escrow is the primary source of truth.
+  // Prefer contract balances when they are available, and fall back to
+  // server summary only when on-chain data is missing.
+  const onchainAvailable = typeof availableUSD === 'number' ? availableUSD : 0;
+  const onchainReserved = typeof reservedUSD === 'number' ? reservedUSD : 0;
+  const onchainTotal =
+    typeof totalUSD === 'number' && !Number.isNaN(totalUSD)
+      ? totalUSD
+      : onchainAvailable + onchainReserved;
+
+  const summaryAvailable = Number(summary?.availableToStakeUSDC ?? summary?.available ?? 0);
+  const summaryReserved = Number(summary?.reservedUSDC ?? summary?.reserved ?? 0);
+  const summaryTotal =
+    typeof summaryAvailable === 'number' && typeof summaryReserved === 'number'
+      ? summaryAvailable + summaryReserved
+      : 0;
+
+  const computedAvailable = Math.max(onchainAvailable, summaryAvailable);
+  const computedReserved = Math.max(onchainReserved, summaryReserved);
+  const computedTotal =
+    Math.max(
+      onchainTotal,
+      summary
+        ? summaryTotal
+        : computedAvailable + computedReserved
+    );
 
   const normalizedAvailable = Math.max(computedAvailable, 0);
   const normalizedReserved = Math.max(computedReserved, 0);
