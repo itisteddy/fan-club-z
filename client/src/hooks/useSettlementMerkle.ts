@@ -178,10 +178,21 @@ export function useSettlementMerkle() {
 
         const predictionIdHex = toBytes32FromUuid(args.predictionId);
         const root = data.data.merkleRoot as `0x${string}`;
-        const creatorFee = BigInt(data.data.creatorFeeUnits);
-        const platformFee = BigInt(data.data.platformFeeUnits);
+
+        // IMPORTANT (prod hotfix):
+        // - Local dev behaved correctly with Merkle roots and on-chain claims.
+        // - In production, postSettlementRoot has been reverting, most likely on the
+        //   USDC fee transfers (creatorFee/platformFee) due to contract balance or
+        //   environment drift.
+        // - Fees are already fully tracked and applied off-chain via
+        //   /api/v2/settlement/manual/merkle and /manual/merkle/posted.
+        // To guarantee on-chain root posting succeeds and users can claim,
+        // we send 0 fees in the on-chain call and rely on the database to
+        // account for creator + platform fees.
+        const creatorFee = 0n;
+        const platformFee = 0n;
         
-        // Calculate total fee amount for logging
+        // Calculate total fee amount for logging (still used for wallet_transactions)
         const totalFeeUSD = data.data.summary.platformFeeUSD + data.data.summary.creatorFeeUSD;
 
         console.log('[FCZ-SETTLE] Submitting settlement root on-chain:', {
