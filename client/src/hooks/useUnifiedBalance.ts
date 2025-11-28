@@ -110,7 +110,8 @@ export function useUnifiedBalance() {
   const computedReserved = Math.max(onchainReserved, summaryReserved);
   
   // Total is the on-chain escrow balance (deposits - withdrawals)
-  const computedTotal = hasLoadedSummary && !summaryIsStale
+  // Use summary total if it's loaded and shows a value, otherwise use on-chain
+  const computedTotal = hasLoadedSummary && summaryTotal > 0
     ? Math.max(onchainTotal, summaryTotal)
     : onchainTotal;
 
