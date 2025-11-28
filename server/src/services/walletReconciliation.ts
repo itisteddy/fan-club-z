@@ -93,11 +93,13 @@ async function fetchReservedFromLocks(userId: string): Promise<number> {
 /**
  * Calculate total escrow from locks (locked + consumed, excluding released/expired)
  * This represents funds that are still tied up in predictions
+ * 
+ * CRITICAL FIX: Exclude consumed locks for settled predictions, even if lock wasn't released
  */
 async function fetchEscrowFromLocks(userId: string): Promise<number> {
   const { data: locks, error } = await supabase
     .from('escrow_locks')
-    .select('status, state, amount, expires_at, created_at')
+    .select('id, status, state, amount, expires_at, created_at, prediction_id')
     .eq('user_id', userId);
 
   if (error) {
@@ -105,24 +107,50 @@ async function fetchEscrowFromLocks(userId: string): Promise<number> {
     return 0;
   }
 
+  if (!locks || locks.length === 0) {
+    return 0;
+  }
+
+  // Fetch prediction statuses for all consumed locks to check if they're settled
+  const predictionIds = [...new Set(locks.map(l => l.prediction_id).filter(Boolean))];
+  let settledPredictionIds = new Set<string>();
+  
+  if (predictionIds.length > 0) {
+    const { data: predictions } = await supabase
+      .from('predictions')
+      .select('id, status')
+      .in('id', predictionIds);
+    
+    if (predictions) {
+      settledPredictionIds = new Set(
+        predictions.filter(p => p.status === 'settled').map(p => p.id)
+      );
+    }
+  }
+
   const now = new Date();
   let escrowTotal = 0;
 
-  if (locks) {
-    for (const lock of locks) {
-      const amount = Number(lock.amount || 0);
-      const lockStatus = lock.status ?? lock.state;
-      const expiresAt = lock.expires_at ? new Date(lock.expires_at) : null;
-      const fallbackExpiry = lock.created_at ? new Date(new Date(lock.created_at).getTime() + DEFAULT_LOCK_TTL_MS) : null;
-      const effectiveExpiry = expiresAt || fallbackExpiry;
-      const isConsumed = lockStatus === 'consumed';
-      const isExpired = isConsumed ? false : effectiveExpiry ? effectiveExpiry < now : true;
+  for (const lock of locks) {
+    const amount = Number(lock.amount || 0);
+    const lockStatus = lock.status ?? lock.state;
+    const expiresAt = lock.expires_at ? new Date(lock.expires_at) : null;
+    const fallbackExpiry = lock.created_at ? new Date(new Date(lock.created_at).getTime() + DEFAULT_LOCK_TTL_MS) : null;
+    const effectiveExpiry = expiresAt || fallbackExpiry;
+    const isConsumed = lockStatus === 'consumed';
+    const isExpired = isConsumed ? false : effectiveExpiry ? effectiveExpiry < now : true;
+    
+    // CRITICAL: Exclude consumed locks for settled predictions
+    // Even if the lock wasn't properly released, if the prediction is settled,
+    // the funds are no longer tied up and should not count toward escrow
+    if (isConsumed && lock.prediction_id && settledPredictionIds.has(lock.prediction_id)) {
+      continue; // Skip this lock - prediction is settled
+    }
 
-      // Count locked (pending) and consumed (placed bets, not yet settled)
-      // Released = bet settled and funds unlocked, voided = cancelled, expired = timed out
-      if (!isExpired && (lockStatus === 'locked' || lockStatus === 'consumed')) {
-        escrowTotal += amount;
-      }
+    // Count locked (pending) and consumed (placed bets, not yet settled)
+    // Released = bet settled and funds unlocked, voided = cancelled, expired = timed out
+    if (!isExpired && (lockStatus === 'locked' || lockStatus === 'consumed')) {
+      escrowTotal += amount;
     }
   }
 
@@ -286,8 +314,18 @@ export async function reconcileWallet(options: ReconcileOptions): Promise<Wallet
   // Available to stake:
   // Contracts typically do not reduce "balances" for active bets (consumed locks),
   // so we must subtract both locked and consumed amounts tracked in DB.
-  // fetchEscrowFromLocks returns locked + consumed (excluding released/expired).
+  // fetchEscrowFromLocks returns locked + consumed (excluding released/expired and settled predictions).
   const effectiveAvailable = Math.max(snapshot.availableUSDC - escrowFromLocks, 0);
+  
+  // CRITICAL DEBUG LOGGING: Log balance calculation details
+  console.log(`[FCZ-RECONCILE] Balance calculation for user ${userId}:`, {
+    onchainAvailable: snapshot.availableUSDC,
+    escrowFromLocks,
+    effectiveAvailable,
+    reservedFromLocks,
+    escrowTotal: snapshot.availableUSDC + snapshot.reservedUSDC,
+    walletAddress: normalizedAddress
+  });
   
   // Escrow total = on-chain total (all funds in escrow contract)
   // This includes both available and any on-chain reserved balance
