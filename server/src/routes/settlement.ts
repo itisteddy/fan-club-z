@@ -920,7 +920,12 @@ router.get('/claimable', async (req, res) => {
 
     if (settledError) {
       console.error('[SETTLEMENT] claimable query failed:', settledError);
-      return res.status(500).json({ error: 'internal', message: 'Failed to query settlements', version: VERSION });
+      // Check if table doesn't exist
+      if (settledError.message?.includes('does not exist') || settledError.code === '42P01') {
+        console.warn('[SETTLEMENT] bet_settlements table does not exist - returning empty claims');
+        return res.json({ success: true, data: { claims: [] }, message: 'No settlements available', version: VERSION });
+      }
+      return res.status(500).json({ error: 'internal', message: 'Failed to query settlements', details: settledError.message, version: VERSION });
     }
 
     if (!settledPreds || settledPreds.length === 0) {
