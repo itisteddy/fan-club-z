@@ -12,7 +12,7 @@ DO UPDATE SET address = EXCLUDED.address;
 -- Replace '0xYourProduction_Escrow_Address' with your actual escrow contract address
 INSERT INTO chain_addresses (env, chain_id, kind, address)
 VALUES 
-  ('prod', 84532, 'escrow', '0xYourProduction_Escrow_Address')
+  ('prod', 84532, 'escrow', '0x7B657F5140635241aec55f547d10F31cBDdF3105')
 ON CONFLICT (env, chain_id, kind) 
 DO UPDATE SET address = EXCLUDED.address;
 
