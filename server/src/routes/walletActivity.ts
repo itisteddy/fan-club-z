@@ -66,12 +66,15 @@ walletActivity.get('/activity', async (req, res) => {
       channels
     });
 
+    // Only show completed/success transactions (not pending)
+    // This prevents duplicates from pending + completed for same entry
     const { data: transactions, error: txError } = await supabase
       .from('wallet_transactions')
-      .select('id, user_id, direction, channel, amount, currency, external_ref, created_at, meta, provider, type, description, prediction_id, entry_id, tx_hash')
+      .select('id, user_id, direction, channel, amount, currency, external_ref, created_at, meta, provider, type, description, prediction_id, entry_id, tx_hash, status')
       .eq('user_id', userId)
       .in('provider', providers)
       .in('channel', channels)
+      .in('status', ['completed', 'success']) // Filter out pending transactions
       .order('created_at', { ascending: false })
       .limit(limitNum * 2); // Fetch more to account for filtering
 

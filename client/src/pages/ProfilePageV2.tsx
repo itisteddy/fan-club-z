@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Edit3, User, Activity, DollarSign, TrendingUp, Target, Trophy, MoreVertical, LogOut, Upload, X, Mail } from 'lucide-react';
+import { Edit3, User, Activity, DollarSign, TrendingUp, Target, Trophy, MoreVertical, LogOut, Upload, X, Mail, XCircle } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { useAuthSession } from '../providers/AuthSessionProvider';
 import { usePredictionStore } from '../store/predictionStore';
@@ -137,6 +137,26 @@ const ProfilePageV2: React.FC<ProfilePageV2Props> = ({ onNavigateBack, userId })
           amount: item.data?.amount ? formatCurrency(Number(item.data.amount), { compact: true }) : null,
           badge: 'creator',
           badgeColor: 'text-amber-600'
+        };
+      case 'wallet.loss':
+        return {
+          iconBg: 'bg-red-100',
+          icon: <XCircle className="w-4 h-4 text-red-600" />,
+          title: 'Lost prediction',
+          subtitle: item.predictionTitle ?? item.data?.prediction_title ?? '',
+          amount: item.data?.amount ? formatCurrency(Number(item.data.amount), { compact: true }) : null,
+          badge: 'loss',
+          badgeColor: 'text-red-600'
+        };
+      case 'wallet.other':
+        return {
+          iconBg: 'bg-gray-100',
+          icon: <Activity className="w-4 h-4 text-gray-500" />,
+          title: 'Wallet activity',
+          subtitle: item.data?.channel ?? '',
+          amount: item.data?.amount ? formatCurrency(Number(item.data.amount), { compact: true }) : null,
+          badge: 'wallet',
+          badgeColor: 'text-gray-500'
         };
       default:
         return {
