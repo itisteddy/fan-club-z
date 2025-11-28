@@ -27,12 +27,22 @@ export function useClaimableClaims(address?: string, limit = 20) {
       }
       const json = await r.json();
       const items = ((json?.data?.claims ?? []) as ClaimableItem[]);
+      
+      // CRITICAL: Deduplicate by predictionId (safety net if backend returns duplicates)
+      const seen = new Map<string, ClaimableItem>();
+      for (const item of items) {
+        if (!seen.has(item.predictionId)) {
+          seen.set(item.predictionId, item);
+        }
+      }
+      const deduplicated = Array.from(seen.values());
+      
       // Also apply a local "claimed" mask to avoid flicker if backend lags
       try {
         const addrLower = (address || '').toLowerCase();
-        return items.filter((it) => !localStorage.getItem(`fcz:claimed:${it.predictionId}:${addrLower}`));
+        return deduplicated.filter((it) => !localStorage.getItem(`fcz:claimed:${it.predictionId}:${addrLower}`));
       } catch {
-        return items;
+        return deduplicated;
       }
     },
     staleTime: 15_000,

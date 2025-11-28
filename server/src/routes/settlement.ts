@@ -1088,7 +1088,11 @@ router.get('/claimable', async (req, res) => {
       }
     }
 
-    console.log(`[SETTLEMENT] Found ${results.length} claimable for ${normalized.slice(0, 10)}... (${Date.now() - startTime}ms)`);
+    console.log(`[SETTLEMENT] Found ${results.length} claimable for ${normalized.slice(0, 10)}... (${Date.now() - startTime}ms)`, {
+      totalSettled: settledPreds.length,
+      uniquePredictions: predictionIds.length,
+      claimablePredictions: results.map(r => ({ id: r.predictionId, title: r.title, amount: r.amountUSD }))
+    });
     return res.json({ success: true, data: { claims: results }, version: VERSION });
   } catch (e) {
     console.error('[SETTLEMENT] claimable error', e);
