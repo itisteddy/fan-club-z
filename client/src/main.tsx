@@ -2,7 +2,7 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
 import App from './App.tsx'
-import LandingPage from './landing/LandingPage'
+import LandingRouter from './landing/LandingRouter'
 import ErrorBoundary from './components/ErrorBoundary.tsx'
 import { NetworkStatusProvider } from './providers/NetworkStatusProvider'
 import { SupabaseProvider } from './providers/SupabaseProvider'
@@ -18,7 +18,7 @@ import { initWebVitals } from './lib/vitals'
 console.log(`🚀 Fan Club Z ${APP_VERSION} - CONSOLIDATED ARCHITECTURE - SINGLE SOURCE OF TRUTH`)
 
 const isLandingBuild = import.meta.env.VITE_BUILD_TARGET === 'landing';
-const RootComponent = isLandingBuild ? LandingPage : App;
+const RootComponent = isLandingBuild ? LandingRouter : App;
 
 // Note: Global error handlers are now managed by Web3Provider for WalletConnect errors
 // This provides coordinated error handling with automatic session recovery

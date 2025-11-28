@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
 import { Plus, ArrowDownToLine, DollarSign, Lock, Wallet, RefreshCw, HelpCircle } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { useAccount } from 'wagmi';
@@ -25,7 +24,6 @@ interface WalletPageProps {
 }
 
 const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
-  const navigate = useNavigate();
   const { user, isAuthenticated } = useAuthStore();
   const { address, isConnected, chainId } = useAccount();
   
@@ -178,13 +176,15 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
                 {/* Funding Guide Link */}
                 <div className="mt-6 pt-4 border-t border-gray-100">
                   <p className="text-sm text-gray-500 mb-2">Don't have a wallet yet?</p>
-                  <Link
-                    to="/docs/funding-guide"
+                  <a
+                    href="https://fanclubz.app/docs/funding-guide"
+                    target="_blank"
+                    rel="noopener noreferrer"
                     className="inline-flex items-center space-x-1 text-sm font-medium text-emerald-600 hover:text-emerald-700 transition-colors"
                   >
                     <HelpCircle className="w-4 h-4" />
                     <span>Learn how to get started</span>
-                  </Link>
+                  </a>
                 </div>
               </div>
             </CardContent>
@@ -334,13 +334,15 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
                     {/* Funding Guide Link */}
                     <div className="mt-6 pt-4 border-t border-gray-100">
                       <p className="text-sm text-gray-500 mb-2">New to crypto wallets?</p>
-                      <Link
-                        to="/docs/funding-guide"
+                      <a
+                        href="https://fanclubz.app/docs/funding-guide"
+                        target="_blank"
+                        rel="noopener noreferrer"
                         className="inline-flex items-center space-x-1 text-sm font-medium text-emerald-600 hover:text-emerald-700 transition-colors"
                       >
                         <HelpCircle className="w-4 h-4" />
                         <span>Learn how to fund your wallet</span>
-                      </Link>
+                      </a>
                     </div>
                   </div>
                 )}

@@ -230,9 +230,9 @@ const LandingPage: React.FC = () => {
                     <>
                       {' '}
                       <a
-                        href={import.meta.env.PROD ? `${PROD_APP_URL}/docs/funding-guide` : '/docs/funding-guide'}
+                        href="/docs/funding-guide"
                         className="text-emerald-400 hover:text-emerald-300 underline"
-                        {...(import.meta.env.PROD ? {} : { onClick: (e) => { e.preventDefault(); navigate('/docs/funding-guide'); } })}
+                        onClick={(e) => { e.preventDefault(); navigate('/docs/funding-guide'); }}
                       >
                         View our step-by-step funding guide →
                       </a>
@@ -259,7 +259,7 @@ const LandingPage: React.FC = () => {
               <span className="font-semibold">FanClubZ</span>
             </div>
             <p className="text-sm text-white/70">
-              Social predictions done right. Turn your opinions into outcomes.
+              Social predictions done right. Turn your opinions into rewards.
             </p>
           </div>
           <div>
@@ -289,9 +289,9 @@ const LandingPage: React.FC = () => {
             <ul className="space-y-2 text-sm text-white/70">
               <li>
                 <a 
-                  href={import.meta.env.PROD ? `${PROD_APP_URL}/docs/funding-guide` : '/docs/funding-guide'} 
+                  href="/docs/funding-guide" 
                   className="hover:text-white"
-                  {...(import.meta.env.PROD ? {} : { onClick: (e) => { e.preventDefault(); navigate('/docs/funding-guide'); } })}
+                  onClick={(e) => { e.preventDefault(); navigate('/docs/funding-guide'); }}
                 >
                   Docs
                 </a>

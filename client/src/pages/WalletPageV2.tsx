@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Plus, Download, DollarSign, TrendingUp, CreditCard, User, Wallet, ArrowRightLeft, Copy, ExternalLink, X, Target, Clock, Receipt, Lock, Unlock, ArrowUpRight, XCircle, Trophy, Gift, HelpCircle } from 'lucide-react';
-import { Link } from 'react-router-dom';
 import { useAccount, useDisconnect, useSwitchChain } from 'wagmi';
 import { useStableWalletConnection } from '@/hooks/useStableWalletConnection';
 import { baseSepolia } from 'wagmi/chains';
@@ -571,13 +570,15 @@ const WalletPageV2: React.FC<WalletPageV2Props> = ({ onNavigateBack }) => {
               {/* Funding Guide Link */}
               <div className="mt-4 pt-4 border-t border-gray-100 text-center">
                 <p className="text-sm text-gray-500 mb-2">New to crypto wallets?</p>
-                <Link
-                  to="/docs/funding-guide"
+                <a
+                  href="https://fanclubz.app/docs/funding-guide"
+                  target="_blank"
+                  rel="noopener noreferrer"
                   className="inline-flex items-center space-x-1 text-sm font-medium text-emerald-600 hover:text-emerald-700 transition-colors"
                 >
                   <HelpCircle className="w-4 h-4" />
                   <span>Learn how to fund your wallet</span>
-                </Link>
+                </a>
               </div>
             </div>
           </div>
@@ -908,13 +909,15 @@ const WalletPageV2: React.FC<WalletPageV2Props> = ({ onNavigateBack }) => {
                   <div className="mt-6 pt-4 border-t border-blue-100">
                     <div className="text-center py-3">
                       <p className="text-xs text-gray-500 mb-3">No transactions yet</p>
-                      <Link
-                        to="/docs/funding-guide"
+                      <a
+                        href="https://fanclubz.app/docs/funding-guide"
+                        target="_blank"
+                        rel="noopener noreferrer"
                         className="inline-flex items-center space-x-1 text-xs font-medium text-emerald-600 hover:text-emerald-700 transition-colors"
                       >
                         <HelpCircle className="w-3.5 h-3.5" />
                         <span>Learn how to fund your wallet</span>
-                      </Link>
+                      </a>
                     </div>
                   </div>
                 ) : null}

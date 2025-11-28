@@ -33,7 +33,6 @@ const LazyDownloadPage = lazy(() => import('./legacy/pages/DownloadPage'));
 const LazyWalletPageV2 = lazy(() => import('./pages/WalletPageV2'));
 const LazyUnifiedLeaderboardPage = lazy(() => import('./pages/UnifiedLeaderboardPage'));
 const LazyAuthCallback = lazy(() => import('./pages/auth/AuthCallback'));
-const LazyFundingGuidePage = lazy(() => import('./pages/FundingGuidePage'));
 
 
 // Import all page components
@@ -608,7 +607,6 @@ const AppContent: React.FC = () => {
               <Route path="/rankings" element={<LeaderboardPageWrapper />} />
               <Route path="/prediction/:id" element={<PredictionDetailsRouteWrapper />} />
               <Route path="/download" element={<LazyDownloadPage />} />
-              <Route path="/docs/funding-guide" element={<LazyFundingGuidePage />} />
 
                 {/* Fallback */}
               <Route path="*" element={<DiscoverPageWrapper />} />
