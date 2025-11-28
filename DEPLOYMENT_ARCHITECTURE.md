@@ -73,7 +73,15 @@ When `VITE_BUILD_TARGET=landing`, it renders `LandingPage` component.
 ### Deployment Trigger
 
 - **Auto-deploys** when code is pushed to `main` branch
-- **Manual deploy:** `vercel --prod --cwd .` (from repo root, with landing-page project linked)
+- **Manual deploy via CLI:**
+  ```bash
+  # Ensure project is linked
+  vercel link --yes --project=landing-page --scope=teddys-projects-d67ab22a
+  
+  # Deploy to production
+  vercel --prod --yes
+  ```
+- **Manual deploy via Dashboard:** Go to Vercel dashboard → landing-page project → Deployments → Redeploy
 
 ### Verification
 
@@ -134,7 +142,15 @@ When `VITE_BUILD_TARGET` is unset or not `landing`, it renders `App` component.
 ### Deployment Trigger
 
 - **Auto-deploys** when code is pushed to `main` branch
-- **Manual deploy:** `vercel --prod --cwd client` (from client directory, with fan-club-z project linked)
+- **Manual deploy via CLI:**
+  ```bash
+  # Ensure project is linked (usually links to fan-club-z automatically)
+  vercel link --yes --project=fan-club-z --scope=teddys-projects-d67ab22a
+  
+  # Deploy to production
+  vercel --prod --yes
+  ```
+- **Manual deploy via Dashboard:** Go to Vercel dashboard → fan-club-z project → Deployments → Redeploy
 
 ### Verification
 
@@ -377,6 +393,47 @@ After deployment, check:
 
 ---
 
+## Automated Deployment Procedure
+
+When user requests "push to production for landing page and main app", follow this procedure:
+
+### Step 1: Commit and Push Code
+```bash
+git add <changed-files>
+git commit -m "Description of changes"
+git push
+```
+
+### Step 2: Main App Auto-Deploys
+- ✅ Main app (`fan-club-z`) **automatically deploys** when code is pushed to `main`
+- ✅ No manual action needed
+- ✅ Verify deployment in Vercel dashboard: `fan-club-z` project
+
+### Step 3: Landing Page Manual Deploy (Required)
+The landing page does NOT auto-deploy reliably. **Always manually trigger:**
+
+```bash
+# Link to landing-page project (if not already linked)
+vercel link --yes --project=landing-page --scope=teddys-projects-d67ab22a
+
+# Deploy to production
+vercel --prod --yes
+```
+
+### Step 4: Verify Both Deployments
+1. **Landing Page:** Check `https://fanclubz.app` for changes
+2. **Main App:** Check `https://app.fanclubz.app` for changes
+3. **Both:** Check Vercel dashboard for deployment status
+
+### Important Notes
+- **Main app** auto-deploys from git push ✅
+- **Landing page** requires manual CLI deployment ⚠️
+- Always deploy **both** projects when changes affect either
+- If only landing page changes: Still deploy both (main app won't be affected)
+- If only main app changes: Still deploy both (landing page won't be affected)
+
+---
+
 ## Summary
 
 **CRITICAL RULES:**
@@ -386,12 +443,14 @@ After deployment, check:
 3. **DIFFERENT BUILD TARGETS:** Controlled by `VITE_BUILD_TARGET` environment variable
 4. **DIFFERENT DOMAINS:** `fanclubz.app` (landing) vs `app.fanclubz.app` (main app)
 5. **NEVER CONFUSE THEM:** Always verify which project you're deploying to
+6. **ALWAYS DEPLOY BOTH:** When user requests production push, deploy both projects
 
 **When in doubt:**
 - Check Vercel dashboard for project name
 - Verify `VITE_BUILD_TARGET` environment variable
 - Check deployment logs
 - Test both domains after deployment
+- Use Vercel CLI to manually deploy landing page if auto-deploy fails
 
 ---
 
