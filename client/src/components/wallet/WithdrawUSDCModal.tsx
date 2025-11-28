@@ -464,7 +464,15 @@ export default function WithdrawUSDCModal({
         txHash: txHash,
       });
 
-      // Broadcast refresh event
+      // CRITICAL FIX: Wait for transaction to be indexed, then force balance refresh
+      setTimeout(() => {
+        console.log('[FCZ-PAY] Withdrawn, forcing balance refresh after confirmation delay');
+        broadcastBalanceRefresh();
+        // Force immediate refetch of escrow balance
+        queryClient.invalidateQueries({ queryKey: ['readContract'], exact: false });
+      }, 3000);
+
+      // Also broadcast immediately for faster UI update
       broadcastBalanceRefresh();
 
       if (mountedRef.current) {

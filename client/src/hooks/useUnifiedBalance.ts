@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useEscrowBalance } from './useEscrowBalance';
 import { useUSDCBalance } from './useUSDCBalance';
 import { useAccount } from 'wagmi';
@@ -12,6 +13,7 @@ import { useWalletSummary } from './useWalletSummary';
 export function useUnifiedBalance() {
   const { user } = useAuthStore();
   const { address } = useAccount();
+  const queryClient = useQueryClient();
 
   const { balance: walletUSDC, isLoading: walletLoading, error: walletError, refetch: refetchWallet } = useUSDCBalance();
   const {
@@ -89,15 +91,22 @@ export function useUnifiedBalance() {
     }
   };
 
-  // Listen for balance refresh events
+  // Listen for balance refresh events - CRITICAL: Force immediate refetch
   useEffect(() => {
     const handleRefresh = () => {
+      console.log('[FCZ-PAY] Balance refresh event received, forcing immediate refetch');
+      // Invalidate React Query cache first to force fresh data (bypasses staleTime)
+      queryClient.invalidateQueries({ queryKey: ['readContract'], exact: false });
+      queryClient.invalidateQueries({ queryKey: ['wallet'], exact: false });
+      queryClient.invalidateQueries({ queryKey: ['escrow-balance'], exact: false });
+      queryClient.invalidateQueries({ queryKey: ['usdcBalance'], exact: false });
+      // Then immediately refetch all balances (forces network request)
       refetchAll();
     };
     
     window.addEventListener('fcz:balance:refresh', handleRefresh);
     return () => window.removeEventListener('fcz:balance:refresh', handleRefresh);
-  }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [queryClient, refetchWallet, refetchEscrow, refetchSummary, user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return {
     wallet: walletUSDC || 0,

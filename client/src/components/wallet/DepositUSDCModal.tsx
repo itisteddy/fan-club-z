@@ -405,6 +405,17 @@ export default function DepositUSDCModal({
       );
 
       invalidateAfterDeposit(queryClient, { userId: currentUserId, txHash: depositTxHash });
+      
+      // CRITICAL FIX: Wait for transaction to be indexed, then force balance refresh
+      // Base Sepolia typically indexes within 2-3 seconds
+      setTimeout(() => {
+        console.log('[FCZ-PAY] Deposited, forcing balance refresh after confirmation delay');
+        broadcastBalanceRefresh();
+        // Force immediate refetch of escrow balance
+        queryClient.invalidateQueries({ queryKey: ['readContract'], exact: false });
+      }, 3000);
+
+      // Also broadcast immediately for faster UI update
       broadcastBalanceRefresh();
 
       if (mountedRef.current) {
