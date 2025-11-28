@@ -164,33 +164,54 @@ class ScrollManager {
   }
 
   private scrollToPosition(scrollY: number, behavior: 'smooth' | 'instant' = 'smooth'): void {
-    try {
-      // Use requestAnimationFrame for better performance
-      requestAnimationFrame(() => {
+    // Force scroll on all possible scroll containers for cross-browser/mobile compatibility
+    const forceScroll = () => {
+      // Try all possible scroll containers
+      if (document.scrollingElement) {
+        document.scrollingElement.scrollTop = scrollY;
+      }
+      document.documentElement.scrollTop = scrollY;
+      document.body.scrollTop = scrollY;
+      
+      // Also try window.scrollTo for completeness
+      try {
         window.scrollTo({
           top: scrollY,
           left: 0,
-          behavior
+          behavior: behavior === 'instant' ? 'instant' : 'smooth'
         });
+      } catch {
+        window.scrollTo(0, scrollY);
+      }
+    };
 
-        // Fallback for browsers that don't support smooth scrolling
-        if (behavior === 'smooth') {
-          // Verify scroll actually happened
-          setTimeout(() => {
-            const currentPos = this.getCurrentScrollPosition();
-            if (Math.abs(currentPos - scrollY) > 100) {
-              // If smooth scroll failed, use instant
-              window.scrollTo(0, scrollY);
-            }
-          }, 300);
-        }
+    // Execute immediately for instant behavior
+    if (behavior === 'instant') {
+      forceScroll();
+      // Double-check with RAF for mobile Safari
+      requestAnimationFrame(() => {
+        forceScroll();
       });
-    } catch (error) {
-      // Fallback for older browsers
-      console.warn('Scroll API failed, using fallback:', error);
-      window.scrollTo(0, scrollY);
-      document.documentElement.scrollTop = scrollY;
-      document.body.scrollTop = scrollY;
+      return;
+    }
+
+    // For smooth behavior, use scrollTo API
+    try {
+      window.scrollTo({
+        top: scrollY,
+        left: 0,
+        behavior: 'smooth'
+      });
+      
+      // Verify scroll actually happened
+      setTimeout(() => {
+        const currentPos = this.getCurrentScrollPosition();
+        if (Math.abs(currentPos - scrollY) > 100) {
+          forceScroll();
+        }
+      }, 300);
+    } catch {
+      forceScroll();
     }
   }
 
@@ -201,6 +222,27 @@ class ScrollManager {
     // Clear any existing timeout to prevent multiple rapid calls
     if (this.scrollTimeout) {
       window.clearTimeout(this.scrollTimeout);
+    }
+    
+    // For instant behavior, execute immediately AND with delay to ensure it takes effect
+    if (behavior === 'instant') {
+      // Immediate scroll
+      this.scrollToPosition(0, 'instant');
+      
+      // Also schedule with delay to catch late-rendering content
+      if (delay > 0) {
+        this.scrollTimeout = window.setTimeout(() => {
+          this.scrollToPosition(0, 'instant');
+          this.scrollTimeout = null;
+        }, delay);
+      }
+      
+      // Extra safety: scroll again after a longer delay for slow-loading pages
+      window.setTimeout(() => {
+        this.scrollToPosition(0, 'instant');
+      }, 100);
+      
+      return;
     }
     
     this.scrollTimeout = window.setTimeout(() => {
@@ -285,7 +327,10 @@ class ScrollManager {
         this.restoreScrollPosition(toRoute);
       }, 150);
     } else {
-      // Forward navigation - always scroll to top
+      // Forward navigation - AGGRESSIVELY scroll to top
+      // Immediately scroll
+      this.scrollToPosition(0, 'instant');
+      // Also schedule with delay for late-rendering content
       this.scrollToTop({ behavior: 'instant', delay: 50 });
     }
   }

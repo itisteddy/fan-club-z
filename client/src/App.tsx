@@ -101,6 +101,11 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = memo(({ children }) 
     // Mark as intentional navigation to prevent auto-scroll-restore
     markNavigationAsIntentional();
     
+    // IMMEDIATELY scroll to top before navigation to prevent visual flash
+    window.scrollTo(0, 0);
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
+    
     // Navigate to the appropriate route
     switch (tab) {
       case 'discover':
@@ -122,10 +127,16 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = memo(({ children }) 
         navigate('/');
     }
     
-    // Only scroll to top for intentional tab changes, not for back navigation
-    setTimeout(() => {
-      scrollToTop({ behavior: 'instant' });
-    }, 50);
+    // Scroll to top again after navigation to ensure it takes effect
+    requestAnimationFrame(() => {
+      window.scrollTo(0, 0);
+      document.documentElement.scrollTop = 0;
+      document.body.scrollTop = 0;
+      // One more scroll after a short delay for slow-rendering pages
+      setTimeout(() => {
+        scrollToTop({ behavior: 'instant' });
+      }, 50);
+    });
   }, [navigate, getCurrentTab, location]);
 
   const requestCreateAccess = useCallback(async () => {

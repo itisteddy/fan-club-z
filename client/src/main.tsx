@@ -17,6 +17,12 @@ import { initWebVitals } from './lib/vitals'
 // Centralized version management
 console.log(`🚀 Fan Club Z ${APP_VERSION} - CONSOLIDATED ARCHITECTURE - SINGLE SOURCE OF TRUTH`)
 
+// CRITICAL: Disable browser's native scroll restoration to prevent conflicts with our manual scroll management
+// This is essential for React SPA navigation to work correctly
+if ('scrollRestoration' in history) {
+  history.scrollRestoration = 'manual';
+}
+
 const isLandingBuild = import.meta.env.VITE_BUILD_TARGET === 'landing';
 const RootComponent = isLandingBuild ? LandingRouter : App;
 
