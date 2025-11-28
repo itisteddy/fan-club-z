@@ -4,63 +4,65 @@
 -- ============================================================
 
 -- ============================================================
--- SECTION 1: Create bet_settlements table (REQUIRED)
+-- STEP 1: Check current bet_settlements table structure
+-- ============================================================
+SELECT column_name, data_type, is_nullable
+FROM information_schema.columns
+WHERE table_name = 'bet_settlements'
+ORDER BY ordinal_position;
+
+-- ============================================================
+-- STEP 2: If table exists but missing columns, add them
 -- ============================================================
 
-CREATE TABLE IF NOT EXISTS bet_settlements (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    bet_id UUID NOT NULL REFERENCES predictions(id) ON DELETE CASCADE,
-    winning_option_id UUID REFERENCES prediction_options(id),
-    status VARCHAR(50) NOT NULL DEFAULT 'pending' 
-        CHECK (status IN ('pending', 'computing', 'computed', 'posting', 'onchain_posted', 'completed', 'failed', 'cancelled')),
-    meta JSONB DEFAULT '{}',
-    merkle_root VARCHAR(66),
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    UNIQUE(bet_id)
-);
+-- Add status column if missing
+ALTER TABLE bet_settlements 
+ADD COLUMN IF NOT EXISTS status VARCHAR(50) DEFAULT 'pending';
 
--- Indexes
-CREATE INDEX IF NOT EXISTS idx_bet_settlements_bet_id ON bet_settlements(bet_id);
+-- Add other missing columns
+ALTER TABLE bet_settlements 
+ADD COLUMN IF NOT EXISTS winning_option_id UUID;
+
+ALTER TABLE bet_settlements 
+ADD COLUMN IF NOT EXISTS meta JSONB DEFAULT '{}';
+
+ALTER TABLE bet_settlements 
+ADD COLUMN IF NOT EXISTS merkle_root VARCHAR(66);
+
+ALTER TABLE bet_settlements 
+ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW();
+
+ALTER TABLE bet_settlements 
+ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW();
+
+-- ============================================================
+-- STEP 3: Create indexes if they don't exist
+-- ============================================================
 CREATE INDEX IF NOT EXISTS idx_bet_settlements_status ON bet_settlements(status);
 CREATE INDEX IF NOT EXISTS idx_bet_settlements_created_at ON bet_settlements(created_at DESC);
 
--- RLS
-ALTER TABLE bet_settlements ENABLE ROW LEVEL SECURITY;
-
--- Drop existing policies if they exist (to avoid errors)
-DROP POLICY IF EXISTS "bet_settlements_read_all" ON bet_settlements;
-DROP POLICY IF EXISTS "bet_settlements_write_service" ON bet_settlements;
-
--- Create policies
-CREATE POLICY "bet_settlements_read_all" ON bet_settlements FOR SELECT USING (true);
-CREATE POLICY "bet_settlements_write_service" ON bet_settlements FOR ALL USING (true);
-
 -- ============================================================
--- SECTION 2: Add image_url column to predictions (REQUIRED)
+-- STEP 4: Add image_url column to predictions
 -- ============================================================
-
 ALTER TABLE predictions ADD COLUMN IF NOT EXISTS image_url TEXT;
 CREATE INDEX IF NOT EXISTS idx_predictions_image_url ON predictions(image_url) WHERE image_url IS NOT NULL;
 
 -- ============================================================
--- VERIFICATION QUERIES (run after the above)
+-- STEP 5: Verify the changes
 -- ============================================================
 
--- Verify bet_settlements table exists
-SELECT EXISTS (
-    SELECT FROM information_schema.tables 
-    WHERE table_schema = 'public' AND table_name = 'bet_settlements'
-) AS bet_settlements_exists;
+-- Check bet_settlements columns
+SELECT column_name, data_type 
+FROM information_schema.columns 
+WHERE table_name = 'bet_settlements'
+ORDER BY ordinal_position;
 
--- Verify image_url column exists
-SELECT EXISTS (
-    SELECT FROM information_schema.columns 
-    WHERE table_name = 'predictions' AND column_name = 'image_url'
-) AS image_url_exists;
+-- Check predictions has image_url
+SELECT column_name, data_type 
+FROM information_schema.columns 
+WHERE table_name = 'predictions' AND column_name = 'image_url';
 
--- Check bet_settlements count
-SELECT COUNT(*) AS bet_settlements_count FROM bet_settlements;
-
--- Check predictions with image_url
-SELECT COUNT(*) AS predictions_with_images FROM predictions WHERE image_url IS NOT NULL;
+-- Count records
+SELECT 
+    (SELECT COUNT(*) FROM bet_settlements) AS bet_settlements_count,
+    (SELECT COUNT(*) FROM predictions WHERE image_url IS NOT NULL) AS predictions_with_images;
