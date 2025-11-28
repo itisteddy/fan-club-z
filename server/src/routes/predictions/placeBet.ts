@@ -150,19 +150,30 @@ async function handlePlaceBet(req: any, res: any) {
       });
     }
 
-    let { availableToStakeUSDC, reservedUSDC } = walletSnapshot;
-
-    // Check if available >= amount
-    if (availableToStakeUSDC < amountUSD) {
+    let { availableToStakeUSDC, reservedUSDC, escrowUSDC } = walletSnapshot;
+    
+    // CRITICAL FIX:
+    // Some legacy escrow_locks rows can cause availableToStakeUSDC to be lower than the
+    // actual on-chain escrow balance (escrowUSDC). To avoid blocking valid stakes when
+    // on-chain funds are clearly available, use the maximum of the two as the effective
+    // available amount, and only block when BOTH are insufficient.
+    const onchainAvailable = typeof escrowUSDC === 'number' ? escrowUSDC : 0;
+    const snapshotAvailable = typeof availableToStakeUSDC === 'number' ? availableToStakeUSDC : 0;
+    const effectiveAvailable = Math.max(onchainAvailable, snapshotAvailable);
+    
+    // Check if effective available >= amount
+    if (effectiveAvailable < amountUSD) {
       console.log(`[FCZ-BET] Insufficient escrow check`, {
         availableToStakeUSDC,
+        escrowUSDC,
+        effectiveAvailable,
         required: amountUSD,
         snapshot: walletSnapshot
       });
       return res.status(400).json({
         error: 'INSUFFICIENT_ESCROW',
-        message: `Insufficient escrow available: ${availableToStakeUSDC} < ${amountUSD}`,
-        available: availableToStakeUSDC,
+        message: `Insufficient escrow available: ${effectiveAvailable} < ${amountUSD}`,
+        available: effectiveAvailable,
         required: amountUSD,
         version: VERSION
       });
