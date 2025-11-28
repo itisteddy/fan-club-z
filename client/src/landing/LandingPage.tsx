@@ -323,6 +323,26 @@ const LandingPage: React.FC = () => {
               </li>
               <li>
                 <a
+                  href="https://youtube.com/@fanclubzapp"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="hover:text-white"
+                >
+                  YouTube
+                </a>
+              </li>
+              <li>
+                <a
+                  href="https://chat.whatsapp.com/Csb2ngooDCt7fguCXvfntj?mode=wwt"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="hover:text-white"
+                >
+                  WhatsApp
+                </a>
+              </li>
+              <li>
+                <a
                   href="https://discord.gg/Bxvet6BU"
                   target="_blank"
                   rel="noreferrer"
