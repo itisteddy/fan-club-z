@@ -909,14 +909,64 @@ router.get('/claimable', async (req, res) => {
 
     console.log(`[SETTLEMENT] Fetching claimable for ${normalized.slice(0, 10)}...`);
 
-    // First, only fetch predictions that have bet_settlements with onchain_posted status
-    // This avoids expensive on-chain calls for predictions that haven't been posted yet
-    const { data: settledPreds, error: settledError } = await supabase
+    // CRITICAL FIX: Include both on-chain posted settlements AND off-chain settlements
+    // Off-chain settlements can be converted to on-chain claims if Merkle root is posted
+    // First, fetch on-chain posted settlements (ready to claim)
+    const { data: onchainSettled, error: onchainError } = await supabase
       .from('bet_settlements')
       .select('bet_id, winning_option_id, status, meta')
       .eq('status', 'onchain_posted')
       .order('created_at', { ascending: false })
       .limit(limit * 2);
+    
+    // Also fetch off-chain completed settlements (may need Merkle root posted)
+    const { data: offchainSettled, error: offchainError } = await supabase
+      .from('bet_settlements')
+      .select('bet_id, winning_option_id, status, meta')
+      .in('status', ['completed', 'computed'])
+      .order('created_at', { ascending: false })
+      .limit(limit * 2);
+    
+    // Also check for settled predictions without bet_settlements entry (old off-chain settlements)
+    const { data: settledPredsWithoutEntry } = await supabase
+      .from('predictions')
+      .select('id, winning_option_id, settled_at')
+      .eq('status', 'settled')
+      .not('winning_option_id', 'is', null)
+      .order('settled_at', { ascending: false })
+      .limit(limit);
+    
+    // Combine all settlements
+    const settledPreds: Array<{ bet_id: string; winning_option_id: string | null; status: string; meta?: any }> = [];
+    if (onchainSettled) settledPreds.push(...onchainSettled);
+    if (offchainSettled) {
+      // For off-chain, check if Merkle root can be posted/claimed
+      for (const s of offchainSettled) {
+        // Check if root already exists on-chain (might have been posted retroactively)
+        const existingRoot = await ensureOnchainPosted(s.bet_id);
+        if (existingRoot) {
+          // Root exists on-chain, treat as onchain_posted
+          settledPreds.push({ ...s, status: 'onchain_posted', meta: { ...s.meta, merkle_root: existingRoot } });
+        } else {
+          // Root not posted yet, but include it so we can compute Merkle and show it
+          settledPreds.push(s);
+        }
+      }
+    }
+    if (settledPredsWithoutEntry) {
+      // Add predictions without bet_settlements entry
+      for (const p of settledPredsWithoutEntry) {
+        const existingRoot = await ensureOnchainPosted(p.id);
+        settledPreds.push({
+          bet_id: p.id,
+          winning_option_id: p.winning_option_id,
+          status: existingRoot ? 'onchain_posted' : 'completed',
+          meta: existingRoot ? { merkle_root: existingRoot } : {}
+        });
+      }
+    }
+    
+    const settledError = onchainError || offchainError;
 
     if (settledError) {
       console.error('[SETTLEMENT] claimable query failed:', settledError);
@@ -929,12 +979,12 @@ router.get('/claimable', async (req, res) => {
     }
 
     if (!settledPreds || settledPreds.length === 0) {
-      console.log(`[SETTLEMENT] No onchain_posted settlements found (${Date.now() - startTime}ms)`);
+      console.log(`[SETTLEMENT] No settlements found (${Date.now() - startTime}ms)`);
       return res.json({ success: true, data: { claims: [] }, version: VERSION });
     }
 
-    // Fetch prediction details for the settled predictions
-    const predictionIds = settledPreds.map(s => s.bet_id);
+    // Fetch prediction details for all settled predictions
+    const predictionIds = [...new Set(settledPreds.map(s => s.bet_id))]; // Deduplicate
     const { data: preds, error: predsError } = await supabase
       .from('predictions')
       .select('id, title, settled_at, winning_option_id')
@@ -959,7 +1009,19 @@ router.get('/claimable', async (req, res) => {
     for (const s of settledPreds) {
       if (results.length >= limit) break;
       
-      const p = predMap.get(s.bet_id);
+      let p = predMap.get(s.bet_id);
+      if (!p) {
+        // If prediction not in predMap, fetch it
+        const { data: singlePred } = await supabase
+          .from('predictions')
+          .select('id, title, settled_at, winning_option_id')
+          .eq('id', s.bet_id)
+          .maybeSingle();
+        if (!singlePred) continue;
+        predMap.set(s.bet_id, singlePred);
+        p = singlePred;
+      }
+      
       if (!p) continue;
 
       try {
@@ -970,6 +1032,18 @@ router.get('/claimable', async (req, res) => {
         const settlement = await computeMerkleSettlement({ predictionId: p.id, winningOptionId });
         const leaf = settlement.leaves.find((l) => l.address.toLowerCase() === normalized);
         if (!leaf || (leaf.amountUnits ?? 0n) === 0n) continue;
+
+        // For off-chain settlements, check if root can be posted/claimed
+        // If status is not onchain_posted, try to ensure root is posted
+        if (s.status !== 'onchain_posted') {
+          const root = await ensureOnchainPosted(p.id);
+          if (!root) {
+            // Root not posted yet - skip for now (user already credited off-chain)
+            // TODO: Could show a "Post root to claim on-chain" option
+            continue;
+          }
+          // Root exists, treat as onchain_posted
+        }
 
         // Check if already claimed on-chain (with timeout protection)
         let alreadyClaimed = false;
@@ -987,13 +1061,16 @@ router.get('/claimable', async (req, res) => {
 
         if (alreadyClaimed) continue;
 
+        // Get Merkle root (from meta or compute)
+        const merkleRoot = (s.meta?.merkle_root as `0x${string}`) || settlement.root;
+
         results.push({
           predictionId: p.id,
           title: p.title,
           amountUnits: (leaf.amountUnits ?? 0n).toString(),
           amountUSD: Number(leaf.amountUnits ?? 0n) / 1_000_000,
           proof: (leaf.proof ?? []) as `0x${string}`[],
-          merkleRoot: settlement.root,
+          merkleRoot,
         });
       } catch (err) {
         // Skip errors per prediction but log them
