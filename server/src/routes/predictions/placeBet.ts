@@ -153,26 +153,59 @@ async function handlePlaceBet(req: any, res: any) {
     let { availableToStakeUSDC, reservedUSDC, escrowUSDC } = walletSnapshot;
     
     // CRITICAL FIX:
-    // Some legacy escrow_locks rows can cause availableToStakeUSDC to be lower than the
-    // actual on-chain escrow balance (escrowUSDC). To avoid blocking valid stakes when
-    // on-chain funds are clearly available, use the maximum of the two as the effective
-    // available amount, and only block when BOTH are insufficient.
-    const onchainAvailable = typeof escrowUSDC === 'number' ? escrowUSDC : 0;
+    // After deploying a new escrow contract, old consumed locks from the previous contract
+    // can cause availableToStakeUSDC to be incorrectly reduced.
+    // 
+    // The on-chain escrow contract is the source of truth:
+    // - escrowUSDC = total on-chain balance (available + reserved on-chain)
+    // - The contract's balances(address) returns what the user can actually use
+    //
+    // Since we fetch fresh on-chain data in reconcileWallet via fetchEscrowSnapshotFor,
+    // we should trust the on-chain available balance directly.
+    // 
+    // To get the TRUE on-chain available, we need to re-fetch it directly:
+    const { fetchEscrowSnapshotFor } = await import('../../services/escrowContract');
+    let trueOnchainAvailable = 0;
+    try {
+      if (walletSnapshot.walletAddress) {
+        const freshSnapshot = await fetchEscrowSnapshotFor(walletSnapshot.walletAddress);
+        trueOnchainAvailable = freshSnapshot.availableUSDC;
+        console.log(`[FCZ-BET] Fresh on-chain snapshot:`, {
+          availableUSDC: freshSnapshot.availableUSDC,
+          reservedUSDC: freshSnapshot.reservedUSDC,
+          totalDepositedUSDC: freshSnapshot.totalDepositedUSDC
+        });
+      }
+    } catch (e) {
+      console.warn('[FCZ-BET] Failed to fetch fresh on-chain snapshot:', e);
+    }
+    
+    // Use the maximum of:
+    // - availableToStakeUSDC (DB-derived, may be stale due to old locks)
+    // - trueOnchainAvailable (fresh on-chain balance)
     const snapshotAvailable = typeof availableToStakeUSDC === 'number' ? availableToStakeUSDC : 0;
-    const effectiveAvailable = Math.max(onchainAvailable, snapshotAvailable);
+    const effectiveAvailable = Math.max(trueOnchainAvailable, snapshotAvailable);
+    
+    console.log(`[FCZ-BET] Balance check:`, {
+      trueOnchainAvailable,
+      snapshotAvailable,
+      effectiveAvailable,
+      required: amountUSD,
+      walletAddress: walletSnapshot.walletAddress
+    });
     
     // Check if effective available >= amount
     if (effectiveAvailable < amountUSD) {
-      console.log(`[FCZ-BET] Insufficient escrow check`, {
+      console.log(`[FCZ-BET] Insufficient escrow - blocking stake`, {
         availableToStakeUSDC,
         escrowUSDC,
+        trueOnchainAvailable,
         effectiveAvailable,
-        required: amountUSD,
-        snapshot: walletSnapshot
+        required: amountUSD
       });
       return res.status(400).json({
         error: 'INSUFFICIENT_ESCROW',
-        message: `Insufficient escrow available: ${effectiveAvailable} < ${amountUSD}`,
+        message: `Insufficient escrow available: ${effectiveAvailable.toFixed(2)} < ${amountUSD}`,
         available: effectiveAvailable,
         required: amountUSD,
         version: VERSION
