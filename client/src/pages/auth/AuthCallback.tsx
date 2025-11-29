@@ -20,6 +20,22 @@ const AuthCallback: React.FC = () => {
   const navigate = useNavigate();
   const [error, setError] = useState<string | null>(null);
 
+  // Helper: small delay
+  const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+  // Helper: wait briefly for Supabase to materialize a session from the URL
+  const waitForSession = async (maxWaitMs: number = 2000): Promise<ReturnType<typeof supabase.auth.getSession>> => {
+    const started = Date.now();
+    let lastResult = await supabase.auth.getSession();
+
+    while (!lastResult.data.session && Date.now() - started < maxWaitMs) {
+      await sleep(250);
+      lastResult = await supabase.auth.getSession();
+    }
+
+    return lastResult;
+  };
+
   useEffect(() => {
     const handleCallback = async () => {
       try {
@@ -185,19 +201,25 @@ const AuthCallback: React.FC = () => {
             console.log('Code exchange successful!', data);
           }
         } else {
-          console.log('No code parameter found, checking for existing session...');
-          // Check if we already have a valid session
-          const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-          if (sessionError) {
-            console.error('Session check error:', sessionError);
-            throw sessionError;
-          }
-          if (!session) {
-            throw new Error('No authentication code or valid session found');
-          }
-          console.log('Using existing session:', session.user.email);
+          console.log('No code parameter found, checking for existing/magic-link session...');
         }
-        
+
+        // 🔐 Final session check (handles both PKCE and magic-link flows)
+        // Give Supabase a short window to hydrate the session from the URL
+        const { data: { session: finalSession }, error: finalSessionError } = await waitForSession(2500);
+        if (finalSessionError) {
+          console.error('Final session check error:', finalSessionError);
+          throw finalSessionError;
+        }
+
+        if (!finalSession) {
+          // At this point we have no code-based session and no magic-link session
+          // This usually means the link was already used or has expired
+          throw new Error('This sign-in link is invalid or has already been used. Please request a new email link to sign in.');
+        }
+
+        console.log('Using authenticated session for redirect:', finalSession.user.email);
+
         // Determine where to redirect
         const target = sanitizeInternalPath(nextFromUrl ?? sanitizedStorage ?? '/');
         console.log('Final redirect target:', target);
