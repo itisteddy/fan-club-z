@@ -101,6 +101,27 @@ const AuthCallback: React.FC = () => {
           }
         }
         
+        // Detect magic-link style URLs (access_token in hash or query)
+        const hash = window.location.hash || '';
+        const hasHashAccessToken = hash.includes('access_token=');
+        const hasQueryAccessToken = Boolean(searchParams.get('access_token'));
+
+        if (hasHashAccessToken || hasQueryAccessToken) {
+          console.log('Detected magic-link parameters in URL, calling getSessionFromUrl...');
+          try {
+            const { data: urlData, error: urlError } = await (supabase.auth as any).getSessionFromUrl({
+              storeSession: true,
+            });
+            if (urlError) {
+              console.warn('getSessionFromUrl reported error:', urlError.message || urlError);
+            } else {
+              console.log('getSessionFromUrl session result:', !!urlData?.session);
+            }
+          } catch (urlException: any) {
+            console.warn('getSessionFromUrl threw exception:', urlException?.message || urlException);
+          }
+        }
+
         // For PKCE/callback flows: exchange code for session
         const code = searchParams.get('code');
         const codeVerifier = searchParams.get('code_verifier');
