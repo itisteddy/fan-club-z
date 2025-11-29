@@ -101,12 +101,23 @@ const AuthCallback: React.FC = () => {
           }
         }
         
-        // Detect magic-link style URLs (access_token in hash or query)
+        // Detect what type of auth flow we're handling
         const hash = window.location.hash || '';
         const hasHashAccessToken = hash.includes('access_token=');
         const hasQueryAccessToken = Boolean(searchParams.get('access_token'));
-
-        if (hasHashAccessToken || hasQueryAccessToken) {
+        const code = searchParams.get('code');
+        const isOAuthFlow = Boolean(code); // OAuth (Google, etc.) uses code parameter
+        const isMagicLinkFlow = hasHashAccessToken || hasQueryAccessToken; // Magic link uses access_token
+        
+        console.log('Auth flow detection:', {
+          isOAuthFlow,
+          isMagicLinkFlow,
+          hasCode: Boolean(code),
+          hasAccessToken: hasHashAccessToken || hasQueryAccessToken
+        });
+        
+        // For magic-link flows: explicitly parse URL tokens
+        if (isMagicLinkFlow && !isOAuthFlow) {
           console.log('Detected magic-link parameters in URL, calling getSessionFromUrl...');
           try {
             const { data: urlData, error: urlError } = await (supabase.auth as any).getSessionFromUrl({
@@ -121,108 +132,14 @@ const AuthCallback: React.FC = () => {
             console.warn('getSessionFromUrl threw exception:', urlException?.message || urlException);
           }
         }
-
-        // For PKCE/callback flows: exchange code for session
-        const code = searchParams.get('code');
-        const codeVerifier = searchParams.get('code_verifier');
         
-        console.log('Auth callback parameters:', {
-          code: code ? 'present' : 'missing',
-          codeVerifier: codeVerifier ? 'present' : 'missing',
-          allParams: Object.fromEntries(searchParams.entries())
-        });
-        
-        // Log sessionStorage contents for debugging
-        console.log('SessionStorage contents:', {
-          supabaseCodeVerifier: sessionStorage.getItem('supabase.auth.code_verifier'),
-          allKeys: Object.keys(sessionStorage).filter(key => key.includes('supabase') || key.includes('auth'))
-        });
-        
-        if (code) {
-          console.log('Exchanging code for session...');
-          
-          // Try multiple approaches to get the code verifier
-          let finalCodeVerifier = codeVerifier;
-          
-          // Check various possible storage locations
-          const possibleKeys = [
-            'supabase.auth.code_verifier',
-            'sb-ihtnsyhknvltgrksffun-auth-token.code_verifier',
-            'supabase.code_verifier',
-            'auth.code_verifier'
-          ];
-          
-          for (const key of possibleKeys) {
-            const stored = sessionStorage.getItem(key);
-            if (stored) {
-              finalCodeVerifier = stored;
-              console.log(`Found code verifier in sessionStorage key: ${key}`);
-              break;
-            }
-          }
-          
-          // Also check localStorage as fallback
-          if (!finalCodeVerifier) {
-            for (const key of possibleKeys) {
-              const stored = localStorage.getItem(key);
-              if (stored) {
-                finalCodeVerifier = stored;
-                console.log(`Found code verifier in localStorage key: ${key}`);
-                break;
-              }
-            }
-          }
-          
-          console.log('Final code verifier status:', finalCodeVerifier ? 'found' : 'not found');
-          
-          // Try the code exchange with different approaches
-          let data, exchangeError;
-          
-          try {
-            if (finalCodeVerifier) {
-              console.log('Attempting code exchange with explicit code verifier...');
-              const result = await (supabase.auth as any).exchangeCodeForSession({
-                authCode: code,
-                codeVerifier: finalCodeVerifier
-              });
-              data = result.data;
-              exchangeError = result.error;
-            } else {
-              console.log('Attempting code exchange without explicit code verifier...');
-              const result = await (supabase.auth as any).exchangeCodeForSession(code);
-              data = result.data;
-              exchangeError = result.error;
-            }
-          } catch (exchangeException: any) {
-            console.error('Code exchange exception:', exchangeException);
-            exchangeError = exchangeException;
-          }
-          
-          if (exchangeError) {
-            console.error('Code exchange error:', exchangeError);
-            console.error('Error details:', {
-              message: exchangeError.message,
-              code: exchangeError.code,
-              status: exchangeError.status
-            });
-            
-            // If PKCE fails, try to check if we already have a valid session
-            console.log('PKCE failed, checking for existing session...');
-            const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-            if (session && !sessionError) {
-              console.log('Found existing valid session, proceeding with redirect...');
-              // Continue with the redirect logic below
-            } else {
-              // Last resort: try to redirect anyway and let the app handle the auth state
-              console.log('No valid session found, but attempting redirect anyway...');
-              console.log('This might be a PKCE configuration issue. User may need to sign in again.');
-              // Don't throw error, just continue with redirect
-            }
-          } else {
-            console.log('Code exchange successful!', data);
-          }
-        } else {
-          console.log('No code parameter found, checking for existing/magic-link session...');
+        // For OAuth flows (Google, etc.): Supabase handles code exchange automatically
+        // via detectSessionInUrl, but we give it a moment to process
+        if (isOAuthFlow) {
+          console.log('Detected OAuth flow (code parameter present)');
+          console.log('Supabase should automatically handle PKCE code exchange...');
+          // Give Supabase time to process the OAuth callback
+          await sleep(500);
         }
 
         // 🔐 Final session check (handles both PKCE and magic-link flows)
@@ -234,9 +151,14 @@ const AuthCallback: React.FC = () => {
         }
 
         if (!finalSession) {
-          // At this point we have no code-based session and no magic-link session
-          // This usually means the link was already used or has expired
-          throw new Error('This sign-in link is invalid or has already been used. Please request a new email link to sign in.');
+          // Determine which error message to show based on flow type
+          if (isOAuthFlow) {
+            throw new Error('Google sign-in failed. Please try signing in again. If the problem persists, try clearing your browser cookies and cache.');
+          } else if (isMagicLinkFlow) {
+            throw new Error('This sign-in link is invalid or has already been used. Please request a new email link to sign in.');
+          } else {
+            throw new Error('Authentication failed. Please try signing in again.');
+          }
         }
 
         console.log('Using authenticated session for redirect:', finalSession.user.email);
