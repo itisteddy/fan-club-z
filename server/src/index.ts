@@ -199,6 +199,8 @@ import { healthBase } from './routes/healthBase';
 import { healthApp } from './routes/healthApp';
 import transactionLogRouter from './routes/wallet/transactionLog';
 import { qaCryptoMock } from './routes/qaCryptoMock';
+import referralRoutes from './routes/referrals';
+import badgeRoutes from './routes/badges';
 import { startBaseDepositWatcher } from './chain/base/depositWatcher';
 import { resolveAndValidateAddresses } from './chain/base/addressRegistry';
 import { validatePaymentsEnv } from './utils/envValidation';
@@ -235,6 +237,12 @@ if (process.env.BASE_DEPOSITS_MOCK === '1') {
   app.use(qaCryptoMock());
 }
 
+// Referral routes (feature-flagged internally)
+app.use(referralRoutes);
+
+// Badge routes (feature-flagged internally)
+app.use(badgeRoutes);
+
 // Debug logging for route registration
 console.log('✅ Routes registered:');
 console.log('  - /api/v2/users');
@@ -249,6 +257,10 @@ console.log('  - /api/escrow (escrow lock/unlock)');
 console.log('  - /api/wallet (wallet summary & activity)');
 console.log('  - /api/health/payments (payment system health)');
 console.log('  - /api/health/base (Base chain health)');
+console.log('  - /r/:code (Referral link handler)');
+console.log('  - /api/leaderboard/referrals (Referral leaderboard)');
+console.log('  - /api/referrals/* (Referral system)');
+console.log('  - /api/badges/og/* (OG badges system)');
 if (process.env.BASE_DEPOSITS_MOCK === '1') {
   console.log('  - /api/qa/crypto/mock-deposit (QA mock deposits)');
 }

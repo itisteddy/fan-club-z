@@ -96,7 +96,7 @@ router.get('/leaderboard', async (req, res) => {
 
     const { data: users, error: usersError } = await supabase
       .from('users')
-      .select('id, username, full_name, avatar_url')
+      .select('id, username, full_name, avatar_url, og_badge')
       .in('id', userIds);
 
     if (usersError) {
@@ -166,7 +166,13 @@ router.get('/:id', async (req, res) => {
         email,
         avatar_url,
         created_at,
-        updated_at
+        updated_at,
+        og_badge,
+        og_badge_assigned_at,
+        referral_code,
+        referred_by,
+        first_login_at,
+        last_login_at
       `)
       .eq('id', id)
       .single();
