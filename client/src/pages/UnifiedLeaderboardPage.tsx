@@ -1,8 +1,9 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Trophy, TrendingUp, Target, Star, Medal, Crown, Award } from 'lucide-react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { Trophy, TrendingUp, Target, Medal, Crown, Award, Users, Gift } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuthStore } from '../store/authStore';
 import UserAvatar from '../components/common/UserAvatar';
+import { OGBadge } from '../components/badges/OGBadge';
 import AppHeader from '../components/layout/AppHeader';
 import Page from '../components/ui/layout/Page';
 import Card, { CardHeader, CardContent } from '../components/ui/card/Card';
@@ -13,10 +14,7 @@ import { formatNumberShort, formatUSDCompact, formatPercent, formatPercentage } 
 import { cn } from '../utils/cn';
 import { KeyboardNavigation, AriaUtils } from '../utils/accessibility';
 import { t } from '@/lib/lexicon';
-
-// TODO: Replace leaderboard user cards with PredictionCardV3 for consistency
-// when showing user's top predictions or recent activity
-// import { PredictionCardV3 } from '../components/predictions/PredictionCardV3';
+import { isReferralEnabled, fetchReferralLeaderboard, type ReferralLeaderboardEntry } from '@/lib/referral';
 
 interface LeaderboardUser {
   id: string;
@@ -29,18 +27,26 @@ interface LeaderboardUser {
   win_rate: number;
   total_entries: number;
   rank?: number;
+  og_badge?: 'gold' | 'silver' | 'bronze' | null;
 }
+
+type TabType = 'predictions' | 'profit' | 'winrate' | 'referrals';
 
 const UnifiedLeaderboardPage: React.FC = () => {
   const { user } = useAuthStore();
-  const [activeTab, setActiveTab] = useState<'predictions' | 'profit' | 'winrate'>('predictions');
+  
+  // Determine available tabs based on feature flags
+  const referralsEnabled = useMemo(() => isReferralEnabled(), []);
+  
+  const [activeTab, setActiveTab] = useState<TabType>('predictions');
   const [leaderboardData, setLeaderboardData] = useState<LeaderboardUser[]>([]);
+  const [referralData, setReferralData] = useState<ReferralLeaderboardEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isSticky, setIsSticky] = useState(false);
   const filterRef = useRef<HTMLDivElement>(null);
 
-  // Fetch leaderboard data
+  // Fetch standard leaderboard data
   const fetchLeaderboardData = async (type: 'predictions' | 'profit' | 'winrate') => {
     try {
       setLoading(true);
@@ -79,8 +85,30 @@ const UnifiedLeaderboardPage: React.FC = () => {
     }
   };
 
+  // Fetch referral leaderboard data
+  const fetchReferralData = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      const data = await fetchReferralLeaderboard(50, 'all');
+      setReferralData(data);
+    } catch (err) {
+      console.error('Error fetching referral leaderboard:', err);
+      setError(err instanceof Error ? err.message : 'Failed to load referral leaderboard');
+      setReferralData([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    fetchLeaderboardData(activeTab);
+    if (activeTab === 'referrals') {
+      fetchReferralData();
+    } else {
+      fetchLeaderboardData(activeTab);
+    }
+    
     // Announce tab change to screen readers
     const tabConfig = getTabConfig().find(tab => tab.id === activeTab);
     if (tabConfig) {
@@ -160,35 +188,130 @@ const UnifiedLeaderboardPage: React.FC = () => {
     }
   };
 
-  const getTabConfig = () => [
-    { 
-      id: 'predictions' as const, 
-      label: 'Top Creators', 
-      icon: Target,
-      description: 'Most predictions created'
-    },
-    { 
-      id: 'profit' as const, 
-      label: 'Big Winners', 
-      icon: TrendingUp,
-      description: 'Highest profits earned'
-    },
-    { 
-      id: 'winrate' as const, 
-      label: 'Best Accuracy', 
-      icon: Trophy,
-      description: 'Highest win rates'
+  const getTabConfig = () => {
+    const baseTabs: Array<{ id: TabType; label: string; icon: typeof Target; description: string }> = [
+      { 
+        id: 'predictions' as const, 
+        label: 'Creators', 
+        icon: Target,
+        description: 'Most predictions created'
+      },
+      { 
+        id: 'profit' as const, 
+        label: 'Winners', 
+        icon: TrendingUp,
+        description: 'Highest profits earned'
+      }
+    ];
+    
+    // Add referrals tab if feature is enabled
+    if (referralsEnabled) {
+      baseTabs.push({
+        id: 'referrals' as const,
+        label: 'Referrals',
+        icon: Gift,
+        description: 'Most active referrals'
+      });
     }
-  ];
+    
+    return baseTabs;
+  };
 
   const tabs = getTabConfig();
+
+  // Render referral leaderboard item
+  const renderReferralItem = (entry: ReferralLeaderboardEntry, index: number) => {
+    const rank = index + 1;
+    const rankBadge = getRankBadge(rank);
+    const isCurrentUser = user?.id === entry.userId;
+    const isTopThree = rank <= 3;
+    const RankIcon = rankBadge.icon;
+    
+    return (
+      <motion.div 
+        key={entry.userId}
+        className={cn(
+          "bg-white rounded-2xl p-4 transition-all duration-200",
+          "hover:shadow-md hover:scale-[1.01] border",
+          isCurrentUser 
+            ? 'bg-emerald-50 border-emerald-200 shadow-sm' 
+            : isTopThree
+              ? 'bg-gradient-to-r from-emerald-50 to-teal-50 border-emerald-200 shadow-sm'
+              : 'bg-white border-gray-100'
+        )}
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: index * 0.05 }}
+        whileHover={{ scale: 1.01 }}
+        role="listitem"
+        aria-label={`${entry.fullName || entry.username}, rank ${rank}, ${entry.activeReferrals} active referrals`}
+      >
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-4 flex-1 min-w-0">
+            {/* Rank Badge */}
+            <div className={cn(
+              "w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold border-2",
+              rankBadge.color
+            )}>
+              {isTopThree ? (
+                <RankIcon className="w-5 h-5" />
+              ) : (
+                <span className="text-xs">{rank}</span>
+              )}
+            </div>
+            
+            {/* User Avatar */}
+            <UserAvatar 
+              email={entry.username}
+              username={entry.username}
+              avatarUrl={entry.avatarUrl}
+              size="md"
+            />
+            
+            {/* User Info */}
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center space-x-2">
+                <h4 className="font-semibold text-gray-900 truncate">
+                  {entry.fullName || entry.username}
+                </h4>
+                <OGBadge tier={entry.ogBadge} size="sm" />
+                {isCurrentUser && (
+                  <motion.span
+                    className="px-2 py-0.5 bg-emerald-100 text-emerald-700 text-xs font-medium rounded-full"
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                    transition={{ type: "spring", stiffness: 400, damping: 25 }}
+                  >
+                    You
+                  </motion.span>
+                )}
+              </div>
+              <p className="text-sm text-gray-600 truncate">
+                @{entry.username}
+              </p>
+            </div>
+          </div>
+          
+          {/* Referral Stats */}
+          <div className="text-right">
+            <div className="text-lg font-bold font-mono text-emerald-600">
+              {entry.activeReferrals}
+            </div>
+            <div className="text-xs text-gray-500">
+              active · {entry.totalSignups} total
+            </div>
+          </div>
+        </div>
+      </motion.div>
+    );
+  };
 
   return (
     <>
       <AppHeader title="Leaderboard" />
       <div className="bg-white border-b border-gray-200">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="flex space-x-4 py-3">
+          <div className="flex space-x-4 py-3 overflow-x-auto scrollbar-hide">
             {tabs.map((tab, index) => {
               const Icon = tab.icon;
               return (
@@ -196,15 +319,18 @@ const UnifiedLeaderboardPage: React.FC = () => {
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
                   className={cn(
-                    "px-3 py-1 rounded-lg text-sm font-medium transition-colors",
+                    "px-3 py-1 rounded-lg text-sm font-medium transition-colors whitespace-nowrap flex items-center gap-1",
                     activeTab === tab.id
                       ? 'bg-emerald-100 text-emerald-700'
                       : 'text-gray-600 hover:text-gray-900'
                   )}
                 >
-                  <Icon className="w-4 h-4 inline mr-1" />
+                  <Icon className="w-4 h-4" />
                   <span className="hidden sm:inline">{tab.label}</span>
-                  <span className="sm:hidden">{tab.id === 'predictions' ? 'Creators' : tab.id === 'profit' ? 'Winners' : 'Accuracy'}</span>
+                  <span className="sm:hidden">
+                    {tab.id === 'predictions' ? 'Creators' : 
+                     tab.id === 'profit' ? 'Winners' : 'Referrals'}
+                  </span>
                 </button>
               );
             })}
@@ -256,7 +382,7 @@ const UnifiedLeaderboardPage: React.FC = () => {
                   description={error}
                   primaryAction={
                     <motion.button
-                      onClick={() => fetchLeaderboardData(activeTab)}
+                      onClick={() => activeTab === 'referrals' ? fetchReferralData() : fetchLeaderboardData(activeTab)}
                       className="px-6 py-3 bg-emerald-600 text-white rounded-xl font-medium hover:bg-emerald-700 transition-colors flex items-center gap-2"
                       whileHover={{ scale: 1.05 }}
                       whileTap={{ scale: 0.95 }}
@@ -267,6 +393,45 @@ const UnifiedLeaderboardPage: React.FC = () => {
                   }
                 />
               </motion.div>
+            ) : activeTab === 'referrals' ? (
+              // Referral leaderboard
+              referralData.length > 0 ? (
+                <motion.div
+                  key="referral-data"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="space-y-3"
+                  role="list"
+                  aria-label="Top Referrers leaderboard"
+                >
+                  {referralData.map((entry, index) => renderReferralItem(entry, index))}
+                </motion.div>
+              ) : (
+                <motion.div
+                  key="referral-empty"
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.95 }}
+                >
+                  <EmptyState
+                    icon={<Gift className="w-8 h-8" />}
+                    title="No referrals yet"
+                    description="Be the first to invite friends! Share your referral link and climb the leaderboard."
+                    primaryAction={
+                      <motion.button
+                        onClick={() => window.location.href = '/profile'}
+                        className="px-6 py-3 bg-gradient-to-r from-emerald-500 to-emerald-600 text-white rounded-xl font-semibold hover:shadow-lg transition-all flex items-center gap-2"
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                      >
+                        <Gift className="w-4 h-4" />
+                        Get Referral Link
+                      </motion.button>
+                    }
+                  />
+                </motion.div>
+              )
             ) : leaderboardData.length > 0 ? (
             <motion.div
               key="data"
@@ -279,7 +444,7 @@ const UnifiedLeaderboardPage: React.FC = () => {
             >
               {leaderboardData.map((leaderUser, index) => {
                 const rankBadge = getRankBadge(leaderUser.rank || 0);
-                const statDisplay = getStatDisplay(leaderUser, activeTab);
+                const statDisplay = getStatDisplay(leaderUser, activeTab as 'predictions' | 'profit' | 'winrate');
                 const isCurrentUser = user?.id === leaderUser.id;
                 const isTopThree = (leaderUser.rank || 0) <= 3;
                 const RankIcon = rankBadge.icon;
@@ -305,24 +470,15 @@ const UnifiedLeaderboardPage: React.FC = () => {
                   >
                     <div className="flex items-center justify-between">
                       <div className="flex items-center space-x-4 flex-1 min-w-0">
-                        {/* Enhanced Rank Badge */}
+                        {/* Rank Badge */}
                         <div className={cn(
-                          "relative w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold border-2",
+                          "w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold border-2",
                           rankBadge.color
                         )}>
                           {isTopThree ? (
                             <RankIcon className="w-5 h-5" />
                           ) : (
                             <span className="text-xs">{leaderUser.rank}</span>
-                          )}
-                          {isTopThree && (
-                            <motion.div
-                              className="absolute -top-1 -right-1 w-4 h-4 bg-yellow-400 rounded-full flex items-center justify-center"
-                              animate={{ scale: [1, 1.2, 1] }}
-                              transition={{ duration: 2, repeat: Infinity }}
-                            >
-                              <span className="text-xs">✨</span>
-                            </motion.div>
                           )}
                         </div>
                         
@@ -340,6 +496,7 @@ const UnifiedLeaderboardPage: React.FC = () => {
                             <h4 className="font-semibold text-gray-900 truncate">
                               {leaderUser.full_name || leaderUser.username}
                             </h4>
+                            <OGBadge tier={leaderUser.og_badge} size="sm" />
                             {isCurrentUser && (
                               <motion.span
                                 className="px-2 py-0.5 bg-emerald-100 text-emerald-700 text-xs font-medium rounded-full"

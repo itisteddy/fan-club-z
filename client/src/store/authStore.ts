@@ -26,6 +26,11 @@ interface User {
   full_name?: string;
   avatar_url?: string;
   is_verified?: boolean;
+  // OG Badge fields from users table
+  og_badge?: 'gold' | 'silver' | 'bronze' | null;
+  og_badge_assigned_at?: string | null;
+  og_badge_member_number?: number | null;
+  referral_code?: string | null;
 }
 
 interface AuthState {
@@ -45,8 +50,37 @@ interface AuthState {
   handleOAuthCallback: () => Promise<User | null | void>;
 }
 
+// Fetch extended profile data from users table (includes OG badges)
+const fetchExtendedProfile = async (userId: string): Promise<Partial<User>> => {
+  try {
+    const { data, error } = await supabase
+      .from('users')
+      .select('og_badge, og_badge_assigned_at, og_badge_member_number, referral_code, username, full_name, avatar_url')
+      .eq('id', userId)
+      .single();
+    
+    if (error || !data) {
+      return {};
+    }
+    
+    return {
+      og_badge: data.og_badge as User['og_badge'],
+      og_badge_assigned_at: data.og_badge_assigned_at,
+      og_badge_member_number: data.og_badge_member_number,
+      referral_code: data.referral_code,
+      // Also get username/avatar from users table if available
+      username: data.username || undefined,
+      full_name: data.full_name || undefined,
+      avatar_url: data.avatar_url || undefined,
+    };
+  } catch (err) {
+    console.warn('Failed to fetch extended profile:', err);
+    return {};
+  }
+};
+
 // Convert Supabase user to our User interface
-const convertSupabaseUser = (supabaseUser: any): User | null => {
+const convertSupabaseUser = (supabaseUser: any, extendedProfile?: Partial<User>): User | null => {
   if (!supabaseUser) return null;
   
   const metadata = supabaseUser.user_metadata || {};
@@ -83,8 +117,8 @@ const convertSupabaseUser = (supabaseUser: any): User | null => {
     firstName,
     lastName,
     phone: supabaseUser.phone,
-    avatar,
-     avatar_url: avatar,
+    avatar: extendedProfile?.avatar_url || avatar,
+    avatar_url: extendedProfile?.avatar_url || avatar,
     provider: appMetadata.provider || 'email',
     bio: metadata.bio,
     totalEarnings: metadata.totalEarnings || 0,
@@ -95,9 +129,14 @@ const convertSupabaseUser = (supabaseUser: any): User | null => {
     rank: metadata.rank || 0,
     level: metadata.level || 'New Predictor',
     createdAt: supabaseUser.created_at || new Date().toISOString(),
-    username,
-    full_name: fullName,
+    username: extendedProfile?.username || username,
+    full_name: extendedProfile?.full_name || fullName,
     is_verified: Boolean(metadata.is_verified || metadata.verified),
+    // OG Badge fields from extended profile
+    og_badge: extendedProfile?.og_badge || null,
+    og_badge_assigned_at: extendedProfile?.og_badge_assigned_at || null,
+    og_badge_member_number: extendedProfile?.og_badge_member_number || null,
+    referral_code: extendedProfile?.referral_code || null,
   };
 };
 
@@ -170,7 +209,9 @@ export const useAuthStore = create<AuthState>()(
           }
 
           if (session?.user) {
-            const convertedUser = convertSupabaseUser(session.user);
+            // Fetch extended profile data (including OG badges) from users table
+            const extendedProfile = await fetchExtendedProfile(session.user.id);
+            const convertedUser = convertSupabaseUser(session.user, extendedProfile);
             
             set({ 
               isAuthenticated: true, 
@@ -230,7 +271,9 @@ export const useAuthStore = create<AuthState>()(
           const session = data?.session;
 
           if (authUser && session) {
-            const convertedUser = convertSupabaseUser(authUser);
+            // Fetch extended profile data (including OG badges) from users table
+            const extendedProfile = await fetchExtendedProfile(authUser.id);
+            const convertedUser = convertSupabaseUser(authUser, extendedProfile);
             
             set({ 
               isAuthenticated: true, 
@@ -287,7 +330,9 @@ export const useAuthStore = create<AuthState>()(
           const authUser = data?.user;
 
           if (authUser) {
-            const convertedUser = convertSupabaseUser(authUser);
+            // Fetch extended profile data (including OG badges) from users table
+            const extendedProfile = await fetchExtendedProfile(authUser.id);
+            const convertedUser = convertSupabaseUser(authUser, extendedProfile);
             
             // If we have a session, log them in immediately
             if (data?.session) {
@@ -353,7 +398,9 @@ export const useAuthStore = create<AuthState>()(
           }
 
           if (data.session?.user) {
-              const convertedUser = convertSupabaseUser(data.session.user);
+            // Fetch extended profile data (including OG badges) from users table
+            const extendedProfile = await fetchExtendedProfile(data.session.user.id);
+            const convertedUser = convertSupabaseUser(data.session.user, extendedProfile);
             
             set({ 
               isAuthenticated: true, 
@@ -435,7 +482,9 @@ export const useAuthStore = create<AuthState>()(
           }
 
           if (data?.user) {
-            const updatedUser = convertSupabaseUser(data.user);
+            // Fetch extended profile to preserve OG badge data
+            const extendedProfile = await fetchExtendedProfile(data.user.id);
+            const updatedUser = convertSupabaseUser(data.user, extendedProfile);
             set({ 
               user: updatedUser,
               loading: false,
@@ -485,8 +534,9 @@ export const useAuthStore = create<AuthState>()(
         // 4) Mirror to public users table for fast reads
         await clientDb.users.updateProfile(userId, { avatar_url: publicUrl });
 
-        // 5) Update local state
-        const updatedUser = authUpdate?.user ? convertSupabaseUser(authUpdate.user) : null;
+        // 5) Update local state - preserve OG badge data
+        const extendedProfile = await fetchExtendedProfile(userId);
+        const updatedUser = authUpdate?.user ? convertSupabaseUser(authUpdate.user, extendedProfile) : null;
         if (updatedUser) {
           set({ user: updatedUser, lastAuthCheck: Date.now() });
         }
@@ -504,7 +554,7 @@ export const useAuthStore = create<AuthState>()(
         initialized: state.initialized,
         lastAuthCheck: state.lastAuthCheck
       }),
-      version: 5, // Increment version for OAuth support
+      version: 6, // Increment version for OG badge support
     }
   )
 );

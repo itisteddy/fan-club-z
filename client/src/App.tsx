@@ -33,6 +33,7 @@ const LazyDownloadPage = lazy(() => import('./legacy/pages/DownloadPage'));
 const LazyWalletPageV2 = lazy(() => import('./pages/WalletPageV2'));
 const LazyUnifiedLeaderboardPage = lazy(() => import('./pages/UnifiedLeaderboardPage'));
 const LazyAuthCallback = lazy(() => import('./pages/auth/AuthCallback'));
+const LazyReferralRedirectPage = lazy(() => import('./pages/ReferralRedirectPage'));
 
 
 // Import all page components
@@ -619,6 +620,7 @@ const AppContent: React.FC = () => {
               <Route path="/" element={<DiscoverPageWrapper />} />
               <Route path="/discover" element={<DiscoverPageWrapper />} />
               <Route path="/auth/callback" element={<LazyAuthCallback />} />
+              <Route path="/r/:code" element={<LazyReferralRedirectPage />} />
               <Route path="/predictions" element={<PredictionsPageWrapper />} />
               <Route path="/predictions/:id" element={<PredictionDetailsRouteWrapper />} />
               <Route path="/bets" element={<PredictionsPageWrapper />} />

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Edit3, User, Activity, DollarSign, TrendingUp, Target, Trophy, MoreVertical, LogOut, Upload, X, Mail, XCircle } from 'lucide-react';
+import { Edit3, User, Activity, DollarSign, TrendingUp, Target, Trophy, Upload, X, Mail, XCircle } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { useAuthSession } from '../providers/AuthSessionProvider';
 import { usePredictionStore } from '../store/predictionStore';
@@ -9,6 +9,12 @@ import AppHeader from '../components/layout/AppHeader';
 import { formatLargeNumber, formatCurrency, formatPercentage, formatTimeAgo } from '@/lib/format';
 import { useUserActivity, ActivityItem as FeedActivityItem } from '@/hooks/useActivityFeed';
 import { t } from '@/lib/lexicon';
+import { ReferralCard, ReferralShareModal } from '@/components/referral';
+import { OGBadge, AvatarWithBadge } from '@/components/badges/OGBadge';
+import { OGBadgeEnhanced } from '@/components/badges/OGBadgeEnhanced';
+import { ProfileBadgesSection } from '@/components/profile/ProfileBadgesSection';
+import { ProfileReferralSection } from '@/components/profile/ProfileReferralSection';
+import { useReferral } from '@/hooks/useReferral';
 
 interface ProfilePageV2Props {
   onNavigateBack?: () => void;
@@ -27,16 +33,25 @@ const ProfilePageV2: React.FC<ProfilePageV2Props> = ({ onNavigateBack, userId })
   const [loading, setLoading] = useState(true);
   const [showActivityModal, setShowActivityModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
-  const [showMenu, setShowMenu] = useState(false);
+
   const [editFirstName, setEditFirstName] = useState('');
   const [editLastName, setEditLastName] = useState('');
   const [editBio, setEditBio] = useState('');
+  const [showShareModal, setShowShareModal] = useState(false);
+  
+  // Referral hook
+  const { isEnabled: referralsEnabled } = useReferral();
   
   // Determine user context - prioritize session user
   const user = sessionUser || storeUser;
   const authenticated = !!sessionUser || storeAuth;
   const isOwnProfile = !userId || userId === user?.id;
   const displayUser = user;
+  
+  // Get OG badge from user metadata
+  const ogBadge = (user as any)?.user_metadata?.og_badge || (user as any)?.og_badge || null;
+  const ogBadgeAssignedAt = (user as any)?.user_metadata?.og_badge_assigned_at || (user as any)?.og_badge_assigned_at || null;
+  const ogBadgeMemberNumber = (user as any)?.user_metadata?.og_badge_member_number || (user as any)?.og_badge_member_number || null;
 
   useEffect(() => {
     if (authenticated && user?.id) {
@@ -74,6 +89,18 @@ const ProfilePageV2: React.FC<ProfilePageV2Props> = ({ onNavigateBack, userId })
   // Recent activity (last 5 items)
   const recentActivity = activityItems.slice(0, 5);
   const isActivityLoading = loadingActivity && activityItems.length === 0;
+
+  // Calculate professional KPIs for Profile - must be before any early returns
+  const uniquePredictionsBetOn = React.useMemo(() => {
+    const ids = new Set<string>();
+    for (const e of userEntries) {
+      if (e?.prediction_id) ids.add(e.prediction_id);
+    }
+    return ids.size;
+  }, [userEntries]);
+  const totalPredictions = uniquePredictionsBetOn + userCreated.length;
+  const successRate = completedEntries.length > 0 ? (wonEntries.length / completedEntries.length) * 100 : 0;
+  const userRank = Math.max(1, Math.ceil((100 - winRate) / 10)); // Simple ranking based on win rate
 
   const getActivityDisplay = (item: FeedActivityItem) => {
     switch (item.type) {
@@ -204,9 +231,8 @@ const ProfilePageV2: React.FC<ProfilePageV2Props> = ({ onNavigateBack, userId })
               </div>
             </div>
 
-            {/* Overview Card - Clean signed-out state */}
+            {/* Profile Card - Clean signed-out state */}
             <div className="bg-white rounded-2xl border border-black/[0.06] p-4">
-              <h3 className="text-sm font-semibold text-gray-900 mb-4">Overview</h3>
               <div className="text-center py-8">
                 <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
                   <User className="w-8 h-8 text-gray-400" />
@@ -242,18 +268,6 @@ const ProfilePageV2: React.FC<ProfilePageV2Props> = ({ onNavigateBack, userId })
       </div>
     );
   }
-
-  // Calculate professional KPIs for Profile
-  const uniquePredictionsBetOn = React.useMemo(() => {
-    const ids = new Set<string>();
-    for (const e of userEntries) {
-      if (e?.prediction_id) ids.add(e.prediction_id);
-    }
-    return ids.size;
-  }, [userEntries]);
-  const totalPredictions = uniquePredictionsBetOn + userCreated.length;
-  const successRate = completedEntries.length > 0 ? (wonEntries.length / completedEntries.length) * 100 : 0;
-  const userRank = Math.max(1, Math.ceil((100 - winRate) / 10)); // Simple ranking based on win rate
 
   return (
     <div className="min-h-screen bg-gray-50 pb-[calc(5rem+env(safe-area-inset-bottom))]">
@@ -332,50 +346,29 @@ const ProfilePageV2: React.FC<ProfilePageV2Props> = ({ onNavigateBack, userId })
                 </div>
               </div>
 
-              {/* Overview Card - Professional profile display */}
+              {/* Profile Card */}
               <div className="bg-white rounded-2xl border border-black/[0.06] p-4">
-                <div className="flex items-start justify-between mb-4">
-                  <h3 className="text-sm font-semibold text-gray-900">Overview</h3>
-                  {isOwnProfile && (
-                    <div className="relative">
-                      <div className="flex items-center gap-1">
-                        <button 
-                          onClick={() => {
-                            setEditFirstName((displayUser as any)?.firstName || '');
-                            setEditLastName((displayUser as any)?.lastName || '');
-                            setEditBio((displayUser as any)?.bio || '');
-                            setShowEditModal(true);
-                          }}
-                          className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
-                          title="Edit profile"
-                        >
-                          <Edit3 className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => setShowMenu(v => !v)}
-                          className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
-                          title="More"
-                        >
-                          <MoreVertical className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </div>
                 <div className="flex items-center space-x-4">
-                  <UserAvatar
-                    email={displayUser?.email}
-                    username={(displayUser as any)?.firstName || displayUser?.email?.split('@')[0]}
-                    avatarUrl={(displayUser as any)?.avatar}
-                    size="lg"
-                  />
+                  {/* Avatar with OG Badge overlay */}
+                  <AvatarWithBadge tier={ogBadge} badgePosition="bottom-right" badgeSize="sm">
+                    <UserAvatar
+                      email={displayUser?.email}
+                      username={(displayUser as any)?.firstName || displayUser?.email?.split('@')[0]}
+                      avatarUrl={(displayUser as any)?.avatar}
+                      size="lg"
+                    />
+                  </AvatarWithBadge>
                   <div className="flex-1 min-w-0">
-                    <h3 className="text-xl font-bold text-gray-900">
-                      {(displayUser as any)?.firstName && (displayUser as any)?.lastName 
-                        ? `${(displayUser as any).firstName} ${(displayUser as any).lastName}`
-                        : displayUser?.email?.split('@')[0] || 'User'
-                      }
-                    </h3>
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-xl font-bold text-gray-900">
+                        {(displayUser as any)?.firstName && (displayUser as any)?.lastName 
+                          ? `${(displayUser as any).firstName} ${(displayUser as any).lastName}`
+                          : displayUser?.email?.split('@')[0] || 'User'
+                        }
+                      </h3>
+                      {/* Inline OG Badge next to name */}
+                      <OGBadge tier={ogBadge} size="md" />
+                    </div>
                     <p className="text-sm text-gray-600 mb-2">
                       @{displayUser?.email?.split('@')[0] || 'user'}
                     </p>
@@ -392,8 +385,40 @@ const ProfilePageV2: React.FC<ProfilePageV2Props> = ({ onNavigateBack, userId })
                       </span>
                     </div>
                   </div>
+                  {/* Edit button */}
+                  {isOwnProfile && (
+                    <button 
+                      onClick={() => {
+                        setEditFirstName((displayUser as any)?.firstName || '');
+                        setEditLastName((displayUser as any)?.lastName || '');
+                        setEditBio((displayUser as any)?.bio || '');
+                        setShowEditModal(true);
+                      }}
+                      className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors self-start"
+                      title="Edit profile"
+                    >
+                      <Edit3 className="w-4 h-4" />
+                    </button>
+                  )}
                 </div>
               </div>
+
+              {/* Badges Section - Show if user has badges */}
+              {ogBadge && (
+                <ProfileBadgesSection
+                  ogBadge={ogBadge}
+                  ogBadgeAssignedAt={ogBadgeAssignedAt}
+                  ogBadgeMemberNumber={ogBadgeMemberNumber}
+                />
+              )}
+
+              {/* Referral Section - Show only on own profile when feature is enabled */}
+              {isOwnProfile && referralsEnabled && (
+                <ProfileReferralSection
+                  isOwnProfile={isOwnProfile}
+                  onOpenShareModal={() => setShowShareModal(true)}
+                />
+              )}
 
               {/* Recent Activity Card - Enhanced activity display */}
               <div className="bg-white rounded-2xl border border-black/[0.06] p-4">
@@ -485,7 +510,7 @@ const ProfilePageV2: React.FC<ProfilePageV2Props> = ({ onNavigateBack, userId })
                     <p className="text-xs uppercase tracking-[0.2em] text-white/70 font-semibold">Need help?</p>
                     <h3 className="text-lg font-bold mt-1">Contact the FanClubZ team</h3>
                     <p className="text-sm text-white/80 mt-1">
-                      Have a question or spotted an issue? Email us and we’ll follow up quickly.
+                      Have a question or spotted an issue? Email us and we'll follow up quickly.
                     </p>
                     <p className="text-xs text-white/70 font-mono mt-2">tech@fanclubz.app</p>
                   </div>
@@ -664,6 +689,12 @@ const ProfilePageV2: React.FC<ProfilePageV2Props> = ({ onNavigateBack, userId })
         </div>
       </div>
     )}
+
+    {/* Referral Share Modal */}
+    <ReferralShareModal 
+      isOpen={showShareModal} 
+      onClose={() => setShowShareModal(false)} 
+    />
     </div>
   );
 };

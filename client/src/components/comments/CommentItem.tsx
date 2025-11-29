@@ -4,6 +4,7 @@ import { useAuthStore } from '../../store/authStore';
 import CommentOverflowMenu from './CommentOverflowMenu';
 import { formatDistanceToNow } from 'date-fns';
 import { qaLog } from '../../utils/devQa';
+import { OGBadge } from '../badges/OGBadge';
 
 interface CommentItemProps {
   comment: Comment;
@@ -27,6 +28,9 @@ const CommentItem: React.FC<CommentItemProps> = ({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const isOwner = user?.id === comment.user.id;
+  
+  // Get OG badge from comment user data
+  const ogBadge = (comment.user as any)?.og_badge || (comment.user as any)?.ogBadge || null;
 
   // Handle edit mode
   const handleEditStart = () => {
@@ -167,13 +171,17 @@ const CommentItem: React.FC<CommentItemProps> = ({
       <div className="comment-content">
         {/* Header */}
         <div className="comment-header">
-          <button
-            className="comment-username"
-            onClick={handleUsernameClick}
-            type="button"
-          >
-            {comment.user.username}
-          </button>
+          <div className="flex items-center gap-1.5">
+            <button
+              className="comment-username"
+              onClick={handleUsernameClick}
+              type="button"
+            >
+              {comment.user.username}
+            </button>
+            {/* OG Badge next to username */}
+            <OGBadge tier={ogBadge} size="xs" />
+          </div>
           <span className="comment-timestamp">
             {timeAgo}
             {comment.edited && <span className="ml-1">(edited)</span>}
