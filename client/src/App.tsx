@@ -44,6 +44,7 @@ import ConnectWalletSheet from './components/wallet/ConnectWalletSheet';
 import AuthRequiredState from './components/ui/empty/AuthRequiredState';
 import { Sparkles } from 'lucide-react';
 import { captureReturnTo } from './lib/returnTo';
+import { useReferralCapture, useReferralAttribution } from './hooks/useReferral';
 
 // Simple Loading Component
 const LoadingSpinner: React.FC<{ message?: string }> = ({ message = "Loading..." }) => (
@@ -208,6 +209,10 @@ MainLayout.displayName = 'MainLayout';
 const BootstrapEffects: React.FC = () => {
   const { user: sessionUser, session, initialized: sessionInitialized } = useAuthSession();
   const { initializeAuth, isAuthenticated: storeAuthenticated, initialized: storeInitialized, user: storeUser } = useAuthStore();
+  
+  // Initialize referral tracking
+  useReferralCapture();
+  useReferralAttribution();
   
   // Sync AuthSession with AuthStore
   useEffect(() => {

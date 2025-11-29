@@ -298,7 +298,7 @@ const UnifiedLeaderboardPage: React.FC = () => {
               {entry.activeReferrals}
             </div>
             <div className="text-xs text-gray-500">
-              active · {entry.totalSignups} total
+              active referrals
             </div>
           </div>
         </div>

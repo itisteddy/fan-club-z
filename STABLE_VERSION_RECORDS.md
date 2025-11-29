@@ -62,6 +62,24 @@ git checkout fcz-stable-landing-page-20251128-*
 
 ## Previous Stable Versions
 
+### Pre-Badges/Referrals Recovery: `fcz-pre-badges-referrals-20251128-220607`
+
+**Commit:** `e44b4d20`  
+**Date:** January 28, 2025  
+**Tag:** `fcz-pre-badges-referrals-20251128-220607`  
+**Branch:** `recovery/pre-badges-referrals-20251128-220607`
+
+**Key Features:**
+- Wallet and payment functionality stable
+- Landing page with YouTube/WhatsApp links
+- Scroll behavior fixes
+- All core features working correctly
+
+**Purpose:** Recovery point before badges/referrals migration  
+**Status:** Safe rollback point if migration issues occur
+
+---
+
 ### Settlement Fixes Stable: `fcz-stable-production-20251128-130124`
 
 **Commit:** `0f57f78f`  
@@ -127,6 +145,7 @@ vercel --prod --yes
 
 | Date | Tag | Commit | Description |
 |------|-----|--------|-------------|
+| 2025-01-28 | `fcz-pre-badges-referrals-*` | `e44b4d20` | Recovery point before badges/referrals migration |
 | 2025-01-28 | `fcz-stable-main-app-*` | `eeb25b23` | Funding guide moved to landing site |
 | 2025-01-28 | `fcz-stable-landing-page-*` | `eeb25b23` | Multi-page landing site with funding guide |
 | 2025-01-28 | `fcz-stable-production-*` | `0f57f78f` | Settlement fixes and balance reconciliation |
