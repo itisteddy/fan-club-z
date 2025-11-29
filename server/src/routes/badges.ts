@@ -15,35 +15,37 @@ const router = express.Router();
 const BADGES_OG_ENABLE = process.env.BADGES_OG_ENABLE === '1';
 const BADGES_OG_COUNTS = (process.env.BADGES_OG_COUNTS || '25,100,500').split(',').map(n => parseInt(n, 10));
 
-// Parse counts
-const [GOLD_COUNT, SILVER_COUNT, BRONZE_COUNT] = BADGES_OG_COUNTS;
+// Parse counts with defaults
+const [GOLD_COUNT = 25, SILVER_COUNT = 100, BRONZE_COUNT = 500] = BADGES_OG_COUNTS;
 
 // Valid badge tiers
 const VALID_TIERS = ['gold', 'silver', 'bronze'] as const;
 type BadgeTier = typeof VALID_TIERS[number];
 
 // Helper: Check if feature is enabled
-const checkFeatureEnabled = (req: express.Request, res: express.Response, next: express.NextFunction) => {
+const checkFeatureEnabled = (req: express.Request, res: express.Response, next: express.NextFunction): void => {
   if (!BADGES_OG_ENABLE) {
-    return res.status(404).json({
+    res.status(404).json({
       error: 'Feature disabled',
       message: 'OG badges system is not enabled',
       version: VERSION
     });
+    return;
   }
   next();
 };
 
 // Helper: Check admin access
-const checkAdminAccess = (req: express.Request, res: express.Response, next: express.NextFunction) => {
+const checkAdminAccess = (req: express.Request, res: express.Response, next: express.NextFunction): void => {
   const adminKey = req.headers['x-admin-key'] || req.headers['authorization'];
   
   if (adminKey !== process.env.ADMIN_API_KEY) {
-    return res.status(401).json({
+    res.status(401).json({
       error: 'Unauthorized',
       message: 'Admin key required',
       version: VERSION
     });
+    return;
   }
   next();
 };

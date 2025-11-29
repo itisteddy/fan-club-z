@@ -17,13 +17,14 @@ const MAX_SIGNUPS_PER_IP_DAY = parseInt(process.env.REFERRAL_MAX_SIGNUPS_PER_IP_
 const MAX_SIGNUPS_PER_DEVICE_DAY = parseInt(process.env.REFERRAL_MAX_SIGNUPS_PER_DEVICE_DAY || '5', 10);
 
 // Helper: Check if feature is enabled
-const checkFeatureEnabled = (req: express.Request, res: express.Response, next: express.NextFunction) => {
+const checkFeatureEnabled = (req: express.Request, res: express.Response, next: express.NextFunction): void => {
   if (!REFERRAL_ENABLE) {
-    return res.status(404).json({
+    res.status(404).json({
       error: 'Feature disabled',
       message: 'Referral system is not enabled',
       version: VERSION
     });
+    return;
   }
   next();
 };
