@@ -4,7 +4,7 @@ import { ChevronLeft, Plus, X, Calendar, DollarSign, Users, Settings, Sparkles, 
 import { usePredictionStore } from '../store/predictionStore';
 import { useSettlementStore } from '../store/settlementStore';
 import { useAuthStore } from '../store/authStore';
-import { useLocation } from 'wouter';
+import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { scrollToTop } from '../utils/scroll';
 import { SourcePill } from '../components/settlement/SourcePill';
@@ -31,7 +31,7 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
   const { user: sessionUser } = useAuthSession();
   const currentUser = sessionUser ?? storeUser ?? null;
   const isAuthenticated = !!sessionUser || storeIsAuthenticated;
-  const [, setLocation] = useLocation();
+  const navigate = useNavigate();
   
   // Draft persistence key
   const DRAFT_KEY = 'fcz_create_prediction_draft';
@@ -342,7 +342,7 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
       toast.success('🎉 Prediction created successfully!');
       setSubmitSuccess(true);
       
-      // Navigate to My Bets after success
+      // Navigate to My Stakes after success
       setTimeout(() => {
         // Reset form
         setStep(1);
@@ -362,15 +362,9 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
         setSubmitSuccess(false);
         setIsSubmitting(false);
         
-        // Navigate to My Bets to show created prediction
-        if (onNavigateBack) {
-          // First navigate back to main app
-          onNavigateBack();
-          // Then trigger navigation to My Bets using proper wouter navigation
-          setTimeout(() => {
-            setLocation('/predictions');
-          }, 100);
-        }
+        // Navigate to My Stakes to show created prediction using react-router-dom
+        // Use replace: true to prevent going back to the success screen
+        navigate('/predictions', { replace: true });
       }, 2000);
     } catch (error) {
       console.error('Failed to create prediction:', error);
@@ -378,7 +372,7 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
       toast.error(errorMessage);
       setIsSubmitting(false);
     }
-  }, [validateStep, title, category, entryDeadline, description, type, options, stakeMin, stakeMax, settlementMethod, isPrivate, isAuthenticated, currentUser, createPrediction, onNavigateBack, setLocation, saveDraft]);
+  }, [validateStep, title, category, entryDeadline, description, type, options, stakeMin, stakeMax, settlementMethod, isPrivate, isAuthenticated, currentUser, createPrediction, navigate, saveDraft]);
 
   // Success View
   if (submitSuccess) {

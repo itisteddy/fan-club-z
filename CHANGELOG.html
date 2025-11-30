@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Fan Club Z - Feature Changelog</title>
+    <style>
+        body {
+            font-family: 'Calibri', 'Arial', sans-serif;
+            font-size: 11pt;
+            line-height: 1.5;
+            margin: 1in;
+            color: #000000;
+        }
+        h1 {
+            font-size: 24pt;
+            font-weight: bold;
+            color: #2E5090;
+            margin-top: 24pt;
+            margin-bottom: 12pt;
+            page-break-after: avoid;
+        }
+        h2 {
+            font-size: 18pt;
+            font-weight: bold;
+            color: #2E5090;
+            margin-top: 18pt;
+            margin-bottom: 9pt;
+            page-break-after: avoid;
+        }
+        h3 {
+            font-size: 14pt;
+            font-weight: bold;
+            color: #2E5090;
+            margin-top: 14pt;
+            margin-bottom: 7pt;
+            page-break-after: avoid;
+        }
+        h4 {
+            font-size: 12pt;
+            font-weight: bold;
+            color: #2E5090;
+            margin-top: 12pt;
+            margin-bottom: 6pt;
+            page-break-after: avoid;
+        }
+        p {
+            margin-top: 6pt;
+            margin-bottom: 6pt;
+        }
+        ul, ol {
+            margin-top: 6pt;
+            margin-bottom: 6pt;
+            padding-left: 30pt;
+        }
+        li {
+            margin-top: 3pt;
+            margin-bottom: 3pt;
+        }
+        strong {
+            font-weight: bold;
+        }
+        hr {
+            border: none;
+            border-top: 1pt solid #CCCCCC;
+            margin: 18pt 0;
+        }
+        .toc {
+            margin-top: 18pt;
+            margin-bottom: 18pt;
+        }
+        .version-info {
+            margin-bottom: 12pt;
+        }
+        .footer {
+            margin-top: 24pt;
+            padding-top: 12pt;
+            border-top: 1pt solid #CCCCCC;
+            font-size: 9pt;
+            color: #666666;
+        }
+    </style>
+</head>
+<body>
+
+<h1>Fan Club Z - Feature Changelog</h1>
+
+<div class="version-info">
+    <p><strong>Version:</strong> 2.0.78</p>
+    <p><strong>Last Updated:</strong> January 2025</p>
+    <p><strong>Purpose:</strong> Comprehensive record of all major features currently in production</p>
+</div>
+
+<hr>
+
+<div class="toc">
+    <h2>Table of Contents</h2>
+    <ul>
+        <li><a href="#v20">v2.0 - Core Platform</a></li>
+        <li><a href="#v21">v2.1 - Wallet & Payments</a></li>
+        <li><a href="#v22">v2.2 - Social Features</a></li>
+        <li><a href="#v23">v2.3 - Enhanced UX</a></li>
+        <li><a href="#v24">v2.4 - OG Badges & Referrals</a></li>
+        <li><a href="#status">Feature Status</a></li>
+    </ul>
+</div>
+
+<hr>
+
+<h2 id="v20">v2.0 - Core Platform</h2>
+
+<h3>Authentication & User Management</h3>
+
+<h4>Email Authentication</h4>
+<ul>
+    <li>Email/password sign-up and sign-in</li>
+    <li>Magic link authentication (passwordless)</li>
+    <li>Email verification flow</li>
+    <li>Session persistence across page refreshes</li>
+    <li>Secure session management via Supabase Auth</li>
+</ul>
+
+<h4>OAuth Integration</h4>
+<ul>
+    <li>Google OAuth sign-in</li>
+    <li>PKCE flow for secure authentication</li>
+    <li>Deep linking support for mobile OAuth</li>
+    <li>Custom tab authentication for mobile apps</li>
+    <li>Automatic session restoration after OAuth redirect</li>
+</ul>
+
+<h4>User Profiles</h4>
+<ul>
+    <li>User profile pages with avatar, username, and bio</li>
+    <li>View other users' profiles</li>
+    <li>Profile statistics (predictions created, bets placed, win rate)</li>
+    <li>User activity history</li>
+    <li>Profile editing capabilities</li>
+</ul>
+
+<h3>Prediction System</h3>
+
+<h4>Prediction Creation</h4>
+<ul>
+    <li>Create binary predictions with custom options</li>
+    <li>Add prediction title, description, and images</li>
+    <li>Set prediction categories (Sports, Pop Culture, Politics, etc.)</li>
+    <li>Set closing dates and settlement criteria</li>
+    <li>Image upload and management</li>
+    <li>SEO-friendly slug generation for predictions</li>
+</ul>
+
+<h4>Prediction Discovery</h4>
+<ul>
+    <li>Discover page with infinite scroll</li>
+    <li>Filter predictions by category</li>
+    <li>Search functionality</li>
+    <li>Sort by trending, newest, closing soon</li>
+    <li>Prediction cards with key information</li>
+    <li>Responsive grid layout</li>
+</ul>
+
+<h4>Prediction Details</h4>
+<ul>
+    <li>Full prediction view with all details</li>
+    <li>Betting interface with option selection</li>
+    <li>Real-time odds calculation</li>
+    <li>Current bet distribution visualization</li>
+    <li>Prediction creator information</li>
+    <li>Settlement criteria display</li>
+</ul>
+
+<h4>Betting System</h4>
+<ul>
+    <li>Place bets on predictions</li>
+    <li>Multiple betting options per prediction</li>
+    <li>Real-time balance checking</li>
+    <li>Escrow lock system for bet funds</li>
+    <li>Atomic bet placement with idempotency</li>
+    <li>Bet history tracking</li>
+</ul>
+
+<h4>Settlement System</h4>
+<ul>
+    <li>Creator-controlled settlement</li>
+    <li>Manual settlement with outcome selection</li>
+    <li>Automatic payout calculation</li>
+    <li>Settlement validation system</li>
+    <li>Dispute resolution mechanism</li>
+    <li>Refund capability for disputed predictions</li>
+</ul>
+
+<h4>Dispute Resolution</h4>
+<ul>
+    <li>Users can dispute settlement outcomes</li>
+    <li>Creator can accept, revise, or reject disputes</li>
+    <li>Automatic refunds for accepted disputes</li>
+    <li>Dispute status tracking</li>
+    <li>Settlement validation records</li>
+</ul>
+
+<h3>Leaderboards</h3>
+
+<h4>Unified Leaderboard System</h4>
+<ul>
+    <li>Overall leaderboard (total winnings)</li>
+    <li>Win rate leaderboard</li>
+    <li>Referral leaderboard (active referrals count)</li>
+    <li>Category-specific leaderboards</li>
+    <li>User rankings with badges</li>
+    <li>Real-time leaderboard updates</li>
+</ul>
+
+<hr>
+
+<h2 id="v21">v2.1 - Wallet & Payments</h2>
+
+<h3>Crypto Wallet Integration</h3>
+
+<h4>Base Sepolia Network</h4>
+<ul>
+    <li>USDC token support (ERC-20)</li>
+    <li>Wallet connection via WalletConnect</li>
+    <li>MetaMask integration</li>
+    <li>Coinbase Wallet integration</li>
+    <li>Multi-wallet support</li>
+</ul>
+
+<h4>Deposit System</h4>
+<ul>
+    <li>On-chain deposit detection</li>
+    <li>Automatic balance updates</li>
+    <li>Deposit transaction tracking</li>
+    <li>Real-time deposit notifications</li>
+    <li>Deposit history in activity feed</li>
+</ul>
+
+<h4>Withdrawal System</h4>
+<ul>
+    <li>Withdraw USDC to connected wallet</li>
+    <li>On-chain withdrawal transactions</li>
+    <li>Withdrawal confirmation flow</li>
+    <li>Withdrawal history tracking</li>
+</ul>
+
+<h4>Escrow System</h4>
+<ul>
+    <li>Escrow contract integration</li>
+    <li>Automatic escrow lock creation for bets</li>
+    <li>Escrow balance tracking</li>
+    <li>Available vs reserved balance separation</li>
+    <li>Escrow reconciliation system</li>
+</ul>
+
+<h3>Wallet Features</h3>
+
+<h4>Wallet Page</h4>
+<ul>
+    <li>Wallet USDC balance display</li>
+    <li>Escrow balance (total, available, reserved)</li>
+    <li>Transaction activity feed</li>
+    <li>Deposit/withdraw actions</li>
+    <li>Wallet connection management</li>
+    <li>Auto-refresh every 10 seconds</li>
+</ul>
+
+<h4>Transaction History</h4>
+<ul>
+    <li>Complete transaction log</li>
+    <li>Transaction type indicators (deposit, withdraw, lock, unlock, bet, payout)</li>
+    <li>Timestamp and amount display</li>
+    <li>Transaction status tracking</li>
+    <li>Infinite scroll for history</li>
+</ul>
+
+<h4>Balance Management</h4>
+<ul>
+    <li>Real-time balance updates</li>
+    <li>Multi-source balance aggregation</li>
+    <li>Available-to-stake calculation</li>
+    <li>Insufficient funds handling</li>
+    <li>Balance validation before transactions</li>
+</ul>
+
+<hr>
+
+<h2 id="v22">v2.2 - Social Features</h2>
+
+<h3>Comments System</h3>
+
+<h4>Comment Threading</h4>
+<ul>
+    <li>Add comments to predictions</li>
+    <li>Reply to comments (nested threads)</li>
+    <li>Edit own comments</li>
+    <li>Delete own comments</li>
+    <li>Comment pagination and infinite scroll</li>
+    <li>Real-time comment updates</li>
+</ul>
+
+<h4>Comment Interactions</h4>
+<ul>
+    <li>Like/unlike comments</li>
+    <li>Comment like counts</li>
+    <li>Comment author badges (OG badges, creator badges)</li>
+    <li>Comment timestamps</li>
+    <li>User avatars in comments</li>
+</ul>
+
+<h4>Comment UI</h4>
+<ul>
+    <li>Clean, mobile-optimized comment cards</li>
+    <li>Comment composer with character limits</li>
+    <li>Comment overflow menus</li>
+    <li>Comment loading states</li>
+    <li>Empty state handling</li>
+</ul>
+
+<h3>Social Engagement</h3>
+
+<h4>Prediction Likes</h4>
+<ul>
+    <li>Like/unlike predictions</li>
+    <li>Like count display</li>
+    <li>Like state persistence</li>
+</ul>
+
+<h4>Sharing</h4>
+<ul>
+    <li>Share predictions via native share sheet</li>
+    <li>Share to social media platforms</li>
+    <li>Shareable prediction links</li>
+    <li>Referral link sharing</li>
+</ul>
+
+<hr>
+
+<h2 id="v23">v2.3 - Enhanced UX</h2>
+
+<h3>Navigation & Layout</h3>
+
+<h4>Mobile-First Design</h4>
+<ul>
+    <li>Bottom navigation bar</li>
+    <li>Stable navigation with safe area support</li>
+    <li>Mobile-optimized layouts</li>
+    <li>Touch-friendly interactions</li>
+    <li>Responsive design for all screen sizes</li>
+</ul>
+
+<h4>Scroll Management</h4>
+<ul>
+    <li>Custom scroll restoration on back navigation</li>
+    <li>Scroll to top on forward navigation</li>
+    <li>Scroll position preservation for Discover page</li>
+    <li>Smooth scroll behavior</li>
+    <li>Browser history integration</li>
+</ul>
+
+<h4>Page Transitions</h4>
+<ul>
+    <li>Smooth page transitions</li>
+    <li>Loading states for all pages</li>
+    <li>Error boundaries</li>
+    <li>Page-level error handling</li>
+</ul>
+
+<h3>Onboarding</h3>
+
+<h4>User Onboarding</h4>
+<ul>
+    <li>Multi-step onboarding tour</li>
+    <li>Context-aware navigation</li>
+    <li>Feature discovery prompts</li>
+    <li>Onboarding completion tracking</li>
+    <li>Skip/complete options</li>
+</ul>
+
+<h3>Progressive Web App (PWA)</h3>
+
+<h4>PWA Features</h4>
+<ul>
+    <li>Install prompt for mobile devices</li>
+    <li>Offline support</li>
+    <li>App-like experience</li>
+    <li>Service worker integration</li>
+    <li>PWA manifest configuration</li>
+</ul>
+
+<h4>Mobile App Features</h4>
+<ul>
+    <li>Deep linking support</li>
+    <li>Native app integration</li>
+    <li>Push notification support (infrastructure ready)</li>
+    <li>App state management</li>
+</ul>
+
+<h3>Notifications</h3>
+
+<h4>In-App Notifications</h4>
+<ul>
+    <li>Toast notifications for actions</li>
+    <li>Success/error message display</li>
+    <li>Notification center (infrastructure ready)</li>
+    <li>Real-time notification updates</li>
+</ul>
+
+<hr>
+
+<h2 id="v24">v2.4 - OG Badges & Referrals</h2>
+
+<h3>OG Badges System</h3>
+
+<h4>Badge Tiers</h4>
+<ul>
+    <li>Gold badges (first 25 users)</li>
+    <li>Silver badges (next 100 users)</li>
+    <li>Bronze badges (next 500 users)</li>
+    <li>Member number assignment</li>
+    <li>Badge assignment date tracking</li>
+</ul>
+
+<h4>Badge Display</h4>
+<ul>
+    <li>Badge display on profile pages</li>
+    <li>Badge display in comments (author chips)</li>
+    <li>Badge tooltips with member number and join date</li>
+    <li>Animated badge components</li>
+    <li>Multiple badge size variants</li>
+</ul>
+
+<h4>Badge Features</h4>
+<ul>
+    <li>Admin badge assignment</li>
+    <li>Badge backfill for existing users</li>
+    <li>Badge removal capability</li>
+    <li>Badge statistics and counts</li>
+    <li>Badge tier gradients and styling</li>
+</ul>
+
+<h3>Referral System</h3>
+
+<h4>Referral Links</h4>
+<ul>
+    <li>Unique referral code generation</li>
+    <li>Shareable referral links</li>
+    <li>Referral link tracking</li>
+    <li>One-tap copy functionality</li>
+    <li>Native share integration</li>
+</ul>
+
+<h4>Referral Tracking</h4>
+<ul>
+    <li>Click tracking for referral links</li>
+    <li>Attribution on user sign-up</li>
+    <li>Active referral counting</li>
+    <li>Referral statistics (signups, active referrals)</li>
+    <li>Referral leaderboard integration</li>
+</ul>
+
+<h4>Referral Features</h4>
+<ul>
+    <li>Referral redirect page (/r/:code)</li>
+    <li>Referral code capture from URLs</li>
+    <li>Automatic referral attribution on login</li>
+    <li>Referral success celebrations</li>
+    <li>Milestone celebrations (5, 10, 25, 50, 100 referrals)</li>
+</ul>
+
+<h4>Referral UI</h4>
+<ul>
+    <li>Profile referral section</li>
+    <li>Referral stats display</li>
+    <li>Referral link sharing modal</li>
+    <li>Referral success toasts</li>
+    <li>Referral leaderboard tab</li>
+</ul>
+
+<hr>
+
+<h2 id="status">Feature Status</h2>
+
+<h3>Active Features</h3>
+<p>All features listed above are currently active and in production.</p>
+
+<h3>Feature Flags</h3>
+<p>Some features can be toggled via environment variables:</p>
+<ul>
+    <li><code>VITE_BADGES_OG_ENABLE</code> - OG Badges feature</li>
+    <li><code>VITE_REFERRALS_ENABLE</code> - Referrals feature</li>
+    <li><code>BADGES_OG_ENABLE</code> - Server-side badges API</li>
+    <li><code>REFERRAL_ENABLE</code> - Server-side referrals API</li>
+</ul>
+
+<h3>Notes</h3>
+<ul>
+    <li><strong>Version Tracking:</strong> Version numbers are read from package.json and not hardcoded</li>
+    <li><strong>Database:</strong> All features use Supabase (PostgreSQL) as the database</li>
+    <li><strong>Backend:</strong> Express.js API server deployed on Render</li>
+    <li><strong>Frontend:</strong> React application deployed on Vercel</li>
+    <li><strong>Blockchain:</strong> Base Sepolia testnet for crypto features</li>
+    <li><strong>Authentication:</strong> Supabase Auth for all authentication flows</li>
+</ul>
+
+<hr>
+
+<h2>Future Updates</h2>
+
+<p>When new features are added or existing features are removed, update this changelog with:</p>
+<ul>
+    <li><strong>Date</strong> of change</li>
+    <li><strong>Version</strong> number</li>
+    <li><strong>Feature name</strong> and description</li>
+    <li><strong>Status</strong> (Added, Removed, Modified)</li>
+</ul>
+
+<hr>
+
+<div class="footer">
+    <p><strong>Maintenance Guidelines:</strong></p>
+    <ul>
+        <li>Only include features that exist in production</li>
+        <li>Remove features from this list when they are deprecated/removed</li>
+        <li>Update version numbers with each deployment</li>
+        <li>Keep entries organized chronologically</li>
+        <li>Document feature flags and their purposes</li>
+    </ul>
+</div>
+
+</body>
+</html>
+

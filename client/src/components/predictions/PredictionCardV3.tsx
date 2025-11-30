@@ -104,7 +104,7 @@ export default function PredictionCardV3({ prediction }: PredictionCardProps) {
 
           <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-gray-500">
             {typeof prediction.pool === 'number' && (
-              <span>{formatNumberShort(prediction.pool, { currency: 'USD' })} pool</span>
+              <span>${formatNumberShort(prediction.pool)} pool</span>
             )}
             {typeof prediction.players === 'number' && <span>{prediction.players} players</span>}
             {prediction.options?.length ? (

@@ -82,20 +82,45 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = memo(({ children }) 
     }
   }, [location.pathname]);
   
+  // Helper to normalize path by removing trailing slashes (except for root)
+  const normalizePath = useCallback((pathname: string) => {
+    const p = pathname.toLowerCase();
+    return p === '/' ? p : p.replace(/\/+$/, '');
+  }, []);
+
   const getCurrentTab = useCallback(() => {
-    const path = location.pathname.toLowerCase();
+    const path = normalizePath(location.pathname);
     if (path === '/' || path === '/discover') return 'discover';
     if (path === '/bets' || path === '/predictions') return 'bets';
     if (path === '/leaderboard') return 'leaderboard';
     if (path === '/profile') return 'profile';
     if (path === '/wallet') return 'wallet';
+    // For non-tab routes (e.g. /create, details, callbacks), still visually
+    // highlight Discover, but allow tab presses to navigate away.
     return 'discover';
-  }, [location.pathname]);
+  }, [location.pathname, normalizePath]);
 
   const handleTabChange = useCallback((tab: string) => {
-    // Prevent infinite loops by checking if we're already on the target route
-    const currentTab = getCurrentTab();
-    if (currentTab === tab) return;
+    const path = normalizePath(location.pathname);
+    const isOnTabRoute =
+      path === '/' ||
+      path === '/discover' ||
+      path === '/bets' ||
+      path === '/predictions' ||
+      path === '/leaderboard' ||
+      path === '/profile' ||
+      path === '/wallet';
+
+    // Prevent redundant navigations only when we're already on a real tab route.
+    // On non-tab routes like /create or completion screens, always allow tab presses
+    // so users can reliably escape back to Home/Stakes/etc.
+    if (isOnTabRoute) {
+      if (tab === 'discover' && (path === '/' || path === '/discover')) return;
+      if (tab === 'bets' && (path === '/bets' || path === '/predictions')) return;
+      if (tab === 'leaderboard' && path === '/leaderboard') return;
+      if (tab === 'profile' && path === '/profile') return;
+      if (tab === 'wallet' && path === '/wallet') return;
+    }
     
     // Save current scroll position before navigating
     saveScrollPosition(location.pathname);
@@ -139,7 +164,7 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = memo(({ children }) 
         scrollToTop({ behavior: 'instant' });
       }, 50);
     });
-  }, [navigate, getCurrentTab, location]);
+  }, [navigate, location]);
 
   const requestCreateAccess = useCallback(async () => {
     if (!isAuthenticated) {

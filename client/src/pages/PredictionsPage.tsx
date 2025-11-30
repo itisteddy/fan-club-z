@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useLocation } from 'wouter';
+import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import { useAuthSession } from '../providers/AuthSessionProvider';
 import { usePredictionStore } from '../store/predictionStore';
@@ -32,7 +32,7 @@ type TabKey = 'Active' | 'Created' | 'Completed';
 
 // Production BetsTab Component - Extracted from production bundle
 const PredictionsPage: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNavigateToDiscover }) => {
-  const [, setLocation] = useLocation();
+  const navigate = useNavigate();
   const { 
     predictions, 
     getUserCreatedPredictions, 
@@ -524,8 +524,8 @@ const PredictionsPage: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNa
           )}
           onClick={() => {
             if (tab === 'Created') {
-              setLocation('/create');
-              window.scrollTo({ behavior: 'instant' });
+              navigate('/create');
+              window.scrollTo({ top: 0, behavior: 'instant' });
             } else {
               onNavigateToDiscover && onNavigateToDiscover();
             }
@@ -652,7 +652,7 @@ const PredictionsPage: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNa
   const CreatedPredictionCard = ({ prediction }: { prediction: any }) => (
     <div
       className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-4 hover:shadow-md transition-all duration-200 cursor-pointer"
-      onClick={() => setLocation(`/predictions/${prediction.id}`)}
+      onClick={() => navigate(`/predictions/${prediction.id}`)}
       role="button"
       aria-label={`View prediction ${prediction.title}`}
     >
@@ -754,9 +754,9 @@ const PredictionsPage: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNa
           toast('This prediction has been archived', { icon: '🗄️' });
           return;
         }
-        setLocation(`/predictions/${prediction.id}`);
+        navigate(`/predictions/${prediction.id}`);
       } catch {
-        setLocation(`/predictions/${prediction.id}`);
+        navigate(`/predictions/${prediction.id}`);
       }
     };
 
