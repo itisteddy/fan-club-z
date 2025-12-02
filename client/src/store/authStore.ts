@@ -478,13 +478,27 @@ export const useAuthStore = create<AuthState>()(
           });
 
           if (error) {
-            throw new Error(error.message);
+            throw new Error(error.message || 'Failed to update profile');
           }
 
           if (data?.user) {
             // Fetch extended profile to preserve OG badge data
             const extendedProfile = await fetchExtendedProfile(data.user.id);
             const updatedUser = convertSupabaseUser(data.user, extendedProfile);
+
+            // Mirror name changes into the public users table so other parts of the app
+            // (leaderboards, activity feeds, referrals) see the updated name consistently.
+            try {
+              const fullName = `${updatedUser?.firstName || ''} ${updatedUser?.lastName || ''}`.trim();
+              await clientDb.users.updateProfile(data.user.id, {
+                first_name: updatedUser?.firstName || null,
+                last_name: updatedUser?.lastName || null,
+                full_name: fullName || null,
+              });
+            } catch (mirrorError) {
+              console.warn('Failed to mirror profile name to users table:', mirrorError);
+            }
+
             set({ 
               user: updatedUser,
               loading: false,
@@ -495,7 +509,14 @@ export const useAuthStore = create<AuthState>()(
 
         } catch (error: any) {
           set({ loading: false });
-          showError(error.message || 'Failed to update profile');
+          const msg = typeof error?.message === 'string' ? error.message : '';
+          const isNetworkError = msg.toLowerCase().includes('failed to fetch') || msg.toLowerCase().includes('network error');
+          
+          if (isNetworkError) {
+            showError('Network error while saving your profile. Please check your connection and try again.');
+          } else {
+            showError(msg || 'Failed to update profile. Please try again.');
+          }
           throw error;
         }
       },
@@ -516,7 +537,16 @@ export const useAuthStore = create<AuthState>()(
           .upload(path, file, { cacheControl: '3600', upsert: true, contentType: file.type });
 
         if (uploadError) {
-          showError('Failed to upload image.');
+          const raw = uploadError.message || '';
+          const lower = raw.toLowerCase();
+          
+          if (lower.includes('file size') || lower.includes('too large') || lower.includes('maximum allowed size')) {
+            showError('Image is too large. Please choose a file under 10 MB.');
+          } else if (lower.includes('mime') || lower.includes('content-type') || lower.includes('invalid file type')) {
+            showError('Invalid image type. Please upload a JPG, PNG, or GIF image.');
+          } else {
+            showError('Failed to upload image. Please try again.');
+          }
           throw uploadError;
         }
 

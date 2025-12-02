@@ -263,6 +263,19 @@ router.post('/api/referrals/attribute', checkFeatureEnabled, async (req, res) =>
       .eq('converted', false)
       .order('clicked_at', { ascending: false })
       .limit(1);
+
+    // Best-effort refresh of the referral stats materialized view so the leaderboard
+    // reflects new signups without needing a separate admin action or cron.
+    try {
+      const { error: refreshError } = await supabase.rpc('refresh_referral_stats');
+      if (refreshError) {
+        console.warn('[Referral] Failed to refresh referral_stats_mv after attribution:', refreshError.message);
+      } else {
+        console.log('[Referral] referral_stats_mv refreshed after attribution');
+      }
+    } catch (refreshException: any) {
+      console.warn('[Referral] Unexpected error refreshing referral_stats_mv after attribution:', refreshException?.message || refreshException);
+    }
     
     console.log(`[Referral] Attribution successful: ${userId} -> ${referrer.id} (code: ${refCode})`);
     

@@ -47,6 +47,33 @@ const ProfilePageV2: React.FC<ProfilePageV2Props> = ({ onNavigateBack, userId })
   const authenticated = !!sessionUser || storeAuth;
   const isOwnProfile = !userId || userId === user?.id;
   const displayUser = user;
+  const baseUser: any = displayUser || {};
+  const userMetadata: any = baseUser.user_metadata || {};
+
+  const displayEmail: string = baseUser.email || '';
+  const displayFirstName: string =
+    baseUser.firstName ??
+    userMetadata.firstName ??
+    userMetadata.first_name ??
+    userMetadata.given_name ??
+    '';
+  const displayLastName: string =
+    baseUser.lastName ??
+    userMetadata.lastName ??
+    userMetadata.last_name ??
+    userMetadata.family_name ??
+    '';
+  const displayAvatar: string =
+    baseUser.avatar ??
+    baseUser.avatar_url ??
+    userMetadata.avatar_url ??
+    userMetadata.picture ??
+    '';
+  const displayHandle: string =
+    baseUser.username ??
+    userMetadata.username ??
+    (displayEmail ? displayEmail.split('@')[0] : '') ||
+    'user';
   
   // Get OG badge from user metadata
   const ogBadge = (user as any)?.user_metadata?.og_badge || (user as any)?.og_badge || null;
@@ -352,25 +379,24 @@ const ProfilePageV2: React.FC<ProfilePageV2Props> = ({ onNavigateBack, userId })
                   {/* Avatar with OG Badge overlay */}
                   <AvatarWithBadge tier={ogBadge} badgePosition="bottom-right" badgeSize="sm">
                     <UserAvatar
-                      email={displayUser?.email}
-                      username={(displayUser as any)?.firstName || displayUser?.email?.split('@')[0]}
-                      avatarUrl={(displayUser as any)?.avatar}
+                      email={displayEmail}
+                      username={displayFirstName || displayHandle}
+                      avatarUrl={displayAvatar}
                       size="lg"
                     />
                   </AvatarWithBadge>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <h3 className="text-xl font-bold text-gray-900">
-                        {(displayUser as any)?.firstName && (displayUser as any)?.lastName 
-                          ? `${(displayUser as any).firstName} ${(displayUser as any).lastName}`
-                          : displayUser?.email?.split('@')[0] || 'User'
-                        }
+                        {(displayFirstName || displayLastName)
+                          ? `${displayFirstName} ${displayLastName}`.trim()
+                          : displayHandle || 'User'}
                       </h3>
                       {/* Inline OG Badge next to name */}
                       <OGBadge tier={ogBadge} size="md" />
                     </div>
                     <p className="text-sm text-gray-600 mb-2">
-                      @{displayUser?.email?.split('@')[0] || 'user'}
+                      @{displayHandle}
                     </p>
                     <div className="flex items-center space-x-4 text-xs">
                       <span className="flex items-center gap-1 text-emerald-600">
@@ -389,9 +415,9 @@ const ProfilePageV2: React.FC<ProfilePageV2Props> = ({ onNavigateBack, userId })
                   {isOwnProfile && (
                     <button 
                       onClick={() => {
-                        setEditFirstName((displayUser as any)?.firstName || '');
-                        setEditLastName((displayUser as any)?.lastName || '');
-                        setEditBio((displayUser as any)?.bio || '');
+                        setEditFirstName(displayFirstName || '');
+                        setEditLastName(displayLastName || '');
+                        setEditBio((baseUser as any)?.bio || userMetadata.bio || '');
                         setShowEditModal(true);
                       }}
                       className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors self-start"
