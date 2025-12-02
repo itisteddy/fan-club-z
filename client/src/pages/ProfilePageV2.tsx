@@ -70,10 +70,9 @@ const ProfilePageV2: React.FC<ProfilePageV2Props> = ({ onNavigateBack, userId })
     userMetadata.picture ??
     '';
   const displayHandle: string =
-    baseUser.username ??
-    userMetadata.username ??
-    (displayEmail ? displayEmail.split('@')[0] : '') ||
-    'user';
+    (baseUser.username ??
+      userMetadata.username ??
+      (displayEmail ? displayEmail.split('@')[0] : '')) || 'user';
   
   // Get OG badge from user metadata
   const ogBadge = (user as any)?.user_metadata?.og_badge || (user as any)?.og_badge || null;
