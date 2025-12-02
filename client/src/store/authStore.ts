@@ -488,13 +488,19 @@ export const useAuthStore = create<AuthState>()(
 
             // Mirror name changes into the public users table so other parts of the app
             // (leaderboards, activity feeds, referrals) see the updated name consistently.
+            // Note: users table only has full_name column, not first_name/last_name.
             try {
               const fullName = `${updatedUser?.firstName || ''} ${updatedUser?.lastName || ''}`.trim();
-              await clientDb.users.updateProfile(data.user.id, {
-                first_name: updatedUser?.firstName || null,
-                last_name: updatedUser?.lastName || null,
-                full_name: fullName || null,
-              });
+              if (fullName) {
+                const { error: mirrorError } = await clientDb.users.updateProfile(data.user.id, {
+                  full_name: fullName,
+                });
+                if (mirrorError) {
+                  console.warn('Failed to mirror profile name to users table:', mirrorError);
+                } else {
+                  console.log('✅ Profile name mirrored to users table:', fullName);
+                }
+              }
             } catch (mirrorError) {
               console.warn('Failed to mirror profile name to users table:', mirrorError);
             }
