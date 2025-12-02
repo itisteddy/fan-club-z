@@ -486,19 +486,23 @@ export const useAuthStore = create<AuthState>()(
             const extendedProfile = await fetchExtendedProfile(data.user.id);
             const updatedUser = convertSupabaseUser(data.user, extendedProfile);
 
-            // Mirror name changes into the public users table so other parts of the app
-            // (leaderboards, activity feeds, referrals) see the updated name consistently.
-            // Note: users table only has full_name column, not first_name/last_name.
+            // Mirror name changes into the public users table via backend API
+            // (uses service role key to bypass RLS)
             try {
               const fullName = `${updatedUser?.firstName || ''} ${updatedUser?.lastName || ''}`.trim();
               if (fullName) {
-                const { error: mirrorError } = await clientDb.users.updateProfile(data.user.id, {
-                  full_name: fullName,
+                const { getApiUrl } = await import('@/config');
+                const apiUrl = getApiUrl();
+                const response = await fetch(`${apiUrl}/api/v2/users/${data.user.id}/profile`, {
+                  method: 'PATCH',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ full_name: fullName }),
                 });
-                if (mirrorError) {
-                  console.warn('Failed to mirror profile name to users table:', mirrorError);
+                if (!response.ok) {
+                  const errData = await response.json().catch(() => ({}));
+                  console.warn('Failed to mirror profile name to users table:', errData);
                 } else {
-                  console.log('✅ Profile name mirrored to users table:', fullName);
+                  console.log('✅ Profile name mirrored to users table via API:', fullName);
                 }
               }
             } catch (mirrorError) {

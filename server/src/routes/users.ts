@@ -235,6 +235,69 @@ router.get('/:id', async (req, res) => {
   }
 });
 
+// PATCH /api/v2/users/:id/profile - Update user profile (name, avatar)
+// Uses service role key to bypass RLS
+router.patch('/:id/profile', async (req, res) => {
+  const { id } = req.params;
+  const { full_name, avatar_url } = req.body;
+  
+  console.log(`✏️ User profile update for ID: ${id}`, { full_name, avatar_url: avatar_url ? '[provided]' : '[not provided]' });
+  
+  if (!full_name && !avatar_url) {
+    return res.status(400).json({
+      error: 'Bad request',
+      message: 'At least one of full_name or avatar_url must be provided',
+      version: VERSION
+    });
+  }
+  
+  try {
+    const updates: Record<string, any> = {
+      updated_at: new Date().toISOString()
+    };
+    
+    if (full_name !== undefined) {
+      updates.full_name = full_name;
+    }
+    if (avatar_url !== undefined) {
+      updates.avatar_url = avatar_url;
+    }
+    
+    const { data, error } = await supabase
+      .from('users')
+      .update(updates)
+      .eq('id', id)
+      .select('id, username, full_name, avatar_url')
+      .single();
+    
+    if (error) {
+      console.error(`Error updating user profile ${id}:`, error);
+      return res.status(500).json({
+        error: 'Database error',
+        message: 'Failed to update user profile',
+        version: VERSION,
+        details: error.message
+      });
+    }
+    
+    console.log(`✅ User profile updated for ${id}:`, data);
+    
+    return res.json({
+      data,
+      message: 'Profile updated successfully',
+      version: VERSION
+    });
+  } catch (error) {
+    console.error(`Error in user profile update for ${id}:`, error);
+    return res.status(500).json({
+      error: 'Internal server error',
+      message: 'Failed to update user profile',
+      version: VERSION,
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
 // GET /api/v2/users/:id/predictions - Get user's created predictions
 router.get('/:id/predictions', async (req, res) => {
   const { id } = req.params;
