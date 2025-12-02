@@ -422,17 +422,42 @@ router.get('/api/leaderboard/referrals', checkFeatureEnabled, async (req, res) =
     }
     
     // Transform MV data to API format
-    const items = (data || []).map((row: any) => ({
-      userId: row.referrer_user_id,
-      username: row.username,
-      fullName: row.full_name,
-      avatarUrl: row.avatar_url,
-      ogBadge: row.og_badge,
-      activeReferrals: period === '30d' ? row.active_logins_30d : row.active_logins_all,
-      totalSignups: row.total_signups,
-      totalClicks: row.total_clicks,
-      conversionRate: row.conversion_rate
-    }));
+    // IMPORTANT: Names and avatars can change, so always overlay with the latest
+    // data from the users table instead of trusting the (possibly stale) MV.
+    const rows = data || [];
+    const referrerIds = rows.map((row: any) => row.referrer_user_id).filter(Boolean);
+
+    let userMap: Record<string, any> = {};
+    if (referrerIds.length > 0) {
+      const { data: users, error: usersError } = await supabase
+        .from('users')
+        .select('id, username, full_name, avatar_url, og_badge')
+        .in('id', referrerIds);
+
+      if (!usersError && users) {
+        userMap = users.reduce((acc: Record<string, any>, user: any) => {
+          acc[user.id] = user;
+          return acc;
+        }, {});
+      } else if (usersError) {
+        console.warn('[Referral] Failed to overlay latest user profiles for leaderboard:', usersError.message);
+      }
+    }
+
+    const items = rows.map((row: any) => {
+      const latestUser = userMap[row.referrer_user_id];
+      return {
+        userId: row.referrer_user_id,
+        username: latestUser?.username ?? row.username,
+        fullName: latestUser?.full_name ?? row.full_name,
+        avatarUrl: latestUser?.avatar_url ?? row.avatar_url,
+        ogBadge: latestUser?.og_badge ?? row.og_badge,
+        activeReferrals: period === '30d' ? row.active_logins_30d : row.active_logins_all,
+        totalSignups: row.total_signups,
+        totalClicks: row.total_clicks,
+        conversionRate: row.conversion_rate
+      };
+    });
     
     return res.json({
       data: {
