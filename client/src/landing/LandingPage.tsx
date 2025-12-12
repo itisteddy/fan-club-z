@@ -343,7 +343,7 @@ const LandingPage: React.FC = () => {
               </li>
               <li>
                 <a
-                  href="https://discord.gg/Bxvet6BU"
+                  href="https://discord.gg/PdEs8vD2H5"
                   target="_blank"
                   rel="noreferrer"
                   className="hover:text-white"
