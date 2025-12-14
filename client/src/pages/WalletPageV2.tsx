@@ -114,6 +114,21 @@ const WalletPageV2: React.FC<WalletPageV2Props> = ({ onNavigateBack }) => {
     error: balanceError,
     refetch: refetchBalances
   } = useUnifiedBalance();
+
+  // Guard: if balances stay "loading" for too long, surface recovery actions instead of infinite spinners.
+  const [balanceStuck, setBalanceStuck] = useState(false);
+  useEffect(() => {
+    if (!authenticated) {
+      setBalanceStuck(false);
+      return;
+    }
+    if (!isLoadingBalance) {
+      setBalanceStuck(false);
+      return;
+    }
+    const t = setTimeout(() => setBalanceStuck(true), 15_000);
+    return () => clearTimeout(t);
+  }, [authenticated, isLoadingBalance]);
   
   // On-chain escrow balance - for withdrawals (what user can actually withdraw from contract)
   const { availableUSD: onchainEscrowBalance } = useEscrowBalance();
@@ -826,6 +841,39 @@ const WalletPageV2: React.FC<WalletPageV2Props> = ({ onNavigateBack }) => {
                 {needsReconnect && (
                   <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 text-amber-800 text-xs p-3">
                     Wallet session expired. Please reconnect your wallet before making deposits, withdrawals, or bets.
+                  </div>
+                )}
+
+                {balanceStuck && (
+                  <div className="mt-3 rounded-xl border border-rose-200 bg-rose-50 p-3">
+                    <div className="text-xs font-semibold text-rose-900">Wallet is taking too long to load</div>
+                    <div className="mt-1 text-xs text-rose-800">
+                      This can happen if your wallet session is stale or your network is unstable.
+                    </div>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          try {
+                            refetchBalances();
+                            toast('Refreshing balances…');
+                          } catch {}
+                        }}
+                        className="inline-flex items-center gap-2 rounded-lg bg-white px-3 py-1.5 text-xs font-semibold text-rose-900 border border-rose-200 hover:bg-rose-100 transition-colors"
+                      >
+                        Refresh
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          triggerRecovery();
+                          openConnectSheet();
+                        }}
+                        className="inline-flex items-center gap-2 rounded-lg bg-rose-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-rose-700 transition-colors"
+                      >
+                        Reconnect wallet
+                      </button>
+                    </div>
                   </div>
                 )}
                 
