@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { getApiUrl } from '../../config';
 import { useAuthStore } from '../../store/authStore';
+import { useAuthSession } from '../../providers/AuthSessionProvider';
 import {
   Target,
   ArrowLeft,
@@ -18,6 +18,7 @@ import {
   ExternalLink,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { adminGet, adminPost } from '@/lib/adminApi';
 
 interface PredictionDetail {
   prediction: {
@@ -66,6 +67,8 @@ export const PredictionDetailPage: React.FC = () => {
   const { predictionId } = useParams<{ predictionId: string }>();
   const navigate = useNavigate();
   const { user } = useAuthStore();
+  const { user: sessionUser } = useAuthSession();
+  const actorId = sessionUser?.id || user?.id || '';
   const [data, setData] = useState<PredictionDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
@@ -77,10 +80,8 @@ export const PredictionDetailPage: React.FC = () => {
     if (!predictionId) return;
     setLoading(true);
     try {
-      if (!user?.id) throw new Error('Missing user');
-      const res = await fetch(`${getApiUrl()}/api/v2/admin/predictions/${predictionId}?actorId=${encodeURIComponent(user.id)}`);
-      if (!res.ok) throw new Error('Failed to fetch');
-      const json = await res.json();
+      if (!actorId) throw new Error('Missing user');
+      const json = await adminGet<any>(`/api/v2/admin/predictions/${predictionId}`, actorId);
       setData(json);
     } catch (e) {
       console.error('[PredictionDetail] Fetch error:', e);
@@ -88,23 +89,17 @@ export const PredictionDetailPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [predictionId, user?.id]);
+  }, [predictionId, actorId]);
 
   useEffect(() => {
     fetchData();
   }, [fetchData]);
 
   const handleVoid = async () => {
-    if (!predictionId || !user?.id || reason.length < 5) return;
+    if (!predictionId || !actorId || reason.length < 5) return;
     setActionLoading(true);
     try {
-      const res = await fetch(`${getApiUrl()}/api/v2/admin/predictions/${predictionId}/void`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ reason, actorId: user.id }),
-      });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.message || 'Void failed');
+      const json = await adminPost<any>(`/api/v2/admin/predictions/${predictionId}/void`, actorId, { reason });
       toast.success(`Prediction voided. ${json.refunds?.success || 0} bets refunded.`);
       setShowVoidModal(false);
       setReason('');
@@ -117,16 +112,10 @@ export const PredictionDetailPage: React.FC = () => {
   };
 
   const handleCancel = async () => {
-    if (!predictionId || !user?.id || reason.length < 5) return;
+    if (!predictionId || !actorId || reason.length < 5) return;
     setActionLoading(true);
     try {
-      const res = await fetch(`${getApiUrl()}/api/v2/admin/predictions/${predictionId}/cancel`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ reason, actorId: user.id }),
-      });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.message || 'Cancel failed');
+      await adminPost<any>(`/api/v2/admin/predictions/${predictionId}/cancel`, actorId, { reason });
       toast.success('Prediction cancelled');
       setShowCancelModal(false);
       setReason('');
@@ -139,17 +128,11 @@ export const PredictionDetailPage: React.FC = () => {
   };
 
   const handleReset = async () => {
-    if (!predictionId || !user?.id) return;
+    if (!predictionId || !actorId) return;
     if (!window.confirm('Reset this prediction to active? This will undo settlement.')) return;
     setActionLoading(true);
     try {
-      const res = await fetch(`${getApiUrl()}/api/v2/admin/predictions/${predictionId}/reset`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ actorId: user.id }),
-      });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.message || 'Reset failed');
+      await adminPost<any>(`/api/v2/admin/predictions/${predictionId}/reset`, actorId, {});
       toast.success('Prediction reset to active');
       fetchData();
     } catch (e: any) {

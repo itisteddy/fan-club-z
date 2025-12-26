@@ -1,8 +1,9 @@
 import React, { useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getApiUrl } from '../../config';
 import { Wallet, Search, Loader2, User, ArrowRight } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
+import { useAuthSession } from '../../providers/AuthSessionProvider';
+import { adminGet } from '@/lib/adminApi';
 
 interface UserResult {
   id: string;
@@ -14,6 +15,8 @@ interface UserResult {
 export const WalletsPage: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuthStore();
+  const { user: sessionUser } = useAuthSession();
+  const actorId = sessionUser?.id || user?.id || '';
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<UserResult[]>([]);
   const [loading, setLoading] = useState(false);
@@ -21,16 +24,15 @@ export const WalletsPage: React.FC = () => {
 
   const handleSearch = useCallback(async () => {
     if (!query.trim()) return;
-    if (!user?.id) return;
+    if (!actorId) return;
     
     setLoading(true);
     setSearched(true);
     try {
-      const res = await fetch(
-        `${getApiUrl()}/api/v2/admin/users/search?q=${encodeURIComponent(query.trim())}&limit=25&actorId=${encodeURIComponent(user.id)}`
-      );
-      if (!res.ok) throw new Error('Search failed');
-      const data = await res.json();
+      const data = await adminGet<{ items?: UserResult[] }>(`/api/v2/admin/users/search`, actorId, {
+        q: query.trim(),
+        limit: 25,
+      });
       setResults(data.items || []);
     } catch (e) {
       console.error('[WalletsPage] Search error:', e);
@@ -38,7 +40,7 @@ export const WalletsPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [query, user?.id]);
+  }, [query, actorId]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {

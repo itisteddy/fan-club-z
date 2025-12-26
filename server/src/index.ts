@@ -58,9 +58,27 @@ app.use(helmet({
   crossOriginEmbedderPolicy: false, // Required for some wallet integrations
 }));
 
-// Enhanced CORS middleware - Allow all origins for now to fix immediate issue
+// CORS whitelist: Only allow known origins
+const allowedOrigins = [
+  'https://fanclubz.app',
+  'https://app.fanclubz.app',
+  'http://localhost:5173',
+  'http://localhost:3000',
+];
+
+// Enhanced CORS middleware - Restricted to known origins
 app.use(cors({
-  origin: true, // Allow all origins temporarily
+  origin: (origin, callback) => {
+    // Allow requests with no origin (like mobile apps, Postman, curl)
+    if (!origin) {
+      return callback(null, true);
+    }
+    if (allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'Origin', 'X-Requested-With', 'Cache-Control', 'If-None-Match', 'X-Admin-Key'],
@@ -69,19 +87,27 @@ app.use(cors({
 
 // Explicit OPTIONS preflight handler (some hosts require this)
 app.options('*', (req, res) => {
-  res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
-  res.header('Access-Control-Allow-Credentials', 'true');
-  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, Accept, Origin, X-Requested-With, Cache-Control, If-None-Match, X-Admin-Key');
-  res.sendStatus(200);
+  const origin = req.headers.origin;
+  if (origin && allowedOrigins.includes(origin)) {
+    res.header('Access-Control-Allow-Origin', origin);
+    res.header('Access-Control-Allow-Credentials', 'true');
+    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, Accept, Origin, X-Requested-With, Cache-Control, If-None-Match, X-Admin-Key');
+    res.sendStatus(200);
+  } else {
+    res.sendStatus(403);
+  }
 });
 
 // Additional CORS headers middleware
 app.use((req, res, next) => {
-  res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
-  res.header('Access-Control-Allow-Credentials', 'true');
-  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, Accept, Origin, X-Requested-With, Cache-Control, If-None-Match, X-Admin-Key');
+  const origin = req.headers.origin;
+  if (origin && allowedOrigins.includes(origin)) {
+    res.header('Access-Control-Allow-Origin', origin);
+    res.header('Access-Control-Allow-Credentials', 'true');
+    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, Accept, Origin, X-Requested-With, Cache-Control, If-None-Match, X-Admin-Key');
+  }
   
   // Handle preflight requests
   if (req.method === 'OPTIONS') {
@@ -153,8 +179,20 @@ app.get('/', (req, res) => {
   });
 });
 
-// Database seeding endpoint (for development/testing)
+// Database seeding endpoint (for development/testing) - ADMIN ONLY
 app.post('/api/v2/admin/seed-database', async (req, res) => {
+  // Admin authorization check
+  const ADMIN_API_KEY = process.env.ADMIN_API_KEY;
+  const apiKey = req.headers['x-admin-key'] as string | undefined;
+  
+  if (!ADMIN_API_KEY || !apiKey || apiKey !== ADMIN_API_KEY) {
+    return res.status(401).json({
+      error: 'Unauthorized',
+      message: 'Admin access required',
+      version: VERSION
+    });
+  }
+  
   try {
     // Import and run seeding function
     const { seedDatabase } = await import('./scripts/seedDatabase');
@@ -324,7 +362,7 @@ httpServer.listen(PORT, async () => {
   console.log(`📊 Version: ${VERSION}`);
   console.log(`🔗 API URL: ${config.api.url || `https://fan-club-z.onrender.com`}`);
   console.log(`🎯 Frontend URL: ${config.frontend.url || 'https://app.fanclubz.app'}`);
-  console.log(`✅ CORS enabled for all origins (development mode)`);
+  console.log(`✅ CORS enabled (restricted to whitelisted origins)`);
   console.log(`🔨 Settlement system enabled`);
   ensureAvatarsBucket();
   

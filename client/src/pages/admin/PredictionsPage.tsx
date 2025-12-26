@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getApiUrl } from '../../config';
 import { useAuthStore } from '../../store/authStore';
+import { useAuthSession } from '../../providers/AuthSessionProvider';
 import {
   Target,
   Search,
@@ -13,6 +13,7 @@ import {
   XCircle,
   Ban,
 } from 'lucide-react';
+import { adminGet } from '@/lib/adminApi';
 
 interface PredictionResult {
   id: string;
@@ -35,6 +36,8 @@ const statusConfig: Record<string, { icon: React.ElementType; color: string; lab
 export const PredictionsPage: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuthStore();
+  const { user: sessionUser } = useAuthSession();
+  const actorId = sessionUser?.id || user?.id || '';
   const [query, setQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [results, setResults] = useState<PredictionResult[]>([]);
@@ -44,16 +47,16 @@ export const PredictionsPage: React.FC = () => {
   const fetchPredictions = useCallback(async () => {
     setLoading(true);
     try {
-      if (!user?.id) throw new Error('Missing user');
-      const params = new URLSearchParams();
-      if (query) params.set('q', query);
-      if (statusFilter !== 'all') params.set('status', statusFilter);
-      params.set('limit', '50');
-      params.set('actorId', user.id);
-
-      const res = await fetch(`${getApiUrl()}/api/v2/admin/predictions?${params.toString()}`);
-      if (!res.ok) throw new Error('Search failed');
-      const data = await res.json();
+      if (!actorId) throw new Error('Missing user');
+      const data = await adminGet<{ items?: PredictionResult[]; total?: number }>(
+        `/api/v2/admin/predictions`,
+        actorId,
+        {
+          q: query || undefined,
+          status: statusFilter !== 'all' ? statusFilter : undefined,
+          limit: 50,
+        }
+      );
       setResults(data.items || []);
       setTotal(data.total || 0);
     } catch (e) {
@@ -62,11 +65,11 @@ export const PredictionsPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [query, statusFilter, user?.id]);
+  }, [query, statusFilter, actorId]);
 
   useEffect(() => {
     fetchPredictions();
-  }, [statusFilter]);
+  }, [statusFilter, fetchPredictions]);
 
   const handleSearch = () => {
     fetchPredictions();

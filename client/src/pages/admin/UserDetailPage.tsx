@@ -1,6 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { getApiUrl } from '../../config';
 import {
   User,
   ArrowLeft,
@@ -18,6 +17,9 @@ import {
   DollarSign,
   AlertTriangle,
 } from 'lucide-react';
+import { useAuthStore } from '../../store/authStore';
+import { useAuthSession } from '../../providers/AuthSessionProvider';
+import { adminGet } from '@/lib/adminApi';
 
 interface UserDetail {
   id: string;
@@ -57,6 +59,9 @@ interface TimelineItem {
 export const UserDetailPage: React.FC = () => {
   const { userId } = useParams<{ userId: string }>();
   const navigate = useNavigate();
+  const { user: authUser } = useAuthStore();
+  const { user: sessionUser } = useAuthSession();
+  const actorId = sessionUser?.id || authUser?.id || '';
   const [user, setUser] = useState<UserDetail | null>(null);
   const [wallet, setWallet] = useState<WalletInfo | null>(null);
   const [stats, setStats] = useState<UserStats | null>(null);
@@ -72,9 +77,8 @@ export const UserDetailPage: React.FC = () => {
     if (!userId) return;
     setLoading(true);
     try {
-      const res = await fetch(`${getApiUrl()}/api/v2/admin/users/${userId}`);
-      if (!res.ok) throw new Error('Failed to fetch user');
-      const data = await res.json();
+      if (!actorId) throw new Error('Missing user');
+      const data = await adminGet<any>(`/api/v2/admin/users/${userId}`, actorId);
       setUser(data.user);
       setWallet(data.wallet);
       setStats(data.stats);
@@ -84,24 +88,24 @@ export const UserDetailPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [userId]);
+  }, [userId, actorId]);
 
   const fetchTimeline = useCallback(async () => {
     if (!userId) return;
     setTimelineLoading(true);
     try {
-      const res = await fetch(
-        `${getApiUrl()}/api/v2/admin/users/${userId}/timeline?limit=100&type=${timelineFilter}`
-      );
-      if (!res.ok) throw new Error('Failed to fetch timeline');
-      const data = await res.json();
+      if (!actorId) throw new Error('Missing user');
+      const data = await adminGet<any>(`/api/v2/admin/users/${userId}/timeline`, actorId, {
+        limit: 100,
+        type: timelineFilter,
+      });
       setTimeline(data.items || []);
     } catch (e) {
       console.error('[UserDetail] Timeline error:', e);
     } finally {
       setTimelineLoading(false);
     }
-  }, [userId, timelineFilter]);
+  }, [userId, timelineFilter, actorId]);
 
   useEffect(() => {
     fetchUser();

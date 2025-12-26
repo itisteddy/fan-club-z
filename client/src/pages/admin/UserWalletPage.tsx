@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { getApiUrl } from '../../config';
 import { useAuthStore } from '../../store/authStore';
+import { useAuthSession } from '../../providers/AuthSessionProvider';
 import {
   Wallet,
   ArrowLeft,
@@ -15,6 +15,7 @@ import {
   AlertTriangle,
   ExternalLink,
 } from 'lucide-react';
+import { adminGet, buildAdminUrl } from '@/lib/adminApi';
 
 interface WalletData {
   id: string;
@@ -54,6 +55,8 @@ export const UserWalletPage: React.FC = () => {
   const { userId } = useParams<{ userId: string }>();
   const navigate = useNavigate();
   const { user } = useAuthStore();
+  const { user: sessionUser } = useAuthSession();
+  const actorId = sessionUser?.id || user?.id || '';
   const [wallets, setWallets] = useState<WalletData[]>([]);
   const [cryptoTx, setCryptoTx] = useState<Transaction[]>([]);
   const [demoTx, setDemoTx] = useState<Transaction[]>([]);
@@ -65,12 +68,10 @@ export const UserWalletPage: React.FC = () => {
 
   const fetchData = useCallback(async () => {
     if (!userId) return;
-    if (!user?.id) return;
+    if (!actorId) return;
     setLoading(true);
     try {
-      const res = await fetch(`${getApiUrl()}/api/v2/admin/wallets/user/${userId}?actorId=${encodeURIComponent(user.id)}`);
-      if (!res.ok) throw new Error('Failed to fetch wallet data');
-      const data = await res.json();
+      const data = await adminGet<any>(`/api/v2/admin/wallets/user/${userId}`, actorId);
       setWallets(data.wallets || []);
       setCryptoTx(data.recentTransactions?.crypto || []);
       setDemoTx(data.recentTransactions?.demo || []);
@@ -81,7 +82,7 @@ export const UserWalletPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [userId, user?.id]);
+  }, [userId, actorId]);
 
   useEffect(() => {
     fetchData();
@@ -89,10 +90,14 @@ export const UserWalletPage: React.FC = () => {
 
   const handleExport = async () => {
     if (!userId) return;
-    if (!user?.id) return;
+    if (!actorId) return;
     setExporting(true);
     try {
-      const url = `${getApiUrl()}/api/v2/admin/wallets/transactions/export.csv?userId=${userId}&provider=${providerFilter}&limit=500&actorId=${encodeURIComponent(user.id)}`;
+      const url = buildAdminUrl(`/api/v2/admin/wallets/transactions/export.csv`, actorId, {
+        userId,
+        provider: providerFilter,
+        limit: 500,
+      });
       const res = await fetch(url);
       if (!res.ok) throw new Error('Export failed');
       const blob = await res.blob();

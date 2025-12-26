@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getApiUrl } from '../../config';
 import { useAuthStore } from '../../store/authStore';
+import { useAuthSession } from '../../providers/AuthSessionProvider';
 import {
   BarChart3,
   Search,
@@ -17,6 +17,7 @@ import {
   TrendingUp,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { adminGet, adminPost } from '@/lib/adminApi';
 
 interface SettlementItem {
   id: string;
@@ -59,6 +60,8 @@ type FilterType = 'all' | 'pending' | 'settled' | 'active';
 export const SettlementsPage: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuthStore();
+  const { user: sessionUser } = useAuthSession();
+  const actorId = sessionUser?.id || user?.id || '';
   const [settlements, setSettlements] = useState<SettlementItem[]>([]);
   const [stats, setStats] = useState<Stats | null>(null);
   const [loading, setLoading] = useState(true);
@@ -68,42 +71,29 @@ export const SettlementsPage: React.FC = () => {
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      if (!user?.id) throw new Error('Missing user');
-      const [settlementsRes, statsRes] = await Promise.all([
-        fetch(`${getApiUrl()}/api/v2/admin/settlements?status=${filter}&limit=50&actorId=${encodeURIComponent(user.id)}`),
-        fetch(`${getApiUrl()}/api/v2/admin/settlements/stats?actorId=${encodeURIComponent(user.id)}`),
+      if (!actorId) throw new Error('Missing user');
+      const [settlementsData, statsData] = await Promise.all([
+        adminGet<any>(`/api/v2/admin/settlements`, actorId, { status: filter, limit: 50 }),
+        adminGet<any>(`/api/v2/admin/settlements/stats`, actorId),
       ]);
-
-      if (settlementsRes.ok) {
-        const data = await settlementsRes.json();
-        setSettlements(data.items || []);
-      }
-
-      if (statsRes.ok) {
-        const data = await statsRes.json();
-        setStats(data);
-      }
+      setSettlements(settlementsData.items || []);
+      setStats(statsData || null);
     } catch (e) {
       console.error('[SettlementsPage] Fetch error:', e);
     } finally {
       setLoading(false);
     }
-  }, [filter, user?.id]);
+  }, [filter, actorId]);
 
   useEffect(() => {
     fetchData();
   }, [fetchData]);
 
   const handleRetry = async (predictionId: string) => {
-    if (!user?.id) return;
+    if (!actorId) return;
     setActionLoading(predictionId);
     try {
-      const res = await fetch(`${getApiUrl()}/api/v2/admin/settlements/${predictionId}/retry`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ actorId: user.id }),
-      });
-      if (!res.ok) throw new Error('Retry failed');
+      await adminPost<any>(`/api/v2/admin/settlements/${predictionId}/retry`, actorId, {});
       toast.success('Settlement retry queued');
       fetchData();
     } catch (e) {

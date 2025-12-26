@@ -717,39 +717,75 @@ router.post('/manual', async (req, res) => {
       });
     }
 
-    const isDemoSettlement = (allEntries || []).some((e: any) => e?.provider === DEMO_PROVIDER);
+    // Split entries by provider for per-rail settlement
+    const demoEntries = (allEntries || []).filter((e: any) => e?.provider === DEMO_PROVIDER);
+    const cryptoEntries = (allEntries || []).filter((e: any) => e?.provider !== DEMO_PROVIDER);
+    const hasDemoRail = demoEntries.length > 0;
+    const hasCryptoRail = cryptoEntries.length > 0;
 
-    // Calculate settlement amounts
-    const totalPool = Number(prediction.pool_total || 0);
     const platformFeePercent = Number.isFinite(prediction.platform_fee_percentage) ? Number(prediction.platform_fee_percentage) : 2.5;
     const creatorFeePercent = Number.isFinite(prediction.creator_fee_percentage) ? Number(prediction.creator_fee_percentage) : 1.0;
-    
-    // Calculate total stakes for winners and losers
-    const winners = allEntries.filter(entry => entry.option_id === winningOptionId);
-    const losers = allEntries.filter(entry => entry.option_id !== winningOptionId);
-    const totalWinningStake = winners.reduce((sum, entry) => sum + (entry.amount || 0), 0);
-    const totalLosingStake = losers.reduce((sum, entry) => sum + (entry.amount || 0), 0);
 
-    // Fees are charged on the LOSING stakes only (the house take)
-    // This ensures winners always get back at least their original stake
-    const rawPlatformFee = (totalLosingStake * platformFeePercent) / 100;
-    const rawCreatorFee = (totalLosingStake * creatorFeePercent) / 100;
+    // Phase 3A: Settle demo rail first (off-chain, idempotent)
+    // IMPORTANT: Always call settleDemoRail if demo entries exist, even in hybrid mode
+    // This ensures demo fees are always computed and credited with idempotent external_ref keys
+    let demoSummary = { demoEntriesCount: 0, demoPlatformFee: 0, demoCreatorFee: 0, demoPayoutPool: 0 };
+    if (hasDemoRail) {
+      demoSummary = await settleDemoRail({
+        predictionId,
+        predictionTitle: prediction.title,
+        winningOptionId,
+        creatorId: prediction.creator_id,
+        platformFeePercent,
+        creatorFeePercent,
+      });
+      
+      // Regression guard: log demo fee application to confirm it runs
+      console.log('[settlement] demo fees applied', {
+        predictionId,
+        demoPot: demoEntries.reduce((sum, e) => sum + Number(e.amount || 0), 0),
+        platformFeeDemo: demoSummary.demoPlatformFee,
+        creatorFeeDemo: demoSummary.demoCreatorFee,
+        demoEntriesCount: demoSummary.demoEntriesCount
+      });
+    }
 
-    const platformFee = Math.max(Math.round(rawPlatformFee * 100) / 100, 0);
-    const creatorFee = Math.max(Math.round(rawCreatorFee * 100) / 100, 0);
+    // Calculate crypto rail settlement amounts (if any)
+    const cryptoWinners = cryptoEntries.filter((e: any) => e.option_id === winningOptionId);
+    const cryptoLosers = cryptoEntries.filter((e: any) => e.option_id !== winningOptionId);
+    const totalCryptoWinningStake = cryptoWinners.reduce((sum, entry) => sum + (entry.amount || 0), 0);
+    const totalCryptoLosingStake = cryptoLosers.reduce((sum, entry) => sum + (entry.amount || 0), 0);
+
+    // Fees are charged on LOSING stakes only (per rail)
+    const rawCryptoPlatformFee = (totalCryptoLosingStake * platformFeePercent) / 100;
+    const rawCryptoCreatorFee = (totalCryptoLosingStake * creatorFeePercent) / 100;
+
+    const cryptoPlatformFee = Math.max(Math.round(rawCryptoPlatformFee * 100) / 100, 0);
+    const cryptoCreatorFee = Math.max(Math.round(rawCryptoCreatorFee * 100) / 100, 0);
     
-    // Payout pool = winners get their stakes back + share of (losing stakes - fees)
-    const prizePool = Math.max(totalLosingStake - platformFee - creatorFee, 0);
-    const payoutPool = totalWinningStake + prizePool;
+    // Crypto payout pool = winners get their stakes back + share of (losing stakes - fees)
+    const cryptoPrizePool = Math.max(totalCryptoLosingStake - cryptoPlatformFee - cryptoCreatorFee, 0);
+    const cryptoPayoutPool = totalCryptoWinningStake + cryptoPrizePool;
+
+    // Combined totals for response (demo + crypto)
+    const totalPlatformFee = demoSummary.demoPlatformFee + cryptoPlatformFee;
+    const totalCreatorFee = demoSummary.demoCreatorFee + cryptoCreatorFee;
+    const totalPayoutPool = demoSummary.demoPayoutPool + cryptoPayoutPool;
 
     console.log('💰 Settlement calculation:', {
-      totalPool,
-      totalWinningStake,
-      totalLosingStake,
-      platformFee,
-      creatorFee,
-      prizePool,
-      payoutPool,
+      demo: demoSummary,
+      crypto: {
+        totalWinningStake: totalCryptoWinningStake,
+        totalLosingStake: totalCryptoLosingStake,
+        platformFee: cryptoPlatformFee,
+        creatorFee: cryptoCreatorFee,
+        payoutPool: cryptoPayoutPool,
+      },
+      combined: {
+        platformFee: totalPlatformFee,
+        creatorFee: totalCreatorFee,
+        payoutPool: totalPayoutPool,
+      },
       totalEntries: allEntries?.length || 0
     });
 
@@ -800,8 +836,8 @@ router.post('/manual', async (req, res) => {
       });
     }
 
-    // Winners and losers already calculated above
-    const winnersCount = winners.length;
+    // Process crypto winners/losers (demo already handled by settleDemoRail)
+    const winnersCount = cryptoWinners.length + (demoSummary.demoEntriesCount > 0 ? demoEntries.filter((e: any) => e.option_id === winningOptionId).length : 0);
 
     // Map escrow locks to the outcome of the associated entry so we can avoid refunding losers
     const lockOutcomeById = new Map<
@@ -823,30 +859,32 @@ router.post('/manual', async (req, res) => {
 
     console.log('🏆 Winners calculation:', {
       winnersCount,
-      totalWinningStake,
-      payoutPool
+      cryptoWinners: cryptoWinners.length,
+      demoWinners: demoSummary.demoEntriesCount > 0 ? demoEntries.filter((e: any) => e.option_id === winningOptionId).length : 0,
+      cryptoPayoutPool,
+      demoPayoutPool: demoSummary.demoPayoutPool
     });
 
     // Begin transaction for settlement
     const settlementResults = [];
 
-    // Process each winner's payout
+    // Process crypto winners only (demo winners already handled by settleDemoRail)
     console.log('');
     console.log(`🏆🏆🏆 [SETTLEMENT] ========================================`);
-    console.log(`🏆 [SETTLEMENT] Starting winner processing loop`);
-    console.log(`🏆 [SETTLEMENT] Total winners: ${winners.length}`);
-    console.log(`🏆 [SETTLEMENT] Winners array:`, JSON.stringify(winners, null, 2));
+    console.log(`🏆 [SETTLEMENT] Processing crypto winners`);
+    console.log(`🏆 [SETTLEMENT] Crypto winners: ${cryptoWinners.length}`);
+    console.log(`🏆 [SETTLEMENT] Demo winners already processed: ${demoSummary.demoEntriesCount > 0 ? demoEntries.filter((e: any) => e.option_id === winningOptionId).length : 0}`);
     console.log(`🏆🏆🏆 [SETTLEMENT] ========================================`);
     console.log('');
     
-    for (const winner of winners) {
+    for (const winner of cryptoWinners) {
       console.log('');
       console.log(`🔄 [SETTLEMENT] Processing winner ${winner.id}...`);
       console.log('');
       
       const winnerStake = winner.amount || 0;
-      const winnerShare = totalWinningStake > 0 ? winnerStake / totalWinningStake : 0;
-      const payout = Math.floor(payoutPool * winnerShare * 100) / 100; // Round to 2 decimals
+      const winnerShare = totalCryptoWinningStake > 0 ? winnerStake / totalCryptoWinningStake : 0;
+      const payout = Math.floor(cryptoPayoutPool * winnerShare * 100) / 100; // Round to 2 decimals
       
       console.log(`📊 [SETTLEMENT] Winner calculation: stake=$${winnerStake}, share=${winnerShare}, payout=$${payout}`);
       
@@ -869,40 +907,8 @@ router.post('/manual', async (req, res) => {
       
       console.log(`✅ [SETTLEMENT] Entry updated successfully`);
 
-      // Credit winner's wallet with payout
+      // Credit crypto winner's wallet with payout (demo winners already handled by settleDemoRail)
       try {
-        if ((winner as any)?.provider === DEMO_PROVIDER) {
-          // Demo ledger: reserved -= stake; available += payout
-          await applyDemoDelta(winner.user_id, { availableDelta: payout, reservedDelta: -Number(winnerStake || 0) });
-          await supabase.from('wallet_transactions').insert({
-            user_id: winner.user_id,
-            direction: 'credit',
-            // Use 'deposit' to satisfy wallet_transactions_type_check (payout type may be disallowed)
-            type: 'deposit',
-            channel: 'fiat',
-            provider: DEMO_PROVIDER,
-            amount: payout,
-            currency: DEMO_CURRENCY,
-            status: 'completed',
-            external_ref: `demo_payout:${predictionId}:${winner.id}`,
-            prediction_id: predictionId,
-            entry_id: winner.id,
-            description: `Demo payout for "${prediction.title}"`,
-            meta: { kind: 'payout', provider: DEMO_PROVIDER, prediction_id: predictionId, entry_id: winner.id },
-          } as any).then(({ error }) => {
-            if (error && (error as any).code !== '23505') {
-              console.warn('[SETTLEMENT] demo payout tx insert error (non-fatal):', error);
-            }
-          });
-
-          settlementResults.push({
-            userId: winner.user_id,
-            entryId: winner.id,
-            stake: winnerStake,
-            payout: payout
-          });
-          continue;
-        }
 
         console.log('');
         console.log(`💰💰💰 [SETTLEMENT] ========================================`);
@@ -972,8 +978,8 @@ router.post('/manual', async (req, res) => {
       }
     }
 
-    // Update losing entries (losers already calculated above)
-    for (const loser of losers) {
+    // Update crypto losing entries (demo losers already handled by settleDemoRail)
+    for (const loser of cryptoLosers) {
       const { error: updateLoserError } = await supabase
         .from('prediction_entries')
         .update({
@@ -987,33 +993,9 @@ router.post('/manual', async (req, res) => {
         console.error('Error updating loser entry:', updateLoserError);
       }
 
-      // Record a loss activity transaction for the loser (for UI transparency)
+      // Record crypto loss activity (demo losses already handled by settleDemoRail)
       try {
         const lossAmount = Number(loser.amount || 0);
-        if ((loser as any)?.provider === DEMO_PROVIDER) {
-          // Demo ledger: reserved -= stake; no available increase
-          await applyDemoDelta(loser.user_id, { availableDelta: 0, reservedDelta: -lossAmount });
-          await supabase.from('wallet_transactions').insert({
-            user_id: loser.user_id,
-            direction: 'debit',
-            // Use 'withdraw' (not 'adjustment') to satisfy older wallet_transactions_type_check variants
-            type: 'withdraw',
-            channel: 'fiat',
-            provider: DEMO_PROVIDER,
-            amount: lossAmount,
-            currency: DEMO_CURRENCY,
-            status: 'completed',
-            external_ref: `demo_loss:${predictionId}:${loser.id}`,
-            prediction_id: predictionId,
-            entry_id: loser.id,
-            description: `Demo loss for "${prediction.title}"`,
-            meta: { kind: 'loss', provider: DEMO_PROVIDER, prediction_id: predictionId, entry_id: loser.id },
-          } as any).then(({ error }) => {
-            if (error && (error as any).code !== '23505') {
-              console.warn('[SETTLEMENT] demo loss tx insert error (non-fatal):', error);
-            }
-          });
-        } else {
         await supabase
           .from('wallet_transactions')
           .insert({
@@ -1043,55 +1025,29 @@ router.post('/manual', async (req, res) => {
               console.warn('[SETTLEMENT] loss tx insert error (non-fatal):', error);
             }
           });
-        }
       } catch (lossTxErr) {
         console.warn('[SETTLEMENT] Failed to record loss transaction:', lossTxErr);
       }
     }
 
-    // Credit creator and platform fees
+    // Credit creator and platform fees (demo fees already handled by settleDemoRail, only process crypto fees here)
     const feeCurrency = config.platform?.feeCurrency || 'USD';
     let treasuryUserId: string | null = null;
-    if (platformFee > 0) {
+    if (cryptoPlatformFee > 0) {
       treasuryUserId = await resolveTreasuryUserId();
     }
-    if (creatorFee > 0) {
+    if (cryptoCreatorFee > 0) {
       try {
-        if (isDemoSettlement) {
-          await applyDemoDelta(prediction.creator_id, { availableDelta: creatorFee, reservedDelta: 0 });
-          await supabase.from('wallet_transactions').insert({
-            user_id: prediction.creator_id,
-            direction: 'credit',
-            // Use 'deposit' to satisfy wallet_transactions_type_check
-            type: 'deposit',
-            channel: 'fiat',
-            provider: DEMO_PROVIDER,
-            amount: creatorFee,
-            currency: DEMO_CURRENCY,
-            status: 'completed',
-            external_ref: `demo_creator_fee:${predictionId}`,
-            prediction_id: predictionId,
-            description: `Demo creator fee for "${prediction.title}"`,
-            meta: { kind: 'creator_fee', provider: DEMO_PROVIDER, prediction_id: predictionId },
-          } as any).then(({ error }) => {
-            if (error && (error as any).code !== '23505') {
-              console.warn('[SETTLEMENT] demo creator fee tx insert error (non-fatal):', error);
-            }
-          });
-          try {
-            emitWalletUpdate({ userId: prediction.creator_id, reason: 'creator_fee_paid', amountDelta: creatorFee });
-          } catch {}
-        } else {
         console.log('');
         console.log(`🎨🎨🎨 [SETTLEMENT] ========================================`);
-        console.log(`🎨 [SETTLEMENT] Processing creator fee`);
+        console.log(`🎨 [SETTLEMENT] Processing creator fee (crypto rail)`);
         console.log(`🎨 [SETTLEMENT] Creator ID: ${prediction.creator_id}`);
-        console.log(`🎨 [SETTLEMENT] Fee amount: $${creatorFee}`);
+        console.log(`🎨 [SETTLEMENT] Fee amount: $${cryptoCreatorFee}`);
         console.log(`🎨🎨🎨 [SETTLEMENT] ========================================`);
         console.log('');
         
-        console.log(`🎨 [SETTLEMENT] Step 1: Updating creator wallet balance...`);
-        await db.wallets.directUpdateBalance(prediction.creator_id, feeCurrency, creatorFee, 0);
+        console.log(`🎨 [SETTLEMENT] Step 1: Updating creator wallet balance (crypto fee)...`);
+        await db.wallets.directUpdateBalance(prediction.creator_id, feeCurrency, cryptoCreatorFee, 0);
         console.log(`🎨 [SETTLEMENT] Step 1 COMPLETE`);
         
         console.log(`🎨 [SETTLEMENT] Step 2: Creating creator fee transaction...`);
@@ -1101,29 +1057,29 @@ router.post('/manual', async (req, res) => {
           type: 'deposit',
           channel: 'creator_fee',
           provider: 'crypto-base-usdc',
-          amount: creatorFee,
+          amount: cryptoCreatorFee,
           currency: feeCurrency,
           status: 'completed',
-          external_ref: `settlement:${predictionId}:creator_fee`,
-          description: `Creator fee for "${prediction.title}"`,
+          external_ref: `settlement:${predictionId}:creator_fee:crypto`,
+          description: `Creator fee (crypto rail) for "${prediction.title}"`,
           meta: {
             prediction_id: predictionId,
             winning_option_id: winningOptionId,
             reason: 'creator_fee',
             settlement_type: 'manual',
+            rail: 'crypto',
             prediction_title: prediction.title
           }
         });
         console.log(`🎨 [SETTLEMENT] Step 2 COMPLETE - Transaction:`, JSON.stringify(creatorTxResult, null, 2));
         console.log('');
-        console.log(`✅ [SETTLEMENT] Creator fee credited successfully`);
+        console.log(`✅ [SETTLEMENT] Creator fee (crypto) credited successfully`);
         console.log('');
         
         try {
-          emitWalletUpdate({ userId: prediction.creator_id, reason: 'creator_fee_paid', amountDelta: creatorFee });
+          emitWalletUpdate({ userId: prediction.creator_id, reason: 'creator_fee_paid', amountDelta: cryptoCreatorFee });
         } catch (emitErr) {
           console.warn('⚠️ Failed to emit creator wallet update:', emitErr);
-        }
         }
       } catch (creatorWalletError) {
         console.error('');
@@ -1134,44 +1090,19 @@ router.post('/manual', async (req, res) => {
       }
     }
 
-    if (platformFee > 0) {
+    if (cryptoPlatformFee > 0) {
       if (treasuryUserId) {
         try {
-          if (isDemoSettlement) {
-            await applyDemoDelta(treasuryUserId as string, { availableDelta: platformFee, reservedDelta: 0 });
-            await supabase.from('wallet_transactions').insert({
-              user_id: treasuryUserId,
-              direction: 'credit',
-              // Use 'deposit' to satisfy wallet_transactions_type_check
-              type: 'deposit',
-              channel: 'fiat',
-              provider: DEMO_PROVIDER,
-              amount: platformFee,
-              currency: DEMO_CURRENCY,
-              status: 'completed',
-              external_ref: `demo_platform_fee:${predictionId}`,
-              prediction_id: predictionId,
-              description: `Demo platform fee for "${prediction.title}"`,
-              meta: { kind: 'platform_fee', provider: DEMO_PROVIDER, prediction_id: predictionId },
-            } as any).then(({ error }) => {
-              if (error && (error as any).code !== '23505') {
-                console.warn('[SETTLEMENT] demo platform fee tx insert error (non-fatal):', error);
-              }
-            });
-            try {
-              emitWalletUpdate({ userId: treasuryUserId, reason: 'platform_fee_collected', amountDelta: platformFee });
-            } catch {}
-          } else {
           console.log('');
           console.log(`🏦🏦🏦 [SETTLEMENT] ========================================`);
-          console.log(`🏦 [SETTLEMENT] Processing platform fee`);
+          console.log(`🏦 [SETTLEMENT] Processing platform fee (crypto rail)`);
           console.log(`🏦 [SETTLEMENT] Treasury user ID: ${treasuryUserId}`);
-          console.log(`🏦 [SETTLEMENT] Fee amount: $${platformFee}`);
+          console.log(`🏦 [SETTLEMENT] Fee amount: $${cryptoPlatformFee}`);
           console.log(`🏦🏦🏦 [SETTLEMENT] ========================================`);
           console.log('');
           
           console.log(`🏦 [SETTLEMENT] Step 1: Updating treasury wallet balance...`);
-          await db.wallets.directUpdateBalance(treasuryUserId, feeCurrency, platformFee, 0);
+          await db.wallets.directUpdateBalance(treasuryUserId, feeCurrency, cryptoPlatformFee, 0);
           console.log(`🏦 [SETTLEMENT] Step 1 COMPLETE`);
           
           console.log(`🏦 [SETTLEMENT] Step 2: Creating platform fee transaction...`);
@@ -1181,29 +1112,29 @@ router.post('/manual', async (req, res) => {
             type: 'deposit',
             channel: 'platform_fee',
             provider: 'crypto-base-usdc',
-            amount: platformFee,
+            amount: cryptoPlatformFee,
             currency: feeCurrency,
             status: 'completed',
-            external_ref: `settlement:${predictionId}:platform_fee`,
-            description: `Platform fee collected for "${prediction.title}"`,
+            external_ref: `settlement:${predictionId}:platform_fee:crypto`,
+            description: `Platform fee (crypto rail) collected for "${prediction.title}"`,
             meta: {
               prediction_id: predictionId,
               winning_option_id: winningOptionId,
               reason: 'platform_fee',
               settlement_type: 'manual',
+              rail: 'crypto',
               prediction_title: prediction.title
             }
           });
           console.log(`🏦 [SETTLEMENT] Step 2 COMPLETE - Transaction:`, JSON.stringify(platformTxResult, null, 2));
           console.log('');
-          console.log(`✅ [SETTLEMENT] Platform fee credited successfully`);
+          console.log(`✅ [SETTLEMENT] Platform fee (crypto) credited successfully`);
           console.log('');
           
           try {
-            emitWalletUpdate({ userId: treasuryUserId, reason: 'platform_fee_collected', amountDelta: platformFee });
+            emitWalletUpdate({ userId: treasuryUserId, reason: 'platform_fee_collected', amountDelta: cryptoPlatformFee });
           } catch (emitErr) {
             console.warn('⚠️ Failed to emit platform wallet update:', emitErr);
-          }
           }
         } catch (platformWalletError) {
           console.error('');
@@ -1216,23 +1147,32 @@ router.post('/manual', async (req, res) => {
         console.warn('');
         console.warn('⚠️⚠️⚠️ [SETTLEMENT] ========================================');
         console.warn('⚠️ [SETTLEMENT] PLATFORM_TREASURY_USER_ID is not configured or could not be resolved');
-        console.warn('⚠️ [SETTLEMENT] Platform fee of $' + platformFee + ' was NOT credited to any wallet');
+        console.warn('⚠️ [SETTLEMENT] Platform fee (crypto) of $' + cryptoPlatformFee + ' was NOT credited to any wallet');
         console.warn('⚠️⚠️⚠️ [SETTLEMENT] ========================================');
         console.warn('');
       }
     }
 
-    // Create settlement record
+    // Create settlement record (combined totals from demo + crypto rails)
     const { data: settlement, error: settlementError } = await supabase
       .from('bet_settlements')
-      .insert({
+      .upsert({
         bet_id: predictionId,
         winning_option_id: winningOptionId,
-        total_payout: payoutPool,
-        platform_fee_collected: platformFee,
-        creator_payout_amount: creatorFee,
-        settlement_time: new Date().toISOString()
-      })
+        total_payout: totalPayoutPool,
+        platform_fee_collected: totalPlatformFee,
+        creator_payout_amount: totalCreatorFee,
+        settlement_time: new Date().toISOString(),
+        status: hasCryptoRail ? 'pending_onchain' : 'completed',
+        meta: {
+          demo: demoSummary,
+          crypto: {
+            platformFee: cryptoPlatformFee,
+            creatorFee: cryptoCreatorFee,
+            payoutPool: cryptoPayoutPool,
+          }
+        }
+      } as any, { onConflict: 'bet_id' } as any)
       .select()
       .single();
 
@@ -1315,14 +1255,14 @@ router.post('/manual', async (req, res) => {
       console.error('Error updating prediction status:', updatePredictionError);
     }
 
-    // Record creator payout if there's a fee
-    if (creatorFee > 0) {
+    // Record creator payout if there's a crypto fee (demo fees already recorded by settleDemoRail)
+    if (cryptoCreatorFee > 0) {
       const { error: payoutError } = await supabase
         .from('creator_payouts')
         .insert({
           creator_id: prediction.creator_id,
           bet_id: predictionId,
-          amount: creatorFee,
+          amount: cryptoCreatorFee,
           currency: feeCurrency,
           status: 'processed',
           processed_at: new Date().toISOString()
@@ -1370,9 +1310,15 @@ router.post('/manual', async (req, res) => {
       success: true,
       data: {
         settlement,
-        totalPayout: payoutPool,
-        platformFee,
-        creatorFee,
+        totalPayout: totalPayoutPool,
+        platformFee: totalPlatformFee,
+        creatorFee: totalCreatorFee,
+        demo: demoSummary,
+        crypto: {
+          platformFee: cryptoPlatformFee,
+          creatorFee: cryptoCreatorFee,
+          payoutPool: cryptoPayoutPool,
+        },
         winnersCount,
         participantsCount: allEntries.length,
         results: settlementResults,

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { getApiUrl } from '../../config';
+import { useAuthStore } from '../../store/authStore';
+import { useAuthSession } from '../../providers/AuthSessionProvider';
 import {
   Users,
   Wallet,
@@ -11,6 +12,7 @@ import {
   Clock,
   Activity,
 } from 'lucide-react';
+import { adminGet } from '@/lib/adminApi';
 
 interface QuickStats {
   totalUsers?: number;
@@ -23,16 +25,17 @@ export const AdminHomePage: React.FC = () => {
   const [stats, setStats] = useState<QuickStats>({});
   const [recentActions, setRecentActions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const { user } = useAuthStore();
+  const { user: sessionUser } = useAuthSession();
+  const actorId = sessionUser?.id || user?.id || '';
 
   useEffect(() => {
     const fetchData = async () => {
       try {
+        if (!actorId) return;
         // Fetch recent audit actions
-        const res = await fetch(`${getApiUrl()}/api/v2/admin/audit?limit=5`);
-        if (res.ok) {
-          const data = await res.json();
-          setRecentActions(data.items || []);
-        }
+        const data = await adminGet<{ items?: any[] }>(`/api/v2/admin/audit`, actorId, { limit: 5 });
+        setRecentActions(data.items || []);
       } catch (e) {
         console.error('[AdminHome] Failed to fetch data:', e);
       } finally {
@@ -41,7 +44,7 @@ export const AdminHomePage: React.FC = () => {
     };
 
     fetchData();
-  }, []);
+  }, [actorId]);
 
   const quickActions = [
     { label: 'Search Users', path: '/admin/users', icon: Users, color: 'bg-blue-600' },

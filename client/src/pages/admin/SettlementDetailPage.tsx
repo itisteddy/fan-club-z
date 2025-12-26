@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { getApiUrl } from '../../config';
 import { useAuthStore } from '../../store/authStore';
+import { useAuthSession } from '../../providers/AuthSessionProvider';
 import {
   BarChart3,
   ArrowLeft,
@@ -19,6 +19,7 @@ import {
   Copy,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { adminGet, adminPost } from '@/lib/adminApi';
 
 interface SettlementDetail {
   prediction: {
@@ -75,6 +76,8 @@ export const SettlementDetailPage: React.FC = () => {
   const { predictionId } = useParams<{ predictionId: string }>();
   const navigate = useNavigate();
   const { user } = useAuthStore();
+  const { user: sessionUser } = useAuthSession();
+  const actorId = sessionUser?.id || user?.id || '';
   const [data, setData] = useState<SettlementDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
@@ -85,10 +88,8 @@ export const SettlementDetailPage: React.FC = () => {
     if (!predictionId) return;
     setLoading(true);
     try {
-      if (!user?.id) throw new Error('Missing user');
-      const res = await fetch(`${getApiUrl()}/api/v2/admin/settlements/${predictionId}?actorId=${encodeURIComponent(user.id)}`);
-      if (!res.ok) throw new Error('Failed to fetch');
-      const json = await res.json();
+      if (!actorId) throw new Error('Missing user');
+      const json = await adminGet<any>(`/api/v2/admin/settlements/${predictionId}`, actorId);
       setData(json);
     } catch (e) {
       console.error('[SettlementDetail] Fetch error:', e);
@@ -96,23 +97,19 @@ export const SettlementDetailPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [predictionId, user?.id]);
+  }, [predictionId, actorId]);
 
   useEffect(() => {
     fetchData();
   }, [fetchData]);
 
   const handleTrigger = async () => {
-    if (!predictionId || !user?.id || !selectedWinningOption) return;
+    if (!predictionId || !actorId || !selectedWinningOption) return;
     setActionLoading(true);
     try {
-      const res = await fetch(`${getApiUrl()}/api/v2/admin/settlements/${predictionId}/trigger`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ winningOptionId: selectedWinningOption, actorId: user.id }),
+      await adminPost<any>(`/api/v2/admin/settlements/${predictionId}/trigger`, actorId, {
+        winningOptionId: selectedWinningOption,
       });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.message || 'Trigger failed');
       toast.success('Settlement triggered');
       setShowTriggerModal(false);
       fetchData();
@@ -124,15 +121,10 @@ export const SettlementDetailPage: React.FC = () => {
   };
 
   const handleRetry = async () => {
-    if (!predictionId || !user?.id) return;
+    if (!predictionId || !actorId) return;
     setActionLoading(true);
     try {
-      const res = await fetch(`${getApiUrl()}/api/v2/admin/settlements/${predictionId}/retry`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ actorId: user.id }),
-      });
-      if (!res.ok) throw new Error('Retry failed');
+      await adminPost<any>(`/api/v2/admin/settlements/${predictionId}/retry`, actorId, {});
       toast.success('Settlement retry queued');
       fetchData();
     } catch (e) {

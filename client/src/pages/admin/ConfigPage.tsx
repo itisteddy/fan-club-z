@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import { getApiUrl } from '../../config';
 import { useAuthStore } from '../../store/authStore';
+import { useAuthSession } from '../../providers/AuthSessionProvider';
 import {
   Settings,
   Loader2,
@@ -14,6 +14,7 @@ import {
   Wrench,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { adminGet, adminPost, adminPut } from '@/lib/adminApi';
 
 interface FeatureFlags {
   crypto_deposits: boolean;
@@ -52,6 +53,8 @@ const defaultConfig: ConfigData = {
 
 export const ConfigPage: React.FC = () => {
   const { user } = useAuthStore();
+  const { user: sessionUser } = useAuthSession();
+  const actorId = sessionUser?.id || user?.id || '';
   const [config, setConfig] = useState<ConfigData>(defaultConfig);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -60,10 +63,8 @@ export const ConfigPage: React.FC = () => {
   const fetchConfig = useCallback(async () => {
     setLoading(true);
     try {
-      if (!user?.id) throw new Error('Missing user');
-      const res = await fetch(`${getApiUrl()}/api/v2/admin/config?actorId=${encodeURIComponent(user.id)}`);
-      if (!res.ok) throw new Error('Failed to fetch config');
-      const data = await res.json();
+      if (!actorId) throw new Error('Missing user');
+      const data = await adminGet<any>(`/api/v2/admin/config`, actorId);
       setConfig({ ...defaultConfig, ...data.config });
       setMaintenanceMessage(data.config?.maintenance_message || defaultConfig.maintenance_message);
     } catch (e) {
@@ -72,27 +73,21 @@ export const ConfigPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [user?.id]);
+  }, [actorId]);
 
   useEffect(() => {
     fetchConfig();
   }, [fetchConfig]);
 
   const handleToggleMaintenance = async () => {
-    if (!user?.id) return;
+    if (!actorId) return;
     setSaving(true);
     try {
       const newValue = !config.maintenance_mode;
-      const res = await fetch(`${getApiUrl()}/api/v2/admin/config/maintenance`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          enabled: newValue,
-          message: maintenanceMessage,
-          actorId: user.id,
-        }),
+      await adminPost<any>(`/api/v2/admin/config/maintenance`, actorId, {
+        enabled: newValue,
+        message: maintenanceMessage,
       });
-      if (!res.ok) throw new Error('Failed to update');
       setConfig(prev => ({ ...prev, maintenance_mode: newValue }));
       toast.success(newValue ? 'Maintenance mode enabled' : 'Maintenance mode disabled');
     } catch (e) {
@@ -103,22 +98,16 @@ export const ConfigPage: React.FC = () => {
   };
 
   const handleToggleFeature = async (feature: string) => {
-    if (!user?.id) return;
+    if (!actorId) return;
     setSaving(true);
     try {
       const newFlags = {
         ...config.feature_flags,
         [feature]: !config.feature_flags[feature],
       };
-      const res = await fetch(`${getApiUrl()}/api/v2/admin/config/feature-flags`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          flags: { [feature]: newFlags[feature] },
-          actorId: user.id,
-        }),
+      await adminPost<any>(`/api/v2/admin/config/feature-flags`, actorId, {
+        flags: { [feature]: newFlags[feature] },
       });
-      if (!res.ok) throw new Error('Failed to update');
       setConfig(prev => ({ ...prev, feature_flags: newFlags }));
       toast.success(`${feature} ${newFlags[feature] ? 'enabled' : 'disabled'}`);
     } catch (e) {
@@ -129,15 +118,10 @@ export const ConfigPage: React.FC = () => {
   };
 
   const handleSaveConfig = async (key: string, value: any) => {
-    if (!user?.id) return;
+    if (!actorId) return;
     setSaving(true);
     try {
-      const res = await fetch(`${getApiUrl()}/api/v2/admin/config/${key}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ value, actorId: user.id }),
-      });
-      if (!res.ok) throw new Error('Failed to update');
+      await adminPut<any>(`/api/v2/admin/config/${key}`, actorId, { value });
       setConfig(prev => ({ ...prev, [key]: value }));
       toast.success('Config saved');
     } catch (e) {

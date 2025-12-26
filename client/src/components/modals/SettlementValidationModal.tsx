@@ -5,6 +5,7 @@ import { getApiUrl } from '../../config';
 import { useAuthStore } from '../../store/authStore';
 import { useAuthSession } from '../../providers/AuthSessionProvider';
 import { toast } from 'react-hot-toast';
+import { adminPost } from '@/lib/adminApi';
 
 interface SettlementValidationModalProps {
   isOpen: boolean;
@@ -215,18 +216,7 @@ const SettlementValidationModal: React.FC<SettlementValidationModalProps> = ({
         localStorage.setItem('fcz_admin_key', adminKey);
       }
 
-      const res = await fetch(`${getApiUrl()}/api/v2/admin/settlement/${predictionId}/finalize`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Admin-Key': adminKey,
-        },
-        body: JSON.stringify({ actorId: userId }),
-      });
-      if (!res.ok) {
-        const txt = await res.text().catch(() => '');
-        throw new Error(txt || 'Finalization failed');
-      }
+      await adminPost<any>(`/api/v2/admin/settlement/${predictionId}/finalize`, userId, { adminKey });
       toast.success('Finalized on-chain.');
       await Promise.all([fetchFinalizeStatus(), fetchSettlementStatus()]);
       onValidated?.();

@@ -1,7 +1,7 @@
 import React, { useState, useCallback} from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getApiUrl } from '../../config';
 import { useAuthStore } from '../../store/authStore';
+import { useAuthSession } from '../../providers/AuthSessionProvider';
 import {
   HeadphonesIcon,
   Search,
@@ -13,6 +13,7 @@ import {
   Clock,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { adminGet } from '@/lib/adminApi';
 
 interface SearchResults {
   users: Array<{ id: string; username: string | null; full_name: string | null; email: string | null }>;
@@ -23,6 +24,8 @@ interface SearchResults {
 export const SupportPage: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuthStore();
+  const { user: sessionUser } = useAuthSession();
+  const actorId = sessionUser?.id || user?.id || '';
   const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState<SearchResults | null>(null);
@@ -33,14 +36,12 @@ export const SupportPage: React.FC = () => {
       toast.error('Query must be at least 2 characters');
       return;
     }
-    if (!user?.id) return;
+    if (!actorId) return;
 
     setLoading(true);
     setSearched(true);
     try {
-      const res = await fetch(`${getApiUrl()}/api/v2/admin/support/search?q=${encodeURIComponent(query.trim())}&actorId=${encodeURIComponent(user.id)}`);
-      if (!res.ok) throw new Error('Search failed');
-      const data = await res.json();
+      const data = await adminGet<any>(`/api/v2/admin/support/search`, actorId, { q: query.trim() });
       setResults(data.results);
     } catch (e) {
       console.error('[SupportPage] Search error:', e);
@@ -49,7 +50,7 @@ export const SupportPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [query, user?.id]);
+  }, [query, actorId]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {

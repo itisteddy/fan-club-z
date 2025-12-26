@@ -178,6 +178,306 @@ settlementsRouter.get('/stats', async (req, res) => {
 });
 
 /**
+ * GET /api/v2/admin/settlements/finalize-queue
+ * Get predictions that are settled off-chain but not finalized on-chain
+ */
+settlementsRouter.get('/finalize-queue', async (req, res) => {
+  try {
+    const actorId = req.query.actorId as string;
+    if (!actorId) {
+      return res.status(401).json({
+        error: 'Unauthorized',
+        message: 'actorId required',
+        version: VERSION,
+      });
+    }
+
+    // Get predictions that are settled but don't have finalized on-chain status
+    const { data: settledPredictions, error: predError } = await supabase
+      .from('predictions')
+      .select(`
+        id, title, status, settled_at, winning_option_id, creator_id,
+        users!predictions_creator_id_fkey(username, full_name)
+      `)
+      .eq('status', 'settled')
+      .order('settled_at', { ascending: false })
+      .limit(100);
+
+    if (predError) {
+      console.error('[Admin/Settlements] Finalize queue query error:', predError);
+      return res.status(500).json({
+        error: 'Internal Server Error',
+        message: 'Failed to fetch finalize queue',
+        version: VERSION,
+      });
+    }
+
+    // Get bet_settlements to check merkle root and status
+    const predictionIds = (settledPredictions || []).map(p => p.id);
+    const { data: settlements } = await supabase
+      .from('bet_settlements')
+      .select('bet_id, status, meta')
+      .in('bet_id', predictionIds);
+
+    const settlementMap: Record<string, any> = {};
+    for (const s of settlements || []) {
+      settlementMap[s.bet_id] = s;
+    }
+
+    // Get finalize jobs
+    const { data: jobs } = await supabase
+      .from('settlement_finalize_jobs')
+      .select('prediction_id, status, tx_hash, error, created_at')
+      .in('prediction_id', predictionIds)
+      .order('created_at', { ascending: false });
+
+    const jobMap: Record<string, any> = {};
+    for (const j of jobs || []) {
+      if (!jobMap[j.prediction_id]) {
+        jobMap[j.prediction_id] = j;
+      }
+    }
+
+    // Filter to only those that need finalization (have crypto entries or merkle root but not finalized)
+    const queue = (settledPredictions || [])
+      .filter((p: any) => {
+        const settlement = settlementMap[p.id];
+        const job = jobMap[p.id];
+        // Include if:
+        // 1. Has merkle root in settlement meta (crypto rail exists)
+        // 2. Settlement status is 'pending_onchain' or job status is not 'finalized'
+        const hasMerkleRoot = settlement?.meta?.merkle_root || settlement?.meta?.merkleRoot;
+        const needsFinalize = settlement?.status === 'pending_onchain' || 
+                              (hasMerkleRoot && job?.status !== 'finalized');
+        return needsFinalize;
+      })
+      .map((p: any) => ({
+        id: p.id,
+        title: p.title,
+        creatorId: p.creator_id,
+        creatorUsername: p.users?.username || null,
+        creatorName: p.users?.full_name || null,
+        settledAt: p.settled_at,
+        winningOptionId: p.winning_option_id,
+        merkleRoot: settlementMap[p.id]?.meta?.merkle_root || settlementMap[p.id]?.meta?.merkleRoot || null,
+        settlementStatus: settlementMap[p.id]?.status || null,
+        jobStatus: jobMap[p.id]?.status || null,
+        jobTxHash: jobMap[p.id]?.tx_hash || null,
+        jobError: jobMap[p.id]?.error || null,
+        jobCreatedAt: jobMap[p.id]?.created_at || null,
+      }));
+
+    return res.json({
+      items: queue,
+      total: queue.length,
+      version: VERSION,
+    });
+  } catch (error) {
+    console.error('[Admin/Settlements] Finalize queue error:', error);
+    return res.status(500).json({
+      error: 'Internal Server Error',
+      message: 'Failed to fetch finalize queue',
+      version: VERSION,
+    });
+  }
+});
+
+/**
+ * POST /api/v2/admin/settlements/:predictionId/finalize-onchain
+ * Admin finalize on-chain settlement (uses relayer)
+ */
+settlementsRouter.post('/:predictionId/finalize-onchain', async (req, res) => {
+  try {
+    const { predictionId } = req.params;
+    const actorId = (req.body as any)?.actorId;
+    const reason = (req.body as any)?.reason || 'Admin finalization';
+
+    if (!actorId) {
+      return res.status(401).json({
+        error: 'Unauthorized',
+        message: 'actorId required',
+        version: VERSION,
+      });
+    }
+
+    // Check if relayer is configured
+    if (!process.env.RELAYER_PRIVATE_KEY || !process.env.RELAYER_RPC_URL) {
+      return res.status(500).json({
+        error: 'Relayer not configured',
+        message: 'RELAYER_PRIVATE_KEY and RELAYER_RPC_URL must be set',
+        version: VERSION,
+      });
+    }
+
+    // Import relayer and settlement functions
+    const { submitFinalizeTx } = await import('../../services/relayer');
+    const { computeMerkleSettlementCryptoOnly, recordOnchainPosted, resolveTreasuryUserId } = await import('../settlement');
+
+    // Get prediction
+    const { data: prediction, error: predError } = await supabase
+      .from('predictions')
+      .select('id, title, creator_id, winning_option_id, status')
+      .eq('id', predictionId)
+      .maybeSingle();
+
+    if (predError || !prediction) {
+      return res.status(404).json({
+        error: 'Not Found',
+        message: 'Prediction not found',
+        version: VERSION,
+      });
+    }
+
+    if (prediction.status !== 'settled') {
+      return res.status(400).json({
+        error: 'Bad Request',
+        message: 'Prediction must be settled before finalization',
+        version: VERSION,
+      });
+    }
+
+    const winningOptionId = prediction.winning_option_id;
+    if (!winningOptionId) {
+      return res.status(400).json({
+        error: 'Bad Request',
+        message: 'Prediction must have a winning option',
+        version: VERSION,
+      });
+    }
+
+    // Compute merkle settlement (crypto rail only)
+    const settlement = await computeMerkleSettlementCryptoOnly({ predictionId, winningOptionId });
+
+    // Get creator address
+    const { data: creatorAddrRow } = await supabase
+      .from('wallet_addresses')
+      .select('address')
+      .eq('user_id', prediction.creator_id)
+      .eq('chain_id', 84532)
+      .maybeSingle();
+
+    if (!creatorAddrRow?.address) {
+      return res.status(400).json({
+        error: 'Bad Request',
+        message: 'Creator wallet address not found',
+        version: VERSION,
+      });
+    }
+
+    // Get treasury address
+    const treasuryUserId = await resolveTreasuryUserId();
+    if (!treasuryUserId) {
+      return res.status(500).json({
+        error: 'Internal Server Error',
+        message: 'Treasury user not configured',
+        version: VERSION,
+      });
+    }
+
+    const { data: treasuryAddr } = await supabase
+      .from('wallet_addresses')
+      .select('address')
+      .eq('user_id', treasuryUserId)
+      .eq('chain_id', 84532)
+      .maybeSingle();
+
+    if (!treasuryAddr?.address) {
+      return res.status(500).json({
+        error: 'Internal Server Error',
+        message: 'Treasury wallet address not found',
+        version: VERSION,
+      });
+    }
+
+    // Ensure bet_settlements row exists
+    await supabase
+      .from('bet_settlements')
+      .upsert(
+        {
+          bet_id: predictionId,
+          winning_option_id: winningOptionId,
+          total_payout: settlement.payoutPoolUSD,
+          platform_fee_collected: settlement.platformFeeUSD,
+          creator_payout_amount: settlement.creatorFeeUSD,
+          settlement_time: new Date().toISOString(),
+          status: 'pending_onchain',
+          meta: {
+            merkle_root: settlement.root,
+            winners: settlement.winners.length,
+          },
+        } as any,
+        { onConflict: 'bet_id' } as any
+      );
+
+    // Submit on-chain finalize via relayer
+    const { txHash } = await submitFinalizeTx({
+      predictionId,
+      merkleRoot: settlement.root,
+      creatorAddress: creatorAddrRow.address as any,
+      creatorFeeUnits: BigInt(settlement.creatorFeeUnits.toString()),
+      platformAddress: treasuryAddr.address as any,
+      platformFeeUnits: BigInt(settlement.platformFeeUnits.toString()),
+    });
+
+    // Record on-chain posted status
+    await recordOnchainPosted({ predictionId, txHash, root: settlement.root });
+
+    // Update/create finalize job
+    await supabase
+      .from('settlement_finalize_jobs')
+      .upsert(
+        {
+          prediction_id: predictionId,
+          requested_by: actorId,
+          status: 'finalized',
+          tx_hash: txHash,
+          error: null,
+          updated_at: new Date().toISOString(),
+        } as any,
+        { onConflict: 'prediction_id' } as any
+      );
+
+    // Log admin action
+    await logAdminAction({
+      actorId,
+      action: 'settlement_finalize_onchain',
+      targetType: 'prediction',
+      targetId: predictionId,
+      reason,
+      meta: {
+        tx_hash: txHash,
+        merkle_root: settlement.root,
+      },
+    });
+
+    return res.json({
+      success: true,
+      txHash,
+      message: 'Settlement finalized on-chain',
+      version: VERSION,
+    });
+  } catch (error: any) {
+    console.error('[Admin/Settlements] Finalize onchain error:', error);
+    const errorMessage = error?.message || 'Failed to finalize on-chain';
+    
+    // If relayer not configured, return clear error
+    if (errorMessage.includes('RELAYER') || errorMessage.includes('relayer')) {
+      return res.status(500).json({
+        error: 'Relayer not configured',
+        message: errorMessage,
+        version: VERSION,
+      });
+    }
+
+    return res.status(500).json({
+      error: 'Internal Server Error',
+      message: errorMessage,
+      version: VERSION,
+    });
+  }
+});
+
+/**
  * GET /api/v2/admin/settlements/:predictionId
  * Get detailed settlement info for a prediction
  */
@@ -384,9 +684,15 @@ settlementsRouter.post('/:predictionId/trigger', async (req, res) => {
       });
 
     // Log admin action
-    await logAdminAction(actorId, 'settlement_trigger', 'prediction', predictionId, null, {
-      title: prediction.title,
-      winningOption: option.text,
+    await logAdminAction({
+      actorId,
+      action: 'settlement_trigger',
+      targetType: 'prediction',
+      targetId: predictionId,
+      meta: {
+        title: prediction.title,
+        winningOption: option.text,
+      },
     });
 
     return res.json({
@@ -465,8 +771,14 @@ settlementsRouter.post('/:predictionId/retry', async (req, res) => {
       .eq('id', job.id);
 
     // Log admin action
-    await logAdminAction(actorId, 'settlement_retry', 'prediction', predictionId, null, {
-      previousError: job.error,
+    await logAdminAction({
+      actorId,
+      action: 'settlement_retry',
+      targetType: 'prediction',
+      targetId: predictionId,
+      meta: {
+        previousError: job.error,
+      },
     });
 
     return res.json({

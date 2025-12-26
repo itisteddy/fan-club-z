@@ -1,6 +1,6 @@
 import * as Dialog from '@radix-ui/react-dialog';
 import { VisuallyHidden } from '@radix-ui/react-visually-hidden';
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useConnect } from 'wagmi';
 import toast from 'react-hot-toast';
 
@@ -21,16 +21,40 @@ type ConnectWalletSheetProps = {
 export default function ConnectWalletSheet({ isOpen, onClose }: ConnectWalletSheetProps) {
   const { connect, connectors, status, error } = useConnect();
   const [open, setOpen] = useState<boolean>(Boolean(isOpen));
+  const [connectError, setConnectError] = useState<string | null>(null);
   const isMobile = isMobileDevice();
   const wcConnector = wcEnabled ? connectors.find(c => c.id === 'walletConnect') : null;
+  
+  // Guard to prevent repeated connect attempts
+  const attemptedRef = useRef(false);
+  const lastAttemptRef = useRef<number>(0);
+
+  // Reset attempt guard when sheet opens
+  useEffect(() => {
+    if (open) {
+      attemptedRef.current = false;
+      setConnectError(null);
+    }
+  }, [open]);
 
   const handleConnect = useCallback(async (connector: any) => {
+    // Prevent repeated attempts within 10 seconds
+    const now = Date.now();
+    if (attemptedRef.current && (now - lastAttemptRef.current) < 10000) {
+      return;
+    }
+    
+    attemptedRef.current = true;
+    lastAttemptRef.current = now;
+    setConnectError(null);
+    
     try {
       await connect({ connector });
       if (onClose) onClose();
       else setOpen(false);
     } catch (err: any) {
       const errorMessage = err?.message || 'Failed to connect wallet';
+      setConnectError(errorMessage);
       
       // Provide helpful error messages
       if (errorMessage.includes('403') || errorMessage.includes('Forbidden')) {
@@ -41,16 +65,11 @@ export default function ConnectWalletSheet({ isOpen, onClose }: ConnectWalletShe
       } else {
         toast.error(errorMessage);
       }
+      
+      // Reset attempt flag so user can try again
+      attemptedRef.current = false;
     }
   }, [connect, onClose]);
-
-  // On mobile, auto-connect WalletConnect when modal opens
-  useEffect(() => {
-    if (isMobile && open && wcConnector && wcEnabled) {
-      // Auto-connect WalletConnect on mobile without showing modal
-      handleConnect(wcConnector);
-    }
-  }, [isMobile, open, wcConnector, wcEnabled, handleConnect]);
 
   useEffect(() => {
     // Controlled mode sync
@@ -63,16 +82,12 @@ export default function ConnectWalletSheet({ isOpen, onClose }: ConnectWalletShe
     // Uncontrolled (global event) mode only when isOpen prop is not provided
     if (typeof isOpen === 'boolean') return;
     const handler = () => {
-      // On mobile, directly connect WalletConnect without showing modal
-      if (isMobile && wcConnector && wcEnabled) {
-        handleConnect(wcConnector);
-      } else {
-        setOpen(true);
-      }
+      // On mobile, show the sheet (no auto-connect)
+      setOpen(true);
     };
     window.addEventListener('fcz:wallet:connect', handler as EventListener);
     return () => window.removeEventListener('fcz:wallet:connect', handler as EventListener);
-  }, [isOpen, isMobile, wcConnector, wcEnabled, handleConnect]);
+  }, [isOpen]);
 
   const browserConnector = connectors.find(c => c.id === 'injected');
 
@@ -175,8 +190,24 @@ export default function ConnectWalletSheet({ isOpen, onClose }: ConnectWalletShe
               </ul>
             )}
 
-            {status === 'error' && (
-              <p className="px-4 pt-3 text-xs text-red-600">{String(error?.message ?? 'Failed to connect')}</p>
+            {(status === 'error' || connectError) && (
+              <div className="px-4 pt-3 space-y-2">
+                <p className="text-xs text-red-600">
+                  {connectError || String(error?.message ?? 'Failed to connect')}
+                </p>
+                {connectError && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      attemptedRef.current = false;
+                      setConnectError(null);
+                    }}
+                    className="text-xs text-emerald-600 hover:text-emerald-700 font-medium"
+                  >
+                    Try again
+                  </button>
+                )}
+              </div>
             )}
 
             <div className="h-3" />

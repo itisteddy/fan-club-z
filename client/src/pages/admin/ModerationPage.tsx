@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getApiUrl } from '../../config';
 import { useAuthStore } from '../../store/authStore';
+import { useAuthSession } from '../../providers/AuthSessionProvider';
 import {
   Shield,
   Search,
@@ -15,6 +15,7 @@ import {
   BadgeCheck,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { adminGet, adminPost } from '@/lib/adminApi';
 
 interface Creator {
   id: string;
@@ -34,6 +35,8 @@ type TabType = 'creators' | 'reports';
 export const ModerationPage: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuthStore();
+  const { user: sessionUser } = useAuthSession();
+  const actorId = sessionUser?.id || user?.id || '';
   const [activeTab, setActiveTab] = useState<TabType>('creators');
   const [creators, setCreators] = useState<Creator[]>([]);
   const [loading, setLoading] = useState(false);
@@ -48,10 +51,8 @@ export const ModerationPage: React.FC = () => {
   const fetchCreators = useCallback(async () => {
     setLoading(true);
     try {
-      if (!user?.id) throw new Error('Missing user');
-      const res = await fetch(`${getApiUrl()}/api/v2/admin/moderation/creators?limit=100&actorId=${encodeURIComponent(user.id)}`);
-      if (!res.ok) throw new Error('Failed to fetch');
-      const data = await res.json();
+      if (!actorId) throw new Error('Missing user');
+      const data = await adminGet<any>(`/api/v2/admin/moderation/creators`, actorId, { limit: 100 });
       setCreators(data.items || []);
     } catch (e) {
       console.error('[ModerationPage] Fetch error:', e);
@@ -59,7 +60,7 @@ export const ModerationPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [user?.id]);
+  }, [actorId]);
 
   useEffect(() => {
     if (activeTab === 'creators') {
@@ -68,16 +69,10 @@ export const ModerationPage: React.FC = () => {
   }, [activeTab, fetchCreators]);
 
   const handleBan = async () => {
-    if (!banTarget || !user?.id || banReason.length < 5) return;
+    if (!banTarget || !actorId || banReason.length < 5) return;
     setActionLoading(banTarget.id);
     try {
-      const res = await fetch(`${getApiUrl()}/api/v2/admin/moderation/users/${banTarget.id}/ban`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ reason: banReason, actorId: user.id }),
-      });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.message || 'Ban failed');
+      const json = await adminPost<any>(`/api/v2/admin/moderation/users/${banTarget.id}/ban`, actorId, { reason: banReason });
       toast.success('User banned successfully');
       setShowBanModal(false);
       setBanTarget(null);
@@ -91,16 +86,10 @@ export const ModerationPage: React.FC = () => {
   };
 
   const handleUnban = async (userId: string) => {
-    if (!user?.id) return;
+    if (!actorId) return;
     setActionLoading(userId);
     try {
-      const res = await fetch(`${getApiUrl()}/api/v2/admin/moderation/users/${userId}/unban`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ actorId: user.id }),
-      });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.message || 'Unban failed');
+      await adminPost<any>(`/api/v2/admin/moderation/users/${userId}/unban`, actorId, {});
       toast.success('User unbanned successfully');
       fetchCreators();
     } catch (e: any) {
@@ -111,16 +100,10 @@ export const ModerationPage: React.FC = () => {
   };
 
   const handleVerify = async (userId: string) => {
-    if (!user?.id) return;
+    if (!actorId) return;
     setActionLoading(userId);
     try {
-      const res = await fetch(`${getApiUrl()}/api/v2/admin/moderation/users/${userId}/verify`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ actorId: user.id }),
-      });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.message || 'Verify failed');
+      await adminPost<any>(`/api/v2/admin/moderation/users/${userId}/verify`, actorId, {});
       toast.success('User verified successfully');
       fetchCreators();
     } catch (e: any) {
@@ -131,24 +114,20 @@ export const ModerationPage: React.FC = () => {
   };
 
   const handleUnverify = async (userId: string) => {
-    if (!user?.id) return;
+    if (!actorId) return;
     setActionLoading(userId);
     try {
-      const res = await fetch(`${getApiUrl()}/api/v2/admin/moderation/users/${userId}/unverify`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ actorId: user.id }),
-      });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.message || 'Unverify failed');
+      await adminPost<any>(`/api/v2/admin/moderation/users/${userId}/unverify`, actorId, {});
       toast.success('Verification removed');
       fetchCreators();
     } catch (e: any) {
-      toast.error(e.message || 'Failed to unverify user');
+      toast.error(e.message || 'Failed to remove verification');
     } finally {
       setActionLoading(null);
     }
   };
+
+  // (legacy duplicate) handled above via adminPost + actorId enforcement
 
   const filteredCreators = searchQuery
     ? creators.filter(c =>

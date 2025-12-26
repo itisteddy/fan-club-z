@@ -1,6 +1,8 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { getApiUrl } from '../../config';
 import { ScrollText, ChevronDown, ChevronUp, RefreshCw, Filter, Search } from 'lucide-react';
+import { useAuthStore } from '../../store/authStore';
+import { useAuthSession } from '../../providers/AuthSessionProvider';
+import { adminGet } from '@/lib/adminApi';
 
 interface AuditLogItem {
   id: string;
@@ -15,6 +17,9 @@ interface AuditLogItem {
 }
 
 export const AuditLogPage: React.FC = () => {
+  const { user } = useAuthStore();
+  const { user: sessionUser } = useAuthSession();
+  const actorId = sessionUser?.id || user?.id || '';
   const [items, setItems] = useState<AuditLogItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [total, setTotal] = useState(0);
@@ -27,18 +32,12 @@ export const AuditLogPage: React.FC = () => {
   const fetchAuditLog = useCallback(async () => {
     setLoading(true);
     try {
-      const params = new URLSearchParams({
-        limit: String(limit),
-        offset: String(offset),
+      if (!actorId) return;
+      const data = await adminGet<{ items?: AuditLogItem[]; total?: number }>(`/api/v2/admin/audit`, actorId, {
+        limit,
+        offset,
+        action: actionFilter || undefined,
       });
-      if (actionFilter) {
-        params.set('action', actionFilter);
-      }
-
-      const res = await fetch(`${getApiUrl()}/api/v2/admin/audit?${params}`);
-      if (!res.ok) throw new Error('Failed to fetch audit log');
-      
-      const data = await res.json();
       setItems(data.items || []);
       setTotal(data.total || 0);
     } catch (e) {
@@ -46,19 +45,17 @@ export const AuditLogPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [offset, actionFilter]);
+  }, [offset, actionFilter, actorId]);
 
   const fetchActions = useCallback(async () => {
     try {
-      const res = await fetch(`${getApiUrl()}/api/v2/admin/audit/actions`);
-      if (res.ok) {
-        const data = await res.json();
-        setActions(data.actions || []);
-      }
+      if (!actorId) return;
+      const data = await adminGet<{ actions?: string[] }>(`/api/v2/admin/audit/actions`, actorId);
+      setActions(data.actions || []);
     } catch (e) {
       console.error('[AuditLog] Failed to fetch actions:', e);
     }
-  }, []);
+  }, [actorId]);
 
   useEffect(() => {
     fetchAuditLog();
