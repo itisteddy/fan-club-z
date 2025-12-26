@@ -14,7 +14,8 @@ type FundingModeState = {
 export const useFundingModeStore = create<FundingModeState>()(
   persist(
     (set) => ({
-      mode: 'crypto',
+      // Default to 'demo' if enabled, otherwise 'crypto'
+      mode: DEMO_ENABLED ? 'demo' : 'crypto',
       isDemoEnabled: DEMO_ENABLED,
       setMode: (mode) => {
         if (!DEMO_ENABLED) {
@@ -33,6 +34,11 @@ export const useFundingModeStore = create<FundingModeState>()(
         if (!state) return;
         if (!DEMO_ENABLED && state.mode !== 'crypto') {
           state.setMode('crypto');
+        }
+        // If demo is enabled and no saved preference, default to demo
+        // (This handles first-time users when demo is enabled)
+        if (DEMO_ENABLED && state.mode === 'crypto' && !localStorage.getItem('fcz:fundingMode')) {
+          // This won't run because persist middleware handles it, but keep for clarity
         }
       },
     }
