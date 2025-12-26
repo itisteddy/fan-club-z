@@ -135,8 +135,8 @@ ENABLE_FILE_LOGGING=false
 ### **💰 Payment Configuration**
 
 ```bash
-# Demo Mode (set to false in production)
-PAYMENT_DEMO_MODE=false  # Backend: enables demo payment processing (defaults to true if not set)
+# Demo Mode (can be enabled in production if desired)
+PAYMENT_DEMO_MODE=true  # Backend: enables demo payment processing (defaults to true if not set)
 DEMO_PAYMENT_SUCCESS_RATE=0.9
 DEMO_PAYMENT_DELAY=3000
 
@@ -231,8 +231,8 @@ VITE_WALLETCONNECT_PROJECT_ID=00bf3e007580babfff66bd23c646f3ff
 ### **🚩 Feature Flags (Optional)**
 
 ```bash
-# Demo Credits (for local development only - set to 1 to enable demo mode toggle)
-VITE_FCZ_ENABLE_DEMO=1  # Frontend: enables demo/crypto mode toggle in UI (set to 0 or omit in production)
+# Demo Credits (set to 1 to enable demo mode toggle - can be used in production)
+VITE_FCZ_ENABLE_DEMO=1  # Frontend: enables demo/crypto mode toggle in UI (defaults to demo when enabled)
 
 # Other Feature Flags
 VITE_FCZ_UNIFIED_HEADER=1
@@ -263,8 +263,8 @@ VITE_FCZ_COMMENTS_V2=1
 | `VITE_WALLETCONNECT_PROJECT_ID` | ❌ | ✅ | ✅ | WalletConnect project ID |
 | `PEXELS_API_KEY` | ✅ | ❌ | ⚠️ | Image API key |
 | `UNSPLASH_ACCESS_KEY` | ✅ | ❌ | ⚠️ | Image API key |
-| `PAYMENT_DEMO_MODE` | ✅ | ❌ | ⚠️ | Demo mode flag (false in prod) |
-| `VITE_FCZ_ENABLE_DEMO` | ❌ | ✅ | ⚠️ | Enable demo credits toggle (1 for local dev, 0/omit in prod) |
+| `PAYMENT_DEMO_MODE` | ✅ | ❌ | ⚠️ | Demo mode flag (true to enable, false to disable) |
+| `VITE_FCZ_ENABLE_DEMO` | ❌ | ✅ | ⚠️ | Enable demo credits toggle (1 to enable, 0/omit to disable) |
 
 ---
 
@@ -302,9 +302,9 @@ VITE_FCZ_COMMENTS_V2=1
 - Rotate secrets regularly
 - Use strong, random values for security-critical variables
 
-## 🎮 Demo Credits (Local Development Only)
+## 🎮 Demo Credits Configuration
 
-**For Local Development:**
+**To Enable Demo Credits (Local Dev or Production):**
 ```bash
 # Vercel (Frontend) - Enable demo mode toggle
 VITE_FCZ_ENABLE_DEMO=1
@@ -313,7 +313,7 @@ VITE_FCZ_ENABLE_DEMO=1
 PAYMENT_DEMO_MODE=true  # or omit (defaults to true)
 ```
 
-**For Production:**
+**To Disable Demo Credits:**
 ```bash
 # Vercel (Frontend) - Disable demo mode toggle
 VITE_FCZ_ENABLE_DEMO=0  # or omit entirely
@@ -323,9 +323,10 @@ PAYMENT_DEMO_MODE=false
 ```
 
 **How Demo Credits Work:**
-- Users can toggle between "Demo" and "Crypto" funding modes when `VITE_FCZ_ENABLE_DEMO=1`
+- When `VITE_FCZ_ENABLE_DEMO=1`, users can toggle between "Demo" and "Crypto" funding modes
+- **Default mode is "Demo Credits"** when demo is enabled (users can switch to crypto if needed)
 - Demo credits are stored in `wallets` table with `currency='DEMO_USD'` and `provider='demo-wallet'`
 - Users can request demo credits via `/api/demo-wallet/faucet` endpoint (50 DEMO_USD per day)
 - Demo bets are settled instantly off-chain (no on-chain transactions)
-- Demo credits are **NOT** available in production - use real crypto deposits instead
+- Demo credits can be enabled in **both local development and production** environments
 

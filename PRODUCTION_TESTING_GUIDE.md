@@ -1,8 +1,8 @@
-# Production Testing Guide (Without Demo Credits)
+# Production Testing Guide
 
 ## 🎯 Overview
 
-Since demo credits are disabled in production (`PAYMENT_DEMO_MODE=false`), you need to test features using **real crypto deposits** on Base Sepolia testnet. This guide shows you how to test all features without demo mode.
+This guide shows you how to test features in production. You can use **demo credits** (if enabled) or **real crypto deposits** on Base Sepolia testnet. Demo credits are enabled by default when `VITE_FCZ_ENABLE_DEMO=1` and `PAYMENT_DEMO_MODE=true`.
 
 ---
 
