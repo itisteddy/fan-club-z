@@ -38,9 +38,18 @@ const USDC_ADDRESS_RAW = import.meta.env.VITE_USDC_ADDRESS_BASE_SEPOLIA ||
                           '0x036CbD53842c5426634e7929541eC2318f3dCF7e';
 const USDC_ADDRESS = getChecksummedAddress(USDC_ADDRESS_RAW);
 
-const ESCROW_ADDR_ENV: `0x${string}` | undefined = import.meta.env.VITE_BASE_ESCROW_ADDRESS 
-  ? getChecksummedAddress(import.meta.env.VITE_BASE_ESCROW_ADDRESS)
-  : undefined;
+const ESCROW_ADDR_ENV: `0x${string}` | undefined = (() => {
+  const primary = import.meta.env.VITE_BASE_ESCROW_ADDRESS;
+  const legacy = import.meta.env.VITE_ESCROW_ADDRESS_BASE_SEPOLIA;
+  if (primary && legacy && primary.trim().toLowerCase() !== legacy.trim().toLowerCase()) {
+    // Hard guard: refuse to silently choose between two different escrow addresses.
+    throw new Error(
+      `[FCZ-PAY] Escrow address mismatch. VITE_BASE_ESCROW_ADDRESS (${primary}) !== VITE_ESCROW_ADDRESS_BASE_SEPOLIA (${legacy}). Fix env to a single canonical escrow.`
+    );
+  }
+  const resolved = primary ?? legacy;
+  return resolved ? getChecksummedAddress(resolved) : undefined;
+})();
 
 const ERC20_ABI = [
   {
@@ -386,7 +395,7 @@ export default function DepositUSDCModal({
       fetch(`${apiBase}/api/wallet/reconcile`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: currentUserId, walletAddress: address, txHash: depositTxHash }),
+        body: JSON.stringify({ userId: currentUserId, walletAddress: address, txHash: depositTxHash, txType: 'deposit', amountUSD: cleanAmount }),
       }).catch(() => {});
 
       toast.success(

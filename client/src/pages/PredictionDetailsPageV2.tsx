@@ -13,6 +13,8 @@ import { useAuthStore } from '../store/authStore';
 import { openAuthGate } from '../auth/authGateAdapter';
 import { useAuthSession } from '../providers/AuthSessionProvider';
 import { useUnifiedBalance } from '../hooks/useUnifiedBalance';
+import { useFundingModeStore } from '../store/fundingModeStore';
+import { getApiUrl } from '../config';
 import DepositUSDCModal from '../components/wallet/DepositUSDCModal';
 // TODO: Implement accessibility utils
 const prefersReducedMotion = () => false;
@@ -34,6 +36,7 @@ import SignInCallout from '../components/auth/SignInCallout';
 import { TitleAndMeta } from '../components/predictions/TitleAndMeta';
 import { OptionsSection } from '../components/predictions/OptionsSection';
 import { StickyBetBar } from '../components/predictions/StickyBetBar';
+import SettlementValidationModal from '../components/modals/SettlementValidationModal';
 // TODO: Re-enable share functionality after testing
 // import { useShareResult } from '../components/share/useShareResult';
 
@@ -83,6 +86,7 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
   const [shareUrl, setShareUrl] = useState('');
   const [showDepositModal, setShowDepositModal] = useState(false);
   const [justPlaced, setJustPlaced] = useState<{ amount: number; optionLabel: string } | null>(null);
+  const [settlementModalOpen, setSettlementModalOpen] = useState(false);
   
   // TODO: Re-enable share functionality after testing
   // const { SharePreview, share: shareResult } = useShareResult();
@@ -126,6 +130,57 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
   // Server snapshot for database locks (if still needed)
   // Available to stake = on-chain available balance
   const availableToStake = escrowAvailableUSD;
+
+  // Funding mode (crypto vs demo) — demo is UI-gated by env via fundingModeStore
+  const { mode, setMode, isDemoEnabled } = useFundingModeStore();
+  const showDemo = isDemoEnabled;
+  const isDemoMode = showDemo && mode === 'demo';
+
+  // Demo wallet summary (DB-backed)
+  const [demoSummary, setDemoSummary] = useState<null | { currency: string; available: number; reserved: number; total: number; lastUpdated: string }>(null);
+  const [demoLoading, setDemoLoading] = useState(false);
+
+  const fetchDemoSummary = useCallback(async () => {
+    if (!currentUser?.id) return;
+    try {
+      setDemoLoading(true);
+      const resp = await fetch(`${getApiUrl()}/api/demo-wallet/summary?userId=${currentUser.id}`);
+      const json = await resp.json().catch(() => null);
+      if (!resp.ok) throw new Error(json?.message || 'Failed to load demo wallet');
+      setDemoSummary(json?.summary ?? null);
+    } catch (e: any) {
+      console.error('[DEMO] summary error', e);
+      setDemoSummary(null);
+    } finally {
+      setDemoLoading(false);
+    }
+  }, [currentUser?.id]);
+
+  const faucetDemo = useCallback(async () => {
+    if (!currentUser?.id) return;
+    try {
+      setDemoLoading(true);
+      const resp = await fetch(`${getApiUrl()}/api/demo-wallet/faucet`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: currentUser.id }),
+      });
+      const json = await resp.json().catch(() => null);
+      if (!resp.ok) throw new Error(json?.message || 'Failed to faucet demo credits');
+      setDemoSummary(json?.summary ?? null);
+    } catch (e: any) {
+      console.error('[DEMO] faucet error', e);
+      showErrorToast(e?.message || 'Failed to get demo credits');
+    } finally {
+      setDemoLoading(false);
+    }
+  }, [currentUser?.id]);
+
+  useEffect(() => {
+    if (isAuthenticated && isDemoMode) {
+      void fetchDemoSummary();
+    }
+  }, [isAuthenticated, isDemoMode, fetchDemoSummary]);
   
   // Get prediction from store
   const prediction = useMemo(() => {
@@ -210,8 +265,11 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
     }
   }, [media, prediction]);
 
-  // User balance - use database-adjusted available balance (accounts for pending locks)
-const userBalance = isAuthenticated ? availableToStake : 0;
+  const demoAvailable = Number(demoSummary?.available ?? 0);
+  const displayAvailable = isDemoMode ? demoAvailable : availableToStake;
+
+  // User balance - source depends on funding mode
+  const userBalance = isAuthenticated ? displayAvailable : 0;
 
   // Log balance for debugging
   useEffect(() => {
@@ -358,12 +416,12 @@ const userBalance = isAuthenticated ? availableToStake : 0;
     const amount = parseFloat(stakeAmount);
     const BASE_BETS_ENABLED = import.meta.env.VITE_FCZ_BASE_BETS === '1';
     
-    // Use availableToStake for crypto mode, userBalance for demo mode
-    const maxAvailable = BASE_BETS_ENABLED ? availableToStake : userBalance;
+    // Funding source: crypto uses on-chain availableToStake; demo uses demo ledger available
+    const maxAvailable = isDemoMode ? demoAvailable : availableToStake;
     
     if (amount > maxAvailable) {
       // Open deposit modal instead of placing bet (crypto mode)
-      if (BASE_BETS_ENABLED) {
+      if (!isDemoMode) {
         setShowDepositModal(true);
         return;
       }
@@ -415,6 +473,9 @@ const userBalance = isAuthenticated ? availableToStake : 0;
           queryClient.invalidateQueries({ queryKey: QK.prediction(predictionId) }),
           queryClient.invalidateQueries({ queryKey: QK.predictionEntries(predictionId) }),
         ]);
+      if (isDemoMode) {
+        await fetchDemoSummary();
+      }
       }
       
       // Also invalidate contract reads
@@ -689,6 +750,17 @@ const userBalance = isAuthenticated ? availableToStake : 0;
                         </div>
                       </div>
                     </div>
+                    {isAuthenticated && predictionId && String(prediction.status || '').toLowerCase() !== 'open' && (
+                      <div className="mt-3">
+                        <button
+                          type="button"
+                          onClick={() => setSettlementModalOpen(true)}
+                          className="w-full px-4 py-2 rounded-xl border border-gray-200 bg-white text-gray-900 font-semibold hover:bg-gray-50 transition-colors"
+                        >
+                          Review Settlement
+                        </button>
+                      </div>
+                    )}
                   </div>
 
                   {/* Closed/Settled callout */}
@@ -762,7 +834,7 @@ const userBalance = isAuthenticated ? availableToStake : 0;
                   </div>
 
                   {/* Options Section - Only on Overview tab */}
-                  {!isAuthenticated ? (
+                  {(!isAuthenticated && String((prediction as any).status || '').toLowerCase() !== 'settled') ? (
                     <SignInCallout
                       onSignIn={() =>
                         openAuthGate({
@@ -776,7 +848,9 @@ const userBalance = isAuthenticated ? availableToStake : 0;
                       options={prediction.options || []}
                       selectedId={selectedOptionId || undefined}
                       onSelect={handleOptionSelect}
-                      disabled={isPlacingBet}
+                      disabled={isPlacingBet || !isAuthenticated || String((prediction as any).status || '').toLowerCase() !== 'open'}
+                      winningOptionId={(prediction as any).winning_option_id || (prediction as any).winningOptionId}
+                      showWinningIndicator={String((prediction as any).status || '').toLowerCase() === 'settled'}
                     />
                   )}
 
@@ -798,6 +872,30 @@ const userBalance = isAuthenticated ? availableToStake : 0;
                   {/* Stake Input - Only shows after option selection */}
                   {isAuthenticated && selectedOptionId && (
                     <div className="bg-white rounded-2xl p-4 shadow-sm border space-y-3">
+                      {/* Funding mode toggle (Demo only if enabled) */}
+                      {showDemo && (
+                        <div className="inline-flex rounded-lg bg-gray-100 p-1">
+                          <button
+                            onClick={() => setMode('crypto')}
+                            className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
+                              !isDemoMode ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'
+                            }`}
+                            type="button"
+                          >
+                            Crypto (USDC)
+                          </button>
+                          <button
+                            onClick={() => setMode('demo')}
+                            className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
+                              isDemoMode ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'
+                            }`}
+                            type="button"
+                          >
+                            Demo Credits
+                          </button>
+                        </div>
+                      )}
+
                       <div>
                         <label htmlFor="stake-input" className="block text-sm font-medium text-gray-900 mb-2">
                           Stake Amount (USD)
@@ -819,12 +917,25 @@ const userBalance = isAuthenticated ? availableToStake : 0;
                       
                       <div className="flex items-center justify-between text-sm">
                         <span className="text-gray-600">
-                          Available: {isLoadingBalance ? 'Loading…' : formatCurrency(userBalance, { compact: true })}
+                          Available: {(isDemoMode ? demoLoading : isLoadingBalance) ? 'Loading…' : formatCurrency(userBalance, { compact: true })}
                         </span>
-                        {stakeAmount && !isLoadingBalance && parseFloat(stakeAmount) > userBalance && (
+                        {stakeAmount && !(isDemoMode ? demoLoading : isLoadingBalance) && parseFloat(stakeAmount) > userBalance && (
                           <span className="text-red-600 font-medium">Insufficient balance</span>
                         )}
                       </div>
+
+                      {isDemoMode && (
+                        <div className="pt-1">
+                          <button
+                            type="button"
+                            onClick={faucetDemo}
+                            disabled={demoLoading}
+                            className="w-full rounded-xl border bg-gray-50 px-4 py-2.5 text-sm font-semibold hover:bg-gray-100 transition-colors disabled:opacity-50"
+                          >
+                            Get Demo Credits
+                          </button>
+                        </div>
+                      )}
                       
                       {/* Quick Amount Buttons */}
                       <div className="grid grid-cols-3 gap-2">
@@ -875,15 +986,24 @@ const userBalance = isAuthenticated ? availableToStake : 0;
       {activeTab === 'overview' && !isClosedOrSettled && (
         (() => {
           const amt = parseFloat(stakeAmount || '0');
-          const need = Math.max(0, amt - availableToStake);
+          const availableNow = isDemoMode ? demoAvailable : availableToStake;
+          const need = Math.max(0, amt - availableNow);
           const computedLabel = !amt || amt <= 0
             ? t('betVerb')
-            : (need > 0 ? `Add funds (need $${need.toFixed(2)})` : `${t('betVerb')}: $${amt.toFixed(2)}`);
+            : (need > 0
+                ? (isDemoMode ? `Get demo credits (need $${need.toFixed(2)})` : `Add funds (need $${need.toFixed(2)})`)
+                : `${t('betVerb')}: $${amt.toFixed(2)}`);
           const canBet = !!stakeAmount && amt > 0;
           return (
             <StickyBetBar
               canBet={canBet}
-              onPlace={handlePlaceBet}
+              onPlace={async () => {
+                if (isDemoMode && need > 0) {
+                  await faucetDemo();
+                  return;
+                }
+                await handlePlaceBet();
+              }}
               loading={isPlacingBet}
               label={computedLabel}
             />
@@ -901,6 +1021,17 @@ const userBalance = isAuthenticated ? availableToStake : 0;
           userId={currentUser.id}
         />
       )}
+
+      <SettlementValidationModal
+        isOpen={settlementModalOpen}
+        onClose={() => setSettlementModalOpen(false)}
+        predictionId={predictionId}
+        predictionTitle={prediction?.title ?? 'Prediction'}
+        onValidated={() => {
+          queryClient.invalidateQueries({ queryKey: QK.prediction(predictionId) });
+          queryClient.invalidateQueries({ queryKey: QK.predictionEntries(predictionId) });
+        }}
+      />
     </>
   );
 };

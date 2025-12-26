@@ -63,7 +63,7 @@ app.use(cors({
   origin: true, // Allow all origins temporarily
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'Origin', 'X-Requested-With', 'Cache-Control', 'If-None-Match'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'Origin', 'X-Requested-With', 'Cache-Control', 'If-None-Match', 'X-Admin-Key'],
   exposedHeaders: ['Content-Range', 'X-Content-Range', 'ETag']
 }));
 
@@ -72,7 +72,7 @@ app.options('*', (req, res) => {
   res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
   res.header('Access-Control-Allow-Credentials', 'true');
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, Accept, Origin, X-Requested-With, Cache-Control, If-None-Match');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, Accept, Origin, X-Requested-With, Cache-Control, If-None-Match, X-Admin-Key');
   res.sendStatus(200);
 });
 
@@ -81,7 +81,7 @@ app.use((req, res, next) => {
   res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
   res.header('Access-Control-Allow-Credentials', 'true');
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, Accept, Origin, X-Requested-With, Cache-Control, If-None-Match');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, Accept, Origin, X-Requested-With, Cache-Control, If-None-Match, X-Admin-Key');
   
   // Handle preflight requests
   if (req.method === 'OPTIONS') {
@@ -184,6 +184,7 @@ import predictionEntriesRoutes from './routes/prediction-entries';
 import betsRoutes from './routes/bets';
 import socialRoutes from './routes/social';
 import settlementRoutes from './routes/settlement';
+import { adminSettlement } from './routes/adminSettlement';
 import activityRoutes from './routes/activity';
 import imagesRoutes from './api/images/router';
 import escrowRoutes from './routes/escrow';
@@ -193,6 +194,7 @@ import { walletActivity } from './routes/walletActivity';
 import { walletReconcile } from './routes/walletReconcile';
 import walletMaintenance from './routes/walletMaintenance';
 import { placeBetRouter } from './routes/predictions/placeBet';
+import { demoWallet } from './routes/demoWallet';
 import { chainActivity } from './routes/chain/activity';
 import { healthPayments } from './routes/healthPayments';
 import { healthBase } from './routes/healthBase';
@@ -201,6 +203,7 @@ import transactionLogRouter from './routes/wallet/transactionLog';
 import { qaCryptoMock } from './routes/qaCryptoMock';
 import referralRoutes from './routes/referrals';
 import badgeRoutes from './routes/badges';
+import { adminRouter } from './routes/admin';
 import { startBaseDepositWatcher } from './chain/base/depositWatcher';
 import { resolveAndValidateAddresses } from './chain/base/addressRegistry';
 import { validatePaymentsEnv } from './utils/envValidation';
@@ -218,15 +221,19 @@ app.use('/api/v2/prediction-entries', predictionEntriesRoutes);
 app.use('/api/v2/bets', betsRoutes);
 app.use('/api/v2/social', socialRoutes);
 app.use('/api/v2/settlement', settlementRoutes);
+app.use('/api/v2/admin/settlement', adminSettlement);
 app.use('/api/v2/activity', activityRoutes);
 app.use('/api/images', imagesRoutes);
 app.use('/api/escrow', escrowRoutes);
-app.use('/api/wallet', walletRead);
+// walletSummary must come BEFORE walletRead to avoid route conflicts
+// Both handle /summary/:userId, but walletSummary returns reconciled on-chain data
 app.use('/api/wallet', walletSummary);
+app.use('/api/wallet', walletRead);
 app.use('/api/wallet', walletActivity);
 app.use('/api/wallet', walletReconcile);
 app.use('/api/wallet', walletMaintenance);
 app.use('/api/wallet', transactionLogRouter);
+app.use('/api/demo-wallet', demoWallet);
 app.use('/api/chain', chainActivity);
 app.use(healthPayments);
 app.use(healthBase);
@@ -243,6 +250,9 @@ app.use(referralRoutes);
 // Badge routes (feature-flagged internally)
 app.use(badgeRoutes);
 
+// Admin dashboard API
+app.use('/api/v2/admin', adminRouter);
+
 // Debug logging for route registration
 console.log('✅ Routes registered:');
 console.log('  - /api/v2/users');
@@ -255,6 +265,7 @@ console.log('  - /api/v2/activity (activity feed)');
 console.log('  - /api/images (auto-generated images)');
 console.log('  - /api/escrow (escrow lock/unlock)');
 console.log('  - /api/wallet (wallet summary & activity)');
+console.log('  - /api/demo-wallet (demo credits ledger)');
 console.log('  - /api/health/payments (payment system health)');
 console.log('  - /api/health/base (Base chain health)');
 console.log('  - /r/:code (Referral link handler)');

@@ -1,0 +1,339 @@
+import { Router } from 'express';
+import { z } from 'zod';
+import { supabase } from '../../config/database';
+import { VERSION } from '@fanclubz/shared';
+
+export const usersRouter = Router();
+
+const SearchQuerySchema = z.object({
+  q: z.string().min(1).max(200),
+  limit: z.coerce.number().min(1).max(100).default(25),
+});
+
+/**
+ * GET /api/v2/admin/users/search?q=<text>&limit=25
+ * Search users by email, username, full_name, or id
+ */
+usersRouter.get('/search', async (req, res) => {
+  try {
+    const parsed = SearchQuerySchema.safeParse(req.query);
+    if (!parsed.success) {
+      return res.status(400).json({
+        error: 'Bad Request',
+        message: 'Invalid query parameters',
+        details: parsed.error.issues,
+        version: VERSION,
+      });
+    }
+
+    const { q, limit } = parsed.data;
+    const searchTerm = q.trim().toLowerCase();
+
+    // Check if search term looks like a UUID
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(searchTerm);
+
+    let query = supabase
+      .from('users')
+      .select('id, username, full_name, email, avatar_url, created_at, is_admin')
+      .limit(limit);
+
+    if (isUuid) {
+      query = query.eq('id', searchTerm);
+    } else {
+      // Search by username, full_name (case-insensitive partial match)
+      query = query.or(`username.ilike.%${searchTerm}%,full_name.ilike.%${searchTerm}%`);
+    }
+
+    const { data: users, error } = await query;
+
+    if (error) {
+      console.error('[Admin/Users] Search error:', error);
+      return res.status(500).json({
+        error: 'Internal Server Error',
+        message: 'Failed to search users',
+        version: VERSION,
+      });
+    }
+
+    const items = (users || []).slice(0, limit).map((u: any) => ({
+      id: u.id,
+      username: u.username,
+      fullName: u.full_name,
+      email: u.email || null,
+      avatarUrl: u.avatar_url,
+      isAdmin: u.is_admin || false,
+      createdAt: u.created_at,
+    }));
+
+    return res.json({
+      items,
+      total: items.length,
+      version: VERSION,
+    });
+  } catch (error) {
+    console.error('[Admin/Users] Search error:', error);
+    return res.status(500).json({
+      error: 'Internal Server Error',
+      message: 'Failed to search users',
+      version: VERSION,
+    });
+  }
+});
+
+/**
+ * GET /api/v2/admin/users/:userId
+ * Get user details
+ */
+usersRouter.get('/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    const { data: userRow, error } = await supabase
+      .from('users')
+      .select('id, username, full_name, email, avatar_url, created_at, is_admin, is_verified')
+      .eq('id', userId)
+      .maybeSingle();
+
+    if (error || !userRow) {
+      return res.status(404).json({
+        error: 'Not Found',
+        message: 'User not found',
+        version: VERSION,
+      });
+    }
+
+    // Get wallet summary
+    const { data: wallet } = await supabase
+      .from('wallets')
+      .select('available_balance, reserved_balance, total_deposited, total_withdrawn, currency')
+      .eq('user_id', userId)
+      .eq('currency', 'USD')
+      .maybeSingle();
+
+    // Get crypto addresses
+    const { data: addresses } = await supabase
+      .from('crypto_addresses')
+      .select('address, chain_id, created_at')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false });
+
+    // Get entry stats
+    const { count: totalBets } = await supabase
+      .from('prediction_entries')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', userId);
+
+    const { count: totalWins } = await supabase
+      .from('prediction_entries')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', userId)
+      .eq('status', 'won');
+
+    return res.json({
+      user: {
+        id: userRow.id,
+        username: (userRow as any).username,
+        fullName: (userRow as any).full_name,
+        email: (userRow as any).email || null,
+        role: 'user',
+        avatarUrl: (userRow as any).avatar_url,
+        bio: null,
+        isAdmin: (userRow as any).is_admin || false,
+        isVerified: (userRow as any).is_verified || false,
+        createdAt: (userRow as any).created_at,
+      },
+      wallet: wallet ? {
+        availableBalance: Number(wallet.available_balance || 0),
+        reservedBalance: Number(wallet.reserved_balance || 0),
+        totalDeposited: Number(wallet.total_deposited || 0),
+        totalWithdrawn: Number(wallet.total_withdrawn || 0),
+        currency: wallet.currency,
+      } : null,
+      addresses: addresses || [],
+      stats: {
+        totalBets: totalBets || 0,
+        totalWins: totalWins || 0,
+        winRate: totalBets ? ((totalWins || 0) / totalBets * 100).toFixed(1) : '0',
+      },
+      version: VERSION,
+    });
+  } catch (error) {
+    console.error('[Admin/Users] Get user error:', error);
+    return res.status(500).json({
+      error: 'Internal Server Error',
+      message: 'Failed to get user details',
+      version: VERSION,
+    });
+  }
+});
+
+const TimelineQuerySchema = z.object({
+  limit: z.coerce.number().min(1).max(200).default(100),
+  type: z.enum(['all', 'wallet', 'bets', 'settlements', 'admin']).default('all'),
+});
+
+/**
+ * GET /api/v2/admin/users/:userId/timeline?limit=100&type=all
+ * Get unified timeline for a user (support tool)
+ */
+usersRouter.get('/:userId/timeline', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const parsed = TimelineQuerySchema.safeParse(req.query);
+    if (!parsed.success) {
+      return res.status(400).json({
+        error: 'Bad Request',
+        message: 'Invalid query parameters',
+        version: VERSION,
+      });
+    }
+
+    const { limit, type } = parsed.data;
+    const items: any[] = [];
+
+    // Wallet transactions
+    if (type === 'all' || type === 'wallet') {
+      const { data: transactions } = await supabase
+        .from('wallet_transactions')
+        .select('id, created_at, type, direction, channel, provider, amount, currency, status, description, external_ref, prediction_id, meta')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false })
+        .limit(limit);
+
+      if (transactions) {
+        for (const tx of transactions) {
+          items.push({
+            id: `tx_${tx.id}`,
+            type: 'wallet_tx',
+            timestamp: tx.created_at,
+            summary: `${tx.direction === 'credit' ? '+' : '-'}$${Math.abs(Number(tx.amount)).toFixed(2)} ${tx.channel}`,
+            details: {
+              txType: tx.type,
+              direction: tx.direction,
+              channel: tx.channel,
+              provider: tx.provider,
+              amount: Number(tx.amount),
+              currency: tx.currency,
+              status: tx.status,
+              description: tx.description,
+              externalRef: tx.external_ref,
+              predictionId: tx.prediction_id,
+              meta: tx.meta,
+            },
+          });
+        }
+      }
+    }
+
+    // Prediction entries (bets)
+    if (type === 'all' || type === 'bets') {
+      const { data: entries } = await supabase
+        .from('prediction_entries')
+        .select(`
+          id, created_at, amount, status, provider, actual_payout, option_id,
+          prediction:predictions(id, title, status)
+        `)
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false })
+        .limit(limit);
+
+      if (entries) {
+        for (const entry of entries) {
+          const prediction = Array.isArray(entry.prediction) ? entry.prediction[0] : entry.prediction;
+          items.push({
+            id: `entry_${entry.id}`,
+            type: 'entry',
+            timestamp: entry.created_at,
+            summary: `Bet $${Number(entry.amount).toFixed(2)} on "${prediction?.title?.slice(0, 40) || 'Unknown'}..."`,
+            details: {
+              entryId: entry.id,
+              amount: Number(entry.amount),
+              status: entry.status,
+              provider: entry.provider,
+              actualPayout: entry.actual_payout ? Number(entry.actual_payout) : null,
+              optionId: entry.option_id,
+              predictionId: prediction?.id,
+              predictionTitle: prediction?.title,
+              predictionStatus: prediction?.status,
+            },
+          });
+        }
+      }
+    }
+
+    // Settlement validations
+    if (type === 'all' || type === 'settlements') {
+      const { data: validations } = await supabase
+        .from('settlement_validations')
+        .select(`
+          id, created_at, action, reason,
+          prediction:predictions(id, title)
+        `)
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false })
+        .limit(limit);
+
+      if (validations) {
+        for (const v of validations) {
+          const prediction = Array.isArray(v.prediction) ? v.prediction[0] : v.prediction;
+          items.push({
+            id: `validation_${v.id}`,
+            type: 'settlement',
+            timestamp: v.created_at,
+            summary: `${v.action === 'accept' ? 'Accepted' : 'Disputed'} settlement for "${prediction?.title?.slice(0, 30) || 'Unknown'}..."`,
+            details: {
+              action: v.action,
+              reason: v.reason,
+              predictionId: prediction?.id,
+              predictionTitle: prediction?.title,
+            },
+          });
+        }
+      }
+    }
+
+    // Admin actions targeting this user
+    if (type === 'all' || type === 'admin') {
+      const { data: adminActions } = await supabase
+        .from('admin_audit_log')
+        .select('id, created_at, action, actor_id, reason, meta')
+        .eq('target_id', userId)
+        .order('created_at', { ascending: false })
+        .limit(limit);
+
+      if (adminActions) {
+        for (const a of adminActions) {
+          items.push({
+            id: `admin_${a.id}`,
+            type: 'admin',
+            timestamp: a.created_at,
+            summary: `Admin action: ${a.action}`,
+            details: {
+              action: a.action,
+              actorId: a.actor_id,
+              reason: a.reason,
+              meta: a.meta,
+            },
+          });
+        }
+      }
+    }
+
+    // Sort by timestamp descending
+    items.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+
+    return res.json({
+      items: items.slice(0, limit),
+      total: items.length,
+      version: VERSION,
+    });
+  } catch (error) {
+    console.error('[Admin/Users] Timeline error:', error);
+    return res.status(500).json({
+      error: 'Internal Server Error',
+      message: 'Failed to get user timeline',
+      version: VERSION,
+    });
+  }
+});
+

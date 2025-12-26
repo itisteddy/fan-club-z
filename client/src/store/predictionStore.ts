@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase';
 import { getApiUrl } from '../config';
 import { useAuthStore } from './authStore';
 import { apiClient } from '../lib/apiUtils';
+import { useFundingModeStore } from './fundingModeStore';
 
 // ---- Idempotency helpers for bet placement ----
 function computeBetKey(userId: string | undefined, predictionId: string, optionId: string, amount: number) {
@@ -682,15 +683,15 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
     set({ loading: true, error: null });
     
     try {
-      // Check if crypto mode is enabled (prefer on-chain when Base is enabled)
       const FLAG_BASE_BETS = import.meta.env.VITE_FCZ_BASE_BETS === '1' || 
                               import.meta.env.ENABLE_BASE_BETS === '1' ||
                               import.meta.env.FCZ_ENABLE_BASE_BETS === '1' ||
                               import.meta.env.VITE_FCZ_BASE_ENABLE === '1';
-      const FLAG_DEMO = import.meta.env.VITE_FCZ_ENABLE_DEMO === '1';
-      const isCryptoMode = FLAG_BASE_BETS && !FLAG_DEMO;
+      const funding = useFundingModeStore.getState();
+      const selectedMode = funding.isDemoEnabled ? funding.mode : 'crypto';
+      const isCryptoMode = selectedMode === 'crypto';
 
-      console.log('[FCZ-BET] mode detection', { FLAG_BASE_BETS, FLAG_DEMO, isCryptoMode, predictionId, optionId, amount, userId });
+      console.log('[FCZ-BET] mode detection', { FLAG_BASE_BETS, selectedMode, isCryptoMode, predictionId, optionId, amount, userId });
 
       // Use new unified place-bet endpoint if crypto mode is enabled
       if (isCryptoMode) {
@@ -792,114 +793,91 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
 
         return result;
       } else {
-        // DEMO MODE: Use old wallet lock flow and entries endpoint
-        // Only reachable when VITE_FCZ_ENABLE_DEMO=1
-      const { useWalletStore } = await import('./walletStore');
-      const walletStore = useWalletStore.getState();
-      
-      const prediction = get().predictions.find(p => p.id === predictionId);
-      const option = prediction?.options.find(o => o.id === optionId);
-      const description = `Bet on "${option?.label || 'Unknown'}" in "${prediction?.title || 'Unknown Prediction'}"`;
-      
-        console.log('🔄 [DEMO] Locking wallet funds before prediction placement...');
-      await walletStore.makePrediction(amount, description, predictionId);
-        console.log('✅ [DEMO] Wallet funds locked successfully');
-        
-        // Create prediction entry
-        const entryBody: any = {
-          option_id: optionId,
-          stakeUSD: amount,
-          user_id: userId
-        };
-      
-      const response = await fetch(`${getApiUrl()}/api/v2/predictions/${predictionId}/entries`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-          body: JSON.stringify(entryBody),
-      });
+        // DEMO MODE: Use the SAME unified endpoint with fundingMode='demo'
+        console.log('[FCZ-BET] Placing bet via unified endpoint (demo)...', { predictionId, optionId, amount, userId });
 
-      if (!response.ok) {
-          const errorData = await response.json().catch(() => ({}));
-          
-          // Handle 409 Conflict (lock already consumed)
-          if (response.status === 409) {
-            throw new Error(errorData.message || 'This lock has already been used. Please try placing the bet again.');
-          }
-          
-        // If API call fails, we should reverse the wallet transaction
-        // For now, just throw the error - wallet will show locked funds
-          throw new Error(errorData.message || `Failed to place prediction: ${response.statusText}`);
-      }
+        const compositeKey = computeBetKey(userId, predictionId, optionId, amount);
+        const inFlight = get().inFlightBets || {};
+        if (inFlight[compositeKey]) {
+          console.log('[FCZ-BET] Duplicate click prevented (in-flight):', compositeKey);
+          set({ loading: false });
+          return;
+        }
+        set(state => ({ inFlightBets: { ...(state.inFlightBets || {}), [compositeKey]: true } }));
+        const requestId = getOrCreateRequestId(compositeKey);
 
-      const data = await response.json();
-      
-      // Use the full updated prediction object returned by the server
-      if (data.prediction) {
-          console.log('📊 [DEMO] Updating prediction with server data:', {
-          id: data.prediction.id,
-          pool_total: data.prediction.pool_total,
-          participant_count: data.prediction.participant_count,
-          options: data.prediction.options?.length || 0
+        const response = await fetch(`${getApiUrl()}/api/predictions/${predictionId}/place-bet`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            optionId,
+            amountUSD: amount,
+            userId,
+            fundingMode: 'demo',
+            requestId
+          }),
         });
-        
-        set(state => ({
-          predictions: state.predictions.map(pred => 
-            pred.id === predictionId 
-              ? { 
-                  ...pred,
-                  ...data.prediction, // Use full updated prediction from server
-                  user_entry: data.entry
-                }
-              : pred
-          ),
-          // Also update other arrays if they contain this prediction
-          userPredictions: state.userPredictions.map(pred => 
-            pred.id === predictionId 
-              ? { 
-                  ...pred,
-                  ...data.prediction,
-                  user_entry: data.entry
-                }
-              : pred
-          ),
-          createdPredictions: state.createdPredictions.map(pred => 
-            pred.id === predictionId 
-              ? { 
-                  ...pred,
-                  ...data.prediction,
-                  user_entry: data.entry
-                }
-              : pred
-          ),
-          loading: false,
-          error: null
-        }));
-      } else {
-        // Fallback to partial update if no full prediction returned
-        set(state => ({
-          predictions: state.predictions.map(pred => 
-            pred.id === predictionId 
-              ? { 
-                  ...pred, 
-                  pool_total: data.pool_total || pred.pool_total,
-                  participant_count: data.participant_count || pred.participant_count,
-                  user_entry: data.entry
-                }
-              : pred
-          ),
-          loading: false,
-          error: null
-        }));
-      }
 
-        console.log('✅ [DEMO] Prediction placed successfully with updated data');
-      
-        // In demo mode, refresh wallet store (reuse walletStore from line above)
-        console.log('🔄 [DEMO] Refreshing wallet data after prediction placement...');
-      await walletStore.initializeWallet();
-        console.log('✅ [DEMO] Wallet refreshed');
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          if (errorData.error === 'INSUFFICIENT_FUNDS') {
+            throw new Error('INSUFFICIENT_FUNDS');
+          }
+          if (errorData.error === 'BETTING_DISABLED') {
+            throw new Error('Betting is temporarily unavailable. Please try again later.');
+          }
+          throw new Error(errorData.message || `Unable to place bet. Please try again.`);
+        }
+
+        const result = await response.json();
+        console.log('[FCZ-BET] Demo bet placed successfully:', result);
+
+        const updatedPrediction = result?.data?.prediction;
+        const newEntry = result?.data?.entry;
+
+        set(state => {
+          const mergePrediction = (pred: any) => {
+            if (!pred || pred.id !== predictionId) return pred;
+            return updatedPrediction ? { ...pred, ...updatedPrediction } : pred;
+          };
+
+          return {
+            predictions: state.predictions.map(mergePrediction),
+            userPredictions: state.userPredictions.map(mergePrediction),
+            createdPredictions: state.createdPredictions.map(mergePrediction),
+            userCreatedPredictions: state.userCreatedPredictions.map(mergePrediction),
+            userPredictionEntries: newEntry
+              ? [
+                  ...state.userPredictionEntries.filter(entry => entry.id !== newEntry.id),
+                  newEntry
+                ]
+              : state.userPredictionEntries,
+            loading: false,
+            error: null
+          };
+        });
+
+        try {
+          const { user } = useAuthStore.getState();
+          if (user?.id) {
+            await Promise.all([
+              get().fetchUserCreatedPredictions(user.id),
+              get().fetchUserPredictionEntries(user.id)
+            ]);
+          }
+        } catch (refreshErr) {
+          console.warn('[FCZ-BET] Post-bet refresh encountered an issue:', refreshErr);
+        }
+
+        set(state => {
+          const next = { ...(state.inFlightBets || {}) };
+          delete next[compositeKey];
+          return { inFlightBets: next } as any;
+        });
+
+        return result;
       }
 
     } catch (error) {

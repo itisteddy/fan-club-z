@@ -447,6 +447,8 @@ export default function WithdrawUSDCModal({
               userId: currentUserId,
               walletAddress: address,
               txHash: txHash,
+              txType: 'withdraw',
+              amountUSD: cleanAmount,
             }),
           });
           console.log('[FCZ-PAY] Wallet reconciled with backend');

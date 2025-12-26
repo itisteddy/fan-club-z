@@ -597,7 +597,7 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
                   </div>
 
                   {/* Options Section - Only on Overview tab */}
-                  {!isAuthenticated ? (
+                  {(!isAuthenticated && String((prediction as any).status || '').toLowerCase() !== 'settled') ? (
                     <SignInCallout
                       onSignIn={() =>
                         openAuthGate({
@@ -611,7 +611,9 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
                       options={prediction.options || []}
                       selectedId={selectedOptionId || undefined}
                       onSelect={handleOptionSelect}
-                      disabled={isPlacingBet}
+                      disabled={isPlacingBet || !isAuthenticated || String((prediction as any).status || '').toLowerCase() !== 'open'}
+                      winningOptionId={(prediction as any).winning_option_id || (prediction as any).winningOptionId}
+                      showWinningIndicator={String((prediction as any).status || '').toLowerCase() === 'settled'}
                     />
                   )}
 

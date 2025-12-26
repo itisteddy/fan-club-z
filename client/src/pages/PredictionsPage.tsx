@@ -274,7 +274,11 @@ const PredictionsPage: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNa
         
         // Include entries that are settled (won/lost) OR predictions that have ended
         const isSettled = entry.status === 'won' || entry.status === 'lost';
-        const predictionEnded = prediction.status === 'closed' || prediction.status === 'settled' || prediction.status === 'ended';
+        const predictionEnded =
+          prediction.status === 'closed' ||
+          prediction.status === 'awaiting_settlement' ||
+          prediction.status === 'settled' ||
+          prediction.status === 'ended';
         const pastDeadline = new Date(prediction.entry_deadline) <= new Date();
         
         return isSettled || predictionEnded || pastDeadline;
@@ -314,7 +318,9 @@ const PredictionsPage: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNa
         }
         
         return {
-          id: entry.id,
+          // IMPORTANT: completed cards must navigate/fetch by prediction id (not entry id)
+          id: prediction.id,
+          entryId: entry.id,
           title: prediction.title,
           category: prediction.category,
           position: option?.label || 'Unknown',
@@ -651,10 +657,7 @@ const PredictionsPage: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNa
   // Created prediction card
   const CreatedPredictionCard = ({ prediction }: { prediction: any }) => (
     <div
-      className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-4 hover:shadow-md transition-all duration-200 cursor-pointer"
-      onClick={() => navigate(`/predictions/${prediction.id}`)}
-      role="button"
-      aria-label={`View prediction ${prediction.title}`}
+      className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-4 hover:shadow-md transition-all duration-200"
     >
       <div className="flex items-start justify-between mb-4">
         <div className="flex-1">
@@ -707,7 +710,8 @@ const PredictionsPage: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNa
           }
         </span>
         <button
-          onClick={() => {
+          onClick={(e) => {
+            e.stopPropagation();
             setSelectedPrediction(prediction);
             setShowManageModal(true);
           }}

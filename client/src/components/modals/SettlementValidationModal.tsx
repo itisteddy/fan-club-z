@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { X, CheckCircle, AlertTriangle, DollarSign, Users, Clock } from 'lucide-react';
 import { getApiUrl } from '../../config';
 import { useAuthStore } from '../../store/authStore';
+import { useAuthSession } from '../../providers/AuthSessionProvider';
 import { toast } from 'react-hot-toast';
 
 interface SettlementValidationModalProps {
@@ -10,6 +11,7 @@ interface SettlementValidationModalProps {
   onClose: () => void;
   predictionId: string;
   predictionTitle: string;
+  onValidated?: () => void;
 }
 
 interface SettlementStatus {
@@ -18,6 +20,7 @@ interface SettlementStatus {
     title: string;
     status: string;
     pool_total: number;
+    creator_id?: string;
   };
   userEntry: {
     id: string;
@@ -25,6 +28,7 @@ interface SettlementStatus {
     amount: number;
     status: string;
     actual_payout: number;
+    provider?: string | null;
   };
   settlement: {
     winning_option_id: string;
@@ -35,30 +39,54 @@ interface SettlementStatus {
   needsSettlement: boolean;
 }
 
+type FinalizeJobStatus = 'queued' | 'running' | 'finalized' | 'failed';
+type FinalizeStatusResponse = {
+  success: boolean;
+  data: {
+    status: FinalizeJobStatus | null;
+    txHash: string | null;
+    error: string | null;
+    job: any | null;
+  };
+};
+
 const SettlementValidationModal: React.FC<SettlementValidationModalProps> = ({
   isOpen,
   onClose,
   predictionId,
-  predictionTitle
+  predictionTitle,
+  onValidated,
 }) => {
   const [settlementStatus, setSettlementStatus] = useState<SettlementStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [validating, setValidating] = useState(false);
   const [disputeReason, setDisputeReason] = useState('');
   const [showDisputeForm, setShowDisputeForm] = useState(false);
+  const [statusError, setStatusError] = useState<string | null>(null);
+  const [history, setHistory] = useState<null | { items: any[]; summary: { accepts: number; disputes: number; pendingDisputes: number; lastActionAt: string | null } }>(null);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyError, setHistoryError] = useState<string | null>(null);
+  const [finalizeStatus, setFinalizeStatus] = useState<FinalizeStatusResponse['data'] | null>(null);
+  const [finalizeLoading, setFinalizeLoading] = useState(false);
+  const [finalizeSubmitting, setFinalizeSubmitting] = useState(false);
   const { user } = useAuthStore();
+  const { user: sessionUser } = useAuthSession();
+  const userId = sessionUser?.id || user?.id;
 
   useEffect(() => {
-    if (isOpen && user?.id) {
+    if (isOpen && userId) {
       fetchSettlementStatus();
+      fetchHistory();
+      fetchFinalizeStatus();
     }
-  }, [isOpen, user?.id, predictionId]);
+  }, [isOpen, userId, predictionId]);
 
   const fetchSettlementStatus = async () => {
     try {
       setLoading(true);
+      setStatusError(null);
       const response = await fetch(
-        `${getApiUrl()}/api/v2/settlement/${predictionId}/status?userId=${user?.id}`,
+        `${getApiUrl()}/api/v2/settlement/${predictionId}/status?userId=${userId}`,
         {
           method: 'GET',
           headers: {
@@ -67,17 +95,146 @@ const SettlementValidationModal: React.FC<SettlementValidationModalProps> = ({
         }
       );
 
+      if (response.status === 403) {
+        setSettlementStatus(null);
+        setStatusError('You are not a participant in this prediction, so you cannot validate this settlement.');
+        return;
+      }
+
       if (!response.ok) {
-        throw new Error('Failed to fetch settlement status');
+        const message = await response.text().catch(() => '');
+        throw new Error(message || 'Failed to fetch settlement status');
       }
 
       const data = await response.json();
       setSettlementStatus(data.data);
     } catch (error) {
       console.error('Error fetching settlement status:', error);
-      toast.error('Failed to load settlement information');
+      const message = error instanceof Error ? error.message : 'Failed to load settlement information';
+      setSettlementStatus(null);
+      setStatusError(message);
+      toast.error(message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchHistory = async () => {
+    try {
+      setHistoryLoading(true);
+      setHistoryError(null);
+      const response = await fetch(
+        `${getApiUrl()}/api/v2/settlement/${predictionId}/history?userId=${userId}`,
+        {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+
+      if (response.status === 403) {
+        setHistory(null);
+        setHistoryError('Only participants can view settlement history.');
+        return;
+      }
+
+      if (!response.ok) {
+        const message = await response.text().catch(() => '');
+        throw new Error(message || 'Failed to fetch settlement history');
+      }
+
+      const data = await response.json();
+      setHistory(data.data || null);
+    } catch (error) {
+      console.error('Error fetching settlement history:', error);
+      const message = error instanceof Error ? error.message : 'Failed to load settlement history';
+      setHistory(null);
+      setHistoryError(message);
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
+
+  const fetchFinalizeStatus = async () => {
+    if (!userId) return;
+    try {
+      setFinalizeLoading(true);
+      const res = await fetch(`${getApiUrl()}/api/v2/settlement/${predictionId}/finalize/status?userId=${userId}`, {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      if (!res.ok) {
+        const txt = await res.text().catch(() => '');
+        throw new Error(txt || 'Failed to load finalization status');
+      }
+      const data: FinalizeStatusResponse = await res.json();
+      setFinalizeStatus(data.data);
+    } catch (e) {
+      console.warn('Error fetching finalization status:', e);
+      setFinalizeStatus(null);
+    } finally {
+      setFinalizeLoading(false);
+    }
+  };
+
+  const handleRequestFinalize = async () => {
+    if (!userId) return;
+    try {
+      setFinalizeSubmitting(true);
+      const res = await fetch(`${getApiUrl()}/api/v2/settlement/${predictionId}/request-finalize`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId }),
+      });
+      if (!res.ok) {
+        const txt = await res.text().catch(() => '');
+        throw new Error(txt || 'Failed to request finalization');
+      }
+      toast.success('Submitted. Admin will finalize on-chain.');
+      await fetchFinalizeStatus();
+    } catch (e: any) {
+      toast.error(e?.message || 'Failed to submit for finalization');
+    } finally {
+      setFinalizeSubmitting(false);
+    }
+  };
+
+  const handleAdminFinalize = async () => {
+    if (!userId) return;
+    try {
+      setFinalizeSubmitting(true);
+      let adminKey = localStorage.getItem('fcz_admin_key') || '';
+      if (!adminKey) {
+        const entered = window.prompt('Enter admin key');
+        if (!entered) {
+          setFinalizeSubmitting(false);
+          return;
+        }
+        adminKey = entered.trim();
+        localStorage.setItem('fcz_admin_key', adminKey);
+      }
+
+      const res = await fetch(`${getApiUrl()}/api/v2/admin/settlement/${predictionId}/finalize`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Admin-Key': adminKey,
+        },
+        body: JSON.stringify({ actorId: userId }),
+      });
+      if (!res.ok) {
+        const txt = await res.text().catch(() => '');
+        throw new Error(txt || 'Finalization failed');
+      }
+      toast.success('Finalized on-chain.');
+      await Promise.all([fetchFinalizeStatus(), fetchSettlementStatus()]);
+      onValidated?.();
+    } catch (e: any) {
+      toast.error(e?.message || 'Finalization failed, admin retry required.');
+      await fetchFinalizeStatus();
+    } finally {
+      setFinalizeSubmitting(false);
     }
   };
 
@@ -93,7 +250,7 @@ const SettlementValidationModal: React.FC<SettlementValidationModalProps> = ({
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            userId: user?.id,
+            userId,
             action,
             reason: action === 'dispute' ? disputeReason : undefined
           }),
@@ -101,7 +258,8 @@ const SettlementValidationModal: React.FC<SettlementValidationModalProps> = ({
       );
 
       if (!response.ok) {
-        throw new Error(`Failed to ${action} settlement`);
+        const message = await response.text().catch(() => '');
+        throw new Error(message || `Failed to ${action} settlement`);
       }
 
       toast.success(
@@ -109,11 +267,16 @@ const SettlementValidationModal: React.FC<SettlementValidationModalProps> = ({
           ? 'Settlement accepted successfully!' 
           : 'Dispute submitted successfully!'
       );
-      
+
+      // Refresh modal state (status + timeline) so changes reflect immediately
+      await Promise.all([fetchSettlementStatus(), fetchHistory()]);
+
+      onValidated?.();
       onClose();
     } catch (error) {
       console.error(`Error ${action}ing settlement:`, error);
-      toast.error(`Failed to ${action} settlement`);
+      const message = error instanceof Error ? error.message : `Failed to ${action} settlement`;
+      toast.error(message);
     } finally {
       setValidating(false);
     }
@@ -148,6 +311,18 @@ const SettlementValidationModal: React.FC<SettlementValidationModalProps> = ({
             {loading ? (
               <div className="flex items-center justify-center py-8">
                 <div className="w-8 h-8 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+              </div>
+            ) : statusError && !settlementStatus ? (
+              <div className="space-y-4">
+                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                  <p className="text-sm text-yellow-900">{statusError}</p>
+                </div>
+                <button
+                  onClick={onClose}
+                  className="w-full px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+                >
+                  Close
+                </button>
               </div>
             ) : settlementStatus ? (
               <div className="space-y-6">
@@ -231,6 +406,135 @@ const SettlementValidationModal: React.FC<SettlementValidationModalProps> = ({
                     </p>
                   </div>
                 ) : null}
+
+                {/* Finalization Status */}
+                <div className="bg-white rounded-lg p-4 border border-gray-100">
+                  <h4 className="font-medium text-gray-900 mb-2">Finalization Status</h4>
+                  {finalizeLoading ? (
+                    <div className="text-sm text-gray-600">Loading finalization status…</div>
+                  ) : (
+                    <div className="space-y-2 text-sm">
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Status:</span>
+                        <span className="font-medium text-gray-900">
+                          {finalizeStatus?.status ?? '—'}
+                        </span>
+                      </div>
+                      {!!finalizeStatus?.txHash && (
+                        <div className="flex justify-between gap-3">
+                          <span className="text-gray-600">Tx Hash:</span>
+                          <span className="font-medium text-gray-900 truncate">
+                            {finalizeStatus.txHash}
+                          </span>
+                        </div>
+                      )}
+                      {finalizeStatus?.status === 'failed' && (
+                        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+                          <p className="text-sm text-yellow-900">Finalization failed, admin retry required.</p>
+                        </div>
+                      )}
+                      <div className="text-xs text-gray-600">
+                        {settlementStatus.userEntry.provider === 'demo-wallet'
+                          ? 'Demo payouts are credited instantly after settlement is finalized.'
+                          : 'Crypto payouts are claimed on-chain after finalization. Connect wallet to claim.'}
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="mt-3 flex flex-col gap-2">
+                    {settlementStatus.prediction.creator_id && settlementStatus.prediction.creator_id === userId && (
+                      <button
+                        onClick={handleRequestFinalize}
+                        disabled={finalizeSubmitting}
+                        className="w-full px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50"
+                      >
+                        Submit Settlement for Finalization
+                      </button>
+                    )}
+
+                    {/* Admin-only: shown when an admin key exists (or prompt on click) */}
+                    <button
+                      onClick={handleAdminFinalize}
+                      disabled={finalizeSubmitting}
+                      className="w-full px-4 py-2 border border-gray-300 text-gray-800 rounded-lg hover:bg-gray-50 disabled:opacity-50"
+                    >
+                      Finalize On-Chain
+                    </button>
+                  </div>
+                </div>
+
+                {/* Status History */}
+                <div className="bg-white rounded-lg p-4 border border-gray-100">
+                  <h4 className="font-medium text-gray-900 mb-2">Status History</h4>
+
+                  {historyLoading ? (
+                    <div className="text-sm text-gray-600">Loading history…</div>
+                  ) : historyError ? (
+                    <div className="text-sm text-gray-700">{historyError}</div>
+                  ) : (
+                    <>
+                      <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-600 mb-3">
+                        <span>Accepts: <span className="font-semibold text-gray-900">{history?.summary?.accepts ?? 0}</span></span>
+                        <span>Disputes: <span className="font-semibold text-gray-900">{history?.summary?.disputes ?? 0}</span> (Pending: <span className="font-semibold text-gray-900">{history?.summary?.pendingDisputes ?? 0}</span>)</span>
+                        <span>Last action: <span className="font-semibold text-gray-900">{history?.summary?.lastActionAt ? new Date(history.summary.lastActionAt).toLocaleString() : '—'}</span></span>
+                      </div>
+
+                      {Array.isArray(history?.items) && history.items.length > 0 ? (
+                        <div className="space-y-2">
+                          {history.items.map((item: any) => {
+                            const isDispute = item.action === 'dispute';
+                            const name =
+                              item?.user?.full_name ||
+                              item?.user?.username ||
+                              (typeof item.user_id === 'string' && item.user_id.length > 10
+                                ? `${item.user_id.slice(0, 6)}…${item.user_id.slice(-4)}`
+                                : item.user_id);
+                            return (
+                              <div key={item.id} className="rounded-lg border border-gray-100 p-3">
+                                <div className="flex items-start justify-between gap-2">
+                                  <div className="min-w-0">
+                                    <div className="flex items-center gap-2">
+                                      <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold ${
+                                        isDispute ? 'bg-yellow-100 text-yellow-800' : 'bg-emerald-100 text-emerald-800'
+                                      }`}>
+                                        {isDispute ? <AlertTriangle className="w-3 h-3" /> : <CheckCircle className="w-3 h-3" />}
+                                        {isDispute ? 'Disputed' : 'Accepted'}
+                                      </span>
+                                      {item.status && (
+                                        <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+                                          item.status === 'pending' ? 'bg-gray-100 text-gray-800' : 'bg-emerald-50 text-emerald-800'
+                                        }`}>
+                                          {item.status}
+                                        </span>
+                                      )}
+                                    </div>
+                                    <div className="text-sm text-gray-900 font-medium truncate mt-1">{name || 'Unknown user'}</div>
+                                    <div className="text-xs text-gray-500">{item.created_at ? new Date(item.created_at).toLocaleString() : ''}</div>
+                                    {isDispute && item.reason && (
+                                      <p
+                                        className="text-xs text-gray-700 mt-2"
+                                        style={{
+                                          display: '-webkit-box',
+                                          WebkitLineClamp: 2,
+                                          WebkitBoxOrient: 'vertical' as any,
+                                          overflow: 'hidden',
+                                        }}
+                                      >
+                                        {item.reason}
+                                      </p>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <div className="text-sm text-gray-600">No actions yet.</div>
+                      )}
+                    </>
+                  )}
+                </div>
 
                 {/* Validation Actions */}
                 {settlementStatus.canValidate && settlementStatus.settlement && !showDisputeForm && (

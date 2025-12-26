@@ -13,7 +13,7 @@ function generateETag(data: unknown): string {
 }
 
 /**
- * GET /api/wallet/summary?userId=<id>
+ * GET /api/wallet/summary?userId=<id> OR /api/wallet/summary/:userId
  * Returns escrow summary (escrow locks only)
  * 
  * NOTE: walletUSDC is NOT returned here - it must come from on-chain data
@@ -30,22 +30,44 @@ function generateETag(data: unknown): string {
  *   lastUpdated: string
  * }
  */
+walletSummary.get('/summary/:userId', async (req, res) => {
+  // Support path param: /summary/:userId
+  const userId = req.params.userId;
+  const { walletAddress, refresh } = req.query as {
+    walletAddress?: string;
+    refresh?: string;
+  };
+
+  return handleSummaryRequest(req, res, userId, walletAddress, refresh);
+});
+
 walletSummary.get('/summary', async (req, res) => {
+  // Support query param: /summary?userId=...
+  const { userId, walletAddress, refresh } = req.query as {
+    userId?: string;
+    walletAddress?: string;
+    refresh?: string;
+  };
+
+  if (!userId) {
+    return res.status(400).json({
+      error: 'Bad Request',
+      message: 'userId query parameter is required',
+      version: VERSION
+    });
+  }
+
+  return handleSummaryRequest(req, res, userId, walletAddress, refresh);
+});
+
+async function handleSummaryRequest(
+  req: any,
+  res: any,
+  userId: string,
+  walletAddress?: string,
+  refresh?: string
+) {
   try {
-    const { userId, walletAddress, refresh } = req.query as {
-      userId?: string;
-      walletAddress?: string;
-      refresh?: string;
-    };
-
-    if (!userId) {
-      return res.status(400).json({
-        error: 'Bad Request',
-        message: 'userId query parameter is required',
-        version: VERSION
-      });
-    }
-
     console.log(`[FCZ-PAY] Fetching wallet summary for user: ${userId}`);
 
     let summary;
@@ -56,19 +78,14 @@ walletSummary.get('/summary', async (req, res) => {
         recordTransactions: refresh === '1',
       });
     } catch (reconcileErr) {
-      // Do not 500 the endpoint if on-chain snapshot fails; fall back to zeros
-      console.warn('[FCZ-PAY] reconcileWallet failed in /api/wallet/summary, falling back:', reconcileErr);
-      summary = {
-        userId,
-        walletAddress: walletAddress ?? null,
-        escrowUSDC: 0,
-        reservedUSDC: 0,
-        availableToStakeUSDC: 0,
-        totalDepositedUSDC: 0,
-        totalWithdrawnUSDC: 0,
-        updatedAt: new Date().toISOString(),
-        source: 'cached' as const,
-      };
+      // IMPORTANT: Do NOT return fake zeros. It overwrites real UI state and looks like funds disappeared.
+      // Instead, return 503 so clients keep cached values and retry.
+      console.warn('[FCZ-PAY] reconcileWallet failed in /api/wallet/summary:', reconcileErr);
+      return res.status(503).json({
+        error: 'degraded',
+        message: 'On-chain wallet snapshot unavailable',
+        version: VERSION,
+      });
     }
 
     // Persist wallet address association if missing
@@ -115,16 +132,10 @@ walletSummary.get('/summary', async (req, res) => {
     return res.json(response);
   } catch (error) {
     console.error('[FCZ-PAY] Unhandled error in wallet summary:', error);
-    return res.status(200).json({
-      currency: 'USD' as const,
-      escrowUSDC: 0,
-      reservedUSDC: 0,
-      availableToStakeUSDC: 0,
-      totalDepositedUSDC: 0,
-      totalWithdrawnUSDC: 0,
-      walletAddress: null,
-      lastUpdated: new Date().toISOString(),
-      source: 'cached' as const,
+    return res.status(503).json({
+      error: 'degraded',
+      message: 'On-chain wallet snapshot unavailable',
+      version: VERSION,
     });
   }
-});
+}

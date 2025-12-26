@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
-import { Plus, ArrowDownToLine, DollarSign, Lock, Wallet, RefreshCw, HelpCircle } from 'lucide-react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { Plus, ArrowDownToLine, DollarSign, Lock, Wallet, RefreshCw, HelpCircle, X, ArrowRightLeft } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
-import { useAccount } from 'wagmi';
+import { useAccount, useDisconnect, useSwitchChain } from 'wagmi';
 import { baseSepolia } from 'wagmi/chains';
-import Header from '../components/layout/Header/Header';
+import AppHeader from '../components/layout/AppHeader';
 import Page from '../components/ui/layout/Page';
 import Card, { CardHeader, CardContent } from '../components/ui/card/Card';
 import StatCard, { StatRow } from '../components/ui/card/StatCard';
@@ -18,6 +18,9 @@ import { useWalletActivity } from '../hooks/useWalletActivity';
 import DepositUSDCModal from '../components/wallet/DepositUSDCModal';
 import WithdrawUSDCModal from '../components/wallet/WithdrawUSDCModal';
 import ConnectWalletSheet from '../components/wallet/ConnectWalletSheet';
+import { getApiUrl } from '../config';
+import { useFundingModeStore } from '../store/fundingModeStore';
+import { useAutoNetworkSwitch } from '../hooks/useAutoNetworkSwitch';
 
 interface WalletPageProps {
   onNavigateBack?: () => void;
@@ -26,6 +29,13 @@ interface WalletPageProps {
 const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
   const { user, isAuthenticated } = useAuthStore();
   const { address, isConnected, chainId } = useAccount();
+  const { disconnect } = useDisconnect();
+  const { switchChain } = useSwitchChain();
+  // Auto-switch to Base Sepolia when connected on wrong network (crypto rail only)
+  useAutoNetworkSwitch();
+  const { mode, setMode, isDemoEnabled } = useFundingModeStore();
+  const showDemo = isDemoEnabled;
+  const isDemoMode = showDemo && mode === 'demo';
   
   // On-chain wallet USDC (token balance)
   const { balance: walletBalance, isLoading: loadingWalletBalance, refetch: refetchWallet } = useUSDCBalance();
@@ -39,9 +49,63 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
   const reservedUSD = snapshot?.reservedUSDC ?? 0;
   const totalUSD = snapshot?.escrowUSDC ?? 0;
   const isCorrectChain = !!chainId && chainId === baseSepolia.id;
-  
+
+  // Demo wallet summary (DB-backed)
+  const [demoSummary, setDemoSummary] = useState<null | { currency: string; available: number; reserved: number; total: number; lastUpdated: string }>(null);
+  const [demoLoading, setDemoLoading] = useState(false);
+  const [demoError, setDemoError] = useState<string | null>(null);
+
   // Transaction history from database
-  const { data: activityData, isLoading: loadingActivity } = useWalletActivity(user?.id, 20);
+  const { data: activityData, isLoading: loadingActivity, refetch: refetchActivity } = useWalletActivity(user?.id, 20);
+
+  const fetchDemoSummary = useCallback(async () => {
+    if (!user?.id) return;
+    try {
+      setDemoLoading(true);
+      setDemoError(null);
+      const resp = await fetch(`${getApiUrl()}/api/demo-wallet/summary?userId=${user.id}`);
+      const json = await resp.json().catch(() => null);
+      if (!resp.ok) {
+        throw new Error(json?.message || 'Failed to load demo wallet');
+      }
+      setDemoSummary(json?.summary ?? null);
+    } catch (e: any) {
+      setDemoError(e?.message || 'Failed to load demo wallet');
+      setDemoSummary(null);
+    } finally {
+      setDemoLoading(false);
+    }
+  }, [user?.id]);
+
+  const faucetDemo = useCallback(async () => {
+    if (!user?.id) return;
+    try {
+      setDemoLoading(true);
+      setDemoError(null);
+      const resp = await fetch(`${getApiUrl()}/api/demo-wallet/faucet`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: user.id }),
+      });
+      const json = await resp.json().catch(() => null);
+      if (!resp.ok) {
+        throw new Error(json?.message || 'Failed to faucet demo credits');
+      }
+      setDemoSummary(json?.summary ?? null);
+      await refetchActivity();
+    } catch (e: any) {
+      setDemoError(e?.message || 'Failed to faucet demo credits');
+    } finally {
+      setDemoLoading(false);
+    }
+  }, [user?.id, refetchActivity]);
+
+  useEffect(() => {
+    if (isDemoMode) {
+      void fetchDemoSummary();
+    }
+  }, [isDemoMode, fetchDemoSummary]);
+  
   const activities = activityData?.items || [];
   
   // Modal states
@@ -51,9 +115,23 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
 
   const isLoading = loadingWalletBalance || loadingSnapshot;
 
-  const handleRefresh = async () => {
-    await Promise.all([refetchWallet(), refetchSnapshot()]);
-  };
+  const recordOnchainTransactions = useCallback(async () => {
+    if (!user?.id) return;
+    // Best-effort: ask the server to reconcile and record recent on-chain deposits/withdrawals into wallet_transactions
+    try {
+      const params = new URLSearchParams({ userId: user.id, refresh: '1' });
+      if (address) params.set('walletAddress', address.toLowerCase());
+      await fetch(`${getApiUrl()}/api/wallet/summary?${params.toString()}`);
+    } catch (e) {
+      // non-fatal: balances still come from on-chain reads
+      console.warn('[wallet] recordOnchainTransactions failed (non-fatal):', e);
+    }
+  }, [user?.id, address]);
+
+  const handleRefresh = useCallback(async () => {
+    await recordOnchainTransactions();
+    await Promise.all([refetchWallet(), refetchSnapshot(), refetchActivity()]);
+  }, [recordOnchainTransactions, refetchWallet, refetchSnapshot, refetchActivity]);
 
   const handleDeposit = () => {
     if (!isConnected) {
@@ -124,7 +202,7 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
   if (!isAuthenticated) {
     return (
       <>
-        <Header title="Wallet" />
+        <AppHeader title="Wallet" />
         <Page>
           <AuthRequiredState
             icon={<DollarSign />}
@@ -139,24 +217,59 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
 
   return (
     <>
-      <Header 
+      <AppHeader 
         title="Wallet" 
+        // Keep title visually centered even when there are multiple right-side actions.
+        left={isConnected ? <div className="w-[72px]" /> : undefined}
         action={
-          isConnected && (
-            <button
-              onClick={handleRefresh}
-              disabled={isLoading}
-              className="p-2 text-gray-600 hover:text-gray-900 transition-colors"
-              aria-label="Refresh balances"
-            >
-              <RefreshCw className={`w-5 h-5 ${isLoading ? 'animate-spin' : ''}`} />
-            </button>
-          )
+          isConnected ? (
+            <div className="flex items-center gap-1">
+              <button
+                onClick={handleRefresh}
+                disabled={isLoading}
+                className="rounded-full p-2 text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-colors disabled:opacity-50"
+                aria-label="Refresh balances"
+              >
+                <RefreshCw className={`w-5 h-5 ${isLoading ? 'animate-spin' : ''}`} />
+              </button>
+              <button
+                onClick={() => disconnect()}
+                className="rounded-full p-2 text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-colors"
+                aria-label="Disconnect wallet"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+          ) : null
         }
       />
       
       <Page>
-        {!isConnected ? (
+        {/* Funding mode toggle (Demo only if enabled) */}
+        {showDemo && (
+          <div className="mb-4">
+            <div className="inline-flex rounded-lg bg-gray-100 p-1">
+              <button
+                onClick={() => setMode('crypto')}
+                className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
+                  !isDemoMode ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                Crypto (USDC)
+              </button>
+              <button
+                onClick={() => setMode('demo')}
+                className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
+                  isDemoMode ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                Demo Credits
+              </button>
+            </div>
+          </div>
+        )}
+
+        {!isDemoMode && !isConnected ? (
           <Card>
             <CardContent>
               <div className="text-center py-8">
@@ -199,35 +312,81 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
           <>
             {/* Balance Overview */}
             <StatRow>
-              <StatCard 
-                label="Wallet Balance" 
-                value={walletBalance || 0} 
-                variant="currency"
-                icon={<Wallet className="w-4 h-4" />}
-                subtitle="USDC on Base"
-              />
-              <StatCard 
-                label="Available" 
-                value={availableUSD} 
-                variant="currency"
-                icon={<DollarSign className="w-4 h-4" />}
-                subtitle="Ready to stake"
-              />
-              <StatCard 
-                label="In Bets" 
-                value={reservedUSD}
-                variant="currency"
-                icon={<Lock className="w-4 h-4" />}
-                subtitle="Currently locked"
-              />
+              {isDemoMode ? (
+                <>
+                  <StatCard
+                    label="Demo Credits"
+                    value={demoSummary?.total ?? 0}
+                    variant="currency"
+                    icon={<Wallet className="w-4 h-4" />}
+                    subtitle="Total"
+                  />
+                  <StatCard
+                    label="Available"
+                    value={demoSummary?.available ?? 0}
+                    variant="currency"
+                    icon={<DollarSign className="w-4 h-4" />}
+                    subtitle="Ready to stake"
+                  />
+                  <StatCard
+                    label="In Bets"
+                    value={demoSummary?.reserved ?? 0}
+                    variant="currency"
+                    icon={<Lock className="w-4 h-4" />}
+                    subtitle="Currently locked"
+                  />
+                </>
+              ) : (
+                <>
+                  <StatCard 
+                    label="Wallet Balance" 
+                    value={walletBalance || 0} 
+                    variant="currency"
+                    icon={<Wallet className="w-4 h-4" />}
+                    subtitle="USDC on Base"
+                  />
+                  <StatCard 
+                    label="Available" 
+                    value={availableUSD} 
+                    variant="currency"
+                    icon={<DollarSign className="w-4 h-4" />}
+                    subtitle="Ready to stake"
+                  />
+                  <StatCard 
+                    label="In Bets" 
+                    value={reservedUSD}
+                    variant="currency"
+                    icon={<Lock className="w-4 h-4" />}
+                    subtitle="Currently locked"
+                  />
+                </>
+              )}
             </StatRow>
 
             {/* Chain Warning */}
-            {!isCorrectChain && (
+            {!isDemoMode && !isCorrectChain && (
               <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-4">
-                <p className="text-sm text-amber-800">
-                  ⚠️ Please switch to Base Sepolia network to view accurate balances and make transactions
-                </p>
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-sm text-amber-800">
+                    ⚠️ Please switch to Base Sepolia network to view accurate balances and make transactions
+                  </p>
+                  {isConnected && (
+                    <button
+                      type="button"
+                      onClick={() => switchChain({ chainId: baseSepolia.id })}
+                      className="inline-flex items-center gap-2 rounded-lg border border-amber-300 bg-white px-3 py-1 text-xs font-medium text-amber-900 hover:bg-amber-100 transition-colors"
+                    >
+                      <ArrowRightLeft className="w-4 h-4" />
+                      Switch
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {isDemoMode && demoError && (
+              <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-4">
+                <p className="text-sm text-amber-800">{demoError}</p>
               </div>
             )}
 
@@ -235,23 +394,36 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
             <Card>
               <CardHeader title="Quick Actions" />
               <CardContent>
-                <div className="grid grid-cols-2 gap-4">
-                  <button
-                    onClick={handleDeposit}
-                    className="flex items-center justify-center space-x-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 p-4 rounded-xl transition-colors font-medium"
-                  >
-                    <Plus className="w-5 h-5" />
-                    <span>Deposit</span>
-                  </button>
-                  <button
-                    onClick={handleWithdraw}
-                    disabled={totalUSD <= 0}
-                    className="flex items-center justify-center space-x-2 bg-blue-50 hover:bg-blue-100 text-blue-700 p-4 rounded-xl transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    <ArrowDownToLine className="w-5 h-5" />
-                    <span>Withdraw</span>
-                  </button>
-                </div>
+                {isDemoMode ? (
+                  <div className="grid grid-cols-1 gap-4">
+                    <button
+                      onClick={faucetDemo}
+                      disabled={demoLoading}
+                      className="flex items-center justify-center space-x-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 p-4 rounded-xl transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <Plus className="w-5 h-5" />
+                      <span>Get Demo Credits</span>
+                    </button>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 gap-4">
+                    <button
+                      onClick={handleDeposit}
+                      className="flex items-center justify-center space-x-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 p-4 rounded-xl transition-colors font-medium"
+                    >
+                      <Plus className="w-5 h-5" />
+                      <span>Deposit</span>
+                    </button>
+                    <button
+                      onClick={handleWithdraw}
+                      disabled={totalUSD <= 0}
+                      className="flex items-center justify-center space-x-2 bg-blue-50 hover:bg-blue-100 text-blue-700 p-4 rounded-xl transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <ArrowDownToLine className="w-5 h-5" />
+                      <span>Withdraw</span>
+                    </button>
+                  </div>
+                )}
               </CardContent>
             </Card>
 
@@ -302,7 +474,7 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
                             }`}>
                               {isPositive ? '+' : '-'}{formatUSDCompact(activity.amountUSD ?? 0)}
                             </p>
-                            {activity.txHash && (
+                            {activity.txHash && /^0x[a-fA-F0-9]{64}$/.test(String(activity.txHash)) && (
                               <a
                                 href={`https://sepolia.basescan.org/tx/${activity.txHash}`}
                                 target="_blank"

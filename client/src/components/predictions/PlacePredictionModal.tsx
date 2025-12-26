@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Zap, X, Wallet as WalletIcon, ArrowUpRight } from 'lucide-react';
 import { Button } from '../ui/button';
@@ -6,7 +6,6 @@ import { Input } from '../ui/input';
 import { Card, CardContent } from '../ui/card';
 import { Prediction } from '../../store/predictionStore';
 import { usePredictionStore } from '../../store/predictionStore';
-import { useWalletStore } from '../../store/walletStore';
 import { useAuthStore } from '../../store/authStore';
 import toast from 'react-hot-toast';
 import { formatTimeRemaining } from '@/lib/utils';
@@ -20,6 +19,8 @@ import { invalidateAfterBet } from '@/utils/queryInvalidation';
 import { cn } from '@/lib/utils';
 import { ensureWalletReady, WalletStateError } from '@/services/onchainTransactionService';
 import { useWeb3Recovery } from '@/providers/Web3Provider';
+import { useFundingModeStore } from '@/store/fundingModeStore';
+import { getApiUrl } from '@/config';
 
 interface PlacePredictionModalProps {
   prediction: Prediction | null;
@@ -61,21 +62,68 @@ export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
   const { sessionHealthy } = useWeb3Recovery();
   const walletAddressLower = address?.toLowerCase() ?? null;
   const { wallet: walletUSDC, available: escrowAvailable, refetch: refetchBalances } = useUnifiedBalance();
-  const demoGetBalance = useWalletStore((state) => state.getBalance);
-  const demoBalance = demoGetBalance('USD') || 0;
+  const { mode, setMode, isDemoEnabled } = useFundingModeStore();
+  const isDemoMode = isDemoEnabled && mode === 'demo';
 
   const BASE_BETS_ENABLED =
     import.meta.env.VITE_FCZ_BASE_BETS === '1' ||
     import.meta.env.ENABLE_BASE_BETS === '1' ||
     import.meta.env.VITE_FCZ_BASE_ENABLE === '1';
-  const DEMO_MODE = import.meta.env.VITE_FCZ_ENABLE_DEMO === '1';
-  const isCryptoMode = BASE_BETS_ENABLED && !DEMO_MODE;
+  const isCryptoMode = !isDemoMode;
+
+  const [demoSummary, setDemoSummary] = useState<null | { available: number; reserved: number; total: number }>(null);
+  const [demoLoading, setDemoLoading] = useState(false);
+  const [demoError, setDemoError] = useState<string | null>(null);
+
+  const fetchDemoSummary = useCallback(async () => {
+    if (!user?.id) return;
+    try {
+      setDemoLoading(true);
+      setDemoError(null);
+      const resp = await fetch(`${getApiUrl()}/api/demo-wallet/summary?userId=${user.id}`);
+      const json = await resp.json().catch(() => null);
+      if (!resp.ok) throw new Error(json?.message || 'Failed to load demo credits');
+      setDemoSummary(json?.summary ?? null);
+    } catch (e: any) {
+      setDemoError(e?.message || 'Failed to load demo credits');
+      setDemoSummary(null);
+    } finally {
+      setDemoLoading(false);
+    }
+  }, [user?.id]);
+
+  const faucetDemo = useCallback(async () => {
+    if (!user?.id) return;
+    try {
+      setDemoLoading(true);
+      setDemoError(null);
+      const resp = await fetch(`${getApiUrl()}/api/demo-wallet/faucet`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: user.id }),
+      });
+      const json = await resp.json().catch(() => null);
+      if (!resp.ok) throw new Error(json?.message || 'Failed to get demo credits');
+      setDemoSummary(json?.summary ?? null);
+    } catch (e: any) {
+      setDemoError(e?.message || 'Failed to get demo credits');
+    } finally {
+      setDemoLoading(false);
+    }
+  }, [user?.id]);
+
+  useEffect(() => {
+    if (isDemoMode) {
+      void fetchDemoSummary();
+    }
+  }, [isDemoMode, fetchDemoSummary]);
 
   const numAmount = parseFloat(amount) || 0;
   const selectedOption = prediction?.options?.find(o => o.id === selectedOptionId);
   const selectedOptionOdds = selectedOption?.current_odds || (selectedOption?.total_staked ? (prediction?.pool_total / selectedOption.total_staked) : 2.0);
   const potentialPayout = selectedOption ? calculatePotentialPayout(numAmount, selectedOptionOdds) : 0;
-  const displayBalance = isCryptoMode ? escrowAvailable : demoBalance;
+  const demoAvailable = demoSummary?.available ?? 0;
+  const displayBalance = isCryptoMode ? escrowAvailable : demoAvailable;
   const needsDeposit = isCryptoMode && numAmount > escrowAvailable;
   const insufficientBalance = numAmount > displayBalance;
 
@@ -131,8 +179,8 @@ export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
       return;
     }
 
-    if (!isCryptoMode && numAmount > demoBalance) {
-      toast.error(`Insufficient balance. You have ${formatCurrency(demoBalance)} available, but tried to stake ${formatCurrency(numAmount)}.`);
+    if (!isCryptoMode && numAmount > demoAvailable) {
+      toast.error(`Insufficient balance. You have ${formatCurrency(demoAvailable)} available, but tried to stake ${formatCurrency(numAmount)}.`);
       return;
     }
 
@@ -147,7 +195,7 @@ export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
         selectedOptionId,
         numAmount,
         user.id,
-        address ?? undefined
+        isCryptoMode ? (address ?? undefined) : undefined
       );
       
       toast.success(`Prediction placed successfully! You staked ${formatCurrency(numAmount)} on ${selectedOption?.label}.`);
@@ -163,6 +211,9 @@ export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
         queryClient.invalidateQueries({ queryKey: ['readContract'] }),
       ]);
       await refetchBalances();
+      if (!isCryptoMode) {
+        await fetchDemoSummary();
+      }
       window.dispatchEvent(new CustomEvent('fcz:balance:refresh'));
     } catch (error: any) {
       const errorMessage = error?.message || 'Unknown error occurred';
@@ -219,6 +270,27 @@ export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
 
               {/* Scrollable Body */}
               <div className="flex-1 overflow-y-auto p-4 space-y-6">
+                {isDemoEnabled && (
+                  <div className="inline-flex rounded-lg bg-gray-100 p-1">
+                    <button
+                      onClick={() => setMode('crypto')}
+                      className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
+                        isCryptoMode ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'
+                      }`}
+                    >
+                      Crypto (USDC)
+                    </button>
+                    <button
+                      onClick={() => setMode('demo')}
+                      className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
+                        !isCryptoMode ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'
+                      }`}
+                    >
+                      Demo Credits
+                    </button>
+                  </div>
+                )}
+
                 {/* Prediction Info */}
                 <div className="space-y-2">
                   <h3 className="font-semibold text-gray-900 text-base">{prediction.title}</h3>
@@ -237,7 +309,7 @@ export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
                   </div>
                 </div>
 
-                {isCryptoMode && (
+                {isCryptoMode ? (
                   <div className="flex items-center justify-between bg-purple-50 border border-purple-100 rounded-xl px-3 py-2 text-xs text-purple-900">
                     <div className="flex items-center gap-2">
                       <WalletIcon className="w-4 h-4" />
@@ -248,20 +320,44 @@ export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
                     </div>
                     <button
                       className="inline-flex items-center gap-1 text-xs font-semibold text-purple-800 hover:text-purple-900"
-                        onClick={() => {
+                      onClick={() => {
                         if (!user?.id) {
                           toast.error('Sign in to deposit funds.');
                           return;
                         }
-                          if (!ensureCryptoWalletReady()) {
-                            return;
-                          }
+                        if (!ensureCryptoWalletReady()) {
+                          return;
+                        }
                         setShowDepositModal(true);
                       }}
                     >
                       <ArrowUpRight className="w-3 h-3" />
                       Add funds
                     </button>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-between bg-emerald-50 border border-emerald-100 rounded-xl px-3 py-2 text-xs text-emerald-900">
+                    <div className="flex items-center gap-2">
+                      <WalletIcon className="w-4 h-4" />
+                      <div>
+                        <p className="font-semibold">Demo available</p>
+                        <p className="text-emerald-700">${demoAvailable.toFixed(2)}</p>
+                      </div>
+                    </div>
+                    <button
+                      className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-800 hover:text-emerald-900 disabled:opacity-60"
+                      onClick={() => void faucetDemo()}
+                      disabled={!user?.id || demoLoading}
+                    >
+                      <ArrowUpRight className="w-3 h-3" />
+                      Get credits
+                    </button>
+                  </div>
+                )}
+
+                {!isCryptoMode && demoError && (
+                  <div className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
+                    {demoError}
                   </div>
                 )}
 

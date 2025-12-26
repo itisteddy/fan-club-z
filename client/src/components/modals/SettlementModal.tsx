@@ -28,8 +28,12 @@ const SettlementModal: React.FC<SettlementModalProps> = ({
   const [reason, setReason] = useState('');
   const [showConfirmation, setShowConfirmation] = useState(false);
   const [options, setOptions] = useState<PredictionOption[]>(prediction.options || []);
+  const [poolTotalOverride, setPoolTotalOverride] = useState<number | null>(null);
+  const [participantCountOverride, setParticipantCountOverride] = useState<number | null>(null);
+  const [platformFeePctOverride, setPlatformFeePctOverride] = useState<number | null>(null);
+  const [creatorFeePctOverride, setCreatorFeePctOverride] = useState<number | null>(null);
 
-  const { settleManually, isSettling, settlementError, clearError } = useSettlement();
+  const { isSettling, clearError } = useSettlement();
   const { settleWithMerkle, isSubmitting: isPostingRoot, error: merkleError } = useSettlementMerkle();
   const { notifySettlementReady } = useNotificationStore();
 
@@ -49,28 +53,7 @@ const SettlementModal: React.FC<SettlementModalProps> = ({
 
       // 1) Try on-chain Merkle settlement first
       console.log('[SETTLEMENT] Attempting on-chain Merkle settlement...');
-      const tx = await settleWithMerkle({
-        predictionId: prediction.id,
-        winningOptionId: selectedOptionId,
-        reason: reason.trim(),
-        userId: prediction.creator_id || '',
-      });
-
-      if (tx) {
-        // On-chain path succeeded – prediction is settled, root is posted, winners can claim on-chain
-        console.log('[SETTLEMENT] On-chain settlement completed:', tx);
-        setShowConfirmation(false);
-        onClose();
-        if (onSettlementComplete) onSettlementComplete();
-        return;
-      }
-
-      // 2) If Merkle flow returned null (e.g. user cancelled, session error, or contract revert),
-      // fall back to off-chain manual settlement so users are not blocked.
-      console.log('[SETTLEMENT] Merkle settlement unavailable, falling back to off-chain manual settlement...');
-      toast.loading('On-chain settlement failed. Settling off-chain...', { id: 'settle-fallback' });
-
-      const result = await settleManually({
+      const result = await settleWithMerkle({
         predictionId: prediction.id,
         winningOptionId: selectedOptionId,
         reason: reason.trim(),
@@ -78,17 +61,22 @@ const SettlementModal: React.FC<SettlementModalProps> = ({
       });
 
       if (result) {
-        toast.success('Settlement completed off-chain. Winners have been credited.', { id: 'settle-fallback' });
+        // If txHash exists, root was posted on-chain by the creator wallet.
+        // If queuedFinalize is true, settlement was prepared and finalization was queued for the relayer.
+        console.log('[SETTLEMENT] Settlement flow completed:', result);
         setShowConfirmation(false);
         onClose();
         if (onSettlementComplete) onSettlementComplete();
-      } else {
-        toast.error(settlementError || 'Settlement failed. Please try again.', { id: 'settle-fallback' });
+        return;
       }
+
+      // If we reach here, Merkle settlement did not complete.
+      // IMPORTANT: Do NOT fall back to off-chain settlement for crypto rail, to avoid double-settlement/logging.
+      toast.error(merkleError || 'Settlement failed. Please reconnect wallet (if needed) and try again.');
     } catch (error) {
       console.error('Settlement submit error:', error);
       const msg = (error as any)?.message || 'Settlement failed. Please try again.';
-      toast.error(msg, { id: 'settle-fallback' });
+      toast.error(msg);
     }
   };
 
@@ -110,12 +98,31 @@ const SettlementModal: React.FC<SettlementModalProps> = ({
         if (prediction.options && prediction.options.length > 0) {
           if (!isMounted) return;
           setOptions(prediction.options);
+          // Still keep fee percentages/pool/participants aligned from the freshest data we have
+          setPoolTotalOverride(typeof prediction.pool_total === 'number' ? prediction.pool_total : null);
+          setParticipantCountOverride(typeof prediction.participant_count === 'number' ? prediction.participant_count : null);
+          setPlatformFeePctOverride(
+            Number.isFinite((prediction as any).platform_fee_percentage) ? Number((prediction as any).platform_fee_percentage) : null
+          );
+          setCreatorFeePctOverride(
+            Number.isFinite((prediction as any).creator_fee_percentage) ? Number((prediction as any).creator_fee_percentage) : null
+          );
           console.log('✅ SettlementModal: Using options from props:', prediction.options.length);
           return;
         }
         const full = await fetchPredictionById(String(prediction.id));
         if (isMounted && full?.options?.length) {
           setOptions(full.options);
+          setPoolTotalOverride(typeof (full as any).pool_total === 'number' ? Number((full as any).pool_total) : null);
+          setParticipantCountOverride(
+            typeof (full as any).participant_count === 'number' ? Number((full as any).participant_count) : null
+          );
+          setPlatformFeePctOverride(
+            Number.isFinite((full as any).platform_fee_percentage) ? Number((full as any).platform_fee_percentage) : null
+          );
+          setCreatorFeePctOverride(
+            Number.isFinite((full as any).creator_fee_percentage) ? Number((full as any).creator_fee_percentage) : null
+          );
           console.log('✅ SettlementModal: Loaded options via fetch:', full.options.length);
         } else if (isMounted) {
           console.warn('⚠️ SettlementModal: No options available for prediction:', prediction.id);
@@ -129,25 +136,32 @@ const SettlementModal: React.FC<SettlementModalProps> = ({
   }, [prediction.id]);
   
   const selectedOption = options.find(opt => opt.id === selectedOptionId);
-  const totalPool = prediction.pool_total || 0;
-  const participantCount = prediction.participant_count || 0;
+  const getOptionTotalStaked = (opt?: PredictionOption | null) =>
+    Number(((opt as any)?.total_staked ?? (opt as any)?.totalStaked ?? 0) || 0);
+
+  // Use the most reliable pool total available:
+  // - prediction.pool_total can be stale in the list view
+  // - option totals are usually fresher because we fetch the full prediction before settling
+  const optionsPoolTotal = options.reduce((sum, o) => sum + getOptionTotalStaked(o), 0);
+  const poolFromPrediction = Number((poolTotalOverride ?? prediction.pool_total) || 0);
+  const totalPool = Math.max(poolFromPrediction, optionsPoolTotal, 0);
+
+  const participantCount = Number((participantCountOverride ?? prediction.participant_count) || 0);
+
+  const platformFeePercent = Number.isFinite(platformFeePctOverride ?? (prediction as any).platform_fee_percentage)
+    ? Number(platformFeePctOverride ?? (prediction as any).platform_fee_percentage)
+    : 2.5;
+  const creatorFeePercent = Number.isFinite(creatorFeePctOverride ?? (prediction as any).creator_fee_percentage)
+    ? Number(creatorFeePctOverride ?? (prediction as any).creator_fee_percentage)
+    : 1.0;
+
   // Determine total staked on the selected (winning) option
-  const selectedStake = (() => {
-    if (!selectedOption) return 0;
-    return Number(
-      // Try multiple possible field names used across app versions
-      (selectedOption as any).total_staked ||
-      (selectedOption as any).staked_amount ||
-      (selectedOption as any).amount_staked ||
-      (selectedOption as any).total_amount ||
-      (selectedOption as any).totalStaked ||
-      0
-    ) || 0;
-  })();
+  const selectedStake = selectedOption ? getOptionTotalStaked(selectedOption) : 0;
+
   // House take applies ONLY to losing stakes (round to cents deterministically)
   const totalLosingStake = Math.max(0, totalPool - selectedStake);
-  const platformFeeCents = Math.round(totalLosingStake * 100 * 2.5 / 100);
-  const creatorFeeCents = Math.round(totalLosingStake * 100 * 1.0 / 100);
+  const platformFeeCents = Math.round(totalLosingStake * 100 * platformFeePercent / 100);
+  const creatorFeeCents = Math.round(totalLosingStake * 100 * creatorFeePercent / 100);
   const platformFee = platformFeeCents / 100;
   const creatorFee = creatorFeeCents / 100;
   // Winners receive their stake back plus proportional share of (losing stakes - fees)
@@ -225,22 +239,7 @@ const SettlementModal: React.FC<SettlementModalProps> = ({
                     ) : (
                       options.map((option) => {
                       const isSelected = selectedOptionId === option.id;
-                      // Try multiple possible field names for staked amount
-                      const optionStaked = Number(
-                        option.total_staked ?? 
-                        option.totalStaked ??
-                        0
-                      );
-                      
-                      // Debug: Log to see what data is available
-                      if (import.meta.env.DEV) {
-                        console.log('SettlementModal option data:', {
-                          id: option.id,
-                          label: option.label,
-                          optionStaked,
-                          availableFields: Object.keys(option)
-                        });
-                      }
+                      const optionStaked = getOptionTotalStaked(option);
                       
                       const percentage = totalPool > 0 ? (optionStaked / totalPool) * 100 : 0;
                       const optionOdds = option.current_odds || (totalPool > 0 && optionStaked > 0 ? totalPool / optionStaked : 2.00);
@@ -375,11 +374,11 @@ const SettlementModal: React.FC<SettlementModalProps> = ({
                       <span className="font-medium text-gray-900">${totalPool.toFixed(2)}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-gray-600">Platform Fee (2.5%):</span>
+                      <span className="text-gray-600">Platform Fee ({platformFeePercent}%):</span>
                       <span className="text-gray-900">${platformFee.toFixed(2)}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-gray-600">Creator Fee (1.0%):</span>
+                      <span className="text-gray-600">Creator Fee ({creatorFeePercent}%):</span>
                       <span className="text-gray-900">${creatorFee.toFixed(2)}</span>
                     </div>
                     <hr className="border-gray-200" />

@@ -212,38 +212,15 @@ router.get('/user/:userId', async (req, res) => {
       });
     }
 
-    // Create a Set of entry IDs to avoid duplicates when wallet_transactions also has the same bet
-    const entryIds = new Set((betEntries || []).map(e => e.id));
-
-    const betEvents = (betEntries || []).map((entry) => {
-      const prediction = pickFirst(entry.prediction as MaybeArray<{ id?: string; title?: string; status?: string }>);
-      return {
-      id: `bet_${entry.id}`,
-      timestamp: entry.created_at,
-      type: 'entry.create',
-      actor: null,
-      predictionId: prediction?.id ?? entry.prediction_id,
-      predictionTitle: prediction?.title ?? null,
-      predictionStatus: prediction?.status ?? null,
-      data: {
-        amount: Number(entry.amount || 0),
-        potential_payout: Number(entry.potential_payout || 0),
-        status: entry.status,
-        option_id: entry.option_id,
-        option_label: getOptionLabel(entry.option as MaybeArray<{ label?: string }>),
-      }
-    };
-    });
-
-    // IMPORTANT: Exclude 'escrow_consumed' from wallet channels since we already have prediction_entries
-    // This prevents duplicate "bet placed" entries in the activity feed
-    const walletChannels = ['escrow_unlock', 'payout', 'settlement_loss', 'platform_fee', 'creator_fee'];
+    // Include wallet transactions so the feed reflects *actual wallet movements* (deposits, withdraws, bet locks, etc).
+    // We'll de-dupe bet entries when we have an escrow_consumed wallet tx for the same entry.
+    const walletChannels = ['escrow_consumed', 'escrow_deposit', 'escrow_withdraw', 'escrow_unlock', 'payout', 'settlement_loss', 'platform_fee', 'creator_fee'];
 
     console.log(`[activity] Fetching wallet_transactions for user: ${userId}, channels: ${walletChannels.join(', ')}`);
 
     const { data: betTransactions, error: txError } = await supabase
       .from('wallet_transactions')
-      .select('id, created_at, amount, currency, meta, prediction_id, channel, description, direction, provider')
+      .select('id, created_at, amount, currency, meta, prediction_id, channel, description, direction, provider, entry_id')
       .in('channel', walletChannels)
       .eq('user_id', userId)
       .order('created_at', { ascending: false })
@@ -269,12 +246,78 @@ router.get('/user/:userId', async (req, res) => {
       }))
     });
 
-    const transactionEvents = (betTransactions || []).map((tx) => {
+    const entryIdsWithWalletTx = new Set(
+      (betTransactions || [])
+        .map((tx: any) => String(tx.entry_id || tx.meta?.entry_id || tx.meta?.prediction_entry_id || ''))
+        .filter((v) => v && v !== 'null' && v !== 'undefined')
+    );
+
+    const betEvents = (betEntries || [])
+      .filter((entry) => !entryIdsWithWalletTx.has(String(entry.id)))
+      .map((entry) => {
+        const prediction = pickFirst(entry.prediction as MaybeArray<{ id?: string; title?: string; status?: string }>);
+        return {
+          id: `bet_${entry.id}`,
+          timestamp: entry.created_at,
+          type: 'entry.create',
+          actor: null,
+          predictionId: prediction?.id ?? entry.prediction_id,
+          predictionTitle: prediction?.title ?? null,
+          predictionStatus: prediction?.status ?? null,
+          data: {
+            amount: Number(entry.amount || 0),
+            potential_payout: Number(entry.potential_payout || 0),
+            status: entry.status,
+            option_id: entry.option_id,
+            option_label: getOptionLabel(entry.option as MaybeArray<{ label?: string }>),
+          }
+        };
+      });
+
+    const transactionEvents = (betTransactions || []).map((tx: any) => {
       const amount = Math.abs(Number(tx.amount || 0));
       const predictionId = tx.prediction_id ?? tx.meta?.prediction_id ?? null;
       const predictionTitle = tx.meta?.prediction_title ?? null;
 
       switch (tx.channel) {
+        case 'escrow_consumed':
+          return {
+            id: `wallet_${tx.id}`,
+            timestamp: tx.created_at,
+            type: 'wallet.bet_lock',
+            actor: null,
+            predictionId,
+            predictionTitle,
+            predictionStatus: null,
+            data: {
+              amount,
+              option_label: tx.meta?.option_label ?? null,
+              option_id: tx.meta?.option_id ?? null,
+              entry_id: tx.entry_id ?? tx.meta?.entry_id ?? null,
+            },
+          };
+        case 'escrow_deposit':
+          return {
+            id: `wallet_${tx.id}`,
+            timestamp: tx.created_at,
+            type: 'wallet.deposit',
+            actor: null,
+            predictionId: null,
+            predictionTitle: null,
+            predictionStatus: null,
+            data: { amount },
+          };
+        case 'escrow_withdraw':
+          return {
+            id: `wallet_${tx.id}`,
+            timestamp: tx.created_at,
+            type: 'wallet.withdraw',
+            actor: null,
+            predictionId: null,
+            predictionTitle: null,
+            predictionStatus: null,
+            data: { amount },
+          };
         case 'payout':
           return {
             id: `wallet_${tx.id}`,
@@ -342,6 +385,7 @@ router.get('/user/:userId', async (req, res) => {
             data: {
               amount,
               option_label: tx.meta?.option_label ?? null,
+              entry_id: tx.entry_id ?? tx.meta?.prediction_entry_id ?? tx.meta?.entry_id ?? null,
             },
           };
         default:
@@ -364,7 +408,7 @@ router.get('/user/:userId', async (req, res) => {
       }
     });
 
-    const createdEvents = (createdPredictions || []).map((prediction) => ({
+    const createdEvents = (createdPredictions || []).map((prediction: any) => ({
       id: `prediction_${prediction.id}`,
       timestamp: prediction.created_at,
       type: 'prediction.created',
@@ -380,7 +424,26 @@ router.get('/user/:userId', async (req, res) => {
 
     const merged = [...betEvents, ...transactionEvents, ...createdEvents]
       .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-    const items = merged.slice(0, limitNum);
+
+    // Deduplicate any historical duplicates (e.g., settlement retries that double-inserted wallet tx rows).
+    // Keep the newest item when duplicates exist.
+    const seen = new Set<string>();
+    const deduped: any[] = [];
+    for (const item of merged) {
+      const predictionId = item.predictionId ?? (item.data?.prediction_id ?? null);
+      const entryId =
+        item.data?.entry_id ??
+        item.data?.prediction_entry_id ??
+        null;
+      const type = item.type ?? '';
+      // Stable key: type + prediction + entry (when available), otherwise fall back to id.
+      const key = entryId && predictionId ? `${type}:${predictionId}:${entryId}` : String(item.id);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      deduped.push(item);
+    }
+
+    const items = deduped.slice(0, limitNum);
     const hasMore =
       (betEntries?.length ?? 0) === limitNum ||
       (createdPredictions?.length ?? 0) === limitNum ||

@@ -7,7 +7,7 @@ import { recomputePredictionState } from '../services/predictionMath';
 import { computeMerkleSettlement } from '../services/settlementMerkle';
 import { makePublicClient } from '../chain/base/client';
 import { getEscrowAddress } from '../services/escrowContract';
-import { getAddress } from 'viem';
+import { encodePacked, getAddress, keccak256 } from 'viem';
 
 const router = express.Router();
 
@@ -35,6 +35,438 @@ const ESCROW_MERKLE_READ_ABI = [
 function toBytes32FromUuid(uuid: string): `0x${string}` {
   const hex = uuid.replace(/-/g, '').toLowerCase().padEnd(64, '0');
   return `0x${hex}` as const;
+}
+
+// ---- Demo wallet helpers (DB-backed ledger) ----
+const DEMO_CURRENCY = 'DEMO_USD';
+const DEMO_PROVIDER = 'demo-wallet';
+
+function isAdminRequest(req: any): boolean {
+  const adminKey = req.headers['x-admin-key'] || req.headers['authorization'];
+  return !!process.env.ADMIN_API_KEY && adminKey === process.env.ADMIN_API_KEY;
+}
+
+async function ensureDemoWalletRow(userId: string) {
+  await supabase
+    .from('wallets')
+    .upsert(
+      { user_id: userId, currency: DEMO_CURRENCY, available_balance: 0, reserved_balance: 0, updated_at: new Date().toISOString() } as any,
+      { onConflict: 'user_id,currency', ignoreDuplicates: true }
+    );
+}
+
+async function applyDemoDelta(userId: string, args: { availableDelta: number; reservedDelta: number }) {
+  await ensureDemoWalletRow(userId);
+  // CAS-style update to reduce races: fetch -> compute -> update with equality guards
+  const { data: w, error: wErr } = await supabase
+    .from('wallets')
+    .select('available_balance,reserved_balance')
+    .eq('user_id', userId)
+    .eq('currency', DEMO_CURRENCY)
+    .maybeSingle();
+  if (wErr) throw wErr;
+  const prevAvail = Number((w as any)?.available_balance || 0);
+  const prevRes = Number((w as any)?.reserved_balance || 0);
+  const nextAvail = prevAvail + args.availableDelta;
+  const nextRes = prevRes + args.reservedDelta;
+
+  const { error: updErr } = await supabase
+    .from('wallets')
+    .update({ available_balance: nextAvail, reserved_balance: nextRes, updated_at: new Date().toISOString() } as any)
+    .eq('user_id', userId)
+    .eq('currency', DEMO_CURRENCY)
+    .eq('available_balance', prevAvail)
+    .eq('reserved_balance', prevRes);
+  if (updErr) throw updErr;
+}
+
+function round2(n: number): number {
+  return Math.round((Number(n) || 0) * 100) / 100;
+}
+
+function usdToUnits(n: number): bigint {
+  return BigInt(Math.round((Number(n) || 0) * 1_000_000));
+}
+
+function hashLeaf(args: { predictionIdHex: `0x${string}`; address: `0x${string}`; amountUnits: bigint }): `0x${string}` {
+  return keccak256(
+    encodePacked(
+      ['bytes32', 'address', 'uint256'],
+      [args.predictionIdHex, args.address, args.amountUnits]
+    )
+  );
+}
+
+function buildMerkle(
+  leaves: `0x${string}`[]
+): { root: `0x${string}`; getProof: (leaf: `0x${string}`) => `0x${string}`[] } {
+  const uniqueLeaves = Array.from(new Set(leaves));
+  if (uniqueLeaves.length === 0) {
+    return { root: keccak256('0x'), getProof: () => [] };
+  }
+
+  const tree: `0x${string}`[][] = [];
+  tree.push(uniqueLeaves.slice().sort());
+
+  while (true) {
+    const prev = tree[tree.length - 1] ?? [];
+    if (prev.length <= 1) break;
+    const next: `0x${string}`[] = [];
+    for (let i = 0; i < prev.length; i += 2) {
+      const a = prev[i];
+      if (!a) continue;
+      if (i + 1 === prev.length) {
+        next.push(a);
+      } else {
+        const b = prev[i + 1] ?? a;
+        const [x, y] = a.toLowerCase() < b.toLowerCase() ? [a, b] : [b, a];
+        next.push(keccak256(encodePacked(['bytes32', 'bytes32'], [x, y])));
+      }
+    }
+    tree.push(next);
+  }
+
+  const rootLevel = tree[tree.length - 1] ?? [];
+  const root = (rootLevel[0] ?? keccak256('0x')) as `0x${string}`;
+
+  function getProof(leaf: `0x${string}`): `0x${string}`[] {
+    const proof: `0x${string}`[] = [];
+    const baseLevel = tree[0] ?? [];
+    let idx = baseLevel.indexOf(leaf);
+    if (idx === -1) return [];
+    for (let level = 0; level < tree.length - 1; level++) {
+      const nodes = tree[level] ?? [];
+      const isRightNode = idx % 2 === 1;
+      const pairIndex = isRightNode ? idx - 1 : idx + 1;
+      const pairNode = nodes[pairIndex];
+      if (pairNode) proof.push(pairNode);
+      idx = Math.floor(idx / 2);
+    }
+    return proof;
+  }
+
+  return { root, getProof };
+}
+
+export async function computeMerkleSettlementCryptoOnly(args: { predictionId: string; winningOptionId: string }) {
+  const { predictionId, winningOptionId } = args;
+
+  const { data: prediction, error: predictionError } = await supabase
+    .from('predictions')
+    .select('*')
+    .eq('id', predictionId)
+    .maybeSingle();
+  if (predictionError || !prediction) throw new Error('Prediction not found');
+
+  // CRITICAL: exclude demo entries from on-chain settlement
+  const { data: entries, error: entriesError } = await supabase
+    .from('prediction_entries')
+    .select('*')
+    .eq('prediction_id', predictionId)
+    .neq('provider', DEMO_PROVIDER);
+  if (entriesError) throw new Error('Failed to load entries');
+
+  const winners = (entries || []).filter((e: any) => e.option_id === winningOptionId);
+  const losers = (entries || []).filter((e: any) => e.option_id !== winningOptionId);
+
+  const totalWinningStake = winners.reduce((sum, e: any) => sum + Number(e.amount || 0), 0);
+  const totalLosingStake = losers.reduce((sum, e: any) => sum + Number(e.amount || 0), 0);
+
+  const platformFeePct = Number.isFinite((prediction as any).platform_fee_percentage)
+    ? Number((prediction as any).platform_fee_percentage)
+    : 2.5;
+  const creatorFeePct = Number.isFinite((prediction as any).creator_fee_percentage)
+    ? Number((prediction as any).creator_fee_percentage)
+    : 1.0;
+
+  const platformFeeUSD = Math.max(round2((totalLosingStake * platformFeePct) / 100), 0);
+  const creatorFeeUSD = Math.max(round2((totalLosingStake * creatorFeePct) / 100), 0);
+  const prizePoolUSD = Math.max(totalLosingStake - platformFeeUSD - creatorFeeUSD, 0);
+  const payoutPoolUSD = totalWinningStake + prizePoolUSD;
+  const payoutPoolUnits = usdToUnits(payoutPoolUSD);
+  const predictionIdHex = toBytes32FromUuid(predictionId);
+
+  // Resolve winner addresses
+  const userIds = Array.from(new Set(winners.map((w: any) => w.user_id)));
+  const { data: addresses } = await supabase
+    .from('crypto_addresses')
+    .select('user_id,address')
+    .in('user_id', userIds)
+    .order('created_at', { ascending: false });
+  const latestByUser = new Map<string, string>();
+  (addresses || []).forEach((r: any) => {
+    if (!latestByUser.has(r.user_id)) latestByUser.set(r.user_id, r.address);
+  });
+
+  // Aggregate stakes by user to ensure ONE leaf per address
+  type Aggregated = { user_id: string; stakeUSD: number; address: `0x${string}` | null };
+  const byUser = new Map<string, Aggregated>();
+  for (const w of winners as any[]) {
+    const prev = byUser.get(w.user_id);
+    const inc = Number(w.amount || 0);
+    const addressRaw = latestByUser.get(w.user_id) || null;
+    const address = addressRaw ? (getAddress(addressRaw) as `0x${string}`) : null;
+    if (!prev) {
+      byUser.set(w.user_id, { user_id: w.user_id, stakeUSD: inc, address });
+    } else {
+      prev.stakeUSD += inc;
+      prev.address = prev.address || address;
+    }
+  }
+
+  const stakeCentsByUser = Array.from(byUser.values()).map((u) => ({
+    ...u,
+    stakeCents: Math.round(u.stakeUSD * 100),
+  }));
+  const totalWinningStakeCents = stakeCentsByUser.reduce((s, u) => s + u.stakeCents, 0);
+
+  const provisional = stakeCentsByUser.map((u) => {
+    const numerator = BigInt(u.stakeCents) * payoutPoolUnits;
+    const denom = BigInt(totalWinningStakeCents || 1);
+    const units = numerator / denom;
+    const remainder = numerator % denom;
+    return { ...u, units, remainder };
+  });
+
+  const allocated = provisional.reduce((s, u) => s + u.units, 0n);
+  let leftover = payoutPoolUnits - allocated;
+
+  provisional.sort((a, b) => {
+    if (a.remainder === b.remainder) {
+      const ax = (a.address || '0x').toLowerCase();
+      const bx = (b.address || '0x').toLowerCase();
+      return ax < bx ? -1 : ax > bx ? 1 : 0;
+    }
+    return a.remainder > b.remainder ? -1 : 1;
+  });
+
+  for (let i = 0; i < provisional.length && leftover > 0n; i++) {
+    const target = provisional[i];
+    if (!target) continue;
+    target.units += 1n;
+    leftover -= 1n;
+  }
+
+  const winnersPayouts = provisional.map((u) => ({
+    user_id: u.user_id,
+    address: u.address,
+    stakeUSD: u.stakeUSD,
+    payoutUSD: Number(u.units) / 1_000_000,
+    payoutUnits: u.units,
+  }));
+
+  const leaves = winnersPayouts
+    .filter((w) => !!w.address && w.payoutUnits > 0n)
+    .map((w) => hashLeaf({ predictionIdHex, address: w.address as `0x${string}`, amountUnits: w.payoutUnits }));
+
+  const { root, getProof } = buildMerkle(leaves);
+
+  const leafOutputs = winnersPayouts
+    .filter((w) => !!w.address && w.payoutUnits > 0n)
+    .map((w) => {
+      const leaf = hashLeaf({ predictionIdHex, address: w.address as `0x${string}`, amountUnits: w.payoutUnits });
+      return {
+        user_id: w.user_id,
+        address: w.address as `0x${string}`,
+        amountUnits: w.payoutUnits,
+        leaf,
+        proof: getProof(leaf),
+      };
+    });
+
+  return {
+    predictionId,
+    winningOptionId,
+    platformFeeUSD,
+    creatorFeeUSD,
+    platformFeeUnits: usdToUnits(platformFeeUSD),
+    creatorFeeUnits: usdToUnits(creatorFeeUSD),
+    prizePoolUSD,
+    payoutPoolUSD,
+    winners: winnersPayouts,
+    root,
+    leaves: leafOutputs,
+  };
+}
+
+async function upsertDemoTx(payload: any): Promise<boolean> {
+  // Idempotency: only apply wallet balance deltas if this tx row is newly created
+  const { data, error } = await supabase
+    .from('wallet_transactions')
+    .upsert(payload, { onConflict: 'provider,external_ref', ignoreDuplicates: true } as any)
+    .select('id');
+  if (error && (error as any).code !== '23505') {
+    console.warn('[SETTLEMENT] demo tx upsert error (non-fatal):', error);
+    return false;
+  }
+  return Array.isArray(data) ? data.length > 0 : Boolean((data as any)?.id);
+}
+
+async function settleDemoRail(args: {
+  predictionId: string;
+  predictionTitle: string;
+  winningOptionId: string;
+  creatorId: string;
+  platformFeePercent: number;
+  creatorFeePercent: number;
+}): Promise<{
+  demoEntriesCount: number;
+  demoPlatformFee: number;
+  demoCreatorFee: number;
+  demoPayoutPool: number;
+}> {
+  const { predictionId, winningOptionId, predictionTitle, creatorId } = args;
+
+  const { data: entries, error: entriesErr } = await supabase
+    .from('prediction_entries')
+    .select('id,user_id,amount,option_id,provider')
+    .eq('prediction_id', predictionId)
+    .eq('provider', DEMO_PROVIDER);
+
+  if (entriesErr) {
+    console.warn('[SETTLEMENT] Failed to load demo entries:', entriesErr);
+    return { demoEntriesCount: 0, demoPlatformFee: 0, demoCreatorFee: 0, demoPayoutPool: 0 };
+  }
+
+  const demoEntries = (entries || []) as any[];
+  if (demoEntries.length === 0) {
+    return { demoEntriesCount: 0, demoPlatformFee: 0, demoCreatorFee: 0, demoPayoutPool: 0 };
+  }
+
+  const winners = demoEntries.filter(e => e.option_id === winningOptionId);
+  const losers = demoEntries.filter(e => e.option_id !== winningOptionId);
+  const totalWinningStake = winners.reduce((s, e) => s + Number(e.amount || 0), 0);
+  const totalLosingStake = losers.reduce((s, e) => s + Number(e.amount || 0), 0);
+
+  // Fees are charged on LOSING stake only (per rail)
+  const demoPlatformFee = round2((totalLosingStake * args.platformFeePercent) / 100);
+  const demoCreatorFee = round2((totalLosingStake * args.creatorFeePercent) / 100);
+  const prizePool = Math.max(totalLosingStake - demoPlatformFee - demoCreatorFee, 0);
+  const payoutPool = round2(totalWinningStake + prizePool);
+
+  // Update demo entries + balances
+  for (const w of winners) {
+    const stake = Number(w.amount || 0);
+    const share = totalWinningStake > 0 ? stake / totalWinningStake : 0;
+    const payout = round2(payoutPool * share);
+
+    await supabase
+      .from('prediction_entries')
+      .update({ status: 'won', actual_payout: payout, updated_at: new Date().toISOString() } as any)
+      .eq('id', w.id);
+
+    const inserted = await upsertDemoTx({
+      user_id: w.user_id,
+      direction: 'credit',
+      // Use 'deposit' to satisfy wallet_transactions_type_check
+      type: 'deposit',
+      channel: 'fiat',
+      provider: DEMO_PROVIDER,
+      amount: payout,
+      currency: DEMO_CURRENCY,
+      status: 'completed',
+      external_ref: `demo_payout:${predictionId}:${w.id}`,
+      prediction_id: predictionId,
+      entry_id: w.id,
+      description: `Demo payout for "${predictionTitle}"`,
+      meta: { kind: 'payout', provider: DEMO_PROVIDER, prediction_id: predictionId, entry_id: w.id },
+    } as any);
+    if (inserted) {
+      await applyDemoDelta(w.user_id, { availableDelta: payout, reservedDelta: -stake });
+      try {
+        emitWalletUpdate({ userId: w.user_id, reason: 'payout', amountDelta: payout });
+      } catch {}
+    }
+  }
+
+  for (const l of losers) {
+    const stake = Number(l.amount || 0);
+    await supabase
+      .from('prediction_entries')
+      .update({ status: 'lost', actual_payout: 0, updated_at: new Date().toISOString() } as any)
+      .eq('id', l.id);
+
+    const inserted = await upsertDemoTx({
+      user_id: l.user_id,
+      direction: 'debit',
+      type: 'withdraw',
+      channel: 'fiat',
+      provider: DEMO_PROVIDER,
+      amount: stake,
+      currency: DEMO_CURRENCY,
+      status: 'completed',
+      external_ref: `demo_loss:${predictionId}:${l.id}`,
+      prediction_id: predictionId,
+      entry_id: l.id,
+      description: `Demo loss for "${predictionTitle}"`,
+      meta: { kind: 'loss', provider: DEMO_PROVIDER, prediction_id: predictionId, entry_id: l.id },
+    } as any);
+    if (inserted) {
+      await applyDemoDelta(l.user_id, { availableDelta: 0, reservedDelta: -stake });
+      try {
+        emitWalletUpdate({ userId: l.user_id, reason: 'loss', amountDelta: -stake });
+      } catch {}
+    }
+  }
+
+  // Demo creator/platform fees (credited immediately off-chain)
+  if (demoCreatorFee > 0) {
+    const inserted = await upsertDemoTx({
+      user_id: creatorId,
+      direction: 'credit',
+      // Use 'deposit' to satisfy wallet_transactions_type_check
+      type: 'deposit',
+      channel: 'fiat',
+      provider: DEMO_PROVIDER,
+      amount: demoCreatorFee,
+      currency: DEMO_CURRENCY,
+      status: 'completed',
+      external_ref: `demo_creator_fee:${predictionId}`,
+      prediction_id: predictionId,
+      description: `Demo creator fee for "${predictionTitle}"`,
+      meta: { kind: 'creator_fee', provider: DEMO_PROVIDER, prediction_id: predictionId },
+    } as any);
+    if (inserted) {
+      await applyDemoDelta(creatorId, { availableDelta: demoCreatorFee, reservedDelta: 0 });
+      try {
+        emitWalletUpdate({ userId: creatorId, reason: 'creator_fee_paid', amountDelta: demoCreatorFee });
+      } catch {}
+    }
+  }
+
+  if (demoPlatformFee > 0) {
+    const treasuryUserId = await resolveTreasuryUserId();
+    if (treasuryUserId) {
+      const inserted = await upsertDemoTx({
+        user_id: treasuryUserId,
+        direction: 'credit',
+        // Use 'deposit' to satisfy wallet_transactions_type_check
+        type: 'deposit',
+        channel: 'fiat',
+        provider: DEMO_PROVIDER,
+        amount: demoPlatformFee,
+        currency: DEMO_CURRENCY,
+        status: 'completed',
+        external_ref: `demo_platform_fee:${predictionId}`,
+        prediction_id: predictionId,
+        description: `Demo platform fee for "${predictionTitle}"`,
+        meta: { kind: 'platform_fee', provider: DEMO_PROVIDER, prediction_id: predictionId },
+      } as any);
+      if (inserted) {
+        await applyDemoDelta(treasuryUserId, { availableDelta: demoPlatformFee, reservedDelta: 0 });
+        try {
+          emitWalletUpdate({ userId: treasuryUserId, reason: 'platform_fee_collected', amountDelta: demoPlatformFee });
+        } catch {}
+      }
+    }
+  }
+
+  return {
+    demoEntriesCount: demoEntries.length,
+    demoPlatformFee,
+    demoCreatorFee,
+    demoPayoutPool: payoutPool,
+  };
 }
 
 async function ensureOnchainPosted(predictionId: string): Promise<`0x${string}` | null> {
@@ -79,7 +511,7 @@ async function isClaimedOnchain(predictionId: string, account: string): Promise<
   }
 }
 
-async function resolveTreasuryUserId(): Promise<string | null> {
+export async function resolveTreasuryUserId(): Promise<string | null> {
   const raw = config.platform?.treasuryUserId;
   if (!raw) return null;
 
@@ -124,6 +556,84 @@ async function resolveTreasuryUserId(): Promise<string | null> {
   }
 
   return trimmed;
+}
+
+export async function recordOnchainPosted(args: { predictionId: string; txHash: string; root?: string | null }) {
+  const { predictionId, txHash, root } = args;
+
+  await supabase
+    .from('bet_settlements')
+    .update({
+      status: 'onchain_posted',
+      meta: {
+        tx_hash: txHash,
+        merkle_root: root || null,
+        updated_at: new Date().toISOString(),
+      }
+    } as any)
+    .eq('bet_id', predictionId);
+
+  // Create on-chain fee activity rows for creator and platform (if available)
+  try {
+    const { data: pred } = await supabase
+      .from('predictions')
+      .select('id,title,creator_id,winning_option_id,platform_fee_percentage,creator_fee_percentage')
+      .eq('id', predictionId)
+      .maybeSingle();
+    if (pred?.winning_option_id) {
+      // Ensure demo rail (if any) is settled off-chain as well (idempotent via external_ref)
+      await settleDemoRail({
+        predictionId,
+        predictionTitle: pred.title,
+        winningOptionId: pred.winning_option_id,
+        creatorId: pred.creator_id,
+        platformFeePercent: Number.isFinite((pred as any).platform_fee_percentage) ? Number((pred as any).platform_fee_percentage) : 2.5,
+        creatorFeePercent: Number.isFinite((pred as any).creator_fee_percentage) ? Number((pred as any).creator_fee_percentage) : 1.0,
+      });
+
+      const settlement = await computeMerkleSettlementCryptoOnly({ predictionId, winningOptionId: pred.winning_option_id });
+      const currency = 'USD';
+      // Creator fee
+      if (settlement.creatorFeeUSD > 0 && pred.creator_id) {
+        await supabase.from('wallet_transactions').insert({
+          user_id: pred.creator_id,
+          direction: 'credit',
+          type: 'deposit',
+          channel: 'creator_fee',
+          provider: 'onchain-escrow',
+          amount: settlement.creatorFeeUSD,
+          currency,
+          status: 'completed',
+          prediction_id: predictionId,
+          description: `Creator fee (on-chain) for "${pred.title}"`,
+          tx_hash: txHash,
+          meta: { merkle_root: settlement.root }
+        } as any);
+      }
+      // Platform fee
+      if (settlement.platformFeeUSD > 0) {
+        const treasuryUserId = await resolveTreasuryUserId();
+        if (treasuryUserId) {
+          await supabase.from('wallet_transactions').insert({
+            user_id: treasuryUserId,
+            direction: 'credit',
+            type: 'deposit',
+            channel: 'platform_fee',
+            provider: 'onchain-escrow',
+            amount: settlement.platformFeeUSD,
+            currency,
+            status: 'completed',
+            prediction_id: predictionId,
+            description: `Platform fee (on-chain) for "${pred.title}"`,
+            tx_hash: txHash,
+            meta: { merkle_root: settlement.root }
+          } as any);
+        }
+      }
+    }
+  } catch (postErr) {
+    console.warn('[SETTLEMENT] Failed to record on-chain fee activity:', postErr);
+  }
 }
 
 // POST /api/v2/settlement/manual - Manual settlement by creator
@@ -206,6 +716,8 @@ router.post('/manual', async (req, res) => {
         version: VERSION
       });
     }
+
+    const isDemoSettlement = (allEntries || []).some((e: any) => e?.provider === DEMO_PROVIDER);
 
     // Calculate settlement amounts
     const totalPool = Number(prediction.pool_total || 0);
@@ -359,6 +871,39 @@ router.post('/manual', async (req, res) => {
 
       // Credit winner's wallet with payout
       try {
+        if ((winner as any)?.provider === DEMO_PROVIDER) {
+          // Demo ledger: reserved -= stake; available += payout
+          await applyDemoDelta(winner.user_id, { availableDelta: payout, reservedDelta: -Number(winnerStake || 0) });
+          await supabase.from('wallet_transactions').insert({
+            user_id: winner.user_id,
+            direction: 'credit',
+            // Use 'deposit' to satisfy wallet_transactions_type_check (payout type may be disallowed)
+            type: 'deposit',
+            channel: 'fiat',
+            provider: DEMO_PROVIDER,
+            amount: payout,
+            currency: DEMO_CURRENCY,
+            status: 'completed',
+            external_ref: `demo_payout:${predictionId}:${winner.id}`,
+            prediction_id: predictionId,
+            entry_id: winner.id,
+            description: `Demo payout for "${prediction.title}"`,
+            meta: { kind: 'payout', provider: DEMO_PROVIDER, prediction_id: predictionId, entry_id: winner.id },
+          } as any).then(({ error }) => {
+            if (error && (error as any).code !== '23505') {
+              console.warn('[SETTLEMENT] demo payout tx insert error (non-fatal):', error);
+            }
+          });
+
+          settlementResults.push({
+            userId: winner.user_id,
+            entryId: winner.id,
+            stake: winnerStake,
+            payout: payout
+          });
+          continue;
+        }
+
         console.log('');
         console.log(`💰💰💰 [SETTLEMENT] ========================================`);
         console.log(`💰 [SETTLEMENT] Processing winner payout`);
@@ -385,6 +930,8 @@ router.post('/manual', async (req, res) => {
           amount: payout,
           currency: 'USD' as const,
           status: 'completed' as const,
+          // Idempotency: prevent duplicate win payouts if settlement is retried
+          external_ref: `settlement:${predictionId}:payout:${winner.id}`,
           prediction_id: predictionId,
           entry_id: winner.id,
           description: `Prediction win payout for "${prediction.title}"`,
@@ -443,6 +990,30 @@ router.post('/manual', async (req, res) => {
       // Record a loss activity transaction for the loser (for UI transparency)
       try {
         const lossAmount = Number(loser.amount || 0);
+        if ((loser as any)?.provider === DEMO_PROVIDER) {
+          // Demo ledger: reserved -= stake; no available increase
+          await applyDemoDelta(loser.user_id, { availableDelta: 0, reservedDelta: -lossAmount });
+          await supabase.from('wallet_transactions').insert({
+            user_id: loser.user_id,
+            direction: 'debit',
+            // Use 'withdraw' (not 'adjustment') to satisfy older wallet_transactions_type_check variants
+            type: 'withdraw',
+            channel: 'fiat',
+            provider: DEMO_PROVIDER,
+            amount: lossAmount,
+            currency: DEMO_CURRENCY,
+            status: 'completed',
+            external_ref: `demo_loss:${predictionId}:${loser.id}`,
+            prediction_id: predictionId,
+            entry_id: loser.id,
+            description: `Demo loss for "${prediction.title}"`,
+            meta: { kind: 'loss', provider: DEMO_PROVIDER, prediction_id: predictionId, entry_id: loser.id },
+          } as any).then(({ error }) => {
+            if (error && (error as any).code !== '23505') {
+              console.warn('[SETTLEMENT] demo loss tx insert error (non-fatal):', error);
+            }
+          });
+        } else {
         await supabase
           .from('wallet_transactions')
           .insert({
@@ -454,6 +1025,8 @@ router.post('/manual', async (req, res) => {
             amount: lossAmount,
             currency: 'USD',
             status: 'completed',
+            // Idempotency: prevent duplicate loss rows if settlement is retried
+            external_ref: `settlement:${predictionId}:loss:${loser.id}`,
             prediction_id: predictionId,
             entry_id: loser.id,
             description: `Loss recorded for "${prediction.title}"`,
@@ -464,7 +1037,13 @@ router.post('/manual', async (req, res) => {
               prediction_title: prediction.title,
               winning_option_id: winningOptionId
             }
+          } as any)
+          .then(({ error }) => {
+            if (error && (error as any).code !== '23505') {
+              console.warn('[SETTLEMENT] loss tx insert error (non-fatal):', error);
+            }
           });
+        }
       } catch (lossTxErr) {
         console.warn('[SETTLEMENT] Failed to record loss transaction:', lossTxErr);
       }
@@ -478,6 +1057,31 @@ router.post('/manual', async (req, res) => {
     }
     if (creatorFee > 0) {
       try {
+        if (isDemoSettlement) {
+          await applyDemoDelta(prediction.creator_id, { availableDelta: creatorFee, reservedDelta: 0 });
+          await supabase.from('wallet_transactions').insert({
+            user_id: prediction.creator_id,
+            direction: 'credit',
+            // Use 'deposit' to satisfy wallet_transactions_type_check
+            type: 'deposit',
+            channel: 'fiat',
+            provider: DEMO_PROVIDER,
+            amount: creatorFee,
+            currency: DEMO_CURRENCY,
+            status: 'completed',
+            external_ref: `demo_creator_fee:${predictionId}`,
+            prediction_id: predictionId,
+            description: `Demo creator fee for "${prediction.title}"`,
+            meta: { kind: 'creator_fee', provider: DEMO_PROVIDER, prediction_id: predictionId },
+          } as any).then(({ error }) => {
+            if (error && (error as any).code !== '23505') {
+              console.warn('[SETTLEMENT] demo creator fee tx insert error (non-fatal):', error);
+            }
+          });
+          try {
+            emitWalletUpdate({ userId: prediction.creator_id, reason: 'creator_fee_paid', amountDelta: creatorFee });
+          } catch {}
+        } else {
         console.log('');
         console.log(`🎨🎨🎨 [SETTLEMENT] ========================================`);
         console.log(`🎨 [SETTLEMENT] Processing creator fee`);
@@ -520,6 +1124,7 @@ router.post('/manual', async (req, res) => {
         } catch (emitErr) {
           console.warn('⚠️ Failed to emit creator wallet update:', emitErr);
         }
+        }
       } catch (creatorWalletError) {
         console.error('');
         console.error(`❌❌❌ [SETTLEMENT] FATAL ERROR crediting creator fee`);
@@ -532,6 +1137,31 @@ router.post('/manual', async (req, res) => {
     if (platformFee > 0) {
       if (treasuryUserId) {
         try {
+          if (isDemoSettlement) {
+            await applyDemoDelta(treasuryUserId as string, { availableDelta: platformFee, reservedDelta: 0 });
+            await supabase.from('wallet_transactions').insert({
+              user_id: treasuryUserId,
+              direction: 'credit',
+              // Use 'deposit' to satisfy wallet_transactions_type_check
+              type: 'deposit',
+              channel: 'fiat',
+              provider: DEMO_PROVIDER,
+              amount: platformFee,
+              currency: DEMO_CURRENCY,
+              status: 'completed',
+              external_ref: `demo_platform_fee:${predictionId}`,
+              prediction_id: predictionId,
+              description: `Demo platform fee for "${prediction.title}"`,
+              meta: { kind: 'platform_fee', provider: DEMO_PROVIDER, prediction_id: predictionId },
+            } as any).then(({ error }) => {
+              if (error && (error as any).code !== '23505') {
+                console.warn('[SETTLEMENT] demo platform fee tx insert error (non-fatal):', error);
+              }
+            });
+            try {
+              emitWalletUpdate({ userId: treasuryUserId, reason: 'platform_fee_collected', amountDelta: platformFee });
+            } catch {}
+          } else {
           console.log('');
           console.log(`🏦🏦🏦 [SETTLEMENT] ========================================`);
           console.log(`🏦 [SETTLEMENT] Processing platform fee`);
@@ -573,6 +1203,7 @@ router.post('/manual', async (req, res) => {
             emitWalletUpdate({ userId: treasuryUserId, reason: 'platform_fee_collected', amountDelta: platformFee });
           } catch (emitErr) {
             console.warn('⚠️ Failed to emit platform wallet update:', emitErr);
+          }
           }
         } catch (platformWalletError) {
           console.error('');
@@ -780,7 +1411,7 @@ router.get('/:predictionId/leaves', async (req, res) => {
     if (!s || s.status !== 'onchain_posted' || !s.winning_option_id) {
       return res.status(409).json({ error: 'not_ready', message: 'Not onchain_posted', version: VERSION });
     }
-    const settlement = await computeMerkleSettlement({ predictionId, winningOptionId: s.winning_option_id });
+    const settlement = await computeMerkleSettlementCryptoOnly({ predictionId, winningOptionId: s.winning_option_id });
     const leaves = settlement.leaves.map((l) => ({
       address: l.address,
       amountUnits: l.amountUnits.toString(),
@@ -848,7 +1479,7 @@ router.get('/:predictionId/merkle-proof', async (req, res) => {
       });
     }
 
-  const settlement = await computeMerkleSettlement({ predictionId, winningOptionId });
+  const settlement = await computeMerkleSettlementCryptoOnly({ predictionId, winningOptionId });
   const normalized = String(address).toLowerCase();
   const leaf = settlement.leaves.find((l) => l.address.toLowerCase() === normalized);
 
@@ -1038,7 +1669,7 @@ router.get('/claimable', async (req, res) => {
         if (!winningOptionId) continue;
 
         // Compute merkle settlement (uses cached data, no on-chain calls)
-        const settlement = await computeMerkleSettlement({ predictionId: p.id, winningOptionId });
+        const settlement = await computeMerkleSettlementCryptoOnly({ predictionId: p.id, winningOptionId });
         const leaf = settlement.leaves.find((l) => l.address.toLowerCase() === normalized);
         if (!leaf || (leaf.amountUnits ?? 0n) === 0n) continue;
 
@@ -1138,8 +1769,83 @@ router.post('/manual/merkle', async (req, res) => {
       });
     }
 
-    // Compute distribution and Merkle structure (fees charged on losing stake only)
-    const settlement = await computeMerkleSettlement({ predictionId, winningOptionId });
+    // Load entries once to decide if we have any crypto rail participants
+    const { data: allEntries, error: entriesErr } = await supabase
+      .from('prediction_entries')
+      .select('id,user_id,amount,option_id,provider')
+      .eq('prediction_id', predictionId);
+
+    if (entriesErr) {
+      console.error('[SETTLEMENT] Failed to load entries:', entriesErr);
+      return res.status(500).json({ error: 'database_error', message: 'Failed to load entries', version: VERSION });
+    }
+
+    const demoSummary = await settleDemoRail({
+      predictionId,
+      predictionTitle: prediction.title,
+      winningOptionId,
+      creatorId: prediction.creator_id,
+      platformFeePercent: Number.isFinite((prediction as any).platform_fee_percentage) ? Number((prediction as any).platform_fee_percentage) : 2.5,
+      creatorFeePercent: Number.isFinite((prediction as any).creator_fee_percentage) ? Number((prediction as any).creator_fee_percentage) : 1.0,
+    });
+
+    const cryptoEntries = (allEntries || []).filter((e: any) => e?.provider !== DEMO_PROVIDER);
+    const hasCryptoRail = cryptoEntries.length > 0;
+
+    // Demo-only prediction: settle off-chain and do NOT require on-chain root
+    if (!hasCryptoRail) {
+      await supabase
+        .from('bet_settlements')
+        .upsert(
+          {
+            bet_id: predictionId,
+            winning_option_id: winningOptionId,
+            total_payout: demoSummary.demoPayoutPool,
+            platform_fee_collected: demoSummary.demoPlatformFee,
+            creator_payout_amount: demoSummary.demoCreatorFee,
+            settlement_time: new Date().toISOString(),
+            status: 'completed',
+            meta: { rail: 'demo' },
+          } as any,
+          { onConflict: 'bet_id' } as any
+        );
+
+      try {
+        await supabase
+          .from('predictions')
+          .update({
+            status: 'settled',
+            settled_at: new Date().toISOString(),
+            winning_option_id: winningOptionId,
+            updated_at: new Date().toISOString(),
+          } as any)
+          .eq('id', predictionId);
+      } catch {}
+
+      emitSettlementComplete({ predictionId });
+      emitPredictionUpdate({ predictionId });
+
+      return res.json({
+        success: true,
+        data: {
+          predictionId,
+          title: prediction.title,
+          winningOptionId,
+          demo: demoSummary,
+          summary: {
+            platformFeeUSD: demoSummary.demoPlatformFee,
+            creatorFeeUSD: demoSummary.demoCreatorFee,
+            payoutPoolUSD: demoSummary.demoPayoutPool,
+            winnersCount: 0,
+          },
+        },
+        message: 'Demo settlement completed off-chain (no on-chain action required).',
+        version: VERSION,
+      });
+    }
+
+    // Compute distribution and Merkle structure (CRYPTO rail only; winners claim later)
+    const settlement = await computeMerkleSettlementCryptoOnly({ predictionId, winningOptionId });
 
     // Record a pending settlement record (for audit; on-chain confirmation happens via watcher)
     await supabase
@@ -1177,15 +1883,9 @@ router.post('/manual/merkle', async (req, res) => {
       console.warn('[SETTLEMENT] Failed to mark prediction settled (will still proceed):', e);
     }
 
-    // 2) Update entries to won/lost and set computed payouts
+    // 2) Update entries to won/lost and set computed payouts (CRYPTO rail only)
     try {
-      const { data: allEntries, error: entriesErr } = await supabase
-        .from('prediction_entries')
-        .select('id,user_id,amount,option_id')
-        .eq('prediction_id', predictionId);
-      if (entriesErr) {
-        console.error('[SETTLEMENT] Failed to load entries for distribution:', entriesErr);
-      } else if (Array.isArray(allEntries) && allEntries.length > 0) {
+      if (Array.isArray(cryptoEntries) && cryptoEntries.length > 0) {
         // Index winner payout by user
         const payoutByUser = new Map<string, number>();
         for (const w of settlement.winners) {
@@ -1195,7 +1895,7 @@ router.post('/manual/merkle', async (req, res) => {
         // Group winning entries by user to pro-rate user payout across their winning entries
         const winningEntriesByUser = new Map<string, Array<{ id: string; amount: number }>>();
         const losers: Array<{ id: string; user_id: string; amount: number }> = [];
-        for (const e of allEntries) {
+        for (const e of cryptoEntries as any[]) {
           const isWinnerEntry = e.option_id === winningOptionId;
           if (isWinnerEntry) {
             const arr = winningEntriesByUser.get(e.user_id) || [];
@@ -1244,11 +1944,18 @@ router.post('/manual/merkle', async (req, res) => {
                 amount: userPayout,
                 currency: 'USD',
                 status: 'pending',
+                // Idempotency: one pending payout marker per user per prediction
+                external_ref: `settlement:${predictionId}:payout_pending:${user}`,
                 prediction_id: predictionId,
                 description: 'Win recorded - claim on-chain to receive funds',
                 meta: {
                   reason: 'win_pending_claim',
                   merkle_root: settlement.root,
+                }
+              } as any)
+              .then(({ error }) => {
+                if (error && (error as any).code !== '23505') {
+                  console.warn('[SETTLEMENT] pending payout tx insert error (non-fatal):', error);
                 }
               });
           } catch (payoutActivityErr) {
@@ -1279,10 +1986,17 @@ router.post('/manual/merkle', async (req, res) => {
                 amount: l.amount,
                 currency: 'USD',
                 status: 'completed',
+                // Idempotency: prevent duplicate loss rows if settlement is retried
+                external_ref: `settlement:${predictionId}:loss:${l.id}`,
                 prediction_id: predictionId,
                 entry_id: l.id,
                 description: 'Loss recorded at settlement',
                 meta: { reason: 'settled_loss' }
+              } as any)
+              .then(({ error }) => {
+                if (error && (error as any).code !== '23505') {
+                  console.warn('[SETTLEMENT] merkle loss tx insert error (non-fatal):', error);
+                }
               });
           } catch (lossTxErr) {
             console.warn('[SETTLEMENT] Failed to record loss activity:', lossTxErr);
@@ -1357,69 +2071,7 @@ router.post('/manual/merkle/posted', async (req, res) => {
       return res.status(400).json({ error: 'bad_request', message: 'predictionId and txHash are required', version: VERSION });
     }
 
-    await supabase
-      .from('bet_settlements')
-      .update({
-        status: 'onchain_posted',
-        meta: {
-          tx_hash: txHash,
-          merkle_root: root || null,
-          updated_at: new Date().toISOString(),
-        }
-      } as any)
-      .eq('bet_id', predictionId);
-
-    // Create on-chain fee activity rows for creator and platform (if available)
-    try {
-      const { data: pred } = await supabase
-        .from('predictions')
-        .select('id,title,creator_id,winning_option_id,platform_fee_percentage,creator_fee_percentage')
-        .eq('id', predictionId)
-        .maybeSingle();
-      if (pred?.winning_option_id) {
-        const settlement = await computeMerkleSettlement({ predictionId, winningOptionId: pred.winning_option_id });
-        const currency = 'USD';
-        // Creator fee
-        if (settlement.creatorFeeUSD > 0 && pred.creator_id) {
-          await supabase.from('wallet_transactions').insert({
-            user_id: pred.creator_id,
-            direction: 'credit',
-            type: 'deposit',
-            channel: 'creator_fee',
-            provider: 'onchain-escrow',
-            amount: settlement.creatorFeeUSD,
-            currency,
-            status: 'completed',
-            prediction_id: predictionId,
-            description: `Creator fee (on-chain) for "${pred.title}"`,
-            tx_hash: txHash,
-            meta: { merkle_root: settlement.root }
-          });
-        }
-        // Platform fee
-        if (settlement.platformFeeUSD > 0) {
-          const treasuryUserId = await resolveTreasuryUserId();
-          if (treasuryUserId) {
-            await supabase.from('wallet_transactions').insert({
-              user_id: treasuryUserId,
-              direction: 'credit',
-              type: 'deposit',
-              channel: 'platform_fee',
-              provider: 'onchain-escrow',
-              amount: settlement.platformFeeUSD,
-              currency,
-              status: 'completed',
-              prediction_id: predictionId,
-              description: `Platform fee (on-chain) for "${pred.title}"`,
-              tx_hash: txHash,
-              meta: { merkle_root: settlement.root }
-            });
-          }
-        }
-      }
-    } catch (postErr) {
-      console.warn('[SETTLEMENT] Failed to record on-chain fee activity:', postErr);
-    }
+    await recordOnchainPosted({ predictionId, txHash, root: root || null });
 
     return res.json({ success: true, version: VERSION });
   } catch (err: any) {
@@ -1693,14 +2345,16 @@ router.get('/:predictionId/status', async (req, res) => {
         id: prediction.id,
         title: prediction.title,
         status: prediction.status,
-        pool_total: prediction.pool_total
+        pool_total: prediction.pool_total,
+        creator_id: prediction.creator_id,
       },
       userEntry: {
         id: userEntry.id,
         option_id: userEntry.option_id,
         amount: userEntry.amount,
         status: userEntry.status,
-        actual_payout: userEntry.actual_payout
+        actual_payout: userEntry.actual_payout,
+        provider: (userEntry as any).provider || null,
       },
       settlement: settlement || null,
       canValidate: prediction.status === 'closed' || prediction.status === 'awaiting_settlement',
@@ -1810,6 +2464,124 @@ router.post('/:predictionId/validate', async (req, res) => {
   }
 });
 
+// POST /api/v2/settlement/:predictionId/request-finalize
+// Creator (or admin) requests finalization. No wallet required.
+router.post('/:predictionId/request-finalize', async (req, res) => {
+  try {
+    const { predictionId } = req.params;
+    const { userId } = req.body as { userId?: string };
+    if (!userId) {
+      return res.status(400).json({ error: 'bad_request', message: 'userId is required', version: VERSION });
+    }
+
+    const admin = isAdminRequest(req);
+
+    const { data: prediction, error: predErr } = await supabase
+      .from('predictions')
+      .select('id,creator_id')
+      .eq('id', predictionId)
+      .maybeSingle();
+    if (predErr || !prediction) {
+      return res.status(404).json({ error: 'not_found', message: 'Prediction not found', version: VERSION });
+    }
+
+    if (!admin && prediction.creator_id !== userId) {
+      return res.status(403).json({ error: 'forbidden', message: 'Only the creator can request finalization', version: VERSION });
+    }
+
+    // If there's already an active job, return it
+    const { data: activeJob } = await supabase
+      .from('settlement_finalize_jobs')
+      .select('id,prediction_id,requested_by,status,tx_hash,error,created_at,updated_at')
+      .eq('prediction_id', predictionId)
+      .in('status', ['queued', 'running'])
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (activeJob) {
+      return res.json({ success: true, status: (activeJob as any).status, job: activeJob, version: VERSION });
+    }
+
+    const { data: created, error: createErr } = await supabase
+      .from('settlement_finalize_jobs')
+      .insert({
+        prediction_id: predictionId,
+        requested_by: userId,
+        status: 'queued',
+      } as any)
+      .select('id,prediction_id,requested_by,status,tx_hash,error,created_at,updated_at')
+      .single();
+
+    if (createErr) {
+      return res.status(500).json({ error: 'internal', message: 'Failed to create finalize job', version: VERSION });
+    }
+
+    return res.json({ success: true, status: 'queued', job: created, version: VERSION });
+  } catch (e: any) {
+    console.error('[SETTLEMENT] request-finalize failed:', e);
+    return res.status(500).json({ error: 'internal', message: 'Failed to request finalization', version: VERSION });
+  }
+});
+
+// GET /api/v2/settlement/:predictionId/finalize/status?userId=...
+// Creator OR participant OR admin can view the finalize job status.
+router.get('/:predictionId/finalize/status', async (req, res) => {
+  try {
+    const { predictionId } = req.params;
+    const userId = req.query.userId as string | undefined;
+    if (!userId) {
+      return res.status(400).json({ error: 'bad_request', message: 'userId is required', version: VERSION });
+    }
+
+    const admin = isAdminRequest(req);
+
+    const { data: prediction, error: predErr } = await supabase
+      .from('predictions')
+      .select('id,creator_id')
+      .eq('id', predictionId)
+      .maybeSingle();
+    if (predErr || !prediction) {
+      return res.status(404).json({ error: 'not_found', message: 'Prediction not found', version: VERSION });
+    }
+
+    if (!admin) {
+      const isCreator = prediction.creator_id === userId;
+      if (!isCreator) {
+        const { data: entry } = await supabase
+          .from('prediction_entries')
+          .select('id')
+          .eq('prediction_id', predictionId)
+          .eq('user_id', userId)
+          .limit(1)
+          .maybeSingle();
+        if (!entry) {
+          return res.status(403).json({ error: 'forbidden', message: 'Not authorized to view finalization status', version: VERSION });
+        }
+      }
+    }
+
+    const { data: job } = await supabase
+      .from('settlement_finalize_jobs')
+      .select('id,prediction_id,requested_by,status,tx_hash,error,created_at,updated_at')
+      .eq('prediction_id', predictionId)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    return res.json({
+      success: true,
+      data: job
+        ? { status: (job as any).status, txHash: (job as any).tx_hash || null, error: (job as any).error || null, job }
+        : { status: null, txHash: null, error: null, job: null },
+      version: VERSION,
+    });
+  } catch (e: any) {
+    console.error('[SETTLEMENT] finalize status failed:', e);
+    return res.status(500).json({ error: 'internal', message: 'Failed to load finalization status', version: VERSION });
+  }
+});
+
 // POST /api/v2/settlement/auto - Auto settlement (for future use with oracles)
 router.post('/auto', async (req, res) => {
   try {
@@ -1910,6 +2682,116 @@ router.get('/missing-onchain', async (req, res) => {
   } catch (e) {
     console.error('[missing-onchain] unhandled', e);
     return res.status(500).json({ error: 'internal', message: 'Failed to load missing on-chain settlements', version: VERSION });
+  }
+});
+
+// GET /api/v2/settlement/:predictionId/history?userId=...
+// Returns settlement validation history for creator/participants only
+router.get('/:predictionId/history', async (req, res) => {
+  try {
+    const { predictionId } = req.params;
+    const { userId } = req.query as { userId?: string };
+
+    if (!userId) {
+      return res.status(400).json({
+        error: 'bad_request',
+        message: 'userId is required',
+        version: VERSION
+      });
+    }
+
+    // Allow if creator OR participant
+    const { data: prediction, error: predictionErr } = await supabase
+      .from('predictions')
+      .select('creator_id')
+      .eq('id', predictionId)
+      .maybeSingle();
+
+    if (predictionErr || !prediction) {
+      return res.status(404).json({
+        error: 'Not found',
+        message: 'Prediction not found',
+        version: VERSION
+      });
+    }
+
+    const isCreator = prediction.creator_id === userId;
+    if (!isCreator) {
+      const { data: entry, error: entryErr } = await supabase
+        .from('prediction_entries')
+        .select('id')
+        .eq('prediction_id', predictionId)
+        .eq('user_id', userId)
+        .limit(1)
+        .maybeSingle();
+
+      if (entryErr) {
+        console.error('Error checking participant access:', entryErr);
+        return res.status(500).json({
+          error: 'Database error',
+          message: 'Failed to verify access',
+          version: VERSION
+        });
+      }
+
+      if (!entry?.id) {
+        return res.status(403).json({
+          error: 'Forbidden',
+          message: 'Only the prediction creator or participants can view settlement history',
+          version: VERSION
+        });
+      }
+    }
+
+    const { data: validations, error: validationsError } = await supabase
+      .from('settlement_validations')
+      .select(`
+        id,
+        user_id,
+        action,
+        reason,
+        created_at,
+        status,
+        user:users(username, full_name)
+      `)
+      .eq('prediction_id', predictionId)
+      .order('created_at', { ascending: false });
+
+    if (validationsError) {
+      console.error('Error fetching settlement history:', validationsError);
+      return res.status(500).json({
+        error: 'Database error',
+        message: 'Failed to fetch settlement history',
+        version: VERSION
+      });
+    }
+
+    const items = validations || [];
+    const accepts = items.filter((v: any) => v.action === 'accept').length;
+    const disputes = items.filter((v: any) => v.action === 'dispute').length;
+    const pendingDisputes = items.filter((v: any) => v.action === 'dispute' && v.status === 'pending').length;
+    const lastActionAt = items.length > 0 ? (items[0] as any).created_at : null;
+
+    return res.json({
+      success: true,
+      data: {
+        items,
+        summary: {
+          accepts,
+          disputes,
+          pendingDisputes,
+          lastActionAt
+        }
+      },
+      version: VERSION
+    });
+  } catch (error) {
+    console.error('Error fetching settlement history:', error);
+    return res.status(500).json({
+      error: 'Internal server error',
+      message: 'Failed to fetch settlement history',
+      version: VERSION
+    });
   }
 });
 

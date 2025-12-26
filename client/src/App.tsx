@@ -31,9 +31,25 @@ const LazyPredictionDetailsPageV2 = lazy(() => import('./pages/PredictionDetails
 const LazyProfilePageV2 = lazy(() => import('./pages/ProfilePageV2'));
 const LazyDownloadPage = lazy(() => import('./legacy/pages/DownloadPage'));
 const LazyWalletPageV2 = lazy(() => import('./pages/WalletPageV2'));
+const LazyUnifiedWalletPage = lazy(() => import('./pages/UnifiedWalletPage'));
 const LazyUnifiedLeaderboardPage = lazy(() => import('./pages/UnifiedLeaderboardPage'));
 const LazyAuthCallback = lazy(() => import('./pages/auth/AuthCallback'));
 const LazyReferralRedirectPage = lazy(() => import('./pages/ReferralRedirectPage'));
+
+// Admin pages (lazy loaded)
+const LazyAdminHomePage = lazy(() => import('./pages/admin/AdminHomePage'));
+const LazyAuditLogPage = lazy(() => import('./pages/admin/AuditLogPage'));
+const LazyUsersPage = lazy(() => import('./pages/admin/UsersPage'));
+const LazyUserDetailPage = lazy(() => import('./pages/admin/UserDetailPage'));
+const LazyWalletsPage = lazy(() => import('./pages/admin/WalletsPage'));
+const LazyUserWalletPage = lazy(() => import('./pages/admin/UserWalletPage'));
+const LazyAdminPredictionsPage = lazy(() => import('./pages/admin/PredictionsPage'));
+const LazyPredictionDetailPage = lazy(() => import('./pages/admin/PredictionDetailPage'));
+const LazyModerationPage = lazy(() => import('./pages/admin/ModerationPage'));
+const LazyConfigPage = lazy(() => import('./pages/admin/ConfigPage'));
+const LazySettlementsPage = lazy(() => import('./pages/admin/SettlementsPage'));
+const LazySettlementDetailPage = lazy(() => import('./pages/admin/SettlementDetailPage'));
+const LazySupportPage = lazy(() => import('./pages/admin/SupportPage'));
 
 
 // Import all page components
@@ -45,6 +61,8 @@ import AuthRequiredState from './components/ui/empty/AuthRequiredState';
 import { Sparkles } from 'lucide-react';
 import { captureReturnTo } from './lib/returnTo';
 import { useReferralCapture, useReferralAttribution } from './hooks/useReferral';
+import { AdminGuard } from './components/admin/AdminGuard';
+import { AdminLayout } from './components/admin/AdminLayout';
 
 // Simple Loading Component
 const LoadingSpinner: React.FC<{ message?: string }> = ({ message = "Loading..." }) => (
@@ -644,36 +662,183 @@ const AppContent: React.FC = () => {
   return (
           <OnboardingProvider>
           <MobileShell>
-            <MainLayout>
           <Suspense fallback={<PageLoadingSpinner />}>
             <Routes>
-              <Route path="/" element={<DiscoverPageWrapper />} />
-              <Route path="/discover" element={<DiscoverPageWrapper />} />
-              <Route path="/auth/callback" element={<LazyAuthCallback />} />
-              <Route path="/r/:code" element={<LazyReferralRedirectPage />} />
-              <Route path="/predictions" element={<PredictionsPageWrapper />} />
-              <Route path="/predictions/:id" element={<PredictionDetailsRouteWrapper />} />
-              <Route path="/bets" element={<PredictionsPageWrapper />} />
-              <Route path="/leaderboard" element={<LeaderboardPageWrapper />} />
-              <Route path="/create" element={<CreatePredictionPageWrapper />} />
-              <Route path="/profile" element={
-                <PageWrapper title="Profile"><LazyProfilePageV2 /></PageWrapper>
-              } />
-              <Route path="/profile/:userId" element={
-                <PageWrapper title="Profile"><LazyProfilePageV2 /></PageWrapper>
-              } />
-              <Route path="/wallet" element={
-                <PageWrapper title="Wallet"><LazyWalletPageV2 /></PageWrapper>
-              } />
-              <Route path="/rankings" element={<LeaderboardPageWrapper />} />
-              <Route path="/prediction/:id" element={<PredictionDetailsRouteWrapper />} />
-              <Route path="/download" element={<LazyDownloadPage />} />
+              {/* Admin Routes - OUTSIDE MainLayout (no bottom nav, like landing page) */}
+              <Route
+                path="/admin"
+                element={
+                  <AdminGuard>
+                    <AdminLayout>
+                      <LazyAdminHomePage />
+                    </AdminLayout>
+                  </AdminGuard>
+                }
+              />
+              <Route
+                path="/admin/audit"
+                element={
+                  <AdminGuard>
+                    <AdminLayout>
+                      <LazyAuditLogPage />
+                    </AdminLayout>
+                  </AdminGuard>
+                }
+              />
+              <Route
+                path="/admin/users"
+                element={
+                  <AdminGuard>
+                    <AdminLayout>
+                      <LazyUsersPage />
+                    </AdminLayout>
+                  </AdminGuard>
+                }
+              />
+              <Route
+                path="/admin/users/:userId"
+                element={
+                  <AdminGuard>
+                    <AdminLayout>
+                      <LazyUserDetailPage />
+                    </AdminLayout>
+                  </AdminGuard>
+                }
+              />
+              <Route
+                path="/admin/wallets"
+                element={
+                  <AdminGuard>
+                    <AdminLayout>
+                      <LazyWalletsPage />
+                    </AdminLayout>
+                  </AdminGuard>
+                }
+              />
+              <Route
+                path="/admin/wallets/:userId"
+                element={
+                  <AdminGuard>
+                    <AdminLayout>
+                      <LazyUserWalletPage />
+                    </AdminLayout>
+                  </AdminGuard>
+                }
+              />
+              <Route
+                path="/admin/predictions"
+                element={
+                  <AdminGuard>
+                    <AdminLayout>
+                      <LazyAdminPredictionsPage />
+                    </AdminLayout>
+                  </AdminGuard>
+                }
+              />
+              <Route
+                path="/admin/predictions/:predictionId"
+                element={
+                  <AdminGuard>
+                    <AdminLayout>
+                      <LazyPredictionDetailPage />
+                    </AdminLayout>
+                  </AdminGuard>
+                }
+              />
+              <Route
+                path="/admin/moderation"
+                element={
+                  <AdminGuard>
+                    <AdminLayout>
+                      <LazyModerationPage />
+                    </AdminLayout>
+                  </AdminGuard>
+                }
+              />
+              <Route
+                path="/admin/config"
+                element={
+                  <AdminGuard>
+                    <AdminLayout>
+                      <LazyConfigPage />
+                    </AdminLayout>
+                  </AdminGuard>
+                }
+              />
+              <Route
+                path="/admin/settlements"
+                element={
+                  <AdminGuard>
+                    <AdminLayout>
+                      <LazySettlementsPage />
+                    </AdminLayout>
+                  </AdminGuard>
+                }
+              />
+              <Route
+                path="/admin/settlements/:predictionId"
+                element={
+                  <AdminGuard>
+                    <AdminLayout>
+                      <LazySettlementDetailPage />
+                    </AdminLayout>
+                  </AdminGuard>
+                }
+              />
+              <Route
+                path="/admin/support"
+                element={
+                  <AdminGuard>
+                    <AdminLayout>
+                      <LazySupportPage />
+                    </AdminLayout>
+                  </AdminGuard>
+                }
+              />
+              <Route
+                path="/admin/*"
+                element={
+                  <AdminGuard>
+                    <AdminLayout>
+                      <div className="text-center py-12">
+                        <p className="text-slate-400">Page coming soon</p>
+                      </div>
+                    </AdminLayout>
+                  </AdminGuard>
+                }
+              />
 
-                {/* Fallback */}
-              <Route path="*" element={<DiscoverPageWrapper />} />
+              {/* Main App Routes - INSIDE MainLayout (with bottom nav) */}
+              <Route path="*" element={
+                <MainLayout>
+                  <Routes>
+                    <Route path="/" element={<DiscoverPageWrapper />} />
+                    <Route path="/discover" element={<DiscoverPageWrapper />} />
+                    <Route path="/auth/callback" element={<LazyAuthCallback />} />
+                    <Route path="/r/:code" element={<LazyReferralRedirectPage />} />
+                    <Route path="/predictions" element={<PredictionsPageWrapper />} />
+                    <Route path="/predictions/:id" element={<PredictionDetailsRouteWrapper />} />
+                    <Route path="/bets" element={<PredictionsPageWrapper />} />
+                    <Route path="/leaderboard" element={<LeaderboardPageWrapper />} />
+                    <Route path="/create" element={<CreatePredictionPageWrapper />} />
+                    <Route path="/profile" element={
+                      <PageWrapper title="Profile"><LazyProfilePageV2 /></PageWrapper>
+                    } />
+                    <Route path="/profile/:userId" element={
+                      <PageWrapper title="Profile"><LazyProfilePageV2 /></PageWrapper>
+                    } />
+                    <Route path="/wallet" element={
+                      <PageWrapper title="Wallet"><LazyUnifiedWalletPage /></PageWrapper>
+                    } />
+                    <Route path="/rankings" element={<LeaderboardPageWrapper />} />
+                    <Route path="/prediction/:id" element={<PredictionDetailsRouteWrapper />} />
+                    <Route path="/download" element={<LazyDownloadPage />} />
+                    <Route path="*" element={<DiscoverPageWrapper />} />
+                  </Routes>
+                </MainLayout>
+              } />
             </Routes>
           </Suspense>
-            </MainLayout>
           </MobileShell>
           
           {/* Auth Gate Modal */}
