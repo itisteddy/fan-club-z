@@ -481,8 +481,26 @@ async function ensureOnchainPosted(predictionId: string): Promise<`0x${string}` 
       args: [idBytes],
     })) as `0x${string}`;
     if (root && /^0x0{64}$/i.test(root) === false) {
-      // Mark DB as posted if not already
-      await supabase.from('bet_settlements').update({ status: 'onchain_posted', meta: { merkle_root: root } } as any).eq('bet_id', predictionId);
+      // Phase 4A: Mark DB as finalized if not already (explicit state machine)
+      const { data: existing } = await supabase
+        .from('bet_settlements')
+        .select('meta')
+        .eq('bet_id', predictionId)
+        .maybeSingle();
+      const existingMeta = (existing?.meta as any) || {};
+      const existingStateMachine = existingMeta.stateMachine || {};
+      
+      await supabase.from('bet_settlements').update({ 
+        status: 'onchain_finalized', 
+        meta: {
+          ...existingMeta,
+          merkle_root: root,
+          stateMachine: {
+            ...existingStateMachine,
+            onchain_finalized: true,
+          }
+        } 
+      } as any).eq('bet_id', predictionId);
       return root;
     }
     return null;
@@ -561,14 +579,30 @@ export async function resolveTreasuryUserId(): Promise<string | null> {
 export async function recordOnchainPosted(args: { predictionId: string; txHash: string; root?: string | null }) {
   const { predictionId, txHash, root } = args;
 
+  // Phase 4A: Update to onchain_finalized state (explicit state machine)
+  // Also preserve existing meta and update stateMachine flags
+  const { data: existing } = await supabase
+    .from('bet_settlements')
+    .select('meta')
+    .eq('bet_id', predictionId)
+    .maybeSingle();
+
+  const existingMeta = (existing?.meta as any) || {};
+  const existingStateMachine = existingMeta.stateMachine || {};
+
   await supabase
     .from('bet_settlements')
     .update({
-      status: 'onchain_posted',
+      status: 'onchain_finalized',  // Phase 4A: Use explicit state machine status
       meta: {
+        ...existingMeta,
         tx_hash: txHash,
         merkle_root: root || null,
         updated_at: new Date().toISOString(),
+        stateMachine: {
+          ...existingStateMachine,
+          onchain_finalized: true,
+        }
       }
     } as any)
     .eq('bet_id', predictionId);
@@ -702,6 +736,40 @@ router.post('/manual', async (req, res) => {
       });
     }
 
+    // Phase 4A: Check if settlement already exists (idempotency check)
+    const { data: existingSettlement } = await supabase
+      .from('bet_settlements')
+      .select('status, winning_option_id, meta')
+      .eq('bet_id', predictionId)
+      .maybeSingle();
+
+    // If settlement already exists with same winning option, return success (idempotent)
+    if (existingSettlement && existingSettlement.winning_option_id === winningOptionId) {
+      const currentStatus = existingSettlement.status;
+      // If already offchain_settled or beyond, return success without re-processing
+      if (['offchain_settled', 'demo_paid', 'onchain_finalized', 'completed', 'onchain_posted'].includes(currentStatus)) {
+        console.log(`[SETTLEMENT] Settlement already exists for ${predictionId} with status ${currentStatus}, returning success (idempotent)`);
+        return res.json({
+          success: true,
+          data: {
+            settlement: existingSettlement,
+            message: 'Settlement already completed (idempotent)',
+            alreadySettled: true
+          },
+          version: VERSION
+        });
+      }
+    }
+
+    // If settlement exists with different winning option, reject (safety check)
+    if (existingSettlement && existingSettlement.winning_option_id !== winningOptionId) {
+      return res.status(409).json({
+        error: 'Conflict',
+        message: 'Settlement already exists with a different winning option',
+        version: VERSION
+      });
+    }
+
     // Get all prediction entries for this prediction
     const { data: allEntries, error: entriesError } = await supabase
       .from('prediction_entries')
@@ -725,7 +793,7 @@ router.post('/manual', async (req, res) => {
 
     const platformFeePercent = Number.isFinite(prediction.platform_fee_percentage) ? Number(prediction.platform_fee_percentage) : 2.5;
     const creatorFeePercent = Number.isFinite(prediction.creator_fee_percentage) ? Number(prediction.creator_fee_percentage) : 1.0;
-
+    
     // Phase 3A: Settle demo rail first (off-chain, idempotent)
     // IMPORTANT: Always call settleDemoRail if demo entries exist, even in hybrid mode
     // This ensures demo fees are always computed and credited with idempotent external_ref keys
@@ -1153,7 +1221,13 @@ router.post('/manual', async (req, res) => {
       }
     }
 
-    // Create settlement record (combined totals from demo + crypto rails)
+    // Phase 4A: Create/update settlement record with explicit state machine
+    // State: offchain_settled (outcome decided, payouts computed)
+    // Next states: demo_paid (if demo rail) or onchain_finalized (if crypto rail)
+    const settlementStatus = hasDemoRail && !hasCryptoRail 
+      ? 'demo_paid'  // Demo-only: payouts already applied by settleDemoRail
+      : 'offchain_settled';  // Hybrid or crypto-only: outcome decided, crypto finalize pending
+
     const { data: settlement, error: settlementError } = await supabase
       .from('bet_settlements')
       .upsert({
@@ -1163,13 +1237,19 @@ router.post('/manual', async (req, res) => {
         platform_fee_collected: totalPlatformFee,
         creator_payout_amount: totalCreatorFee,
         settlement_time: new Date().toISOString(),
-        status: hasCryptoRail ? 'pending_onchain' : 'completed',
+        status: settlementStatus,
         meta: {
           demo: demoSummary,
           crypto: {
             platformFee: cryptoPlatformFee,
             creatorFee: cryptoCreatorFee,
             payoutPool: cryptoPayoutPool,
+            needsFinalize: hasCryptoRail,
+          },
+          stateMachine: {
+            offchain_settled: true,
+            demo_paid: hasDemoRail && !hasCryptoRail,
+            onchain_finalized: false, // Will be updated by finalize step
           }
         }
       } as any, { onConflict: 'bet_id' } as any)
@@ -1354,8 +1434,10 @@ router.get('/:predictionId/leaves', async (req, res) => {
       .select('winning_option_id,status,meta')
       .eq('bet_id', predictionId)
       .maybeSingle();
-    if (!s || s.status !== 'onchain_posted' || !s.winning_option_id) {
-      return res.status(409).json({ error: 'not_ready', message: 'Not onchain_posted', version: VERSION });
+    // Phase 4A: Accept both old and new statuses for backward compatibility
+    const isFinalized = s?.status === 'onchain_finalized' || s?.status === 'onchain_posted';
+    if (!s || !isFinalized || !s.winning_option_id) {
+      return res.status(409).json({ error: 'not_ready', message: 'Settlement not finalized on-chain', version: VERSION });
     }
     const settlement = await computeMerkleSettlementCryptoOnly({ predictionId, winningOptionId: s.winning_option_id });
     const leaves = settlement.leaves.map((l) => ({
@@ -1405,13 +1487,15 @@ router.get('/:predictionId/merkle-proof', async (req, res) => {
       winningOptionId = pred?.winning_option_id ?? null;
     }
 
-    // Gate by on-chain posted status to avoid user-facing reverted claims
-    if (settlementRow && settlementRow.status !== 'onchain_posted') {
+    // Phase 4C: Gate by on-chain finalized status (explicit state machine)
+    // Accept both old and new statuses for backward compatibility
+    const isFinalized = settlementRow?.status === 'onchain_finalized' || settlementRow?.status === 'onchain_posted';
+    if (!isFinalized) {
       const onchain = await ensureOnchainPosted(predictionId);
       if (!onchain) {
         return res.status(409).json({
           error: 'not_ready',
-          message: 'Settlement root not posted on-chain yet',
+          message: 'Settlement not finalized on-chain yet',
           version: VERSION
         });
       }
@@ -1425,17 +1509,48 @@ router.get('/:predictionId/merkle-proof', async (req, res) => {
       });
     }
 
-  const settlement = await computeMerkleSettlementCryptoOnly({ predictionId, winningOptionId });
-  const normalized = String(address).toLowerCase();
-  const leaf = settlement.leaves.find((l) => l.address.toLowerCase() === normalized);
+    // Phase 4C: Compute merkle settlement (crypto-only entries)
+    // Merkle tree only includes crypto entries, so if address not found, they either:
+    // 1. Only have demo entries (already paid instantly, no claim needed)
+    // 2. Lost or didn't participate with crypto
+    const settlement = await computeMerkleSettlementCryptoOnly({ predictionId, winningOptionId });
+    const normalized = String(address).toLowerCase();
+    const leaf = settlement.leaves.find((l) => l.address.toLowerCase() === normalized);
 
-  if (!leaf) {
-    return res.status(404).json({
-      error: 'not_found',
-      message: 'Address is not eligible or no claimable amount',
-      version: VERSION
-    });
-  }
+    if (!leaf) {
+      // Phase 4C: Provide helpful message if user might have demo entries
+      // Check if address has any entries (demo or crypto) to provide better error
+      const { data: walletAddr } = await supabase
+        .from('wallet_addresses')
+        .select('user_id')
+        .eq('address', normalized)
+        .eq('chain_id', 84532)
+        .maybeSingle();
+      
+      if (walletAddr?.user_id) {
+        const { data: userEntries } = await supabase
+          .from('prediction_entries')
+          .select('provider')
+          .eq('prediction_id', predictionId)
+          .eq('user_id', walletAddr.user_id)
+          .limit(1);
+        
+        const hasDemoEntry = userEntries?.some((e: any) => e.provider === DEMO_PROVIDER);
+        if (hasDemoEntry) {
+          return res.status(404).json({
+            error: 'not_found',
+            message: 'Demo entries are paid instantly. No on-chain claim needed.',
+            version: VERSION
+          });
+        }
+      }
+      
+      return res.status(404).json({
+        error: 'not_found',
+        message: 'Address is not eligible or no claimable amount',
+        version: VERSION
+      });
+    }
 
   const amountUnits = leaf.amountUnits ?? 0n;
   const amountUSD = Number(amountUnits) / 1_000_000;
@@ -1486,21 +1601,23 @@ router.get('/claimable', async (req, res) => {
 
     console.log(`[SETTLEMENT] Fetching claimable for ${normalized.slice(0, 10)}...`);
 
-    // CRITICAL FIX: Include both on-chain posted settlements AND off-chain settlements
+    // Phase 4A: Include both on-chain finalized settlements AND off-chain settlements
     // Off-chain settlements can be converted to on-chain claims if Merkle root is posted
-    // First, fetch on-chain posted settlements (ready to claim)
+    // First, fetch on-chain finalized settlements (ready to claim)
+    // Accept both old ('onchain_posted') and new ('onchain_finalized') statuses for backward compatibility
     const { data: onchainSettled, error: onchainError } = await supabase
       .from('bet_settlements')
       .select('bet_id, winning_option_id, status, meta')
-      .eq('status', 'onchain_posted')
+      .in('status', ['onchain_finalized', 'onchain_posted'])  // Phase 4A: Support both old and new statuses
       .order('created_at', { ascending: false })
       .limit(limit * 2);
     
-    // Also fetch off-chain completed settlements (may need Merkle root posted)
+    // Also fetch off-chain settled/completed settlements (may need Merkle root posted)
+    // Phase 4A: Include new state machine statuses
     const { data: offchainSettled, error: offchainError } = await supabase
       .from('bet_settlements')
       .select('bet_id, winning_option_id, status, meta')
-      .in('status', ['completed', 'computed'])
+      .in('status', ['offchain_settled', 'demo_paid', 'completed', 'computed'])  // Phase 4A: Include new statuses
       .order('created_at', { ascending: false })
       .limit(limit * 2);
     
@@ -1527,8 +1644,8 @@ router.get('/claimable', async (req, res) => {
         // Check if root already exists on-chain (might have been posted retroactively)
         const existingRoot = await ensureOnchainPosted(s.bet_id);
         if (existingRoot) {
-          // Root exists on-chain, treat as onchain_posted
-          settledMap.set(s.bet_id, { ...s, status: 'onchain_posted', meta: { ...s.meta, merkle_root: existingRoot } });
+          // Root exists on-chain, treat as onchain_finalized (Phase 4A: use new status)
+          settledMap.set(s.bet_id, { ...s, status: 'onchain_finalized', meta: { ...s.meta, merkle_root: existingRoot } });
         } else {
           // Root not posted yet - do NOT include for claimable list
           // Winners are already credited off-chain; on-chain claim would revert.
@@ -1543,7 +1660,7 @@ router.get('/claimable', async (req, res) => {
           settledMap.set(p.id, {
             bet_id: p.id,
             winning_option_id: p.winning_option_id,
-            status: 'onchain_posted',
+            status: 'onchain_finalized',  // Phase 4A: use new status
             meta: { merkle_root: existingRoot }
           });
         }
@@ -2793,6 +2910,109 @@ router.get('/:predictionId/disputes', async (req, res) => {
     return res.status(500).json({
       error: 'Internal server error',
       message: 'Failed to fetch disputes',
+      version: VERSION
+    });
+  }
+});
+
+// POST /api/v2/settlement/:predictionId/dispute - Create a dispute for a settled prediction
+router.post('/:predictionId/dispute', async (req, res) => {
+  try {
+    const { predictionId } = req.params;
+    const { userId, reason, evidenceUrl, evidence } = req.body;
+
+    if (!userId || !reason) {
+      return res.status(400).json({
+        error: 'Validation error',
+        message: 'userId and reason are required',
+        version: VERSION
+      });
+    }
+
+    // Verify user has an entry in this prediction
+    const { data: entry, error: entryError } = await supabase
+      .from('prediction_entries')
+      .select('id')
+      .eq('prediction_id', predictionId)
+      .eq('user_id', userId)
+      .limit(1)
+      .maybeSingle();
+
+    if (entryError || !entry) {
+      return res.status(403).json({
+        error: 'Forbidden',
+        message: 'You must have participated in this prediction to dispute',
+        version: VERSION
+      });
+    }
+
+    // Check if prediction is settled
+    const { data: prediction, error: predictionError } = await supabase
+      .from('predictions')
+      .select('status')
+      .eq('id', predictionId)
+      .maybeSingle();
+
+    if (predictionError || prediction?.status !== 'settled') {
+      return res.status(400).json({
+        error: 'Bad Request',
+        message: 'Can only dispute settled predictions',
+        version: VERSION
+      });
+    }
+
+    // Check for existing open disputes from this user
+    const { data: existingDispute } = await supabase
+      .from('disputes')
+      .select('id')
+      .eq('prediction_id', predictionId)
+      .eq('user_id', userId)
+      .eq('status', 'open')
+      .maybeSingle();
+
+    if (existingDispute) {
+      return res.status(400).json({
+        error: 'Bad Request',
+        message: 'You already have an open dispute for this prediction',
+        version: VERSION
+      });
+    }
+
+    // Create dispute
+    const { data: dispute, error: disputeError } = await supabase
+      .from('disputes')
+      .insert({
+        prediction_id: predictionId,
+        user_id: userId,
+        reason,
+        evidence_url: evidenceUrl || null,
+        evidence: evidence || [],
+        status: 'open'
+      })
+      .select()
+      .single();
+
+    if (disputeError) {
+      console.error('Dispute creation error:', disputeError);
+      return res.status(500).json({
+        error: 'Internal Server Error',
+        message: 'Failed to create dispute',
+        version: VERSION
+      });
+    }
+
+    return res.status(201).json({
+      success: true,
+      data: { dispute },
+      message: 'Dispute created successfully',
+      version: VERSION
+    });
+
+  } catch (error: any) {
+    console.error('Error creating dispute:', error);
+    return res.status(500).json({
+      error: 'Internal Server Error',
+      message: error?.message || 'Failed to create dispute',
       version: VERSION
     });
   }

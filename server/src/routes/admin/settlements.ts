@@ -859,3 +859,153 @@ settlementsRouter.get('/jobs/list', async (req, res) => {
   }
 });
 
+/**
+ * GET /api/v2/admin/settlements/disputes
+ * List all disputes (with filters)
+ */
+settlementsRouter.get('/disputes', async (req, res) => {
+  try {
+    const status = req.query.status as string;
+    const limit = Math.min(100, Number(req.query.limit) || 50);
+    const offset = Number(req.query.offset) || 0;
+    const actorId = (req.query.actorId || req.body.actorId) as string;
+
+    if (!actorId) {
+      return res.status(400).json({ error: 'actorId is required', version: VERSION });
+    }
+
+    let query = supabase
+      .from('disputes')
+      .select(`
+        *,
+        prediction:predictions(id, title, creator_id),
+        user:users(id, username, full_name),
+        resolved_by_user:users!disputes_resolved_by_user_id_fkey(id, username, full_name)
+      `, { count: 'exact' })
+      .order('created_at', { ascending: false })
+      .range(offset, offset + limit - 1);
+
+    if (status && ['open', 'under_review', 'resolved', 'rejected'].includes(status)) {
+      query = query.eq('status', status);
+    }
+
+    const { data: disputes, error, count } = await query;
+
+    if (error) {
+      console.error('[Admin/Settlements] Disputes error:', error);
+      return res.status(500).json({
+        error: 'Internal Server Error',
+        message: 'Failed to fetch disputes',
+        version: VERSION,
+      });
+    }
+
+    return res.json({
+      items: disputes || [],
+      total: count || 0,
+      limit,
+      offset,
+      version: VERSION,
+    });
+  } catch (error) {
+    console.error('[Admin/Settlements] Disputes error:', error);
+    return res.status(500).json({
+      error: 'Internal Server Error',
+      message: 'Failed to fetch disputes',
+      version: VERSION,
+    });
+  }
+});
+
+/**
+ * POST /api/v2/admin/settlements/disputes/:disputeId/resolve
+ * Resolve a dispute (accept or reject)
+ */
+settlementsRouter.post('/disputes/:disputeId/resolve', async (req, res) => {
+  try {
+    const { disputeId } = req.params;
+    const { actorId, action, reason } = req.body as { actorId: string; action: 'accept' | 'reject'; reason: string };
+
+    if (!actorId || !action || !reason) {
+      return res.status(400).json({
+        error: 'Bad Request',
+        message: 'actorId, action, and reason are required',
+        version: VERSION,
+      });
+    }
+
+    if (!['accept', 'reject'].includes(action)) {
+      return res.status(400).json({
+        error: 'Bad Request',
+        message: 'action must be "accept" or "reject"',
+        version: VERSION,
+      });
+    }
+
+    // Get dispute
+    const { data: dispute, error: disputeError } = await supabase
+      .from('disputes')
+      .select('*, prediction:predictions(id, title, creator_id, status)')
+      .eq('id', disputeId)
+      .maybeSingle();
+
+    if (disputeError || !dispute) {
+      return res.status(404).json({
+        error: 'Not Found',
+        message: 'Dispute not found',
+        version: VERSION,
+      });
+    }
+
+    // Update dispute status
+    const newStatus = action === 'accept' ? 'resolved' : 'rejected';
+    const { error: updateError } = await supabase
+      .from('disputes')
+      .update({
+        status: newStatus,
+        resolution_note: reason,
+        resolved_by_user_id: actorId,
+        resolved_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', disputeId);
+
+    if (updateError) {
+      console.error('[Admin/Settlements] Dispute resolution error:', updateError);
+      return res.status(500).json({
+        error: 'Internal Server Error',
+        message: 'Failed to resolve dispute',
+        version: VERSION,
+      });
+    }
+
+    // Log admin action
+    await logAdminAction({
+      actorId,
+      action: 'dispute_resolved',
+      targetType: 'dispute',
+      targetId: disputeId,
+      reason,
+      meta: {
+        action,
+        predictionId: dispute.prediction_id,
+        originalStatus: dispute.status,
+        newStatus,
+      },
+    });
+
+    return res.json({
+      success: true,
+      message: `Dispute ${action === 'accept' ? 'accepted' : 'rejected'}`,
+      version: VERSION,
+    });
+  } catch (error: any) {
+    console.error('[Admin/Settlements] Dispute resolution error:', error);
+    return res.status(500).json({
+      error: 'Internal Server Error',
+      message: error?.message || 'Failed to resolve dispute',
+      version: VERSION,
+    });
+  }
+});
+
