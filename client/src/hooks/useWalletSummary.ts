@@ -56,11 +56,28 @@ export function useWalletSummary(userId?: string, options: WalletSummaryOptions 
       }
 
       const apiBase = getApiUrl();
-      const response = await fetch(`${apiBase}/api/wallet/summary/${userId}${params.size ? `?${params.toString()}` : ''}`, {
-        headers: {
-          'Accept': 'application/json'
+      // CRITICAL: Add a timeout so a stalled network request can't leave the wallet in a
+      // permanent "Loading..." state (some users reported infinite loading).
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 12_000);
+      const url = `${apiBase}/api/wallet/summary/${userId}${params.size ? `?${params.toString()}` : ''}`;
+
+      let response: Response;
+      try {
+        response = await fetch(url, {
+          headers: {
+            Accept: 'application/json',
+          },
+          signal: controller.signal,
+        });
+      } catch (e: any) {
+        if (e?.name === 'AbortError') {
+          throw new Error('Wallet summary request timed out. Please try again.');
         }
-      });
+        throw e;
+      } finally {
+        clearTimeout(timeout);
+      }
 
       if (!response.ok) {
         const errorBody = await response.json().catch(() => ({}));

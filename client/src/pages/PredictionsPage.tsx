@@ -318,8 +318,11 @@ const PredictionsPage: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNa
         }
         
         return {
-          // IMPORTANT: completed cards must navigate/fetch by prediction id (not entry id)
+          // IMPORTANT: Use the prediction id (not the entry id) so users can tap
+          // Completed items and open the prediction details page reliably.
+          // Also required for claim flows which key off predictionId.
           id: prediction.id,
+          predictionId: prediction.id,
           entryId: entry.id,
           title: prediction.title,
           category: prediction.category,
@@ -550,7 +553,12 @@ const PredictionsPage: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNa
   };
 
   const ActivePredictionCard = ({ prediction }: { prediction: any }) => (
-    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-4 hover:shadow-md transition-all duration-200">
+    <div
+      className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-4 hover:shadow-md transition-all duration-200 cursor-pointer"
+      onClick={() => navigate(`/predictions/${prediction.predictionId || prediction.id}`)}
+      role="button"
+      aria-label={`View prediction ${prediction.title}`}
+    >
       <div className="flex items-start justify-between mb-4">
         <div className="flex-1">
           <div className="flex items-center gap-2 mb-2">
@@ -711,6 +719,7 @@ const PredictionsPage: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNa
         </span>
         <button
           onClick={(e) => {
+            e.preventDefault();
             e.stopPropagation();
             setSelectedPrediction(prediction);
             setShowManageModal(true);
@@ -730,15 +739,16 @@ const PredictionsPage: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNa
     const claimMap = new Map((claimables || []).map(c => [c.predictionId, c]));
     const { claim, isClaiming } = useMerkleClaim();
     const [archived, setArchived] = React.useState(false);
+    const predictionId = prediction.predictionId || prediction.id;
     const localClaimed = (() => {
       try {
         const addrLower = (address || '').toLowerCase();
-        return Boolean(localStorage.getItem(`fcz:claimed:${prediction.id}:${addrLower}`));
+        return Boolean(localStorage.getItem(`fcz:claimed:${predictionId}:${addrLower}`));
       } catch {
         return false;
       }
     })();
-    const claimData = claimMap.get(prediction.id);
+    const claimData = claimMap.get(predictionId);
     const hasClaim = !!address && !!claimData && !localClaimed;
     const isSettled = Boolean(prediction?.settledAt) || (String(prediction?.status || '').toLowerCase() === 'settled');
 
@@ -752,15 +762,15 @@ const PredictionsPage: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNa
       }
       try {
         // Lightweight HEAD preflight to avoid full payload
-        const r = await fetch(`${getApiUrl()}/api/v2/predictions/${prediction.id}`, { method: 'HEAD' });
+        const r = await fetch(`${getApiUrl()}/api/v2/predictions/${predictionId}`, { method: 'HEAD' });
         if (!r.ok) {
           setArchived(true);
           toast('This prediction has been archived', { icon: '🗄️' });
           return;
         }
-        navigate(`/predictions/${prediction.id}`);
+        navigate(`/predictions/${predictionId}`);
       } catch {
-        navigate(`/predictions/${prediction.id}`);
+        navigate(`/predictions/${predictionId}`);
       }
     };
 
@@ -821,7 +831,7 @@ const PredictionsPage: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNa
                   e.stopPropagation();
                   const units = BigInt(claimData.amountUnits);
                   const tx = await claim({
-                    predictionId: prediction.id,
+                    predictionId,
                     amountUnits: units,
                     proof: claimData.proof as `0x${string}`[],
                   });

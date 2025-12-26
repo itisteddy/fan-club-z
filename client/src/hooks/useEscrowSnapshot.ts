@@ -36,7 +36,23 @@ export function useEscrowSnapshot(userId?: string, options: Options = {}) {
       if (options.forceRefresh) params.set('refresh', '1');
 
       const apiBase = getApiUrl();
-      const r = await fetch(`${apiBase}/api/wallet/summary?${params.toString()}`);
+      // Prevent infinite loading if the network request stalls
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 12_000);
+      let r: Response;
+      try {
+        r = await fetch(`${apiBase}/api/wallet/summary?${params.toString()}`, {
+          headers: { Accept: 'application/json' },
+          signal: controller.signal,
+        });
+      } catch (e: any) {
+        if (e?.name === 'AbortError') {
+          throw new Error('Wallet summary request timed out. Please try again.');
+        }
+        throw e;
+      } finally {
+        clearTimeout(timeout);
+      }
       if (!r.ok) {
         const error = await r.json().catch(() => ({ message: r.statusText }));
         throw new Error(error.message || 'Failed to load escrow snapshot');

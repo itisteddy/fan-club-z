@@ -6,6 +6,12 @@ import { getApiUrl } from '@/utils/environment';
 
 export type WalletActivityItem = ActivityItem;
 
+function fetchWithTimeout(input: string, init?: RequestInit, timeoutMs = 12_000) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  return fetch(input, { ...(init || {}), signal: controller.signal }).finally(() => clearTimeout(timeout));
+}
+
 /**
  * Hook to fetch wallet activity/transaction history
  * 
@@ -27,7 +33,17 @@ export function useWalletActivity(userId?: string, limit = 20) {
       });
       
       const apiBase = getApiUrl();
-      const r = await fetch(`${apiBase}/api/wallet/activity?${params.toString()}`);
+      let r: Response;
+      try {
+        r = await fetchWithTimeout(`${apiBase}/api/wallet/activity?${params.toString()}`, {
+          headers: { Accept: 'application/json' },
+        });
+      } catch (e: any) {
+        if (e?.name === 'AbortError') {
+          throw new Error('Wallet activity request timed out. Please try again.');
+        }
+        throw e;
+      }
       if (!r.ok) {
         const error = await r.json().catch(() => ({ message: r.statusText }));
         throw new Error(error.message || 'Failed to load transactions');
@@ -77,7 +93,17 @@ export function useWalletActivityInfinite(userId?: string, limit = 20) {
       }
       
       const apiBase = getApiUrl();
-      const r = await fetch(`${apiBase}/api/wallet/activity?${params.toString()}`);
+      let r: Response;
+      try {
+        r = await fetchWithTimeout(`${apiBase}/api/wallet/activity?${params.toString()}`, {
+          headers: { Accept: 'application/json' },
+        });
+      } catch (e: any) {
+        if (e?.name === 'AbortError') {
+          throw new Error('Wallet activity request timed out. Please try again.');
+        }
+        throw e;
+      }
       if (!r.ok) {
         const error = await r.json().catch(() => ({ message: r.statusText }));
         throw new Error(error.message || 'Failed to load transactions');
