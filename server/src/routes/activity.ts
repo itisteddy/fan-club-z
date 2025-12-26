@@ -430,10 +430,10 @@ router.get('/user/:userId', async (req, res) => {
     const seen = new Set<string>();
     const deduped: any[] = [];
     for (const item of merged) {
-      const predictionId = item.predictionId ?? (item.data?.prediction_id ?? null);
+      const predictionId = item.predictionId ?? ((item.data as any)?.prediction_id ?? null);
       const entryId =
-        item.data?.entry_id ??
-        item.data?.prediction_entry_id ??
+        (item.data as any)?.entry_id ??
+        (item.data as any)?.prediction_entry_id ??
         null;
       const type = item.type ?? '';
       // Stable key: type + prediction + entry (when available), otherwise fall back to id.

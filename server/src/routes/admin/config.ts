@@ -172,8 +172,14 @@ configRouter.put('/:key', async (req, res) => {
     configCacheTime = 0;
 
     // Log admin action
-    await logAdminAction(actorId, 'config_update', 'config', key, null, {
-      newValue: value,
+    await logAdminAction({
+      actorId,
+      action: 'config_update',
+      targetType: 'config',
+      targetId: key,
+      meta: {
+        newValue: value,
+      },
     });
 
     return res.json({
@@ -230,8 +236,14 @@ configRouter.post('/maintenance', async (req, res) => {
     configCacheTime = 0;
 
     // Log admin action
-    await logAdminAction(actorId, enabled ? 'maintenance_enable' : 'maintenance_disable', 'config', 'maintenance_mode', null, {
-      message,
+    await logAdminAction({
+      actorId,
+      action: enabled ? 'maintenance_enable' : 'maintenance_disable',
+      targetType: 'config',
+      targetId: 'maintenance_mode',
+      meta: {
+        message,
+      },
     });
 
     return res.json({
@@ -284,8 +296,14 @@ configRouter.post('/feature-flags', async (req, res) => {
     configCacheTime = 0;
 
     // Log admin action
-    await logAdminAction(actorId, 'feature_flags_update', 'config', 'feature_flags', null, {
-      changes: flags,
+    await logAdminAction({
+      actorId,
+      action: 'feature_flags_update',
+      targetType: 'config',
+      targetId: 'feature_flags',
+      meta: {
+        changes: flags,
+      },
     });
 
     return res.json({

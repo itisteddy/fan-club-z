@@ -516,20 +516,24 @@ settlementsRouter.get('/:predictionId', async (req, res) => {
       .eq('prediction_id', predictionId);
 
     // Entry stats
+    const validEntries = (entries || []).filter((e): e is NonNullable<typeof e> => e != null);
     const entryStats = {
-      total: (entries || []).length,
-      totalStake: (entries || []).reduce((sum, e) => sum + Number(e.amount || 0), 0),
+      total: validEntries.length,
+      totalStake: validEntries.reduce((sum, e) => sum + Number(e.amount || 0), 0),
       byOption: {} as Record<string, { count: number; stake: number }>,
       byProvider: {} as Record<string, { count: number; stake: number }>,
     };
 
-    for (const e of entries || []) {
+    for (const e of validEntries) {
       // By option
       if (!entryStats.byOption[e.option_id]) {
         entryStats.byOption[e.option_id] = { count: 0, stake: 0 };
       }
-      entryStats.byOption[e.option_id].count++;
-      entryStats.byOption[e.option_id].stake += Number(e.amount || 0);
+      const optionStat = entryStats.byOption[e.option_id];
+      if (optionStat) {
+        optionStat.count++;
+        optionStat.stake += Number(e.amount || 0);
+      }
 
       // By provider
       const provider = e.provider || 'unknown';

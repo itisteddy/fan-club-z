@@ -305,9 +305,16 @@ predictionsRouter.post('/:predictionId/void', async (req, res) => {
       .eq('id', predictionId);
 
     // Log admin action
-    await logAdminAction(actorId, 'prediction_void', 'prediction', predictionId, reason, {
-      title: prediction.title,
-      refunds: refundResults,
+    await logAdminAction({
+      actorId,
+      action: 'prediction_void',
+      targetType: 'prediction',
+      targetId: predictionId,
+      reason,
+      meta: {
+        title: prediction.title,
+        refunds: refundResults,
+      },
     });
 
     return res.json({
@@ -391,8 +398,15 @@ predictionsRouter.post('/:predictionId/cancel', async (req, res) => {
       .eq('status', 'active');
 
     // Log admin action
-    await logAdminAction(actorId, 'prediction_cancel', 'prediction', predictionId, reason, {
-      title: prediction.title,
+    await logAdminAction({
+      actorId,
+      action: 'prediction_cancel',
+      targetType: 'prediction',
+      targetId: predictionId,
+      reason,
+      meta: {
+        title: prediction.title,
+      },
     });
 
     return res.json({
@@ -498,9 +512,15 @@ predictionsRouter.post('/:predictionId/reset', async (req, res) => {
       .eq('bet_id', predictionId);
 
     // Log admin action
-    await logAdminAction(actorId, 'prediction_reset', 'prediction', predictionId, null, {
-      title: prediction.title,
-      previousStatus: prediction.status,
+    await logAdminAction({
+      actorId,
+      action: 'prediction_reset',
+      targetType: 'prediction',
+      targetId: predictionId,
+      meta: {
+        title: prediction.title,
+        previousStatus: prediction.status,
+      },
     });
 
     return res.json({

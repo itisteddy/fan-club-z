@@ -332,24 +332,28 @@ supportRouter.get('/prediction/:predictionId/investigation', async (req, res) =>
     }
 
     // Calculate statistics
+    const validEntries = (entries || []).filter((e): e is NonNullable<typeof e> => e != null);
     const entryStats = {
-      total: (entries || []).length,
-      uniqueUsers: new Set((entries || []).map(e => e.user_id)).size,
-      totalStake: (entries || []).reduce((sum, e) => sum + Number(e.amount || 0), 0),
+      total: validEntries.length,
+      uniqueUsers: new Set(validEntries.map(e => e.user_id)).size,
+      totalStake: validEntries.reduce((sum, e) => sum + Number(e.amount || 0), 0),
       byOption: {} as Record<string, { count: number; stake: number; users: string[] }>,
       byProvider: {} as Record<string, { count: number; stake: number }>,
       byStatus: {} as Record<string, number>,
     };
 
-    for (const entry of entries || []) {
+    for (const entry of validEntries) {
       // By option
       if (!entryStats.byOption[entry.option_id]) {
         entryStats.byOption[entry.option_id] = { count: 0, stake: 0, users: [] };
       }
-      entryStats.byOption[entry.option_id].count++;
-      entryStats.byOption[entry.option_id].stake += Number(entry.amount || 0);
-      if (!entryStats.byOption[entry.option_id].users.includes(entry.user_id)) {
-        entryStats.byOption[entry.option_id].users.push(entry.user_id);
+      const optionStat = entryStats.byOption[entry.option_id];
+      if (optionStat) {
+        optionStat.count++;
+        optionStat.stake += Number(entry.amount || 0);
+        if (!optionStat.users.includes(entry.user_id)) {
+          optionStat.users.push(entry.user_id);
+        }
       }
 
       // By provider

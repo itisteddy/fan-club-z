@@ -180,17 +180,18 @@ app.get('/', (req, res) => {
 });
 
 // Database seeding endpoint (for development/testing) - ADMIN ONLY
-app.post('/api/v2/admin/seed-database', async (req, res) => {
+app.post('/api/v2/admin/seed-database', async (req, res): Promise<void> => {
   // Admin authorization check
   const ADMIN_API_KEY = process.env.ADMIN_API_KEY;
   const apiKey = req.headers['x-admin-key'] as string | undefined;
   
   if (!ADMIN_API_KEY || !apiKey || apiKey !== ADMIN_API_KEY) {
-    return res.status(401).json({
+    res.status(401).json({
       error: 'Unauthorized',
       message: 'Admin access required',
       version: VERSION
     });
+    return;
   }
   
   try {

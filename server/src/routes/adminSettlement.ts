@@ -102,6 +102,10 @@ adminSettlement.post('/:predictionId/finalize', requireAdmin, async (req, res) =
       throw new Error('Platform treasury address missing');
     }
 
+    if (!pred) {
+      throw new Error('Prediction not found');
+    }
+
     const { data: creatorAddrRow } = await supabase
       .from('crypto_addresses')
       .select('address')
