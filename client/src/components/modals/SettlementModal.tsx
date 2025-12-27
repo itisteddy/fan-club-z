@@ -33,7 +33,7 @@ const SettlementModal: React.FC<SettlementModalProps> = ({
   const [platformFeePctOverride, setPlatformFeePctOverride] = useState<number | null>(null);
   const [creatorFeePctOverride, setCreatorFeePctOverride] = useState<number | null>(null);
 
-  const { isSettling, clearError } = useSettlement();
+  const { isSettling, settlementError, clearError } = useSettlement();
   const { settleWithMerkle, isSubmitting: isPostingRoot, error: merkleError } = useSettlementMerkle();
   const { notifySettlementReady } = useNotificationStore();
 
