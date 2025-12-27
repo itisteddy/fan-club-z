@@ -3,6 +3,7 @@ import { Plus, ArrowDownToLine, DollarSign, Lock, Wallet, RefreshCw, HelpCircle,
 import { useAuthStore } from '../store/authStore';
 import { useAccount, useDisconnect, useSwitchChain } from 'wagmi';
 import { baseSepolia } from 'wagmi/chains';
+import toast from 'react-hot-toast';
 import AppHeader from '../components/layout/AppHeader';
 import Page from '../components/ui/layout/Page';
 import Card, { CardHeader, CardContent } from '../components/ui/card/Card';
@@ -55,6 +56,67 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
   const [demoLoading, setDemoLoading] = useState(false);
   const [demoError, setDemoError] = useState<string | null>(null);
 
+  // Demo credits faucet cooldown (24h) - persisted per user
+  const [demoNextAtMs, setDemoNextAtMs] = useState<number | null>(null);
+  const [demoRemainingMs, setDemoRemainingMs] = useState<number>(0);
+
+  const demoCooldownKey = useMemo(() => {
+    return user?.id ? `fcz_demo_credits_next_at:${user.id}` : null;
+  }, [user?.id]);
+
+  const formatRemaining = useCallback((ms: number) => {
+    const totalMinutes = Math.max(0, Math.ceil(ms / (60 * 1000)));
+    const hours = Math.floor(totalMinutes / 60);
+    const minutes = totalMinutes % 60;
+    if (hours <= 0) return `${minutes}m`;
+    return `${hours}h ${minutes}m`;
+  }, []);
+
+  useEffect(() => {
+    if (!demoCooldownKey) {
+      setDemoNextAtMs(null);
+      setDemoRemainingMs(0);
+      return;
+    }
+    try {
+      const raw = localStorage.getItem(demoCooldownKey);
+      const parsed = raw ? Number(raw) : NaN;
+      if (Number.isFinite(parsed) && parsed > 0) {
+        setDemoNextAtMs(parsed);
+      } else {
+        setDemoNextAtMs(null);
+        setDemoRemainingMs(0);
+      }
+    } catch {
+      setDemoNextAtMs(null);
+      setDemoRemainingMs(0);
+    }
+  }, [demoCooldownKey]);
+
+  useEffect(() => {
+    if (!demoCooldownKey || !demoNextAtMs) {
+      setDemoRemainingMs(0);
+      return;
+    }
+
+    const tick = () => {
+      const remaining = demoNextAtMs - Date.now();
+      if (remaining <= 0) {
+        setDemoRemainingMs(0);
+        setDemoNextAtMs(null);
+        try {
+          localStorage.removeItem(demoCooldownKey);
+        } catch {}
+        return;
+      }
+      setDemoRemainingMs(remaining);
+    };
+
+    tick();
+    const id = window.setInterval(tick, 5000);
+    return () => window.clearInterval(id);
+  }, [demoCooldownKey, demoNextAtMs]);
+
   // Transaction history from database
   const { data: activityData, isLoading: loadingActivity, refetch: refetchActivity } = useWalletActivity(user?.id, 20);
 
@@ -79,6 +141,9 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
 
   const faucetDemo = useCallback(async () => {
     if (!user?.id) return;
+    if (demoRemainingMs > 0) {
+      return;
+    }
     try {
       setDemoLoading(true);
       setDemoError(null);
@@ -93,12 +158,22 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
       }
       setDemoSummary(json?.summary ?? null);
       await refetchActivity();
+      toast('Demo credits added. Come back in 24 hours.', { id: 'demo-faucet', icon: '✅' });
+      const nextAt = Date.now() + 24 * 60 * 60 * 1000;
+      setDemoNextAtMs(nextAt);
+      setDemoRemainingMs(nextAt - Date.now());
+      if (demoCooldownKey) {
+        try {
+          localStorage.setItem(demoCooldownKey, String(nextAt));
+        } catch {}
+      }
     } catch (e: any) {
       setDemoError(e?.message || 'Failed to faucet demo credits');
+      toast(e?.message || 'Failed to add demo credits', { id: 'demo-faucet', icon: '⚠️' });
     } finally {
       setDemoLoading(false);
     }
-  }, [user?.id, refetchActivity]);
+  }, [user?.id, refetchActivity, demoRemainingMs, demoCooldownKey]);
 
   useEffect(() => {
     if (isDemoMode) {
@@ -398,11 +473,15 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
                   <div className="grid grid-cols-1 gap-4">
                     <button
                       onClick={faucetDemo}
-                      disabled={demoLoading}
+                      disabled={demoLoading || demoRemainingMs > 0}
                       className="flex items-center justify-center space-x-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 p-4 rounded-xl transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       <Plus className="w-5 h-5" />
-                      <span>Get Demo Credits</span>
+                      <span>
+                        {demoRemainingMs > 0
+                          ? `Next credits in ${formatRemaining(demoRemainingMs)}`
+                          : 'Get Demo Credits'}
+                      </span>
                     </button>
                   </div>
                 ) : (

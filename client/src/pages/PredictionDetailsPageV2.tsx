@@ -313,6 +313,13 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const title = prediction?.title || prediction?.question || '';
+    // Avoid rewriting/navigating while the prediction is still loading.
+    // In particular, an empty title would produce an empty slug and redirect to `/predictions`,
+    // which breaks deep links (opens the Stakes tab instead of details).
+    if (!title.trim()) {
+      setShareUrl(`${window.location.origin}/prediction/${predictionId}`);
+      return;
+    }
     const slug = title
       .toLowerCase()
       .trim()
@@ -320,6 +327,10 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
       .replace(/\s+/g, '-')
       .replace(/-+/g, '-')
       .slice(0, 80);
+    if (!slug) {
+      setShareUrl(`${window.location.origin}/prediction/${predictionId}`);
+      return;
+    }
     const canonical = `${window.location.origin}/predictions/${slug}`;
     setShareUrl(canonical);
     // Inject/replace canonical link
@@ -332,16 +343,8 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
       }
       link.setAttribute('href', canonical);
     } catch {}
-    // If the current URL isn't already the canonical slug path, replace it (no reload)
-    try {
-      const targetPath = `/predictions/${slug}`;
-      if (window.location.pathname !== targetPath) {
-        navigate(targetPath, { 
-          replace: true,
-          state: preservedStateRef.current ?? locationState ?? undefined
-        });
-      }
-    } catch {}
+    // NOTE: We intentionally do NOT auto-navigate/replace the URL to the slug path here.
+    // Auto-rewriting has caused deep-link overrides on initial load (sending users to `/predictions`).
   }, [prediction?.title, predictionId, navigate, locationState]);
 
   // Handle navigation
