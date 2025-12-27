@@ -65,11 +65,12 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
   }, [user?.id]);
 
   const formatRemaining = useCallback((ms: number) => {
-    const totalMinutes = Math.max(0, Math.ceil(ms / (60 * 1000)));
-    const hours = Math.floor(totalMinutes / 60);
-    const minutes = totalMinutes % 60;
-    if (hours <= 0) return `${minutes}m`;
-    return `${hours}h ${minutes}m`;
+    const totalSeconds = Math.max(0, Math.ceil(ms / 1000));
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+    if (hours <= 0) return `${minutes}m ${seconds}s`;
+    return `${hours}h ${minutes}m ${seconds}s`;
   }, []);
 
   useEffect(() => {
@@ -113,7 +114,7 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
     };
 
     tick();
-    const id = window.setInterval(tick, 5000);
+    const id = window.setInterval(tick, 1000);
     return () => window.clearInterval(id);
   }, [demoCooldownKey, demoNextAtMs]);
 
