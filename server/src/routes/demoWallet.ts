@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { VERSION } from '@fanclubz/shared';
 import { supabase } from '../config/database';
+import { createNotification } from '../services/notifications';
 
 export const demoWallet = Router();
 
@@ -119,6 +120,31 @@ demoWallet.post('/faucet', async (req, res) => {
 
       if (updErr) {
         console.warn('[DEMO-WALLET] faucet balance update warning (non-fatal):', updErr);
+      }
+
+      // Phase 4C: Create notification for demo credits grant
+      try {
+        const grantedAt = new Date();
+        const nextEligibleAt = new Date(grantedAt.getTime() + 24 * 60 * 60 * 1000); // 24 hours from now
+        const nextEligibleAtIso = nextEligibleAt.toISOString();
+        
+        await createNotification({
+          userId,
+          type: 'demo_credit',
+          title: 'Demo credits added',
+          body: `You received $${amount.toFixed(2)} in demo credits. You can request again in 24 hours.`,
+          href: `/wallet`,
+          metadata: {
+            amount,
+            grantedAt: grantedAt.toISOString(),
+            nextEligibleAt: nextEligibleAtIso,
+          },
+          externalRef: `notif:demo_credit:${userId}:${grantedAt.toISOString().split('T')[0]}`,
+        }).catch((err) => {
+          console.warn(`[Notifications] Failed to create demo credit notification for ${userId}:`, err);
+        });
+      } catch (err) {
+        console.warn(`[Notifications] Error creating demo credit notification:`, err);
       }
     }
 

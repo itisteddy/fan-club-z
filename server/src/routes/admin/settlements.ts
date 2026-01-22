@@ -4,6 +4,7 @@ import { supabase } from '../../config/database';
 import { VERSION } from '@fanclubz/shared';
 import { logAdminAction, getFallbackAdminActorId } from './audit';
 import { settleDemoRail } from '../settlement';
+import { createNotification } from '../../services/notifications';
 
 export const settlementsRouter = Router();
 
@@ -1503,6 +1504,9 @@ settlementsRouter.post('/disputes/:disputeId/resolve', async (req, res) => {
       });
     }
 
+    const prediction = (dispute as any).prediction;
+    const disputeUserId = dispute.user_id;
+
     // Update dispute status
     const newStatus = action === 'accept' ? 'resolved' : 'rejected';
     const { error: updateError } = await supabase
@@ -1523,6 +1527,32 @@ settlementsRouter.post('/disputes/:disputeId/resolve', async (req, res) => {
         message: 'Failed to resolve dispute',
         version: VERSION,
       });
+    }
+
+    // Phase 4C: Notify disputing user about resolution
+    if (disputeUserId && prediction) {
+      try {
+        const statusLabel = action === 'accept' ? 'accepted' : 'rejected';
+        await createNotification({
+          userId: disputeUserId,
+          type: 'dispute',
+          title: `Dispute ${statusLabel}`,
+          body: `Your dispute for "${prediction.title}" has been ${statusLabel}.`,
+          href: `/predictions/${dispute.prediction_id}`,
+          metadata: {
+            predictionId: dispute.prediction_id,
+            predictionTitle: prediction.title,
+            disputeId: disputeId,
+            status: newStatus,
+            action,
+          },
+          externalRef: `notif:dispute:${disputeId}:${newStatus}:${disputeUserId}`,
+        }).catch((err) => {
+          console.warn(`[Notifications] Failed to notify user about dispute resolution:`, err);
+        });
+      } catch (err) {
+        console.warn(`[Notifications] Error creating dispute resolution notification:`, err);
+      }
     }
 
     // Log admin action

@@ -8,6 +8,7 @@ import { recomputePredictionState } from '../services/predictionMath';
 import { emitPredictionUpdate } from '../services/realtime';
 import { logAdminAction } from './admin/audit';
 import { insertWalletTransaction } from '../db/walletTransactions';
+import { createNotification } from '../services/notifications';
 
 // [PERF] Helper to generate ETag from response data
 function generateETag(data: unknown): string {
@@ -1991,6 +1992,60 @@ router.post('/:id/cancel', async (req, res) => {
           refundedCrypto = locks.length;
           console.log(`[PREDICTIONS] ✅ Released ${refundedCrypto} crypto escrow locks`);
         }
+      }
+    }
+
+    // Phase 4C: Create refund notifications for all participants
+    const refundedUserIds = new Set<string>();
+    
+    // Track demo refunded users
+    for (const entry of demoEntries) {
+      if (entry.user_id) {
+        refundedUserIds.add(entry.user_id);
+      }
+    }
+    
+    // Track crypto refunded users (from locks)
+    if (cryptoEntries.length > 0) {
+      const { data: locks } = await supabase
+        .from('escrow_locks')
+        .select('user_id')
+        .eq('prediction_id', predictionId)
+        .in('status', ['released']);
+      
+      if (locks) {
+        for (const lock of locks) {
+          if (lock.user_id) {
+            refundedUserIds.add(lock.user_id);
+          }
+        }
+      }
+    }
+    
+    // Create notifications for each refunded user
+    for (const refundedUserId of refundedUserIds) {
+      try {
+        // Determine rail (demo or crypto) - check if user had demo entries
+        const userDemoEntry = demoEntries.find((e) => e.user_id === refundedUserId);
+        const rail = userDemoEntry ? 'demo' : 'crypto';
+        
+        await createNotification({
+          userId: refundedUserId,
+          type: 'refund',
+          title: 'Refund initiated',
+          body: `Your stake was refunded for "${prediction.title}".`,
+          href: `/wallet`,
+          metadata: {
+            predictionId,
+            predictionTitle: prediction.title,
+            rail,
+          },
+          externalRef: `notif:refund:${predictionId}:${refundedUserId}:${rail}`,
+        }).catch((err) => {
+          console.warn(`[Notifications] Failed to create refund notification for ${refundedUserId}:`, err);
+        });
+      } catch (err) {
+        console.warn(`[Notifications] Error creating refund notification for ${refundedUserId}:`, err);
       }
     }
 

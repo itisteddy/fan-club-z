@@ -9,6 +9,7 @@ import { makePublicClient } from '../chain/base/client';
 import { getEscrowAddress } from '../services/escrowContract';
 import { encodePacked, getAddress, keccak256 } from 'viem';
 import { calculatePayouts, type Entry as PayoutEntry } from '../services/payoutCalculator';
+import { createNotification } from '../services/notifications';
 
 const router = express.Router();
 
@@ -1403,25 +1404,100 @@ router.post('/manual', async (req, res) => {
       console.warn('⚠️ Failed to emit settlement payout updates:', emitError);
     }
 
-    // Notify each participant individually (no bulk responses)
-    console.log('🔔 Sending individual notifications to participants...');
+    // Phase 4C: Create in-app notifications for participants
+    console.log('🔔 Creating notifications for participants...');
     for (const entry of allEntries) {
       try {
-        const outcome = entry.option_id === winningOptionId ? 'won' : 'lost';
-        const payout = entry.option_id === winningOptionId ? entry.actual_payout : 0;
+        const isWinner = entry.option_id === winningOptionId;
+        const payout = isWinner ? Number(entry.actual_payout || 0) : 0;
+        const isDemo = entry.provider === DEMO_PROVIDER;
+        const isCrypto = !isDemo;
         
-        console.log(`📧 Notifying participant ${entry.user_id}: ${outcome} (payout: $${payout})`);
+        // A) Win/Loss notification
+        const winLossType = isWinner ? 'win' : 'loss';
+        const winLossTitle = isWinner ? 'You won!' : 'Result settled';
+        const winLossBody = isWinner
+          ? `You won $${payout.toFixed(2)} on "${prediction.title}"`
+          : `The prediction "${prediction.title}" has been settled.`;
         
-        // In a real app, you would send individual push notifications, emails, or in-app notifications here
-        // For now, we'll log each individual notification
-        // TODO: Implement actual individual notification system (push notifications, email, etc.)
+        await createNotification({
+          userId: entry.user_id,
+          type: winLossType,
+          title: winLossTitle,
+          body: winLossBody,
+          href: `/predictions/${predictionId}`,
+          metadata: {
+            predictionId,
+            predictionTitle: prediction.title,
+            winningOptionId,
+            entryId: entry.id,
+            payout: isWinner ? payout : 0,
+          },
+          externalRef: `notif:${winLossType}:${predictionId}:${entry.user_id}`,
+        }).catch((err) => {
+          console.warn(`[Notifications] Failed to create ${winLossType} notification for ${entry.user_id}:`, err);
+        });
+        
+        // B) Demo payout credited notification (for demo winners)
+        if (isWinner && isDemo && payout > 0) {
+          await createNotification({
+            userId: entry.user_id,
+            type: 'payout',
+            title: 'Payout credited',
+            body: `Your demo wallet was credited $${payout.toFixed(2)} for "${prediction.title}".`,
+            href: `/wallet`,
+            metadata: {
+              predictionId,
+              predictionTitle: prediction.title,
+              entryId: entry.id,
+              payout,
+              rail: 'demo',
+            },
+            externalRef: `notif:payout_demo:${predictionId}:${entry.user_id}`,
+          }).catch((err) => {
+            console.warn(`[Notifications] Failed to create demo payout notification for ${entry.user_id}:`, err);
+          });
+        }
+        
+        // C) Crypto claim available notification (for crypto winners - only if claimable)
+        // Note: Claim availability is determined by onchain finalization status
+        // For now, we'll create the notification; it can be filtered client-side if needed
+        if (isWinner && isCrypto && payout > 0) {
+          // Check if settlement is finalized (claimable) by querying the actual settlement status
+          const { data: currentSettlement } = await supabase
+            .from('bet_settlements')
+            .select('status')
+            .eq('bet_id', predictionId)
+            .maybeSingle();
+          
+          const isFinalized = currentSettlement?.status === 'onchain_finalized' || currentSettlement?.status === 'onchain_posted';
+          if (isFinalized) {
+            await createNotification({
+              userId: entry.user_id,
+              type: 'claim',
+              title: 'Claim available',
+              body: `Your payout of $${payout.toFixed(2)} is ready to claim for "${prediction.title}".`,
+              href: `/predictions/${predictionId}`,
+              metadata: {
+                predictionId,
+                predictionTitle: prediction.title,
+                entryId: entry.id,
+                payout,
+                rail: 'crypto',
+              },
+              externalRef: `notif:claim:${predictionId}:${entry.user_id}`,
+            }).catch((err) => {
+              console.warn(`[Notifications] Failed to create claim notification for ${entry.user_id}:`, err);
+            });
+          }
+        }
         
       } catch (notificationError) {
         console.error(`❌ Failed to notify participant ${entry.user_id}:`, notificationError);
         // Continue with other notifications even if one fails
       }
     }
-    console.log('✅ Individual participant notifications sent');
+    console.log('✅ Participant notifications created');
 
     return res.json({
       success: true,
@@ -3015,6 +3091,13 @@ router.post('/:predictionId/dispute', async (req, res) => {
       });
     }
 
+    // Get prediction details for notifications
+    const { data: predictionDetails } = await supabase
+      .from('predictions')
+      .select('id, title, creator_id')
+      .eq('id', predictionId)
+      .maybeSingle();
+
     // Create dispute
     const { data: dispute, error: disputeError } = await supabase
       .from('disputes')
@@ -3036,6 +3119,30 @@ router.post('/:predictionId/dispute', async (req, res) => {
         message: 'Failed to create dispute',
         version: VERSION
       });
+    }
+
+    // Phase 4C: Notify prediction creator about dispute
+    if (predictionDetails?.creator_id && predictionDetails.creator_id !== userId) {
+      try {
+        await createNotification({
+          userId: predictionDetails.creator_id,
+          type: 'dispute',
+          title: 'Dispute opened',
+          body: `A dispute has been opened for "${predictionDetails.title}".`,
+          href: `/predictions/${predictionId}`,
+          metadata: {
+            predictionId,
+            predictionTitle: predictionDetails.title,
+            disputeId: dispute.id,
+            fromUserId: userId,
+          },
+          externalRef: `notif:dispute:${dispute.id}:opened:${predictionDetails.creator_id}`,
+        }).catch((err) => {
+          console.warn(`[Notifications] Failed to notify creator about dispute:`, err);
+        });
+      } catch (err) {
+        console.warn(`[Notifications] Error creating dispute notification for creator:`, err);
+      }
     }
 
     return res.status(201).json({
