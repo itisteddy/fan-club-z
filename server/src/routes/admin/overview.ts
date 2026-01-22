@@ -25,9 +25,10 @@ overviewRouter.get('/', async (_req, res) => {
   try {
     const nowIso = new Date().toISOString();
 
+    // Note: DB uses 'open' for active predictions, not 'active'
     const [{ count: totalUsers }, { count: activePredictions }] = await Promise.all([
       supabase.from('users').select('id', { count: 'exact', head: true }),
-      supabase.from('predictions').select('id', { count: 'exact', head: true }).eq('status', 'active'),
+      supabase.from('predictions').select('id', { count: 'exact', head: true }).eq('status', 'open'),
     ]);
 
     // Pending settlements = closed/closed-by-time and not settled yet (schema-tolerant)

@@ -119,8 +119,8 @@ export const PredictionsPage: React.FC = () => {
             className="pl-10 pr-8 py-3 bg-slate-800 border border-slate-700 rounded-lg text-white appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-emerald-500"
           >
             <option value="all">All Status</option>
-            <option value="active">Active</option>
-            <option value="pending">Pending</option>
+            <option value="active">Active (Open)</option>
+            <option value="closed">Closed</option>
             <option value="settled">Settled</option>
             <option value="voided">Voided</option>
             <option value="cancelled">Cancelled</option>

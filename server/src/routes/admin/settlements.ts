@@ -313,14 +313,14 @@ settlementsRouter.get('/', async (req, res) => {
       .order('end_date', { ascending: false })
       .range(offset, offset + limit - 1);
 
-    // Status filter
+    // Status filter (Note: DB uses 'open' not 'active' for active predictions)
     if (status === 'pending') {
       // Predictions past end date but not settled
-      query = query.eq('status', 'active').lt('end_date', new Date().toISOString());
+      query = query.eq('status', 'open').lt('end_date', new Date().toISOString());
     } else if (status === 'settled') {
       query = query.eq('status', 'settled');
     } else if (status === 'active') {
-      query = query.eq('status', 'active').gte('end_date', new Date().toISOString());
+      query = query.eq('status', 'open').gte('end_date', new Date().toISOString());
     }
 
     const { data: predictions, error, count } = await query;
@@ -398,13 +398,14 @@ settlementsRouter.get('/stats', async (req, res) => {
     const now = new Date().toISOString();
 
     // Count by status
+    // Note: DB uses 'open' not 'active' for active predictions
     const [
       { count: activeCount },
       // pending settlement is computed below (the old logic was wrong)
       { count: settledCount },
       { count: voidedCount },
     ] = await Promise.all([
-      supabase.from('predictions').select('id', { count: 'exact', head: true }).eq('status', 'active'),
+      supabase.from('predictions').select('id', { count: 'exact', head: true }).eq('status', 'open'),
       supabase.from('predictions').select('id', { count: 'exact', head: true }).eq('status', 'settled'),
       supabase.from('predictions').select('id', { count: 'exact', head: true }).eq('status', 'voided'),
     ]);

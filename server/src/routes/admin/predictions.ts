@@ -22,11 +22,18 @@ function isSchemaMismatch(err: any): boolean {
 
 const SearchSchema = z.object({
   q: z.string().optional(),
-  status: z.enum(['active', 'pending', 'settled', 'voided', 'cancelled', 'all']).default('all'),
+  // Note: UI uses 'active' but DB stores 'open' - we map it below
+  status: z.enum(['active', 'open', 'pending', 'closed', 'settled', 'voided', 'cancelled', 'all']).default('all'),
   rail: z.enum(['demo', 'crypto', 'hybrid', 'all']).default('all'),
   limit: z.coerce.number().min(1).max(100).default(25),
   offset: z.coerce.number().min(0).default(0),
 });
+
+// Map UI status values to actual DB values
+function mapStatusToDb(status: string): string {
+  if (status === 'active') return 'open'; // UI says "active", DB stores "open"
+  return status;
+}
 
 const OutcomeSchema = z.object({
   optionId: z.string().uuid(),
@@ -117,9 +124,10 @@ predictionsRouter.get('/', async (req, res) => {
 
     let query = buildQuery(EXTENDED_SELECT);
 
-    // Status filter
+    // Status filter (map 'active' -> 'open' for DB)
     if (status !== 'all') {
-      query = query.eq('status', status);
+      const dbStatus = mapStatusToDb(status);
+      query = query.eq('status', dbStatus);
     }
 
     // Text search
@@ -137,7 +145,7 @@ predictionsRouter.get('/', async (req, res) => {
     if (error && isSchemaMismatch(error)) {
       console.warn('[Admin/Predictions] Select schema mismatch, retrying with base select:', error);
       let fallbackQuery = buildQuery(BASE_SELECT);
-      if (status !== 'all') fallbackQuery = fallbackQuery.eq('status', status);
+      if (status !== 'all') fallbackQuery = fallbackQuery.eq('status', mapStatusToDb(status));
       if (q) {
         fallbackQuery = fallbackQuery.or(
           `title.ilike.%${q}%,id.eq.${q.length === 36 ? q : '00000000-0000-0000-0000-000000000000'}`

@@ -250,7 +250,12 @@ export const SettlementsPage: React.FC = () => {
                     <button
                       onClick={() => handleSync(s.predictionId)}
                       disabled={actionLoading === s.predictionId || s.needs.needsOutcome}
-                      className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 disabled:opacity-50 flex items-center gap-1"
+                      title={s.needs.needsOutcome ? 'Set outcome first (use Details → Set Outcome)' : 'Sync settlement'}
+                      className={`px-3 py-1.5 rounded-lg text-sm flex items-center gap-1 ${
+                        s.needs.needsOutcome
+                          ? 'bg-slate-700 text-slate-500 cursor-not-allowed'
+                          : 'bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50'
+                      }`}
                     >
                       {actionLoading === s.predictionId ? (
                         <Loader2 className="w-3 h-3 animate-spin" />

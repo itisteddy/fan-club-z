@@ -92,7 +92,7 @@ export const AdminHomePage: React.FC = () => {
             <Users className="w-4 h-4" />
             <span className="text-sm">Total Users</span>
           </div>
-          <p className="text-2xl font-bold text-white">{stats.totalUsers || '—'}</p>
+          <p className="text-2xl font-bold text-white">{stats.totalUsers ?? '—'}</p>
         </div>
         
         <div className="bg-slate-800 border border-slate-700 rounded-xl p-4">
@@ -100,7 +100,7 @@ export const AdminHomePage: React.FC = () => {
             <Activity className="w-4 h-4" />
             <span className="text-sm">Active Predictions</span>
           </div>
-          <p className="text-2xl font-bold text-white">{stats.activePredictions || '—'}</p>
+          <p className="text-2xl font-bold text-white">{stats.activePredictions ?? '—'}</p>
         </div>
         
         <div className="bg-slate-800 border border-slate-700 rounded-xl p-4">
@@ -108,7 +108,7 @@ export const AdminHomePage: React.FC = () => {
             <Clock className="w-4 h-4" />
             <span className="text-sm">Pending Settlements</span>
           </div>
-          <p className="text-2xl font-bold text-white">{stats.pendingSettlements || '—'}</p>
+          <p className="text-2xl font-bold text-white">{stats.pendingSettlements ?? '—'}</p>
         </div>
         
         <div className="bg-slate-800 border border-slate-700 rounded-xl p-4">
@@ -117,7 +117,7 @@ export const AdminHomePage: React.FC = () => {
             <span className="text-sm">Total Volume</span>
           </div>
           <p className="text-2xl font-bold text-white">
-            {stats.totalVolume ? `$${stats.totalVolume.toLocaleString()}` : '—'}
+            {stats.totalVolume != null ? `$${stats.totalVolume.toLocaleString()}` : '—'}
           </p>
         </div>
       </div>
