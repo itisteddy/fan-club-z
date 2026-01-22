@@ -66,7 +66,31 @@ window.addEventListener('unhandledrejection', (event) => {
   }
 });
 
-ReactDOM.createRoot(document.getElementById('root')!).render(
+// Conditionally wrap Web3Provider - only needed for app build, not landing/admin
+const AppContent = isLandingBuild ? (
+  <React.StrictMode>
+    <ErrorBoundary
+      onError={(error, errorInfo) => {
+        if (import.meta.env.DEV) {
+          console.error('React Error Boundary triggered:', error, errorInfo);
+        }
+        // You can add error reporting service here (e.g., Sentry)
+      }}
+    >
+      <ErrorHandlingProvider>
+        <NetworkStatusProvider>
+          <SupabaseProvider>
+            <AuthSessionProvider>
+              <BrowserRouter>
+                <RootComponent />
+              </BrowserRouter>
+            </AuthSessionProvider>
+          </SupabaseProvider>
+        </NetworkStatusProvider>
+      </ErrorHandlingProvider>
+    </ErrorBoundary>
+  </React.StrictMode>
+) : (
   <React.StrictMode>
     <Web3Provider>
       <ErrorBoundary
@@ -90,8 +114,10 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
         </ErrorHandlingProvider>
       </ErrorBoundary>
     </Web3Provider>
-  </React.StrictMode>,
-)
+  </React.StrictMode>
+);
+
+ReactDOM.createRoot(document.getElementById('root')!).render(AppContent);
 
 console.log(`✅ Fan Club Z ${APP_VERSION} - Application started successfully`);
 console.log('🚀 Build timestamp:', BUILD_TIMESTAMP);
