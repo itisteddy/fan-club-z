@@ -248,6 +248,7 @@ import { qaCryptoMock } from './routes/qaCryptoMock';
 import referralRoutes from './routes/referrals';
 import badgeRoutes from './routes/badges';
 import { adminRouter } from './routes/admin';
+import notificationsRoutes from './routes/notifications';
 import { startBaseDepositWatcher } from './chain/base/depositWatcher';
 import { resolveAndValidateAddresses } from './chain/base/addressRegistry';
 import { validatePaymentsEnv } from './utils/envValidation';
@@ -267,6 +268,7 @@ app.use('/api/v2/social', socialRoutes);
 app.use('/api/v2/settlement', settlementRoutes);
 app.use('/api/v2/admin/settlement', adminSettlement);
 app.use('/api/v2/activity', activityRoutes);
+app.use('/api/v2/notifications', notificationsRoutes);
 app.use('/api/images', imagesRoutes);
 app.use('/api/escrow', escrowRoutes);
 // walletSummary must come BEFORE walletRead to avoid route conflicts
