@@ -31,6 +31,7 @@ import { config } from './config';
 import { supabase } from './config/database';
 import { db } from './config/database';
 import { VERSION } from '@fanclubz/shared';
+import { checkMaintenanceMode } from './middleware/maintenance';
 
 const app = express();
 const PORT = config.server.port || 3001;
@@ -120,6 +121,9 @@ app.use((req, res, next) => {
 });
 
 app.use(express.json());
+
+// Maintenance mode check (must be before routes)
+app.use(checkMaintenanceMode);
 
 // [PERF] Static assets with immutable cache headers (1 year)
 // Note: In production, these are typically served by CDN/Vercel, but this helps for direct server access

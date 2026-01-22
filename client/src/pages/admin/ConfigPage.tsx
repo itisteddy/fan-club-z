@@ -63,8 +63,7 @@ export const ConfigPage: React.FC = () => {
   const fetchConfig = useCallback(async () => {
     setLoading(true);
     try {
-      if (!actorId) throw new Error('Missing user');
-      const data = await adminGet<any>(`/api/v2/admin/config`, actorId);
+      const data = await adminGet<any>(`/api/v2/admin/config`, actorId || '');
       setConfig({ ...defaultConfig, ...data.config });
       setMaintenanceMessage(data.config?.maintenance_message || defaultConfig.maintenance_message);
     } catch (e) {
@@ -80,52 +79,54 @@ export const ConfigPage: React.FC = () => {
   }, [fetchConfig]);
 
   const handleToggleMaintenance = async () => {
-    if (!actorId) return;
     setSaving(true);
     try {
       const newValue = !config.maintenance_mode;
-      await adminPost<any>(`/api/v2/admin/config/maintenance`, actorId, {
+      await adminPost<any>(`/api/v2/admin/config/maintenance`, actorId || '', {
         enabled: newValue,
         message: maintenanceMessage,
       });
       setConfig(prev => ({ ...prev, maintenance_mode: newValue }));
       toast.success(newValue ? 'Maintenance mode enabled' : 'Maintenance mode disabled');
-    } catch (e) {
-      toast.error('Failed to toggle maintenance mode');
+      // Refresh config to ensure UI is in sync
+      setTimeout(() => fetchConfig(), 500);
+    } catch (e: any) {
+      console.error('[ConfigPage] Maintenance toggle error:', e);
+      toast.error(e?.message || 'Failed to toggle maintenance mode');
     } finally {
       setSaving(false);
     }
   };
 
   const handleToggleFeature = async (feature: string) => {
-    if (!actorId) return;
     setSaving(true);
     try {
       const newFlags = {
         ...config.feature_flags,
         [feature]: !config.feature_flags[feature],
       };
-      await adminPost<any>(`/api/v2/admin/config/feature-flags`, actorId, {
+      await adminPost<any>(`/api/v2/admin/config/feature-flags`, actorId || '', {
         flags: { [feature]: newFlags[feature] },
       });
       setConfig(prev => ({ ...prev, feature_flags: newFlags }));
-      toast.success(`${feature} ${newFlags[feature] ? 'enabled' : 'disabled'}`);
-    } catch (e) {
-      toast.error('Failed to update feature flag');
+      toast.success(`${feature.replace(/_/g, ' ')} ${newFlags[feature] ? 'enabled' : 'disabled'}`);
+    } catch (e: any) {
+      console.error('[ConfigPage] Feature flag toggle error:', e);
+      toast.error(e?.message || 'Failed to update feature flag');
     } finally {
       setSaving(false);
     }
   };
 
   const handleSaveConfig = async (key: string, value: any) => {
-    if (!actorId) return;
     setSaving(true);
     try {
-      await adminPut<any>(`/api/v2/admin/config/${key}`, actorId, { value });
+      await adminPut<any>(`/api/v2/admin/config/${key}`, actorId || '', { value });
       setConfig(prev => ({ ...prev, [key]: value }));
       toast.success('Config saved');
-    } catch (e) {
-      toast.error('Failed to save config');
+    } catch (e: any) {
+      console.error('[ConfigPage] Save config error:', e);
+      toast.error(e?.message || 'Failed to save config');
     } finally {
       setSaving(false);
     }

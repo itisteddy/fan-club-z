@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { supabase } from '../../config/database';
 import { VERSION } from '@fanclubz/shared';
-import { logAdminAction } from './audit';
+import { logAdminAction, getFallbackAdminActorId } from './audit';
 
 export const configRouter = Router();
 
@@ -124,7 +124,7 @@ configRouter.get('/:key', async (req, res) => {
 
 const SetConfigSchema = z.object({
   value: z.any(),
-  actorId: z.string().uuid(),
+  actorId: z.string().uuid().optional(),
 });
 
 /**
@@ -145,8 +145,11 @@ configRouter.put('/:key', async (req, res) => {
       });
     }
 
-    const { value, actorId } = parsed.data;
+    const { value, actorId: providedActorId } = parsed.data;
     const { value: stringValue, valueType } = stringifyConfigValue(value);
+
+    // Support admin-key-only mode
+    const actorId = providedActorId || getFallbackAdminActorId();
 
     // Upsert config
     const { error } = await supabase
@@ -156,7 +159,7 @@ configRouter.put('/:key', async (req, res) => {
         value: stringValue,
         value_type: valueType,
         updated_at: new Date().toISOString(),
-        updated_by: actorId,
+        updated_by: actorId || null,
       }, { onConflict: 'key' });
 
     if (error) {
@@ -171,16 +174,18 @@ configRouter.put('/:key', async (req, res) => {
     // Invalidate cache
     configCacheTime = 0;
 
-    // Log admin action
-    await logAdminAction({
-      actorId,
-      action: 'config_update',
-      targetType: 'config',
-      targetId: key,
-      meta: {
-        newValue: value,
-      },
-    });
+    // Log admin action (only if actorId available)
+    if (actorId) {
+      await logAdminAction({
+        actorId,
+        action: 'config_update',
+        targetType: 'config',
+        targetId: key,
+        meta: {
+          newValue: value,
+        },
+      });
+    }
 
     return res.json({
       success: true,
@@ -204,15 +209,18 @@ configRouter.put('/:key', async (req, res) => {
  */
 configRouter.post('/maintenance', async (req, res) => {
   try {
-    const { enabled, message, actorId } = req.body;
+    const { enabled, message, actorId: providedActorId } = req.body;
 
-    if (typeof enabled !== 'boolean' || !actorId) {
+    if (typeof enabled !== 'boolean') {
       return res.status(400).json({
         error: 'Bad Request',
-        message: 'enabled (boolean) and actorId are required',
+        message: 'enabled (boolean) is required',
         version: VERSION,
       });
     }
+
+    // Support admin-key-only mode
+    const actorId = providedActorId || getFallbackAdminActorId();
 
     // Set maintenance mode
     await supabase.from('app_config').upsert([
@@ -221,30 +229,32 @@ configRouter.post('/maintenance', async (req, res) => {
         value: String(enabled),
         value_type: 'boolean',
         updated_at: new Date().toISOString(),
-        updated_by: actorId,
+        updated_by: actorId || null,
       },
       {
         key: 'maintenance_message',
         value: message || 'The platform is currently under maintenance. Please check back soon.',
         value_type: 'string',
         updated_at: new Date().toISOString(),
-        updated_by: actorId,
+        updated_by: actorId || null,
       },
     ], { onConflict: 'key' });
 
     // Invalidate cache
     configCacheTime = 0;
 
-    // Log admin action
-    await logAdminAction({
-      actorId,
-      action: enabled ? 'maintenance_enable' : 'maintenance_disable',
-      targetType: 'config',
-      targetId: 'maintenance_mode',
-      meta: {
-        message,
-      },
-    });
+    // Log admin action (only if actorId available)
+    if (actorId) {
+      await logAdminAction({
+        actorId,
+        action: enabled ? 'maintenance_enable' : 'maintenance_disable',
+        targetType: 'config',
+        targetId: 'maintenance_mode',
+        meta: {
+          message,
+        },
+      });
+    }
 
     return res.json({
       success: true,
@@ -268,15 +278,18 @@ configRouter.post('/maintenance', async (req, res) => {
  */
 configRouter.post('/feature-flags', async (req, res) => {
   try {
-    const { flags, actorId } = req.body;
+    const { flags, actorId: providedActorId } = req.body;
 
-    if (!flags || typeof flags !== 'object' || !actorId) {
+    if (!flags || typeof flags !== 'object') {
       return res.status(400).json({
         error: 'Bad Request',
-        message: 'flags (object) and actorId are required',
+        message: 'flags (object) is required',
         version: VERSION,
       });
     }
+
+    // Support admin-key-only mode
+    const actorId = providedActorId || getFallbackAdminActorId();
 
     // Get current flags
     const config = await loadConfig();
@@ -289,22 +302,24 @@ configRouter.post('/feature-flags', async (req, res) => {
       value: JSON.stringify(newFlags),
       value_type: 'json',
       updated_at: new Date().toISOString(),
-      updated_by: actorId,
+      updated_by: actorId || null,
     }, { onConflict: 'key' });
 
     // Invalidate cache
     configCacheTime = 0;
 
-    // Log admin action
-    await logAdminAction({
-      actorId,
-      action: 'feature_flags_update',
-      targetType: 'config',
-      targetId: 'feature_flags',
-      meta: {
-        changes: flags,
-      },
-    });
+    // Log admin action (only if actorId available)
+    if (actorId) {
+      await logAdminAction({
+        actorId,
+        action: 'feature_flags_update',
+        targetType: 'config',
+        targetId: 'feature_flags',
+        meta: {
+          changes: flags,
+        },
+      });
+    }
 
     return res.json({
       success: true,
