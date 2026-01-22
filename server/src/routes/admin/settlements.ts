@@ -45,14 +45,6 @@ settlementsRouter.post('/:predictionId/sync', async (req, res) => {
     }
 
     const { actorId: providedActorId, note } = parsed.data;
-    const actorId = providedActorId || getFallbackAdminActorId();
-    if (!actorId) {
-      return res.status(400).json({
-        error: 'Bad Request',
-        message: 'actorId required (or configure ADMIN_USER_IDS for admin-key-only ops)',
-        version: VERSION,
-      });
-    }
 
     const { data: pred, error: predErr } = await supabase
       .from('predictions')
@@ -67,6 +59,10 @@ settlementsRouter.post('/:predictionId/sync', async (req, res) => {
         version: VERSION,
       });
     }
+
+    // actorId is optional in admin-key-only mode; use creator_id for required uuid fields.
+    const auditActorId = providedActorId || getFallbackAdminActorId();
+    const requestedBy = auditActorId || ((pred as any).creator_id as string | undefined) || null;
 
     const hasOutcome = Boolean((pred as any).winning_option_id);
     if (!hasOutcome) {
@@ -107,29 +103,32 @@ settlementsRouter.post('/:predictionId/sync', async (req, res) => {
     }
 
     // Ensure a finalize job exists (idempotent upsert)
+    // Ensure a finalize job exists (idempotent upsert). requested_by is best-effort.
     await supabase
       .from('settlement_finalize_jobs')
       .upsert(
         {
           prediction_id: predictionId,
-          requested_by: actorId,
+          requested_by: requestedBy,
           status: 'queued',
           updated_at: new Date().toISOString(),
         } as any,
         { onConflict: 'prediction_id' } as any
       );
 
-    await logAdminAction({
-      actorId,
-      action: 'admin_settlement_sync',
-      targetType: 'prediction',
-      targetId: predictionId,
-      reason: note || undefined,
-      meta: {
-        alreadySettled: isAlreadySettled,
-        winningOptionId: (pred as any).winning_option_id,
-      },
-    });
+    if (auditActorId) {
+      await logAdminAction({
+        actorId: auditActorId,
+        action: 'admin_settlement_sync',
+        targetType: 'prediction',
+        targetId: predictionId,
+        reason: note || undefined,
+        meta: {
+          alreadySettled: isAlreadySettled,
+          winningOptionId: (pred as any).winning_option_id,
+        },
+      });
+    }
 
     return res.json({
       success: true,
@@ -491,14 +490,7 @@ settlementsRouter.get('/stats', async (req, res) => {
  */
 settlementsRouter.get('/finalize-queue', async (req, res) => {
   try {
-    const actorId = req.query.actorId as string;
-    if (!actorId) {
-      return res.status(401).json({
-        error: 'Unauthorized',
-        message: 'actorId required',
-        version: VERSION,
-      });
-    }
+    // actorId optional in admin-key-only mode
 
     // Get predictions that are settled but don't have finalized on-chain status
     const { data: settledPredictions, error: predError } = await supabase
@@ -597,13 +589,13 @@ settlementsRouter.get('/finalize-queue', async (req, res) => {
 settlementsRouter.post('/:predictionId/finalize-onchain', async (req, res) => {
   try {
     const { predictionId } = req.params;
-    const actorId = (req.body as any)?.actorId;
+    const actorId = (req.body as any)?.actorId || getFallbackAdminActorId();
     const reason = (req.body as any)?.reason || 'Admin finalization';
 
     if (!actorId) {
-      return res.status(401).json({
-        error: 'Unauthorized',
-        message: 'actorId required',
+      return res.status(400).json({
+        error: 'Bad Request',
+        message: 'actorId required (or configure ADMIN_USER_IDS for admin-key-only ops)',
         version: VERSION,
       });
     }
@@ -796,13 +788,7 @@ settlementsRouter.post('/:predictionId/finalize', async (req, res) => {
     const actorId = (req.body as any)?.actorId || getFallbackAdminActorId();
     const reason = (req.body as any)?.reason || 'Admin finalize';
 
-    if (!actorId) {
-      return res.status(400).json({
-        error: 'Bad Request',
-        message: 'actorId required (or configure ADMIN_USER_IDS for admin-key-only ops)',
-        version: VERSION,
-      });
-    }
+    // actorId is optional in admin-key-only mode; we’ll skip audit if missing.
 
     // If job already finalized, no-op
     const { data: existingJob } = await supabase
@@ -812,14 +798,16 @@ settlementsRouter.post('/:predictionId/finalize', async (req, res) => {
       .maybeSingle();
 
     if (existingJob?.status === 'finalized') {
-      await logAdminAction({
-        actorId,
-        action: 'admin_settlement_finalize_noop',
-        targetType: 'prediction',
-        targetId: predictionId,
-        reason,
-        meta: { tx_hash: existingJob.tx_hash || null },
-      });
+      if (actorId) {
+        await logAdminAction({
+          actorId,
+          action: 'admin_settlement_finalize_noop',
+          targetType: 'prediction',
+          targetId: predictionId,
+          reason,
+          meta: { tx_hash: existingJob.tx_hash || null },
+        });
+      }
       return res.json({
         success: true,
         message: 'Already finalized',
@@ -853,6 +841,9 @@ settlementsRouter.post('/:predictionId/finalize', async (req, res) => {
         version: VERSION,
       });
     }
+
+    // Best-effort uuid for DB fields that may require it (jobs requested_by, etc.)
+    const requestedBy = actorId || (prediction as any).creator_id || null;
 
     if (prediction.status !== 'settled') {
       return res.status(400).json({
@@ -947,7 +938,7 @@ settlementsRouter.post('/:predictionId/finalize', async (req, res) => {
       .upsert(
         {
           prediction_id: predictionId,
-          requested_by: actorId,
+          requested_by: requestedBy,
           status: 'finalized',
           tx_hash: txHash,
           error: null,
@@ -956,14 +947,16 @@ settlementsRouter.post('/:predictionId/finalize', async (req, res) => {
         { onConflict: 'prediction_id' } as any
       );
 
-    await logAdminAction({
-      actorId,
-      action: 'admin_settlement_finalize',
-      targetType: 'prediction',
-      targetId: predictionId,
-      reason,
-      meta: { tx_hash: txHash, merkle_root: settlement.root },
-    });
+    if (actorId) {
+      await logAdminAction({
+        actorId,
+        action: 'admin_settlement_finalize',
+        targetType: 'prediction',
+        targetId: predictionId,
+        reason,
+        meta: { tx_hash: txHash, merkle_root: settlement.root },
+      });
+    }
 
     return res.json({
       success: true,

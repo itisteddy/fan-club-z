@@ -236,18 +236,50 @@ predictionsRouter.get('/:predictionId', async (req, res) => {
     }
 
     // Get options
-    const { data: options } = await supabase
+    const OPTIONS_EXT = 'id, label, text, odds, probability, current_odds, total_staked, created_at';
+    const OPTIONS_BASE = 'id, label, created_at';
+    let options: any[] = [];
+    const optFirst = await supabase
       .from('prediction_options')
-      .select('id, label, text, odds, probability, current_odds, total_staked, created_at')
+      .select(OPTIONS_EXT)
       .eq('prediction_id', predictionId)
       .order('created_at', { ascending: true });
+    if (optFirst.error && isSchemaMismatch(optFirst.error)) {
+      const optFallback = await supabase
+        .from('prediction_options')
+        .select(OPTIONS_BASE)
+        .eq('prediction_id', predictionId)
+        .order('created_at', { ascending: true });
+      options = (optFallback.data as any[]) || [];
+    } else if (optFirst.error) {
+      console.error('[Admin/Predictions] Options query error:', optFirst.error);
+      return res.status(500).json({ error: 'Internal Server Error', message: 'Failed to fetch options', version: VERSION });
+    } else {
+      options = (optFirst.data as any[]) || [];
+    }
 
     // Get entry stats
-    const { data: entries } = await supabase
+    const ENTRIES_EXT = 'id, user_id, option_id, amount, provider, created_at, status';
+    const ENTRIES_BASE = 'id, user_id, option_id, amount, created_at, status';
+    let entries: any[] = [];
+    const entFirst = await supabase
       .from('prediction_entries')
-      .select('id, user_id, option_id, amount, provider, created_at, status')
+      .select(ENTRIES_EXT)
       .eq('prediction_id', predictionId)
       .order('created_at', { ascending: false });
+    if (entFirst.error && isSchemaMismatch(entFirst.error)) {
+      const entFallback = await supabase
+        .from('prediction_entries')
+        .select(ENTRIES_BASE)
+        .eq('prediction_id', predictionId)
+        .order('created_at', { ascending: false });
+      entries = ((entFallback.data as any[]) || []).map((e: any) => ({ ...e, provider: 'unknown' }));
+    } else if (entFirst.error) {
+      console.error('[Admin/Predictions] Entries query error:', entFirst.error);
+      return res.status(500).json({ error: 'Internal Server Error', message: 'Failed to fetch entries', version: VERSION });
+    } else {
+      entries = (entFirst.data as any[]) || [];
+    }
 
     // Get settlement info
     const { data: settlement } = await supabase
@@ -269,11 +301,11 @@ predictionsRouter.get('/:predictionId', async (req, res) => {
     }
 
     // Aggregate stats
-    const totalStake = (entries || []).reduce((sum, e) => sum + Number(e.amount || 0), 0);
-    const uniqueBettors = new Set((entries || []).map(e => e.user_id)).size;
+    const totalStake = (entries || []).reduce((sum, e) => sum + Number((e as any).amount || 0), 0);
+    const uniqueBettors = new Set((entries || []).map(e => (e as any).user_id)).size;
     const stakeByOption: Record<string, number> = {};
     for (const e of entries || []) {
-      stakeByOption[e.option_id] = (stakeByOption[e.option_id] || 0) + Number(e.amount || 0);
+      stakeByOption[(e as any).option_id] = (stakeByOption[(e as any).option_id] || 0) + Number((e as any).amount || 0);
     }
 
     const demoEntries = (entries || []).filter((e: any) => String(e.provider || '') === 'demo-wallet');

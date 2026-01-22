@@ -95,7 +95,7 @@ export const SettlementsPage: React.FC = () => {
       toast.success('Sync queued');
       fetchData();
     } catch (e) {
-      toast.error('Failed to sync');
+      toast.error((e as any)?.message || 'Failed to sync');
     } finally {
       setActionLoading(null);
     }
@@ -249,7 +249,7 @@ export const SettlementsPage: React.FC = () => {
                   <div className="flex items-center gap-2 ml-4">
                     <button
                       onClick={() => handleSync(s.predictionId)}
-                      disabled={actionLoading === s.predictionId}
+                      disabled={actionLoading === s.predictionId || s.needs.needsOutcome}
                       className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 disabled:opacity-50 flex items-center gap-1"
                     >
                       {actionLoading === s.predictionId ? (
