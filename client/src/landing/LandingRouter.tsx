@@ -13,6 +13,8 @@ const LandingRouter: React.FC = () => {
     <Routes>
       <Route path="/" element={<LandingPage />} />
       <Route path="/docs/funding-guide" element={<FundingGuidePage />} />
+      {/* Admin routes - must come before catch-all */}
+      <Route path="/admin" element={<LandingAdminRouter />} />
       <Route path="/admin/*" element={<LandingAdminRouter />} />
       {/* Fallback to landing page for any unmatched routes */}
       <Route path="*" element={<LandingPage />} />
