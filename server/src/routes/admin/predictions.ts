@@ -6,6 +6,20 @@ import { logAdminAction } from './audit';
 
 export const predictionsRouter = Router();
 
+function isSchemaMismatch(err: any): boolean {
+  const code = String(err?.code || '');
+  const msg = String(err?.message || '');
+  // Postgres undefined_column / undefined_table, plus common PostgREST schema cache errors
+  return (
+    code === '42703' || // undefined_column
+    code === '42P01' || // undefined_table
+    code === 'PGRST200' ||
+    msg.includes('does not exist') ||
+    msg.toLowerCase().includes('schema cache') ||
+    msg.toLowerCase().includes('could not find the')
+  );
+}
+
 const SearchSchema = z.object({
   q: z.string().optional(),
   status: z.enum(['active', 'pending', 'settled', 'voided', 'cancelled', 'all']).default('all'),
@@ -75,15 +89,27 @@ predictionsRouter.get('/', async (req, res) => {
       }
     }
 
-    let query = supabase
-      .from('predictions')
-      .select(`
-        id, title, description, status, created_at, entry_deadline, end_date, closed_at, settled_at, resolution_date,
-        winning_option_id, creator_id, platform_fee_percentage, creator_fee_percentage,
-        users!predictions_creator_id_fkey(username, full_name)
-      `, { count: 'exact' })
-      .order('created_at', { ascending: false })
-      .range(offset, offset + limit - 1);
+    const EXTENDED_SELECT = `
+      id, title, description, status, created_at,
+      entry_deadline, end_date, closed_at, settled_at, resolution_date,
+      winning_option_id, creator_id, platform_fee_percentage, creator_fee_percentage,
+      users!predictions_creator_id_fkey(username, full_name)
+    `;
+    const BASE_SELECT = `
+      id, title, description, status, created_at,
+      entry_deadline,
+      winning_option_id, creator_id, platform_fee_percentage, creator_fee_percentage,
+      users!predictions_creator_id_fkey(username, full_name)
+    `;
+
+    const buildQuery = (select: string) =>
+      supabase
+        .from('predictions')
+        .select(select, { count: 'exact' })
+        .order('created_at', { ascending: false })
+        .range(offset, offset + limit - 1);
+
+    let query = buildQuery(EXTENDED_SELECT);
 
     // Status filter
     if (status !== 'all') {
@@ -100,7 +126,20 @@ predictionsRouter.get('/', async (req, res) => {
       query = query.in('id', Array.from(allowedIds));
     }
 
-    const { data, error, count } = await query;
+    let { data, error, count } = await query;
+    // Some deployments have different prediction schema; retry with minimal select.
+    if (error && isSchemaMismatch(error)) {
+      console.warn('[Admin/Predictions] Select schema mismatch, retrying with base select:', error);
+      let fallbackQuery = buildQuery(BASE_SELECT);
+      if (status !== 'all') fallbackQuery = fallbackQuery.eq('status', status);
+      if (q) {
+        fallbackQuery = fallbackQuery.or(
+          `title.ilike.%${q}%,id.eq.${q.length === 36 ? q : '00000000-0000-0000-0000-000000000000'}`
+        );
+      }
+      if (allowedIds) fallbackQuery = fallbackQuery.in('id', Array.from(allowedIds));
+      ({ data, error, count } = await fallbackQuery);
+    }
 
     if (error) {
       console.error('[Admin/Predictions] Search error:', error);

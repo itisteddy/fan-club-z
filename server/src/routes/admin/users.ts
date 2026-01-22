@@ -11,6 +11,19 @@ function isUuid(value: string | undefined | null): boolean {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(value));
 }
 
+function isSchemaMismatch(err: any): boolean {
+  const code = String(err?.code || '');
+  const msg = String(err?.message || '');
+  return (
+    code === '42703' || // undefined_column
+    code === '42P01' || // undefined_table
+    code === 'PGRST200' ||
+    msg.includes('does not exist') ||
+    msg.toLowerCase().includes('schema cache') ||
+    msg.toLowerCase().includes('could not find the')
+  );
+}
+
 const SearchQuerySchema = z.object({
   q: z.string().min(1).max(200),
   limit: z.coerce.number().min(1).max(100).default(25),
@@ -46,8 +59,10 @@ usersRouter.get('/search', async (req, res) => {
     if (isUuid) {
       query = query.eq('id', searchTerm);
     } else {
-      // Search by username, full_name (case-insensitive partial match)
-      query = query.or(`username.ilike.%${searchTerm}%,full_name.ilike.%${searchTerm}%`);
+      // Search by username, full_name, email (case-insensitive partial match)
+      query = query.or(
+        `username.ilike.%${searchTerm}%,full_name.ilike.%${searchTerm}%,email.ilike.%${searchTerm}%`
+      );
     }
 
     const { data: users, error } = await query;
@@ -325,25 +340,59 @@ usersRouter.get('/:userId/predictions', async (req, res) => {
     const { userId } = req.params;
 
     // Created predictions
-    const { data: createdPreds } = await supabase
+    const CREATED_EXT =
+      'id, title, status, category, created_at, entry_deadline, end_date, closed_at, settled_at, resolution_date, creator_id';
+    const CREATED_BASE = 'id, title, status, category, created_at, entry_deadline, creator_id';
+
+    const createdFirst = await supabase
       .from('predictions')
-      .select('id, title, status, category, created_at, entry_deadline, end_date, closed_at, settled_at, resolution_date, creator_id')
+      .select(CREATED_EXT)
       .eq('creator_id', userId)
       .order('created_at', { ascending: false })
       .limit(200);
+    let createdPreds: any[] = (createdFirst.data as any[]) || [];
+    let createdErr: any = createdFirst.error;
+
+    if (createdErr && isSchemaMismatch(createdErr)) {
+      console.warn('[Admin/Users] Created predictions select schema mismatch, retrying:', createdErr);
+      const createdFallback = await supabase
+        .from('predictions')
+        .select(CREATED_BASE)
+        .eq('creator_id', userId)
+        .order('created_at', { ascending: false })
+        .limit(200);
+      createdPreds = (createdFallback.data as any[]) || [];
+    }
 
     // Participated predictions via entries
-    const { data: entryRows } = await supabase
-      .from('prediction_entries')
-      .select(
-        `
+    const PARTICIPATED_EXT = `
         prediction_id,
         prediction:predictions(id, title, status, category, created_at, entry_deadline, end_date, closed_at, settled_at, resolution_date, creator_id)
-      `
-      )
+      `;
+    const PARTICIPATED_BASE = `
+        prediction_id,
+        prediction:predictions(id, title, status, category, created_at, entry_deadline, creator_id)
+      `;
+
+    const entriesFirst = await supabase
+      .from('prediction_entries')
+      .select(PARTICIPATED_EXT)
       .eq('user_id', userId)
       .order('created_at', { ascending: false })
       .limit(500);
+    let entryRows: any[] = (entriesFirst.data as any[]) || [];
+    let entryErr: any = entriesFirst.error;
+
+    if (entryErr && isSchemaMismatch(entryErr)) {
+      console.warn('[Admin/Users] Participated predictions select schema mismatch, retrying:', entryErr);
+      const entriesFallback = await supabase
+        .from('prediction_entries')
+        .select(PARTICIPATED_BASE)
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false })
+        .limit(500);
+      entryRows = (entriesFallback.data as any[]) || [];
+    }
 
     const participatedMap = new Map<string, any>();
     for (const r of entryRows || []) {

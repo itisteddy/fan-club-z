@@ -75,7 +75,14 @@ export async function logAdminAction(args: {
     } as any);
 
     if (error) {
-      console.error('[Admin] Failed to log audit action:', error);
+      // Some environments may not have admin_audit_log (legacy schema). Best-effort logging only.
+      const code = String((error as any)?.code || '');
+      const msg = String((error as any)?.message || '');
+      if (code === '42P01' || msg.includes('does not exist')) {
+        console.warn('[Admin] admin_audit_log missing; skipping audit log insert');
+      } else {
+        console.error('[Admin] Failed to log audit action:', error);
+      }
     }
   } catch (e) {
     console.error('[Admin] Audit log error:', e);
@@ -127,12 +134,15 @@ auditRouter.get('/', async (req, res) => {
     const { data, error, count } = await query;
 
     if (error) {
+      // Legacy envs may not have admin_audit_log; return empty list instead of breaking admin.
+      const code = String((error as any)?.code || '');
+      const msg = String((error as any)?.message || '');
+      if (code === '42P01' || msg.includes('does not exist')) {
+        console.warn('[Admin] admin_audit_log missing; returning empty audit list');
+        return res.json({ items: [], total: 0, limit, offset, version: VERSION });
+      }
       console.error('[Admin] Failed to fetch audit log:', error);
-      return res.status(500).json({
-        error: 'Internal Server Error',
-        message: 'Failed to fetch audit log',
-        version: VERSION,
-      });
+      return res.status(500).json({ error: 'Internal Server Error', message: 'Failed to fetch audit log', version: VERSION });
     }
 
     // Fetch actor usernames for display

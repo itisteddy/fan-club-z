@@ -7,6 +7,19 @@ import { settleDemoRail } from '../settlement';
 
 export const settlementsRouter = Router();
 
+function isSchemaMismatch(err: any): boolean {
+  const code = String(err?.code || '');
+  const msg = String(err?.message || '');
+  return (
+    code === '42703' || // undefined_column
+    code === '42P01' || // undefined_table
+    code === 'PGRST200' ||
+    msg.includes('does not exist') ||
+    msg.toLowerCase().includes('schema cache') ||
+    msg.toLowerCase().includes('could not find the')
+  );
+}
+
 const SyncSchema = z.object({
   actorId: z.string().uuid(),
   note: z.string().optional(),
@@ -137,11 +150,28 @@ settlementsRouter.get('/queue', async (req, res) => {
     const nowIso = new Date().toISOString();
 
     // Fetch recent predictions; filter in-memory (schema differs between environments)
-    const { data: preds, error: predErr } = await supabase
+    const EXT_SELECT =
+      'id, title, status, entry_deadline, end_date, closed_at, settled_at, resolution_date, winning_option_id, created_at';
+    const BASE_SELECT = 'id, title, status, entry_deadline, winning_option_id, created_at';
+
+    const first = await supabase
       .from('predictions')
-      .select('id, title, status, entry_deadline, end_date, closed_at, settled_at, resolution_date, winning_option_id, created_at')
+      .select(EXT_SELECT)
       .order('created_at', { ascending: false })
       .limit(500);
+    let preds: any[] = (first.data as any[]) || [];
+    let predErr: any = first.error;
+
+    if (predErr && isSchemaMismatch(predErr)) {
+      console.warn('[Admin/Settlements] Queue select schema mismatch, retrying with base select:', predErr);
+      const fallback = await supabase
+        .from('predictions')
+        .select(BASE_SELECT)
+        .order('created_at', { ascending: false })
+        .limit(500);
+      preds = (fallback.data as any[]) || [];
+      predErr = fallback.error;
+    }
 
     if (predErr) {
       console.error('[Admin/Settlements] Queue predictions query error:', predErr);
