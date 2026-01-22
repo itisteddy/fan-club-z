@@ -113,7 +113,8 @@ export const SettlementsPage: React.FC = () => {
       failed: { icon: XCircle, color: 'text-red-400 bg-red-600/20' },
     };
 
-    const config = statusConfig[job.status] || statusConfig.queued;
+    const fallback = statusConfig.queued ?? { icon: Clock, color: 'text-amber-400 bg-amber-600/20' };
+    const config = statusConfig[job.status] ?? fallback;
     const Icon = config.icon;
 
     return (

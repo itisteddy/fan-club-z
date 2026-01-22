@@ -7,6 +7,7 @@ import { openAuthGate } from '../auth/authGateAdapter';
 import UserAvatar from '../components/common/UserAvatar';
 import AppHeader from '../components/layout/AppHeader';
 import { formatLargeNumber, formatCurrency, formatPercentage, formatTimeAgo } from '@/lib/format';
+import { formatTxAmount, toneClass } from '@/lib/txFormat';
 import { useUserActivity, ActivityItem as FeedActivityItem } from '@/hooks/useActivityFeed';
 import { t } from '@/lib/lexicon';
 import { ReferralCard, ReferralShareModal } from '@/components/referral';
@@ -137,7 +138,10 @@ const ProfilePageV2: React.FC<ProfilePageV2Props> = ({ onNavigateBack, userId })
           icon: <Target className="w-4 h-4 text-blue-600" />, 
           title: item.predictionTitle ? `Staked on ${item.predictionTitle}` : 'Stake placed',
           subtitle: item.data?.option_label ? `Option: ${item.data.option_label}` : '',
-          amount: item.data?.amount ? formatCurrency(Number(item.data.amount), { compact: true }) : null,
+          amount: item.data?.amount ? (() => {
+            const tx = formatTxAmount({ amount: Number(item.data.amount), type: item.type, kind: item.type, compact: true });
+            return tx.display;
+          })() : null,
           badge: 'placed',
           badgeColor: 'text-blue-600'
         };
@@ -157,7 +161,10 @@ const ProfilePageV2: React.FC<ProfilePageV2Props> = ({ onNavigateBack, userId })
           icon: <DollarSign className="w-4 h-4 text-emerald-600" />,
           title: 'Escrow funds released',
           subtitle: item.data?.prediction_title ? item.data.prediction_title : '',
-          amount: item.data?.amount ? formatCurrency(Number(item.data.amount), { compact: true }) : null,
+          amount: item.data?.amount ? (() => {
+            const tx = formatTxAmount({ amount: Number(item.data.amount), type: item.type, kind: item.type, compact: true });
+            return tx.display;
+          })() : null,
           badge: 'wallet',
           badgeColor: 'text-emerald-600'
         };
@@ -167,7 +174,10 @@ const ProfilePageV2: React.FC<ProfilePageV2Props> = ({ onNavigateBack, userId })
           icon: <DollarSign className="w-4 h-4 text-emerald-700" />,
           title: 'Settlement payout received',
           subtitle: item.data?.prediction_title ? item.data.prediction_title : '',
-          amount: item.data?.amount ? formatCurrency(Number(item.data.amount), { compact: true }) : null,
+          amount: item.data?.amount ? (() => {
+            const tx = formatTxAmount({ amount: Number(item.data.amount), type: item.type, kind: item.type, compact: true });
+            return tx.display;
+          })() : null,
           badge: 'payout',
           badgeColor: 'text-emerald-700'
         };
@@ -177,7 +187,10 @@ const ProfilePageV2: React.FC<ProfilePageV2Props> = ({ onNavigateBack, userId })
           icon: <DollarSign className="w-4 h-4 text-slate-600" />,
           title: 'Platform fee credited',
           subtitle: item.data?.prediction_title ? item.data.prediction_title : '',
-          amount: item.data?.amount ? formatCurrency(Number(item.data.amount), { compact: true }) : null,
+          amount: item.data?.amount ? (() => {
+            const tx = formatTxAmount({ amount: Number(item.data.amount), type: item.type, kind: item.type, compact: true });
+            return tx.display;
+          })() : null,
           badge: 'platform',
           badgeColor: 'text-slate-600'
         };
@@ -187,7 +200,10 @@ const ProfilePageV2: React.FC<ProfilePageV2Props> = ({ onNavigateBack, userId })
           icon: <DollarSign className="w-4 h-4 text-amber-600" />,
           title: 'Creator earnings received',
           subtitle: item.data?.prediction_title ? item.data.prediction_title : '',
-          amount: item.data?.amount ? formatCurrency(Number(item.data.amount), { compact: true }) : null,
+          amount: item.data?.amount ? (() => {
+            const tx = formatTxAmount({ amount: Number(item.data.amount), type: item.type, kind: item.type, compact: true });
+            return tx.display;
+          })() : null,
           badge: 'creator',
           badgeColor: 'text-amber-600'
         };
@@ -197,9 +213,25 @@ const ProfilePageV2: React.FC<ProfilePageV2Props> = ({ onNavigateBack, userId })
           icon: <XCircle className="w-4 h-4 text-red-600" />,
           title: 'Lost prediction',
           subtitle: item.predictionTitle ?? item.data?.prediction_title ?? '',
-          amount: item.data?.amount ? formatCurrency(Number(item.data.amount), { compact: true }) : null,
+          amount: item.data?.amount ? (() => {
+            const tx = formatTxAmount({ amount: Number(item.data.amount), type: item.type, kind: item.type, compact: true });
+            return tx.display;
+          })() : null,
           badge: 'loss',
           badgeColor: 'text-red-600'
+        };
+      case 'wallet.bet_lock':
+        return {
+          iconBg: 'bg-blue-100',
+          icon: <Target className="w-4 h-4 text-blue-600" />,
+          title: item.data?.prediction_title ? `Staked on ${item.data.prediction_title}` : 'Stake placed',
+          subtitle: item.data?.option_label ? `Option: ${item.data.option_label}` : '',
+          amount: item.data?.amount ? (() => {
+            const tx = formatTxAmount({ amount: Number(item.data.amount), type: item.type, kind: item.type, compact: true });
+            return tx.display;
+          })() : null,
+          badge: 'placed',
+          badgeColor: 'text-blue-600'
         };
       case 'wallet.other':
         return {
@@ -207,7 +239,10 @@ const ProfilePageV2: React.FC<ProfilePageV2Props> = ({ onNavigateBack, userId })
           icon: <Activity className="w-4 h-4 text-gray-500" />,
           title: 'Wallet activity',
           subtitle: item.data?.channel ?? '',
-          amount: item.data?.amount ? formatCurrency(Number(item.data.amount), { compact: true }) : null,
+          amount: item.data?.amount ? (() => {
+            const tx = formatTxAmount({ amount: Number(item.data.amount), type: item.type, kind: item.type, compact: true });
+            return tx.display;
+          })() : null,
           badge: 'wallet',
           badgeColor: 'text-gray-500'
         };
@@ -497,7 +532,16 @@ const ProfilePageV2: React.FC<ProfilePageV2Props> = ({ onNavigateBack, userId })
                           
                           <div className="text-right flex-shrink-0">
                             {display.amount && (
-                              <div className="text-sm font-semibold font-mono text-gray-700">
+                              <div
+                                className={`text-sm font-semibold font-mono ${toneClass(
+                                  formatTxAmount({
+                                    amount: Number(item.data?.amount ?? 0),
+                                    type: item.type,
+                                    kind: item.type,
+                                    compact: true,
+                                  }).tone
+                                )}`}
+                              >
                                 {display.amount}
                               </div>
                             )}
@@ -702,7 +746,18 @@ const ProfilePageV2: React.FC<ProfilePageV2Props> = ({ onNavigateBack, userId })
                     </div>
                     <div className="text-right flex-shrink-0 min-w-[80px]">
                       {display.amount && (
-                        <div className="text-sm font-mono font-medium text-gray-700">{display.amount}</div>
+                        <div
+                          className={`text-sm font-mono font-medium ${toneClass(
+                            formatTxAmount({
+                              amount: Number(item.data?.amount ?? 0),
+                              type: item.type,
+                              kind: item.type,
+                              compact: true,
+                            }).tone
+                          )}`}
+                        >
+                          {display.amount}
+                        </div>
                       )}
                       <div className={`text-xs font-medium ${display.badgeColor}`}>{display.badge}</div>
                     </div>

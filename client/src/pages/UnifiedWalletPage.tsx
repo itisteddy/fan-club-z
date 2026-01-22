@@ -22,6 +22,7 @@ import ConnectWalletSheet from '../components/wallet/ConnectWalletSheet';
 import { getApiUrl } from '../config';
 import { useFundingModeStore } from '../store/fundingModeStore';
 import { useAutoNetworkSwitch } from '../hooks/useAutoNetworkSwitch';
+import { formatTxAmount, toneClass } from '@/lib/txFormat';
 
 interface WalletPageProps {
   onNavigateBack?: () => void;
@@ -520,13 +521,11 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
                   <div className="space-y-2">
                     {activities.map((activity) => {
                       const { Icon, color } = getActivityIcon(activity.kind);
-                      const isPositive =
-                        activity.kind === 'deposit' ||
-                        activity.kind === 'unlock' ||
-                        activity.kind === 'bet_refund' ||
-                        activity.kind === 'payout' ||
-                        activity.kind === 'creator_fee' ||
-                        activity.kind === 'platform_fee';
+                      const tx = formatTxAmount({
+                        amount: activity.amountUSD ?? 0,
+                        kind: activity.kind,
+                        compact: true,
+                      });
                       
                       return (
                         <div key={activity.id} className="flex items-center justify-between py-3 border-b border-gray-100 last:border-0">
@@ -549,10 +548,8 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
                             </div>
                           </div>
                           <div className="text-right">
-                            <p className={`text-sm font-semibold ${
-                              isPositive ? 'text-green-600' : 'text-red-600'
-                            }`}>
-                              {isPositive ? '+' : '-'}{formatUSDCompact(activity.amountUSD ?? 0)}
+                            <p className={`text-sm font-semibold ${toneClass(tx.tone)}`}>
+                              {tx.display}
                             </p>
                             {activity.txHash && /^0x[a-fA-F0-9]{64}$/.test(String(activity.txHash)) && (
                               <a

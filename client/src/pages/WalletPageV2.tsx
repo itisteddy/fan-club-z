@@ -12,6 +12,7 @@ import { openAuthGate } from '../auth/authGateAdapter';
 import AppHeader from '../components/layout/AppHeader';
 import toast from 'react-hot-toast';
 import { formatCurrency, formatLargeNumber, formatPercentage } from '@/lib/format';
+import { formatTxAmount, toneClass } from '@/lib/txFormat';
 import { useClaimableClaims, type ClaimableItem } from '@/hooks/useClaimableClaims';
 import { useMerkleClaim } from '@/hooks/useMerkleClaim';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -21,7 +22,7 @@ import WithdrawUSDCModal from '../components/wallet/WithdrawUSDCModal';
 import { useOnchainActivity, formatActivityKind } from '../hooks/useOnchainActivity';
 import { useUnifiedBalance } from '../hooks/useUnifiedBalance';
 import { useEscrowBalance } from '../hooks/useEscrowBalance';
-import { useWalletActivity, type WalletActivityItem } from '../hooks/useWalletActivity';
+import { useWalletActivity, type WalletActivityItem, type WalletActivityResponse } from '../hooks/useWalletActivity';
 import { useAutoNetworkSwitch } from '../hooks/useAutoNetworkSwitch';
 import { QK } from '@/lib/queryKeys';
 import { t } from '@/lib/lexicon';
@@ -165,8 +166,12 @@ const WalletPageV2: React.FC<WalletPageV2Props> = ({ onNavigateBack }) => {
   
   // Wallet activity (from database - transaction history only)
   // Show first 20 in main view, all transactions in modal
-  const { data: walletActivity, isLoading: isLoadingActivity } = useWalletActivity(user?.id, 20);
-  const { data: allWalletActivity, isLoading: isLoadingAllActivity } = useWalletActivity(user?.id, 1000);
+  const walletActivityQuery = useWalletActivity(user?.id, 20);
+  const allWalletActivityQuery = useWalletActivity(user?.id, 1000);
+  const walletActivity = walletActivityQuery.data as WalletActivityResponse | undefined;
+  const isLoadingActivity = walletActivityQuery.isLoading;
+  const allWalletActivity = allWalletActivityQuery.data as WalletActivityResponse | undefined;
+  const isLoadingAllActivity = allWalletActivityQuery.isLoading;
   const { data: claimables } = useClaimableClaims(address, 100);
   const [showAllTransactions, setShowAllTransactions] = useState(false);
   
@@ -959,7 +964,14 @@ const WalletPageV2: React.FC<WalletPageV2Props> = ({ onNavigateBack }) => {
                               <span className="text-[11px] text-gray-500 whitespace-nowrap">
                                 {item.createdAt ? formatTimeAgo(item.createdAt) : ''}
                               </span>
-                              <span className="font-mono text-xs font-medium whitespace-nowrap">{formatCurrency(item.amountUSD, { compact: false })}</span>
+                              {(() => {
+                                const tx = formatTxAmount({ amount: item.amountUSD, kind: item.kind, compact: false });
+                                return (
+                                  <span className={`font-mono text-xs font-medium whitespace-nowrap ${toneClass(tx.tone)}`}>
+                                    {tx.display}
+                                  </span>
+                                );
+                              })()}
                             </div>
                           </div>
                         );
@@ -1039,9 +1051,14 @@ const WalletPageV2: React.FC<WalletPageV2Props> = ({ onNavigateBack }) => {
 
             <div className="bg-gray-50 rounded-2xl p-4 mb-4">
               <p className="text-xs text-gray-500 mb-1">Amount</p>
-              <p className="text-2xl font-semibold text-gray-900">
-                {formatCurrency(selectedActivity.amountUSD, { currency: 'USD' })}
-              </p>
+              {(() => {
+                const tx = formatTxAmount({ amount: selectedActivity.amountUSD, kind: selectedActivity.kind, compact: false });
+                return (
+                  <p className={`text-2xl font-semibold ${toneClass(tx.tone)}`}>
+                    {tx.display}
+                  </p>
+                );
+              })()}
               <div className="flex items-center gap-2 text-xs text-gray-500 mt-3">
                 <Clock className="w-3.5 h-3.5" />
                 <span>{selectedActivity.createdAt ? formatTimeAgo(selectedActivity.createdAt) : 'Just now'}</span>
@@ -1320,9 +1337,14 @@ const WalletPageV2: React.FC<WalletPageV2Props> = ({ onNavigateBack }) => {
                         </div>
                       </div>
                       <div className="text-right flex-shrink-0 min-w-[80px]">
-                        <div className="text-sm font-mono font-medium text-gray-700">
-                          {formatCurrency(item.amountUSD, { compact: false })}
-                        </div>
+                        {(() => {
+                          const tx = formatTxAmount({ amount: item.amountUSD, kind: item.kind, compact: false });
+                          return (
+                            <div className={`text-sm font-mono font-medium ${toneClass(tx.tone)}`}>
+                              {tx.display}
+                            </div>
+                          );
+                        })()}
                       </div>
                     </div>
                   );

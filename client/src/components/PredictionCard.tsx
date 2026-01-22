@@ -10,6 +10,7 @@ import toast from 'react-hot-toast';
 import { formatCurrencyShort, formatNumberCompact } from '@/lib/format';
 import { formatTimeRemaining } from '@/lib/utils';
 import ImageThumb from './ui/ImageThumb';
+import { getPredictionStatusUi } from '@/lib/predictionStatusUi';
 
 interface PredictionCardProps {
   prediction: Prediction;
@@ -87,45 +88,22 @@ const PredictionCardContent: React.FC<PredictionCardProps> = ({
   }));
 
   const statusBadge = (() => {
-    if (normalizedStatus === 'settled') {
-      return {
-        label: 'Settled',
-        className: 'bg-emerald-50 text-emerald-600 border border-emerald-100',
-      };
-    }
-    if (normalizedStatus === 'awaiting_settlement') {
-      return {
-        label: 'Awaiting settlement',
-        className: 'bg-amber-50 text-amber-700 border border-amber-100',
-      };
-    }
-    if (normalizedStatus === 'closed' || normalizedStatus === 'ended') {
-      return {
-        label: 'Closed',
-        className: 'bg-gray-100 text-gray-700 border border-gray-200',
-      };
-    }
-    if (normalizedStatus === 'cancelled' || normalizedStatus === 'canceled') {
-      return {
-        label: 'Cancelled',
-        className: 'bg-gray-100 text-gray-600 border border-gray-200',
-      };
-    }
-    if (!entryDeadline || !timeRemaining) {
-      return {
-        label: 'No deadline',
-        className: 'bg-slate-100 text-slate-600 border border-slate-200',
-      };
-    }
-    if (timeRemaining === 'Ended') {
-      return {
-        label: 'Closed',
-        className: 'bg-red-50 text-red-600 border border-red-100',
-      };
-    }
+    const statusUi = getPredictionStatusUi({
+      status: prediction.status,
+      settledAt: prediction.settledAt || prediction.settled_at,
+      closesAt: entryDeadline,
+    });
+    
+    const classNameMap = {
+      success: 'bg-emerald-50 text-emerald-600 border border-emerald-100',
+      warning: 'bg-amber-50 text-amber-700 border border-amber-100',
+      danger: 'bg-red-50 text-red-600 border border-red-100',
+      default: 'bg-gray-50 text-gray-700 border border-gray-100',
+    };
+    
     return {
-      label: `Ends in ${timeRemaining}`,
-      className: 'bg-slate-100 text-slate-600 border border-slate-200',
+      label: statusUi.label,
+      className: classNameMap[statusUi.tone],
     };
   })();
 

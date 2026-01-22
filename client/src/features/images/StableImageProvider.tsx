@@ -130,15 +130,13 @@ export function useStableImage({
       if (prediction.image_url && !cancelled) {
         qaLog(`[stable-image] Using database image for ${prediction.id}: ${prediction.image_url.slice(0, 50)}...`);
         setImage({
-          id: `db-${prediction.id}`,
           url: prediction.image_url,
+          previewUrl: prediction.image_url,
           width: 800,
           height: 600,
-          alt: prediction.title,
           photographer: '',
-          photographerUrl: '',
-          provider: 'database'
-        } as StockImage);
+          provider: 'pexels',
+        });
         setProvider('pexels'); // Treat as primary provider
         imageLocked.current = true;
         setLoading(false);

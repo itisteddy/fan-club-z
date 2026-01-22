@@ -217,6 +217,10 @@ export function useSettlementMerkle() {
           platformFee: platformFee.toString(),
         });
 
+        if (!address) {
+          throw new Error('Connect wallet to submit settlement on-chain');
+        }
+
         toast.loading('Submitting settlement root on-chain...', { id: 'settle' });
         
         // Execute with session recovery wrapper

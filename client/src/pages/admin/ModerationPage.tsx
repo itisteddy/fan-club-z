@@ -223,7 +223,7 @@ export const ModerationPage: React.FC = () => {
                             {creator.fullName || creator.username || 'Unknown'}
                           </p>
                           {creator.isVerified && (
-                            <BadgeCheck className="w-4 h-4 text-blue-400" title="Verified" />
+                            <BadgeCheck className="w-4 h-4 text-blue-400" aria-label="Verified" />
                           )}
                           {creator.isBanned && (
                             <span className="px-2 py-0.5 bg-red-600/20 text-red-400 text-xs rounded-full">

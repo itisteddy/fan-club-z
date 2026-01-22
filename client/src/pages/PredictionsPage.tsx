@@ -27,6 +27,7 @@ import { useMerkleClaim } from '@/hooks/useMerkleClaim';
 import { useClaimableClaims } from '@/hooks/useClaimableClaims';
 import { formatCurrency } from '@/lib/format';
 import { t } from '@/lib/lexicon';
+import { buildPredictionCardVM } from '@/lib/predictionCardVM';
 
 type TabKey = 'Active' | 'Created' | 'Completed';
 
@@ -290,32 +291,31 @@ const PredictionsPage: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNa
         return null;
     }
 
-        const option = (entry as any).option || prediction.options?.find((o: PredictionOption) => o.id === entry.option_id);
-        const profit = (entry.actual_payout || 0) - entry.amount;
-        
-        // Determine display status and time with proper terminology
-        let displayStatus: 'active' | 'won' | 'lost' | 'refunded' = entry.status;
-        let timeLabel = "";
-        
-        if (prediction.status === 'settled' && (entry.status === 'won' || entry.status === 'lost')) {
-          timeLabel = `Settled on ${new Date(entry.updated_at).toLocaleDateString()}`;
-        } else if (prediction.status === 'closed') {
-          timeLabel = "Closed - Awaiting Settlement";
-        } else if (prediction.status === 'awaiting_settlement') {
-          timeLabel = "Awaiting Settlement";
-        } else if (prediction.status === 'disputed') {
-          timeLabel = "Settlement Disputed";
-        } else if (prediction.status === 'refunded') {
-          timeLabel = `Refunded on ${new Date(prediction.updated_at || prediction.created_at).toLocaleDateString()}`;
-        } else if (new Date(prediction.entry_deadline) <= new Date()) {
-          timeLabel = `Ended on ${new Date(prediction.entry_deadline).toLocaleDateString()}`;
-          // Keep the original status for ended predictions that haven't been settled
-          if (entry.status === 'active') {
-            displayStatus = 'active'; // Will show as "pending settlement" in UI
-          }
-        } else {
-          timeLabel = getTimeRemaining(prediction.entry_deadline, prediction.status);
-        }
+        // Use view-model helper for consistent mapping
+        const vm = buildPredictionCardVM({
+          prediction: {
+            id: prediction.id,
+            title: prediction.title,
+            category: prediction.category,
+            status: prediction.status,
+            settled_at: prediction.settled_at || prediction.settledAt || null,
+            entry_deadline: prediction.entry_deadline,
+            participant_count: prediction.participant_count,
+            participants: prediction.participant_count,
+            options: prediction.options,
+            updated_at: prediction.updated_at,
+            created_at: prediction.created_at,
+          },
+          myEntry: {
+            id: entry.id,
+            option_id: entry.option_id,
+            amount: entry.amount,
+            actual_payout: entry.actual_payout || null,
+            status: entry.status,
+            provider: (entry as any).provider,
+            option: entry.option || (entry as any).option,
+          },
+        });
         
         return {
           // IMPORTANT: Use the prediction id (not the entry id) so users can tap
@@ -324,15 +324,21 @@ const PredictionsPage: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNa
           id: prediction.id,
           predictionId: prediction.id,
           entryId: entry.id,
-          title: prediction.title,
+          title: vm.title,
           category: prediction.category,
-          position: option?.label || 'Unknown',
-          stake: entry.amount,
-          actualReturn: entry.actual_payout || 0,
-          profit,
-          status: displayStatus,
-          participants: prediction.participant_count || 0,
-          settledAt: timeLabel
+          position: vm.yourPositionLabel || 'Unknown',
+          stake: vm.staked,
+          actualReturn: vm.returned,
+          profit: vm.profitLoss,
+          status: entry.status, // Keep entry status for win/lost display
+          participants: vm.participantsCount || 0,
+          settledAt: vm.statusSubtext || vm.settledAtText || '',
+          // Include prediction status and other fields needed for VM fallback
+          predictionStatus: prediction.status,
+          entry_deadline: prediction.entry_deadline,
+          options: prediction.options,
+          // VM fields for card rendering
+          vm,
         };
       })
       .filter(Boolean);
@@ -750,7 +756,29 @@ const PredictionsPage: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNa
     })();
     const claimData = claimMap.get(predictionId);
     const hasClaim = !!address && !!claimData && !localClaimed;
-    const isSettled = Boolean(prediction?.settledAt) || (String(prediction?.status || '').toLowerCase() === 'settled');
+    
+    // Use VM for status determination (should already be set from getUserPredictions, but fallback if needed)
+    const vm = prediction.vm || buildPredictionCardVM({
+      prediction: {
+        id: prediction.id || prediction.predictionId,
+        title: prediction.title,
+        category: prediction.category,
+        status: prediction.predictionStatus || prediction.status || 'settled', // Use prediction status (not entry status)
+        settled_at: prediction.settledAt ? (typeof prediction.settledAt === 'string' ? prediction.settledAt : new Date(prediction.settledAt).toISOString()) : null,
+        entry_deadline: prediction.entry_deadline,
+        participant_count: prediction.participants,
+        options: prediction.options,
+      },
+      myEntry: {
+        amount: prediction.stake,
+        actual_payout: prediction.actualReturn,
+        status: prediction.status, // Entry status (won/lost) is in prediction.status for completed cards
+        option_id: prediction.option_id,
+        option: { label: prediction.position },
+      },
+    });
+    
+    const isSettled = vm.statusBadge.text === 'Complete';
 
     const openSafely = async () => {
       // If status already indicates archived, do not fire a detail request at all
@@ -785,21 +813,23 @@ const PredictionsPage: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNa
         <div className="flex-1">
           <div className="flex items-center gap-2 mb-2">
             <span className={`px-2 py-1 rounded-lg text-xs font-medium ${getCategoryColor(prediction.category)}`}>
-              {prediction.category.replace('_', ' ')}
+              {vm.categoryLabel || prediction.category.replace('_', ' ')}
             </span>
             {archived ? (
               <span className="px-2 py-1 rounded-lg text-xs font-medium border bg-gray-50 text-gray-700 border-gray-200">Archived</span>
-            ) : isSettled ? (
-              <span className={`px-2 py-1 rounded-lg text-xs font-medium border ${
-                prediction.status === 'won' 
-                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200' 
-                  : 'bg-red-50 text-red-700 border-red-200'
-              }`}>
-                {prediction.status === 'won' ? 'Won' : 'Lost'}
-              </span>
             ) : (
-              <span className="px-2 py-1 rounded-lg text-xs font-medium border bg-yellow-50 text-yellow-700 border-yellow-200">
-                Awaiting Settlement
+              <span className={`px-2 py-1 rounded-lg text-xs font-medium border ${
+                vm.statusBadge.tone === 'success' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                vm.statusBadge.tone === 'danger' ? 'bg-red-50 text-red-700 border-red-200' :
+                vm.statusBadge.tone === 'warning' ? 'bg-yellow-50 text-yellow-700 border-yellow-200' :
+                'bg-gray-50 text-gray-700 border-gray-200'
+              }`}>
+                {vm.statusBadge.text}
+              </span>
+            )}
+            {vm.railLabel && (
+              <span className="px-1.5 py-0.5 rounded text-xs font-medium bg-slate-100 text-slate-600 border border-slate-200">
+                {vm.railLabel}
               </span>
             )}
           </div>
@@ -814,12 +844,12 @@ const PredictionsPage: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNa
           <span className={`text-sm font-medium ${
             archived ? 'text-gray-700' : isSettled ? (prediction.status === 'won' ? 'text-emerald-800' : 'text-red-800') : 'text-yellow-800'
           }`}>
-            {archived ? 'Archived' : isSettled ? `Your Position: ${prediction.position}` : 'Awaiting Settlement'}
+            {archived ? 'Archived' : vm.yourPositionLabel ? `Your Position: ${vm.yourPositionLabel}` : 'No position'}
           </span>
           <div className="flex items-center gap-3">
             {isSettled && (
               <span className={`text-lg font-bold ${prediction.status === 'won' ? 'text-emerald-700' : 'text-red-700'}`}>
-                {prediction.profit >= 0 ? '+' : '−'}${Math.abs(prediction.profit).toLocaleString()}
+                {vm.profitLoss >= 0 ? '+' : '−'}${Math.abs(vm.profitLoss).toLocaleString()}
               </span>
             )}
             {hasClaim && claimData && (
@@ -854,7 +884,7 @@ const PredictionsPage: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNa
             <p className={`font-semibold ${
               archived ? 'text-gray-900' : isSettled ? (prediction.status === 'won' ? 'text-emerald-900' : 'text-red-900') : 'text-yellow-900'
             }`}>
-              ${prediction.stake.toLocaleString()}
+              ${vm.staked.toLocaleString()}
             </p>
           </div>
           <div>
@@ -863,7 +893,7 @@ const PredictionsPage: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNa
             }`}>Returned</p>
             <p className={`font-semibold ${
               archived ? 'text-gray-900' : isSettled ? (prediction.status === 'won' ? 'text-emerald-900' : 'text-red-900') : 'text-yellow-900'
-            }`}>{isSettled ? `$${prediction.actualReturn.toLocaleString()}` : '—'}</p>
+            }`}>{isSettled ? `$${vm.returned.toLocaleString()}` : '—'}</p>
           </div>
           <div>
             <p className={`text-xs mb-1 ${
@@ -871,14 +901,14 @@ const PredictionsPage: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNa
             }`}>Profit/Loss</p>
             <p className={`font-semibold ${
               archived ? 'text-gray-900' : isSettled ? (prediction.status === 'won' ? 'text-emerald-900' : 'text-red-900') : 'text-yellow-900'
-            }`}>{isSettled ? `${prediction.profit >= 0 ? '+' : '−'}$${Math.abs(prediction.profit).toLocaleString()}` : 'Pending'}</p>
+            }`}>{isSettled ? `${vm.profitLoss >= 0 ? '+' : '−'}$${Math.abs(vm.profitLoss).toLocaleString()}` : 'Pending'}</p>
           </div>
         </div>
       </div>
 
       <div className="flex items-center justify-between text-sm text-gray-500">
-        <span>{prediction.participants} participants</span>
-        <span>{archived ? 'Archived' : isSettled ? `Settled ${prediction.settledAt}` : 'Closed — awaiting settlement'}</span>
+        <span>{vm.participantsCount || prediction.participants || 0} participants</span>
+        <span>{archived ? 'Archived' : vm.statusSubtext || (vm.settledAtText ? `Settled ${vm.settledAtText}` : '') || ''}</span>
       </div>
       </div>
   );

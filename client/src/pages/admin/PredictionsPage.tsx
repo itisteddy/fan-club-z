@@ -153,7 +153,12 @@ export const PredictionsPage: React.FC = () => {
         ) : (
           <div className="divide-y divide-slate-700">
             {results.map((p) => {
-              const config = statusConfig[p.status] || statusConfig.pending;
+              const fallback = statusConfig.pending ?? {
+                icon: Clock,
+                color: 'text-amber-400 bg-amber-600/20',
+                label: 'Pending',
+              };
+              const config = statusConfig[p.status] ?? fallback;
               const StatusIcon = config.icon;
               return (
                 <button

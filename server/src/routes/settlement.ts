@@ -8,6 +8,7 @@ import { computeMerkleSettlement } from '../services/settlementMerkle';
 import { makePublicClient } from '../chain/base/client';
 import { getEscrowAddress } from '../services/escrowContract';
 import { encodePacked, getAddress, keccak256 } from 'viem';
+import { calculatePayouts, type Entry as PayoutEntry } from '../services/payoutCalculator';
 
 const router = express.Router();
 
@@ -333,52 +334,85 @@ async function settleDemoRail(args: {
     return { demoEntriesCount: 0, demoPlatformFee: 0, demoCreatorFee: 0, demoPayoutPool: 0 };
   }
 
-  const winners = demoEntries.filter(e => e.option_id === winningOptionId);
-  const losers = demoEntries.filter(e => e.option_id !== winningOptionId);
-  const totalWinningStake = winners.reduce((s, e) => s + Number(e.amount || 0), 0);
-  const totalLosingStake = losers.reduce((s, e) => s + Number(e.amount || 0), 0);
+  // Map entries to payout calculator format
+  const payoutEntries: PayoutEntry[] = demoEntries.map((e: any) => ({
+    userId: e.user_id,
+    optionId: e.option_id,
+    amount: Number(e.amount || 0),
+    provider: e.provider,
+  }));
 
-  // Fees are charged on LOSING stake only (per rail)
-  const demoPlatformFee = round2((totalLosingStake * args.platformFeePercent) / 100);
-  const demoCreatorFee = round2((totalLosingStake * args.creatorFeePercent) / 100);
-  const prizePool = Math.max(totalLosingStake - demoPlatformFee - demoCreatorFee, 0);
-  const payoutPool = round2(totalWinningStake + prizePool);
+  // Convert fee percentages to basis points
+  const feeConfig = {
+    platformFeeBps: args.platformFeePercent * 100, // e.g., 2.5% -> 250 bps
+    creatorFeeBps: args.creatorFeePercent * 100, // e.g., 1.0% -> 100 bps
+  };
 
-  // Update demo entries + balances
-  for (const w of winners) {
-    const stake = Number(w.amount || 0);
-    const share = totalWinningStake > 0 ? stake / totalWinningStake : 0;
-    const payout = round2(payoutPool * share);
+  // Calculate payouts using deterministic calculator
+  const demoResult = calculatePayouts({
+    entries: payoutEntries,
+    winningOptionId,
+    feeConfig,
+    rail: 'demo',
+    providerMatch: (p) => p === DEMO_PROVIDER,
+  });
 
-    await supabase
-      .from('prediction_entries')
-      .update({ status: 'won', actual_payout: payout, updated_at: new Date().toISOString() } as any)
-      .eq('id', w.id);
+  const winners = demoEntries.filter((e: any) => e.option_id === winningOptionId);
+  const losers = demoEntries.filter((e: any) => e.option_id !== winningOptionId);
 
-    const inserted = await upsertDemoTx({
-      user_id: w.user_id,
-      direction: 'credit',
-      // Use 'deposit' to satisfy wallet_transactions_type_check
-      type: 'deposit',
-      channel: 'fiat',
-      provider: DEMO_PROVIDER,
-      amount: payout,
-      currency: DEMO_CURRENCY,
-      status: 'completed',
-      external_ref: `demo_payout:${predictionId}:${w.id}`,
-      prediction_id: predictionId,
-      entry_id: w.id,
-      description: `Demo payout for "${predictionTitle}"`,
-      meta: { kind: 'payout', provider: DEMO_PROVIDER, prediction_id: predictionId, entry_id: w.id },
-    } as any);
-    if (inserted) {
-      await applyDemoDelta(w.user_id, { availableDelta: payout, reservedDelta: -stake });
-      try {
-        emitWalletUpdate({ userId: w.user_id, reason: 'payout', amountDelta: payout });
-      } catch {}
+  // Track total stake per user for reserved balance updates
+  const userStakes = new Map<string, number>();
+  for (const entry of demoEntries) {
+    const current = userStakes.get(entry.user_id) || 0;
+    userStakes.set(entry.user_id, current + Number(entry.amount || 0));
+  }
+
+  // Apply payouts to winners (aggregated by userId from calculator)
+  for (const [userId, payoutAmount] of Object.entries(demoResult.payoutsByUserId)) {
+    // Find all entries for this user that won
+    const userWinningEntries = winners.filter((e: any) => e.user_id === userId);
+    const userTotalStake = userStakes.get(userId) || 0;
+
+    // Update entry statuses
+    for (const entry of userWinningEntries) {
+      const stake = Number(entry.amount || 0);
+      const share = demoResult.winnersStakeTotal > 0 ? stake / demoResult.winnersStakeTotal : 0;
+      const entryPayout = round2(demoResult.distributablePot * share);
+
+      await supabase
+        .from('prediction_entries')
+        .update({ status: 'won', actual_payout: entryPayout, updated_at: new Date().toISOString() } as any)
+        .eq('id', entry.id);
+
+      // Record individual entry payout transaction (idempotent)
+      const inserted = await upsertDemoTx({
+        user_id: userId,
+        direction: 'credit',
+        type: 'deposit',
+        channel: 'fiat',
+        provider: DEMO_PROVIDER,
+        amount: entryPayout,
+        currency: DEMO_CURRENCY,
+        status: 'completed',
+        external_ref: `demo_payout:${predictionId}:${entry.id}`,
+        prediction_id: predictionId,
+        entry_id: entry.id,
+        description: `Demo payout for "${predictionTitle}"`,
+        meta: { kind: 'payout', provider: DEMO_PROVIDER, prediction_id: predictionId, entry_id: entry.id },
+      } as any);
+      if (inserted) {
+        // Only apply delta once per user (not per entry)
+        if (userWinningEntries.indexOf(entry) === 0) {
+          await applyDemoDelta(userId, { availableDelta: payoutAmount, reservedDelta: -userTotalStake });
+          try {
+            emitWalletUpdate({ userId, reason: 'payout', amountDelta: payoutAmount });
+          } catch {}
+        }
+      }
     }
   }
 
+  // Record losses (stake already debited at bet placement, so this is just status update)
   for (const l of losers) {
     const stake = Number(l.amount || 0);
     await supabase
@@ -386,6 +420,7 @@ async function settleDemoRail(args: {
       .update({ status: 'lost', actual_payout: 0, updated_at: new Date().toISOString() } as any)
       .eq('id', l.id);
 
+    // Record loss transaction (idempotent)
     const inserted = await upsertDemoTx({
       user_id: l.user_id,
       direction: 'debit',
@@ -409,63 +444,64 @@ async function settleDemoRail(args: {
     }
   }
 
-  // Demo creator/platform fees (credited immediately off-chain)
-  if (demoCreatorFee > 0) {
-    const inserted = await upsertDemoTx({
-      user_id: creatorId,
-      direction: 'credit',
-      // Use 'deposit' to satisfy wallet_transactions_type_check
-      type: 'deposit',
-      channel: 'fiat',
-      provider: DEMO_PROVIDER,
-      amount: demoCreatorFee,
-      currency: DEMO_CURRENCY,
-      status: 'completed',
-      external_ref: `demo_creator_fee:${predictionId}`,
-      prediction_id: predictionId,
-      description: `Demo creator fee for "${predictionTitle}"`,
-      meta: { kind: 'creator_fee', provider: DEMO_PROVIDER, prediction_id: predictionId },
-    } as any);
-    if (inserted) {
-      await applyDemoDelta(creatorId, { availableDelta: demoCreatorFee, reservedDelta: 0 });
-      try {
-        emitWalletUpdate({ userId: creatorId, reason: 'creator_fee_paid', amountDelta: demoCreatorFee });
-      } catch {}
-    }
-  }
-
-  if (demoPlatformFee > 0) {
-    const treasuryUserId = await resolveTreasuryUserId();
-    if (treasuryUserId) {
+  // Demo creator/platform fees (ALWAYS computed and credited if pot > 0, idempotent)
+  // This fixes the bug where fees were skipped in hybrid mode
+  if (demoResult.totalPot > 0 && (demoResult.platformFee > 0 || demoResult.creatorFee > 0)) {
+    if (demoResult.creatorFee > 0) {
       const inserted = await upsertDemoTx({
-        user_id: treasuryUserId,
+        user_id: creatorId,
         direction: 'credit',
-        // Use 'deposit' to satisfy wallet_transactions_type_check
         type: 'deposit',
         channel: 'fiat',
         provider: DEMO_PROVIDER,
-        amount: demoPlatformFee,
+        amount: demoResult.creatorFee,
         currency: DEMO_CURRENCY,
         status: 'completed',
-        external_ref: `demo_platform_fee:${predictionId}`,
+        external_ref: `demo_creator_fee:${predictionId}`,
         prediction_id: predictionId,
-        description: `Demo platform fee for "${predictionTitle}"`,
-        meta: { kind: 'platform_fee', provider: DEMO_PROVIDER, prediction_id: predictionId },
+        description: `Demo creator fee for "${predictionTitle}"`,
+        meta: { kind: 'creator_fee', provider: DEMO_PROVIDER, prediction_id: predictionId },
       } as any);
       if (inserted) {
-        await applyDemoDelta(treasuryUserId, { availableDelta: demoPlatformFee, reservedDelta: 0 });
+        await applyDemoDelta(creatorId, { availableDelta: demoResult.creatorFee, reservedDelta: 0 });
         try {
-          emitWalletUpdate({ userId: treasuryUserId, reason: 'platform_fee_collected', amountDelta: demoPlatformFee });
+          emitWalletUpdate({ userId: creatorId, reason: 'creator_fee_paid', amountDelta: demoResult.creatorFee });
         } catch {}
+      }
+    }
+
+    if (demoResult.platformFee > 0) {
+      const treasuryUserId = await resolveTreasuryUserId();
+      if (treasuryUserId) {
+        const inserted = await upsertDemoTx({
+          user_id: treasuryUserId,
+          direction: 'credit',
+          type: 'deposit',
+          channel: 'fiat',
+          provider: DEMO_PROVIDER,
+          amount: demoResult.platformFee,
+          currency: DEMO_CURRENCY,
+          status: 'completed',
+          external_ref: `demo_platform_fee:${predictionId}`,
+          prediction_id: predictionId,
+          description: `Demo platform fee for "${predictionTitle}"`,
+          meta: { kind: 'platform_fee', provider: DEMO_PROVIDER, prediction_id: predictionId },
+        } as any);
+        if (inserted) {
+          await applyDemoDelta(treasuryUserId, { availableDelta: demoResult.platformFee, reservedDelta: 0 });
+          try {
+            emitWalletUpdate({ userId: treasuryUserId, reason: 'platform_fee_collected', amountDelta: demoResult.platformFee });
+          } catch {}
+        }
       }
     }
   }
 
   return {
     demoEntriesCount: demoEntries.length,
-    demoPlatformFee,
-    demoCreatorFee,
-    demoPayoutPool: payoutPool,
+    demoPlatformFee: demoResult.platformFee,
+    demoCreatorFee: demoResult.creatorFee,
+    demoPayoutPool: demoResult.distributablePot,
   };
 }
 
@@ -808,13 +844,14 @@ router.post('/manual', async (req, res) => {
         creatorFeePercent,
       });
       
-      // Regression guard: log demo fee application to confirm it runs
-      console.log('[settlement] demo fees applied', {
+      // Log demo settlement application (using payout calculator results)
+      const demoWinnersCount = demoEntries.filter((e: any) => e.option_id === winningOptionId).length;
+      console.log('[settlement] demo applied', {
         predictionId,
-        demoPot: demoEntries.reduce((sum, e) => sum + Number(e.amount || 0), 0),
-        platformFeeDemo: demoSummary.demoPlatformFee,
-        creatorFeeDemo: demoSummary.demoCreatorFee,
-        demoEntriesCount: demoSummary.demoEntriesCount
+        demoPot: demoSummary.demoPayoutPool + demoSummary.demoPlatformFee + demoSummary.demoCreatorFee,
+        platformFee: demoSummary.demoPlatformFee,
+        creatorFee: demoSummary.demoCreatorFee,
+        winners: demoWinnersCount,
       });
     }
 

@@ -63,6 +63,7 @@ const allowedOrigins = [
   'https://fanclubz.app',
   'https://app.fanclubz.app',
   'http://localhost:5173',
+  'http://localhost:5174', // Vite default dev port
   'http://localhost:3000',
 ];
 

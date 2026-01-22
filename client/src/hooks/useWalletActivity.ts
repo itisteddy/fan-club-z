@@ -5,6 +5,7 @@ import { normalizeWalletTransaction } from '@fanclubz/shared';
 import { getApiUrl } from '@/utils/environment';
 
 export type WalletActivityItem = ActivityItem;
+export type WalletActivityResponse = { items: WalletActivityItem[] };
 
 function fetchWithTimeout(input: string, init?: RequestInit, timeoutMs = 12_000) {
   const controller = new AbortController();
@@ -21,7 +22,7 @@ function fetchWithTimeout(input: string, init?: RequestInit, timeoutMs = 12_000)
  * - Disabled refetchOnWindowFocus to reduce API calls
  */
 export function useWalletActivity(userId?: string, limit = 20) {
-  const query = useQuery({
+  const query = useQuery<WalletActivityResponse>({
     queryKey: QK.walletActivity(userId ?? 'anon', limit),
     enabled: !!userId,
     queryFn: async () => {
@@ -77,7 +78,7 @@ export function useWalletActivity(userId?: string, limit = 20) {
 
 // Infinite query version for pagination
 export function useWalletActivityInfinite(userId?: string, limit = 20) {
-  return useInfiniteQuery({
+  return useInfiniteQuery<WalletActivityResponse, Error, WalletActivityResponse, any, string | undefined>({
     queryKey: [...QK.walletActivity(userId ?? 'anon', limit), 'infinite'],
     enabled: !!userId,
     queryFn: async ({ pageParam }) => {

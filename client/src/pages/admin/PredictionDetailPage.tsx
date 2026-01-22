@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { adminGet, adminPost } from '@/lib/adminApi';
+import { getPredictionStatusUi } from '@/lib/predictionStatusUi';
 
 interface PredictionDetail {
   prediction: {
@@ -186,14 +187,26 @@ export const PredictionDetailPage: React.FC = () => {
         </div>
 
         {/* Status Badge */}
-        <div className={`px-3 py-1.5 rounded-full text-sm font-medium ${
-          prediction.status === 'active' ? 'bg-emerald-600/20 text-emerald-400' :
-          prediction.status === 'settled' ? 'bg-blue-600/20 text-blue-400' :
-          prediction.status === 'voided' ? 'bg-red-600/20 text-red-400' :
-          'bg-slate-600/20 text-slate-400'
-        }`}>
-          {prediction.status.charAt(0).toUpperCase() + prediction.status.slice(1)}
-        </div>
+        {(() => {
+          const statusUi = getPredictionStatusUi({
+            status: prediction.status,
+            settledAt: prediction.resolutionDate,
+            closedAt: prediction.endDate,
+          });
+          return (
+            <div className={`px-3 py-1.5 rounded-full text-sm font-medium ${
+              statusUi.tone === 'success' ? 'bg-emerald-600/20 text-emerald-400' :
+              statusUi.tone === 'danger' ? 'bg-red-600/20 text-red-400' :
+              statusUi.tone === 'warning' ? 'bg-amber-600/20 text-amber-400' :
+              'bg-slate-600/20 text-slate-400'
+            }`}>
+              {statusUi.label}
+              {statusUi.subtext && (
+                <span className="ml-2 text-xs opacity-75">{statusUi.subtext}</span>
+              )}
+            </div>
+          );
+        })()}
       </div>
 
       {/* Stats Cards */}

@@ -16,6 +16,7 @@ import {
   ExternalLink,
 } from 'lucide-react';
 import { formatCurrency, formatTimeAgo } from '@/lib/format';
+import { formatTxAmount, toneClass } from '@/lib/txFormat';
 
 export type ActivityKind = 
   | 'deposit' 
@@ -81,7 +82,8 @@ interface ActivityDisplayInfo {
 export function getActivityDisplay(item: ActivityItemData): ActivityDisplayInfo {
   const kind = (item.kind || item.type || '').toLowerCase();
   const amount = item.amountUSD ?? item.amount ?? 0;
-  const formattedAmount = amount > 0 ? formatCurrency(amount, { compact: true }) : null;
+  const tx = amount > 0 ? formatTxAmount({ amount, kind, compact: true }) : null;
+  const formattedAmount = tx?.display || null;
   const predTitle = item.predictionTitle || item.meta?.prediction_title || item.data?.prediction_title || '';
   const optionLabel = item.meta?.option_label || item.data?.option_label || '';
   
@@ -330,11 +332,16 @@ export const ActivityFeedItem: React.FC<ActivityFeedItemProps> = ({
       </div>
       
       <div className="text-right flex-shrink-0 ml-2">
-        {display.amount && (
-          <div className={`text-sm font-semibold font-mono ${display.isPositive ? 'text-emerald-600' : 'text-gray-700'}`}>
-            {display.isPositive ? '+' : '-'}{display.amount}
-          </div>
-        )}
+        {display.amount && (() => {
+          const amount = item.amountUSD ?? item.amount ?? 0;
+          if (amount === 0) return null;
+          const tx = formatTxAmount({ amount, kind: item.kind, compact: true });
+          return (
+            <div className={`text-sm font-semibold font-mono ${toneClass(tx.tone)}`}>
+              {tx.display}
+            </div>
+          );
+        })()}
         <div className={`text-xs font-medium ${display.badgeColor}`}>
           {display.badge}
         </div>

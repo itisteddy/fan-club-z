@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Share2 } from 'lucide-react';
 import { usePredictionStore } from '../store/predictionStore';
+import { getPredictionStatusUi } from '@/lib/predictionStatusUi';
 import Header from '../components/layout/Header/Header';
 import Page from '../components/ui/layout/Page';
 import Card, { CardHeader, CardContent } from '../components/ui/card/Card';
@@ -86,13 +87,23 @@ const UnifiedPredictionDetailsPage: React.FC<UnifiedPredictionDetailsPageProps> 
                   </div>
                   <div>
                     <span className="text-gray-500">Status:</span>
-                    <span className={`ml-2 px-2 py-0.5 rounded-full text-xs font-medium ${
-                      prediction.status === 'active' ? 'bg-green-100 text-green-800' :
-                      prediction.status === 'completed' ? 'bg-blue-100 text-blue-800' :
-                      'bg-gray-100 text-gray-800'
-                    }`}>
-                      {prediction.status}
-                    </span>
+                    {(() => {
+                      const statusUi = getPredictionStatusUi({
+                        status: prediction.status,
+                        settledAt: prediction.settledAt || prediction.settled_at,
+                        closedAt: prediction.closedAt || prediction.closed_at,
+                      });
+                      return (
+                        <span className={`ml-2 px-2 py-0.5 rounded-full text-xs font-medium ${
+                          statusUi.tone === 'success' ? 'bg-green-100 text-green-800' :
+                          statusUi.tone === 'warning' ? 'bg-amber-100 text-amber-800' :
+                          statusUi.tone === 'danger' ? 'bg-red-100 text-red-800' :
+                          'bg-gray-100 text-gray-800'
+                        }`}>
+                          {statusUi.label}
+                        </span>
+                      );
+                    })()}
                   </div>
                   <div>
                     <span className="text-gray-500">Created:</span>
