@@ -13,6 +13,7 @@ import './index.css'
 import { APP_VERSION, BUILD_TIMESTAMP } from './lib/version.ts'
 // [PERF] Web Vitals monitoring
 import { initWebVitals } from './lib/vitals'
+import { useMaintenanceStore } from './store/maintenanceStore'
 
 // Centralized version management
 console.log(`🚀 Fan Club Z ${APP_VERSION} - CONSOLIDATED ARCHITECTURE - SINGLE SOURCE OF TRUTH`)
@@ -21,6 +22,38 @@ console.log(`🚀 Fan Club Z ${APP_VERSION} - CONSOLIDATED ARCHITECTURE - SINGLE
 // This is essential for React SPA navigation to work correctly
 if ('scrollRestoration' in history) {
   history.scrollRestoration = 'manual';
+}
+
+// Global fetch wrapper: detect maintenance-mode 503 responses and show UX
+if (typeof window !== 'undefined' && typeof window.fetch === 'function') {
+  const originalFetch = window.fetch.bind(window);
+  window.fetch = (async (...args: Parameters<typeof fetch>) => {
+    const res = await originalFetch(...args);
+
+    try {
+      // Clear maintenance when API comes back
+      if (res.ok && useMaintenanceStore.getState().active) {
+        useMaintenanceStore.getState().clear();
+      }
+
+      if (res.status === 503) {
+        const ct = res.headers.get('content-type') || '';
+        if (ct.includes('application/json')) {
+          const cloned = res.clone();
+          const data = await cloned.json().catch(() => null);
+          if (data?.maintenance) {
+            useMaintenanceStore
+              .getState()
+              .setMaintenance(String(data?.message || 'The platform is currently under maintenance. Please check back soon.'));
+          }
+        }
+      }
+    } catch {
+      // Never block fetch() if maintenance detection fails
+    }
+
+    return res;
+  }) as any;
 }
 
 const isLandingBuild = import.meta.env.VITE_BUILD_TARGET === 'landing';

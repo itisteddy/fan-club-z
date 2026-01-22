@@ -351,7 +351,7 @@ const DiscoverPage = React.memo(function DiscoverPage({ onNavigateToProfile, onN
       className="discover-page content-with-bottom-nav"
     >
       {/* Unified Header - Minimal (no logo, no descriptive text) */}
-      <AppHeader title="Discover" />
+      <AppHeader title="Discover" showNotifications />
       
       {/* Header Content */}
       <DiscoverHeaderContent 

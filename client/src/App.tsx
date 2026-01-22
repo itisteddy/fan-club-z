@@ -64,7 +64,7 @@ import { captureReturnTo } from './lib/returnTo';
 import { useReferralCapture, useReferralAttribution } from './hooks/useReferral';
 import { AdminGuard } from './components/admin/AdminGuard';
 import { AdminLayout } from './components/admin/AdminLayout';
-import NotificationBell from './components/notifications/NotificationBell';
+import { MaintenanceOverlay } from './components/MaintenanceOverlay';
 
 // Simple Loading Component
 const LoadingSpinner: React.FC<{ message?: string }> = ({ message = "Loading..." }) => (
@@ -210,12 +210,7 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = memo(({ children }) 
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col" data-scroll-container>
-      {/* Notification Bell - Floating Top Right */}
-      {isAuthenticated && (
-        <div className="fixed top-4 right-4 z-[10000]">
-          <NotificationBell />
-        </div>
-      )}
+      <MaintenanceOverlay />
 
       {/* Main Content */}
       <main className="flex-1 pb-[calc(5rem+env(safe-area-inset-bottom))]">

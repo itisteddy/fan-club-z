@@ -263,7 +263,7 @@ const ProfilePageV2: React.FC<ProfilePageV2Props> = ({ onNavigateBack, userId })
   if (!authenticated) {
     return (
       <div className="min-h-screen bg-gray-50 pb-[calc(5rem+env(safe-area-inset-bottom))]">
-        <AppHeader title="Profile" />
+        <AppHeader title="Profile" showNotifications />
         <div className="mx-auto w-full max-w-[720px] lg:max-w-[960px] px-4 py-4">
           {/* Same visual structure as authenticated, but with placeholders */}
           <div className="space-y-4">
@@ -332,7 +332,7 @@ const ProfilePageV2: React.FC<ProfilePageV2Props> = ({ onNavigateBack, userId })
 
   return (
     <div className="min-h-screen bg-gray-50 pb-[calc(5rem+env(safe-area-inset-bottom))]">
-      <AppHeader title="Profile" />
+      <AppHeader title="Profile" showNotifications />
       
       <div className="mx-auto w-full max-w-[720px] lg:max-w-[960px] px-4 py-4">
         <div className="space-y-4">

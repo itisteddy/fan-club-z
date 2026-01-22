@@ -193,8 +193,9 @@ export function EditPredictionSheet({
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50" />
-        <Dialog.Content className="fixed bottom-0 left-0 right-0 bg-white rounded-t-2xl shadow-2xl z-50 max-h-[90vh] overflow-y-auto">
+        {/* Must be above bottom nav (z-[9999]) */}
+        <Dialog.Overlay className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[12000]" />
+        <Dialog.Content className="fixed bottom-0 left-0 right-0 bg-white rounded-t-2xl shadow-2xl z-[12001] max-h-[90vh] overflow-y-auto">
           <div className="sticky top-0 bg-white border-b border-gray-200 px-4 py-4 flex items-center justify-between z-10">
             <Dialog.Title className="text-lg font-semibold text-gray-900">Edit prediction</Dialog.Title>
             <Dialog.Close className="p-2 rounded-lg hover:bg-gray-100">
@@ -202,7 +203,8 @@ export function EditPredictionSheet({
             </Dialog.Close>
           </div>
 
-          <div className="px-4 py-6 space-y-6">
+          {/* Extra bottom padding so CTA is never clipped */}
+          <div className="px-4 py-6 pb-[calc(5rem+env(safe-area-inset-bottom))] space-y-6">
             {/* Editing limits notice */}
             {hasEntries && (
               <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-3">

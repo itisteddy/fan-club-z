@@ -23,6 +23,7 @@ import { getApiUrl } from '../config';
 import { useFundingModeStore } from '../store/fundingModeStore';
 import { useAutoNetworkSwitch } from '../hooks/useAutoNetworkSwitch';
 import { formatTxAmount, toneClass } from '@/lib/txFormat';
+import { setCooldown } from '@/lib/cooldowns';
 
 interface WalletPageProps {
   onNavigateBack?: () => void;
@@ -66,12 +67,12 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
   }, [user?.id]);
 
   const formatRemaining = useCallback((ms: number) => {
-    const totalSeconds = Math.max(0, Math.ceil(ms / 1000));
+    const totalSeconds = Math.max(0, Math.floor(ms / 1000));
     const hours = Math.floor(totalSeconds / 3600);
     const minutes = Math.floor((totalSeconds % 3600) / 60);
     const seconds = totalSeconds % 60;
-    if (hours <= 0) return `${minutes}m ${seconds}s`;
-    return `${hours}h ${minutes}m ${seconds}s`;
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${pad(hours)}:${pad(minutes)}:${pad(seconds)}`;
   }, []);
 
   useEffect(() => {
@@ -160,14 +161,24 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
       }
       setDemoSummary(json?.summary ?? null);
       await refetchActivity();
-      toast('Demo credits added. Come back in 24 hours.', { id: 'demo-faucet', icon: '✅' });
-      const nextAt = Date.now() + 24 * 60 * 60 * 1000;
+      const nextEligibleAt = json?.nextEligibleAt ? Date.parse(String(json.nextEligibleAt)) : NaN;
+      const nextAt = Number.isFinite(nextEligibleAt) ? nextEligibleAt : Date.now() + 24 * 60 * 60 * 1000;
       setDemoNextAtMs(nextAt);
       setDemoRemainingMs(nextAt - Date.now());
       if (demoCooldownKey) {
         try {
-          localStorage.setItem(demoCooldownKey, String(nextAt));
+          // Persist cooldown using server-provided nextEligibleAt when possible
+          if (json?.nextEligibleAt) {
+            setCooldown(demoCooldownKey, String(json.nextEligibleAt));
+          } else {
+            localStorage.setItem(demoCooldownKey, String(nextAt));
+          }
         } catch {}
+      }
+      if (json?.alreadyGranted) {
+        toast(`Not yet available. Next request in ${formatRemaining(nextAt - Date.now())}.`, { id: 'demo-faucet', icon: '⏳' });
+      } else {
+        toast('Demo credits added.', { id: 'demo-faucet', icon: '✅' });
       }
     } catch (e: any) {
       setDemoError(e?.message || 'Failed to faucet demo credits');

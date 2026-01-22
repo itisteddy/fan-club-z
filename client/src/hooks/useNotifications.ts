@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect, useRef } from 'react';
 import { useAuthSession } from '../providers/AuthSessionProvider';
 import { supabase } from '../lib/supabase';
 import { getApiUrl } from '../utils/environment';
+import { useMaintenanceStore } from '../store/maintenanceStore';
 
 export interface Notification {
   id: string;
@@ -33,6 +34,7 @@ interface UseNotificationsOptions {
 export function useNotifications(options: UseNotificationsOptions = {}) {
   const { session } = useAuthSession();
   const { limit = 20, autoRefresh = true, refreshInterval = 30000 } = options;
+  const maintenanceActive = useMaintenanceStore((s) => s.active);
 
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -72,6 +74,10 @@ export function useNotifications(options: UseNotificationsOptions = {}) {
     async (cursor?: string, append = false) => {
       if (!session) {
         setError(new Error('Not authenticated'));
+        return;
+      }
+      if (maintenanceActive) {
+        // Avoid spamming API during maintenance (overlay will be shown globally)
         return;
       }
 
@@ -137,6 +143,7 @@ export function useNotifications(options: UseNotificationsOptions = {}) {
    */
   const refreshUnreadCount = useCallback(async () => {
     if (!session) return;
+    if (maintenanceActive) return;
 
     try {
       const token = await getAuthToken();
@@ -170,6 +177,7 @@ export function useNotifications(options: UseNotificationsOptions = {}) {
   const markRead = useCallback(
     async (ids: string[]) => {
       if (!session || ids.length === 0) return;
+      if (maintenanceActive) return;
 
       try {
         const token = await getAuthToken();
@@ -212,6 +220,7 @@ export function useNotifications(options: UseNotificationsOptions = {}) {
    */
   const markAllRead = useCallback(async () => {
     if (!session) return;
+    if (maintenanceActive) return;
 
     try {
       const token = await getAuthToken();

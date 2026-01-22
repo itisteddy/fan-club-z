@@ -1,5 +1,7 @@
 import express from 'express';
 import { SocialService } from '../services/social';
+import { supabase } from '../config/database';
+import { createNotification } from '../services/notifications';
 
 const socialService = new SocialService();
 
@@ -81,6 +83,65 @@ router.post('/predictions/:predictionId/comments', async (req, res) => {
       content: content.trim(),
       parent_comment_id: actualParentId || null
     });
+
+    // Phase 4: In-app notifications for comments (best-effort, idempotent)
+    // Do NOT notify the author of their own comment.
+    try {
+      const { data: pred } = await supabase
+        .from('predictions')
+        .select('id,title,creator_id')
+        .eq('id', predictionId)
+        .maybeSingle();
+
+      const predictionTitle = (pred as any)?.title || 'a prediction';
+      const creatorId = (pred as any)?.creator_id as string | null;
+      const commentId = (newComment as any)?.id as string | undefined;
+
+      if (commentId && creatorId && creatorId !== actualUserId) {
+        await createNotification({
+          userId: creatorId,
+          type: 'comment',
+          title: 'New comment',
+          body: `New comment on "${predictionTitle}"`,
+          href: `/predictions/${predictionId}?tab=comments`,
+          metadata: { predictionId, predictionTitle, commentId, fromUserId: actualUserId },
+          externalRef: `notif:comment:creator:${commentId}`,
+        }).catch(() => {});
+      }
+
+      // Notify participants (distinct user_ids) excluding author and creator
+      if (commentId) {
+        const { data: participants } = await supabase
+          .from('prediction_entries')
+          .select('user_id')
+          .eq('prediction_id', predictionId);
+
+        const uniq = new Set<string>();
+        for (const row of participants || []) {
+          const uid = (row as any)?.user_id as string | undefined;
+          if (!uid) continue;
+          if (uid === actualUserId) continue;
+          if (creatorId && uid === creatorId) continue;
+          uniq.add(uid);
+          if (uniq.size >= 50) break;
+        }
+
+        for (const uid of uniq) {
+          await createNotification({
+            userId: uid,
+            type: 'comment',
+            title: 'New comment',
+            body: `New comment on a prediction you joined: "${predictionTitle}"`,
+            href: `/predictions/${predictionId}?tab=comments`,
+            metadata: { predictionId, predictionTitle, commentId, fromUserId: actualUserId },
+            externalRef: `notif:comment:participant:${commentId}:${uid}`,
+          }).catch(() => {});
+        }
+      }
+    } catch (e) {
+      // Best-effort: never block comment creation
+      console.warn('[social] comment notification error (non-fatal):', e);
+    }
 
     return res.status(201).json({
       success: true,

@@ -1,5 +1,7 @@
 import React from 'react';
 import { cn } from '../../utils/cn';
+import { useAuthSession } from '@/providers/AuthSessionProvider';
+import NotificationBell from '@/components/notifications/NotificationBell';
 
 type AppHeaderProps = {
   title?: string;                // e.g., "Discover", "My Bets", "Wallet"
@@ -8,9 +10,11 @@ type AppHeaderProps = {
   right?: React.ReactNode;       // icon CTAs (Share, …) or empty
   action?: React.ReactNode;      // alias for right (back-compat)
   sticky?: boolean;              // default true
+  showNotifications?: boolean;   // default false - only explicitly enabled on Discover/Profile
 };
 
-export function AppHeader({ title, subtitle, left, right, action, sticky = true }: AppHeaderProps) {
+export function AppHeader({ title, subtitle, left, right, action, sticky = true, showNotifications = false }: AppHeaderProps) {
+  const { user } = useAuthSession();
   const trailing = right ?? action ?? null;
   return (
     <header className={cn(
@@ -24,7 +28,10 @@ export function AppHeader({ title, subtitle, left, right, action, sticky = true 
             {title && <h1 className="text-base font-semibold leading-none truncate">{title}</h1>}
             {subtitle && <p className="text-xs text-gray-500 truncate">{subtitle}</p>}
           </div>
-          <div className="min-w-[40px] flex items-center justify-end gap-1">{trailing}</div>
+          <div className="min-w-[40px] flex items-center justify-end gap-1">
+            {showNotifications && user ? <NotificationBell /> : null}
+            {trailing}
+          </div>
         </div>
       </div>
       <div className="border-b border-gray-200" />

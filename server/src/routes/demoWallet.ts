@@ -97,6 +97,26 @@ demoWallet.post('/faucet', async (req, res) => {
       return res.status(500).json({ error: 'Internal', message: 'Failed to faucet demo credits', version: VERSION });
     }
 
+    // Determine grantedAt for this faucet (new insert or existing)
+    // If we hit the idempotency constraint, fetch the existing tx to compute cooldown precisely.
+    let grantedAtIso: string | null = null;
+    const alreadyGranted = Boolean(txErr && (txErr as any).code === '23505');
+    if (txErr && (txErr as any).code === '23505') {
+      const { data: existingTx } = await supabase
+        .from('wallet_transactions')
+        .select('created_at')
+        .eq('external_ref', externalRef)
+        .eq('user_id', userId)
+        .maybeSingle();
+      grantedAtIso = (existingTx as any)?.created_at ? new Date((existingTx as any).created_at).toISOString() : null;
+    } else {
+      grantedAtIso = new Date().toISOString();
+    }
+
+    const grantedAt = grantedAtIso ? new Date(grantedAtIso) : new Date();
+    const nextEligibleAt = new Date(grantedAt.getTime() + 24 * 60 * 60 * 1000);
+    const nextEligibleAtIso = nextEligibleAt.toISOString();
+
     // Only credit if we inserted a new tx (no error)
     if (!txErr) {
       // Compare-and-swap update to reduce race issues
@@ -124,10 +144,6 @@ demoWallet.post('/faucet', async (req, res) => {
 
       // Phase 4C: Create notification for demo credits grant
       try {
-        const grantedAt = new Date();
-        const nextEligibleAt = new Date(grantedAt.getTime() + 24 * 60 * 60 * 1000); // 24 hours from now
-        const nextEligibleAtIso = nextEligibleAt.toISOString();
-        
         await createNotification({
           userId,
           type: 'demo_credit',
@@ -136,10 +152,10 @@ demoWallet.post('/faucet', async (req, res) => {
           href: `/wallet`,
           metadata: {
             amount,
-            grantedAt: grantedAt.toISOString(),
+            grantedAt: grantedAtIso,
             nextEligibleAt: nextEligibleAtIso,
           },
-          externalRef: `notif:demo_credit:${userId}:${grantedAt.toISOString().split('T')[0]}`,
+          externalRef: `notif:demo_credit:${userId}:${String(grantedAtIso || grantedAt.toISOString()).split('T')[0]}`,
         }).catch((err) => {
           console.warn(`[Notifications] Failed to create demo credit notification for ${userId}:`, err);
         });
@@ -149,7 +165,14 @@ demoWallet.post('/faucet', async (req, res) => {
     }
 
     const summary = await fetchDemoSummary(userId);
-    return res.json({ success: true, summary, version: VERSION });
+    return res.json({
+      success: true,
+      summary,
+      grantedAt: grantedAtIso,
+      nextEligibleAt: nextEligibleAtIso,
+      alreadyGranted,
+      version: VERSION,
+    });
   } catch (e) {
     console.error('[DEMO-WALLET] faucet outer error', e);
     return res.status(500).json({ error: 'Internal', message: 'Failed to faucet demo credits', version: VERSION });

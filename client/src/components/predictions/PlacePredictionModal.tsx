@@ -21,6 +21,7 @@ import { ensureWalletReady, WalletStateError } from '@/services/onchainTransacti
 import { useWeb3Recovery } from '@/providers/Web3Provider';
 import { useFundingModeStore } from '@/store/fundingModeStore';
 import { getApiUrl } from '@/config';
+import { setCooldown } from '@/lib/cooldowns';
 
 interface PlacePredictionModalProps {
   prediction: Prediction | null;
@@ -105,6 +106,14 @@ export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
       const json = await resp.json().catch(() => null);
       if (!resp.ok) throw new Error(json?.message || 'Failed to get demo credits');
       setDemoSummary(json?.summary ?? null);
+      if (json?.nextEligibleAt) {
+        setCooldown(`fcz_demo_credits_next_at:${user.id}`, String(json.nextEligibleAt));
+      }
+      if (json?.alreadyGranted) {
+        toast.error('Demo credits not yet available. Please try again later.');
+      } else {
+        toast.success('Demo credits added.');
+      }
     } catch (e: any) {
       setDemoError(e?.message || 'Failed to get demo credits');
     } finally {

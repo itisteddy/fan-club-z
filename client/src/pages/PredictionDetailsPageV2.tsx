@@ -8,6 +8,7 @@ import { useAccount } from 'wagmi';
 
 import { usePredictionStore } from '../store/predictionStore';
 import { useAuthStore } from '../store/authStore';
+import { useUnifiedCommentStore } from '../store/unifiedCommentStore';
 // DISABLED: useWalletStore reads from wallets table (demo/mock data)
 // import { useWalletStore } from '../stores/walletStore';
 import { openAuthGate } from '../auth/authGateAdapter';
@@ -79,6 +80,8 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
 
   // Get prediction ID from multiple sources (URL params, props)
   const predictionId = propPredictionId || params.id || params.predictionId || '';
+  const getCommentCount = useUnifiedCommentStore((s) => s.getCommentCount);
+  const liveCommentCount = predictionId ? getCommentCount(predictionId) : 0;
 
   // Local state
   const [selectedOptionId, setSelectedOptionId] = useState<string | null>(null);
@@ -184,6 +187,20 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
       const json = await resp.json().catch(() => null);
       if (!resp.ok) throw new Error(json?.message || 'Failed to faucet demo credits');
       setDemoSummary(json?.summary ?? null);
+      // Persist cooldown timestamp for consistent UX across the app
+      if (json?.nextEligibleAt) {
+        try {
+          localStorage.setItem(
+            `fcz_demo_credits_next_at:${currentUser.id}`,
+            String(Date.parse(String(json.nextEligibleAt)))
+          );
+        } catch {}
+      }
+      if (json?.alreadyGranted && json?.nextEligibleAt) {
+        const nextMs = Date.parse(String(json.nextEligibleAt));
+        const remaining = Math.max(0, nextMs - Date.now());
+        showErrorToast(`Not yet available. Next request in ${Math.ceil(remaining / 60000)} min.`);
+      }
     } catch (e: any) {
       console.error('[DEMO] faucet error', e);
       showErrorToast(e?.message || 'Failed to get demo credits');
@@ -737,7 +754,7 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
           <PredictionDetailsTabs
             activeTab={activeTab}
             onTabChange={setActiveTab}
-            commentCount={prediction.comments_count || 0}
+            commentCount={liveCommentCount || prediction.comments_count || 0}
             activityCount={activityItems.length}
           >
           <AnimatePresence mode="wait">
