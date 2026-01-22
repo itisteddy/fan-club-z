@@ -32,10 +32,18 @@ export const AdminHomePage: React.FC = () => {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        if (!actorId) return;
-        // Fetch recent audit actions
-        const data = await adminGet<{ items?: any[] }>(`/api/v2/admin/audit`, actorId, { limit: 5 });
-        setRecentActions(data.items || []);
+        // Admin-key-only mode should work even without a logged-in session userId.
+        const [overview, audit] = await Promise.all([
+          adminGet<any>(`/api/v2/admin/overview`, actorId),
+          adminGet<{ items?: any[] }>(`/api/v2/admin/audit`, actorId, { limit: 5 }),
+        ]);
+        setStats({
+          totalUsers: overview.totalUsers,
+          activePredictions: overview.activePredictions,
+          pendingSettlements: overview.pendingSettlements,
+          totalVolume: overview.totalVolume,
+        });
+        setRecentActions(audit.items || []);
       } catch (e) {
         console.error('[AdminHome] Failed to fetch data:', e);
       } finally {

@@ -16,6 +16,7 @@ import {
   ExternalLink,
 } from 'lucide-react';
 import { adminGet, buildAdminUrl } from '@/lib/adminApi';
+import { getAdminKey } from '@/components/admin/AdminGate';
 
 interface WalletData {
   id: string;
@@ -68,7 +69,6 @@ export const UserWalletPage: React.FC = () => {
 
   const fetchData = useCallback(async () => {
     if (!userId) return;
-    if (!actorId) return;
     setLoading(true);
     try {
       const data = await adminGet<any>(`/api/v2/admin/wallets/user/${userId}`, actorId);
@@ -90,7 +90,6 @@ export const UserWalletPage: React.FC = () => {
 
   const handleExport = async () => {
     if (!userId) return;
-    if (!actorId) return;
     setExporting(true);
     try {
       const url = buildAdminUrl(`/api/v2/admin/wallets/transactions/export.csv`, actorId, {
@@ -98,7 +97,11 @@ export const UserWalletPage: React.FC = () => {
         provider: providerFilter,
         limit: 500,
       });
-      const res = await fetch(url);
+      const adminKey = getAdminKey();
+      const res = await fetch(url, {
+        headers: adminKey ? { 'x-admin-key': adminKey } : undefined,
+        credentials: 'include',
+      });
       if (!res.ok) throw new Error('Export failed');
       const blob = await res.blob();
       const downloadUrl = window.URL.createObjectURL(blob);

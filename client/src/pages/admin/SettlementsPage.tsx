@@ -89,10 +89,9 @@ export const SettlementsPage: React.FC = () => {
   }, [fetchData]);
 
   const handleSync = async (predictionId: string) => {
-    if (!actorId) return;
     setActionLoading(predictionId);
     try {
-      await adminPost<any>(`/api/v2/admin/settlements/${predictionId}/sync`, actorId, { actorId });
+      await adminPost<any>(`/api/v2/admin/settlements/${predictionId}/sync`, actorId, actorId ? { actorId } : {});
       toast.success('Sync queued');
       fetchData();
     } catch (e) {
@@ -103,11 +102,10 @@ export const SettlementsPage: React.FC = () => {
   };
 
   const handleFinalize = async (predictionId: string) => {
-    if (!actorId) return;
     if (!window.confirm('Finalize on-chain? This may submit a relayer transaction.')) return;
     setActionLoading(predictionId);
     try {
-      await adminPost<any>(`/api/v2/admin/settlements/${predictionId}/finalize`, actorId, { actorId });
+      await adminPost<any>(`/api/v2/admin/settlements/${predictionId}/finalize`, actorId, actorId ? { actorId } : {});
       toast.success('Finalize submitted');
       fetchData();
     } catch (e: any) {
@@ -251,7 +249,7 @@ export const SettlementsPage: React.FC = () => {
                   <div className="flex items-center gap-2 ml-4">
                     <button
                       onClick={() => handleSync(s.predictionId)}
-                      disabled={actionLoading === s.predictionId || !actorId}
+                      disabled={actionLoading === s.predictionId}
                       className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 disabled:opacity-50 flex items-center gap-1"
                     >
                       {actionLoading === s.predictionId ? (
@@ -265,7 +263,7 @@ export const SettlementsPage: React.FC = () => {
                     {s.needs.needsOnchainFinalize && (
                       <button
                         onClick={() => handleFinalize(s.predictionId)}
-                        disabled={actionLoading === s.predictionId || !actorId}
+                        disabled={actionLoading === s.predictionId}
                         className="px-3 py-1.5 bg-red-600 text-white rounded-lg text-sm hover:bg-red-700 disabled:opacity-50 flex items-center gap-1"
                       >
                         Finalize

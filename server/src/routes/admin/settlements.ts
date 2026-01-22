@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { supabase } from '../../config/database';
 import { VERSION } from '@fanclubz/shared';
-import { logAdminAction } from './audit';
+import { logAdminAction, getFallbackAdminActorId } from './audit';
 import { settleDemoRail } from '../settlement';
 
 export const settlementsRouter = Router();
@@ -21,7 +21,7 @@ function isSchemaMismatch(err: any): boolean {
 }
 
 const SyncSchema = z.object({
-  actorId: z.string().uuid(),
+  actorId: z.string().uuid().optional(),
   note: z.string().optional(),
 });
 
@@ -44,7 +44,15 @@ settlementsRouter.post('/:predictionId/sync', async (req, res) => {
       });
     }
 
-    const { actorId, note } = parsed.data;
+    const { actorId: providedActorId, note } = parsed.data;
+    const actorId = providedActorId || getFallbackAdminActorId();
+    if (!actorId) {
+      return res.status(400).json({
+        error: 'Bad Request',
+        message: 'actorId required (or configure ADMIN_USER_IDS for admin-key-only ops)',
+        version: VERSION,
+      });
+    }
 
     const { data: pred, error: predErr } = await supabase
       .from('predictions')
@@ -393,20 +401,41 @@ settlementsRouter.get('/stats', async (req, res) => {
     // Count by status
     const [
       { count: activeCount },
-      { count: pendingCount },
+      // pending settlement is computed below (the old logic was wrong)
       { count: settledCount },
       { count: voidedCount },
     ] = await Promise.all([
-      supabase.from('predictions').select('id', { count: 'exact', head: true }).eq('status', 'active').gte('end_date', now),
-      supabase.from('predictions').select('id', { count: 'exact', head: true }).eq('status', 'active').lt('end_date', now),
+      supabase.from('predictions').select('id', { count: 'exact', head: true }).eq('status', 'active'),
       supabase.from('predictions').select('id', { count: 'exact', head: true }).eq('status', 'settled'),
       supabase.from('predictions').select('id', { count: 'exact', head: true }).eq('status', 'voided'),
     ]);
 
+    // Pending settlements: closed/closed-by-time with no settlement yet (schema-tolerant)
+    const predsRes = await supabase
+      .from('predictions')
+      .select('id, status, entry_deadline, end_date, closed_at, settled_at, resolution_date, winning_option_id')
+      .limit(5000);
+    const pendingSettlement = ((predsRes.data as any[]) || []).filter((p: any) => {
+      const status = String(p.status || '').toLowerCase();
+      if (status === 'settled' || status === 'voided' || status === 'cancelled') return false;
+      const closesAt = p.entry_deadline || p.end_date || null;
+      const closedAt = p.closed_at || null;
+      const settledAt = p.settled_at || p.resolution_date || null;
+      const isClosedByTime = closesAt ? String(closesAt) < now : false;
+      const isClosed = Boolean(closedAt) || status === 'closed' || isClosedByTime;
+      if (!isClosed) return false;
+      // awaiting settlement means no settledAt and status not settled
+      return !settledAt && status !== 'settled';
+    }).length;
+
     // Settlement job stats
-    const { data: jobStats } = await supabase
-      .from('settlement_finalize_jobs')
-      .select('status');
+    let jobStats: any[] = [];
+    const jobRes = await supabase.from('settlement_finalize_jobs').select('status');
+    if ((jobRes as any).error && isSchemaMismatch((jobRes as any).error)) {
+      jobStats = [];
+    } else {
+      jobStats = (jobRes as any).data || [];
+    }
 
     const jobCounts = {
       queued: 0,
@@ -437,7 +466,7 @@ settlementsRouter.get('/stats', async (req, res) => {
     return res.json({
       predictions: {
         active: activeCount || 0,
-        pendingSettlement: pendingCount || 0,
+        pendingSettlement,
         settled: settledCount || 0,
         voided: voidedCount || 0,
       },
@@ -764,13 +793,13 @@ settlementsRouter.post('/:predictionId/finalize-onchain', async (req, res) => {
 settlementsRouter.post('/:predictionId/finalize', async (req, res) => {
   try {
     const { predictionId } = req.params;
-    const actorId = (req.body as any)?.actorId;
+    const actorId = (req.body as any)?.actorId || getFallbackAdminActorId();
     const reason = (req.body as any)?.reason || 'Admin finalize';
 
     if (!actorId) {
-      return res.status(401).json({
-        error: 'Unauthorized',
-        message: 'actorId required',
+      return res.status(400).json({
+        error: 'Bad Request',
+        message: 'actorId required (or configure ADMIN_USER_IDS for admin-key-only ops)',
         version: VERSION,
       });
     }

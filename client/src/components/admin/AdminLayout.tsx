@@ -1,6 +1,7 @@
 import React from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuthSession } from '../../providers/AuthSessionProvider';
+import { FRONTEND_URL } from '@/utils/environment';
 import {
   LayoutDashboard,
   Users,
@@ -32,6 +33,7 @@ const navItems = [
 export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
   const { user } = useAuthSession();
   const navigate = useNavigate();
+  const appUrl = FRONTEND_URL || 'https://app.fanclubz.app';
 
   return (
     <div className="min-h-screen bg-slate-900 flex">
@@ -88,7 +90,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
 
           {/* Back to app button */}
           <button
-            onClick={() => navigate('/')}
+            onClick={() => window.open(appUrl, '_self')}
             className="w-full flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-400 hover:text-white hover:bg-slate-700/50 transition-colors"
           >
             <ChevronLeft className="w-5 h-5" />

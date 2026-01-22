@@ -7,6 +7,7 @@ import { moderationRouter } from './moderation';
 import { configRouter } from './config';
 import { settlementsRouter } from './settlements';
 import { supportRouter } from './support';
+import { overviewRouter } from './overview';
 
 export const adminRouter = Router();
 
@@ -15,6 +16,7 @@ adminRouter.use(requireAdmin);
 
 // Mount sub-routers
 adminRouter.use('/audit', auditRouter);
+adminRouter.use('/overview', overviewRouter);
 adminRouter.use('/users', usersRouter);
 adminRouter.use('/wallets', walletsRouter);
 adminRouter.use('/predictions', predictionsRouter);

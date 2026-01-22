@@ -24,7 +24,6 @@ export const WalletsPage: React.FC = () => {
 
   const handleSearch = useCallback(async () => {
     if (!query.trim()) return;
-    if (!actorId) return;
     
     setLoading(true);
     setSearched(true);

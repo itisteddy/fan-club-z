@@ -28,6 +28,12 @@ const SearchSchema = z.object({
   offset: z.coerce.number().min(0).default(0),
 });
 
+const OutcomeSchema = z.object({
+  optionId: z.string().uuid(),
+  reason: z.string().optional(),
+  actorId: z.string().uuid().optional(),
+});
+
 /**
  * GET /api/v2/admin/predictions
  * List/search predictions with filtering
@@ -346,6 +352,99 @@ predictionsRouter.get('/:predictionId', async (req, res) => {
       message: 'Failed to fetch prediction details',
       version: VERSION,
     });
+  }
+});
+
+/**
+ * POST /api/v2/admin/predictions/:predictionId/outcome
+ * Set winning option for a prediction (admin tool) so it can be settled.
+ */
+predictionsRouter.post('/:predictionId/outcome', async (req, res) => {
+  try {
+    const { predictionId } = req.params;
+    const parsed = OutcomeSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({
+        error: 'Bad Request',
+        message: 'Invalid payload',
+        details: parsed.error.issues,
+        version: VERSION,
+      });
+    }
+
+    const { optionId, reason, actorId } = parsed.data;
+
+    // Verify prediction exists
+    const { data: pred, error: predErr } = await supabase
+      .from('predictions')
+      .select('id, status')
+      .eq('id', predictionId)
+      .maybeSingle();
+
+    if (predErr || !pred) {
+      return res.status(404).json({ error: 'Not Found', message: 'Prediction not found', version: VERSION });
+    }
+
+    const status = String((pred as any).status || '').toLowerCase();
+    if (status === 'voided' || status === 'cancelled') {
+      return res.status(400).json({ error: 'Bad Request', message: 'Cannot set outcome for voided/cancelled prediction', version: VERSION });
+    }
+
+    // Verify option belongs to prediction
+    const { data: opt, error: optErr } = await supabase
+      .from('prediction_options')
+      .select('id, prediction_id')
+      .eq('id', optionId)
+      .maybeSingle();
+
+    if (optErr || !opt || String((opt as any).prediction_id) !== predictionId) {
+      return res.status(400).json({
+        error: 'Bad Request',
+        message: 'Option does not belong to prediction',
+        version: VERSION,
+      });
+    }
+
+    // Set outcome (best-effort closed_at if column exists; schema differs between envs)
+    await supabase
+      .from('predictions')
+      .update({
+        winning_option_id: optionId,
+        status: 'closed',
+        closed_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      } as any)
+      .eq('id', predictionId);
+
+    // Best-effort: mark winning option (ignore if column missing)
+    try {
+      await supabase
+        .from('prediction_options')
+        .update({ is_winning_outcome: null } as any)
+        .eq('prediction_id', predictionId);
+      await supabase
+        .from('prediction_options')
+        .update({ is_winning_outcome: true } as any)
+        .eq('id', optionId);
+    } catch {
+      // ignore schema differences
+    }
+
+    if (actorId) {
+      await logAdminAction({
+        actorId,
+        action: 'admin_set_outcome',
+        targetType: 'prediction',
+        targetId: predictionId,
+        reason: reason || undefined,
+        meta: { optionId },
+      });
+    }
+
+    return res.json({ success: true, predictionId, winningOptionId: optionId, version: VERSION });
+  } catch (error) {
+    console.error('[Admin/Predictions] Set outcome error:', error);
+    return res.status(500).json({ error: 'Internal Server Error', message: 'Failed to set outcome', version: VERSION });
   }
 });
 

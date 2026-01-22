@@ -9,6 +9,14 @@ export const auditRouter = Router();
 const ADMIN_USER_IDS = (process.env.ADMIN_USER_IDS || '').split(',').filter(Boolean);
 const ADMIN_API_KEY = process.env.ADMIN_API_KEY;
 
+export function getFallbackAdminActorId(): string | null {
+  const first = ADMIN_USER_IDS[0];
+  if (!first) return null;
+  // basic uuid-ish check; avoid throwing if env is misconfigured
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(first)) return null;
+  return first;
+}
+
 /**
  * Middleware to require admin access
  */

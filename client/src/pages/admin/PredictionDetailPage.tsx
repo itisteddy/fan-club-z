@@ -20,6 +20,7 @@ import {
 import toast from 'react-hot-toast';
 import { adminGet, adminPost } from '@/lib/adminApi';
 import { getPredictionStatusUi } from '@/lib/predictionStatusUi';
+import { FRONTEND_URL } from '@/utils/environment';
 
 interface PredictionDetail {
   prediction: {
@@ -85,6 +86,7 @@ export const PredictionDetailPage: React.FC = () => {
   const [showVoidModal, setShowVoidModal] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [reason, setReason] = useState('');
+  const [settingOutcome, setSettingOutcome] = useState<string | null>(null);
 
   const fetchData = useCallback(async () => {
     if (!predictionId) return;
@@ -99,6 +101,24 @@ export const PredictionDetailPage: React.FC = () => {
       setLoading(false);
     }
   }, [predictionId, actorId]);
+
+  const handleSetOutcome = async (optionId: string) => {
+    if (!predictionId) return;
+    setSettingOutcome(optionId);
+    try {
+      await adminPost<any>(
+        `/api/v2/admin/predictions/${predictionId}/outcome`,
+        actorId,
+        actorId ? { optionId, actorId } : { optionId }
+      );
+      toast.success('Outcome set');
+      fetchData();
+    } catch (e: any) {
+      toast.error(e?.message || 'Failed to set outcome');
+    } finally {
+      setSettingOutcome(null);
+    }
+  };
 
   useEffect(() => {
     fetchData();
@@ -172,6 +192,7 @@ export const PredictionDetailPage: React.FC = () => {
   const isActive = prediction.status === 'active';
   const isSettled = prediction.status === 'settled';
   const isTerminal = prediction.status === 'voided' || prediction.status === 'cancelled';
+  const appUrl = FRONTEND_URL || 'https://app.fanclubz.app';
 
   return (
     <div className="space-y-6">
@@ -392,7 +413,7 @@ export const PredictionDetailPage: React.FC = () => {
 
           {/* Go to prediction page (open in app) */}
           <button
-            onClick={() => window.open(`/predictions/${predictionId}`, '_blank')}
+            onClick={() => window.open(`${appUrl}/predictions/${predictionId}`, '_blank')}
             className="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 flex items-center gap-2"
           >
             <ExternalLink className="w-4 h-4" />
@@ -400,6 +421,28 @@ export const PredictionDetailPage: React.FC = () => {
           </button>
         </div>
       </div>
+
+      {/* Set Outcome (fix: admin must be able to settle items needing outcome) */}
+      {!prediction.winningOptionId && !isTerminal && (
+        <div className="bg-slate-800 border border-slate-700 rounded-xl p-4">
+          <h3 className="text-white font-semibold mb-2">Set Outcome</h3>
+          <p className="text-slate-400 text-sm mb-3">
+            This prediction is closed/awaiting settlement. Choose the winning option so Sync can settle it.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {options.map((o) => (
+              <button
+                key={o.id}
+                onClick={() => handleSetOutcome(o.id)}
+                disabled={settingOutcome !== null}
+                className="px-3 py-2 bg-emerald-600 text-white rounded-lg text-sm hover:bg-emerald-700 disabled:opacity-50"
+              >
+                {settingOutcome === o.id ? 'Setting…' : `Set: ${o.text}`}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Admin Actions */}
       <div className="bg-slate-800 border border-slate-700 rounded-xl p-4">
