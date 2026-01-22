@@ -84,7 +84,19 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
   const [selectedOptionId, setSelectedOptionId] = useState<string | null>(null);
   const [stakeAmount, setStakeAmount] = useState<string>('');
   const [isPlacingBet, setIsPlacingBet] = useState(false);
-  const [activeTab, setActiveTab] = useState('overview');
+  // Check URL for tab query param on mount
+  const searchParams = new URLSearchParams(location.search);
+  const initialTab = searchParams.get('tab') || 'overview';
+  const [activeTab, setActiveTab] = useState(initialTab);
+  
+  // Update tab when query param changes
+  useEffect(() => {
+    const currentSearchParams = new URLSearchParams(location.search);
+    const tabFromUrl = currentSearchParams.get('tab');
+    if (tabFromUrl && ['overview', 'comments', 'activity'].includes(tabFromUrl)) {
+      setActiveTab(tabFromUrl);
+    }
+  }, [location.search]);
   const [shareUrl, setShareUrl] = useState('');
   const [showDepositModal, setShowDepositModal] = useState(false);
   const [justPlaced, setJustPlaced] = useState<{ amount: number; optionLabel: string } | null>(null);

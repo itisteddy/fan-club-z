@@ -35,6 +35,7 @@ const LazyUnifiedWalletPage = lazy(() => import('./pages/UnifiedWalletPage'));
 const LazyUnifiedLeaderboardPage = lazy(() => import('./pages/UnifiedLeaderboardPage'));
 const LazyAuthCallback = lazy(() => import('./pages/auth/AuthCallback'));
 const LazyReferralRedirectPage = lazy(() => import('./pages/ReferralRedirectPage'));
+const LazyNotificationsPage = lazy(() => import('./pages/NotificationsPage'));
 
 // Admin pages (lazy loaded)
 const LazyAdminHomePage = lazy(() => import('./pages/admin/AdminHomePage'));
@@ -63,6 +64,7 @@ import { captureReturnTo } from './lib/returnTo';
 import { useReferralCapture, useReferralAttribution } from './hooks/useReferral';
 import { AdminGuard } from './components/admin/AdminGuard';
 import { AdminLayout } from './components/admin/AdminLayout';
+import NotificationBell from './components/notifications/NotificationBell';
 
 // Simple Loading Component
 const LoadingSpinner: React.FC<{ message?: string }> = ({ message = "Loading..." }) => (
@@ -208,6 +210,13 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = memo(({ children }) 
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col" data-scroll-container>
+      {/* Notification Bell - Floating Top Right */}
+      {isAuthenticated && (
+        <div className="fixed top-4 right-4 z-[10000]">
+          <NotificationBell />
+        </div>
+      )}
+
       {/* Main Content */}
       <main className="flex-1 pb-[calc(5rem+env(safe-area-inset-bottom))]">
         <Suspense fallback={<LoadingSpinner message="Loading page..." />}>
@@ -829,6 +838,9 @@ const AppContent: React.FC = () => {
                     } />
                     <Route path="/wallet" element={
                       <PageWrapper title="Wallet"><LazyUnifiedWalletPage /></PageWrapper>
+                    } />
+                    <Route path="/notifications" element={
+                      <PageWrapper title="Notifications"><LazyNotificationsPage /></PageWrapper>
                     } />
                     <Route path="/rankings" element={<LeaderboardPageWrapper />} />
                     <Route path="/prediction/:id" element={<PredictionDetailsRouteWrapper />} />
