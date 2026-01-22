@@ -9,6 +9,7 @@ export const predictionsRouter = Router();
 const SearchSchema = z.object({
   q: z.string().optional(),
   status: z.enum(['active', 'pending', 'settled', 'voided', 'cancelled', 'all']).default('all'),
+  rail: z.enum(['demo', 'crypto', 'hybrid', 'all']).default('all'),
   limit: z.coerce.number().min(1).max(100).default(25),
   offset: z.coerce.number().min(0).default(0),
 });
@@ -29,12 +30,55 @@ predictionsRouter.get('/', async (req, res) => {
       });
     }
 
-    const { q, status, limit, offset } = parsed.data;
+    const { q, status, rail, limit, offset } = parsed.data;
+
+    // Pre-filter by rail when requested (based on prediction_entries.provider)
+    // demo: provider === 'demo-wallet'
+    // crypto: provider !== 'demo-wallet'
+    // hybrid: both demo and crypto providers exist
+    let allowedIds: Set<string> | null = null;
+    if (rail !== 'all') {
+      const { data: entryRows, error: entryErr } = await supabase
+        .from('prediction_entries')
+        .select('prediction_id, provider')
+        .limit(5000);
+
+      if (entryErr) {
+        console.error('[Admin/Predictions] Rail prefilter error:', entryErr);
+        return res.status(500).json({
+          error: 'Internal Server Error',
+          message: 'Failed to apply rail filter',
+          version: VERSION,
+        });
+      }
+
+      const demoIds = new Set<string>();
+      const cryptoIds = new Set<string>();
+      for (const r of entryRows || []) {
+        const pid = (r as any).prediction_id as string | undefined;
+        if (!pid) continue;
+        const provider = String((r as any).provider || '');
+        if (provider === 'demo-wallet') demoIds.add(pid);
+        else cryptoIds.add(pid);
+      }
+
+      if (rail === 'demo') {
+        allowedIds = new Set([...demoIds].filter((id) => !cryptoIds.has(id)));
+      } else if (rail === 'crypto') {
+        allowedIds = new Set([...cryptoIds].filter((id) => !demoIds.has(id)));
+      } else if (rail === 'hybrid') {
+        allowedIds = new Set([...demoIds].filter((id) => cryptoIds.has(id)));
+      }
+
+      if (!allowedIds || allowedIds.size === 0) {
+        return res.json({ items: [], total: 0, limit, offset, version: VERSION });
+      }
+    }
 
     let query = supabase
       .from('predictions')
       .select(`
-        id, title, description, status, created_at, end_date, resolution_date,
+        id, title, description, status, created_at, entry_deadline, end_date, closed_at, settled_at, resolution_date,
         winning_option_id, creator_id, platform_fee_percentage, creator_fee_percentage,
         users!predictions_creator_id_fkey(username, full_name)
       `, { count: 'exact' })
@@ -52,6 +96,10 @@ predictionsRouter.get('/', async (req, res) => {
       query = query.or(`title.ilike.%${q}%,id.eq.${q.length === 36 ? q : '00000000-0000-0000-0000-000000000000'}`);
     }
 
+    if (allowedIds) {
+      query = query.in('id', Array.from(allowedIds));
+    }
+
     const { data, error, count } = await query;
 
     if (error) {
@@ -63,6 +111,23 @@ predictionsRouter.get('/', async (req, res) => {
       });
     }
 
+    // Compute rail summary for returned rows
+    const predictionIds = (data || []).map((p: any) => p.id);
+    const railsMap: Record<string, { hasDemo: boolean; hasCrypto: boolean }> = {};
+    if (predictionIds.length > 0) {
+      const { data: rows } = await supabase
+        .from('prediction_entries')
+        .select('prediction_id, provider')
+        .in('prediction_id', predictionIds);
+      for (const r of rows || []) {
+        const pid = (r as any).prediction_id as string;
+        if (!railsMap[pid]) railsMap[pid] = { hasDemo: false, hasCrypto: false };
+        const provider = String((r as any).provider || '');
+        if (provider === 'demo-wallet') railsMap[pid].hasDemo = true;
+        else railsMap[pid].hasCrypto = true;
+      }
+    }
+
     return res.json({
       items: (data || []).map((p: any) => ({
         id: p.id,
@@ -70,14 +135,19 @@ predictionsRouter.get('/', async (req, res) => {
         description: p.description,
         status: p.status,
         createdAt: p.created_at,
-        endDate: p.end_date,
-        resolutionDate: p.resolution_date,
+        // Use whichever date fields are present in this environment/schema
+        closesAt: p.entry_deadline || p.end_date || null,
+        closedAt: p.closed_at || null,
+        settledAt: p.settled_at || p.resolution_date || null,
+        endDate: p.end_date || p.entry_deadline || null,
+        resolutionDate: p.resolution_date || p.settled_at || null,
         winningOptionId: p.winning_option_id,
         creatorId: p.creator_id,
         creatorUsername: p.users?.username || null,
         creatorName: p.users?.full_name || null,
         platformFee: p.platform_fee_percentage,
         creatorFee: p.creator_fee_percentage,
+        railsSummary: railsMap[p.id] || { hasDemo: false, hasCrypto: false },
       })),
       total: count || 0,
       limit,
@@ -123,7 +193,7 @@ predictionsRouter.get('/:predictionId', async (req, res) => {
     // Get options
     const { data: options } = await supabase
       .from('prediction_options')
-      .select('id, text, odds, probability')
+      .select('id, label, text, odds, probability, current_odds, total_staked, created_at')
       .eq('prediction_id', predictionId)
       .order('created_at', { ascending: true });
 
@@ -141,6 +211,18 @@ predictionsRouter.get('/:predictionId', async (req, res) => {
       .eq('bet_id', predictionId)
       .maybeSingle();
 
+    // Disputes (optional table; return [] if missing)
+    let disputes: any[] = [];
+    try {
+      const { data: d } = await supabase
+        .from('prediction_disputes' as any)
+        .select('*')
+        .eq('prediction_id', predictionId);
+      disputes = (d as any[]) || [];
+    } catch {
+      disputes = [];
+    }
+
     // Aggregate stats
     const totalStake = (entries || []).reduce((sum, e) => sum + Number(e.amount || 0), 0);
     const uniqueBettors = new Set((entries || []).map(e => e.user_id)).size;
@@ -149,6 +231,18 @@ predictionsRouter.get('/:predictionId', async (req, res) => {
       stakeByOption[e.option_id] = (stakeByOption[e.option_id] || 0) + Number(e.amount || 0);
     }
 
+    const demoEntries = (entries || []).filter((e: any) => String(e.provider || '') === 'demo-wallet');
+    const cryptoEntries = (entries || []).filter((e: any) => String(e.provider || '') !== 'demo-wallet');
+
+    const potDemo = demoEntries.reduce((s: number, e: any) => s + Number(e.amount || 0), 0);
+    const potCrypto = cryptoEntries.reduce((s: number, e: any) => s + Number(e.amount || 0), 0);
+    const pctPlatform = Number((prediction as any).platform_fee_percentage || 0);
+    const pctCreator = Number((prediction as any).creator_fee_percentage || 0);
+    const feeDemoPlatform = pctPlatform ? (potDemo * pctPlatform) / 100 : 0;
+    const feeDemoCreator = pctCreator ? (potDemo * pctCreator) / 100 : 0;
+    const feeCryptoPlatform = pctPlatform ? (potCrypto * pctPlatform) / 100 : 0;
+    const feeCryptoCreator = pctCreator ? (potCrypto * pctCreator) / 100 : 0;
+
     return res.json({
       prediction: {
         id: prediction.id,
@@ -156,11 +250,15 @@ predictionsRouter.get('/:predictionId', async (req, res) => {
         description: prediction.description,
         status: prediction.status,
         createdAt: prediction.created_at,
-        endDate: prediction.end_date,
-        resolutionDate: prediction.resolution_date,
-        winningOptionId: prediction.winning_option_id,
-        platformFee: prediction.platform_fee_percentage,
-        creatorFee: prediction.creator_fee_percentage,
+        // Prefer entry_deadline if present; fall back to end_date legacy
+        closesAt: (prediction as any).entry_deadline || (prediction as any).end_date || null,
+        closedAt: (prediction as any).closed_at || null,
+        settledAt: (prediction as any).settled_at || (prediction as any).resolution_date || null,
+        endDate: (prediction as any).end_date || (prediction as any).entry_deadline || null,
+        resolutionDate: (prediction as any).resolution_date || (prediction as any).settled_at || null,
+        winningOptionId: (prediction as any).winning_option_id || null,
+        platformFee: (prediction as any).platform_fee_percentage,
+        creatorFee: (prediction as any).creator_fee_percentage,
       },
       creator: prediction.users ? {
         id: (prediction.users as any).id,
@@ -168,20 +266,38 @@ predictionsRouter.get('/:predictionId', async (req, res) => {
         fullName: (prediction.users as any).full_name,
         email: (prediction.users as any).email,
       } : null,
-      options: (options || []).map(o => ({
+      options: (options || []).map((o: any) => ({
         id: o.id,
-        text: o.text,
-        odds: o.odds,
-        probability: o.probability,
-        totalStake: stakeByOption[o.id] || 0,
+        // Keep legacy keys for existing admin UI, but map from new schema when needed
+        text: o.text ?? o.label ?? '',
+        odds: o.odds ?? o.current_odds ?? null,
+        probability: o.probability ?? null,
+        totalStake: stakeByOption[o.id] || Number(o.total_staked || 0),
       })),
       stats: {
         totalStake,
         uniqueBettors,
         entryCount: (entries || []).length,
       },
-      entries: (entries || []).slice(0, 50), // Limit to 50 most recent
+      entries: entries || [],
       settlement: settlement || null,
+      disputes,
+      aggregates: {
+        demo: {
+          pot: potDemo,
+          fees: { platform: feeDemoPlatform, creator: feeDemoCreator },
+          entriesCount: demoEntries.length,
+        },
+        crypto: {
+          pot: potCrypto,
+          fees: { platform: feeCryptoPlatform, creator: feeCryptoCreator },
+          entriesCount: cryptoEntries.length,
+        },
+        total: {
+          pot: totalStake,
+          entriesCount: (entries || []).length,
+        },
+      },
       version: VERSION,
     });
   } catch (error) {

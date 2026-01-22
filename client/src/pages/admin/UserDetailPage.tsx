@@ -77,7 +77,6 @@ export const UserDetailPage: React.FC = () => {
     if (!userId) return;
     setLoading(true);
     try {
-      if (!actorId) throw new Error('Missing user');
       const data = await adminGet<any>(`/api/v2/admin/users/${userId}`, actorId);
       setUser(data.user);
       setWallet(data.wallet);
@@ -94,7 +93,6 @@ export const UserDetailPage: React.FC = () => {
     if (!userId) return;
     setTimelineLoading(true);
     try {
-      if (!actorId) throw new Error('Missing user');
       const data = await adminGet<any>(`/api/v2/admin/users/${userId}/timeline`, actorId, {
         limit: 100,
         type: timelineFilter,
@@ -227,6 +225,16 @@ export const UserDetailPage: React.FC = () => {
             </div>
 
             <p className="text-xs text-slate-500 mt-2 font-mono">ID: {user.id}</p>
+          </div>
+
+          {/* Actions */}
+          <div className="flex flex-col gap-2">
+            <button
+              onClick={() => navigate(`/admin/users/${user.id}/view`)}
+              className="px-3 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 transition-colors"
+            >
+              View as user
+            </button>
           </div>
         </div>
       </div>

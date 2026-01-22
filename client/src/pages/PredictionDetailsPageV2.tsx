@@ -37,6 +37,8 @@ import { TitleAndMeta } from '../components/predictions/TitleAndMeta';
 import { OptionsSection } from '../components/predictions/OptionsSection';
 import { StickyBetBar } from '../components/predictions/StickyBetBar';
 import SettlementValidationModal from '../components/modals/SettlementValidationModal';
+import { EditPredictionSheet } from '../components/prediction/EditPredictionSheet';
+import { CancelPredictionSheet } from '../components/prediction/CancelPredictionSheet';
 // TODO: Re-enable share functionality after testing
 // import { useShareResult } from '../components/share/useShareResult';
 
@@ -87,6 +89,8 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
   const [showDepositModal, setShowDepositModal] = useState(false);
   const [justPlaced, setJustPlaced] = useState<{ amount: number; optionLabel: string } | null>(null);
   const [settlementModalOpen, setSettlementModalOpen] = useState(false);
+  const [editSheetOpen, setEditSheetOpen] = useState(false);
+  const [cancelSheetOpen, setCancelSheetOpen] = useState(false);
   
   // TODO: Re-enable share functionality after testing
   // const { SharePreview, share: shareResult } = useShareResult();
@@ -187,6 +191,11 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
     if (!predictionId) return null;
     return predictions.find(p => p.id === predictionId) || null;
   }, [predictions, predictionId]);
+
+  // Check if current user is creator
+  const isCreator = useMemo(() => {
+    return !!(currentUser?.id && prediction?.creator_id && currentUser.id === prediction.creator_id);
+  }, [currentUser?.id, prediction?.creator_id]);
   const isClosedOrSettled = useMemo(() => {
     if (!prediction) return false;
     const status = (prediction.status || '').toLowerCase();
@@ -764,6 +773,25 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
                         </button>
                       </div>
                     )}
+                    {/* Creator actions */}
+                    {isCreator && !isClosedOrSettled && (
+                      <div className="mt-3 space-y-2">
+                        <button
+                          type="button"
+                          onClick={() => setEditSheetOpen(true)}
+                          className="w-full px-4 py-2 rounded-xl border border-gray-200 bg-white text-gray-900 font-semibold hover:bg-gray-50 transition-colors"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setCancelSheetOpen(true)}
+                          className="w-full px-4 py-2 rounded-xl border border-red-200 bg-white text-red-600 font-semibold hover:bg-red-50 transition-colors"
+                        >
+                          Cancel prediction
+                        </button>
+                      </div>
+                    )}
                   </div>
 
                   {/* Closed/Settled callout */}
@@ -1035,6 +1063,31 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
           queryClient.invalidateQueries({ queryKey: QK.predictionEntries(predictionId) });
         }}
       />
+
+      {prediction && (
+        <>
+          <EditPredictionSheet
+            open={editSheetOpen}
+            onOpenChange={setEditSheetOpen}
+            prediction={prediction}
+            onSaved={(updated) => {
+              queryClient.invalidateQueries({ queryKey: QK.prediction(predictionId) });
+              fetchPredictionById(predictionId);
+            }}
+            userId={currentUser?.id}
+          />
+          <CancelPredictionSheet
+            open={cancelSheetOpen}
+            onOpenChange={setCancelSheetOpen}
+            prediction={prediction}
+            onCancelled={(updated) => {
+              queryClient.invalidateQueries({ queryKey: QK.prediction(predictionId) });
+              fetchPredictionById(predictionId);
+            }}
+            userId={currentUser?.id}
+          />
+        </>
+      )}
     </>
   );
 };

@@ -1,11 +1,12 @@
 import React from 'react';
 import { Routes, Route } from 'react-router-dom';
-import AdminGuard from '@/components/admin/AdminGuard';
+import AdminGate from '@/components/admin/AdminGate';
 import AdminLayout from '@/components/admin/AdminLayout';
 
 import AdminHomePage from '@/pages/admin/AdminHomePage';
 import UsersPage from '@/pages/admin/UsersPage';
 import UserDetailPage from '@/pages/admin/UserDetailPage';
+import UserViewPage from '@/pages/admin/UserViewPage';
 import WalletsPage from '@/pages/admin/WalletsPage';
 import UserWalletPage from '@/pages/admin/UserWalletPage';
 import PredictionsPage from '@/pages/admin/PredictionsPage';
@@ -23,12 +24,13 @@ import AuditLogPage from '@/pages/admin/AuditLogPage';
  */
 const LandingAdminRouter: React.FC = () => {
   return (
-    <AdminGuard>
+    <AdminGate>
       <AdminLayout>
         <Routes>
           <Route path="/" element={<AdminHomePage />} />
           <Route path="users" element={<UsersPage />} />
           <Route path="users/:userId" element={<UserDetailPage />} />
+          <Route path="users/:userId/view" element={<UserViewPage />} />
           <Route path="wallets" element={<WalletsPage />} />
           <Route path="wallets/:userId" element={<UserWalletPage />} />
           <Route path="predictions" element={<PredictionsPage />} />
@@ -41,7 +43,7 @@ const LandingAdminRouter: React.FC = () => {
           <Route path="audit" element={<AuditLogPage />} />
         </Routes>
       </AdminLayout>
-    </AdminGuard>
+    </AdminGate>
   );
 };
 

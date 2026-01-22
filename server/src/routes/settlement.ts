@@ -303,7 +303,7 @@ async function upsertDemoTx(payload: any): Promise<boolean> {
   return Array.isArray(data) ? data.length > 0 : Boolean((data as any)?.id);
 }
 
-async function settleDemoRail(args: {
+export async function settleDemoRail(args: {
   predictionId: string;
   predictionTitle: string;
   winningOptionId: string;

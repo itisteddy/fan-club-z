@@ -3,8 +3,257 @@ import { z } from 'zod';
 import { supabase } from '../../config/database';
 import { VERSION } from '@fanclubz/shared';
 import { logAdminAction } from './audit';
+import { settleDemoRail } from '../settlement';
 
 export const settlementsRouter = Router();
+
+const SyncSchema = z.object({
+  actorId: z.string().uuid(),
+  note: z.string().optional(),
+});
+
+/**
+ * POST /api/v2/admin/settlements/:predictionId/sync
+ * Best-effort idempotent sync:
+ * - if outcome set and prediction not marked settled, mark settled (no payout math changes here)
+ * - ensure a settlement_finalize_jobs row exists (queued) so existing workers can process
+ */
+settlementsRouter.post('/:predictionId/sync', async (req, res) => {
+  try {
+    const { predictionId } = req.params;
+    const parsed = SyncSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({
+        error: 'Bad Request',
+        message: 'Invalid payload',
+        details: parsed.error.issues,
+        version: VERSION,
+      });
+    }
+
+    const { actorId, note } = parsed.data;
+
+    const { data: pred, error: predErr } = await supabase
+      .from('predictions')
+      .select('id, title, status, winning_option_id, settled_at, resolution_date, creator_id, platform_fee_percentage, creator_fee_percentage')
+      .eq('id', predictionId)
+      .maybeSingle();
+
+    if (predErr || !pred) {
+      return res.status(404).json({
+        error: 'Not Found',
+        message: 'Prediction not found',
+        version: VERSION,
+      });
+    }
+
+    const hasOutcome = Boolean((pred as any).winning_option_id);
+    if (!hasOutcome) {
+      return res.status(400).json({
+        error: 'Bad Request',
+        message: 'Cannot sync settlement without an outcome (winning_option_id)',
+        version: VERSION,
+      });
+    }
+
+    const isAlreadySettled = Boolean((pred as any).settled_at || (pred as any).resolution_date) || String((pred as any).status || '').toLowerCase() === 'settled';
+    
+    // Apply offchain settlement (demo rail) if not already settled (idempotent via external_ref in settleDemoRail)
+    if (!isAlreadySettled) {
+      await supabase
+        .from('predictions')
+        .update({
+          status: 'settled',
+          settled_at: new Date().toISOString(),
+          resolution_date: new Date().toISOString(),
+        } as any)
+        .eq('id', predictionId);
+
+      // Call settlement logic to apply demo payouts/fees (idempotent)
+      try {
+        await settleDemoRail({
+          predictionId,
+          predictionTitle: (pred as any).title,
+          winningOptionId: (pred as any).winning_option_id,
+          creatorId: ((pred as any).creator_id || ''),
+          platformFeePercent: ((pred as any).platform_fee_percentage || 2.5),
+          creatorFeePercent: ((pred as any).creator_fee_percentage || 1.0),
+        });
+      } catch (settleErr) {
+        console.error('[Admin/Settlements] Demo settlement failed during sync:', settleErr);
+        // Continue anyway - queue the finalize job so it can be retried
+      }
+    }
+
+    // Ensure a finalize job exists (idempotent upsert)
+    await supabase
+      .from('settlement_finalize_jobs')
+      .upsert(
+        {
+          prediction_id: predictionId,
+          requested_by: actorId,
+          status: 'queued',
+          updated_at: new Date().toISOString(),
+        } as any,
+        { onConflict: 'prediction_id' } as any
+      );
+
+    await logAdminAction({
+      actorId,
+      action: 'admin_settlement_sync',
+      targetType: 'prediction',
+      targetId: predictionId,
+      reason: note || undefined,
+      meta: {
+        alreadySettled: isAlreadySettled,
+        winningOptionId: (pred as any).winning_option_id,
+      },
+    });
+
+    return res.json({
+      success: true,
+      message: 'Settlement sync queued',
+      version: VERSION,
+    });
+  } catch (error) {
+    console.error('[Admin/Settlements] Sync error:', error);
+    return res.status(500).json({
+      error: 'Internal Server Error',
+      message: 'Failed to sync settlement',
+      version: VERSION,
+    });
+  }
+});
+
+/**
+ * GET /api/v2/admin/settlements/queue
+ * Finalize Queue for admin attention:
+ * - closed and needs outcome
+ * - needs offchain settlement sync
+ * - needs onchain finalize
+ */
+settlementsRouter.get('/queue', async (req, res) => {
+  try {
+    const nowIso = new Date().toISOString();
+
+    // Fetch recent predictions; filter in-memory (schema differs between environments)
+    const { data: preds, error: predErr } = await supabase
+      .from('predictions')
+      .select('id, title, status, entry_deadline, end_date, closed_at, settled_at, resolution_date, winning_option_id, created_at')
+      .order('created_at', { ascending: false })
+      .limit(500);
+
+    if (predErr) {
+      console.error('[Admin/Settlements] Queue predictions query error:', predErr);
+      return res.status(500).json({
+        error: 'Internal Server Error',
+        message: 'Failed to fetch settlement queue',
+        version: VERSION,
+      });
+    }
+
+    const predictionIds = (preds || []).map((p: any) => p.id);
+    if (predictionIds.length === 0) {
+      return res.json({ items: [], version: VERSION });
+    }
+
+    // Fetch bet_settlements and finalize jobs for these predictions
+    const [{ data: settlements }, { data: jobs }, { data: entryRows }] = await Promise.all([
+      supabase.from('bet_settlements').select('bet_id, status, meta').in('bet_id', predictionIds),
+      supabase.from('settlement_finalize_jobs').select('prediction_id, status, tx_hash, error, updated_at').in('prediction_id', predictionIds),
+      supabase.from('prediction_entries').select('prediction_id, provider').in('prediction_id', predictionIds),
+    ]);
+
+    const settlementMap: Record<string, any> = {};
+    for (const s of settlements || []) {
+      settlementMap[(s as any).bet_id] = s;
+    }
+
+    const jobMap: Record<string, any> = {};
+    for (const j of jobs || []) {
+      const pid = (j as any).prediction_id;
+      // Keep the latest-ish record (no strict ordering here)
+      jobMap[pid] = j;
+    }
+
+    const railsMap: Record<string, { hasDemo: boolean; hasCrypto: boolean }> = {};
+    for (const r of entryRows || []) {
+      const pid = (r as any).prediction_id as string;
+      if (!railsMap[pid]) railsMap[pid] = { hasDemo: false, hasCrypto: false };
+      const provider = String((r as any).provider || '');
+      if (provider === 'demo-wallet') railsMap[pid].hasDemo = true;
+      else railsMap[pid].hasCrypto = true;
+    }
+
+    const items = (preds || [])
+      .filter((p: any) => {
+        const status = String(p.status || '').toLowerCase();
+        if (status === 'cancelled' || status === 'voided') return false;
+        const closesAt = p.entry_deadline || p.end_date || null;
+        const closedAt = p.closed_at || null;
+        const isClosedByTime = closesAt ? String(closesAt) < nowIso : false;
+        const isClosed = Boolean(closedAt) || status === 'closed' || isClosedByTime;
+        if (!isClosed) return false;
+        return true;
+      })
+      .map((p: any) => {
+        const status = String(p.status || '').toLowerCase();
+        const closesAt = p.entry_deadline || p.end_date || null;
+        const closedAt = p.closed_at || null;
+        const settledAt = p.settled_at || p.resolution_date || null;
+        const isClosedByTime = closesAt ? String(closesAt) < nowIso : false;
+        const isClosed = Boolean(closedAt) || status === 'closed' || isClosedByTime;
+        const isSettled = Boolean(settledAt) || status === 'settled';
+        const hasOutcome = Boolean(p.winning_option_id);
+
+        const rails = railsMap[p.id] || { hasDemo: false, hasCrypto: false };
+        const settlement = settlementMap[p.id] || null;
+        const job = jobMap[p.id] || null;
+        const hasMerkleRoot = Boolean(settlement?.meta?.merkle_root || settlement?.meta?.merkleRoot);
+
+        const needsOutcome = isClosed && !hasOutcome;
+        const needsOffchainSettlement = isClosed && hasOutcome && !isSettled;
+        const needsOnchainFinalize =
+          rails.hasCrypto &&
+          (settlement?.status === 'pending_onchain' ||
+            (hasMerkleRoot && String(job?.status || '') !== 'finalized'));
+
+        return {
+          predictionId: p.id,
+          title: p.title,
+          status: p.status,
+          closesAt,
+          closedAt,
+          settledAt,
+          settlementStatus: settlement?.status || null,
+          rails,
+          needs: {
+            needsOutcome,
+            needsOffchainSettlement,
+            needsOnchainFinalize,
+          },
+          job: job
+            ? {
+                status: job.status,
+                txHash: job.tx_hash || null,
+                error: job.error || null,
+                updatedAt: job.updated_at || null,
+              }
+            : null,
+        };
+      })
+      .filter((i: any) => i.needs.needsOutcome || i.needs.needsOffchainSettlement || i.needs.needsOnchainFinalize);
+
+    return res.json({ items, version: VERSION });
+  } catch (error) {
+    console.error('[Admin/Settlements] Queue error:', error);
+    return res.status(500).json({
+      error: 'Internal Server Error',
+      message: 'Failed to fetch settlement queue',
+      version: VERSION,
+    });
+  }
+});
 
 /**
  * GET /api/v2/admin/settlements
@@ -472,6 +721,246 @@ settlementsRouter.post('/:predictionId/finalize-onchain', async (req, res) => {
     return res.status(500).json({
       error: 'Internal Server Error',
       message: errorMessage,
+      version: VERSION,
+    });
+  }
+});
+
+/**
+ * POST /api/v2/admin/settlements/:predictionId/finalize
+ * Alias for finalize-onchain to match admin UI spec.
+ * Idempotent: if already finalized, no-op success.
+ */
+settlementsRouter.post('/:predictionId/finalize', async (req, res) => {
+  try {
+    const { predictionId } = req.params;
+    const actorId = (req.body as any)?.actorId;
+    const reason = (req.body as any)?.reason || 'Admin finalize';
+
+    if (!actorId) {
+      return res.status(401).json({
+        error: 'Unauthorized',
+        message: 'actorId required',
+        version: VERSION,
+      });
+    }
+
+    // If job already finalized, no-op
+    const { data: existingJob } = await supabase
+      .from('settlement_finalize_jobs')
+      .select('status, tx_hash')
+      .eq('prediction_id', predictionId)
+      .maybeSingle();
+
+    if (existingJob?.status === 'finalized') {
+      await logAdminAction({
+        actorId,
+        action: 'admin_settlement_finalize_noop',
+        targetType: 'prediction',
+        targetId: predictionId,
+        reason,
+        meta: { tx_hash: existingJob.tx_hash || null },
+      });
+      return res.json({
+        success: true,
+        message: 'Already finalized',
+        txHash: existingJob.tx_hash || null,
+        version: VERSION,
+      });
+    }
+
+    // Same behavior as finalize-onchain, but with spec-friendly path name.
+    if (!process.env.RELAYER_PRIVATE_KEY || !process.env.RELAYER_RPC_URL) {
+      return res.status(500).json({
+        error: 'Relayer not configured',
+        message: 'RELAYER_PRIVATE_KEY and RELAYER_RPC_URL must be set',
+        version: VERSION,
+      });
+    }
+
+    const { submitFinalizeTx } = await import('../../services/relayer');
+    const { computeMerkleSettlementCryptoOnly, recordOnchainPosted, resolveTreasuryUserId } = await import('../settlement');
+
+    const { data: prediction, error: predError } = await supabase
+      .from('predictions')
+      .select('id, title, creator_id, winning_option_id, status')
+      .eq('id', predictionId)
+      .maybeSingle();
+
+    if (predError || !prediction) {
+      return res.status(404).json({
+        error: 'Not Found',
+        message: 'Prediction not found',
+        version: VERSION,
+      });
+    }
+
+    if (prediction.status !== 'settled') {
+      return res.status(400).json({
+        error: 'Bad Request',
+        message: 'Prediction must be settled before finalization',
+        version: VERSION,
+      });
+    }
+
+    const winningOptionId = prediction.winning_option_id;
+    if (!winningOptionId) {
+      return res.status(400).json({
+        error: 'Bad Request',
+        message: 'Prediction must have a winning option',
+        version: VERSION,
+      });
+    }
+
+    const settlement = await computeMerkleSettlementCryptoOnly({ predictionId, winningOptionId });
+
+    const { data: creatorAddrRow } = await supabase
+      .from('wallet_addresses')
+      .select('address')
+      .eq('user_id', prediction.creator_id)
+      .eq('chain_id', 84532)
+      .maybeSingle();
+
+    if (!creatorAddrRow?.address) {
+      return res.status(400).json({
+        error: 'Bad Request',
+        message: 'Creator wallet address not found',
+        version: VERSION,
+      });
+    }
+
+    const treasuryUserId = await resolveTreasuryUserId();
+    if (!treasuryUserId) {
+      return res.status(500).json({
+        error: 'Internal Server Error',
+        message: 'Treasury user not configured',
+        version: VERSION,
+      });
+    }
+
+    const { data: treasuryAddr } = await supabase
+      .from('wallet_addresses')
+      .select('address')
+      .eq('user_id', treasuryUserId)
+      .eq('chain_id', 84532)
+      .maybeSingle();
+
+    if (!treasuryAddr?.address) {
+      return res.status(500).json({
+        error: 'Internal Server Error',
+        message: 'Treasury wallet address not found',
+        version: VERSION,
+      });
+    }
+
+    await supabase
+      .from('bet_settlements')
+      .upsert(
+        {
+          bet_id: predictionId,
+          winning_option_id: winningOptionId,
+          total_payout: settlement.payoutPoolUSD,
+          platform_fee_collected: settlement.platformFeeUSD,
+          creator_payout_amount: settlement.creatorFeeUSD,
+          settlement_time: new Date().toISOString(),
+          status: 'pending_onchain',
+          meta: {
+            merkle_root: settlement.root,
+            winners: settlement.winners.length,
+          },
+        } as any,
+        { onConflict: 'bet_id' } as any
+      );
+
+    const { txHash } = await submitFinalizeTx({
+      predictionId,
+      merkleRoot: settlement.root,
+      creatorAddress: creatorAddrRow.address as any,
+      creatorFeeUnits: BigInt(settlement.creatorFeeUnits.toString()),
+      platformAddress: treasuryAddr.address as any,
+      platformFeeUnits: BigInt(settlement.platformFeeUnits.toString()),
+    });
+
+    await recordOnchainPosted({ predictionId, txHash, root: settlement.root });
+
+    await supabase
+      .from('settlement_finalize_jobs')
+      .upsert(
+        {
+          prediction_id: predictionId,
+          requested_by: actorId,
+          status: 'finalized',
+          tx_hash: txHash,
+          error: null,
+          updated_at: new Date().toISOString(),
+        } as any,
+        { onConflict: 'prediction_id' } as any
+      );
+
+    await logAdminAction({
+      actorId,
+      action: 'admin_settlement_finalize',
+      targetType: 'prediction',
+      targetId: predictionId,
+      reason,
+      meta: { tx_hash: txHash, merkle_root: settlement.root },
+    });
+
+    return res.json({
+      success: true,
+      txHash,
+      message: 'Settlement finalized on-chain',
+      version: VERSION,
+    });
+  } catch (error) {
+    console.error('[Admin/Settlements] Finalize alias error:', error);
+    return res.status(500).json({
+      error: 'Internal Server Error',
+      message: 'Failed to finalize settlement',
+      version: VERSION,
+    });
+  }
+});
+
+const NoteSchema = z.object({
+  actorId: z.string().uuid(),
+  note: z.string().min(1).max(2000),
+});
+
+/**
+ * POST /api/v2/admin/settlements/:predictionId/note
+ * Audit-only note (no new table).
+ */
+settlementsRouter.post('/:predictionId/note', async (req, res) => {
+  try {
+    const { predictionId } = req.params;
+    const parsed = NoteSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({
+        error: 'Bad Request',
+        message: 'Invalid payload',
+        details: parsed.error.issues,
+        version: VERSION,
+      });
+    }
+
+    const { actorId, note } = parsed.data;
+
+    await logAdminAction({
+      actorId,
+      action: 'admin_settlement_note',
+      targetType: 'prediction',
+      targetId: predictionId,
+      reason: note,
+      meta: {},
+    });
+
+    return res.json({ success: true, message: 'Note recorded', version: VERSION });
+  } catch (error) {
+    console.error('[Admin/Settlements] Note error:', error);
+    return res.status(500).json({
+      error: 'Internal Server Error',
+      message: 'Failed to record note',
       version: VERSION,
     });
   }

@@ -14,6 +14,7 @@ import {
   Ban,
 } from 'lucide-react';
 import { adminGet } from '@/lib/adminApi';
+import { getPredictionStatusUi } from '@/lib/predictionStatusUi';
 
 interface PredictionResult {
   id: string;
@@ -21,8 +22,11 @@ interface PredictionResult {
   status: string;
   createdAt: string;
   endDate: string | null;
+  closesAt?: string | null;
+  settledAt?: string | null;
   creatorUsername: string | null;
   creatorName: string | null;
+  railsSummary?: { hasDemo: boolean; hasCrypto: boolean };
 }
 
 const statusConfig: Record<string, { icon: React.ElementType; color: string; label: string }> = {
@@ -40,6 +44,7 @@ export const PredictionsPage: React.FC = () => {
   const actorId = sessionUser?.id || user?.id || '';
   const [query, setQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [railFilter, setRailFilter] = useState<string>('all');
   const [results, setResults] = useState<PredictionResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [total, setTotal] = useState(0);
@@ -47,13 +52,13 @@ export const PredictionsPage: React.FC = () => {
   const fetchPredictions = useCallback(async () => {
     setLoading(true);
     try {
-      if (!actorId) throw new Error('Missing user');
       const data = await adminGet<{ items?: PredictionResult[]; total?: number }>(
         `/api/v2/admin/predictions`,
         actorId,
         {
           q: query || undefined,
           status: statusFilter !== 'all' ? statusFilter : undefined,
+          rail: railFilter !== 'all' ? railFilter : undefined,
           limit: 50,
         }
       );
@@ -65,11 +70,11 @@ export const PredictionsPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [query, statusFilter, actorId]);
+  }, [query, statusFilter, railFilter, actorId]);
 
   useEffect(() => {
     fetchPredictions();
-  }, [statusFilter, fetchPredictions]);
+  }, [statusFilter, railFilter, fetchPredictions]);
 
   const handleSearch = () => {
     fetchPredictions();
@@ -122,6 +127,20 @@ export const PredictionsPage: React.FC = () => {
           </select>
         </div>
 
+        <div className="relative">
+          <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+          <select
+            value={railFilter}
+            onChange={(e) => setRailFilter(e.target.value)}
+            className="pl-10 pr-8 py-3 bg-slate-800 border border-slate-700 rounded-lg text-white appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-emerald-500"
+          >
+            <option value="all">All Rails</option>
+            <option value="demo">Demo</option>
+            <option value="crypto">Crypto</option>
+            <option value="hybrid">Hybrid</option>
+          </select>
+        </div>
+
         <button
           onClick={handleSearch}
           disabled={loading}
@@ -160,6 +179,18 @@ export const PredictionsPage: React.FC = () => {
               };
               const config = statusConfig[p.status] ?? fallback;
               const StatusIcon = config.icon;
+              const rails = p.railsSummary || { hasDemo: false, hasCrypto: false };
+              const railLabel = rails.hasDemo && rails.hasCrypto ? 'Hybrid' : rails.hasCrypto ? 'Crypto' : rails.hasDemo ? 'Demo' : '—';
+              const statusUi = getPredictionStatusUi({
+                status: p.status,
+                closedAt: p.closesAt || p.endDate || null,
+                settledAt: p.settledAt || null,
+              });
+              const statusTone =
+                statusUi.tone === 'success' ? 'text-emerald-400 bg-emerald-600/20' :
+                statusUi.tone === 'danger' ? 'text-red-400 bg-red-600/20' :
+                statusUi.tone === 'warning' ? 'text-amber-400 bg-amber-600/20' :
+                'text-slate-400 bg-slate-600/20';
               return (
                 <button
                   key={p.id}
@@ -169,14 +200,16 @@ export const PredictionsPage: React.FC = () => {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <p className="text-white font-medium truncate">{p.title}</p>
-                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium flex items-center gap-1 ${config.color}`}>
-                        <StatusIcon className="w-3 h-3" />
-                        {config.label}
+                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${statusTone}`}>
+                        {statusUi.label}
+                      </span>
+                      <span className="px-2 py-0.5 rounded-full text-xs font-medium text-slate-300 bg-slate-700/50">
+                        {railLabel}
                       </span>
                     </div>
                     <p className="text-sm text-slate-400 mt-0.5">
                       by {p.creatorName || p.creatorUsername || 'Unknown'} •{' '}
-                      {new Date(p.createdAt).toLocaleDateString()}
+                      closes {new Date((p.closesAt || p.endDate || p.createdAt) as string).toLocaleDateString()}
                     </p>
                   </div>
                   <ArrowRight className="w-5 h-5 text-slate-400 flex-shrink-0 ml-3" />

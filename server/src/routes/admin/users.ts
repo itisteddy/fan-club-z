@@ -2,8 +2,14 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { supabase } from '../../config/database';
 import { VERSION } from '@fanclubz/shared';
+import { logAdminAction } from './audit';
 
 export const usersRouter = Router();
+
+function isUuid(value: string | undefined | null): boolean {
+  if (!value) return false;
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(value));
+}
 
 const SearchQuerySchema = z.object({
   q: z.string().min(1).max(200),
@@ -164,6 +170,212 @@ usersRouter.get('/:userId', async (req, res) => {
       message: 'Failed to get user details',
       version: VERSION,
     });
+  }
+});
+
+/**
+ * GET /api/v2/admin/users/:userId/summary
+ * Alias for GET /api/v2/admin/users/:userId (spec compatibility)
+ */
+usersRouter.get('/:userId/summary', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const actorId = (req.query.actorId || (req.body as any)?.actorId) as string | undefined;
+
+    // Lightweight audit when actorId is provided (optional)
+    if (isUuid(actorId)) {
+      await logAdminAction({
+        actorId: actorId!,
+        action: 'admin_view_user',
+        targetType: 'user',
+        targetId: userId,
+        meta: { mode: 'summary' },
+      });
+    }
+
+    // Reuse the same payload as /:userId
+    const { data: userRow, error } = await supabase
+      .from('users')
+      .select('id, username, full_name, email, avatar_url, created_at, is_admin, is_verified')
+      .eq('id', userId)
+      .maybeSingle();
+
+    if (error || !userRow) {
+      return res.status(404).json({ error: 'Not Found', message: 'User not found', version: VERSION });
+    }
+
+    const { data: wallet } = await supabase
+      .from('wallets')
+      .select('available_balance, reserved_balance, total_deposited, total_withdrawn, currency')
+      .eq('user_id', userId)
+      .eq('currency', 'USD')
+      .maybeSingle();
+
+    return res.json({
+      user: {
+        id: userRow.id,
+        username: (userRow as any).username,
+        fullName: (userRow as any).full_name,
+        email: (userRow as any).email || null,
+        avatarUrl: (userRow as any).avatar_url,
+        isAdmin: (userRow as any).is_admin || false,
+        isVerified: (userRow as any).is_verified || false,
+        createdAt: (userRow as any).created_at,
+      },
+      wallet: wallet
+        ? {
+            availableBalance: Number(wallet.available_balance || 0),
+            reservedBalance: Number(wallet.reserved_balance || 0),
+            totalDeposited: Number(wallet.total_deposited || 0),
+            totalWithdrawn: Number(wallet.total_withdrawn || 0),
+            currency: wallet.currency,
+          }
+        : null,
+      version: VERSION,
+    });
+  } catch (error) {
+    console.error('[Admin/Users] Summary error:', error);
+    return res.status(500).json({ error: 'Internal Server Error', message: 'Failed to get user summary', version: VERSION });
+  }
+});
+
+const ActivityQuerySchema = z.object({
+  limit: z.coerce.number().min(1).max(200).default(100),
+});
+
+/**
+ * GET /api/v2/admin/users/:userId/activity
+ * Read-only unified activity list (spec compatibility).
+ */
+usersRouter.get('/:userId/activity', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const parsed = ActivityQuerySchema.safeParse(req.query);
+    if (!parsed.success) {
+      return res.status(400).json({ error: 'Bad Request', message: 'Invalid query parameters', version: VERSION });
+    }
+    const { limit } = parsed.data;
+
+    const items: any[] = [];
+
+    const { data: txs } = await supabase
+      .from('wallet_transactions')
+      .select('id, created_at, amount, currency, direction, channel, provider, type, prediction_id, meta')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+      .limit(limit);
+
+    for (const tx of txs || []) {
+      const provider = String((tx as any).provider || '');
+      const rail = provider === 'demo-wallet' ? 'demo' : provider ? 'crypto' : 'demo';
+      items.push({
+        id: `tx_${tx.id}`,
+        type: String((tx as any).channel || (tx as any).type || 'wallet_tx'),
+        title: String((tx as any).channel || 'Wallet transaction'),
+        amount: Number((tx as any).amount || 0),
+        rail,
+        created_at: (tx as any).created_at,
+        href: (tx as any).prediction_id ? `/admin/predictions/${(tx as any).prediction_id}` : null,
+        metadata: {
+          direction: (tx as any).direction,
+          provider: (tx as any).provider,
+          currency: (tx as any).currency,
+          meta: (tx as any).meta,
+        },
+      });
+    }
+
+    const { data: entries } = await supabase
+      .from('prediction_entries')
+      .select('id, created_at, amount, provider, status, prediction_id')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+      .limit(limit);
+
+    for (const e of entries || []) {
+      const provider = String((e as any).provider || '');
+      const rail = provider === 'demo-wallet' ? 'demo' : provider ? 'crypto' : 'demo';
+      items.push({
+        id: `entry_${(e as any).id}`,
+        type: 'stake',
+        title: 'Stake placed',
+        amount: Number((e as any).amount || 0),
+        rail,
+        created_at: (e as any).created_at,
+        href: (e as any).prediction_id ? `/admin/predictions/${(e as any).prediction_id}` : null,
+        metadata: { status: (e as any).status, provider: (e as any).provider },
+      });
+    }
+
+    items.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+    return res.json({ items: items.slice(0, limit), version: VERSION });
+  } catch (error) {
+    console.error('[Admin/Users] Activity error:', error);
+    return res.status(500).json({ error: 'Internal Server Error', message: 'Failed to get activity', version: VERSION });
+  }
+});
+
+/**
+ * GET /api/v2/admin/users/:userId/predictions
+ * Returns { active, complete, created } for read-only admin view.
+ */
+usersRouter.get('/:userId/predictions', async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    // Created predictions
+    const { data: createdPreds } = await supabase
+      .from('predictions')
+      .select('id, title, status, category, created_at, entry_deadline, end_date, closed_at, settled_at, resolution_date, creator_id')
+      .eq('creator_id', userId)
+      .order('created_at', { ascending: false })
+      .limit(200);
+
+    // Participated predictions via entries
+    const { data: entryRows } = await supabase
+      .from('prediction_entries')
+      .select(
+        `
+        prediction_id,
+        prediction:predictions(id, title, status, category, created_at, entry_deadline, end_date, closed_at, settled_at, resolution_date, creator_id)
+      `
+      )
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+      .limit(500);
+
+    const participatedMap = new Map<string, any>();
+    for (const r of entryRows || []) {
+      const pred = Array.isArray((r as any).prediction) ? (r as any).prediction[0] : (r as any).prediction;
+      const pid = pred?.id || (r as any).prediction_id;
+      if (pid && pred && !participatedMap.has(pid)) {
+        participatedMap.set(pid, pred);
+      }
+    }
+
+    const participated = Array.from(participatedMap.values());
+
+    const active: any[] = [];
+    const complete: any[] = [];
+
+    for (const p of participated) {
+      const status = String((p as any).status || '').toLowerCase();
+      const settledAt = (p as any).settled_at || (p as any).resolution_date || null;
+      const isComplete = Boolean(settledAt) || status === 'settled' || status === 'complete';
+      if (isComplete) complete.push(p);
+      else active.push(p);
+    }
+
+    return res.json({
+      active,
+      complete,
+      created: createdPreds || [],
+      version: VERSION,
+    });
+  } catch (error) {
+    console.error('[Admin/Users] Predictions error:', error);
+    return res.status(500).json({ error: 'Internal Server Error', message: 'Failed to get user predictions', version: VERSION });
   }
 });
 

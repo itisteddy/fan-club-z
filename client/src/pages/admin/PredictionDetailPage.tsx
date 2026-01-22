@@ -30,6 +30,9 @@ interface PredictionDetail {
     createdAt: string;
     endDate: string | null;
     resolutionDate: string | null;
+    closesAt?: string | null;
+    closedAt?: string | null;
+    settledAt?: string | null;
     winningOptionId: string | null;
     platformFee: number;
     creatorFee: number;
@@ -62,6 +65,12 @@ interface PredictionDetail {
     status: string;
   }>;
   settlement: any;
+  aggregates?: {
+    demo?: { pot: number; fees?: { platform: number; creator: number }; entriesCount: number };
+    crypto?: { pot: number; fees?: { platform: number; creator: number }; entriesCount: number };
+    total?: { pot: number; entriesCount: number };
+  };
+  disputes?: any[];
 }
 
 export const PredictionDetailPage: React.FC = () => {
@@ -81,7 +90,6 @@ export const PredictionDetailPage: React.FC = () => {
     if (!predictionId) return;
     setLoading(true);
     try {
-      if (!actorId) throw new Error('Missing user');
       const json = await adminGet<any>(`/api/v2/admin/predictions/${predictionId}`, actorId);
       setData(json);
     } catch (e) {
@@ -190,8 +198,8 @@ export const PredictionDetailPage: React.FC = () => {
         {(() => {
           const statusUi = getPredictionStatusUi({
             status: prediction.status,
-            settledAt: prediction.resolutionDate,
-            closedAt: prediction.endDate,
+            settledAt: prediction.settledAt || prediction.resolutionDate,
+            closedAt: prediction.closedAt || prediction.closesAt || prediction.endDate,
           });
           return (
             <div className={`px-3 py-1.5 rounded-full text-sm font-medium ${
@@ -245,6 +253,39 @@ export const PredictionDetailPage: React.FC = () => {
           </p>
         </div>
       </div>
+
+      {/* Aggregates (by rail) */}
+      {data.aggregates && (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="bg-slate-800 border border-slate-700 rounded-xl p-4">
+            <h3 className="text-white font-semibold mb-2">Demo rail</h3>
+            <p className="text-slate-400 text-sm">
+              Pot: <span className="text-white">${Number(data.aggregates.demo?.pot || 0).toFixed(2)}</span>
+            </p>
+            <p className="text-slate-400 text-sm">
+              Entries: <span className="text-white">{data.aggregates.demo?.entriesCount || 0}</span>
+            </p>
+          </div>
+          <div className="bg-slate-800 border border-slate-700 rounded-xl p-4">
+            <h3 className="text-white font-semibold mb-2">Crypto rail</h3>
+            <p className="text-slate-400 text-sm">
+              Pot: <span className="text-white">${Number(data.aggregates.crypto?.pot || 0).toFixed(2)}</span>
+            </p>
+            <p className="text-slate-400 text-sm">
+              Entries: <span className="text-white">{data.aggregates.crypto?.entriesCount || 0}</span>
+            </p>
+          </div>
+          <div className="bg-slate-800 border border-slate-700 rounded-xl p-4">
+            <h3 className="text-white font-semibold mb-2">Total</h3>
+            <p className="text-slate-400 text-sm">
+              Pot: <span className="text-white">${Number(data.aggregates.total?.pot || 0).toFixed(2)}</span>
+            </p>
+            <p className="text-slate-400 text-sm">
+              Entries: <span className="text-white">{data.aggregates.total?.entriesCount || 0}</span>
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Creator Info */}
       {creator && (
@@ -333,6 +374,32 @@ export const PredictionDetailPage: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Action Bar (Phase 3B spec) */}
+      <div className="bg-slate-800 border border-slate-700 rounded-xl p-4">
+        <h3 className="text-white font-semibold mb-3">Navigation</h3>
+        <div className="flex flex-wrap gap-3 mb-4">
+          {/* View as user (creator) */}
+          {creator?.id && (
+            <button
+              onClick={() => navigate(`/admin/users/${creator.id}/view`)}
+              className="px-4 py-2 bg-emerald-600 text-white rounded-lg font-medium hover:bg-emerald-700 flex items-center gap-2"
+            >
+              <User className="w-4 h-4" />
+              View as user (creator)
+            </button>
+          )}
+
+          {/* Go to prediction page (open in app) */}
+          <button
+            onClick={() => window.open(`/predictions/${predictionId}`, '_blank')}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 flex items-center gap-2"
+          >
+            <ExternalLink className="w-4 h-4" />
+            Go to prediction page
+          </button>
+        </div>
+      </div>
 
       {/* Admin Actions */}
       <div className="bg-slate-800 border border-slate-700 rounded-xl p-4">

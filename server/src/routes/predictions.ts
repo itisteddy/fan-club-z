@@ -6,6 +6,8 @@ import { supabase } from '../config/database';
 import { VERSION } from '@fanclubz/shared';
 import { recomputePredictionState } from '../services/predictionMath';
 import { emitPredictionUpdate } from '../services/realtime';
+import { logAdminAction } from './admin/audit';
+import { insertWalletTransaction } from '../db/walletTransactions';
 
 // [PERF] Helper to generate ETag from response data
 function generateETag(data: unknown): string {
@@ -30,6 +32,23 @@ function checkETag(req: express.Request, res: express.Response, data: unknown): 
 }
 
 const router = express.Router();
+
+async function resolveAuthenticatedUserId(req: express.Request): Promise<string | null> {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) return null;
+    const token = authHeader.slice('Bearer '.length).trim();
+    if (!token) return null;
+
+    const { data, error } = await supabase.auth.getUser(token);
+    if (error || !data?.user?.id) {
+      return null;
+    }
+    return data.user.id;
+  } catch {
+    return null;
+  }
+}
 
 // Local slugify helper (must match client)
 function slugify(input: string): string {
@@ -447,8 +466,18 @@ router.get('/:id', async (req, res) => {
       });
     }
 
+    // Count entries for client (needed for edit UI)
+    const { count: entriesCount } = await supabase
+      .from('prediction_entries')
+      .select('id', { count: 'exact', head: true })
+      .eq('prediction_id', id);
+
     return res.json({
-      data: prediction,
+      data: {
+        ...prediction,
+        entriesCount: entriesCount || 0,
+        hasEntries: (entriesCount || 0) > 0,
+      },
       message: 'Prediction fetched successfully',
       version: VERSION
     });
@@ -1280,6 +1309,363 @@ router.put('/:id', async (req, res) => {
   }
 });
 
+// PATCH /api/v2/predictions/:id - Edit prediction with safe rules
+router.patch('/:id', async (req, res) => {
+  try {
+    const { id: predictionId } = req.params;
+    const { title, description, options, closesAt, categoryId, editReason } = req.body;
+    
+    const tokenUserId = await resolveAuthenticatedUserId(req);
+    const userId = tokenUserId || req.body.userId || req.body.creatorId;
+
+    // Require auth in production
+    if (process.env.NODE_ENV === 'production' && !tokenUserId) {
+      return res.status(401).json({
+        error: 'Unauthorized',
+        message: 'Authentication required',
+        version: VERSION,
+      });
+    }
+
+    if (!userId) {
+      return res.status(401).json({
+        error: 'Unauthorized',
+        message: 'User ID required',
+        version: VERSION,
+      });
+    }
+
+    console.log(`✏️ Edit prediction ${predictionId} requested by user ${userId}`);
+
+    // Load prediction with creator info
+    const { data: prediction, error: predError } = await supabase
+      .from('predictions')
+      .select('id, creator_id, status, entry_deadline, title, description, category')
+      .eq('id', predictionId)
+      .single();
+
+    if (predError || !prediction) {
+      return res.status(404).json({
+        error: 'Not found',
+        message: 'Prediction not found',
+        version: VERSION,
+      });
+    }
+
+    // Verify creator
+    if (prediction.creator_id !== userId) {
+      return res.status(403).json({
+        error: 'Forbidden',
+        message: 'Only the creator can edit this prediction',
+        version: VERSION,
+      });
+    }
+
+    // Cannot edit if already settled/complete/voided/cancelled
+    const immutableStatuses = ['settled', 'complete', 'voided', 'cancelled'];
+    if (immutableStatuses.includes(prediction.status)) {
+      return res.status(400).json({
+        error: 'invalid_state',
+        message: `Cannot edit prediction with status: ${prediction.status}`,
+        version: VERSION,
+      });
+    }
+
+    // Count entries for this prediction
+    const { count: entriesCount, error: countError } = await supabase
+      .from('prediction_entries')
+      .select('id', { count: 'exact', head: true })
+      .eq('prediction_id', predictionId);
+
+    if (countError) {
+      console.error('[PREDICTIONS] Error counting entries:', countError);
+      return res.status(500).json({
+        error: 'Database error',
+        message: 'Failed to count prediction entries',
+        version: VERSION,
+      });
+    }
+
+    const hasEntries = (entriesCount || 0) > 0;
+    const changedFields: string[] = [];
+    const updates: any = {};
+
+    // Apply safe edit rules
+    if (hasEntries) {
+      // If entries exist: ONLY allow extending closesAt (and optionally description)
+      if (title !== undefined) {
+        return res.status(400).json({
+          error: 'edit_blocked',
+          message: 'Cannot change title after participants have staked',
+          version: VERSION,
+        });
+      }
+
+      if (options !== undefined) {
+        return res.status(400).json({
+          error: 'edit_blocked',
+          message: 'Cannot change options after participants have staked',
+          version: VERSION,
+        });
+      }
+
+      if (categoryId !== undefined) {
+        return res.status(400).json({
+          error: 'edit_blocked',
+          message: 'Cannot change category after participants have staked',
+          version: VERSION,
+        });
+      }
+
+      // Allow description edit (optional per spec)
+      if (description !== undefined) {
+        updates.description = description?.trim() || null;
+        changedFields.push('description');
+      }
+
+      // Allow extending closesAt only
+      if (closesAt !== undefined) {
+        const newDeadline = new Date(closesAt);
+        const oldDeadline = new Date(prediction.entry_deadline);
+        
+        if (isNaN(newDeadline.getTime())) {
+          return res.status(400).json({
+            error: 'invalid_date',
+            message: 'Invalid closesAt date format',
+            version: VERSION,
+          });
+        }
+
+        if (newDeadline.getTime() <= oldDeadline.getTime()) {
+          return res.status(400).json({
+            error: 'invalid_extension',
+            message: 'Can only extend close time forward when entries exist',
+            version: VERSION,
+          });
+        }
+
+        updates.entry_deadline = newDeadline.toISOString();
+        changedFields.push('entry_deadline');
+      }
+    } else {
+      // No entries: allow full edit
+      if (title !== undefined) {
+        updates.title = title?.trim() || null;
+        changedFields.push('title');
+      }
+
+      if (description !== undefined) {
+        updates.description = description?.trim() || null;
+        changedFields.push('description');
+      }
+
+      if (categoryId !== undefined) {
+        updates.category = categoryId;
+        changedFields.push('category');
+      }
+
+      if (closesAt !== undefined) {
+        const newDeadline = new Date(closesAt);
+        if (isNaN(newDeadline.getTime())) {
+          return res.status(400).json({
+            error: 'invalid_date',
+            message: 'Invalid closesAt date format',
+            version: VERSION,
+          });
+        }
+        updates.entry_deadline = newDeadline.toISOString();
+        changedFields.push('entry_deadline');
+      }
+
+      // Handle options update (only if no entries)
+      if (options !== undefined && Array.isArray(options)) {
+        if (options.length < 2) {
+          return res.status(400).json({
+            error: 'invalid_options',
+            message: 'Must have at least 2 options',
+            version: VERSION,
+          });
+        }
+
+        // Validate unique labels (case-insensitive)
+        const labels = options.map((o: any) => (o.label || '').toLowerCase().trim()).filter(Boolean);
+        const uniqueLabels = new Set(labels);
+        if (labels.length !== uniqueLabels.size) {
+          return res.status(400).json({
+            error: 'duplicate_options',
+            message: 'Option labels must be unique',
+            version: VERSION,
+          });
+        }
+
+        // Maintain existing option IDs when provided:
+        // - update labels for existing option IDs
+        // - delete options removed by the creator
+        // - insert new options without an id
+        const { data: existingOptions, error: existingError } = await supabase
+          .from('prediction_options')
+          .select('id')
+          .eq('prediction_id', predictionId);
+
+        if (existingError) {
+          console.error('[PREDICTIONS] Error loading existing options:', existingError);
+          return res.status(500).json({
+            error: 'Database error',
+            message: 'Failed to load existing options',
+            version: VERSION,
+          });
+        }
+
+        const existingIds = new Set((existingOptions || []).map((o: any) => o.id));
+        const incomingIds = new Set(
+          (options || [])
+            .map((o: any) => o?.id)
+            .filter((id: any) => typeof id === 'string' && id.length > 0)
+        );
+
+        // Update labels for existing options with ids
+        for (const opt of options) {
+          const id = opt?.id;
+          if (typeof id === 'string' && existingIds.has(id)) {
+            const label = String(opt?.label || '').trim();
+            const { error: updErr } = await supabase
+              .from('prediction_options')
+              .update({ label, updated_at: new Date().toISOString() as any })
+              .eq('id', id)
+              .eq('prediction_id', predictionId);
+
+            if (updErr) {
+              console.error('[PREDICTIONS] Error updating option label:', updErr);
+              return res.status(500).json({
+                error: 'Database error',
+                message: 'Failed to update options',
+                version: VERSION,
+              });
+            }
+          }
+        }
+
+        // Delete options removed by the creator (only within this prediction)
+        const idsToDelete = (existingOptions || [])
+          .map((o: any) => o.id)
+          .filter((id: any) => typeof id === 'string' && !incomingIds.has(id));
+
+        if (idsToDelete.length > 0) {
+          const { error: delErr } = await supabase
+            .from('prediction_options')
+            .delete()
+            .in('id', idsToDelete)
+            .eq('prediction_id', predictionId);
+
+          if (delErr) {
+            console.error('[PREDICTIONS] Error deleting removed options:', delErr);
+            return res.status(500).json({
+              error: 'Database error',
+              message: 'Failed to update options',
+              version: VERSION,
+            });
+          }
+        }
+
+        // Insert new options without ids
+        const newOptions = (options || []).filter((o: any) => !o?.id);
+        if (newOptions.length > 0) {
+          const insertPayload = newOptions.map((option: any) => ({
+            prediction_id: predictionId,
+            label: String(option.label || '').trim(),
+            total_staked: 0,
+            current_odds: Number(option.currentOdds) || 2.0,
+          }));
+
+          const { error: insertError } = await supabase
+            .from('prediction_options')
+            .insert(insertPayload);
+
+          if (insertError) {
+            console.error('[PREDICTIONS] Error inserting new options:', insertError);
+            return res.status(500).json({
+              error: 'Database error',
+              message: 'Failed to update options',
+              version: VERSION,
+            });
+          }
+        }
+
+        changedFields.push('options');
+      }
+    }
+
+    // If no changes, return early
+    if (changedFields.length === 0) {
+      return res.json({
+        data: prediction,
+        message: 'No changes to apply',
+        version: VERSION,
+      });
+    }
+
+    // Update prediction
+    updates.updated_at = new Date().toISOString();
+    const { data: updated, error: updateError } = await supabase
+      .from('predictions')
+      .update(updates)
+      .eq('id', predictionId)
+      .select(`
+        *,
+        creator:users!creator_id(id, username, full_name, avatar_url, is_verified),
+        options:prediction_options!prediction_options_prediction_id_fkey(*)
+      `)
+      .single();
+
+    if (updateError) {
+      console.error('[PREDICTIONS] Error updating prediction:', updateError);
+      return res.status(500).json({
+        error: 'Database error',
+        message: 'Failed to update prediction',
+        version: VERSION,
+      });
+    }
+
+    // Audit log
+    await logAdminAction({
+      actorId: userId,
+      action: 'creator_edit_prediction',
+      targetType: 'prediction',
+      targetId: predictionId,
+      reason: editReason || null,
+      meta: {
+        changedFields,
+        hasEntries,
+        entriesCount: entriesCount || 0,
+      },
+    }).catch((e) => console.error('[PREDICTIONS] Audit log failed:', e));
+
+    // Recompute state if needed
+    await recomputePredictionState(predictionId).catch((e) =>
+      console.error('[PREDICTIONS] Recompute failed:', e)
+    );
+
+    // Emit realtime update
+    emitPredictionUpdate({ predictionId, reason: 'edited' });
+
+    console.log(`✅ Prediction ${predictionId} edited by ${userId}:`, changedFields);
+
+    return res.json({
+      data: updated,
+      message: 'Prediction updated successfully',
+      changedFields,
+      version: VERSION,
+    });
+  } catch (error) {
+    console.error('[PREDICTIONS] Error editing prediction:', error);
+    return res.status(500).json({
+      error: 'Internal server error',
+      message: 'Failed to edit prediction',
+      version: VERSION,
+    });
+  }
+});
+
 // PATCH /api/v2/predictions/:id/image - Set stable image URL (only if not already set)
 router.patch('/:id/image', async (req, res) => {
   try {
@@ -1439,6 +1825,209 @@ router.get('/user/:id', async (req, res) => {
     return res.status(500).json({
       error: 'Internal server error',
       message: 'Failed to fetch user predictions',
+      version: VERSION,
+    });
+  }
+});
+
+// POST /api/v2/predictions/:id/cancel - Cancel prediction with refunds
+router.post('/:id/cancel', async (req, res) => {
+  try {
+    const { id: predictionId } = req.params;
+    const { reason } = req.body;
+
+    const tokenUserId = await resolveAuthenticatedUserId(req);
+    const userId = tokenUserId || req.body.userId || req.body.creatorId;
+
+    // Require auth in production
+    if (process.env.NODE_ENV === 'production' && !tokenUserId) {
+      return res.status(401).json({
+        error: 'Unauthorized',
+        message: 'Authentication required',
+        version: VERSION,
+      });
+    }
+
+    if (!userId) {
+      return res.status(401).json({
+        error: 'Unauthorized',
+        message: 'User ID required',
+        version: VERSION,
+      });
+    }
+
+    console.log(`🚫 Cancel prediction ${predictionId} requested by user ${userId}`);
+
+    // Load prediction
+    const { data: prediction, error: predError } = await supabase
+      .from('predictions')
+      .select('id, creator_id, status, title')
+      .eq('id', predictionId)
+      .single();
+
+    if (predError || !prediction) {
+      return res.status(404).json({
+        error: 'Not found',
+        message: 'Prediction not found',
+        version: VERSION,
+      });
+    }
+
+    // Verify creator
+    if (prediction.creator_id !== userId) {
+      return res.status(403).json({
+        error: 'Forbidden',
+        message: 'Only the creator can cancel this prediction',
+        version: VERSION,
+      });
+    }
+
+    // Cannot cancel if already settled/complete/voided/cancelled
+    const immutableStatuses = ['settled', 'complete', 'voided', 'cancelled'];
+    if (immutableStatuses.includes(prediction.status)) {
+      return res.status(400).json({
+        error: 'invalid_state',
+        message: `Cannot cancel prediction with status: ${prediction.status}`,
+        version: VERSION,
+      });
+    }
+
+    // Load all entries for this prediction
+    const { data: entries, error: entriesError } = await supabase
+      .from('prediction_entries')
+      .select('id, user_id, amount, provider, status')
+      .eq('prediction_id', predictionId);
+
+    if (entriesError) {
+      console.error('[PREDICTIONS] Error loading entries:', entriesError);
+      return res.status(500).json({
+        error: 'Database error',
+        message: 'Failed to load prediction entries',
+        version: VERSION,
+      });
+    }
+
+    // Mark prediction as cancelled
+    const { error: updateError } = await supabase
+      .from('predictions')
+      .update({
+        status: 'cancelled',
+        cancelled_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', predictionId);
+
+    if (updateError) {
+      console.error('[PREDICTIONS] Error cancelling prediction:', updateError);
+      return res.status(500).json({
+        error: 'Database error',
+        message: 'Failed to cancel prediction',
+        version: VERSION,
+      });
+    }
+
+    // Refund all entries by rail
+    let refundedDemo = 0;
+    let refundedCrypto = 0;
+    const DEMO_PROVIDER = 'demo-wallet';
+
+    // Group entries by provider
+    const demoEntries = (entries || []).filter((e) => e.provider === DEMO_PROVIDER);
+    const cryptoEntries = (entries || []).filter((e) => e.provider !== DEMO_PROVIDER);
+
+    // Refund demo entries (credit back to wallet)
+    for (const entry of demoEntries) {
+      const refundAmount = Number(entry.amount || 0);
+      if (refundAmount <= 0) continue;
+
+      const externalRef = `refund:${predictionId}:${entry.user_id}:demo`;
+      const { error: txError } = await insertWalletTransaction({
+        user_id: entry.user_id,
+        type: 'refund',
+        direction: 'credit',
+        channel: 'prediction_cancelled',
+        provider: DEMO_PROVIDER,
+        amount: refundAmount,
+        currency: 'USD',
+        status: 'completed',
+        external_ref: externalRef,
+        prediction_id: predictionId,
+        entry_id: entry.id,
+        description: `Refund for cancelled prediction: ${prediction.title || predictionId}`,
+      });
+
+      if (txError) {
+        console.error(`[PREDICTIONS] Failed to refund demo entry ${entry.id}:`, txError);
+      } else {
+        refundedDemo++;
+        console.log(`[PREDICTIONS] ✅ Refunded demo entry ${entry.id}: $${refundAmount}`);
+      }
+    }
+
+    // Refund crypto entries (release escrow locks)
+    if (cryptoEntries.length > 0) {
+      // Find associated escrow locks
+      const { data: locks, error: locksError } = await supabase
+        .from('escrow_locks')
+        .select('id, user_id, amount')
+        .eq('prediction_id', predictionId)
+        .in('status', ['locked', 'consumed']);
+
+      if (!locksError && locks) {
+        // Release all locks for this prediction
+        const { error: releaseError } = await supabase
+          .from('escrow_locks')
+          .update({
+            status: 'released',
+            state: 'released',
+            released_at: new Date().toISOString(),
+          })
+          .eq('prediction_id', predictionId)
+          .in('status', ['locked', 'consumed']);
+
+        if (releaseError) {
+          console.error('[PREDICTIONS] Error releasing escrow locks:', releaseError);
+        } else {
+          refundedCrypto = locks.length;
+          console.log(`[PREDICTIONS] ✅ Released ${refundedCrypto} crypto escrow locks`);
+        }
+      }
+    }
+
+    // Audit log
+    await logAdminAction({
+      actorId: userId,
+      action: 'creator_cancel_prediction',
+      targetType: 'prediction',
+      targetId: predictionId,
+      reason: reason || null,
+      meta: {
+        refundedDemo,
+        refundedCrypto,
+        totalEntries: (entries || []).length,
+      },
+    }).catch((e) => console.error('[PREDICTIONS] Audit log failed:', e));
+
+    // Emit realtime update
+    emitPredictionUpdate({ predictionId, reason: 'cancelled' });
+
+    console.log(`✅ Prediction ${predictionId} cancelled by ${userId}. Refunded: ${refundedDemo} demo, ${refundedCrypto} crypto`);
+
+    return res.json({
+      predictionId,
+      status: 'cancelled',
+      refunded: {
+        demo: refundedDemo,
+        crypto: refundedCrypto,
+      },
+      message: 'Prediction cancelled and refunds initiated',
+      version: VERSION,
+    });
+  } catch (error) {
+    console.error('[PREDICTIONS] Error cancelling prediction:', error);
+    return res.status(500).json({
+      error: 'Internal server error',
+      message: 'Failed to cancel prediction',
       version: VERSION,
     });
   }

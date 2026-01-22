@@ -1,4 +1,5 @@
 import { getApiUrl } from '@/config';
+import { getAdminKey } from '@/components/admin/AdminGate';
 
 type Primitive = string | number | undefined;
 
@@ -12,7 +13,9 @@ export function buildAdminUrl(
   const url = new URL(path.startsWith('http') ? path : `${base}${path}`, origin);
 
   // Preserve existing query params (from path) and add/override with params + actorId.
-  url.searchParams.set('actorId', actorId);
+  if (actorId) {
+    url.searchParams.set('actorId', actorId);
+  }
   if (params) {
     for (const [k, v] of Object.entries(params)) {
       if (v === undefined) continue;
@@ -37,7 +40,18 @@ export async function adminGet<T>(
   params?: Record<string, Primitive>
 ): Promise<T> {
   const url = buildAdminUrl(path, actorId, params);
-  const res = await fetch(url, { method: 'GET', credentials: 'include' });
+  const adminKey = getAdminKey();
+  const headers: HeadersInit = {
+    'Content-Type': 'application/json',
+  };
+  if (adminKey) {
+    headers['x-admin-key'] = adminKey;
+  }
+  const res = await fetch(url, { 
+    method: 'GET', 
+    credentials: 'include',
+    headers,
+  });
   if (!res.ok) {
     const err: any = await parseJsonOrText(res);
     throw new Error(err?.message || `Request failed (${res.status})`);
@@ -52,15 +66,19 @@ export async function adminPost<T>(
 ): Promise<T> {
   // Preserve query params if they exist in path, and include actorId in both query+body for consistency.
   const url = buildAdminUrl(path, actorId);
+  const adminKey = getAdminKey();
+  const headers: HeadersInit = {
+    'Content-Type': 'application/json',
+    Accept: 'application/json',
+  };
+  if (adminKey) {
+    headers['x-admin-key'] = adminKey;
+  }
   const res = await fetch(url, {
     method: 'POST',
     credentials: 'include',
-    headers: {
-      'Content-Type': 'application/json',
-      Accept: 'application/json',
-      ...(body?.adminKey ? { 'X-Admin-Key': String(body.adminKey) } : {}),
-    },
-    body: JSON.stringify({ ...(body || {}), actorId }),
+    headers,
+    body: JSON.stringify(actorId ? { ...(body || {}), actorId } : { ...(body || {}) }),
   });
   if (!res.ok) {
     const err: any = await parseJsonOrText(res);
@@ -75,11 +93,19 @@ export async function adminPut<T>(
   body?: Record<string, any>
 ): Promise<T> {
   const url = buildAdminUrl(path, actorId);
+  const adminKey = getAdminKey();
+  const headers: HeadersInit = {
+    'Content-Type': 'application/json',
+    Accept: 'application/json',
+  };
+  if (adminKey) {
+    headers['x-admin-key'] = adminKey;
+  }
   const res = await fetch(url, {
     method: 'PUT',
     credentials: 'include',
-    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-    body: JSON.stringify({ ...(body || {}), actorId }),
+    headers,
+    body: JSON.stringify(actorId ? { ...(body || {}), actorId } : { ...(body || {}) }),
   });
   if (!res.ok) {
     const err: any = await parseJsonOrText(res);
