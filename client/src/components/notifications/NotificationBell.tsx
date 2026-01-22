@@ -13,22 +13,40 @@ interface NotificationBellProps {
  */
 export const NotificationBell: React.FC<NotificationBellProps> = ({ className = '' }) => {
   const navigate = useNavigate();
-  const { unreadCount, refreshUnreadCount } = useNotifications({ 
+  const { unreadCount, refreshUnreadCount, syncReminders } = useNotifications({ 
     autoRefresh: true,
     refreshInterval: 30000, // Refresh every 30 seconds
   });
 
-  // Refresh on mount and window focus
+  // Refresh on mount and window focus, sync reminders
   React.useEffect(() => {
     refreshUnreadCount();
+    // Sync reminders on mount (debounced - at most once per 5 minutes)
+    const lastSyncKey = 'fcz:reminders:last_sync';
+    const lastSync = localStorage.getItem(lastSyncKey);
+    const now = Date.now();
+    const fiveMinutes = 5 * 60 * 1000;
+    
+    if (!lastSync || (now - parseInt(lastSync, 10)) > fiveMinutes) {
+      syncReminders().then(() => {
+        localStorage.setItem(lastSyncKey, String(now));
+      }).catch(() => {});
+    }
     
     const handleFocus = () => {
       refreshUnreadCount();
+      // Sync reminders on focus (debounced)
+      const lastSyncOnFocus = localStorage.getItem(lastSyncKey);
+      if (!lastSyncOnFocus || (now - parseInt(lastSyncOnFocus, 10)) > fiveMinutes) {
+        syncReminders().then(() => {
+          localStorage.setItem(lastSyncKey, String(Date.now()));
+        }).catch(() => {});
+      }
     };
     
     window.addEventListener('focus', handleFocus);
     return () => window.removeEventListener('focus', handleFocus);
-  }, [refreshUnreadCount]);
+  }, [refreshUnreadCount, syncReminders]);
 
   const handleClick = () => {
     navigate('/notifications');

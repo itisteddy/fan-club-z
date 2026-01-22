@@ -293,6 +293,40 @@ export function useNotifications(options: UseNotificationsOptions = {}) {
     };
   }, [autoRefresh, session, refreshInterval, refreshUnreadCount]);
 
+  /**
+   * Sync reminders (closing soon + claim reminders)
+   * Called on app start/focus
+   */
+  const syncReminders = useCallback(async () => {
+    if (!session) return;
+
+    try {
+      const token = await getAuthToken();
+      if (!token) return;
+
+      const apiUrl = getApiUrl();
+      const response = await fetch(`${apiUrl}/api/v2/notifications/reminders/sync`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        credentials: 'include',
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        // Refresh notifications to show new reminders
+        if (data.created > 0) {
+          await fetchNotifications();
+        }
+      }
+    } catch (err) {
+      // Silently fail for reminder sync
+      console.warn('[useNotifications] Failed to sync reminders:', err);
+    }
+  }, [session, getAuthToken, fetchNotifications]);
+
   return {
     notifications,
     unreadCount,
@@ -304,5 +338,6 @@ export function useNotifications(options: UseNotificationsOptions = {}) {
     markRead,
     markAllRead,
     loadMore,
+    syncReminders,
   };
 }
