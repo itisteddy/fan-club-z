@@ -74,6 +74,23 @@ const SettlementValidationModal: React.FC<SettlementValidationModalProps> = ({
   const { user: sessionUser } = useAuthSession();
   const userId = sessionUser?.id || user?.id;
 
+  const parseApiErrorMessage = async (res: Response, fallback: string) => {
+    // Prefer structured JSON errors; never surface raw JSON to end users.
+    const ct = res.headers.get('content-type') || '';
+    if (ct.includes('application/json')) {
+      const json = await res.json().catch(() => null);
+      const msg =
+        (json && typeof json === 'object' && (json as any).message && String((json as any).message)) ||
+        (json && typeof json === 'object' && (json as any).error && String((json as any).error)) ||
+        null;
+      return msg || fallback;
+    }
+    const txt = await res.text().catch(() => '');
+    // If server sent JSON as text, don't show it.
+    if (txt.trim().startsWith('{') && txt.trim().endsWith('}')) return fallback;
+    return txt || fallback;
+  };
+
   useEffect(() => {
     if (isOpen && userId) {
       fetchSettlementStatus();
@@ -103,8 +120,8 @@ const SettlementValidationModal: React.FC<SettlementValidationModalProps> = ({
       }
 
       if (!response.ok) {
-        const message = await response.text().catch(() => '');
-        throw new Error(message || 'Failed to fetch settlement status');
+        const message = await parseApiErrorMessage(response, 'Failed to load settlement status.');
+        throw new Error(message);
       }
 
       const data = await response.json();
@@ -141,15 +158,19 @@ const SettlementValidationModal: React.FC<SettlementValidationModalProps> = ({
       }
 
       if (!response.ok) {
-        const message = await response.text().catch(() => '');
-        throw new Error(message || 'Failed to fetch settlement history');
+        // Keep user-facing messaging friendly (no raw JSON)
+        const message = await parseApiErrorMessage(response, 'We couldn’t load settlement history right now. Please try again.');
+        throw new Error(message);
       }
 
       const data = await response.json();
       setHistory(data.data || null);
     } catch (error) {
       console.error('Error fetching settlement history:', error);
-      const message = error instanceof Error ? error.message : 'Failed to load settlement history';
+      const message =
+        error instanceof Error
+          ? error.message
+          : 'We couldn’t load settlement history right now. Please try again.';
       setHistory(null);
       setHistoryError(message);
     } finally {
@@ -276,28 +297,46 @@ const SettlementValidationModal: React.FC<SettlementValidationModalProps> = ({
 
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      {/* z-[9000] keeps bottom nav (z-[9999]) visible + clickable */}
+      <div className="fixed inset-0 z-[9000]" aria-modal="true" role="dialog">
+        {/* Backdrop (click to close) */}
+        <div
+          className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+          onClick={onClose}
+          aria-hidden="true"
+        />
+
+        {/* Panel: pinned above bottom nav so nothing gets hidden behind it */}
         <motion.div
-          initial={{ opacity: 0, scale: 0.9 }}
-          animate={{ opacity: 1, scale: 1 }}
-          exit={{ opacity: 0, scale: 0.9 }}
-          className="bg-white rounded-xl shadow-xl w-full max-w-md max-h-[90vh] overflow-y-auto"
+          initial={{ opacity: 0, scale: 0.98, y: 8 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          exit={{ opacity: 0, scale: 0.98, y: 8 }}
+          transition={{ duration: 0.15 }}
+          onClick={(e) => e.stopPropagation()}
+          className={[
+            // mobile: bottom-sheet-like, but NOT covering bottom nav
+            'fixed left-4 right-4 top-4',
+            'bottom-[calc(4rem+env(safe-area-inset-bottom)+1rem)]',
+            // desktop: centered card
+            'md:left-1/2 md:right-auto md:top-1/2 md:bottom-auto md:w-full md:max-w-md md:-translate-x-1/2 md:-translate-y-1/2',
+            'bg-white rounded-2xl border border-black/[0.06] shadow-2xl overflow-hidden',
+          ].join(' ')}
         >
-          {/* Header */}
-          <div className="flex items-center justify-between p-6 border-b border-gray-100">
-            <h2 className="text-xl font-semibold text-gray-900">
-              Settlement Validation
-            </h2>
+          {/* Header stays visible (no full-modal scrolling) */}
+          <div className="sticky top-0 z-10 bg-white/90 backdrop-blur border-b border-black/[0.06] px-4 py-3 flex items-center justify-between">
+            <h2 className="text-base font-semibold text-gray-900 truncate">Settlement review</h2>
             <button
+              type="button"
               onClick={onClose}
-              className="text-gray-400 hover:text-gray-600 transition-colors"
+              className="p-2 -mr-2 rounded-lg hover:bg-gray-100 transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2"
+              aria-label="Close"
             >
-              <X className="w-5 h-5" />
+              <X className="w-5 h-5 text-gray-600" />
             </button>
           </div>
 
-          {/* Content */}
-          <div className="p-6">
+          {/* Scroll only the content area */}
+          <div className="px-4 py-4 overflow-y-auto h-full pb-[calc(1rem+env(safe-area-inset-bottom))]">
             {loading ? (
               <div className="flex items-center justify-center py-8">
                 <div className="w-8 h-8 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
@@ -309,7 +348,7 @@ const SettlementValidationModal: React.FC<SettlementValidationModalProps> = ({
                 </div>
                 <button
                   onClick={onClose}
-                  className="w-full px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+                  className="w-full px-4 py-2.5 rounded-xl border border-black/[0.06] bg-white text-gray-900 font-semibold hover:bg-gray-50 transition-colors"
                 >
                   Close
                 </button>
@@ -460,7 +499,18 @@ const SettlementValidationModal: React.FC<SettlementValidationModalProps> = ({
                   {historyLoading ? (
                     <div className="text-sm text-gray-600">Loading history…</div>
                   ) : historyError ? (
-                    <div className="text-sm text-gray-700">{historyError}</div>
+                    <div className="space-y-3">
+                      <div className="text-sm text-gray-700">
+                        We couldn’t load settlement history right now.
+                      </div>
+                      <button
+                        type="button"
+                        onClick={fetchHistory}
+                        className="w-full px-4 py-2.5 rounded-xl border border-black/[0.06] bg-white text-gray-900 font-semibold hover:bg-gray-50 transition-colors"
+                      >
+                        Retry
+                      </button>
+                    </div>
                   ) : (
                     <>
                       <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-600 mb-3">

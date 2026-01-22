@@ -206,7 +206,12 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = memo(({ children }) 
     void run();
   }, [navigate, location.pathname, requestCreateAccess]);
 
-  const showFAB = getCurrentTab() === 'discover';
+  // Only show the floating action button on the actual Discover tab route.
+  // On detail/flow routes (e.g. /predictions/:id), this FAB can overlap modals/cards.
+  const showFAB = (() => {
+    const p = normalizePath(location.pathname);
+    return p === '/' || p === '/discover';
+  })();
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col" data-scroll-container>
