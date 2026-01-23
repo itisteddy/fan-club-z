@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { Plus, Download, DollarSign, TrendingUp, CreditCard, User, Wallet, ArrowRightLeft, Copy, ExternalLink, X, Target, Clock, Receipt, Lock, Unlock, ArrowUpRight, XCircle, Trophy, Gift, HelpCircle } from 'lucide-react';
+import { Plus, Download, DollarSign, TrendingUp, CreditCard, User, Wallet, ArrowRightLeft, Copy, ExternalLink, X, Target, Clock, Receipt, Lock, Unlock, ArrowUpRight, XCircle, Trophy, Gift, HelpCircle, Banknote } from 'lucide-react';
 import { useAccount, useDisconnect, useSwitchChain } from 'wagmi';
 import { useStableWalletConnection } from '@/hooks/useStableWalletConnection';
 import { baseSepolia } from 'wagmi/chains';
@@ -19,10 +19,13 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import SignedOutGateCard from '../components/auth/SignedOutGateCard';
 import DepositUSDCModal from '../components/wallet/DepositUSDCModal';
 import WithdrawUSDCModal from '../components/wallet/WithdrawUSDCModal';
+import FiatDepositSheet from '../components/wallet/FiatDepositSheet';
+import FiatWithdrawalSheet from '../components/wallet/FiatWithdrawalSheet';
 import { useOnchainActivity, formatActivityKind } from '../hooks/useOnchainActivity';
 import { useUnifiedBalance } from '../hooks/useUnifiedBalance';
 import { useEscrowBalance } from '../hooks/useEscrowBalance';
 import { useWalletActivity, type WalletActivityItem, type WalletActivityResponse } from '../hooks/useWalletActivity';
+import { useFiatSummary, usePaystackStatus } from '../hooks/useFiatWallet';
 import { useAutoNetworkSwitch } from '../hooks/useAutoNetworkSwitch';
 import { QK } from '@/lib/queryKeys';
 import { t } from '@/lib/lexicon';
@@ -85,6 +88,10 @@ const WalletPageV2: React.FC<WalletPageV2Props> = ({ onNavigateBack }) => {
   const [showDeposit, setShowDeposit] = useState(false);
   const [showWithdraw, setShowWithdraw] = useState(false);
   const [showClaims, setShowClaims] = useState(false);
+  
+  // Fiat wallet modal state (Phase 7)
+  const [showFiatDeposit, setShowFiatDeposit] = useState(false);
+  const [showFiatWithdraw, setShowFiatWithdraw] = useState(false);
   const [claimingId, setClaimingId] = useState<string | null>(null);
   const [bulkClaiming, setBulkClaiming] = useState(false);
   const [bulkTotal, setBulkTotal] = useState(0);
@@ -174,6 +181,12 @@ const WalletPageV2: React.FC<WalletPageV2Props> = ({ onNavigateBack }) => {
   const isLoadingAllActivity = allWalletActivityQuery.isLoading;
   const { data: claimables } = useClaimableClaims(address, 100);
   const [showAllTransactions, setShowAllTransactions] = useState(false);
+  
+  // Fiat wallet hooks (Phase 7)
+  const { data: paystackStatus } = usePaystackStatus();
+  const { data: fiatSummaryData } = useFiatSummary(user?.id);
+  const fiatEnabled = paystackStatus?.enabled || false;
+  const fiatSummary = fiatSummaryData?.summary || null;
   
   // Connection helpers
   const openConnectSheet = useCallback(() => {
@@ -995,6 +1008,63 @@ const WalletPageV2: React.FC<WalletPageV2Props> = ({ onNavigateBack }) => {
                   </div>
                 ) : null}
               </div>
+              
+              {/* Fiat Wallet Section (Phase 7) */}
+              {fiatEnabled && (
+                <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-2xl border border-green-100 p-4">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-medium text-green-600 bg-green-100 px-2 py-1 rounded-full">NGN Fiat</span>
+                      <Banknote className="w-4 h-4 text-green-600" />
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-2 mb-4">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-gray-600">Total Balance</span>
+                      <span className="font-mono font-semibold text-gray-900">
+                        ₦{fiatSummary ? fiatSummary.totalNgn.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0.00'}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-gray-700 flex items-center gap-2">
+                        <span className="inline-block h-1.5 w-3 rounded bg-green-500" />Available
+                      </span>
+                      <span className="font-mono font-semibold text-green-600">
+                        ₦{fiatSummary ? fiatSummary.availableNgn.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0.00'}
+                      </span>
+                    </div>
+                    {fiatSummary && fiatSummary.lockedNgn > 0 && (
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-gray-700 flex items-center gap-2">
+                          <span className="inline-block h-1.5 w-3 rounded bg-amber-500" />In active {t('bets')}
+                        </span>
+                        <span className="font-mono font-medium text-amber-600">
+                          ₦{fiatSummary.lockedNgn.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-3 mt-4">
+                    <button
+                      onClick={() => setShowFiatDeposit(true)}
+                      className="h-11 rounded-xl bg-green-600 text-white font-semibold hover:bg-green-700 transition-colors flex items-center justify-center gap-2"
+                    >
+                      <Plus className="w-4 h-4" />
+                      Deposit
+                    </button>
+                    <button
+                      onClick={() => setShowFiatWithdraw(true)}
+                      disabled={!fiatSummary || fiatSummary.availableNgn < 200}
+                      className="h-11 rounded-xl border-2 border-gray-300 text-gray-700 font-semibold hover:border-gray-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                    >
+                      <ArrowUpRight className="w-4 h-4" />
+                      Withdraw
+                    </button>
+                  </div>
+                </div>
+              )}
             </>
           )}
         </div>
@@ -1025,6 +1095,38 @@ const WalletPageV2: React.FC<WalletPageV2Props> = ({ onNavigateBack }) => {
               }}
               availableUSDC={onchainEscrowBalance}
               userId={user.id}
+            />
+          )}
+        </>
+      )}
+
+      {/* Fiat Wallet Modals (Phase 7) */}
+      {user?.id && fiatEnabled && (
+        <>
+          {showFiatDeposit && (
+            <FiatDepositSheet
+              open={showFiatDeposit}
+              onClose={() => setShowFiatDeposit(false)}
+              userId={user.id}
+              userEmail={user.email}
+              onSuccess={() => {
+                setShowFiatDeposit(false);
+                handleRefresh();
+                queryClient.invalidateQueries({ queryKey: ['fiat'] });
+              }}
+            />
+          )}
+          {showFiatWithdraw && (
+            <FiatWithdrawalSheet
+              open={showFiatWithdraw}
+              onClose={() => setShowFiatWithdraw(false)}
+              userId={user.id}
+              fiatSummary={fiatSummary}
+              onSuccess={() => {
+                setShowFiatWithdraw(false);
+                handleRefresh();
+                queryClient.invalidateQueries({ queryKey: ['fiat'] });
+              }}
             />
           )}
         </>
