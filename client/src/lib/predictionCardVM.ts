@@ -59,9 +59,6 @@ export function buildPredictionCardVM(input: {
   // Normalize entry to array
   const entries = Array.isArray(myEntry) ? myEntry : myEntry ? [myEntry] : [];
 
-  // Aggregate staked amount across all entries
-  const staked = entries.reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
-
   // Determine if prediction is settled
   const statusLower = (prediction.status || '').toLowerCase();
   const hasSettledAt = !!(prediction.settled_at || prediction.settledAt);
@@ -108,14 +105,28 @@ export function buildPredictionCardVM(input: {
     }
   }
 
-  // Monetary fields
-  // Returned: use actual_payout if settled, else 0
-  const returned = isSettled
-    ? entries.reduce((sum, e) => sum + (Number(e.actual_payout) || 0), 0)
-    : 0;
+  // Monetary fields - Phase 6B: Prefer canonical server fields
+  let staked: number;
+  let returned: number;
+  let profitLoss: number;
 
-  // Profit/Loss = returned - staked (net)
-  const profitLoss = returned - staked;
+  // Phase 6A: Use canonical fields if available (from server)
+  if (
+    typeof prediction.myStakeTotal === 'number' ||
+    typeof prediction.myReturnedTotal === 'number' ||
+    typeof prediction.myNet === 'number'
+  ) {
+    staked = typeof prediction.myStakeTotal === 'number' ? prediction.myStakeTotal : 0;
+    returned = typeof prediction.myReturnedTotal === 'number' ? prediction.myReturnedTotal : 0;
+    profitLoss = typeof prediction.myNet === 'number' ? prediction.myNet : 0;
+  } else {
+    // Fallback: Compute from entries (backward compatible)
+    staked = entries.reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
+    returned = isSettled
+      ? entries.reduce((sum, e) => sum + (Number(e.actual_payout) || 0), 0)
+      : 0;
+    profitLoss = returned - staked;
+  }
 
   // Your position label
   let yourPositionLabel: string | undefined;
