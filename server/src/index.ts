@@ -120,7 +120,20 @@ app.use((req, res, next) => {
   next();
 });
 
-app.use(express.json());
+// Paystack webhooks require raw body for signature verification.
+// We capture the raw buffer ONLY for that route via express.json verify hook.
+app.use(express.json({
+  verify: (req: any, _res, buf) => {
+    try {
+      const url = String(req?.originalUrl || '');
+      if (url.includes('/api/v2/fiat/paystack/webhook')) {
+        req.rawBody = buf;
+      }
+    } catch {
+      // ignore
+    }
+  },
+}));
 
 // Maintenance mode check (must be before routes)
 app.use(checkMaintenanceMode);
@@ -253,6 +266,7 @@ import { remindersRouter } from './routes/notificationsReminders';
 import categoriesRoutes from './routes/categories';
 import { fiatPaystackRouter } from './routes/fiatPaystack';
 import { fiatWithdrawalsRouter } from './routes/fiatWithdrawals';
+import { fxRouter } from './routes/fx';
 import { seedCategories } from './services/categoriesSeed';
 import { startBaseDepositWatcher } from './chain/base/depositWatcher';
 import { resolveAndValidateAddresses } from './chain/base/addressRegistry';
@@ -289,6 +303,7 @@ app.use('/api/wallet', transactionLogRouter);
 app.use('/api/demo-wallet', demoWallet);
 app.use('/api/v2/fiat/paystack', fiatPaystackRouter);
 app.use('/api/v2/fiat/withdrawals', fiatWithdrawalsRouter);
+app.use('/api/v2/fx', fxRouter);
 app.use('/api/chain', chainActivity);
 app.use(healthPayments);
 app.use(healthBase);

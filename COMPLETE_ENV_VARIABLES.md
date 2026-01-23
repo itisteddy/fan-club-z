@@ -145,6 +145,26 @@ PLATFORM_TREASURY_USER_ID=<uuid>
 PLATFORM_FEE_CURRENCY=USD
 ```
 
+### **📈 Phase 7D: FX (display-only NGN↔USD)**
+
+```bash
+# FX feature
+FX_ENABLED=true
+
+# Primary: OANDA (trusted rates). API key required.
+FX_OANDA_ENABLED=true
+FX_OANDA_API_KEY=<secret>        # Never commit. OANDA Exchange Rates API.
+FX_OANDA_BASE_URL=               # Optional. Default: https://api.exchange-rates-api.oanda.com
+
+# Fallback: Frankfurter (ECB). No key.
+FX_FRANKFURTER_ENABLED=true      # Default true if not set
+
+# Cache & staleness (seconds)
+FX_REFRESH_SECONDS=300           # Refresh attempt interval (default 5 min)
+FX_STALE_SECONDS_OANDA=900       # OANDA stale threshold (default 15 min)
+FX_STALE_SECONDS_FALLBACK=129600 # Frankfurter fallback stale (~36 h)
+```
+
 ### **📧 Email (Optional)**
 
 ```bash

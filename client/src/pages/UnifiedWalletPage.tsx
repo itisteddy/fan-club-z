@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Plus, ArrowDownToLine, DollarSign, Lock, Wallet, RefreshCw, HelpCircle, X, ArrowRightLeft } from 'lucide-react';
+import { Plus, ArrowDownToLine, DollarSign, Lock, Wallet, RefreshCw, HelpCircle, X, ArrowRightLeft, Banknote } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { useAccount, useDisconnect, useSwitchChain } from 'wagmi';
 import { baseSepolia } from 'wagmi/chains';
@@ -11,7 +11,7 @@ import StatCard, { StatRow } from '../components/ui/card/StatCard';
 import EmptyState from '../components/ui/empty/EmptyState';
 import AuthRequiredState from '../components/ui/empty/AuthRequiredState';
 import { SkeletonStatRow, SkeletonCard } from '../components/ui/skeleton/Skeleton';
-import { formatUSDCompact, truncateText } from '@/lib/format';
+import { formatUSDCompact, truncateText, formatCurrency } from '@/lib/format';
 // Use unified escrow snapshot (server-computed: on-chain + DB locks)
 import { useEscrowSnapshot } from '../hooks/useEscrowSnapshot';
 import { useUSDCBalance } from '../hooks/useUSDCBalance';
@@ -24,6 +24,9 @@ import { useFundingModeStore } from '../store/fundingModeStore';
 import { useAutoNetworkSwitch } from '../hooks/useAutoNetworkSwitch';
 import { formatTxAmount, toneClass } from '@/lib/txFormat';
 import { setCooldown } from '@/lib/cooldowns';
+import { usePaystackStatus, useFiatSummary } from '@/hooks/useFiatWallet';
+import { FiatDepositSheet } from '@/components/wallet/FiatDepositSheet';
+import { FiatWithdrawalSheet } from '@/components/wallet/FiatWithdrawalSheet';
 
 interface WalletPageProps {
   onNavigateBack?: () => void;
@@ -36,9 +39,20 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
   const { switchChain } = useSwitchChain();
   // Auto-switch to Base Sepolia when connected on wrong network (crypto rail only)
   useAutoNetworkSwitch();
-  const { mode, setMode, isDemoEnabled } = useFundingModeStore();
+  const { mode, setMode, isDemoEnabled, isFiatEnabled, setFiatEnabled } = useFundingModeStore();
   const showDemo = isDemoEnabled;
   const isDemoMode = showDemo && mode === 'demo';
+  const isFiatMode = isFiatEnabled && mode === 'fiat';
+  const isCryptoMode = !isDemoMode && !isFiatMode;
+
+  // Fiat feature flag + balances (server-controlled)
+  const { data: paystackStatus } = usePaystackStatus();
+  const { data: fiatData, isLoading: loadingFiat, refetch: refetchFiat } = useFiatSummary(user?.id);
+  useEffect(() => {
+    if (paystackStatus?.enabled !== undefined) {
+      setFiatEnabled(paystackStatus.enabled);
+    }
+  }, [paystackStatus?.enabled, setFiatEnabled]);
   
   // On-chain wallet USDC (token balance)
   const { balance: walletBalance, isLoading: loadingWalletBalance, refetch: refetchWallet } = useUSDCBalance();
@@ -201,7 +215,10 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
   const [showWithdrawModal, setShowWithdrawModal] = useState(false);
   const [showConnectWallet, setShowConnectWallet] = useState(false);
 
-  const isLoading = loadingWalletBalance || loadingSnapshot;
+  const [showFiatDeposit, setShowFiatDeposit] = useState(false);
+  const [showFiatWithdraw, setShowFiatWithdraw] = useState(false);
+
+  const isLoading = isFiatMode ? loadingFiat : (loadingWalletBalance || loadingSnapshot);
 
   const recordOnchainTransactions = useCallback(async () => {
     if (!user?.id) return;
@@ -218,10 +235,14 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
 
   const handleRefresh = useCallback(async () => {
     await recordOnchainTransactions();
-    await Promise.all([refetchWallet(), refetchSnapshot(), refetchActivity()]);
-  }, [recordOnchainTransactions, refetchWallet, refetchSnapshot, refetchActivity]);
+    await Promise.all([refetchWallet(), refetchSnapshot(), refetchActivity(), refetchFiat()]);
+  }, [recordOnchainTransactions, refetchWallet, refetchSnapshot, refetchActivity, refetchFiat]);
 
   const handleDeposit = () => {
+    if (isFiatMode) {
+      setShowFiatDeposit(true);
+      return;
+    }
     if (!isConnected) {
       setShowConnectWallet(true);
     } else {
@@ -230,6 +251,10 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
   };
 
   const handleWithdraw = () => {
+    if (isFiatMode) {
+      setShowFiatWithdraw(true);
+      return;
+    }
     if (!isConnected) {
       setShowConnectWallet(true);
     } else {
@@ -333,31 +358,43 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
       />
       
       <Page>
-        {/* Funding mode toggle (Demo only if enabled) */}
-        {showDemo && (
+        {/* Funding mode toggle (Demo/Fiat gated by feature flags) */}
+        {(showDemo || isFiatEnabled) && (
           <div className="mb-4">
-            <div className="inline-flex rounded-lg bg-gray-100 p-1">
+            <div className="inline-flex rounded-lg bg-gray-100 p-1 flex-wrap gap-1">
               <button
                 onClick={() => setMode('crypto')}
                 className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
-                  !isDemoMode ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'
+                  isCryptoMode ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'
                 }`}
               >
                 Crypto (USDC)
               </button>
-              <button
-                onClick={() => setMode('demo')}
-                className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
-                  isDemoMode ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'
-                }`}
-              >
-                Demo Credits
-              </button>
+              {showDemo && (
+                <button
+                  onClick={() => setMode('demo')}
+                  className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
+                    isDemoMode ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'
+                  }`}
+                >
+                  Demo Credits
+                </button>
+              )}
+              {isFiatEnabled && (
+                <button
+                  onClick={() => setMode('fiat')}
+                  className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
+                    isFiatMode ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'
+                  }`}
+                >
+                  Fiat (NGN)
+                </button>
+              )}
             </div>
           </div>
         )}
 
-        {!isDemoMode && !isConnected ? (
+        {isCryptoMode && !isConnected ? (
           <Card>
             <CardContent>
               <div className="text-center py-8">
@@ -424,6 +461,36 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
                     subtitle="Currently locked"
                   />
                 </>
+              ) : isFiatMode ? (
+                <>
+                  <StatCard
+                    label="Fiat Wallet"
+                    value={fiatData?.summary?.totalNgn ?? 0}
+                    variant="currency"
+                    currency="NGN"
+                    compact
+                    icon={<Banknote className="w-4 h-4" />}
+                    subtitle="Total"
+                  />
+                  <StatCard
+                    label="Available"
+                    value={fiatData?.summary?.availableNgn ?? 0}
+                    variant="currency"
+                    currency="NGN"
+                    compact
+                    icon={<DollarSign className="w-4 h-4" />}
+                    subtitle="Ready to stake"
+                  />
+                  <StatCard
+                    label="In Bets"
+                    value={fiatData?.summary?.lockedNgn ?? 0}
+                    variant="currency"
+                    currency="NGN"
+                    compact
+                    icon={<Lock className="w-4 h-4" />}
+                    subtitle="Currently locked"
+                  />
+                </>
               ) : (
                 <>
                   <StatCard 
@@ -451,8 +518,43 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
               )}
             </StatRow>
 
+            {/* Phase 7D: FX USD estimates (display-only) */}
+            {isFiatMode && (
+              <div className="mt-3 mb-1 px-1">
+                {(() => {
+                  const fx = fiatData?.fx;
+                  const usdEst = fiatData?.summary?.usdEstimate;
+                  const fxOk = fx && fx.rate != null && !fx.isStale && Number.isFinite(usdEst);
+                  const totalUsdEst = fxOk && isConnected
+                    ? (usdEst ?? 0) + (snapshot?.availableToStakeUSDC ?? 0)
+                    : fxOk ? (usdEst ?? 0) : null;
+                  const asOf = fx?.asOf ? new Date(fx.asOf).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' }) : null;
+                  const retrievedAt = fx?.retrievedAt ? new Date(fx.retrievedAt).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' }) : null;
+                  return (
+                    <div className="space-y-1 text-xs text-gray-500">
+                      {fxOk ? (
+                        <>
+                          <p>
+                            Approx. available ≈ {formatCurrency(usdEst!, { compact: false, currency: 'USD' })}
+                            {asOf ? ` · Rate as of ${asOf}` : ''}
+                            {fx?.source ? ` · Source ${fx.source}` : ''}
+                            {retrievedAt ? ` · Updated ${retrievedAt}` : ''}
+                          </p>
+                          {totalUsdEst != null && (
+                            <p className="font-medium text-gray-700">Total (USD est.) ≈ {formatCurrency(totalUsdEst, { compact: false, currency: 'USD' })}</p>
+                          )}
+                        </>
+                      ) : (
+                        <p>Rates temporarily unavailable</p>
+                      )}
+                    </div>
+                  );
+                })()}
+              </div>
+            )}
+
             {/* Chain Warning */}
-            {!isDemoMode && !isCorrectChain && (
+            {isCryptoMode && !isCorrectChain && (
               <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-4">
                 <div className="flex items-center justify-between gap-3">
                   <p className="text-sm text-amber-800">
@@ -504,15 +606,15 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
                       className="flex items-center justify-center space-x-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 p-4 rounded-xl transition-colors font-medium"
                     >
                       <Plus className="w-5 h-5" />
-                      <span>Deposit</span>
+                      <span>{isFiatMode ? 'Deposit NGN' : 'Deposit'}</span>
                     </button>
                     <button
                       onClick={handleWithdraw}
-                      disabled={totalUSD <= 0}
+                      disabled={isFiatMode ? (Number(fiatData?.summary?.availableNgn ?? 0) <= 0) : (totalUSD <= 0)}
                       className="flex items-center justify-center space-x-2 bg-blue-50 hover:bg-blue-100 text-blue-700 p-4 rounded-xl transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       <ArrowDownToLine className="w-5 h-5" />
-                      <span>Withdraw</span>
+                      <span>{isFiatMode ? 'Withdraw NGN' : 'Withdraw'}</span>
                     </button>
                   </div>
                 )}
@@ -536,6 +638,7 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
                         amount: activity.amountUSD ?? 0,
                         kind: activity.kind,
                         compact: true,
+                        currency: (activity as any)?.meta?.currency || 'USD',
                       });
                       
                       return (
@@ -637,6 +740,19 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
           availableUSDC={availableUSD}
           userId={user.id}
         />
+      )}
+
+      {/* Fiat sheets (NGN) */}
+      {isFiatEnabled && user?.id && (
+        <>
+          <FiatDepositSheet open={showFiatDeposit} onClose={() => setShowFiatDeposit(false)} userId={user.id} userEmail={user.email} />
+          <FiatWithdrawalSheet
+            open={showFiatWithdraw}
+            onClose={() => setShowFiatWithdraw(false)}
+            userId={user.id}
+            fiatSummary={fiatData?.summary ?? null}
+          />
+        </>
       )}
       
       {showConnectWallet && (

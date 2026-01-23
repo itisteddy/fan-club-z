@@ -48,7 +48,7 @@ walletActivity.get('/activity', async (req, res) => {
     // Fetch wallet transactions (crypto + demo ledger)
     // Support multiple provider formats: 'crypto-base-usdc', 'base/usdc', 'base-usdc', 'onchain-escrow'
     // Include ALL channels: deposits, withdraws, payouts (wins), losses, fees
-    const providers = ['crypto-base-usdc', 'base/usdc', 'base-usdc', 'onchain-escrow', 'demo-wallet'];
+    const providers = ['crypto-base-usdc', 'base/usdc', 'base-usdc', 'onchain-escrow', 'demo-wallet', 'fiat-paystack'];
     const channels = [
       'crypto', 
       'escrow_deposit', 
@@ -141,6 +141,7 @@ walletActivity.get('/activity', async (req, res) => {
         let description = tx.description || '';
         const metaKind = (tx.meta as any)?.kind as string | undefined;
         const isDemo = tx.provider === 'demo-wallet' || tx.channel === 'fiat';
+        const isFiat = tx.provider === 'fiat-paystack' || tx.currency === 'NGN';
 
         // Demo ledger mapping (separate from crypto channels)
         if (isDemo) {
@@ -166,6 +167,32 @@ walletActivity.get('/activity', async (req, res) => {
           } else if (tx.type === 'adjustment' && tx.direction === 'credit') {
             kind = 'deposit';
             description = description || 'Demo credits added';
+          }
+        }
+
+        // Fiat ledger mapping (NGN via Paystack)
+        if (!kind && isFiat) {
+          if (tx.type === 'deposit' && tx.direction === 'credit') {
+            kind = 'deposit';
+            description = description || 'Fiat deposit';
+          } else if (tx.type === 'withdraw' && tx.direction === 'debit') {
+            kind = 'withdraw';
+            description = description || 'Fiat withdrawal';
+          } else if (tx.type === 'bet_lock' && tx.direction === 'debit') {
+            kind = 'bet_placed';
+            description = description || 'Fiat stake placed';
+          } else if (tx.type === 'bet_unlock' && tx.direction === 'credit') {
+            kind = 'bet_refund';
+            description = description || 'Fiat stake refunded';
+          } else if (tx.type === 'payout' && tx.direction === 'credit') {
+            kind = 'win';
+            description = description || 'Fiat payout';
+          } else if (tx.type === 'creator_fee' && tx.direction === 'credit') {
+            kind = 'creator_fee';
+            description = description || 'Creator fee (fiat)';
+          } else if (tx.type === 'platform_fee' && tx.direction === 'credit') {
+            kind = 'platform_fee';
+            description = description || 'Platform fee (fiat)';
           }
         }
 
@@ -203,10 +230,14 @@ walletActivity.get('/activity', async (req, res) => {
 
         if (kind) {
           // Return structure that matches what normalizeWalletTransaction expects
+          const rawAmount = Math.abs(Number(tx.amount || 0));
+          // Fiat amounts are stored in kobo; convert to NGN for UI
+          const amountForUi = isFiat ? rawAmount / 100 : rawAmount;
+
           activityItems.push({
             id: tx.id,
             kind,
-            amount: Math.abs(Number(tx.amount || 0)),
+            amount: amountForUi,
             txHash: tx.tx_hash || tx.external_ref || undefined,
             createdAt: tx.created_at,
             // Include additional fields for normalization

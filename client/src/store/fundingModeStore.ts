@@ -1,40 +1,60 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
-export type FundingMode = 'crypto' | 'demo';
+export type FundingMode = 'crypto' | 'demo' | 'fiat';
 
 const DEMO_ENABLED = import.meta.env.VITE_FCZ_ENABLE_DEMO === '1';
 
 type FundingModeState = {
   mode: FundingMode;
   isDemoEnabled: boolean;
+  // Fiat enabled is determined at runtime via API, not build-time env
+  isFiatEnabled: boolean;
   setMode: (mode: FundingMode) => void;
+  setFiatEnabled: (enabled: boolean) => void;
 };
 
 export const useFundingModeStore = create<FundingModeState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       // Default to 'demo' if enabled, otherwise 'crypto'
       mode: DEMO_ENABLED ? 'demo' : 'crypto',
       isDemoEnabled: DEMO_ENABLED,
+      isFiatEnabled: false,
       setMode: (mode) => {
-        if (!DEMO_ENABLED) {
-          set({ mode: 'crypto', isDemoEnabled: false });
+        const state = get();
+        // Validate mode is allowed
+        if (mode === 'demo' && !DEMO_ENABLED) {
+          set({ mode: 'crypto' });
+          return;
+        }
+        if (mode === 'fiat' && !state.isFiatEnabled) {
+          // Fallback to demo if available, else crypto
+          set({ mode: DEMO_ENABLED ? 'demo' : 'crypto' });
           return;
         }
         set({ mode });
       },
+      setFiatEnabled: (enabled) => {
+        set({ isFiatEnabled: enabled });
+        // If fiat was selected but is now disabled, switch to fallback
+        const state = get();
+        if (!enabled && state.mode === 'fiat') {
+          set({ mode: DEMO_ENABLED ? 'demo' : 'crypto' });
+        }
+      },
     }),
     {
       name: 'fcz:fundingMode',
-      version: 1,
+      version: 2,
       partialize: (s) => ({ mode: s.mode }),
       // If demo is disabled at runtime, always force crypto
       onRehydrateStorage: () => (state) => {
         if (!state) return;
-        if (!DEMO_ENABLED && state.mode !== 'crypto') {
+        if (!DEMO_ENABLED && state.mode === 'demo') {
           state.setMode('crypto');
         }
+        // Fiat enablement is checked at runtime, don't persist it
       },
     }
   )

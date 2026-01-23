@@ -652,17 +652,18 @@ export async function settleFiatRail(args: {
       const inserted = await upsertFiatTx({
         user_id: userId,
         direction: 'credit',
-        type: 'stake_payout',
-        channel: 'fiat',
+        // wallet_transactions.type/channel have CHECK constraints; use allowed values
+        type: 'payout',
+        channel: 'payout',
         provider: FIAT_PROVIDER,
         amount: entryPayoutKobo,
         currency: FIAT_CURRENCY,
-        status: 'confirmed',
+        status: 'completed',
         external_ref: `fiat_payout:${predictionId}:${entry.id}`,
         prediction_id: predictionId,
         entry_id: entry.id,
         description: `Fiat payout for "${predictionTitle}"`,
-        meta: { kind: 'stake_payout', provider: FIAT_PROVIDER, prediction_id: predictionId, entry_id: entry.id, amountNgn: entryPayoutKobo / 100 },
+        meta: { kind: 'payout', currency: 'NGN', provider: FIAT_PROVIDER, prediction_id: predictionId, entry_id: entry.id, amountKobo: entryPayoutKobo, amountNgn: entryPayoutKobo / 100 },
       });
       if (inserted) {
         try {
@@ -726,15 +727,15 @@ export async function settleFiatRail(args: {
         user_id: creatorId,
         direction: 'credit',
         type: 'creator_fee',
-        channel: 'fiat',
+        channel: 'creator_fee',
         provider: FIAT_PROVIDER,
         amount: fiatResult.creatorFee,
         currency: FIAT_CURRENCY,
-        status: 'confirmed',
+        status: 'completed',
         external_ref: `fiat_creator_fee:${predictionId}`,
         prediction_id: predictionId,
         description: `Fiat creator fee for "${predictionTitle}"`,
-        meta: { kind: 'creator_fee', provider: FIAT_PROVIDER, prediction_id: predictionId, amountNgn: fiatResult.creatorFee / 100 },
+        meta: { kind: 'creator_fee', currency: 'NGN', provider: FIAT_PROVIDER, prediction_id: predictionId, amountKobo: fiatResult.creatorFee, amountNgn: fiatResult.creatorFee / 100 },
       });
     }
 
@@ -745,15 +746,15 @@ export async function settleFiatRail(args: {
         user_id: treasuryUserId,
         direction: 'credit',
         type: 'platform_fee',
-        channel: 'fiat',
+        channel: 'platform_fee',
         provider: FIAT_PROVIDER,
         amount: fiatResult.platformFee,
         currency: FIAT_CURRENCY,
-        status: 'confirmed',
+        status: 'completed',
         external_ref: `fiat_platform_fee:${predictionId}`,
         prediction_id: predictionId,
         description: `Fiat platform fee for "${predictionTitle}"`,
-        meta: { kind: 'platform_fee', provider: FIAT_PROVIDER, prediction_id: predictionId, amountNgn: fiatResult.platformFee / 100 },
+        meta: { kind: 'platform_fee', currency: 'NGN', provider: FIAT_PROVIDER, prediction_id: predictionId, amountKobo: fiatResult.platformFee, amountNgn: fiatResult.platformFee / 100 },
       });
     }
   }

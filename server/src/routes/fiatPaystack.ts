@@ -7,13 +7,14 @@
  * - Credit fiat ledger on successful charge
  */
 
-import { Router, raw } from 'express';
+import { Router } from 'express';
 import crypto from 'crypto';
 import { z } from 'zod';
 import { supabase } from '../config/database';
 import { VERSION } from '@fanclubz/shared';
 import { insertWalletTransaction } from '../db/walletTransactions';
 import { emitWalletUpdate } from '../services/realtime';
+import { requireSupabaseAuth } from '../middleware/requireSupabaseAuth';
 
 export const fiatPaystackRouter = Router();
 
@@ -73,7 +74,10 @@ function verifyPaystackSignature(rawBody: Buffer, signature: string): boolean {
     .update(rawBody)
     .digest('hex');
 
-  return crypto.timingSafeEqual(Buffer.from(hash), Buffer.from(signature));
+  const a = Buffer.from(hash);
+  const b = Buffer.from(signature);
+  if (a.length !== b.length) return false;
+  return crypto.timingSafeEqual(a, b);
 }
 
 // ============================================================
@@ -86,7 +90,7 @@ const InitializeSchema = z.object({
   email: z.string().email().optional(),
 });
 
-fiatPaystackRouter.post('/initialize', async (req, res) => {
+fiatPaystackRouter.post('/initialize', requireSupabaseAuth as any, async (req, res) => {
   try {
     // Check if fiat is enabled
     if (!isFiatEnabled()) {
@@ -108,7 +112,16 @@ fiatPaystackRouter.post('/initialize', async (req, res) => {
       });
     }
 
-    const { amountNgn, userId } = parsed.data;
+    const authedUserId = (req as any)?.user?.id as string | undefined;
+    const { amountNgn, userId: bodyUserId } = parsed.data;
+    if (!authedUserId) {
+      return res.status(401).json({ error: 'unauthorized', message: 'Authentication required', version: VERSION });
+    }
+    if (bodyUserId && bodyUserId !== authedUserId) {
+      return res.status(403).json({ error: 'forbidden', message: 'User mismatch', version: VERSION });
+    }
+
+    const userId = authedUserId;
     const amountKobo = Math.round(amountNgn * 100);
 
     // Get user email
@@ -163,8 +176,10 @@ fiatPaystackRouter.post('/initialize', async (req, res) => {
       await supabase.from('wallet_transactions').insert({
         user_id: userId,
         direction: 'credit',
-        type: 'deposit_intent',
-        channel: 'paystack',
+        // NOTE: wallet_transactions has CHECK constraints on type/channel.
+        // Use allowed type/channel and represent "intent" via status + meta.kind.
+        type: 'deposit',
+        channel: 'fiat',
         provider: FIAT_PROVIDER,
         amount: amountKobo,
         currency: FIAT_CURRENCY,
@@ -173,6 +188,7 @@ fiatPaystackRouter.post('/initialize', async (req, res) => {
         description: `Fiat deposit intent: ${amountNgn} NGN`,
         meta: {
           kind: 'deposit_intent',
+          currency: 'NGN',
           reference,
           access_code,
           amountNgn,
@@ -208,11 +224,9 @@ fiatPaystackRouter.post('/initialize', async (req, res) => {
 // Handle Paystack webhook events (SECURE + RAW BODY + IDEMPOTENT)
 // ============================================================
 
-// This route needs raw body for signature verification
-// It must be registered BEFORE express.json() middleware
-// We'll handle this in index.ts by using express.raw() for this specific route
-
-fiatPaystackRouter.post('/webhook', raw({ type: 'application/json' }), async (req, res) => {
+// Webhook requires raw body for signature verification.
+// We capture req.rawBody in server/src/index.ts via express.json verify hook.
+fiatPaystackRouter.post('/webhook', async (req: any, res) => {
   try {
     // Get signature from header
     const signature = req.headers['x-paystack-signature'] as string;
@@ -222,9 +236,9 @@ fiatPaystackRouter.post('/webhook', raw({ type: 'application/json' }), async (re
     }
 
     // Verify signature using raw body
-    const rawBody = req.body;
+    const rawBody = req.rawBody as Buffer | undefined;
     if (!Buffer.isBuffer(rawBody)) {
-      console.warn('[Paystack Webhook] Body is not a buffer - middleware issue');
+      console.warn('[Paystack Webhook] Missing raw body buffer - middleware issue');
       return res.status(400).json({ error: 'bad_request', message: 'Invalid body format' });
     }
 
@@ -244,14 +258,105 @@ fiatPaystackRouter.post('/webhook', raw({ type: 'application/json' }), async (re
 
     console.log(`[Paystack Webhook] Received event: ${event?.event}`);
 
-    // Handle only charge.success events
-    if (event?.event !== 'charge.success') {
+    const evt = String(event?.event || '');
+    const data = event?.data;
+
+    // ============================================================
+    // Phase 7C: Handle transfer events (withdrawals)
+    // ============================================================
+    if (evt === 'transfer.success' || evt === 'transfer.failed' || evt === 'transfer.reversed') {
+      const transferCode = String(data?.transfer_code || '');
+      const reference = String(data?.reference || '');
+
+      if (!transferCode && !reference) {
+        console.warn('[Paystack Webhook] transfer event missing transfer_code/reference');
+        return res.status(200).json({ received: true });
+      }
+
+      // Find withdrawal by transfer_code or reference
+      const { data: withdrawal } = await supabase
+        .from('fiat_withdrawals')
+        .select('id,user_id,amount_kobo,status')
+        .or(`paystack_transfer_code.eq.${transferCode},paystack_reference.eq.${reference}`)
+        .maybeSingle();
+
+      if (!withdrawal) {
+        console.warn('[Paystack Webhook] transfer event: no matching withdrawal', { transferCode, reference });
+        return res.status(200).json({ received: true });
+      }
+
+      // Idempotency: if already terminal, no-op
+      const currentStatus = String((withdrawal as any).status || '');
+      if (currentStatus === 'paid' || currentStatus === 'failed' || currentStatus === 'rejected' || currentStatus === 'cancelled') {
+        return res.status(200).json({ received: true, alreadyFinal: true });
+      }
+
+      if (evt === 'transfer.success') {
+        await supabase
+          .from('fiat_withdrawals')
+          .update({ status: 'paid', updated_at: new Date().toISOString() } as any)
+          .eq('id', (withdrawal as any).id);
+
+        // Debit fiat ledger exactly once
+        const debitRef = `withdraw:debit:${(withdrawal as any).id}`;
+        const { error: txError } = await insertWalletTransaction({
+          user_id: (withdrawal as any).user_id,
+          direction: 'debit',
+          type: 'withdraw',
+          channel: 'fiat',
+          provider: FIAT_PROVIDER,
+          amount: Number((withdrawal as any).amount_kobo || 0),
+          currency: FIAT_CURRENCY,
+          status: 'completed',
+          external_ref: debitRef,
+          description: `Fiat withdrawal completed`,
+          meta: {
+            kind: 'withdraw',
+            currency: 'NGN',
+            withdrawal_id: (withdrawal as any).id,
+            paystack_transfer_code: transferCode || null,
+            paystack_reference: reference || null,
+            paystackEventId: event?.id,
+          },
+        });
+
+        if (txError && (txError as any)?.code !== '23505') {
+          console.error('[Paystack Webhook] Failed to record withdrawal debit:', txError);
+        }
+
+        try {
+          emitWalletUpdate({ userId: (withdrawal as any).user_id, reason: 'withdrawal_paid' });
+        } catch {}
+
+        return res.status(200).json({ received: true, withdrawalUpdated: true });
+      }
+
+      // transfer.failed / transfer.reversed
+      await supabase
+        .from('fiat_withdrawals')
+        .update({
+          status: 'failed',
+          reason: evt === 'transfer.reversed' ? 'Transfer reversed' : 'Transfer failed',
+          updated_at: new Date().toISOString(),
+        } as any)
+        .eq('id', (withdrawal as any).id);
+
+      try {
+        emitWalletUpdate({ userId: (withdrawal as any).user_id, reason: 'withdrawal_failed' });
+      } catch {}
+
+      return res.status(200).json({ received: true, withdrawalUpdated: true });
+    }
+
+    // ============================================================
+    // Phase 7A: Handle successful charge (deposit)
+    // ============================================================
+    if (evt !== 'charge.success') {
       // Acknowledge other events but don't process
-      console.log(`[Paystack Webhook] Ignoring event type: ${event?.event}`);
+      console.log(`[Paystack Webhook] Ignoring event type: ${evt}`);
       return res.status(200).json({ received: true });
     }
 
-    const data = event?.data;
     if (!data || data.status !== 'success') {
       console.log('[Paystack Webhook] Charge not successful, ignoring');
       return res.status(200).json({ received: true });
@@ -292,15 +397,17 @@ fiatPaystackRouter.post('/webhook', raw({ type: 'application/json' }), async (re
       user_id: userId,
       direction: 'credit',
       type: 'deposit',
-      channel: 'paystack',
+      channel: 'fiat',
       provider: FIAT_PROVIDER,
       amount: amountKobo,
       currency: FIAT_CURRENCY,
-      status: 'confirmed',
+      // walletActivity filters on completed/success
+      status: 'completed',
       external_ref: externalRef,
       description: `Fiat deposit: ${amountKobo / 100} NGN`,
       meta: {
         kind: 'deposit',
+        currency: 'NGN',
         reference,
         paystackEventId: event?.id,
         customer: data.customer,

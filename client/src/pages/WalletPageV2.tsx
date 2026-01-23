@@ -978,7 +978,7 @@ const WalletPageV2: React.FC<WalletPageV2Props> = ({ onNavigateBack }) => {
                                 {item.createdAt ? formatTimeAgo(item.createdAt) : ''}
                               </span>
                               {(() => {
-                                const tx = formatTxAmount({ amount: item.amountUSD, kind: item.kind, compact: false });
+                                const tx = formatTxAmount({ amount: item.amountUSD, kind: item.kind, compact: false, currency: (item as any)?.meta?.currency || 'USD' });
                                 return (
                                   <span className={`font-mono text-xs font-medium whitespace-nowrap ${toneClass(tx.tone)}`}>
                                     {tx.display}
@@ -1154,7 +1154,7 @@ const WalletPageV2: React.FC<WalletPageV2Props> = ({ onNavigateBack }) => {
             <div className="bg-gray-50 rounded-2xl p-4 mb-4">
               <p className="text-xs text-gray-500 mb-1">Amount</p>
               {(() => {
-                const tx = formatTxAmount({ amount: selectedActivity.amountUSD, kind: selectedActivity.kind, compact: false });
+                const tx = formatTxAmount({ amount: selectedActivity.amountUSD, kind: selectedActivity.kind, compact: false, currency: (selectedActivity as any)?.meta?.currency || 'USD' });
                 return (
                   <p className={`text-2xl font-semibold ${toneClass(tx.tone)}`}>
                     {tx.display}
@@ -1440,7 +1440,7 @@ const WalletPageV2: React.FC<WalletPageV2Props> = ({ onNavigateBack }) => {
                       </div>
                       <div className="text-right flex-shrink-0 min-w-[80px]">
                         {(() => {
-                          const tx = formatTxAmount({ amount: item.amountUSD, kind: item.kind, compact: false });
+                          const tx = formatTxAmount({ amount: item.amountUSD, kind: item.kind, compact: false, currency: (item as any)?.meta?.currency || 'USD' });
                           return (
                             <div className={`text-sm font-mono font-medium ${toneClass(tx.tone)}`}>
                               {tx.display}

@@ -15,6 +15,17 @@ interface FiatSummary {
   availableNgn: number;
   lockedNgn: number;
   lastUpdated: string;
+  /** Phase 7D: display-only USD equivalent when fx rate available */
+  usdEstimate?: number | null;
+}
+
+export interface FxMeta {
+  pair: string;
+  rate: number | null;
+  source: string;
+  asOf: string | null;
+  retrievedAt: string | null;
+  isStale: boolean;
 }
 
 interface CombinedSummary {
@@ -58,20 +69,23 @@ export function usePaystackStatus() {
 }
 
 /**
- * Fetch fiat wallet summary
+ * Fetch fiat wallet summary (Phase 7D: includes fx + usdEstimate)
  */
 export function useFiatSummary(userId: string | undefined) {
   return useQuery({
     queryKey: ['fiat', 'summary', userId],
-    queryFn: async (): Promise<{ enabled: boolean; summary: FiatSummary | null }> => {
+    queryFn: async (): Promise<{
+      enabled: boolean;
+      summary: FiatSummary | null;
+      fx?: FxMeta;
+    }> => {
       if (!userId) return { enabled: false, summary: null };
-      // demo-wallet endpoints are at /api/demo-wallet, not /api/v2
       const response = await fetch(`${API_BASE_URL}/api/demo-wallet/fiat/summary?userId=${userId}`);
       return await response.json();
     },
     enabled: !!userId,
-    staleTime: 15 * 1000, // 15 seconds
-    refetchInterval: 30 * 1000, // 30 seconds
+    staleTime: 15 * 1000,
+    refetchInterval: 30 * 1000,
   });
 }
 

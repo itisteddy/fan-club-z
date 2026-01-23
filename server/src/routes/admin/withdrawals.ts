@@ -147,7 +147,7 @@ adminWithdrawalsRouter.post('/:id/approve', async (req, res) => {
       return res.status(404).json({ error: 'not_found', message: 'Withdrawal not found', version: VERSION });
     }
 
-    if (withdrawal.status !== 'requested') {
+    if (!['requested', 'approved'].includes(withdrawal.status)) {
       return res.status(400).json({
         error: 'bad_request',
         message: `Cannot approve withdrawal with status: ${withdrawal.status}`,
@@ -155,27 +155,52 @@ adminWithdrawalsRouter.post('/:id/approve', async (req, res) => {
       });
     }
 
-    // Update to approved
-    await supabase
-      .from('fiat_withdrawals')
-      .update({ status: 'approved', updated_at: new Date().toISOString() } as any)
-      .eq('id', id);
+    // Update to approved (only if coming from requested)
+    if (withdrawal.status === 'requested') {
+      await supabase
+        .from('fiat_withdrawals')
+        .update({ status: 'approved', updated_at: new Date().toISOString() } as any)
+        .eq('id', id);
 
-    // Log admin action
-    await logAdminAction({
-      actorId,
-      action: 'withdrawal_approve',
-      targetType: 'withdrawal',
-      targetId: id,
-      meta: {
-        userId: withdrawal.user_id,
-        amountKobo: withdrawal.amount_kobo,
-      },
-    });
+      await logAdminAction({
+        actorId,
+        action: 'withdrawal_approve',
+        targetType: 'withdrawal',
+        targetId: id,
+        meta: {
+          userId: withdrawal.user_id,
+          amountKobo: withdrawal.amount_kobo,
+        },
+      });
+    } else {
+      // Retry path: already approved
+      await logAdminAction({
+        actorId,
+        action: 'withdrawal_approve',
+        targetType: 'withdrawal',
+        targetId: id,
+        meta: {
+          userId: withdrawal.user_id,
+          amountKobo: withdrawal.amount_kobo,
+          retry: true,
+        },
+      });
+    }
 
     // If transfers are enabled, initiate Paystack transfer
     if (isTransferEnabled()) {
       try {
+        // If transfer already initiated, no-op
+        if (withdrawal.paystack_transfer_code || withdrawal.status === 'processing') {
+          return res.json({
+            success: true,
+            message: 'Transfer already initiated',
+            transferCode: withdrawal.paystack_transfer_code,
+            status: withdrawal.status,
+            version: VERSION,
+          });
+        }
+
         // Create transfer recipient (if not exists)
         let recipientCode = withdrawal.paystack_recipient_code;
         
@@ -326,26 +351,9 @@ adminWithdrawalsRouter.post('/:id/reject', async (req, res) => {
       } as any)
       .eq('id', id);
 
-    // Release hold (idempotent)
-    const releaseRef = `withdraw:release:${id}`;
-    await insertWalletTransaction({
-      user_id: withdrawal.user_id,
-      direction: 'credit',
-      type: 'withdrawal_release',
-      channel: 'withdrawal',
-      provider: FIAT_PROVIDER,
-      amount: withdrawal.amount_kobo,
-      currency: FIAT_CURRENCY,
-      status: 'confirmed',
-      external_ref: releaseRef,
-      description: `Withdrawal rejected: ${withdrawal.amount_kobo / 100} NGN`,
-      meta: {
-        kind: 'withdrawal_release',
-        withdrawal_id: id,
-        reason,
-        rejected_by: actorId,
-      },
-    });
+    // IMPORTANT: We do NOT debit the fiat ledger at request time.
+    // Funds become available again automatically because available balance calculations
+    // subtract only withdrawals with status requested/approved/processing.
 
     // Log admin action
     await logAdminAction({
@@ -427,21 +435,23 @@ adminWithdrawalsRouter.post('/:id/mark-paid', async (req, res) => {
       } as any)
       .eq('id', id);
 
-    // Create final withdrawal debit (convert hold to actual withdrawal)
+    // Create final withdrawal debit (idempotent)
     const debitRef = `withdraw:debit:${id}`;
     await insertWalletTransaction({
       user_id: withdrawal.user_id,
       direction: 'debit',
-      type: 'withdrawal',
-      channel: 'paystack',
+      // wallet_transactions.type/channel have CHECK constraints; use allowed values
+      type: 'withdraw',
+      channel: 'fiat',
       provider: FIAT_PROVIDER,
       amount: withdrawal.amount_kobo,
       currency: FIAT_CURRENCY,
-      status: 'confirmed',
+      status: 'completed',
       external_ref: debitRef,
       description: `Withdrawal completed: ${withdrawal.amount_kobo / 100} NGN`,
       meta: {
-        kind: 'withdrawal',
+        kind: 'withdraw',
+        currency: 'NGN',
         withdrawal_id: id,
         reference,
         marked_by: actorId,

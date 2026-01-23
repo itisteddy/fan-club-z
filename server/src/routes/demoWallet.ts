@@ -3,6 +3,8 @@ import { z } from 'zod';
 import { VERSION } from '@fanclubz/shared';
 import { supabase } from '../config/database';
 import { createNotification } from '../services/notifications';
+import { getNgnUsdRate } from '../services/FxRateService';
+import { reconcileWallet } from '../services/walletReconciliation';
 
 export const demoWallet = Router();
 
@@ -202,14 +204,14 @@ async function fetchFiatSummary(userId: string): Promise<{
   lockedNgn: number;
   lastUpdated: string;
 }> {
-  // Get all confirmed fiat transactions
+  // Get all completed fiat transactions (amounts stored in kobo)
   const { data: txns, error } = await supabase
     .from('wallet_transactions')
     .select('direction, amount, type, status')
     .eq('user_id', userId)
     .eq('provider', FIAT_PROVIDER)
     .eq('currency', FIAT_CURRENCY)
-    .in('status', ['confirmed', 'completed']);
+    .in('status', ['completed', 'success']);
 
   if (error) {
     console.error('[FIAT-WALLET] Failed to fetch transactions:', error);
@@ -218,6 +220,7 @@ async function fetchFiatSummary(userId: string): Promise<{
 
   let totalCredits = 0;
   let totalDebits = 0;
+  // Locked = active fiat stakes + pending withdrawals
   let lockedKobo = 0;
 
   for (const tx of txns || []) {
@@ -231,17 +234,38 @@ async function fetchFiatSummary(userId: string): Promise<{
       totalDebits += amount;
     }
 
-    // Track locked amounts (stake_lock debits that haven't been settled/refunded)
-    // We use type to identify stake locks
-    if (type === 'stake_lock' && direction === 'debit') {
-      lockedKobo += amount;
-    } else if ((type === 'stake_refund' || type === 'stake_payout') && direction === 'credit') {
-      // Releases reduce locked
-      lockedKobo = Math.max(0, lockedKobo - amount);
-    }
+    // No per-tx lock tracking here; locked is computed from active entries + pending withdrawals below.
   }
 
   const totalKobo = Math.max(0, totalCredits - totalDebits);
+
+  // Add active fiat stakes to locked
+  try {
+    const { data: activeFiatEntries } = await supabase
+      .from('prediction_entries')
+      .select('amount')
+      .eq('user_id', userId)
+      .eq('provider', FIAT_PROVIDER)
+      .eq('status', 'active');
+    const lockedFromBets = (activeFiatEntries || []).reduce((sum: number, e: any) => sum + Math.round(Number(e.amount || 0) * 100), 0);
+    lockedKobo += lockedFromBets;
+  } catch {
+    // ignore
+  }
+
+  // Add pending withdrawals to locked
+  try {
+    const { data: pendingWithdrawals } = await supabase
+      .from('fiat_withdrawals')
+      .select('amount_kobo')
+      .eq('user_id', userId)
+      .in('status', ['requested', 'approved', 'processing']);
+    const lockedFromWithdrawals = (pendingWithdrawals || []).reduce((sum: number, w: any) => sum + Number(w.amount_kobo || 0), 0);
+    lockedKobo += lockedFromWithdrawals;
+  } catch {
+    // ignore
+  }
+
   const availableKobo = Math.max(0, totalKobo - lockedKobo);
 
   return {
@@ -257,6 +281,7 @@ async function fetchFiatSummary(userId: string): Promise<{
 }
 
 // GET /api/demo-wallet/fiat/summary?userId=<uuid>
+// Phase 7D: adds fx + usdEstimate (display-only)
 demoWallet.get('/fiat/summary', async (req, res) => {
   try {
     const userId = String((req.query as any)?.userId || '');
@@ -264,39 +289,59 @@ demoWallet.get('/fiat/summary', async (req, res) => {
       return res.status(400).json({ error: 'Bad Request', message: 'userId is required', version: VERSION });
     }
 
-    // Check if fiat is enabled
     const fiatEnabled = process.env.FIAT_PAYSTACK_ENABLED === 'true' || process.env.FIAT_PAYSTACK_ENABLED === '1';
     if (!fiatEnabled) {
       return res.json({
         success: true,
         enabled: false,
         summary: null,
+        fx: { pair: 'NGNUSD', rate: null, source: 'none', asOf: null, retrievedAt: null, isStale: true },
         version: VERSION,
       });
     }
 
     const summary = await fetchFiatSummary(userId);
-    return res.json({ success: true, enabled: true, summary, version: VERSION });
+    const fx = await getNgnUsdRate();
+    const usdEstimate =
+      fx.rate != null && !fx.isStale && Number.isFinite(summary.availableNgn)
+        ? summary.availableNgn * fx.rate
+        : null;
+
+    const summaryWithEstimate = { ...summary, usdEstimate };
+
+    return res.json({
+      success: true,
+      enabled: true,
+      summary: summaryWithEstimate,
+      fx: {
+        pair: fx.pair,
+        rate: fx.rate,
+        source: fx.source,
+        asOf: fx.asOf,
+        retrievedAt: fx.retrievedAt,
+        isStale: fx.isStale,
+      },
+      version: VERSION,
+    });
   } catch (e) {
     console.error('[FIAT-WALLET] summary error', e);
     return res.status(500).json({ error: 'Internal', message: 'Failed to load fiat wallet summary', version: VERSION });
   }
 });
 
-// GET /api/demo-wallet/combined-summary?userId=<uuid>
-// Returns both demo and fiat balances in one call
+// GET /api/demo-wallet/combined-summary?userId=<uuid>&walletAddress=<hex>
+// Returns demo, fiat, optionally crypto (when walletAddress), fx, and totals (display-only).
 demoWallet.get('/combined-summary', async (req, res) => {
   try {
     const userId = String((req.query as any)?.userId || '');
+    const walletAddress = (req.query as any)?.walletAddress as string | undefined;
     if (!userId) {
       return res.status(400).json({ error: 'Bad Request', message: 'userId is required', version: VERSION });
     }
 
     const demo = await fetchDemoSummary(userId);
-
-    // Check if fiat is enabled
     const fiatEnabled = process.env.FIAT_PAYSTACK_ENABLED === 'true' || process.env.FIAT_PAYSTACK_ENABLED === '1';
-    let fiat = null;
+    let fiat: Awaited<ReturnType<typeof fetchFiatSummary>> | null = null;
     if (fiatEnabled) {
       try {
         fiat = await fetchFiatSummary(userId);
@@ -305,11 +350,46 @@ demoWallet.get('/combined-summary', async (req, res) => {
       }
     }
 
+    const fx = await getNgnUsdRate();
+    const fxOk = fx.rate != null && !fx.isStale;
+
+    let fiatUsdEstimate: number | null = null;
+    if (fiat && fxOk && Number.isFinite(fiat.availableNgn)) {
+      fiatUsdEstimate = fiat.availableNgn * fx.rate!;
+    }
+    const fiatWithEstimate = fiat
+      ? { ...fiat, usdEstimate: fiatUsdEstimate }
+      : null;
+
+    let cryptoUsd = 0;
+    if (walletAddress?.trim()) {
+      try {
+        const snap = await reconcileWallet({ userId, walletAddress: walletAddress.trim() });
+        cryptoUsd = Number(snap.availableToStakeUSDC) || 0;
+      } catch {
+        // skip crypto; totals will omit it
+      }
+    }
+
+    const totalsUsdEstimate = fxOk
+      ? (fiatUsdEstimate ?? 0) + cryptoUsd
+      : null;
+
     return res.json({
       success: true,
       demo,
-      fiat,
+      fiat: fiatWithEstimate,
       fiatEnabled,
+      crypto: walletAddress ? { usdcBalance: cryptoUsd, usdEstimate: cryptoUsd } : undefined,
+      totals: { usdEstimate: totalsUsdEstimate },
+      fx: {
+        pair: fx.pair,
+        rate: fx.rate,
+        source: fx.source,
+        asOf: fx.asOf,
+        retrievedAt: fx.retrievedAt,
+        isStale: fx.isStale,
+      },
       version: VERSION,
     });
   } catch (e) {

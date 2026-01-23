@@ -16,6 +16,7 @@ PAYSTACK_SECRET_KEY=sk_test_xxxxxxxxxxxxxxxxxxxxx  # Test secret key
 PAYSTACK_PUBLIC_KEY=pk_test_xxxxxxxxxxxxxxxxxxxxx  # Test public key (optional for client)
 
 # Paystack Configuration
+# Callback URL is your FRONTEND (where Paystack redirects the user after checkout)
 PAYSTACK_CALLBACK_URL=https://app.fanclubz.app/wallet?deposit=return
 PAYSTACK_WEBHOOK_SECRET=sk_test_xxxxxxxxxxxxxxxxxxxxx  # Can reuse secret key
 
@@ -40,15 +41,13 @@ VITE_PAYSTACK_ENABLED=true  # Feature flag for UI
 
 ### Paystack Webhook URL
 
-**Production:**
-```
-https://api.fanclubz.app/api/v2/fiat/paystack/webhook
-```
+Your client code and Render config indicate the production API origin is:
 
-**Development/Staging:**
-```
-https://your-render-app.onrender.com/api/v2/fiat/paystack/webhook
-```
+`https://fan-club-z.onrender.com`
+
+So your Paystack webhook URL is:
+
+`https://fan-club-z.onrender.com/api/v2/fiat/paystack/webhook`
 
 ### How to Configure in Paystack Dashboard
 

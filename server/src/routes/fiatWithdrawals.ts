@@ -10,10 +10,13 @@ import crypto from 'crypto';
 import { z } from 'zod';
 import { supabase } from '../config/database';
 import { VERSION } from '@fanclubz/shared';
-import { insertWalletTransaction } from '../db/walletTransactions';
 import { emitWalletUpdate } from '../services/realtime';
+import { requireSupabaseAuth } from '../middleware/requireSupabaseAuth';
 
 export const fiatWithdrawalsRouter = Router();
+
+// Phase 7C: withdrawals are authenticated user actions
+fiatWithdrawalsRouter.use(requireSupabaseAuth as any);
 
 // Constants
 const FIAT_PROVIDER = 'fiat-paystack';
@@ -115,7 +118,7 @@ async function getAvailableFiatKobo(userId: string): Promise<number> {
 // ============================================================
 const CreateWithdrawalSchema = z.object({
   amountNgn: z.number().positive().min(MIN_WITHDRAWAL_NGN, `Minimum withdrawal is NGN ${MIN_WITHDRAWAL_NGN}`),
-  userId: z.string().uuid(),
+  userId: z.string().uuid().optional(),
   bankCode: z.string().min(3, 'Bank code required'),
   accountNumber: z.string().min(10, 'Account number must be at least 10 digits').max(10, 'Account number must be 10 digits'),
   accountName: z.string().optional(),
@@ -137,7 +140,15 @@ fiatWithdrawalsRouter.post('/', async (req, res) => {
       });
     }
 
-    const { amountNgn, userId, bankCode, accountNumber, accountName } = parsed.data;
+    const authedUserId = (req as any)?.user?.id as string | undefined;
+    const { amountNgn, userId: bodyUserId, bankCode, accountNumber, accountName } = parsed.data;
+    if (!authedUserId) {
+      return res.status(401).json({ error: 'unauthorized', message: 'Authentication required', version: VERSION });
+    }
+    if (bodyUserId && bodyUserId !== authedUserId) {
+      return res.status(403).json({ error: 'forbidden', message: 'User mismatch', version: VERSION });
+    }
+    const userId = authedUserId;
     const amountKobo = Math.round(amountNgn * 100);
 
     // Check available balance
@@ -180,26 +191,9 @@ fiatWithdrawalsRouter.post('/', async (req, res) => {
       return res.status(500).json({ error: 'database_error', message: 'Failed to create withdrawal request', version: VERSION });
     }
 
-    // Create hold transaction (reserve the funds)
-    const holdRef = `withdraw:hold:${withdrawalId}`;
-    await insertWalletTransaction({
-      user_id: userId,
-      direction: 'debit',
-      type: 'withdrawal_hold',
-      channel: 'withdrawal',
-      provider: FIAT_PROVIDER,
-      amount: amountKobo,
-      currency: FIAT_CURRENCY,
-      status: 'confirmed',
-      external_ref: holdRef,
-      description: `Withdrawal hold: ${amountNgn} NGN`,
-      meta: {
-        kind: 'withdrawal_hold',
-        withdrawal_id: withdrawalId,
-        amountKobo,
-        amountNgn,
-      },
-    });
+    // IMPORTANT: We do NOT debit the fiat ledger at request time.
+    // Funds are considered "locked" by the pending withdrawal row itself, and available balance
+    // calculations subtract withdrawals with status requested/approved/processing.
 
     console.log(`[Withdrawals] Created withdrawal request: ${withdrawalId} for ${amountNgn} NGN`);
 
@@ -232,7 +226,7 @@ fiatWithdrawalsRouter.get('/', async (req, res) => {
       return res.status(404).json({ error: 'disabled', message: 'Fiat is not enabled', version: VERSION });
     }
 
-    const userId = req.query.userId as string;
+    const userId = (req as any)?.user?.id as string | undefined;
     if (!userId) {
       return res.status(400).json({ error: 'bad_request', message: 'userId required', version: VERSION });
     }
@@ -282,11 +276,15 @@ fiatWithdrawalsRouter.post('/:id/cancel', async (req, res) => {
     }
 
     const { id } = req.params;
-    const { userId } = req.body;
-
-    if (!userId) {
-      return res.status(400).json({ error: 'bad_request', message: 'userId required', version: VERSION });
+    const authedUserId = (req as any)?.user?.id as string | undefined;
+    const bodyUserId = (req.body as any)?.userId as string | undefined;
+    if (!authedUserId) {
+      return res.status(401).json({ error: 'unauthorized', message: 'Authentication required', version: VERSION });
     }
+    if (bodyUserId && bodyUserId !== authedUserId) {
+      return res.status(403).json({ error: 'forbidden', message: 'User mismatch', version: VERSION });
+    }
+    const userId = authedUserId;
 
     // Get withdrawal
     const { data: withdrawal, error } = await supabase
@@ -313,26 +311,6 @@ fiatWithdrawalsRouter.post('/:id/cancel', async (req, res) => {
       .from('fiat_withdrawals')
       .update({ status: 'cancelled', updated_at: new Date().toISOString() } as any)
       .eq('id', id);
-
-    // Release hold
-    const releaseRef = `withdraw:release:${id}`;
-    await insertWalletTransaction({
-      user_id: userId,
-      direction: 'credit',
-      type: 'withdrawal_release',
-      channel: 'withdrawal',
-      provider: FIAT_PROVIDER,
-      amount: withdrawal.amount_kobo,
-      currency: FIAT_CURRENCY,
-      status: 'confirmed',
-      external_ref: releaseRef,
-      description: `Withdrawal cancelled: ${withdrawal.amount_kobo / 100} NGN`,
-      meta: {
-        kind: 'withdrawal_release',
-        withdrawal_id: id,
-        reason: 'user_cancelled',
-      },
-    });
 
     emitWalletUpdate({ userId, reason: 'withdrawal_cancelled' });
 

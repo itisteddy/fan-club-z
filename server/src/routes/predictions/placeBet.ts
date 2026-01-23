@@ -46,12 +46,23 @@ async function handlePlaceBet(req: any, res: any) {
     // Validate input
     const BodySchema = z.object({
       optionId: z.string().uuid('Invalid optionId'),
-      amountUSD: z.number().positive('amountUSD must be positive'),
+      amountUSD: z.number().positive('amountUSD must be positive').optional(),
       userId: z.string().uuid('Invalid userId'),
       walletAddress: z.string().optional(),
       fundingMode: z.enum(['crypto', 'demo', 'fiat']).optional(),
       // For fiat mode: amount in NGN (will be converted to kobo)
       amountNgn: z.number().positive().optional(),
+    }).superRefine((val, ctx) => {
+      const mode = val.fundingMode ?? 'crypto';
+      if (mode === 'fiat') {
+        if (!Number.isFinite(Number(val.amountNgn)) || Number(val.amountNgn) <= 0) {
+          ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['amountNgn'], message: 'amountNgn is required for fiat fundingMode' });
+        }
+      } else {
+        if (!Number.isFinite(Number(val.amountUSD)) || Number(val.amountUSD) <= 0) {
+          ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['amountUSD'], message: 'amountUSD is required for demo/crypto fundingMode' });
+        }
+      }
     });
 
     let body;
@@ -68,7 +79,8 @@ async function handlePlaceBet(req: any, res: any) {
       throw err;
     }
 
-    const { optionId, amountUSD, userId } = body;
+    const { optionId, userId } = body;
+    const amountUSD = Number((body as any).amountUSD || 0);
     const fundingMode = body.fundingMode ?? 'crypto';
     const bodyWallet = body.walletAddress ? getAddress(body.walletAddress) : undefined;
 
@@ -319,9 +331,15 @@ async function handlePlaceBet(req: any, res: any) {
         });
       }
 
-      // Use amountNgn if provided, otherwise convert amountUSD to NGN (placeholder rate)
-      // In production, you'd use a proper exchange rate
-      const amountNgn = body.amountNgn || amountUSD; // For now, treat USD amount as NGN
+      // For fiat mode we require explicit NGN input (no FX assumptions).
+      const amountNgn = Number((body as any).amountNgn);
+      if (!Number.isFinite(amountNgn) || amountNgn <= 0) {
+        return res.status(400).json({
+          error: 'invalid_body',
+          message: 'amountNgn is required for fiat fundingMode',
+          version: VERSION,
+        });
+      }
       const amountKobo = Math.round(amountNgn * 100);
 
       const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
@@ -346,7 +364,21 @@ async function handlePlaceBet(req: any, res: any) {
         if ((tx as any).direction === 'credit') fiatCredits += amt;
         else if ((tx as any).direction === 'debit') fiatDebits += amt;
       }
-      const fiatAvailable = Math.max(0, fiatCredits - fiatDebits);
+      // IMPORTANT: pending fiat withdrawals reserve funds but are not debited until paid (Phase 7C).
+      // Subtract them here to prevent double-spend between withdrawal requests and fiat staking.
+      let pendingWithdrawalKobo = 0;
+      try {
+        const { data: pendingWithdrawals } = await supabase
+          .from('fiat_withdrawals')
+          .select('amount_kobo,status')
+          .eq('user_id', userId)
+          .in('status', ['requested', 'approved', 'processing']);
+        pendingWithdrawalKobo = (pendingWithdrawals || []).reduce((sum: number, w: any) => sum + Number(w.amount_kobo || 0), 0);
+      } catch {
+        // ignore (degraded check falls back to ledger-only)
+      }
+
+      const fiatAvailable = Math.max(0, (fiatCredits - fiatDebits) - pendingWithdrawalKobo);
 
       if (fiatAvailable < amountKobo) {
         return res.status(400).json({
@@ -428,11 +460,12 @@ async function handlePlaceBet(req: any, res: any) {
       // Mark lock as consumed
       await supabase.from('escrow_locks').update({ state: 'consumed', status: 'consumed' } as any).eq('id', lockId);
 
-      // Record wallet transaction (stake_lock debit)
+      // Record wallet transaction (fiat bet lock debit)
       await supabase.from('wallet_transactions').insert({
         user_id: userId,
         direction: 'debit',
-        type: 'stake_lock',
+        // wallet_transactions.type has CHECK constraints; use allowed type
+        type: 'bet_lock',
         channel: 'fiat',
         provider: FIAT_PROVIDER,
         amount: amountKobo,
@@ -442,7 +475,7 @@ async function handlePlaceBet(req: any, res: any) {
         prediction_id: predictionId,
         entry_id: entry.id,
         description: `Fiat stake on "${prediction.title}"`,
-        meta: { kind: 'stake_lock', prediction_id: predictionId, entry_id: entry.id, escrow_lock_id: lockId, provider: FIAT_PROVIDER, amountNgn },
+        meta: { kind: 'bet_lock', currency: 'NGN', prediction_id: predictionId, entry_id: entry.id, escrow_lock_id: lockId, provider: FIAT_PROVIDER, amountNgn, amountKobo },
       } as any).then(({ error }) => {
         if (error && (error as any).code !== '23505') {
           console.warn('[FCZ-BET] fiat wallet tx insert error (non-fatal):', error);

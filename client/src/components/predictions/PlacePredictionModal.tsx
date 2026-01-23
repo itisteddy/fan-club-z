@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Zap, X, Wallet as WalletIcon, ArrowUpRight } from 'lucide-react';
+import { Zap, X, Wallet as WalletIcon, ArrowUpRight, Banknote } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Card, CardContent } from '../ui/card';
@@ -19,9 +19,10 @@ import { invalidateAfterBet } from '@/utils/queryInvalidation';
 import { cn } from '@/lib/utils';
 import { ensureWalletReady, WalletStateError } from '@/services/onchainTransactionService';
 import { useWeb3Recovery } from '@/providers/Web3Provider';
-import { useFundingModeStore } from '@/store/fundingModeStore';
+import { useFundingModeStore, FundingMode } from '@/store/fundingModeStore';
 import { getApiUrl } from '@/config';
 import { setCooldown } from '@/lib/cooldowns';
+import { usePaystackStatus, useFiatSummary } from '@/hooks/useFiatWallet';
 
 interface PlacePredictionModalProps {
   prediction: Prediction | null;
@@ -30,12 +31,12 @@ interface PlacePredictionModalProps {
 }
 
 // Utility functions
-const formatCurrency = (amount: number) => {
-  return new Intl.NumberFormat('en-US', {
+const formatCurrency = (amount: number, currency: 'USD' | 'NGN' = 'USD') => {
+  return new Intl.NumberFormat(currency === 'NGN' ? 'en-NG' : 'en-US', {
     style: 'currency',
-    currency: 'USD',
+    currency,
     minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
+    maximumFractionDigits: currency === 'NGN' ? 0 : 2,
   }).format(amount);
 };
 
@@ -57,20 +58,33 @@ export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
   const [showDepositModal, setShowDepositModal] = useState(false);
   
   const { user } = useAuthStore();
-  const { placePrediction } = usePredictionStore();
+  const { placePrediction, placeFiatPrediction } = usePredictionStore();
   const queryClient = useQueryClient();
   const { address, chainId, isConnected } = useAccount();
   const { sessionHealthy } = useWeb3Recovery();
   const walletAddressLower = address?.toLowerCase() ?? null;
   const { wallet: walletUSDC, available: escrowAvailable, refetch: refetchBalances } = useUnifiedBalance();
-  const { mode, setMode, isDemoEnabled } = useFundingModeStore();
+  const { mode, setMode, isDemoEnabled, isFiatEnabled, setFiatEnabled } = useFundingModeStore();
+  
+  // Fiat-related hooks
+  const { data: paystackStatus } = usePaystackStatus();
+  const { data: fiatData, refetch: refetchFiat } = useFiatSummary(user?.id);
+  
+  // Update fiat enabled state from API
+  useEffect(() => {
+    if (paystackStatus?.enabled !== undefined) {
+      setFiatEnabled(paystackStatus.enabled);
+    }
+  }, [paystackStatus?.enabled, setFiatEnabled]);
+  
+  const isFiatMode = isFiatEnabled && mode === 'fiat';
   const isDemoMode = isDemoEnabled && mode === 'demo';
 
   const BASE_BETS_ENABLED =
     import.meta.env.VITE_FCZ_BASE_BETS === '1' ||
     import.meta.env.ENABLE_BASE_BETS === '1' ||
     import.meta.env.VITE_FCZ_BASE_ENABLE === '1';
-  const isCryptoMode = !isDemoMode;
+  const isCryptoMode = !isDemoMode && !isFiatMode;
 
   const [demoSummary, setDemoSummary] = useState<null | { available: number; reserved: number; total: number }>(null);
   const [demoLoading, setDemoLoading] = useState(false);
@@ -132,7 +146,11 @@ export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
   const selectedOptionOdds = selectedOption?.current_odds || (selectedOption?.total_staked ? (prediction?.pool_total / selectedOption.total_staked) : 2.0);
   const potentialPayout = selectedOption ? calculatePotentialPayout(numAmount, selectedOptionOdds) : 0;
   const demoAvailable = demoSummary?.available ?? 0;
-  const displayBalance = isCryptoMode ? escrowAvailable : demoAvailable;
+  const fiatAvailable = fiatData?.summary?.availableNgn ?? 0;
+  
+  // Display balance depends on mode
+  const displayBalance = isFiatMode ? fiatAvailable : (isCryptoMode ? escrowAvailable : demoAvailable);
+  const displayCurrency: 'USD' | 'NGN' = isFiatMode ? 'NGN' : 'USD';
   const needsDeposit = isCryptoMode && numAmount > escrowAvailable;
   const insufficientBalance = numAmount > displayBalance;
 
@@ -154,7 +172,10 @@ export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
     }
   }, [address, chainId, isConnected, isCryptoMode, sessionHealthy]);
 
-  const quickAmounts = [5, 10, 25, 50, 100, 250];
+  // Different quick amounts for fiat (NGN) vs USD
+  const quickAmountsUsd = [5, 10, 25, 50, 100, 250];
+  const quickAmountsNgn = [500, 1000, 2500, 5000, 10000, 25000];
+  const quickAmounts = isFiatMode ? quickAmountsNgn : quickAmountsUsd;
 
   const handleSubmit = async () => {
     if (!selectedOptionId) {
@@ -167,14 +188,24 @@ export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
       return;
     }
 
-    if (numAmount < prediction.stake_min) {
-      toast.error(`Minimum stake is ${formatCurrency(prediction.stake_min)}. Please increase your amount.`);
-      return;
-    }
+    // For fiat, we may have different min/max rules (skip USD-based checks)
+    if (!isFiatMode) {
+      if (numAmount < prediction.stake_min) {
+        toast.error(`Minimum stake is ${formatCurrency(prediction.stake_min)}. Please increase your amount.`);
+        return;
+      }
 
-    if (prediction.stake_max && numAmount > prediction.stake_max) {
-      toast.error(`Maximum stake is ${formatCurrency(prediction.stake_max)}. Please reduce your amount.`);
-      return;
+      if (prediction.stake_max && numAmount > prediction.stake_max) {
+        toast.error(`Maximum stake is ${formatCurrency(prediction.stake_max)}. Please reduce your amount.`);
+        return;
+      }
+    } else {
+      // Fiat minimum check (e.g., NGN 100)
+      const fiatMin = 100;
+      if (numAmount < fiatMin) {
+        toast.error(`Minimum stake is ${formatCurrency(fiatMin, 'NGN')}. Please increase your amount.`);
+        return;
+      }
     }
 
     if (!user?.id) {
@@ -188,26 +219,43 @@ export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
       return;
     }
 
-    if (!isCryptoMode && numAmount > demoAvailable) {
+    if (isDemoMode && numAmount > demoAvailable) {
       toast.error(`Insufficient balance. You have ${formatCurrency(demoAvailable)} available, but tried to stake ${formatCurrency(numAmount)}.`);
       return;
     }
 
-    if (!ensureCryptoWalletReady()) {
+    if (isFiatMode && numAmount > fiatAvailable) {
+      toast.error(`Insufficient fiat balance. You have ${formatCurrency(fiatAvailable, 'NGN')} available, but tried to stake ${formatCurrency(numAmount, 'NGN')}.`);
+      return;
+    }
+
+    // Only check crypto wallet for crypto mode
+    if (isCryptoMode && !ensureCryptoWalletReady()) {
       return;
     }
 
     setIsLoading(true);
     try {
-      await placePrediction(
-        prediction.id,
-        selectedOptionId,
-        numAmount,
-        user.id,
-        isCryptoMode ? (address ?? undefined) : undefined
-      );
+      if (isFiatMode) {
+        // Use the fiat-specific stake flow
+        await placeFiatPrediction(
+          prediction.id,
+          selectedOptionId,
+          numAmount, // This is in NGN
+          user.id
+        );
+        toast.success(`Prediction placed successfully! You staked ${formatCurrency(numAmount, 'NGN')} on ${selectedOption?.label}.`);
+      } else {
+        await placePrediction(
+          prediction.id,
+          selectedOptionId,
+          numAmount,
+          user.id,
+          isCryptoMode ? (address ?? undefined) : undefined
+        );
+        toast.success(`Prediction placed successfully! You staked ${formatCurrency(numAmount)} on ${selectedOption?.label}.`);
+      }
       
-      toast.success(`Prediction placed successfully! You staked ${formatCurrency(numAmount)} on ${selectedOption?.label}.`);
       onClose();
       setAmount('');
       setSelectedOptionId('');
@@ -218,10 +266,14 @@ export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
         queryClient.invalidateQueries({ queryKey: QK.walletSummary(user.id, walletAddressLower) }),
         queryClient.invalidateQueries({ queryKey: QK.walletActivity(user.id) }),
         queryClient.invalidateQueries({ queryKey: ['readContract'] }),
+        queryClient.invalidateQueries({ queryKey: ['fiat'] }),
       ]);
       await refetchBalances();
-      if (!isCryptoMode) {
+      if (isDemoMode) {
         await fetchDemoSummary();
+      }
+      if (isFiatMode) {
+        await refetchFiat();
       }
       window.dispatchEvent(new CustomEvent('fcz:balance:refresh'));
     } catch (error: any) {
@@ -279,8 +331,8 @@ export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
 
               {/* Scrollable Body */}
               <div className="flex-1 overflow-y-auto p-4 space-y-6">
-                {isDemoEnabled && (
-                  <div className="inline-flex rounded-lg bg-gray-100 p-1">
+                {(isDemoEnabled || isFiatEnabled) && (
+                  <div className="inline-flex rounded-lg bg-gray-100 p-1 flex-wrap gap-1">
                     <button
                       onClick={() => setMode('crypto')}
                       className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
@@ -289,14 +341,26 @@ export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
                     >
                       Crypto (USDC)
                     </button>
-                    <button
-                      onClick={() => setMode('demo')}
-                      className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
-                        !isCryptoMode ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'
-                      }`}
-                    >
-                      Demo Credits
-                    </button>
+                    {isDemoEnabled && (
+                      <button
+                        onClick={() => setMode('demo')}
+                        className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
+                          isDemoMode ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'
+                        }`}
+                      >
+                        Demo Credits
+                      </button>
+                    )}
+                    {isFiatEnabled && (
+                      <button
+                        onClick={() => setMode('fiat')}
+                        className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
+                          isFiatMode ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'
+                        }`}
+                      >
+                        Fiat (NGN)
+                      </button>
+                    )}
                   </div>
                 )}
 
@@ -318,7 +382,7 @@ export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
                   </div>
                 </div>
 
-                {isCryptoMode ? (
+                {isCryptoMode && (
                   <div className="flex items-center justify-between bg-purple-50 border border-purple-100 rounded-xl px-3 py-2 text-xs text-purple-900">
                     <div className="flex items-center gap-2">
                       <WalletIcon className="w-4 h-4" />
@@ -344,7 +408,9 @@ export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
                       Add funds
                     </button>
                   </div>
-                ) : (
+                )}
+                
+                {isDemoMode && (
                   <div className="flex items-center justify-between bg-emerald-50 border border-emerald-100 rounded-xl px-3 py-2 text-xs text-emerald-900">
                     <div className="flex items-center gap-2">
                       <WalletIcon className="w-4 h-4" />
@@ -361,6 +427,25 @@ export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
                       <ArrowUpRight className="w-3 h-3" />
                       Get credits
                     </button>
+                  </div>
+                )}
+                
+                {isFiatMode && (
+                  <div className="flex items-center justify-between bg-amber-50 border border-amber-100 rounded-xl px-3 py-2 text-xs text-amber-900">
+                    <div className="flex items-center gap-2">
+                      <Banknote className="w-4 h-4" />
+                      <div>
+                        <p className="font-semibold">Fiat available</p>
+                        <p className="text-amber-700">{formatCurrency(fiatAvailable, 'NGN')}</p>
+                      </div>
+                    </div>
+                    <a
+                      href="/wallet"
+                      className="inline-flex items-center gap-1 text-xs font-semibold text-amber-800 hover:text-amber-900"
+                    >
+                      <ArrowUpRight className="w-3 h-3" />
+                      Deposit NGN
+                    </a>
                   </div>
                 )}
 
@@ -425,7 +510,7 @@ export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
                     >
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Stake amount
+                          Stake amount {isFiatMode ? '(NGN)' : '(USD)'}
                         </label>
                         <div className="relative">
                           <Input
@@ -434,17 +519,17 @@ export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
                             value={amount}
                             onChange={(e) => setAmount(e.target.value)}
                             className="pl-8 pr-4 h-12 text-lg font-medium"
-                            min={prediction.stake_min}
-                            max={prediction.stake_max || displayBalance}
+                            min={isFiatMode ? 100 : prediction.stake_min}
+                            max={isFiatMode ? displayBalance : (prediction.stake_max || displayBalance)}
                           />
                           <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 font-medium">
-                            $
+                            {isFiatMode ? '₦' : '$'}
                           </span>
                         </div>
                         <div className="flex items-center justify-between text-xs text-gray-500 mt-2">
-                          <span>Balance: {formatCurrency(displayBalance)}</span>
+                          <span>Balance: {formatCurrency(displayBalance, displayCurrency)}</span>
                           <button
-                            onClick={() => setAmount(displayBalance.toString())}
+                            onClick={() => setAmount(Math.floor(displayBalance).toString())}
                             className="text-blue-600 hover:text-blue-700 font-medium"
                           >
                             Max
@@ -461,10 +546,10 @@ export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
                               variant="outline"
                               size="sm"
                               onClick={() => setAmount(quickAmount.toString())}
-                                  disabled={quickAmount > displayBalance}
+                              disabled={quickAmount > displayBalance}
                               className="text-sm h-10"
                             >
-                              ${quickAmount}
+                              {isFiatMode ? `₦${quickAmount.toLocaleString()}` : `$${quickAmount}`}
                             </Button>
                           ))}
                         </div>
@@ -478,7 +563,7 @@ export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
                               <div>
                                 <div className="text-sm text-gray-500">Potential return</div>
                                 <div className="text-lg font-bold text-teal-600">
-                                  {formatCurrency(potentialPayout)}
+                                  {formatCurrency(potentialPayout, displayCurrency)}
                                 </div>
                               </div>
                               <div className="text-right">
@@ -487,7 +572,7 @@ export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
                                   "font-semibold",
                                   potentialPayout > numAmount ? "text-teal-600" : "text-red-600"
                                 )}>
-                                  {formatCurrency(potentialPayout - numAmount)}
+                                  {formatCurrency(potentialPayout - numAmount, displayCurrency)}
                                 </div>
                               </div>
                             </div>
@@ -514,7 +599,7 @@ export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
                   ) : (
                     <div className="flex items-center gap-2">
                       <Zap size={16} />
-                      <span>Place Prediction ({formatCurrency(numAmount)})</span>
+                      <span>Place Prediction ({formatCurrency(numAmount, displayCurrency)})</span>
                     </div>
                   )}
                 </Button>

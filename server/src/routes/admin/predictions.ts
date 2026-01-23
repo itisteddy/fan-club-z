@@ -815,13 +815,14 @@ predictionsRouter.post('/:predictionId/void', async (req, res) => {
         // Determine currency and amount based on provider
         let currency = 'USD';
         let amount = entry.amount;
-        let refundType = 'stake_refund';
+        // wallet_transactions.type has CHECK constraints; use allowed types
+        let refundType = 'bet_unlock';
         
         if (provider === 'fiat-paystack') {
           currency = 'NGN';
           // For fiat, amount is stored in NGN, we need to convert to kobo for the transaction
           amount = Number(entry.amount) * 100; // kobo
-          refundType = 'stake_refund';
+          refundType = 'bet_unlock';
         } else if (provider === 'demo-wallet') {
           currency = 'DEMO_USD';
         }
@@ -831,7 +832,7 @@ predictionsRouter.post('/:predictionId/void', async (req, res) => {
           user_id: entry.user_id,
           direction: 'credit',
           type: refundType,
-          channel: 'refund',
+          channel: 'fiat',
           provider,
           amount,
           currency,
@@ -839,7 +840,13 @@ predictionsRouter.post('/:predictionId/void', async (req, res) => {
           prediction_id: predictionId,
           description: `Refund: Prediction voided - "${prediction.title}"`,
           external_ref: `void-${predictionId}-${entry.id}`,
-          meta: { reason, voided_by: actorId, originalAmount: entry.amount },
+          meta: { 
+            kind: 'bet_refund',
+            currency: provider === 'fiat-paystack' ? 'NGN' : (provider === 'demo-wallet' ? 'DEMO_USD' : 'USD'),
+            reason, 
+            voided_by: actorId, 
+            originalAmount: entry.amount,
+          },
         });
 
         if (txError) {

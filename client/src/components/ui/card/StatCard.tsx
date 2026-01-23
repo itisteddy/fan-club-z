@@ -13,6 +13,8 @@ interface StatCardProps {
   compact?: boolean;
   className?: string;
   subtitle?: string;
+  /** Phase 7D: currency for variant=currency (default USD) */
+  currency?: string;
 }
 
 export function StatCard({ 
@@ -26,6 +28,7 @@ export function StatCard({
   compact = false,
   className,
   subtitle,
+  currency = 'USD',
 }: StatCardProps) {
   const formatValue = (val: string | number | undefined) => {
     if (loading || val === undefined || val === null) {
@@ -40,7 +43,7 @@ export function StatCard({
     
     switch (variant) {
       case 'currency':
-        return formatUSDCompact(numValue);
+        return currency !== 'USD' ? formatCurrency(numValue, { compact, currency }) : formatUSDCompact(numValue);
       case 'percentage':
         return formatPercentage(numValue);
       case 'balance': {

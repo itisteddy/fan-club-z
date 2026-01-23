@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
-import { Share2, BarChart3, Users, Calendar, DollarSign, ArrowLeft, Clock, User } from 'lucide-react';
+import { Share2, BarChart3, Users, Calendar, DollarSign, ArrowLeft, Clock, User, Banknote } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { QK } from '@/lib/queryKeys';
 import { useAccount } from 'wagmi';
@@ -17,6 +17,7 @@ import { useUnifiedBalance } from '../hooks/useUnifiedBalance';
 import { useFundingModeStore } from '../store/fundingModeStore';
 import { getApiUrl } from '../config';
 import DepositUSDCModal from '../components/wallet/DepositUSDCModal';
+import { usePaystackStatus, useFiatSummary } from '@/hooks/useFiatWallet';
 // TODO: Implement accessibility utils
 const prefersReducedMotion = () => false;
 const AriaUtils = { announce: (message: string) => console.log('Announce:', message) };
@@ -152,9 +153,18 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
   const availableToStake = escrowAvailableUSD;
 
   // Funding mode (crypto vs demo) — demo is UI-gated by env via fundingModeStore
-  const { mode, setMode, isDemoEnabled } = useFundingModeStore();
+  const { mode, setMode, isDemoEnabled, isFiatEnabled, setFiatEnabled } = useFundingModeStore();
   const showDemo = isDemoEnabled;
   const isDemoMode = showDemo && mode === 'demo';
+  const { data: paystackStatus } = usePaystackStatus();
+  const { data: fiatData, isLoading: loadingFiat } = useFiatSummary(currentUser?.id);
+  useEffect(() => {
+    if (paystackStatus?.enabled !== undefined) {
+      setFiatEnabled(paystackStatus.enabled);
+    }
+  }, [paystackStatus?.enabled, setFiatEnabled]);
+  const isFiatMode = isFiatEnabled && mode === 'fiat';
+  const isCryptoMode = !isDemoMode && !isFiatMode;
 
   // Demo wallet summary (DB-backed)
   const [demoSummary, setDemoSummary] = useState<null | { currency: string; available: number; reserved: number; total: number; lastUpdated: string }>(null);
@@ -305,7 +315,8 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
   }, [media, prediction]);
 
   const demoAvailable = Number(demoSummary?.available ?? 0);
-  const displayAvailable = isDemoMode ? demoAvailable : availableToStake;
+  const fiatAvailable = Number(fiatData?.summary?.availableNgn ?? 0);
+  const displayAvailable = isFiatMode ? fiatAvailable : (isDemoMode ? demoAvailable : availableToStake);
 
   // User balance - source depends on funding mode
   const userBalance = isAuthenticated ? displayAvailable : 0;
@@ -458,13 +469,21 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
     const amount = parseFloat(stakeAmount);
     const BASE_BETS_ENABLED = import.meta.env.VITE_FCZ_BASE_BETS === '1';
     
-    // Funding source: crypto uses on-chain availableToStake; demo uses demo ledger available
-    const maxAvailable = isDemoMode ? demoAvailable : availableToStake;
+    // Funding source:
+    // - crypto: on-chain availableToStake
+    // - demo: demo ledger available
+    // - fiat: fiat ledger available (NGN)
+    const maxAvailable = isFiatMode ? fiatAvailable : (isDemoMode ? demoAvailable : availableToStake);
     
     if (amount > maxAvailable) {
       // Open deposit modal instead of placing bet (crypto mode)
-      if (!isDemoMode) {
+      if (isCryptoMode) {
         setShowDepositModal(true);
+        return;
+      }
+      if (isFiatMode) {
+        showErrorToast(`Insufficient fiat balance. Available: ₦${maxAvailable.toFixed(0)}`);
+        navigate('/wallet');
         return;
       }
       showErrorToast(`Insufficient balance. Available: $${maxAvailable.toFixed(2)}`);
@@ -491,8 +510,8 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
         walletAddress
       );
 
-      showSuccessToast(`Stake placed: $${stakeAmount} | lock consumed`);
-      AriaUtils.announce(`Prediction placed successfully for ${stakeAmount} dollars`);
+      showSuccessToast(`Stake placed: ${isFiatMode ? `₦${Number(stakeAmount).toLocaleString()}` : `$${stakeAmount}`} | lock consumed`);
+      AriaUtils.announce(`Prediction placed successfully for ${stakeAmount} ${isFiatMode ? 'naira' : 'dollars'}`);
       
       // IMPORTANT: Keep user on prediction details page - do not navigate away
       // Inline confirmation chip (keep user on overview)
@@ -931,7 +950,7 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
                   {justPlaced && (
                     <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 flex items-center justify-between">
                       <div className="text-sm text-emerald-800 font-medium">
-                        You staked ${justPlaced.amount.toFixed(2)} on “{justPlaced.optionLabel}”.
+                        You staked {isFiatMode ? `₦${justPlaced.amount.toFixed(0)}` : `$${justPlaced.amount.toFixed(2)}`} on “{justPlaced.optionLabel}”.
                       </div>
                       <button
                         type="button"
@@ -946,36 +965,53 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
                   {/* Stake Input - Only shows after option selection */}
                   {isAuthenticated && selectedOptionId && (
                     <div className="bg-white rounded-2xl p-4 shadow-sm border space-y-3">
-                      {/* Funding mode toggle (Demo only if enabled) */}
-                      {showDemo && (
-                        <div className="inline-flex rounded-lg bg-gray-100 p-1">
+                      {/* Funding mode toggle (Demo/Fiat gated by feature flags) */}
+                      {(showDemo || isFiatEnabled) && (
+                        <div className="inline-flex rounded-lg bg-gray-100 p-1 flex-wrap gap-1">
                           <button
                             onClick={() => setMode('crypto')}
                             className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
-                              !isDemoMode ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'
+                              isCryptoMode ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'
                             }`}
                             type="button"
                           >
                             Crypto (USDC)
                           </button>
-                          <button
-                            onClick={() => setMode('demo')}
-                            className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
-                              isDemoMode ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'
-                            }`}
-                            type="button"
-                          >
-                            Demo Credits
-                          </button>
+                          {showDemo && (
+                            <button
+                              onClick={() => setMode('demo')}
+                              className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
+                                isDemoMode ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'
+                              }`}
+                              type="button"
+                            >
+                              Demo Credits
+                            </button>
+                          )}
+                          {isFiatEnabled && (
+                            <button
+                              onClick={() => setMode('fiat')}
+                              className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
+                                isFiatMode ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'
+                              }`}
+                              type="button"
+                            >
+                              Fiat (NGN)
+                            </button>
+                          )}
                         </div>
                       )}
 
                       <div>
                         <label htmlFor="stake-input" className="block text-sm font-medium text-gray-900 mb-2">
-                          Stake Amount (USD)
+                          Stake Amount ({isFiatMode ? 'NGN' : 'USD'})
                         </label>
                         <div className="relative">
-                          <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400 pointer-events-none" />
+                          {isFiatMode ? (
+                            <Banknote className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400 pointer-events-none" />
+                          ) : (
+                            <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400 pointer-events-none" />
+                          )}
                           <input
                             id="stake-input"
                             type="number"
@@ -991,9 +1027,9 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
                       
                       <div className="flex items-center justify-between text-sm">
                         <span className="text-gray-600">
-                          Available: {(isDemoMode ? demoLoading : isLoadingBalance) ? 'Loading…' : formatCurrency(userBalance, { compact: true })}
+                          Available: {(isFiatMode ? loadingFiat : (isDemoMode ? demoLoading : isLoadingBalance)) ? 'Loading…' : formatCurrency(userBalance, { compact: true, currency: isFiatMode ? 'NGN' : 'USD' })}
                         </span>
-                        {stakeAmount && !(isDemoMode ? demoLoading : isLoadingBalance) && parseFloat(stakeAmount) > userBalance && (
+                        {stakeAmount && !(isFiatMode ? loadingFiat : (isDemoMode ? demoLoading : isLoadingBalance)) && parseFloat(stakeAmount) > userBalance && (
                           <span className="text-red-600 font-medium">Insufficient balance</span>
                         )}
                       </div>
@@ -1013,14 +1049,14 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
                       
                       {/* Quick Amount Buttons */}
                       <div className="grid grid-cols-3 gap-2">
-                        {[10, 25, 50, 100, 250, 500].map((amount) => (
+                        {(isFiatMode ? [500, 1000, 2500, 5000, 10000, 25000] : [10, 25, 50, 100, 250, 500]).map((amount) => (
                           <button
                             key={amount}
                             onClick={() => setStakeAmount(amount.toString())}
                             disabled={isPlacingBet || amount > userBalance}
                             className="rounded-lg border bg-gray-50 px-3 py-2 text-sm font-medium hover:bg-gray-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                           >
-                            ${amount}
+                            {isFiatMode ? `₦${amount.toLocaleString()}` : `$${amount}`}
                           </button>
                         ))}
                       </div>
@@ -1060,13 +1096,15 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
       {activeTab === 'overview' && !isClosedOrSettled && (
         (() => {
           const amt = parseFloat(stakeAmount || '0');
-          const availableNow = isDemoMode ? demoAvailable : availableToStake;
+          const availableNow = isFiatMode ? fiatAvailable : (isDemoMode ? demoAvailable : availableToStake);
           const need = Math.max(0, amt - availableNow);
           const computedLabel = !amt || amt <= 0
             ? t('betVerb')
             : (need > 0
-                ? (isDemoMode ? `Get demo credits (need $${need.toFixed(2)})` : `Add funds (need $${need.toFixed(2)})`)
-                : `${t('betVerb')}: $${amt.toFixed(2)}`);
+                ? (isDemoMode
+                    ? `Get demo credits (need $${need.toFixed(2)})`
+                    : (isFiatMode ? `Deposit NGN (need ₦${need.toFixed(0)})` : `Add funds (need $${need.toFixed(2)})`))
+                : `${t('betVerb')}: ${isFiatMode ? `₦${amt.toFixed(0)}` : `$${amt.toFixed(2)}`}`);
           const canBet = !!stakeAmount && amt > 0;
           return (
             <StickyBetBar
@@ -1074,6 +1112,10 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
               onPlace={async () => {
                 if (isDemoMode && need > 0) {
                   await faucetDemo();
+                  return;
+                }
+                if (isFiatMode && need > 0) {
+                  navigate('/wallet');
                   return;
                 }
                 await handlePlaceBet();
