@@ -9,6 +9,7 @@ import { emitPredictionUpdate } from '../services/realtime';
 import { logAdminAction } from './admin/audit';
 import { insertWalletTransaction } from '../db/walletTransactions';
 import { createNotification } from '../services/notifications';
+import { getSettlementResult } from '../services/settlementResults';
 
 /**
  * Helper to enrich prediction with category info (backward compatible)
@@ -392,6 +393,47 @@ router.get('/', async (req, res) => {
     // Enrich predictions with category info
     const enrichedPredictions = await enrichPredictionsWithCategory(predictions || []);
 
+    // Phase 6A: Add canonical settlement fields if user is authenticated (batch fetch)
+    const userId = await resolveAuthenticatedUserId(req);
+    if (userId && enrichedPredictions.length > 0) {
+      try {
+        // Batch fetch settlement results for all predictions
+        const predictionIds = enrichedPredictions.map((p: any) => p.id);
+        const { data: allResults } = await supabase
+          .from('prediction_settlement_results')
+          .select('*')
+          .eq('user_id', userId)
+          .in('prediction_id', predictionIds);
+
+        const resultsByPrediction = new Map<string, any>();
+        (allResults || []).forEach((r: any) => {
+          const predId = r.prediction_id;
+          // Prefer demo over crypto if both exist
+          const existing = resultsByPrediction.get(predId);
+          if (!existing || r.provider === 'demo-wallet') {
+            resultsByPrediction.set(predId, {
+              myStakeTotal: Number(r.stake_total || 0),
+              myReturnedTotal: Number(r.returned_total || 0),
+              myNet: Number(r.net || 0),
+              myStatus: r.status,
+              myClaimStatus: r.claim_status,
+            });
+          }
+        });
+
+        // Attach canonical fields to each prediction
+        enrichedPredictions.forEach((pred: any) => {
+          const result = resultsByPrediction.get(pred.id);
+          if (result) {
+            Object.assign(pred, result);
+          }
+        });
+      } catch (err) {
+        console.error('[predictions] Failed to batch fetch settlement results:', err);
+        // Non-fatal: continue without canonical fields
+      }
+    }
+
     // [PERF] Prepare response and check ETag for conditional GET
     const response = {
       data: enrichedPredictions,
@@ -608,11 +650,38 @@ router.get('/:id', async (req, res) => {
     // Enrich with category info
     const enrichedPrediction = await enrichPredictionWithCategory(prediction);
 
+    // Phase 6A: Add canonical settlement fields if user is authenticated
+    let canonicalFields: any = {};
+    const userId = await resolveAuthenticatedUserId(req);
+    if (userId) {
+      try {
+        // Try demo first, then crypto
+        const demoResult = await getSettlementResult(id, userId, 'demo-wallet');
+        const cryptoResult = await getSettlementResult(id, userId, 'crypto-base-usdc');
+        
+        // Prefer demo if exists, otherwise use crypto
+        const result = demoResult || cryptoResult;
+        if (result) {
+          canonicalFields = {
+            myStakeTotal: result.stakeTotal,
+            myReturnedTotal: result.returnedTotal,
+            myNet: result.net,
+            myStatus: result.status,
+            myClaimStatus: result.claimStatus,
+          };
+        }
+      } catch (err) {
+        console.error('[predictions] Failed to fetch settlement result:', err);
+        // Non-fatal: continue without canonical fields
+      }
+    }
+
     return res.json({
       data: {
         ...enrichedPrediction,
         entriesCount: entriesCount || 0,
         hasEntries: (entriesCount || 0) > 0,
+        ...canonicalFields,
       },
       message: 'Prediction fetched successfully',
       version: VERSION

@@ -10,6 +10,7 @@ import { getEscrowAddress } from '../services/escrowContract';
 import { encodePacked, getAddress, keccak256 } from 'viem';
 import { calculatePayouts, type Entry as PayoutEntry } from '../services/payoutCalculator';
 import { createNotification } from '../services/notifications';
+import { upsertSettlementResult, computeSettlementAggregates } from '../services/settlementResults';
 
 const router = express.Router();
 
@@ -414,8 +415,13 @@ export async function settleDemoRail(args: {
   }
 
   // Record losses (stake already debited at bet placement, so this is just status update)
+  // Group losers by user for canonical results
+  const loserStakesByUser = new Map<string, number>();
   for (const l of losers) {
     const stake = Number(l.amount || 0);
+    const current = loserStakesByUser.get(l.user_id) || 0;
+    loserStakesByUser.set(l.user_id, current + stake);
+
     await supabase
       .from('prediction_entries')
       .update({ status: 'lost', actual_payout: 0, updated_at: new Date().toISOString() } as any)
@@ -442,6 +448,25 @@ export async function settleDemoRail(args: {
       try {
         emitWalletUpdate({ userId: l.user_id, reason: 'loss', amountDelta: -stake });
       } catch {}
+    }
+  }
+
+  // Phase 6A: Persist canonical settlement results for losers
+  for (const [userId, totalStake] of loserStakesByUser.entries()) {
+    try {
+      await upsertSettlementResult({
+        predictionId,
+        userId,
+        provider: DEMO_PROVIDER,
+        stakeTotal: totalStake,
+        returnedTotal: 0,
+        net: -totalStake,
+        status: 'loss',
+        claimStatus: 'not_applicable',
+      });
+    } catch (err) {
+      console.error('[SETTLEMENT] Failed to persist loser result:', err);
+      // Non-fatal: continue settlement
     }
   }
 
@@ -982,6 +1007,14 @@ router.post('/manual', async (req, res) => {
     console.log(`🏆 [SETTLEMENT] Demo winners already processed: ${demoSummary.demoEntriesCount > 0 ? demoEntries.filter((e: any) => e.option_id === winningOptionId).length : 0}`);
     console.log(`🏆🏆🏆 [SETTLEMENT] ========================================`);
     console.log('');
+
+    // Phase 6A: Track crypto user stakes and payouts for canonical results
+    const cryptoUserStakes = new Map<string, number>();
+    const cryptoUserPayouts = new Map<string, number>();
+    for (const entry of cryptoEntries) {
+      const current = cryptoUserStakes.get(entry.user_id) || 0;
+      cryptoUserStakes.set(entry.user_id, current + Number(entry.amount || 0));
+    }
     
     for (const winner of cryptoWinners) {
       console.log('');
@@ -1084,8 +1117,33 @@ router.post('/manual', async (req, res) => {
       }
     }
 
+    // Phase 6A: Persist canonical results for crypto winners
+    for (const [userId, totalPayout] of cryptoUserPayouts.entries()) {
+      const totalStake = cryptoUserStakes.get(userId) || 0;
+      try {
+        await upsertSettlementResult({
+          predictionId,
+          userId,
+          provider: 'crypto-base-usdc', // Default crypto provider
+          stakeTotal: totalStake,
+          returnedTotal: totalPayout,
+          net: totalPayout - totalStake,
+          status: 'win',
+          claimStatus: 'not_applicable', // Crypto is credited directly, not claimable
+        });
+      } catch (err) {
+        console.error('[SETTLEMENT] Failed to persist crypto winner result:', err);
+        // Non-fatal: continue settlement
+      }
+    }
+
     // Update crypto losing entries (demo losers already handled by settleDemoRail)
+    const cryptoLoserStakesByUser = new Map<string, number>();
     for (const loser of cryptoLosers) {
+      const stake = Number(loser.amount || 0);
+      const current = cryptoLoserStakesByUser.get(loser.user_id) || 0;
+      cryptoLoserStakesByUser.set(loser.user_id, current + stake);
+
       const { error: updateLoserError } = await supabase
         .from('prediction_entries')
         .update({
@@ -1133,6 +1191,25 @@ router.post('/manual', async (req, res) => {
           });
       } catch (lossTxErr) {
         console.warn('[SETTLEMENT] Failed to record loss transaction:', lossTxErr);
+      }
+    }
+
+    // Phase 6A: Persist canonical results for crypto losers
+    for (const [userId, totalStake] of cryptoLoserStakesByUser.entries()) {
+      try {
+        await upsertSettlementResult({
+          predictionId,
+          userId,
+          provider: 'crypto-base-usdc', // Default crypto provider
+          stakeTotal: totalStake,
+          returnedTotal: 0,
+          net: -totalStake,
+          status: 'loss',
+          claimStatus: 'not_applicable',
+        });
+      } catch (err) {
+        console.error('[SETTLEMENT] Failed to persist crypto loser result:', err);
+        // Non-fatal: continue settlement
       }
     }
 
@@ -1499,6 +1576,24 @@ router.post('/manual', async (req, res) => {
     }
     console.log('✅ Participant notifications created');
 
+    // Phase 6A: Compute canonical aggregates
+    let aggregates: any = {};
+    try {
+      aggregates = await computeSettlementAggregates(predictionId, allEntries || []);
+      // Override with actual fee values from settlement
+      if (aggregates.demo) {
+        aggregates.demo.platformFee = demoSummary.demoPlatformFee;
+        aggregates.demo.creatorFee = demoSummary.demoCreatorFee;
+      }
+      if (aggregates.crypto) {
+        aggregates.crypto.platformFee = cryptoPlatformFee;
+        aggregates.crypto.creatorFee = cryptoCreatorFee;
+      }
+    } catch (err) {
+      console.error('[SETTLEMENT] Failed to compute aggregates:', err);
+      // Non-fatal: continue without aggregates
+    }
+
     return res.json({
       success: true,
       data: {
@@ -1512,6 +1607,7 @@ router.post('/manual', async (req, res) => {
           creatorFee: cryptoCreatorFee,
           payoutPool: cryptoPayoutPool,
         },
+        aggregates, // Phase 6A: Canonical aggregates
         winnersCount,
         participantsCount: allEntries.length,
         results: settlementResults,
