@@ -12,6 +12,8 @@ import { RulePreview } from '../components/settlement/RulePreview';
 import UnifiedHeader from '../components/layout/UnifiedHeader';
 import { openAuthGate } from '../auth/authGateAdapter';
 import { useAuthSession } from '../providers/AuthSessionProvider';
+import { useCategories } from '../hooks/useCategories';
+import { CategorySelector } from '../components/prediction/CategorySelector';
 
 interface PredictionOption {
   id: string;
@@ -43,9 +45,10 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
   }, []);
 
   // Use individual state variables instead of one large object to prevent re-renders
+  const { categories, isLoading: categoriesLoading } = useCategories();
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [category, setCategory] = useState('');
+  const [categoryId, setCategoryId] = useState<string | null>(null); // Changed to categoryId (UUID)
   const [type, setType] = useState('binary');
   const [options, setOptions] = useState<PredictionOption[]>([
     { id: '1', label: 'Yes' },
@@ -84,7 +87,12 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
       const draft = JSON.parse(draftStr);
       setTitle(draft.title || '');
       setDescription(draft.description || '');
-      setCategory(draft.category || '');
+      // Support both legacy category (slug) and new categoryId (UUID)
+      if (draft.categoryId) {
+        setCategoryId(draft.categoryId);
+      } else {
+        setCategoryId(null); // CategorySelector will auto-select general
+      }
       setType(draft.type || 'binary');
       setOptions(draft.options || [{ id: '1', label: 'Yes' }, { id: '2', label: 'No' }]);
       setEntryDeadline(draft.entryDeadline || '');
@@ -113,7 +121,7 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
     const draft = {
       title,
       description,
-      category,
+      categoryId, // Save categoryId instead of category slug
       type,
       options,
       entryDeadline,
@@ -130,7 +138,7 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
     };
     sessionStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
     setHasDraft(true);
-  }, [title, description, category, type, options, entryDeadline, stakeMin, stakeMax, settlementMethod, isPrivate, primarySource, backupSource, ruleText, timezone, contingencies, step]);
+  }, [title, description, categoryId, type, options, entryDeadline, stakeMin, stakeMax, settlementMethod, isPrivate, primarySource, backupSource, ruleText, timezone, contingencies, step]);
 
   // Discard draft
   const discardDraft = useCallback(() => {
@@ -157,14 +165,6 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
     }
   }, [isAuthenticated, currentUser, hasDraft, restoreDraft]);
 
-  const categories = [
-    { id: 'sports', label: 'Sports', icon: '⚽', gradient: 'from-orange-500 to-red-500' },
-    { id: 'politics', label: 'Politics', icon: '🏛️', gradient: 'from-blue-500 to-indigo-500' },
-    { id: 'entertainment', label: 'Entertainment', icon: '🎬', gradient: 'from-purple-500 to-pink-500' },
-    { id: 'crypto', label: 'Crypto', icon: '₿', gradient: 'from-yellow-500 to-orange-500' },
-    { id: 'tech', label: 'Technology', icon: '💻', gradient: 'from-purple-500 to-teal-500' },
-    { id: 'custom', label: 'Custom', icon: '⚡', gradient: 'from-gray-500 to-gray-600' },
-  ];
 
   const predictionTypes = [
     {
@@ -199,7 +199,7 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
   const validateStep = useCallback((stepNumber: number): boolean => {
     switch (stepNumber) {
       case 1:
-        return !!(title.trim() && category);
+        return !!(title.trim() && categoryId);
       case 2:
         return !!(type && options.every(opt => opt.label.trim()));
       case 3:
@@ -209,7 +209,7 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
       default:
         return true;
     }
-  }, [title, category, type, options, entryDeadline, stakeMin]);
+  }, [title, categoryId, type, options, entryDeadline, stakeMin]);
 
   const handleNext = useCallback(() => {
     if (validateStep(step) && step < 4) {
@@ -244,7 +244,7 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
       if (!title.trim()) {
         throw new Error('Title is required');
       }
-      if (!category) {
+      if (!categoryId) {
         throw new Error('Category is required');
       }
       if (!entryDeadline) {
@@ -286,7 +286,7 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
       const predictionData = {
         title: title.trim(),
         description: description.trim() || undefined,
-        category: category,
+        categoryId: categoryId, // Send categoryId (UUID) to server
         type: type as 'binary' | 'multi_outcome' | 'pool',
         options: options
           .filter(opt => opt.label.trim()) // Only include options with labels
@@ -348,7 +348,7 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
         setStep(1);
         setTitle('');
         setDescription('');
-        setCategory('');
+        setCategoryId(null);
         setType('binary');
         setOptions([
           { id: '1', label: 'Yes' },
@@ -372,7 +372,7 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
       toast.error(errorMessage);
       setIsSubmitting(false);
     }
-  }, [validateStep, title, category, entryDeadline, description, type, options, stakeMin, stakeMax, settlementMethod, isPrivate, isAuthenticated, currentUser, createPrediction, navigate, saveDraft]);
+  }, [validateStep, title, categoryId, entryDeadline, description, type, options, stakeMin, stakeMax, settlementMethod, isPrivate, isAuthenticated, currentUser, createPrediction, navigate, saveDraft]);
 
   // Success View
   if (submitSuccess) {
@@ -514,29 +514,17 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
                     />
                   </div>
 
-                  {/* Category - Pill-based (consistent with DiscoverPage) */}
+                  {/* Category - Chip selector (consistent with DiscoverPage) */}
                   <div className="form-section">
                     <label className="block text-sm font-semibold text-gray-700 mb-3">
                       Category *
                     </label>
-                    <div className="flex flex-wrap gap-3">
-                      {categories.map((cat) => (
-                        <motion.button
-                          key={cat.id}
-                          whileHover={{ scale: 1.02 }}
-                          whileTap={{ scale: 0.98 }}
-                          onClick={() => setCategory(cat.id)}
-                          className={`motion-button pill-category px-4 py-2.5 rounded-full text-sm font-semibold transition-all flex items-center gap-2 min-h-[40px] ${
-                            category === cat.id
-                              ? `bg-gradient-to-r ${cat.gradient} text-white shadow-lg`
-                              : 'bg-gray-100 text-gray-700 hover:bg-gray-200 border border-gray-200'
-                          }`}
-                        >
-                          <span className="text-base">{cat.icon}</span>
-                          <span>{cat.label}</span>
-                        </motion.button>
-                      ))}
-                    </div>
+                    <CategorySelector
+                      value={categoryId}
+                      onChange={setCategoryId}
+                      categories={categories}
+                      isLoading={categoriesLoading}
+                    />
                   </div>
                 </div>
               </motion.div>
@@ -837,7 +825,7 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
                     <div className="mb-4">
                       <label className="block text-sm font-medium text-gray-600 mb-1">Category</label>
                       <span className="inline-block px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm font-medium">
-                        {categories.find(cat => cat.id === category)?.label || category}
+                        {categoryId ? categories.find(cat => cat.id === categoryId)?.label || 'Unknown' : 'Not selected'}
                       </span>
                     </div>
 

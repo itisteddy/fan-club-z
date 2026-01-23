@@ -17,6 +17,7 @@ import SupportPage from '@/pages/admin/SupportPage';
 import ModerationPage from '@/pages/admin/ModerationPage';
 import ConfigPage from '@/pages/admin/ConfigPage';
 import AuditLogPage from '@/pages/admin/AuditLogPage';
+import { CategoriesPage } from '@/pages/admin/CategoriesPage';
 
 /**
  * LandingAdminRouter mounts the admin dashboard under the WEBSITE build router.
@@ -40,6 +41,7 @@ const LandingAdminRouter: React.FC = () => {
           <Route path="support" element={<SupportPage />} />
           <Route path="moderation" element={<ModerationPage />} />
           <Route path="config" element={<ConfigPage />} />
+          <Route path="categories" element={<CategoriesPage />} />
           <Route path="audit" element={<AuditLogPage />} />
         </Routes>
       </AdminLayout>

@@ -21,6 +21,7 @@ import toast from 'react-hot-toast';
 import { adminGet, adminPost } from '@/lib/adminApi';
 import { getPredictionStatusUi } from '@/lib/predictionStatusUi';
 import { FRONTEND_URL } from '@/utils/environment';
+import { getCategoryLabel } from '@/lib/categoryUi';
 
 interface PredictionDetail {
   prediction: {
@@ -212,7 +213,17 @@ export const PredictionDetailPage: React.FC = () => {
             <Target className="w-7 h-7 text-emerald-500" />
             {prediction.title}
           </h1>
-          <p className="text-slate-400 mt-1 font-mono text-sm">{prediction.id}</p>
+          <div className="flex items-center gap-3 mt-1">
+            <p className="text-slate-400 font-mono text-sm">{prediction.id}</p>
+            {(() => {
+              const categoryLabel = getCategoryLabel(data);
+              return categoryLabel ? (
+                <span className="inline-flex items-center rounded-full bg-slate-700 px-2.5 py-0.5 text-xs font-medium text-slate-300">
+                  {categoryLabel}
+                </span>
+              ) : null;
+            })()}
+          </div>
         </div>
 
         {/* Status Badge */}

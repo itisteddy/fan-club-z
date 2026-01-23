@@ -4,7 +4,7 @@ import { toast } from 'react-hot-toast';
 import PredictionCard from '../components/PredictionCard';
 import PredictionCardV3, { PredictionCardV3Skeleton } from '../components/predictions/PredictionCardV3';
 import { motion, AnimatePresence } from 'framer-motion';
-import { TrendingUp, Search, Loader2, Bell } from 'lucide-react';
+import { TrendingUp, Search, Loader2, Bell, ChevronDown, X } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import PredictionCardSkeleton from '../components/PredictionCardSkeleton';
 import { PlacePredictionModal } from '../components/predictions/PlacePredictionModal';
@@ -13,43 +13,56 @@ import Logo from '../components/common/Logo';
 import AppHeader from '../components/layout/AppHeader';
 import { formatUSDCompact, formatNumberShort } from '@/lib/format';
 import { useNavigate } from 'react-router-dom';
+import { useCategories, Category } from '../hooks/useCategories';
+import * as Dialog from '@radix-ui/react-dialog';
 
 interface DiscoverPageProps {
   onNavigateToProfile?: () => void;
   onNavigateToPrediction?: (predictionId: string) => void;
 }
 
-// Enhanced Category Filter Component
+// Enhanced Category Filter Component - uses API categories
 const CategoryFilters = React.memo(function CategoryFilters({ 
-  selectedCategory, 
-  onSelect 
+  selectedCategoryId, 
+  onSelect,
+  categories,
+  isLoading
 }: {
-  selectedCategory: string;
-  onSelect: (category: string) => void;
+  selectedCategoryId: string | null;
+  onSelect: (categoryId: string | null) => void;
+  categories: Category[];
+  isLoading: boolean;
 }) {
-  const categories = [
-    { id: 'all', label: 'All' },
-    { id: 'sports', label: 'Sports' },
-    { id: 'pop_culture', label: 'Pop Culture' },
-    { id: 'custom', label: 'Custom' },
-    { id: 'politics', label: 'Politics' },
-    { id: 'crypto', label: 'Crypto' },
-    { id: 'tech', label: 'Tech' },
-    { id: 'finance', label: 'Finance' }
-  ];
+  const [showMoreSheet, setShowMoreSheet] = useState(false);
+  
+  // Show top 8 categories as chips, rest in "More" sheet
+  const topCategories = categories.slice(0, 8);
+  const moreCategories = categories.slice(8);
+
+  if (isLoading) {
+    return (
+      <div className="category-filters bg-white border-b border-gray-100 px-4 py-3">
+        <div className="flex gap-2">
+          {[1, 2, 3, 4, 5, 6].map((i) => (
+            <div key={i} className="h-7 w-20 bg-gray-200 rounded-full animate-pulse" />
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div
-      className="category-filters bg-white border-b border-gray-100 px-4 py-3"
-      data-tour="category-filters"
-      data-tour-id="category-filters"
-    >
-      <div className="overflow-x-auto overflow-y-hidden scrollbar-hide">
-        <div className="flex gap-2">
-          {categories.map((category) => (
+    <>
+      <div
+        className="category-filters bg-white border-b border-gray-100 px-4 py-3"
+        data-tour="category-filters"
+        data-tour-id="category-filters"
+      >
+        <div className="overflow-x-auto overflow-y-hidden scrollbar-hide">
+          <div className="flex gap-2">
+            {/* "All" chip */}
             <button
-              key={category.id}
-              onClick={() => onSelect(category.id)}
+              onClick={() => onSelect(null)}
               style={{
                 height: '28px',
                 minHeight: '28px',
@@ -66,27 +79,151 @@ const CategoryFilters = React.memo(function CategoryFilters({
                 whiteSpace: 'nowrap',
                 flexShrink: 0,
                 transition: 'all 0.2s',
-                backgroundColor: selectedCategory === category.id ? '#7B2FF7' : '#f1f5f9',
-                color: selectedCategory === category.id ? '#ffffff' : '#475569',
+                backgroundColor: selectedCategoryId === null ? '#7B2FF7' : '#f1f5f9',
+                color: selectedCategoryId === null ? '#ffffff' : '#475569',
               }}
               onMouseEnter={(e) => {
-                if (selectedCategory !== category.id) {
+                if (selectedCategoryId !== null) {
                   e.currentTarget.style.backgroundColor = '#e2e8f0';
                 }
               }}
               onMouseLeave={(e) => {
-                if (selectedCategory !== category.id) {
+                if (selectedCategoryId !== null) {
                   e.currentTarget.style.backgroundColor = '#f1f5f9';
                 }
               }}
               data-tour="category-chips-item"
             >
-              {category.label}
+              All
             </button>
-          ))}
+
+            {/* Top categories as chips */}
+            {topCategories.map((category) => (
+              <button
+                key={category.id}
+                onClick={() => onSelect(category.id)}
+                style={{
+                  height: '28px',
+                  minHeight: '28px',
+                  padding: '0 12px',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '13px',
+                  fontWeight: 500,
+                  lineHeight: 1,
+                  borderRadius: '14px',
+                  border: 'none',
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap',
+                  flexShrink: 0,
+                  transition: 'all 0.2s',
+                  backgroundColor: selectedCategoryId === category.id ? '#7B2FF7' : '#f1f5f9',
+                  color: selectedCategoryId === category.id ? '#ffffff' : '#475569',
+                }}
+                onMouseEnter={(e) => {
+                  if (selectedCategoryId !== category.id) {
+                    e.currentTarget.style.backgroundColor = '#e2e8f0';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (selectedCategoryId !== category.id) {
+                    e.currentTarget.style.backgroundColor = '#f1f5f9';
+                  }
+                }}
+                data-tour="category-chips-item"
+              >
+                {category.label}
+              </button>
+            ))}
+
+            {/* "More" button if there are additional categories */}
+            {moreCategories.length > 0 && (
+              <button
+                onClick={() => setShowMoreSheet(true)}
+                style={{
+                  height: '28px',
+                  minHeight: '28px',
+                  padding: '0 12px',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '4px',
+                  fontSize: '13px',
+                  fontWeight: 500,
+                  lineHeight: 1,
+                  borderRadius: '14px',
+                  border: 'none',
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap',
+                  flexShrink: 0,
+                  transition: 'all 0.2s',
+                  backgroundColor: '#f1f5f9',
+                  color: '#475569',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = '#e2e8f0';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = '#f1f5f9';
+                }}
+              >
+                More
+                <ChevronDown className="w-3 h-3" />
+              </button>
+            )}
+          </div>
         </div>
       </div>
-    </div>
+
+      {/* More categories sheet */}
+      {moreCategories.length > 0 && (
+        <Dialog.Root open={showMoreSheet} onOpenChange={setShowMoreSheet}>
+          <Dialog.Portal>
+            <Dialog.Overlay className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[12000]" />
+            <Dialog.Content className="fixed bottom-0 left-0 right-0 bg-white rounded-t-2xl shadow-2xl z-[12001] max-h-[calc(100vh-5rem-env(safe-area-inset-bottom))] overflow-y-auto">
+              <div className="sticky top-0 bg-white border-b border-gray-200 px-4 py-4 flex items-center justify-between z-10">
+                <Dialog.Title className="text-lg font-semibold text-gray-900">All Categories</Dialog.Title>
+                <Dialog.Close className="p-2 rounded-lg hover:bg-gray-100">
+                  <X className="w-5 h-5 text-gray-500" />
+                </Dialog.Close>
+              </div>
+              <div className="px-4 py-4 space-y-2">
+                <button
+                  onClick={() => {
+                    onSelect(null);
+                    setShowMoreSheet(false);
+                  }}
+                  className={`w-full text-left px-4 py-3 rounded-xl transition-colors ${
+                    selectedCategoryId === null
+                      ? 'bg-purple-600 text-white'
+                      : 'bg-gray-50 text-gray-900 hover:bg-gray-100'
+                  }`}
+                >
+                  All
+                </button>
+                {moreCategories.map((category) => (
+                  <button
+                    key={category.id}
+                    onClick={() => {
+                      onSelect(category.id);
+                      setShowMoreSheet(false);
+                    }}
+                    className={`w-full text-left px-4 py-3 rounded-xl transition-colors ${
+                      selectedCategoryId === category.id
+                        ? 'bg-purple-600 text-white'
+                        : 'bg-gray-50 text-gray-900 hover:bg-gray-100'
+                    }`}
+                  >
+                    {category.label}
+                  </button>
+                ))}
+              </div>
+            </Dialog.Content>
+          </Dialog.Portal>
+        </Dialog.Root>
+      )}
+    </>
   );
 });
 
@@ -133,6 +270,7 @@ DiscoverHeaderContent.displayName = 'DiscoverHeaderContent';
 const DiscoverPage = React.memo(function DiscoverPage({ onNavigateToProfile, onNavigateToPrediction }: DiscoverPageProps) {
   const { user } = useAuthStore();
   const navigate = useNavigate();
+  const { categories, isLoading: categoriesLoading } = useCategories();
   const { 
     predictions, 
     loading, 
@@ -146,6 +284,7 @@ const DiscoverPage = React.memo(function DiscoverPage({ onNavigateToProfile, onN
   
   const [selectedPrediction, setSelectedPrediction] = useState<Prediction | null>(null);
   const [isPredictionModalOpen, setIsPredictionModalOpen] = useState(false);
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
 
   const [platformStats, setPlatformStats] = useState({
     totalVolume: '0',
@@ -273,9 +412,15 @@ const DiscoverPage = React.memo(function DiscoverPage({ onNavigateToProfile, onN
     setFilters({ search: query });
   }, [setFilters]);
 
-  const handleCategorySelect = useCallback((category: string) => {
-    console.log('📂 Category changed:', category);
-    setFilters({ category });
+  const handleCategorySelect = useCallback((categoryId: string | null) => {
+    console.log('📂 Category changed:', categoryId);
+    setSelectedCategoryId(categoryId);
+    // Send categoryId (UUID) to server - server handles both UUID and slug
+    if (categoryId) {
+      setFilters({ category: categoryId }); // Send UUID, server will handle it
+    } else {
+      setFilters({ category: 'all' });
+    }
   }, [setFilters]);
 
   const handleModalClose = useCallback(() => {
@@ -363,8 +508,10 @@ const DiscoverPage = React.memo(function DiscoverPage({ onNavigateToProfile, onN
       {/* Category filters with explicit positioning */}
       <div className="category-filters-wrapper" style={{ position: 'relative', zIndex: 45 }}>
         <CategoryFilters 
-          selectedCategory={filters.category} 
-          onSelect={handleCategorySelect} 
+          selectedCategoryId={selectedCategoryId}
+          onSelect={handleCategorySelect}
+          categories={categories}
+          isLoading={categoriesLoading}
         />
       </div>
 

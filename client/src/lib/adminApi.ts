@@ -114,4 +114,31 @@ export async function adminPut<T>(
   return (await res.json()) as T;
 }
 
+export async function adminPatch<T>(
+  path: string,
+  actorId: string,
+  body?: Record<string, any>
+): Promise<T> {
+  const url = buildAdminUrl(path, actorId);
+  const adminKey = getAdminKey();
+  const headers: HeadersInit = {
+    'Content-Type': 'application/json',
+    Accept: 'application/json',
+  };
+  if (adminKey) {
+    headers['x-admin-key'] = adminKey;
+  }
+  const res = await fetch(url, {
+    method: 'PATCH',
+    credentials: 'include',
+    headers,
+    body: JSON.stringify(actorId ? { ...(body || {}), actorId } : { ...(body || {}) }),
+  });
+  if (!res.ok) {
+    const err: any = await parseJsonOrText(res);
+    throw new Error(err?.message || `Request failed (${res.status})`);
+  }
+  return (await res.json()) as T;
+}
+
 

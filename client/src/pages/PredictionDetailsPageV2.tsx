@@ -40,6 +40,7 @@ import { StickyBetBar } from '../components/predictions/StickyBetBar';
 import SettlementValidationModal from '../components/modals/SettlementValidationModal';
 import { EditPredictionSheet } from '../components/prediction/EditPredictionSheet';
 import { CancelPredictionSheet } from '../components/prediction/CancelPredictionSheet';
+import { getCategoryLabel } from '@/lib/categoryUi';
 // TODO: Re-enable share functionality after testing
 // import { useShareResult } from '../components/share/useShareResult';
 
@@ -748,7 +749,20 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
       {/* Main content with proper bottom padding to avoid overlap with fixed elements */}
       <main className="px-4 pb-[calc(var(--bottom-nav-h,64px)+72px+env(safe-area-inset-bottom))] pt-4 space-y-4 bg-gray-50">
         {/* Title and Creator */}
-        <TitleAndMeta title={prediction.title} creator={prediction.creator} />
+        <div className="space-y-2">
+          <TitleAndMeta title={prediction.title} creator={prediction.creator} />
+          {/* Category chip */}
+          {(() => {
+            const categoryLabel = getCategoryLabel(prediction);
+            return categoryLabel ? (
+              <div className="flex items-center gap-2">
+                <span className="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-700">
+                  {categoryLabel}
+                </span>
+              </div>
+            ) : null;
+          })()}
+        </div>
 
         {/* Tabs */}
           <PredictionDetailsTabs

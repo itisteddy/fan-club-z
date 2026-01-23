@@ -225,12 +225,13 @@ predictionsRouter.get('/:predictionId', async (req, res) => {
   try {
     const { predictionId } = req.params;
 
-    // Get prediction with creator info
+    // Get prediction with creator info and category
     const { data: prediction, error } = await supabase
       .from('predictions')
       .select(`
         *,
-        users!predictions_creator_id_fkey(id, username, full_name, email)
+        users!predictions_creator_id_fkey(id, username, full_name, email),
+        category:categories!predictions_category_id_fkey(id, slug, label, icon)
       `)
       .eq('id', predictionId)
       .maybeSingle();
@@ -328,12 +329,24 @@ predictionsRouter.get('/:predictionId', async (req, res) => {
     const feeCryptoPlatform = pctPlatform ? (potCrypto * pctPlatform) / 100 : 0;
     const feeCryptoCreator = pctCreator ? (potCrypto * pctCreator) / 100 : 0;
 
+    // Get category info
+    const categoryInfo = (prediction as any).category;
+    const categoryLabel = categoryInfo?.label || (prediction as any).category || 'Custom';
+
     return res.json({
       prediction: {
         id: prediction.id,
         title: prediction.title,
         description: prediction.description,
         status: prediction.status,
+        category: categoryLabel, // Include category label
+        categoryId: categoryInfo?.id || (prediction as any).category_id || null,
+        categoryObj: categoryInfo ? {
+          id: categoryInfo.id,
+          slug: categoryInfo.slug,
+          label: categoryInfo.label,
+          icon: categoryInfo.icon,
+        } : null,
         createdAt: prediction.created_at,
         // Prefer entry_deadline if present; fall back to end_date legacy
         closesAt: (prediction as any).entry_deadline || (prediction as any).end_date || null,

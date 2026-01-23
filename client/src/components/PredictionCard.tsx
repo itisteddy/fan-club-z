@@ -11,6 +11,7 @@ import { formatCurrencyShort, formatNumberCompact } from '@/lib/format';
 import { formatTimeRemaining } from '@/lib/utils';
 import ImageThumb from './ui/ImageThumb';
 import { getPredictionStatusUi } from '@/lib/predictionStatusUi';
+import { getCategoryLabel } from '@/lib/categoryUi';
 
 interface PredictionCardProps {
   prediction: Prediction;
@@ -180,11 +181,14 @@ const PredictionCardContent: React.FC<PredictionCardProps> = ({
             className="min-w-0"
           >
             <div className="flex items-start gap-2 text-xs text-slate-500">
-              {prediction.category && (
-                <span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5">
-                  {prediction.category}
-                </span>
-              )}
+              {(() => {
+                const categoryLabel = getCategoryLabel(prediction);
+                return categoryLabel ? (
+                  <span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 font-medium">
+                    {categoryLabel}
+                  </span>
+                ) : null;
+              })()}
               <span
                 className={`inline-flex items-center rounded-full px-2 py-0.5 ${statusBadge.className}`}
               >

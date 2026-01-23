@@ -11,6 +11,7 @@ import {
   AlertTriangle,
   Clock,
   Activity,
+  Tag,
 } from 'lucide-react';
 import { adminGet } from '@/lib/adminApi';
 
@@ -59,6 +60,7 @@ export const AdminHomePage: React.FC = () => {
     { label: 'View Wallets', path: '/admin/wallets', icon: Wallet, color: 'bg-emerald-600' },
     { label: 'Predictions', path: '/admin/predictions', icon: Target, color: 'bg-purple-600' },
     { label: 'Settlements', path: '/admin/settlements', icon: Gavel, color: 'bg-amber-600' },
+    { label: 'Categories', path: '/admin/categories', icon: Tag, color: 'bg-indigo-600' },
   ];
 
   return (

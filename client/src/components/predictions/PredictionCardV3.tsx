@@ -3,6 +3,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { useMedia } from '../../hooks/useMedia';
 import { formatNumberShort, formatDurationShort } from '@/lib/format';
 import CreatorByline from './CreatorByline';
+import { getCategoryLabel } from '@/lib/categoryUi';
 
 type PredictionCardProps = {
   prediction: {
@@ -88,9 +89,12 @@ export default function PredictionCardV3({ prediction }: PredictionCardProps) {
         {/* Left: text */}
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 text-xs text-gray-500">
-            {prediction.category && (
-              <span className="rounded-full bg-gray-100 px-2 py-0.5">{prediction.category}</span>
-            )}
+            {(() => {
+              const categoryLabel = getCategoryLabel(prediction);
+              return categoryLabel ? (
+                <span className="rounded-full bg-gray-100 px-2 py-0.5 font-medium">{categoryLabel}</span>
+              ) : null;
+            })()}
             {endsIn && <span className="rounded-full bg-gray-100 px-2 py-0.5">ends in {endsIn}</span>}
         </div>
 
