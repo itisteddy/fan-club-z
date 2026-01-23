@@ -10,6 +10,112 @@ import { logAdminAction } from './admin/audit';
 import { insertWalletTransaction } from '../db/walletTransactions';
 import { createNotification } from '../services/notifications';
 
+/**
+ * Helper to enrich prediction with category info (backward compatible)
+ * Returns category as both object and string for compatibility
+ */
+async function enrichPredictionWithCategory(prediction: any): Promise<any> {
+  if (!prediction) return prediction;
+
+  // If category_id exists, fetch category info
+  if (prediction.category_id) {
+    const { data: category } = await supabase
+      .from('categories')
+      .select('id, slug, label, icon')
+      .eq('id', prediction.category_id)
+      .eq('is_enabled', true)
+      .maybeSingle();
+
+    if (category) {
+      return {
+        ...prediction,
+        category: category.slug, // Keep backward compatibility
+        categoryObj: {
+          id: category.id,
+          slug: category.slug,
+          label: category.label,
+          icon: category.icon,
+        },
+        categoryId: category.id,
+        categoryLabel: category.label,
+      };
+    }
+  }
+
+  // Fallback: if category is a string (legacy), keep it as-is
+  if (prediction.category && typeof prediction.category === 'string') {
+    return {
+      ...prediction,
+      category: prediction.category,
+      categoryObj: null,
+      categoryId: null,
+      categoryLabel: prediction.category,
+    };
+  }
+
+  return prediction;
+}
+
+/**
+ * Helper to enrich multiple predictions with category info
+ */
+async function enrichPredictionsWithCategory(predictions: any[]): Promise<any[]> {
+  if (!Array.isArray(predictions) || predictions.length === 0) return predictions;
+
+  // Batch fetch all category_ids
+  const categoryIds = predictions
+    .map((p) => p.category_id)
+    .filter((id): id is string => Boolean(id));
+
+  if (categoryIds.length === 0) {
+    // No category_ids, return as-is with backward compatibility
+    return predictions.map((p) => ({
+      ...p,
+      category: p.category || 'custom',
+      categoryObj: null,
+      categoryId: null,
+      categoryLabel: p.category || 'Custom',
+    }));
+  }
+
+  const { data: categories } = await supabase
+    .from('categories')
+    .select('id, slug, label, icon')
+    .in('id', categoryIds)
+    .eq('is_enabled', true);
+
+  const categoryMap = new Map(
+    (categories || []).map((cat) => [cat.id, cat])
+  );
+
+  return predictions.map((pred) => {
+    if (pred.category_id && categoryMap.has(pred.category_id)) {
+      const cat = categoryMap.get(pred.category_id)!;
+      return {
+        ...pred,
+        category: cat.slug, // Backward compatibility
+        categoryObj: {
+          id: cat.id,
+          slug: cat.slug,
+          label: cat.label,
+          icon: cat.icon,
+        },
+        categoryId: cat.id,
+        categoryLabel: cat.label,
+      };
+    }
+
+    // Fallback for legacy predictions
+    return {
+      ...pred,
+      category: pred.category || 'custom',
+      categoryObj: null,
+      categoryId: null,
+      categoryLabel: pred.category || 'Custom',
+    };
+  });
+}
+
 // [PERF] Helper to generate ETag from response data
 function generateETag(data: unknown): string {
   const hash = crypto.createHash('md5').update(JSON.stringify(data)).digest('hex');
@@ -232,9 +338,29 @@ router.get('/', async (req, res) => {
       .gt('entry_deadline', new Date().toISOString()) // Only show predictions with future deadlines
       .order('created_at', { ascending: false });
     
-    // Apply category filter
+    // Apply category filter (support both categoryId and legacy category slug)
     if (category && category !== 'all') {
-      query = query.eq('category', category);
+      // Try to resolve categoryId from slug if it looks like a UUID, use as-is
+      // Otherwise, treat as legacy category slug
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      if (uuidRegex.test(category)) {
+        query = query.eq('category_id', category);
+      } else {
+        // Legacy: filter by category string OR by category_id via slug lookup
+        const { data: catBySlug } = await supabase
+          .from('categories')
+          .select('id')
+          .eq('slug', category)
+          .eq('is_enabled', true)
+          .maybeSingle();
+        
+        if (catBySlug) {
+          query = query.eq('category_id', catBySlug.id);
+        } else {
+          // Fallback to legacy category string match
+          query = query.eq('category', category);
+        }
+      }
     }
     
     // Apply search filter
@@ -263,9 +389,12 @@ router.get('/', async (req, res) => {
 
     console.log(`✅ Successfully fetched ${predictions?.length || 0} predictions (${count} total)`);
 
+    // Enrich predictions with category info
+    const enrichedPredictions = await enrichPredictionsWithCategory(predictions || []);
+
     // [PERF] Prepare response and check ETag for conditional GET
     const response = {
-      data: predictions || [],
+      data: enrichedPredictions,
       message: 'Predictions fetched successfully',
       version: VERSION,
       pagination: {
@@ -275,7 +404,7 @@ router.get('/', async (req, res) => {
         totalPages,
         hasNext,
         hasPrev,
-        currentCount: predictions?.length || 0
+        currentCount: enrichedPredictions.length
       }
     };
     
@@ -426,8 +555,11 @@ router.get('/trending', async (req, res) => {
 
     console.log(`✅ Successfully fetched ${predictions?.length || 0} trending predictions`);
 
+    // Enrich with category info
+    const enrichedPredictions = await enrichPredictionsWithCategory(predictions || []);
+
     return res.json({
-      data: predictions || [],
+      data: enrichedPredictions,
       message: 'Trending predictions endpoint - working',
       version: VERSION
     });
@@ -473,9 +605,12 @@ router.get('/:id', async (req, res) => {
       .select('id', { count: 'exact', head: true })
       .eq('prediction_id', id);
 
+    // Enrich with category info
+    const enrichedPrediction = await enrichPredictionWithCategory(prediction);
+
     return res.json({
       data: {
-        ...prediction,
+        ...enrichedPrediction,
         entriesCount: entriesCount || 0,
         hasEntries: (entriesCount || 0) > 0,
       },
@@ -536,8 +671,11 @@ router.get('/created/:userId', async (req, res) => {
       });
     }
 
+    // Enrich with category info
+    const enrichedPredictions = await enrichPredictionsWithCategory(predictions || []);
+
     return res.json({
-      data: predictions || [],
+      data: enrichedPredictions,
       message: `Created predictions for user ${userId}`,
       version: VERSION
     });
@@ -566,7 +704,8 @@ router.post('/', async (req, res) => {
     const {
       title,
       description,
-      category,
+      category, // Legacy: category slug string
+      categoryId, // New: category UUID
       type,
       options,
       entryDeadline,
@@ -578,13 +717,67 @@ router.post('/', async (req, res) => {
     } = req.body;
 
     // Validate required fields
-    if (!title || !category || !type || !options || !entryDeadline) {
+    if (!title || !type || !options || !entryDeadline) {
       return res.status(400).json({
         error: 'Validation error',
         message: 'Missing required fields',
         version: VERSION,
-        details: 'Title, category, type, options, and entryDeadline are required'
+        details: 'Title, type, options, and entryDeadline are required'
       });
+    }
+
+    // Resolve categoryId (prefer categoryId, fallback to category slug, default to "general")
+    let resolvedCategoryId: string | null = null;
+    let resolvedCategorySlug: string = 'general';
+
+    if (categoryId) {
+      // Validate categoryId exists and is enabled
+      const { data: cat } = await supabase
+        .from('categories')
+        .select('id, slug')
+        .eq('id', categoryId)
+        .eq('is_enabled', true)
+        .maybeSingle();
+
+      if (cat) {
+        resolvedCategoryId = cat.id;
+        resolvedCategorySlug = cat.slug;
+      } else {
+        return res.status(400).json({
+          error: 'Validation error',
+          message: 'Invalid or disabled category',
+          version: VERSION,
+        });
+      }
+    } else if (category) {
+      // Legacy: resolve category slug to categoryId
+      const { data: cat } = await supabase
+        .from('categories')
+        .select('id, slug')
+        .eq('slug', category)
+        .eq('is_enabled', true)
+        .maybeSingle();
+
+      if (cat) {
+        resolvedCategoryId = cat.id;
+        resolvedCategorySlug = cat.slug;
+      } else {
+        // Fallback: use category as slug (backward compatibility)
+        resolvedCategorySlug = category;
+      }
+    } else {
+      // Default to "general" category
+      const { data: generalCat } = await supabase
+        .from('categories')
+        .select('id, slug')
+        .eq('slug', 'general')
+        .eq('is_enabled', true)
+        .maybeSingle();
+
+      if (generalCat) {
+        resolvedCategoryId = generalCat.id;
+        resolvedCategorySlug = 'general';
+      }
     }
 
     // Get current user ID from request body (passed from frontend)
@@ -629,7 +822,8 @@ router.post('/', async (req, res) => {
         creator_id: currentUserId,
         title: title.trim(),
         description: description?.trim() || null,
-        category,
+        category: resolvedCategorySlug, // Keep legacy field for backward compatibility
+        category_id: resolvedCategoryId, // New field
         type,
         status: 'open',
         stake_min: stakeMin || 1,
@@ -640,7 +834,7 @@ router.post('/', async (req, res) => {
         is_private: isPrivate || false,
         creator_fee_percentage: 1.0,
         platform_fee_percentage: 2.5,
-        tags: [category],
+        tags: [resolvedCategorySlug],
         participant_count: 0,
         likes_count: 0,
         comments_count: 0,
@@ -1461,8 +1655,25 @@ router.patch('/:id', async (req, res) => {
       }
 
       if (categoryId !== undefined) {
-        updates.category = categoryId;
-        changedFields.push('category');
+        // Validate categoryId exists and is enabled
+        const { data: cat } = await supabase
+          .from('categories')
+          .select('id, slug')
+          .eq('id', categoryId)
+          .eq('is_enabled', true)
+          .maybeSingle();
+
+        if (!cat) {
+          return res.status(400).json({
+            error: 'Validation error',
+            message: 'Invalid or disabled category',
+            version: VERSION,
+          });
+        }
+
+        updates.category = cat.slug; // Keep legacy field
+        updates.category_id = cat.id; // New field
+        changedFields.push('category', 'category_id');
       }
 
       if (closesAt !== undefined) {
@@ -1649,10 +1860,13 @@ router.patch('/:id', async (req, res) => {
     // Emit realtime update
     emitPredictionUpdate({ predictionId, reason: 'edited' });
 
+    // Enrich with category info
+    const enrichedPrediction = await enrichPredictionWithCategory(updated);
+
     console.log(`✅ Prediction ${predictionId} edited by ${userId}:`, changedFields);
 
     return res.json({
-      data: updated,
+      data: enrichedPrediction,
       message: 'Prediction updated successfully',
       changedFields,
       version: VERSION,

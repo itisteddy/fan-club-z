@@ -1,0 +1,72 @@
+[
+  {
+    "slug": "general",
+    "label": "General",
+    "icon": "sparkles",
+    "sort_order": 0,
+    "is_enabled": true
+  },
+  {
+    "slug": "sports",
+    "label": "Sports",
+    "icon": "trophy",
+    "sort_order": 1,
+    "is_enabled": true
+  },
+  {
+    "slug": "pop_culture",
+    "label": "Pop Culture",
+    "icon": "star",
+    "sort_order": 2,
+    "is_enabled": true
+  },
+  {
+    "slug": "politics",
+    "label": "Politics",
+    "icon": "flag",
+    "sort_order": 3,
+    "is_enabled": true
+  },
+  {
+    "slug": "crypto",
+    "label": "Crypto",
+    "icon": "bitcoin",
+    "sort_order": 4,
+    "is_enabled": true
+  },
+  {
+    "slug": "tech",
+    "label": "Tech",
+    "icon": "cpu",
+    "sort_order": 5,
+    "is_enabled": true
+  },
+  {
+    "slug": "finance",
+    "label": "Finance",
+    "icon": "dollar-sign",
+    "sort_order": 6,
+    "is_enabled": true
+  },
+  {
+    "slug": "esports",
+    "label": "Esports",
+    "icon": "gamepad",
+    "sort_order": 7,
+    "is_enabled": true
+  },
+  {
+    "slug": "celebrity_gossip",
+    "label": "Celebrity Gossip",
+    "icon": "users",
+    "sort_order": 8,
+    "is_enabled": true
+  },
+  {
+    "slug": "custom",
+    "label": "Custom",
+    "icon": "tag",
+    "sort_order": 9,
+    "is_enabled": true
+  }
+]

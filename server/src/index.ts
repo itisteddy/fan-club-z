@@ -250,6 +250,8 @@ import badgeRoutes from './routes/badges';
 import { adminRouter } from './routes/admin';
 import notificationsRoutes from './routes/notifications';
 import { remindersRouter } from './routes/notificationsReminders';
+import categoriesRoutes from './routes/categories';
+import { seedCategories } from './services/categoriesSeed';
 import { startBaseDepositWatcher } from './chain/base/depositWatcher';
 import { resolveAndValidateAddresses } from './chain/base/addressRegistry';
 import { validatePaymentsEnv } from './utils/envValidation';
@@ -375,6 +377,11 @@ httpServer.listen(PORT, async () => {
   console.log(`✅ CORS enabled (restricted to whitelisted origins)`);
   console.log(`🔨 Settlement system enabled`);
   ensureAvatarsBucket();
+  
+  // Seed categories on startup (idempotent)
+  seedCategories().catch((err) => {
+    console.error('⚠️ Categories seeding failed (non-fatal):', err);
+  });
   
   // Validate payment environment variables
   try {
