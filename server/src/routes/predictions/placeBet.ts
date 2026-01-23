@@ -346,7 +346,8 @@ async function handlePlaceBet(req: any, res: any) {
       const nonce = req.body.requestId || Date.now().toString();
       const lockRefInput = `${userId}|${predictionId}|${optionId}|${amountKobo}|${nonce}|fiat`;
       const lockRef = crypto.createHash('sha256').update(lockRefInput).digest('hex').substring(0, 32);
-      const externalRef = `fiat_bet_lock:${lockRef}`;
+      // NOTE: external_ref must be based on the lock_ref we end up using (may reuse an existing lock)
+      let externalRef = `fiat_bet_lock:${lockRef}`;
 
       // Check fiat balance
       const { data: fiatTxns } = await supabase
@@ -414,28 +415,101 @@ async function handlePlaceBet(req: any, res: any) {
         });
       }
 
-      // Create escrow lock for fiat
-      const { data: newLock, error: lockErr } = await supabase
+      // Create/reuse lock with lock_ref idempotency (mirror demo behavior).
+      // This prevents 500s when a previous failed attempt left an active lock.
+      const { data: lockByRef } = await supabase
         .from('escrow_locks')
-        .insert({
-          user_id: userId,
-          prediction_id: predictionId,
+        .select('id, lock_ref, state, status, amount, option_id, expires_at')
+        .eq('lock_ref', lockRef)
+        .maybeSingle();
+
+      // Also check for any active lock for this user/prediction (unique index may block inserts).
+      const { data: activeLock } = lockByRef?.id
+        ? ({ data: null } as any)
+        : await supabase
+            .from('escrow_locks')
+            .select('id, lock_ref, state, status, amount, option_id, expires_at')
+            .eq('user_id', userId)
+            .eq('prediction_id', predictionId)
+            .or('status.eq.locked,state.eq.locked')
+            .gt('expires_at', new Date().toISOString())
+            .order('created_at', { ascending: false })
+            .maybeSingle();
+
+      const lockCandidate = (lockByRef as any)?.id ? lockByRef : (activeLock as any);
+      const lockStatus = (lockCandidate as any)?.status || (lockCandidate as any)?.state;
+
+      let lockId: string;
+      if ((lockCandidate as any)?.id) {
+        lockId = String((lockCandidate as any).id);
+
+        // If lock already consumed, return the existing entry (idempotent)
+        if (lockStatus === 'consumed') {
+          const { data: existingEntry } = await supabase
+            .from('prediction_entries')
+            .select('id')
+            .eq('escrow_lock_id', lockId)
+            .order('created_at', { ascending: false })
+            .maybeSingle();
+          const entryId = (existingEntry as any)?.id as string | undefined;
+          const recomputed = await recomputePredictionState(predictionId);
+          const { data: entryRow } = entryId
+            ? await supabase.from('prediction_entries').select('*').eq('id', entryId).maybeSingle()
+            : { data: null };
+          return res.status(200).json({
+            ok: true,
+            entryId: entryId || null,
+            consumedLockId: lockId,
+            data: { prediction: recomputed.prediction, entry: entryRow || null },
+            message: 'Bet already placed (idempotent)',
+            fundingMode: 'fiat',
+            version: VERSION,
+          });
+        }
+
+        // Use existing lock_ref for wallet tx idempotency if present
+        const existingLockRef = String((lockCandidate as any).lock_ref || '').trim();
+        if (existingLockRef) {
+          externalRef = `fiat_bet_lock:${existingLockRef}`;
+        }
+
+        // Refresh lock details to match the current request (safe: lock is not consumed yet)
+        const updatePatch: any = {
           option_id: optionId,
-          amount: amountNgn, // Store in NGN for display
-          state: 'locked',
-          status: 'locked',
-          lock_ref: lockRef,
+          amount: amountNgn,
           expires_at: expiresAt.toISOString(),
           currency: FIAT_CURRENCY,
           meta: { provider: FIAT_PROVIDER, amountKobo },
-        } as any)
-        .select('id')
-        .single();
-      if (lockErr || !newLock?.id) {
-        console.error('[FCZ-BET] fiat lock create failed', lockErr);
-        return res.status(500).json({ error: 'database_error', message: 'Failed to create lock', version: VERSION });
+        };
+        // If the existing lock doesn't have a lock_ref, set it for future idempotency
+        if (!existingLockRef) {
+          updatePatch.lock_ref = lockRef;
+          externalRef = `fiat_bet_lock:${lockRef}`;
+        }
+        await supabase.from('escrow_locks').update(updatePatch).eq('id', lockId);
+      } else {
+        const { data: newLock, error: lockErr } = await supabase
+          .from('escrow_locks')
+          .insert({
+            user_id: userId,
+            prediction_id: predictionId,
+            option_id: optionId,
+            amount: amountNgn, // Store in NGN for display
+            state: 'locked',
+            status: 'locked',
+            lock_ref: lockRef,
+            expires_at: expiresAt.toISOString(),
+            currency: FIAT_CURRENCY,
+            meta: { provider: FIAT_PROVIDER, amountKobo },
+          } as any)
+          .select('id')
+          .single();
+        if (lockErr || !newLock?.id) {
+          console.error('[FCZ-BET] fiat lock create failed', lockErr);
+          return res.status(500).json({ error: 'database_error', message: 'Failed to create lock', version: VERSION });
+        }
+        lockId = newLock.id as any;
       }
-      const lockId = newLock.id as any;
 
       // Create prediction entry
       const { data: entry, error: entryErr } = await supabase
