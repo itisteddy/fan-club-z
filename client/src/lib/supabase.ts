@@ -69,28 +69,60 @@ function getRedirectUrl(next?: string) {
 
 export const buildAuthRedirectUrl = (next?: string) => getRedirectUrl(next);
 
-let nativeAuthListener: Promise<PluginListenerHandle> | null = null;
+let nativeAuthListener: PluginListenerHandle | null = null;
 
 const ensureNativeAuthListener = () => {
   if (!isNativePlatform() || nativeAuthListener) return;
 
   nativeAuthListener = CapacitorApp.addListener('appUrlOpen', async ({ url }) => {
     try {
+      console.log('🔐 Native appUrlOpen received:', url);
+      
       // Handle HTTPS callback URLs (app.fanclubz.app/auth/callback)
-      if (!url || (!url.includes('app.fanclubz.app/auth/callback') && !url.includes('localhost') && !url.includes('127.0.0.1'))) {
+      // Also handle custom URL schemes (fanclubz://auth/callback)
+      const isAuthCallback = url && (
+        url.includes('app.fanclubz.app/auth/callback') ||
+        url.includes('localhost/auth/callback') ||
+        url.includes('127.0.0.1/auth/callback') ||
+        url.includes('fanclubz://auth/callback') ||
+        url.includes('/auth/callback')
+      );
+
+      if (!isAuthCallback) {
         return;
       }
 
-      console.log('🔐 Native auth callback received:', url);
+      console.log('🔐 Native auth callback detected, closing browser...');
 
-      await Browser.close().catch(() => undefined);
+      // Close the browser immediately
+      await Browser.close().catch((err) => {
+        console.warn('⚠️ Browser.close() failed (may already be closed):', err);
+      });
 
-      // Supabase will automatically handle the session from the URL
-      // The AuthCallback route component will process it
+      // Extract the callback path and query params
+      let callbackPath = '/auth/callback';
+      try {
+        const urlObj = new URL(url);
+        callbackPath = urlObj.pathname + urlObj.search + urlObj.hash;
+      } catch {
+        // If URL parsing fails, try to extract manually
+        const match = url.match(/\/auth\/callback[?#]?(.*)/);
+        if (match) {
+          callbackPath = '/auth/callback' + (match[1] ? '?' + match[1] : '');
+        }
+      }
+
+      console.log('🔐 Navigating to callback route:', callbackPath);
+
+      // Navigate to the callback route in the app
+      // The AuthCallback component will handle the session
+      window.location.href = callbackPath;
     } catch (err) {
       console.error('❌ Native auth listener exception:', err);
     }
   });
+  
+  console.log('✅ Native auth listener registered');
 };
 
 const getAuthStorage = () => {

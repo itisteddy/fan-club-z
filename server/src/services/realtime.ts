@@ -12,6 +12,12 @@ export function initRealtime(server: HttpServer) {
     'https://fanclubz.app',
     'https://www.fanclubz.app',
     'https://dev.fanclubz.app',
+    // Capacitor native origins
+    'capacitor://localhost',
+    'capacitor://app.fanclubz.app',
+    'ionic://localhost',
+    'http://localhost',
+    'http://localhost:5173',
   ];
   
   io = new SocketIOServer(server, {
@@ -21,16 +27,30 @@ export function initRealtime(server: HttpServer) {
         if (!origin) {
           return callback(null, true);
         }
-        // Check if origin is allowed
-        if (allowedOrigins.includes(origin) || origin.includes('.vercel.app') || origin.includes('.onrender.com')) {
+        
+        // Check exact match
+        if (allowedOrigins.includes(origin)) {
           callback(null, true);
+          return;
+        }
+        
+        // Allow any Capacitor/Ionic origin for native builds
+        if (origin.startsWith('capacitor://') || origin.startsWith('ionic://')) {
+          callback(null, true);
+          return;
+        }
+        
+        // Allow Vercel/Render deployments
+        if (origin.includes('.vercel.app') || origin.includes('.onrender.com')) {
+          callback(null, true);
+          return;
+        }
+        
+        // In production, be strict; in dev, allow all
+        if (process.env.NODE_ENV === 'production') {
+          callback(new Error(`Origin ${origin} not allowed by CORS`));
         } else {
-          // In production, be strict; in dev, allow all
-          if (process.env.NODE_ENV === 'production') {
-            callback(new Error(`Origin ${origin} not allowed by CORS`));
-          } else {
-            callback(null, true);
-          }
+          callback(null, true);
         }
       },
       credentials: true,

@@ -381,34 +381,34 @@ export async function settleDemoRail(args: {
       const share = demoResult.winnersStakeTotal > 0 ? stake / demoResult.winnersStakeTotal : 0;
       const entryPayout = round2(demoResult.distributablePot * share);
 
-      await supabase
-        .from('prediction_entries')
+    await supabase
+      .from('prediction_entries')
         .update({ status: 'won', actual_payout: entryPayout, updated_at: new Date().toISOString() } as any)
         .eq('id', entry.id);
 
       // Record individual entry payout transaction (idempotent)
-      const inserted = await upsertDemoTx({
+    const inserted = await upsertDemoTx({
         user_id: userId,
-        direction: 'credit',
-        type: 'deposit',
-        channel: 'fiat',
-        provider: DEMO_PROVIDER,
+      direction: 'credit',
+      type: 'deposit',
+      channel: 'fiat',
+      provider: DEMO_PROVIDER,
         amount: entryPayout,
-        currency: DEMO_CURRENCY,
-        status: 'completed',
+      currency: DEMO_CURRENCY,
+      status: 'completed',
         external_ref: `demo_payout:${predictionId}:${entry.id}`,
-        prediction_id: predictionId,
+      prediction_id: predictionId,
         entry_id: entry.id,
-        description: `Demo payout for "${predictionTitle}"`,
+      description: `Demo payout for "${predictionTitle}"`,
         meta: { kind: 'payout', provider: DEMO_PROVIDER, prediction_id: predictionId, entry_id: entry.id },
-      } as any);
-      if (inserted) {
+    } as any);
+    if (inserted) {
         // Only apply delta once per user (not per entry)
         if (userWinningEntries.indexOf(entry) === 0) {
           await applyDemoDelta(userId, { availableDelta: payoutAmount, reservedDelta: -userTotalStake });
-          try {
+      try {
             emitWalletUpdate({ userId, reason: 'payout', amountDelta: payoutAmount });
-          } catch {}
+      } catch {}
         }
       }
     }
@@ -491,50 +491,50 @@ export async function settleDemoRail(args: {
   // This fixes the bug where fees were skipped in hybrid mode
   if (demoResult.totalPot > 0 && (demoResult.platformFee > 0 || demoResult.creatorFee > 0)) {
     if (demoResult.creatorFee > 0) {
+    const inserted = await upsertDemoTx({
+      user_id: creatorId,
+      direction: 'credit',
+      type: 'deposit',
+      channel: 'fiat',
+      provider: DEMO_PROVIDER,
+        amount: demoResult.creatorFee,
+      currency: DEMO_CURRENCY,
+      status: 'completed',
+      external_ref: `demo_creator_fee:${predictionId}`,
+      prediction_id: predictionId,
+      description: `Demo creator fee for "${predictionTitle}"`,
+      meta: { kind: 'creator_fee', provider: DEMO_PROVIDER, prediction_id: predictionId },
+    } as any);
+    if (inserted) {
+        await applyDemoDelta(creatorId, { availableDelta: demoResult.creatorFee, reservedDelta: 0 });
+      try {
+          emitWalletUpdate({ userId: creatorId, reason: 'creator_fee_paid', amountDelta: demoResult.creatorFee });
+      } catch {}
+    }
+  }
+
+    if (demoResult.platformFee > 0) {
+    const treasuryUserId = await resolveTreasuryUserId();
+    if (treasuryUserId) {
       const inserted = await upsertDemoTx({
-        user_id: creatorId,
+        user_id: treasuryUserId,
         direction: 'credit',
         type: 'deposit',
         channel: 'fiat',
         provider: DEMO_PROVIDER,
-        amount: demoResult.creatorFee,
+          amount: demoResult.platformFee,
         currency: DEMO_CURRENCY,
         status: 'completed',
-        external_ref: `demo_creator_fee:${predictionId}`,
+        external_ref: `demo_platform_fee:${predictionId}`,
         prediction_id: predictionId,
-        description: `Demo creator fee for "${predictionTitle}"`,
-        meta: { kind: 'creator_fee', provider: DEMO_PROVIDER, prediction_id: predictionId },
+        description: `Demo platform fee for "${predictionTitle}"`,
+        meta: { kind: 'platform_fee', provider: DEMO_PROVIDER, prediction_id: predictionId },
       } as any);
       if (inserted) {
-        await applyDemoDelta(creatorId, { availableDelta: demoResult.creatorFee, reservedDelta: 0 });
-        try {
-          emitWalletUpdate({ userId: creatorId, reason: 'creator_fee_paid', amountDelta: demoResult.creatorFee });
-        } catch {}
-      }
-    }
-
-    if (demoResult.platformFee > 0) {
-      const treasuryUserId = await resolveTreasuryUserId();
-      if (treasuryUserId) {
-        const inserted = await upsertDemoTx({
-          user_id: treasuryUserId,
-          direction: 'credit',
-          type: 'deposit',
-          channel: 'fiat',
-          provider: DEMO_PROVIDER,
-          amount: demoResult.platformFee,
-          currency: DEMO_CURRENCY,
-          status: 'completed',
-          external_ref: `demo_platform_fee:${predictionId}`,
-          prediction_id: predictionId,
-          description: `Demo platform fee for "${predictionTitle}"`,
-          meta: { kind: 'platform_fee', provider: DEMO_PROVIDER, prediction_id: predictionId },
-        } as any);
-        if (inserted) {
           await applyDemoDelta(treasuryUserId, { availableDelta: demoResult.platformFee, reservedDelta: 0 });
-          try {
+        try {
             emitWalletUpdate({ userId: treasuryUserId, reason: 'platform_fee_collected', amountDelta: demoResult.platformFee });
-          } catch {}
+        } catch {}
         }
       }
     }

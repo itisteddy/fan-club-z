@@ -19,13 +19,15 @@ export const apiClient = {
     const token = getAuthToken();
     
     try {
+      // GET requests should NOT include Content-Type to avoid unnecessary preflight
+      const headers: HeadersInit = {
+        ...(token && { Authorization: `Bearer ${token}` }),
+        ...options?.headers,
+      };
+      
       const response = await fetch(`${API_URL}${endpoint}`, {
         method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token && { Authorization: `Bearer ${token}` }),
-          ...options?.headers,
-        },
+        headers,
         ...options,
       });
       
@@ -96,13 +98,20 @@ export const apiClient = {
     const token = getAuthToken();
     
     try {
+      // DELETE requests should NOT include Content-Type unless there's a body
+      const headers: HeadersInit = {
+        ...(token && { Authorization: `Bearer ${token}` }),
+        ...options?.headers,
+      };
+      
+      // Only add Content-Type if there's a body
+      if (options?.body) {
+        headers['Content-Type'] = 'application/json';
+      }
+      
       const response = await fetch(`${API_URL}${endpoint}`, {
         method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token && { Authorization: `Bearer ${token}` }),
-          ...options?.headers,
-        },
+        headers,
         ...options,
       });
       

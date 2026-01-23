@@ -64,12 +64,41 @@ const allowedOrigins = [
   'https://fanclubz.app',
   'https://app.fanclubz.app',
   // Capacitor native shells (iOS/Android WebView origins)
+  // iOS uses capacitor://app.fanclubz.app (appId-based) or capacitor://localhost
   'capacitor://localhost',
+  'capacitor://app.fanclubz.app',
   'ionic://localhost',
+  'http://localhost',
   'http://localhost:5173',
   'http://localhost:5174', // Vite default dev port
   'http://localhost:3000',
 ];
+
+// CRITICAL: Handle OPTIONS preflight BEFORE CORS middleware to prevent 500 errors
+// This must be early in the middleware chain
+app.options('*', (req, res) => {
+  const origin = req.headers.origin;
+  
+  // Always allow OPTIONS preflight (even for unknown origins during development)
+  // The actual request will be blocked by CORS middleware if origin is invalid
+  if (origin) {
+    // Check if origin is allowlisted
+    if (allowedOrigins.includes(origin) || !origin) {
+      res.header('Access-Control-Allow-Origin', origin);
+      res.header('Access-Control-Allow-Credentials', 'true');
+      res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
+      res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, Accept, Origin, X-Requested-With, Cache-Control, If-None-Match, X-Admin-Key');
+      res.status(204).end(); // 204 No Content is standard for OPTIONS
+      return;
+    }
+  }
+  
+  // For unknown origins, still return 204 (browser will block actual request)
+  // This prevents 500 errors that break preflight
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, Accept, Origin, X-Requested-With, Cache-Control, If-None-Match, X-Admin-Key');
+  res.status(204).end();
+});
 
 // Enhanced CORS middleware - Restricted to known origins
 app.use(cors({
@@ -81,13 +110,23 @@ app.use(cors({
     if (!origin) {
       return callback(null, true);
     }
+    
+    // Check exact match first
     if (allowedOrigins.includes(origin)) {
       console.log(`[CORS] ✅ Allowed origin: ${origin}`);
       callback(null, true);
-    } else {
-      console.log(`[CORS] ❌ Blocked origin: ${origin}`);
-      callback(new Error('Not allowed by CORS'));
+      return;
     }
+    
+    // Also allow any capacitor:// or ionic:// origin for native builds
+    if (origin.startsWith('capacitor://') || origin.startsWith('ionic://')) {
+      console.log(`[CORS] ✅ Allowed Capacitor origin: ${origin}`);
+      callback(null, true);
+      return;
+    }
+    
+    console.log(`[CORS] ❌ Blocked origin: ${origin}`);
+    callback(new Error('Not allowed by CORS'));
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
@@ -95,34 +134,14 @@ app.use(cors({
   exposedHeaders: ['Content-Range', 'X-Content-Range', 'ETag']
 }));
 
-// Explicit OPTIONS preflight handler (some hosts require this)
-app.options('*', (req, res) => {
-  const origin = req.headers.origin;
-  if (origin && allowedOrigins.includes(origin)) {
-    res.header('Access-Control-Allow-Origin', origin);
-    res.header('Access-Control-Allow-Credentials', 'true');
-    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
-    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, Accept, Origin, X-Requested-With, Cache-Control, If-None-Match, X-Admin-Key');
-    res.sendStatus(200);
-  } else {
-    res.sendStatus(403);
-  }
-});
-
-// Additional CORS headers middleware
+// Additional CORS headers middleware (redundant but safe)
 app.use((req, res, next) => {
   const origin = req.headers.origin;
-  if (origin && allowedOrigins.includes(origin)) {
+  if (origin && (allowedOrigins.includes(origin) || origin.startsWith('capacitor://') || origin.startsWith('ionic://'))) {
     res.header('Access-Control-Allow-Origin', origin);
     res.header('Access-Control-Allow-Credentials', 'true');
     res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
     res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, Accept, Origin, X-Requested-With, Cache-Control, If-None-Match, X-Admin-Key');
-  }
-  
-  // Handle preflight requests
-  if (req.method === 'OPTIONS') {
-    res.status(200).end();
-    return;
   }
   
   next();
