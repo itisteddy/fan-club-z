@@ -1,6 +1,10 @@
 -- Migration: Create categories table for prediction categories
 -- Phase 5A: Categories data source
 
+-- Ensure gen_random_uuid() is available
+-- (Supabase typically has this enabled, but this makes the migration more robust.)
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
 -- Create categories table
 CREATE TABLE IF NOT EXISTS public.categories (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -49,7 +53,17 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE TRIGGER categories_updated_at
-  BEFORE UPDATE ON public.categories
-  FOR EACH ROW
-  EXECUTE FUNCTION update_categories_updated_at();
+-- Triggers don't support IF NOT EXISTS, so guard with a catalog check.
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_trigger
+    WHERE tgname = 'categories_updated_at'
+  ) THEN
+    CREATE TRIGGER categories_updated_at
+      BEFORE UPDATE ON public.categories
+      FOR EACH ROW
+      EXECUTE FUNCTION update_categories_updated_at();
+  END IF;
+END $$;
