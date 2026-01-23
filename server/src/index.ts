@@ -63,6 +63,9 @@ app.use(helmet({
 const allowedOrigins = [
   'https://fanclubz.app',
   'https://app.fanclubz.app',
+  // Capacitor native shells (iOS/Android WebView origins)
+  'capacitor://localhost',
+  'ionic://localhost',
   'http://localhost:5173',
   'http://localhost:5174', // Vite default dev port
   'http://localhost:3000',

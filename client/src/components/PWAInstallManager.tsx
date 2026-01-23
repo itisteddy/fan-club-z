@@ -5,10 +5,16 @@ import SmartInstallPrompt from './SmartInstallPrompt';
 import TopUpdateToast from './TopUpdateToast';
 import { pwaManager } from '../utils/pwa';
 import { supabase } from '@/lib/supabase';
+import { Capacitor } from '@capacitor/core';
 
 const PWAInstallManager: React.FC = () => {
   const [showIOSModal, setShowIOSModal] = useState(false);
   const [showUpdateNotification, setShowUpdateNotification] = useState(false);
+
+  // Native builds (Capacitor) should not show any PWA install/update prompts.
+  if (Capacitor.isNativePlatform()) {
+    return null;
+  }
 
   useEffect(() => {
     // Track session start for timing calculations
