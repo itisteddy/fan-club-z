@@ -74,13 +74,18 @@ const allowedOrigins = [
 // Enhanced CORS middleware - Restricted to known origins
 app.use(cors({
   origin: (origin, callback) => {
+    // Log all origins for debugging native app issues
+    console.log(`[CORS] Request origin: ${origin || '(no origin)'}`);
+    
     // Allow requests with no origin (like mobile apps, Postman, curl)
     if (!origin) {
       return callback(null, true);
     }
     if (allowedOrigins.includes(origin)) {
+      console.log(`[CORS] ✅ Allowed origin: ${origin}`);
       callback(null, true);
     } else {
+      console.log(`[CORS] ❌ Blocked origin: ${origin}`);
       callback(new Error('Not allowed by CORS'));
     }
   },
