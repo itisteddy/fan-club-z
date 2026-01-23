@@ -18,6 +18,7 @@ import { useFundingModeStore } from '../store/fundingModeStore';
 import { getApiUrl } from '../config';
 import DepositUSDCModal from '../components/wallet/DepositUSDCModal';
 import { usePaystackStatus, useFiatSummary } from '@/hooks/useFiatWallet';
+import { Runtime } from '@/config/runtime';
 // TODO: Implement accessibility utils
 const prefersReducedMotion = () => false;
 const AriaUtils = { announce: (message: string) => console.log('Announce:', message) };
@@ -154,8 +155,11 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
 
   // Funding mode (crypto vs demo) — demo is UI-gated by env via fundingModeStore
   const { mode, setMode, isDemoEnabled, isFiatEnabled, setFiatEnabled } = useFundingModeStore();
-  const showDemo = isDemoEnabled;
-  const isDemoMode = showDemo && mode === 'demo';
+  const capabilities = Runtime.capabilities;
+  const showDemo = isDemoEnabled && capabilities.allowDemo;
+  // Gate fiat/crypto modes by capabilities
+  const effectiveFiatEnabled = isFiatEnabled && capabilities.allowFiat;
+  const effectiveCryptoEnabled = capabilities.allowCrypto;
   const { data: paystackStatus } = usePaystackStatus();
   const { data: fiatData, isLoading: loadingFiat } = useFiatSummary(currentUser?.id);
   useEffect(() => {
@@ -163,8 +167,9 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
       setFiatEnabled(paystackStatus.enabled);
     }
   }, [paystackStatus?.enabled, setFiatEnabled]);
-  const isFiatMode = isFiatEnabled && mode === 'fiat';
-  const isCryptoMode = !isDemoMode && !isFiatMode;
+  const isDemoMode = showDemo && mode === 'demo';
+  const isFiatMode = effectiveFiatEnabled && mode === 'fiat';
+  const isCryptoMode = effectiveCryptoEnabled && !isDemoMode && !isFiatMode;
 
   // Demo wallet summary (DB-backed)
   const [demoSummary, setDemoSummary] = useState<null | { currency: string; available: number; reserved: number; total: number; lastUpdated: string }>(null);
@@ -965,18 +970,20 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
                   {/* Stake Input - Only shows after option selection */}
                   {isAuthenticated && selectedOptionId && (
                     <div className="bg-white rounded-2xl p-4 shadow-sm border space-y-3">
-                      {/* Funding mode toggle (Demo/Fiat gated by feature flags) */}
-                      {(showDemo || isFiatEnabled) && (
+                      {/* Funding mode toggle (Demo/Fiat gated by feature flags + store-safe mode) */}
+                      {(showDemo || effectiveFiatEnabled || effectiveCryptoEnabled) && (
                         <div className="inline-flex rounded-lg bg-gray-100 p-1 flex-wrap gap-1">
-                          <button
-                            onClick={() => setMode('crypto')}
-                            className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
-                              isCryptoMode ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'
-                            }`}
-                            type="button"
-                          >
-                            Crypto (USDC)
-                          </button>
+                          {effectiveCryptoEnabled && (
+                            <button
+                              onClick={() => setMode('crypto')}
+                              className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
+                                isCryptoMode ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'
+                              }`}
+                              type="button"
+                            >
+                              Crypto (USDC)
+                            </button>
+                          )}
                           {showDemo && (
                             <button
                               onClick={() => setMode('demo')}
@@ -988,7 +995,7 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
                               Demo Credits
                             </button>
                           )}
-                          {isFiatEnabled && (
+                          {effectiveFiatEnabled && (
                             <button
                               onClick={() => setMode('fiat')}
                               className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${

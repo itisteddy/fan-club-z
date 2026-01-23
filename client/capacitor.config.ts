@@ -7,7 +7,8 @@ const config: CapacitorConfig = {
   server: {
     androidScheme: 'https',
     hostname: 'app.fanclubz.app',
-    // For development, you can uncomment this to use localhost
+    // Production: uses bundled web assets (no server.url)
+    // For development, uncomment to use localhost:
     // url: 'http://localhost:5174',
     // cleartext: true
   },

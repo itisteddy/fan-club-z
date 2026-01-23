@@ -27,6 +27,7 @@ import { setCooldown } from '@/lib/cooldowns';
 import { usePaystackStatus, useFiatSummary } from '@/hooks/useFiatWallet';
 import { FiatDepositSheet } from '@/components/wallet/FiatDepositSheet';
 import { FiatWithdrawalSheet } from '@/components/wallet/FiatWithdrawalSheet';
+import { Runtime } from '@/config/runtime';
 
 interface WalletPageProps {
   onNavigateBack?: () => void;
@@ -40,10 +41,14 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
   // Auto-switch to Base Sepolia when connected on wrong network (crypto rail only)
   useAutoNetworkSwitch();
   const { mode, setMode, isDemoEnabled, isFiatEnabled, setFiatEnabled } = useFundingModeStore();
-  const showDemo = isDemoEnabled;
+  const capabilities = Runtime.capabilities;
+  const showDemo = isDemoEnabled && capabilities.allowDemo;
+  // Gate fiat/crypto modes by capabilities
+  const effectiveFiatEnabled = isFiatEnabled && capabilities.allowFiat;
+  const effectiveCryptoEnabled = capabilities.allowCrypto;
   const isDemoMode = showDemo && mode === 'demo';
-  const isFiatMode = isFiatEnabled && mode === 'fiat';
-  const isCryptoMode = !isDemoMode && !isFiatMode;
+  const isFiatMode = effectiveFiatEnabled && mode === 'fiat';
+  const isCryptoMode = effectiveCryptoEnabled && !isDemoMode && !isFiatMode;
 
   // Fiat feature flag + balances (server-controlled)
   const { data: paystackStatus } = usePaystackStatus();
@@ -358,18 +363,20 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
       />
       
       <Page>
-        {/* Funding mode toggle (Demo/Fiat gated by feature flags) */}
-        {(showDemo || isFiatEnabled) && (
+        {/* Funding mode toggle (Demo/Fiat gated by feature flags + store-safe mode) */}
+        {(showDemo || effectiveFiatEnabled || effectiveCryptoEnabled) && (
           <div className="mb-4">
             <div className="inline-flex rounded-lg bg-gray-100 p-1 flex-wrap gap-1">
-              <button
-                onClick={() => setMode('crypto')}
-                className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
-                  isCryptoMode ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'
-                }`}
-              >
-                Crypto (USDC)
-              </button>
+              {effectiveCryptoEnabled && (
+                <button
+                  onClick={() => setMode('crypto')}
+                  className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
+                    isCryptoMode ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'
+                  }`}
+                >
+                  Crypto (USDC)
+                </button>
+              )}
               {showDemo && (
                 <button
                   onClick={() => setMode('demo')}
@@ -380,7 +387,7 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
                   Demo Credits
                 </button>
               )}
-              {isFiatEnabled && (
+              {effectiveFiatEnabled && (
                 <button
                   onClick={() => setMode('fiat')}
                   className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
@@ -391,6 +398,9 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
                 </button>
               )}
             </div>
+            {Runtime.storeSafeMode && (
+              <p className="mt-2 text-xs text-gray-500">Demo Mode</p>
+            )}
           </div>
         )}
 
@@ -742,8 +752,8 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
         />
       )}
 
-      {/* Fiat sheets (NGN) */}
-      {isFiatEnabled && user?.id && (
+      {/* Fiat sheets (NGN) - gated by capabilities */}
+      {effectiveFiatEnabled && user?.id && capabilities.allowFiat && (
         <>
           <FiatDepositSheet open={showFiatDeposit} onClose={() => setShowFiatDeposit(false)} userId={user.id} userEmail={user.email} />
           <FiatWithdrawalSheet
@@ -755,7 +765,8 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
         </>
       )}
       
-      {showConnectWallet && (
+      {/* Connect wallet - gated by capabilities */}
+      {showConnectWallet && capabilities.allowCrypto && (
         <ConnectWalletSheet
           isOpen={showConnectWallet}
           onClose={() => setShowConnectWallet(false)}
