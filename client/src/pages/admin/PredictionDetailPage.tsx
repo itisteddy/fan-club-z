@@ -107,15 +107,29 @@ export const PredictionDetailPage: React.FC = () => {
     if (!predictionId) return;
     setSettingOutcome(optionId);
     try {
-      await adminPost<any>(
+      const result = await adminPost<any>(
         `/api/v2/admin/predictions/${predictionId}/outcome`,
         actorId,
         actorId ? { optionId, actorId } : { optionId }
       );
-      toast.success('Outcome set');
+      
+      // Show detailed success message based on settlement results
+      if (result?.alreadySettled) {
+        toast.success('Already settled');
+      } else if (result?.settlement) {
+        const s = result.settlement;
+        const totalEntries = (s.demoEntriesCount || 0) + (s.cryptoEntriesCount || 0);
+        toast.success(
+          `Settled! ${totalEntries} entries processed. ` +
+          `Fees: $${(s.totalPlatformFee || 0).toFixed(2)} platform, $${(s.totalCreatorFee || 0).toFixed(2)} creator.`
+        );
+      } else {
+        toast.success('Settlement complete');
+      }
       fetchData();
     } catch (e: any) {
-      toast.error(e?.message || 'Failed to set outcome');
+      console.error('[Admin/Settlement] Error:', e);
+      toast.error(e?.message || 'Failed to settle prediction');
     } finally {
       setSettingOutcome(null);
     }
@@ -433,12 +447,12 @@ export const PredictionDetailPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Set Outcome (fix: admin must be able to settle items needing outcome) */}
+      {/* Settle Prediction - Admin sets outcome and triggers immediate settlement */}
       {!prediction.winningOptionId && !isTerminal && (
         <div className="bg-slate-800 border border-slate-700 rounded-xl p-4">
-          <h3 className="text-white font-semibold mb-2">Set Outcome</h3>
+          <h3 className="text-white font-semibold mb-2">Settle Prediction</h3>
           <p className="text-slate-400 text-sm mb-3">
-            This prediction is closed/awaiting settlement. Choose the winning option so Sync can settle it.
+            Select the winning outcome to settle this prediction immediately. Winners will be credited and losers debited.
           </p>
           <div className="flex flex-wrap gap-2">
             {options.map((o) => (
@@ -448,7 +462,7 @@ export const PredictionDetailPage: React.FC = () => {
                 disabled={settingOutcome !== null}
                 className="px-3 py-2 bg-emerald-600 text-white rounded-lg text-sm hover:bg-emerald-700 disabled:opacity-50"
               >
-                {settingOutcome === o.id ? 'Setting…' : `Set: ${o.text}`}
+                {settingOutcome === o.id ? 'Settling…' : `Settle: ${o.text}`}
               </button>
             ))}
           </div>

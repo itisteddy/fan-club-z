@@ -3,8 +3,12 @@ import { z } from 'zod';
 import { supabase } from '../../config/database';
 import { VERSION } from '@fanclubz/shared';
 import { logAdminAction } from './audit';
+import { settleDemoRail } from '../settlement';
+import { upsertSettlementResult, computeSettlementAggregates } from '../../services/settlementResults';
 
 export const predictionsRouter = Router();
+
+const DEMO_PROVIDER = 'demo-wallet';
 
 function isSchemaMismatch(err: any): boolean {
   const code = String(err?.code || '');
@@ -410,7 +414,8 @@ predictionsRouter.get('/:predictionId', async (req, res) => {
 
 /**
  * POST /api/v2/admin/predictions/:predictionId/outcome
- * Set winning option for a prediction (admin tool) so it can be settled.
+ * Set winning option for a prediction AND trigger immediate settlement.
+ * This is the admin tool for settling predictions - it does the full flow.
  */
 predictionsRouter.post('/:predictionId/outcome', async (req, res) => {
   try {
@@ -427,26 +432,38 @@ predictionsRouter.post('/:predictionId/outcome', async (req, res) => {
 
     const { optionId, reason, actorId } = parsed.data;
 
-    // Verify prediction exists
-    const { data: pred, error: predErr } = await supabase
+    // Verify prediction exists with full details needed for settlement
+    const { data: prediction, error: predErr } = await supabase
       .from('predictions')
-      .select('id, status')
+      .select('id, status, title, creator_id, platform_fee_percentage, creator_fee_percentage')
       .eq('id', predictionId)
       .maybeSingle();
 
-    if (predErr || !pred) {
+    if (predErr || !prediction) {
       return res.status(404).json({ error: 'Not Found', message: 'Prediction not found', version: VERSION });
     }
 
-    const status = String((pred as any).status || '').toLowerCase();
+    const status = String((prediction as any).status || '').toLowerCase();
     if (status === 'voided' || status === 'cancelled') {
       return res.status(400).json({ error: 'Bad Request', message: 'Cannot set outcome for voided/cancelled prediction', version: VERSION });
+    }
+
+    // Check if already settled (idempotent)
+    if (status === 'settled') {
+      return res.json({ 
+        success: true, 
+        predictionId, 
+        winningOptionId: optionId, 
+        message: 'Already settled',
+        alreadySettled: true,
+        version: VERSION 
+      });
     }
 
     // Verify option belongs to prediction
     const { data: opt, error: optErr } = await supabase
       .from('prediction_options')
-      .select('id, prediction_id')
+      .select('id, prediction_id, label, text')
       .eq('id', optionId)
       .maybeSingle();
 
@@ -458,18 +475,180 @@ predictionsRouter.post('/:predictionId/outcome', async (req, res) => {
       });
     }
 
-    // Set outcome (best-effort closed_at if column exists; schema differs between envs)
-    await supabase
+    const winningOptionText = (opt as any).text || (opt as any).label || 'Unknown';
+
+    console.log(`[Admin/Settlement] Starting settlement for prediction ${predictionId}`);
+    console.log(`[Admin/Settlement] Winning option: ${optionId} (${winningOptionText})`);
+
+    // Get all entries for this prediction
+    const { data: allEntries, error: entriesError } = await supabase
+      .from('prediction_entries')
+      .select('*')
+      .eq('prediction_id', predictionId);
+
+    if (entriesError) {
+      console.error('[Admin/Settlement] Failed to fetch entries:', entriesError);
+      return res.status(500).json({ error: 'Database error', message: 'Failed to fetch entries', version: VERSION });
+    }
+
+    // Split entries by provider
+    const demoEntries = (allEntries || []).filter((e: any) => e?.provider === DEMO_PROVIDER);
+    const cryptoEntries = (allEntries || []).filter((e: any) => e?.provider !== DEMO_PROVIDER);
+    const hasDemoRail = demoEntries.length > 0;
+    const hasCryptoRail = cryptoEntries.length > 0;
+
+    const platformFeePercent = Number.isFinite((prediction as any).platform_fee_percentage) 
+      ? Number((prediction as any).platform_fee_percentage) : 2.5;
+    const creatorFeePercent = Number.isFinite((prediction as any).creator_fee_percentage) 
+      ? Number((prediction as any).creator_fee_percentage) : 1.0;
+
+    // ============ DEMO RAIL SETTLEMENT ============
+    let demoSummary = { demoEntriesCount: 0, demoPlatformFee: 0, demoCreatorFee: 0, demoPayoutPool: 0 };
+    if (hasDemoRail) {
+      console.log(`[Admin/Settlement] Processing ${demoEntries.length} demo entries`);
+      demoSummary = await settleDemoRail({
+        predictionId,
+        predictionTitle: (prediction as any).title || 'Prediction',
+        winningOptionId: optionId,
+        creatorId: (prediction as any).creator_id,
+        platformFeePercent,
+        creatorFeePercent,
+      });
+      console.log('[Admin/Settlement] Demo settlement complete:', demoSummary);
+    }
+
+    // ============ CRYPTO RAIL SETTLEMENT ============
+    let cryptoPlatformFee = 0;
+    let cryptoCreatorFee = 0;
+    let cryptoPayoutPool = 0;
+
+    if (hasCryptoRail) {
+      console.log(`[Admin/Settlement] Processing ${cryptoEntries.length} crypto entries`);
+      
+      const cryptoWinners = cryptoEntries.filter((e: any) => e.option_id === optionId);
+      const cryptoLosers = cryptoEntries.filter((e: any) => e.option_id !== optionId);
+      const totalCryptoWinningStake = cryptoWinners.reduce((sum: number, e: any) => sum + Number(e.amount || 0), 0);
+      const totalCryptoLosingStake = cryptoLosers.reduce((sum: number, e: any) => sum + Number(e.amount || 0), 0);
+
+      // Fees on losing stakes only
+      cryptoPlatformFee = Math.round((totalCryptoLosingStake * platformFeePercent) / 100 * 100) / 100;
+      cryptoCreatorFee = Math.round((totalCryptoLosingStake * creatorFeePercent) / 100 * 100) / 100;
+      const cryptoPrizePool = Math.max(totalCryptoLosingStake - cryptoPlatformFee - cryptoCreatorFee, 0);
+      cryptoPayoutPool = totalCryptoWinningStake + cryptoPrizePool;
+
+      // Track stakes and payouts by user and provider for canonical results
+      const cryptoUserStakes = new Map<string, Map<string, number>>();
+      const cryptoUserPayouts = new Map<string, Map<string, number>>();
+
+      // Calculate per-user payouts for crypto winners
+      for (const winner of cryptoWinners) {
+        const stake = Number(winner.amount || 0);
+        const provider = winner.provider || 'crypto-base-usdc';
+        const share = totalCryptoWinningStake > 0 ? stake / totalCryptoWinningStake : 0;
+        const payout = Math.round((stake + cryptoPrizePool * share) * 100) / 100;
+
+        // Track stake
+        if (!cryptoUserStakes.has(winner.user_id)) cryptoUserStakes.set(winner.user_id, new Map());
+        const userStakes = cryptoUserStakes.get(winner.user_id)!;
+        userStakes.set(provider, (userStakes.get(provider) || 0) + stake);
+
+        // Track payout
+        if (!cryptoUserPayouts.has(winner.user_id)) cryptoUserPayouts.set(winner.user_id, new Map());
+        const userPayouts = cryptoUserPayouts.get(winner.user_id)!;
+        userPayouts.set(provider, (userPayouts.get(provider) || 0) + payout);
+
+        // Update entry status
+        await supabase
+          .from('prediction_entries')
+          .update({ status: 'won', actual_payout: payout, updated_at: new Date().toISOString() } as any)
+          .eq('id', winner.id);
+      }
+
+      // Update crypto losers
+      for (const loser of cryptoLosers) {
+        const stake = Number(loser.amount || 0);
+        const provider = loser.provider || 'crypto-base-usdc';
+
+        // Track stake
+        if (!cryptoUserStakes.has(loser.user_id)) cryptoUserStakes.set(loser.user_id, new Map());
+        const userStakes = cryptoUserStakes.get(loser.user_id)!;
+        userStakes.set(provider, (userStakes.get(provider) || 0) + stake);
+
+        await supabase
+          .from('prediction_entries')
+          .update({ status: 'lost', actual_payout: 0, updated_at: new Date().toISOString() } as any)
+          .eq('id', loser.id);
+      }
+
+      // Persist canonical results for crypto winners
+      for (const [userId, userPayouts] of cryptoUserPayouts.entries()) {
+        const userStakes = cryptoUserStakes.get(userId) || new Map();
+        for (const [provider, totalPayout] of userPayouts.entries()) {
+          const totalStake = userStakes.get(provider) || 0;
+          try {
+            await upsertSettlementResult({
+              predictionId,
+              userId,
+              provider,
+              stakeTotal: totalStake,
+              returnedTotal: totalPayout,
+              net: totalPayout - totalStake,
+              status: 'win',
+              claimStatus: 'not_applicable',
+            });
+          } catch (err) {
+            console.error('[Admin/Settlement] Failed to persist crypto winner result:', err);
+          }
+        }
+      }
+
+      // Persist canonical results for crypto losers
+      for (const [userId, userStakes] of cryptoUserStakes.entries()) {
+        if (cryptoUserPayouts.has(userId)) continue; // Already handled as winner
+        for (const [provider, totalStake] of userStakes.entries()) {
+          try {
+            await upsertSettlementResult({
+              predictionId,
+              userId,
+              provider,
+              stakeTotal: totalStake,
+              returnedTotal: 0,
+              net: -totalStake,
+              status: 'loss',
+              claimStatus: 'not_applicable',
+            });
+          } catch (err) {
+            console.error('[Admin/Settlement] Failed to persist crypto loser result:', err);
+          }
+        }
+      }
+
+      console.log('[Admin/Settlement] Crypto settlement complete:', {
+        winners: cryptoWinners.length,
+        losers: cryptoLosers.length,
+        platformFee: cryptoPlatformFee,
+        creatorFee: cryptoCreatorFee,
+        payoutPool: cryptoPayoutPool,
+      });
+    }
+
+    // ============ UPDATE PREDICTION STATUS TO SETTLED ============
+    const { error: updateError } = await supabase
       .from('predictions')
       .update({
         winning_option_id: optionId,
-        status: 'closed',
+        status: 'settled',
+        settled_at: new Date().toISOString(),
         closed_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       } as any)
       .eq('id', predictionId);
 
-    // Best-effort: mark winning option (ignore if column missing)
+    if (updateError) {
+      console.error('[Admin/Settlement] Failed to update prediction status:', updateError);
+    }
+
+    // Mark winning option
     try {
       await supabase
         .from('prediction_options')
@@ -483,21 +662,87 @@ predictionsRouter.post('/:predictionId/outcome', async (req, res) => {
       // ignore schema differences
     }
 
+    // ============ CREATE/UPDATE SETTLEMENT RECORD ============
+    const totalPlatformFee = demoSummary.demoPlatformFee + cryptoPlatformFee;
+    const totalCreatorFee = demoSummary.demoCreatorFee + cryptoCreatorFee;
+    const totalPayoutPool = demoSummary.demoPayoutPool + cryptoPayoutPool;
+
+    const { error: settlementError } = await supabase
+      .from('bet_settlements')
+      .upsert({
+        bet_id: predictionId,
+        winning_option_id: optionId,
+        total_payout: totalPayoutPool,
+        platform_fee_collected: totalPlatformFee,
+        creator_payout_amount: totalCreatorFee,
+        settlement_time: new Date().toISOString(),
+        status: 'completed',
+      }, { onConflict: 'bet_id' });
+
+    if (settlementError) {
+      console.error('[Admin/Settlement] Failed to create settlement record:', settlementError);
+    }
+
+    // Log admin action
     if (actorId) {
       await logAdminAction({
         actorId,
-        action: 'admin_set_outcome',
+        action: 'admin_settle_prediction',
         targetType: 'prediction',
         targetId: predictionId,
         reason: reason || undefined,
-        meta: { optionId },
+        meta: { 
+          optionId, 
+          winningOptionText,
+          demoEntries: demoEntries.length,
+          cryptoEntries: cryptoEntries.length,
+          totalPlatformFee,
+          totalCreatorFee,
+          totalPayoutPool,
+        },
       });
     }
 
-    return res.json({ success: true, predictionId, winningOptionId: optionId, version: VERSION });
+    // Compute aggregates for response
+    let aggregates: any = {};
+    try {
+      aggregates = await computeSettlementAggregates(predictionId, allEntries || []);
+      if (aggregates.demo) {
+        aggregates.demo.platformFee = demoSummary.demoPlatformFee;
+        aggregates.demo.creatorFee = demoSummary.demoCreatorFee;
+      }
+      if (aggregates.crypto) {
+        aggregates.crypto.platformFee = cryptoPlatformFee;
+        aggregates.crypto.creatorFee = cryptoCreatorFee;
+      }
+    } catch (err) {
+      console.error('[Admin/Settlement] Failed to compute aggregates:', err);
+    }
+
+    console.log(`[Admin/Settlement] ✅ Settlement complete for prediction ${predictionId}`);
+
+    return res.json({ 
+      success: true, 
+      predictionId, 
+      winningOptionId: optionId,
+      winningOptionText,
+      settlement: {
+        demoEntriesCount: demoEntries.length,
+        cryptoEntriesCount: cryptoEntries.length,
+        demoPlatformFee: demoSummary.demoPlatformFee,
+        demoCreatorFee: demoSummary.demoCreatorFee,
+        cryptoPlatformFee,
+        cryptoCreatorFee,
+        totalPlatformFee,
+        totalCreatorFee,
+        totalPayoutPool,
+      },
+      aggregates,
+      version: VERSION,
+    });
   } catch (error) {
-    console.error('[Admin/Predictions] Set outcome error:', error);
-    return res.status(500).json({ error: 'Internal Server Error', message: 'Failed to set outcome', version: VERSION });
+    console.error('[Admin/Predictions] Set outcome + settlement error:', error);
+    return res.status(500).json({ error: 'Internal Server Error', message: 'Failed to settle prediction', version: VERSION });
   }
 });
 
