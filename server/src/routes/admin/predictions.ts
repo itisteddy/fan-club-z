@@ -802,30 +802,55 @@ predictionsRouter.post('/:predictionId/void', async (req, res) => {
       .eq('status', 'active');
 
     // Start refund process
-    const refundResults: { success: number; failed: number } = { success: 0, failed: 0 };
+    const refundResults: { success: number; failed: number; byProvider: Record<string, number> } = { 
+      success: 0, 
+      failed: 0,
+      byProvider: {},
+    };
 
     for (const entry of entries || []) {
       try {
-        // Credit back to wallet
+        const provider = entry.provider || 'demo-wallet';
+        
+        // Determine currency and amount based on provider
+        let currency = 'USD';
+        let amount = entry.amount;
+        let refundType = 'stake_refund';
+        
+        if (provider === 'fiat-paystack') {
+          currency = 'NGN';
+          // For fiat, amount is stored in NGN, we need to convert to kobo for the transaction
+          amount = Number(entry.amount) * 100; // kobo
+          refundType = 'stake_refund';
+        } else if (provider === 'demo-wallet') {
+          currency = 'DEMO_USD';
+        }
+
+        // Credit back to wallet (idempotent)
         const { error: txError } = await supabase.from('wallet_transactions').insert({
           user_id: entry.user_id,
           direction: 'credit',
-          type: 'deposit',
+          type: refundType,
           channel: 'refund',
-          provider: entry.provider || 'demo-wallet',
-          amount: entry.amount,
-          currency: 'USD',
+          provider,
+          amount,
+          currency,
           status: 'completed',
           prediction_id: predictionId,
           description: `Refund: Prediction voided - "${prediction.title}"`,
           external_ref: `void-${predictionId}-${entry.id}`,
-          meta: { reason, voided_by: actorId },
+          meta: { reason, voided_by: actorId, originalAmount: entry.amount },
         });
 
         if (txError) {
-          console.error('[Admin/Void] Refund tx error:', txError);
-          refundResults.failed++;
-          continue;
+          // Check if it's a duplicate (idempotent)
+          if ((txError as any)?.code === '23505') {
+            console.log(`[Admin/Void] Refund already exists for entry ${entry.id}`);
+          } else {
+            console.error('[Admin/Void] Refund tx error:', txError);
+            refundResults.failed++;
+            continue;
+          }
         }
 
         // Update entry status
@@ -834,13 +859,16 @@ predictionsRouter.post('/:predictionId/void', async (req, res) => {
           .update({ status: 'refunded' })
           .eq('id', entry.id);
 
-        // Update wallet balance
-        await supabase.rpc('increment_wallet_balance', {
-          p_user_id: entry.user_id,
-          p_amount: Number(entry.amount),
-        });
+        // Update wallet balance for demo only (crypto/fiat handled by ledger)
+        if (provider === 'demo-wallet') {
+          await supabase.rpc('increment_wallet_balance', {
+            p_user_id: entry.user_id,
+            p_amount: Number(entry.amount),
+          });
+        }
 
         refundResults.success++;
+        refundResults.byProvider[provider] = (refundResults.byProvider[provider] || 0) + 1;
       } catch (e) {
         console.error('[Admin/Void] Entry refund error:', e);
         refundResults.failed++;

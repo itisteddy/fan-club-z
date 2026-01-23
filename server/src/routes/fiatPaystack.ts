@@ -1,0 +1,426 @@
+/**
+ * Fiat Paystack Integration - Phase 7A
+ * 
+ * Handles NGN deposits via Paystack:
+ * - Initialize transaction -> get authorization URL
+ * - Webhook verification (secure + raw body + idempotent)
+ * - Credit fiat ledger on successful charge
+ */
+
+import { Router, raw } from 'express';
+import crypto from 'crypto';
+import { z } from 'zod';
+import { supabase } from '../config/database';
+import { VERSION } from '@fanclubz/shared';
+import { insertWalletTransaction } from '../db/walletTransactions';
+import { emitWalletUpdate } from '../services/realtime';
+
+export const fiatPaystackRouter = Router();
+
+// Constants
+const FIAT_PROVIDER = 'fiat-paystack';
+const FIAT_CURRENCY = 'NGN';
+const MIN_DEPOSIT_NGN = 100; // Minimum NGN 100
+const MIN_DEPOSIT_KOBO = MIN_DEPOSIT_NGN * 100;
+
+// Check if fiat is enabled
+function isFiatEnabled(): boolean {
+  return process.env.FIAT_PAYSTACK_ENABLED === 'true' || process.env.FIAT_PAYSTACK_ENABLED === '1';
+}
+
+// Get Paystack keys from env
+function getPaystackSecretKey(): string | null {
+  return process.env.PAYSTACK_SECRET_KEY || null;
+}
+
+function getPaystackCallbackUrl(): string {
+  return process.env.PAYSTACK_CALLBACK_URL || 'https://app.fanclubz.app/wallet?deposit=return';
+}
+
+// Paystack API helper
+async function paystackRequest(endpoint: string, method: 'GET' | 'POST', body?: any): Promise<any> {
+  const secretKey = getPaystackSecretKey();
+  if (!secretKey) {
+    throw new Error('PAYSTACK_SECRET_KEY not configured');
+  }
+
+  const response = await fetch(`https://api.paystack.co${endpoint}`, {
+    method,
+    headers: {
+      'Authorization': `Bearer ${secretKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+
+  const data = await response.json() as any;
+  
+  if (!response.ok) {
+    console.error('[Paystack] API error:', data);
+    throw new Error(data?.message || 'Paystack API error');
+  }
+
+  return data;
+}
+
+// Verify Paystack webhook signature
+function verifyPaystackSignature(rawBody: Buffer, signature: string): boolean {
+  const secretKey = getPaystackSecretKey();
+  if (!secretKey || !signature) return false;
+
+  const hash = crypto
+    .createHmac('sha512', secretKey)
+    .update(rawBody)
+    .digest('hex');
+
+  return crypto.timingSafeEqual(Buffer.from(hash), Buffer.from(signature));
+}
+
+// ============================================================
+// POST /api/v2/fiat/paystack/initialize
+// Initialize a Paystack transaction for deposit
+// ============================================================
+const InitializeSchema = z.object({
+  amountNgn: z.number().positive().min(MIN_DEPOSIT_NGN, `Minimum deposit is NGN ${MIN_DEPOSIT_NGN}`),
+  userId: z.string().uuid(),
+  email: z.string().email().optional(),
+});
+
+fiatPaystackRouter.post('/initialize', async (req, res) => {
+  try {
+    // Check if fiat is enabled
+    if (!isFiatEnabled()) {
+      return res.status(404).json({
+        error: 'disabled',
+        message: 'Fiat deposits are not enabled',
+        version: VERSION,
+      });
+    }
+
+    // Validate input
+    const parsed = InitializeSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({
+        error: 'validation_error',
+        message: 'Invalid request body',
+        details: parsed.error.issues,
+        version: VERSION,
+      });
+    }
+
+    const { amountNgn, userId } = parsed.data;
+    const amountKobo = Math.round(amountNgn * 100);
+
+    // Get user email
+    let email = parsed.data.email;
+    if (!email) {
+      const { data: user } = await supabase
+        .from('users')
+        .select('email')
+        .eq('id', userId)
+        .maybeSingle();
+      email = (user as any)?.email;
+    }
+
+    if (!email) {
+      return res.status(400).json({
+        error: 'email_required',
+        message: 'User email is required for Paystack',
+        version: VERSION,
+      });
+    }
+
+    console.log(`[Paystack] Initializing deposit: ${amountNgn} NGN for user ${userId}`);
+
+    // Call Paystack to initialize transaction
+    const paystackResponse = await paystackRequest('/transaction/initialize', 'POST', {
+      email,
+      amount: amountKobo,
+      callback_url: getPaystackCallbackUrl(),
+      metadata: {
+        userId,
+        purpose: 'fiat_deposit',
+        env: process.env.NODE_ENV || 'development',
+        app: 'fanclubz',
+      },
+    });
+
+    if (!paystackResponse?.status || !paystackResponse?.data?.authorization_url) {
+      console.error('[Paystack] Invalid response:', paystackResponse);
+      return res.status(500).json({
+        error: 'paystack_error',
+        message: 'Failed to initialize Paystack transaction',
+        version: VERSION,
+      });
+    }
+
+    const { authorization_url, reference, access_code } = paystackResponse.data;
+
+    console.log(`[Paystack] Transaction initialized: ${reference}`);
+
+    // Optional: Insert pending deposit intent for observability
+    try {
+      await supabase.from('wallet_transactions').insert({
+        user_id: userId,
+        direction: 'credit',
+        type: 'deposit_intent',
+        channel: 'paystack',
+        provider: FIAT_PROVIDER,
+        amount: amountKobo,
+        currency: FIAT_CURRENCY,
+        status: 'pending',
+        external_ref: `paystack:init:${reference}`,
+        description: `Fiat deposit intent: ${amountNgn} NGN`,
+        meta: {
+          kind: 'deposit_intent',
+          reference,
+          access_code,
+          amountNgn,
+          amountKobo,
+        },
+      } as any);
+    } catch (e) {
+      // Non-fatal: continue even if logging fails
+      console.warn('[Paystack] Failed to log deposit intent:', e);
+    }
+
+    return res.json({
+      success: true,
+      authorizationUrl: authorization_url,
+      reference,
+      accessCode: access_code,
+      amountNgn,
+      amountKobo,
+      version: VERSION,
+    });
+  } catch (error: any) {
+    console.error('[Paystack] Initialize error:', error);
+    return res.status(500).json({
+      error: 'internal_error',
+      message: error?.message || 'Failed to initialize deposit',
+      version: VERSION,
+    });
+  }
+});
+
+// ============================================================
+// POST /api/v2/fiat/paystack/webhook
+// Handle Paystack webhook events (SECURE + RAW BODY + IDEMPOTENT)
+// ============================================================
+
+// This route needs raw body for signature verification
+// It must be registered BEFORE express.json() middleware
+// We'll handle this in index.ts by using express.raw() for this specific route
+
+fiatPaystackRouter.post('/webhook', raw({ type: 'application/json' }), async (req, res) => {
+  try {
+    // Get signature from header
+    const signature = req.headers['x-paystack-signature'] as string;
+    if (!signature) {
+      console.warn('[Paystack Webhook] Missing signature header');
+      return res.status(401).json({ error: 'unauthorized', message: 'Missing signature' });
+    }
+
+    // Verify signature using raw body
+    const rawBody = req.body;
+    if (!Buffer.isBuffer(rawBody)) {
+      console.warn('[Paystack Webhook] Body is not a buffer - middleware issue');
+      return res.status(400).json({ error: 'bad_request', message: 'Invalid body format' });
+    }
+
+    if (!verifyPaystackSignature(rawBody, signature)) {
+      console.warn('[Paystack Webhook] Invalid signature');
+      return res.status(401).json({ error: 'unauthorized', message: 'Invalid signature' });
+    }
+
+    // Parse JSON after signature verification
+    let event: any;
+    try {
+      event = JSON.parse(rawBody.toString());
+    } catch (e) {
+      console.warn('[Paystack Webhook] Failed to parse body');
+      return res.status(400).json({ error: 'bad_request', message: 'Invalid JSON' });
+    }
+
+    console.log(`[Paystack Webhook] Received event: ${event?.event}`);
+
+    // Handle only charge.success events
+    if (event?.event !== 'charge.success') {
+      // Acknowledge other events but don't process
+      console.log(`[Paystack Webhook] Ignoring event type: ${event?.event}`);
+      return res.status(200).json({ received: true });
+    }
+
+    const data = event?.data;
+    if (!data || data.status !== 'success') {
+      console.log('[Paystack Webhook] Charge not successful, ignoring');
+      return res.status(200).json({ received: true });
+    }
+
+    const reference = data.reference;
+    const amountKobo = Number(data.amount || 0);
+    const userId = data.metadata?.userId;
+
+    if (!reference || !amountKobo) {
+      console.warn('[Paystack Webhook] Missing reference or amount');
+      return res.status(200).json({ received: true }); // Acknowledge to prevent retries
+    }
+
+    if (!userId) {
+      console.warn(`[Paystack Webhook] Missing userId in metadata for reference ${reference}`);
+      return res.status(200).json({ received: true }); // Acknowledge to prevent retries
+    }
+
+    console.log(`[Paystack Webhook] Processing deposit: ${amountKobo / 100} NGN for user ${userId}, ref: ${reference}`);
+
+    // Idempotent credit check
+    const externalRef = `paystack:deposit:${reference}`;
+    const { data: existingTx } = await supabase
+      .from('wallet_transactions')
+      .select('id')
+      .eq('external_ref', externalRef)
+      .eq('provider', FIAT_PROVIDER)
+      .maybeSingle();
+
+    if (existingTx) {
+      console.log(`[Paystack Webhook] Deposit already processed: ${externalRef}`);
+      return res.status(200).json({ received: true, alreadyProcessed: true });
+    }
+
+    // Credit fiat ledger
+    const { data: insertedTx, error: txError } = await insertWalletTransaction({
+      user_id: userId,
+      direction: 'credit',
+      type: 'deposit',
+      channel: 'paystack',
+      provider: FIAT_PROVIDER,
+      amount: amountKobo,
+      currency: FIAT_CURRENCY,
+      status: 'confirmed',
+      external_ref: externalRef,
+      description: `Fiat deposit: ${amountKobo / 100} NGN`,
+      meta: {
+        kind: 'deposit',
+        reference,
+        paystackEventId: event?.id,
+        customer: data.customer,
+        channel: data.channel,
+        ip_address: data.ip_address,
+        amountKobo,
+        amountNgn: amountKobo / 100,
+      },
+    });
+
+    if (txError) {
+      // Check if it's a duplicate (idempotency constraint)
+      if ((txError as any)?.code === '23505') {
+        console.log(`[Paystack Webhook] Duplicate detected for ${externalRef}`);
+        return res.status(200).json({ received: true, alreadyProcessed: true });
+      }
+      console.error('[Paystack Webhook] Failed to credit ledger:', txError);
+      return res.status(500).json({ error: 'database_error', message: 'Failed to credit wallet' });
+    }
+
+    console.log(`[Paystack Webhook] ✅ Deposited ${amountKobo / 100} NGN to user ${userId}`);
+
+    // Emit wallet update for realtime
+    try {
+      emitWalletUpdate({ userId, reason: 'fiat_deposit' });
+    } catch (e) {
+      console.warn('[Paystack Webhook] Failed to emit wallet update:', e);
+    }
+
+    // Update any pending intent to completed
+    try {
+      await supabase
+        .from('wallet_transactions')
+        .update({ status: 'completed' } as any)
+        .eq('external_ref', `paystack:init:${reference}`)
+        .eq('provider', FIAT_PROVIDER);
+    } catch (e) {
+      // Non-fatal
+    }
+
+    return res.status(200).json({ received: true, credited: true });
+  } catch (error: any) {
+    console.error('[Paystack Webhook] Error:', error);
+    // Return 200 to prevent Paystack from retrying (we'll handle manually if needed)
+    return res.status(200).json({ received: true, error: error?.message });
+  }
+});
+
+// ============================================================
+// GET /api/v2/fiat/paystack/verify/:reference
+// Verify a transaction status (optional, for manual checks)
+// ============================================================
+fiatPaystackRouter.get('/verify/:reference', async (req, res) => {
+  try {
+    if (!isFiatEnabled()) {
+      return res.status(404).json({ error: 'disabled', message: 'Fiat is not enabled', version: VERSION });
+    }
+
+    const { reference } = req.params;
+    if (!reference) {
+      return res.status(400).json({ error: 'bad_request', message: 'Reference required', version: VERSION });
+    }
+
+    const paystackResponse = await paystackRequest(`/transaction/verify/${reference}`, 'GET');
+
+    return res.json({
+      success: true,
+      status: paystackResponse?.data?.status,
+      amount: paystackResponse?.data?.amount,
+      reference: paystackResponse?.data?.reference,
+      version: VERSION,
+    });
+  } catch (error: any) {
+    console.error('[Paystack] Verify error:', error);
+    return res.status(500).json({
+      error: 'internal_error',
+      message: error?.message || 'Failed to verify transaction',
+      version: VERSION,
+    });
+  }
+});
+
+// ============================================================
+// GET /api/v2/fiat/paystack/banks
+// Get list of Nigerian banks for withdrawals (Phase 7C)
+// ============================================================
+fiatPaystackRouter.get('/banks', async (req, res) => {
+  try {
+    if (!isFiatEnabled()) {
+      return res.status(404).json({ error: 'disabled', message: 'Fiat is not enabled', version: VERSION });
+    }
+
+    const paystackResponse = await paystackRequest('/bank?country=nigeria', 'GET');
+
+    return res.json({
+      success: true,
+      banks: paystackResponse?.data || [],
+      version: VERSION,
+    });
+  } catch (error: any) {
+    console.error('[Paystack] Banks error:', error);
+    return res.status(500).json({
+      error: 'internal_error',
+      message: error?.message || 'Failed to fetch banks',
+      version: VERSION,
+    });
+  }
+});
+
+// ============================================================
+// GET /api/v2/fiat/paystack/status
+// Check if fiat deposits are enabled (for client feature flagging)
+// ============================================================
+fiatPaystackRouter.get('/status', (req, res) => {
+  return res.json({
+    enabled: isFiatEnabled(),
+    currency: FIAT_CURRENCY,
+    minDepositNgn: MIN_DEPOSIT_NGN,
+    version: VERSION,
+  });
+});
+
+export default fiatPaystackRouter;

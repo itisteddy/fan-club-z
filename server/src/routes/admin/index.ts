@@ -9,6 +9,7 @@ import { settlementsRouter } from './settlements';
 import { supportRouter } from './support';
 import { overviewRouter } from './overview';
 import { categoriesRouter } from './categories';
+import { adminWithdrawalsRouter } from './withdrawals';
 
 export const adminRouter = Router();
 
@@ -26,6 +27,7 @@ adminRouter.use('/config', configRouter);
 adminRouter.use('/settlements', settlementsRouter);
 adminRouter.use('/support', supportRouter);
 adminRouter.use('/categories', categoriesRouter);
+adminRouter.use('/withdrawals', adminWithdrawalsRouter);
 
 // Export helpers for use in other admin routes
 export { requireAdmin, logAdminAction };

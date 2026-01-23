@@ -9,6 +9,10 @@ export const demoWallet = Router();
 const CURRENCY = 'DEMO_USD';
 const PROVIDER = 'demo-wallet';
 
+// Fiat constants
+const FIAT_CURRENCY = 'NGN';
+const FIAT_PROVIDER = 'fiat-paystack';
+
 function todayKey(): string {
   // YYYY-MM-DD in server local time is fine for "1/day" idempotency in dev
   const d = new Date();
@@ -179,4 +183,138 @@ demoWallet.post('/faucet', async (req, res) => {
   }
 });
 
+// ============================================================
+// FIAT WALLET FUNCTIONS - Phase 7A/7B
+// ============================================================
+
+/**
+ * Fetch fiat (NGN) balance from ledger
+ * Balance = sum(credits) - sum(debits) where provider='fiat-paystack' and status='confirmed'
+ * Also computes locked balance from active stakes
+ */
+async function fetchFiatSummary(userId: string): Promise<{
+  currency: string;
+  totalKobo: number;
+  availableKobo: number;
+  lockedKobo: number;
+  totalNgn: number;
+  availableNgn: number;
+  lockedNgn: number;
+  lastUpdated: string;
+}> {
+  // Get all confirmed fiat transactions
+  const { data: txns, error } = await supabase
+    .from('wallet_transactions')
+    .select('direction, amount, type, status')
+    .eq('user_id', userId)
+    .eq('provider', FIAT_PROVIDER)
+    .eq('currency', FIAT_CURRENCY)
+    .in('status', ['confirmed', 'completed']);
+
+  if (error) {
+    console.error('[FIAT-WALLET] Failed to fetch transactions:', error);
+    throw error;
+  }
+
+  let totalCredits = 0;
+  let totalDebits = 0;
+  let lockedKobo = 0;
+
+  for (const tx of txns || []) {
+    const amount = Number((tx as any).amount || 0);
+    const direction = String((tx as any).direction || '');
+    const type = String((tx as any).type || '');
+
+    if (direction === 'credit') {
+      totalCredits += amount;
+    } else if (direction === 'debit') {
+      totalDebits += amount;
+    }
+
+    // Track locked amounts (stake_lock debits that haven't been settled/refunded)
+    // We use type to identify stake locks
+    if (type === 'stake_lock' && direction === 'debit') {
+      lockedKobo += amount;
+    } else if ((type === 'stake_refund' || type === 'stake_payout') && direction === 'credit') {
+      // Releases reduce locked
+      lockedKobo = Math.max(0, lockedKobo - amount);
+    }
+  }
+
+  const totalKobo = Math.max(0, totalCredits - totalDebits);
+  const availableKobo = Math.max(0, totalKobo - lockedKobo);
+
+  return {
+    currency: FIAT_CURRENCY,
+    totalKobo,
+    availableKobo,
+    lockedKobo,
+    totalNgn: totalKobo / 100,
+    availableNgn: availableKobo / 100,
+    lockedNgn: lockedKobo / 100,
+    lastUpdated: new Date().toISOString(),
+  };
+}
+
+// GET /api/demo-wallet/fiat/summary?userId=<uuid>
+demoWallet.get('/fiat/summary', async (req, res) => {
+  try {
+    const userId = String((req.query as any)?.userId || '');
+    if (!userId) {
+      return res.status(400).json({ error: 'Bad Request', message: 'userId is required', version: VERSION });
+    }
+
+    // Check if fiat is enabled
+    const fiatEnabled = process.env.FIAT_PAYSTACK_ENABLED === 'true' || process.env.FIAT_PAYSTACK_ENABLED === '1';
+    if (!fiatEnabled) {
+      return res.json({
+        success: true,
+        enabled: false,
+        summary: null,
+        version: VERSION,
+      });
+    }
+
+    const summary = await fetchFiatSummary(userId);
+    return res.json({ success: true, enabled: true, summary, version: VERSION });
+  } catch (e) {
+    console.error('[FIAT-WALLET] summary error', e);
+    return res.status(500).json({ error: 'Internal', message: 'Failed to load fiat wallet summary', version: VERSION });
+  }
+});
+
+// GET /api/demo-wallet/combined-summary?userId=<uuid>
+// Returns both demo and fiat balances in one call
+demoWallet.get('/combined-summary', async (req, res) => {
+  try {
+    const userId = String((req.query as any)?.userId || '');
+    if (!userId) {
+      return res.status(400).json({ error: 'Bad Request', message: 'userId is required', version: VERSION });
+    }
+
+    const demo = await fetchDemoSummary(userId);
+
+    // Check if fiat is enabled
+    const fiatEnabled = process.env.FIAT_PAYSTACK_ENABLED === 'true' || process.env.FIAT_PAYSTACK_ENABLED === '1';
+    let fiat = null;
+    if (fiatEnabled) {
+      try {
+        fiat = await fetchFiatSummary(userId);
+      } catch (e) {
+        console.warn('[FIAT-WALLET] Failed to fetch fiat summary:', e);
+      }
+    }
+
+    return res.json({
+      success: true,
+      demo,
+      fiat,
+      fiatEnabled,
+      version: VERSION,
+    });
+  } catch (e) {
+    console.error('[WALLET] combined-summary error', e);
+    return res.status(500).json({ error: 'Internal', message: 'Failed to load wallet summary', version: VERSION });
+  }
+});
 

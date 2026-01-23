@@ -49,7 +49,9 @@ async function handlePlaceBet(req: any, res: any) {
       amountUSD: z.number().positive('amountUSD must be positive'),
       userId: z.string().uuid('Invalid userId'),
       walletAddress: z.string().optional(),
-      fundingMode: z.enum(['crypto', 'demo']).optional(),
+      fundingMode: z.enum(['crypto', 'demo', 'fiat']).optional(),
+      // For fiat mode: amount in NGN (will be converted to kobo)
+      amountNgn: z.number().positive().optional(),
     });
 
     let body;
@@ -296,6 +298,167 @@ async function handlePlaceBet(req: any, res: any) {
         entryId: entry.id,
         consumedLockId: lockId,
         data: { prediction: recomputed.prediction, entry },
+        version: VERSION,
+      });
+    }
+
+    // ============================================================
+    // FIAT wallet mode (NGN via Paystack) - Phase 7B
+    // ============================================================
+    if (fundingMode === 'fiat') {
+      const FIAT_CURRENCY = 'NGN';
+      const FIAT_PROVIDER = 'fiat-paystack';
+
+      // Check if fiat is enabled
+      const fiatEnabled = process.env.FIAT_PAYSTACK_ENABLED === 'true' || process.env.FIAT_PAYSTACK_ENABLED === '1';
+      if (!fiatEnabled) {
+        return res.status(400).json({
+          error: 'FIAT_DISABLED',
+          message: 'Fiat betting is not enabled',
+          version: VERSION,
+        });
+      }
+
+      // Use amountNgn if provided, otherwise convert amountUSD to NGN (placeholder rate)
+      // In production, you'd use a proper exchange rate
+      const amountNgn = body.amountNgn || amountUSD; // For now, treat USD amount as NGN
+      const amountKobo = Math.round(amountNgn * 100);
+
+      const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+      const nonce = req.body.requestId || Date.now().toString();
+      const lockRefInput = `${userId}|${predictionId}|${optionId}|${amountKobo}|${nonce}|fiat`;
+      const lockRef = crypto.createHash('sha256').update(lockRefInput).digest('hex').substring(0, 32);
+      const externalRef = `fiat_bet_lock:${lockRef}`;
+
+      // Check fiat balance
+      const { data: fiatTxns } = await supabase
+        .from('wallet_transactions')
+        .select('direction, amount, type')
+        .eq('user_id', userId)
+        .eq('provider', FIAT_PROVIDER)
+        .eq('currency', FIAT_CURRENCY)
+        .in('status', ['confirmed', 'completed']);
+
+      let fiatCredits = 0;
+      let fiatDebits = 0;
+      for (const tx of fiatTxns || []) {
+        const amt = Number((tx as any).amount || 0);
+        if ((tx as any).direction === 'credit') fiatCredits += amt;
+        else if ((tx as any).direction === 'debit') fiatDebits += amt;
+      }
+      const fiatAvailable = Math.max(0, fiatCredits - fiatDebits);
+
+      if (fiatAvailable < amountKobo) {
+        return res.status(400).json({
+          error: 'INSUFFICIENT_FUNDS',
+          message: `Insufficient fiat balance. Available: ${fiatAvailable / 100} NGN, Required: ${amountNgn} NGN`,
+          available: fiatAvailable / 100,
+          required: amountNgn,
+          version: VERSION,
+        });
+      }
+
+      // Idempotent retry check
+      const { data: existingTx } = await supabase
+        .from('wallet_transactions')
+        .select('entry_id')
+        .eq('provider', FIAT_PROVIDER)
+        .eq('external_ref', externalRef)
+        .maybeSingle();
+      if ((existingTx as any)?.entry_id) {
+        const existingEntryId = (existingTx as any).entry_id as string;
+        const recomputed = await recomputePredictionState(predictionId);
+        const { data: entryRow } = await supabase
+          .from('prediction_entries')
+          .select('*')
+          .eq('id', existingEntryId)
+          .maybeSingle();
+        return res.status(200).json({
+          ok: true,
+          entryId: existingEntryId,
+          data: { prediction: recomputed.prediction, entry: entryRow || null },
+          message: 'Bet already placed (idempotent)',
+          version: VERSION,
+        });
+      }
+
+      // Create escrow lock for fiat
+      const { data: newLock, error: lockErr } = await supabase
+        .from('escrow_locks')
+        .insert({
+          user_id: userId,
+          prediction_id: predictionId,
+          option_id: optionId,
+          amount: amountNgn, // Store in NGN for display
+          state: 'locked',
+          status: 'locked',
+          lock_ref: lockRef,
+          expires_at: expiresAt.toISOString(),
+          currency: FIAT_CURRENCY,
+          meta: { provider: FIAT_PROVIDER, amountKobo },
+        } as any)
+        .select('id')
+        .single();
+      if (lockErr || !newLock?.id) {
+        console.error('[FCZ-BET] fiat lock create failed', lockErr);
+        return res.status(500).json({ error: 'database_error', message: 'Failed to create lock', version: VERSION });
+      }
+      const lockId = newLock.id as any;
+
+      // Create prediction entry
+      const { data: entry, error: entryErr } = await supabase
+        .from('prediction_entries')
+        .insert({
+          prediction_id: predictionId,
+          option_id: optionId,
+          user_id: userId,
+          amount: amountNgn, // Store in NGN
+          status: 'active',
+          potential_payout: amountNgn * 2.0,
+          escrow_lock_id: lockId,
+          provider: FIAT_PROVIDER,
+        } as any)
+        .select('*')
+        .single();
+      if (entryErr || !entry?.id) {
+        console.error('[FCZ-BET] fiat entry create failed', entryErr);
+        return res.status(500).json({ error: 'database_error', message: 'Failed to create entry', version: VERSION });
+      }
+
+      // Mark lock as consumed
+      await supabase.from('escrow_locks').update({ state: 'consumed', status: 'consumed' } as any).eq('id', lockId);
+
+      // Record wallet transaction (stake_lock debit)
+      await supabase.from('wallet_transactions').insert({
+        user_id: userId,
+        direction: 'debit',
+        type: 'stake_lock',
+        channel: 'fiat',
+        provider: FIAT_PROVIDER,
+        amount: amountKobo,
+        currency: FIAT_CURRENCY,
+        status: 'completed',
+        external_ref: externalRef,
+        prediction_id: predictionId,
+        entry_id: entry.id,
+        description: `Fiat stake on "${prediction.title}"`,
+        meta: { kind: 'stake_lock', prediction_id: predictionId, entry_id: entry.id, escrow_lock_id: lockId, provider: FIAT_PROVIDER, amountNgn },
+      } as any).then(({ error }) => {
+        if (error && (error as any).code !== '23505') {
+          console.warn('[FCZ-BET] fiat wallet tx insert error (non-fatal):', error);
+        }
+      });
+
+      const recomputed = await recomputePredictionState(predictionId);
+      emitPredictionUpdate({ predictionId });
+      emitWalletUpdate({ userId, reason: 'bet_placed' });
+
+      return res.status(200).json({
+        ok: true,
+        entryId: entry.id,
+        consumedLockId: lockId,
+        data: { prediction: recomputed.prediction, entry },
+        fundingMode: 'fiat',
         version: VERSION,
       });
     }

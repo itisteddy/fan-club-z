@@ -548,6 +548,234 @@ export async function settleDemoRail(args: {
   };
 }
 
+// ============================================================
+// FIAT RAIL SETTLEMENT - Phase 7B
+// ============================================================
+const FIAT_PROVIDER = 'fiat-paystack';
+const FIAT_CURRENCY = 'NGN';
+
+/**
+ * Settle fiat (NGN) entries - similar to demo but for Paystack deposits
+ * Handles winner payouts, loser debits, and fee distribution
+ */
+export async function settleFiatRail(args: {
+  predictionId: string;
+  predictionTitle: string;
+  winningOptionId: string;
+  creatorId: string;
+  platformFeePercent: number;
+  creatorFeePercent: number;
+}): Promise<{
+  fiatEntriesCount: number;
+  fiatPlatformFee: number;
+  fiatCreatorFee: number;
+  fiatPayoutPool: number;
+}> {
+  const { predictionId, winningOptionId, predictionTitle, creatorId } = args;
+
+  const { data: entries, error: entriesErr } = await supabase
+    .from('prediction_entries')
+    .select('id,user_id,amount,option_id,provider')
+    .eq('prediction_id', predictionId)
+    .eq('provider', FIAT_PROVIDER);
+
+  if (entriesErr) {
+    console.warn('[SETTLEMENT] Failed to load fiat entries:', entriesErr);
+    return { fiatEntriesCount: 0, fiatPlatformFee: 0, fiatCreatorFee: 0, fiatPayoutPool: 0 };
+  }
+
+  const fiatEntries = (entries || []) as any[];
+  if (fiatEntries.length === 0) {
+    return { fiatEntriesCount: 0, fiatPlatformFee: 0, fiatCreatorFee: 0, fiatPayoutPool: 0 };
+  }
+
+  // Map entries to payout calculator format (amounts stored in NGN, we work in kobo internally)
+  const payoutEntries: PayoutEntry[] = fiatEntries.map((e: any) => ({
+    userId: e.user_id,
+    optionId: e.option_id,
+    amount: Number(e.amount || 0) * 100, // Convert NGN to kobo for calculation
+    provider: e.provider,
+  }));
+
+  const feeConfig = {
+    platformFeeBps: args.platformFeePercent * 100,
+    creatorFeeBps: args.creatorFeePercent * 100,
+  };
+
+  // Calculate payouts
+  const fiatResult = calculatePayouts({
+    entries: payoutEntries,
+    winningOptionId,
+    feeConfig,
+    rail: 'fiat',
+    providerMatch: (p) => p === FIAT_PROVIDER,
+  });
+
+  const winners = fiatEntries.filter((e: any) => e.option_id === winningOptionId);
+  const losers = fiatEntries.filter((e: any) => e.option_id !== winningOptionId);
+
+  // Track stakes per user
+  const userStakes = new Map<string, number>();
+  for (const entry of fiatEntries) {
+    const stake = Number(entry.amount || 0) * 100; // kobo
+    userStakes.set(entry.user_id, (userStakes.get(entry.user_id) || 0) + stake);
+  }
+
+  // Helper to insert fiat transaction (idempotent)
+  async function upsertFiatTx(payload: any): Promise<boolean> {
+    const { error } = await supabase.from('wallet_transactions').insert(payload);
+    if (error && (error as any).code === '23505') return false; // Already exists
+    if (error) {
+      console.warn('[SETTLEMENT] fiat tx insert error:', error);
+      return false;
+    }
+    return true;
+  }
+
+  // Apply payouts to winners
+  for (const [userId, payoutAmountKobo] of Object.entries(fiatResult.payoutsByUserId)) {
+    const userWinningEntries = winners.filter((e: any) => e.user_id === userId);
+    const userTotalStakeKobo = userStakes.get(userId) || 0;
+
+    for (const entry of userWinningEntries) {
+      const stakeNgn = Number(entry.amount || 0);
+      const stakeKobo = stakeNgn * 100;
+      const share = fiatResult.winnersStakeTotal > 0 ? stakeKobo / fiatResult.winnersStakeTotal : 0;
+      const entryPayoutKobo = Math.round(fiatResult.distributablePot * share);
+
+      await supabase
+        .from('prediction_entries')
+        .update({ status: 'won', actual_payout: entryPayoutKobo / 100, updated_at: new Date().toISOString() } as any)
+        .eq('id', entry.id);
+
+      // Record payout transaction
+      const inserted = await upsertFiatTx({
+        user_id: userId,
+        direction: 'credit',
+        type: 'stake_payout',
+        channel: 'fiat',
+        provider: FIAT_PROVIDER,
+        amount: entryPayoutKobo,
+        currency: FIAT_CURRENCY,
+        status: 'confirmed',
+        external_ref: `fiat_payout:${predictionId}:${entry.id}`,
+        prediction_id: predictionId,
+        entry_id: entry.id,
+        description: `Fiat payout for "${predictionTitle}"`,
+        meta: { kind: 'stake_payout', provider: FIAT_PROVIDER, prediction_id: predictionId, entry_id: entry.id, amountNgn: entryPayoutKobo / 100 },
+      });
+      if (inserted) {
+        try {
+          emitWalletUpdate({ userId, reason: 'payout', amountDelta: entryPayoutKobo / 100 });
+        } catch {}
+      }
+    }
+
+    // Persist canonical settlement result for winner
+    try {
+      await upsertSettlementResult({
+        predictionId,
+        userId,
+        provider: FIAT_PROVIDER,
+        stakeTotal: userTotalStakeKobo / 100, // Store in NGN
+        returnedTotal: (payoutAmountKobo as number) / 100,
+        net: ((payoutAmountKobo as number) - userTotalStakeKobo) / 100,
+        status: 'win',
+        claimStatus: 'not_applicable',
+      });
+    } catch (err) {
+      console.error('[SETTLEMENT] Failed to persist fiat winner result:', err);
+    }
+  }
+
+  // Record losses
+  const loserStakesByUser = new Map<string, number>();
+  for (const l of losers) {
+    const stakeKobo = Number(l.amount || 0) * 100;
+    const current = loserStakesByUser.get(l.user_id) || 0;
+    loserStakesByUser.set(l.user_id, current + stakeKobo);
+
+    await supabase
+      .from('prediction_entries')
+      .update({ status: 'lost', actual_payout: 0, updated_at: new Date().toISOString() } as any)
+      .eq('id', l.id);
+  }
+
+  // Persist canonical settlement results for losers
+  for (const [userId, totalStakeKobo] of loserStakesByUser.entries()) {
+    try {
+      await upsertSettlementResult({
+        predictionId,
+        userId,
+        provider: FIAT_PROVIDER,
+        stakeTotal: totalStakeKobo / 100,
+        returnedTotal: 0,
+        net: -totalStakeKobo / 100,
+        status: 'loss',
+        claimStatus: 'not_applicable',
+      });
+    } catch (err) {
+      console.error('[SETTLEMENT] Failed to persist fiat loser result:', err);
+    }
+  }
+
+  // Fiat creator/platform fees
+  if (fiatResult.totalPot > 0 && (fiatResult.platformFee > 0 || fiatResult.creatorFee > 0)) {
+    if (fiatResult.creatorFee > 0) {
+      await upsertFiatTx({
+        user_id: creatorId,
+        direction: 'credit',
+        type: 'creator_fee',
+        channel: 'fiat',
+        provider: FIAT_PROVIDER,
+        amount: fiatResult.creatorFee,
+        currency: FIAT_CURRENCY,
+        status: 'confirmed',
+        external_ref: `fiat_creator_fee:${predictionId}`,
+        prediction_id: predictionId,
+        description: `Fiat creator fee for "${predictionTitle}"`,
+        meta: { kind: 'creator_fee', provider: FIAT_PROVIDER, prediction_id: predictionId, amountNgn: fiatResult.creatorFee / 100 },
+      });
+    }
+
+    // Platform fee goes to treasury (or platform account)
+    const treasuryUserId = process.env.PLATFORM_TREASURY_USER_ID || process.env.TREASURY_USER_ID;
+    if (fiatResult.platformFee > 0 && treasuryUserId) {
+      await upsertFiatTx({
+        user_id: treasuryUserId,
+        direction: 'credit',
+        type: 'platform_fee',
+        channel: 'fiat',
+        provider: FIAT_PROVIDER,
+        amount: fiatResult.platformFee,
+        currency: FIAT_CURRENCY,
+        status: 'confirmed',
+        external_ref: `fiat_platform_fee:${predictionId}`,
+        prediction_id: predictionId,
+        description: `Fiat platform fee for "${predictionTitle}"`,
+        meta: { kind: 'platform_fee', provider: FIAT_PROVIDER, prediction_id: predictionId, amountNgn: fiatResult.platformFee / 100 },
+      });
+    }
+  }
+
+  console.log('[SETTLEMENT] Fiat rail settled:', {
+    predictionId,
+    entries: fiatEntries.length,
+    winners: winners.length,
+    losers: losers.length,
+    platformFee: fiatResult.platformFee / 100,
+    creatorFee: fiatResult.creatorFee / 100,
+    payoutPool: fiatResult.distributablePot / 100,
+  });
+
+  return {
+    fiatEntriesCount: fiatEntries.length,
+    fiatPlatformFee: fiatResult.platformFee / 100, // Return in NGN
+    fiatCreatorFee: fiatResult.creatorFee / 100,
+    fiatPayoutPool: fiatResult.distributablePot / 100,
+  };
+}
+
 async function ensureOnchainPosted(predictionId: string): Promise<`0x${string}` | null> {
   try {
     const client = makePublicClient();
@@ -866,8 +1094,12 @@ router.post('/manual', async (req, res) => {
 
     // Split entries by provider for per-rail settlement
     const demoEntries = (allEntries || []).filter((e: any) => e?.provider === DEMO_PROVIDER);
-    const cryptoEntries = (allEntries || []).filter((e: any) => e?.provider !== DEMO_PROVIDER);
+    const fiatEntries = (allEntries || []).filter((e: any) => e?.provider === FIAT_PROVIDER);
+    const cryptoEntries = (allEntries || []).filter((e: any) => 
+      e?.provider !== DEMO_PROVIDER && e?.provider !== FIAT_PROVIDER
+    );
     const hasDemoRail = demoEntries.length > 0;
+    const hasFiatRail = fiatEntries.length > 0;
     const hasCryptoRail = cryptoEntries.length > 0;
 
     const platformFeePercent = Number.isFinite(prediction.platform_fee_percentage) ? Number(prediction.platform_fee_percentage) : 2.5;
@@ -895,6 +1127,28 @@ router.post('/manual', async (req, res) => {
         platformFee: demoSummary.demoPlatformFee,
         creatorFee: demoSummary.demoCreatorFee,
         winners: demoWinnersCount,
+      });
+    }
+
+    // Phase 7B: Settle fiat rail (NGN via Paystack, off-chain, idempotent)
+    let fiatSummary = { fiatEntriesCount: 0, fiatPlatformFee: 0, fiatCreatorFee: 0, fiatPayoutPool: 0 };
+    if (hasFiatRail) {
+      fiatSummary = await settleFiatRail({
+        predictionId,
+        predictionTitle: prediction.title,
+        winningOptionId,
+        creatorId: prediction.creator_id,
+        platformFeePercent,
+        creatorFeePercent,
+      });
+      
+      const fiatWinnersCount = fiatEntries.filter((e: any) => e.option_id === winningOptionId).length;
+      console.log('[settlement] fiat applied', {
+        predictionId,
+        fiatPot: fiatSummary.fiatPayoutPool + fiatSummary.fiatPlatformFee + fiatSummary.fiatCreatorFee,
+        platformFee: fiatSummary.fiatPlatformFee,
+        creatorFee: fiatSummary.fiatCreatorFee,
+        winners: fiatWinnersCount,
       });
     }
 
