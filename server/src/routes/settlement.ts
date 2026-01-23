@@ -412,6 +412,23 @@ export async function settleDemoRail(args: {
         }
       }
     }
+
+    // Phase 6A: Persist canonical settlement result for winner
+    try {
+      await upsertSettlementResult({
+        predictionId,
+        userId,
+        provider: DEMO_PROVIDER,
+        stakeTotal: userTotalStake,
+        returnedTotal: payoutAmount,
+        net: payoutAmount - userTotalStake,
+        status: 'win',
+        claimStatus: 'not_applicable',
+      });
+    } catch (err) {
+      console.error('[SETTLEMENT] Failed to persist demo winner result:', err);
+      // Non-fatal: continue settlement
+    }
   }
 
   // Record losses (stake already debited at bet placement, so this is just status update)
