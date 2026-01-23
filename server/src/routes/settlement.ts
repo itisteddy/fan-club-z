@@ -1008,12 +1008,18 @@ router.post('/manual', async (req, res) => {
     console.log(`🏆🏆🏆 [SETTLEMENT] ========================================`);
     console.log('');
 
-    // Phase 6A: Track crypto user stakes and payouts for canonical results
-    const cryptoUserStakes = new Map<string, number>();
-    const cryptoUserPayouts = new Map<string, number>();
+    // Phase 6A: Track crypto user stakes and payouts for canonical results (by provider)
+    const cryptoUserStakes = new Map<string, Map<string, number>>(); // userId -> provider -> stake
+    const cryptoUserPayouts = new Map<string, Map<string, number>>(); // userId -> provider -> payout
     for (const entry of cryptoEntries) {
-      const current = cryptoUserStakes.get(entry.user_id) || 0;
-      cryptoUserStakes.set(entry.user_id, current + Number(entry.amount || 0));
+      const provider = entry.provider || 'crypto-base-usdc'; // Fallback to default
+      if (!cryptoUserStakes.has(entry.user_id)) {
+        cryptoUserStakes.set(entry.user_id, new Map());
+        cryptoUserPayouts.set(entry.user_id, new Map());
+      }
+      const userStakes = cryptoUserStakes.get(entry.user_id)!;
+      const current = userStakes.get(provider) || 0;
+      userStakes.set(provider, current + Number(entry.amount || 0));
     }
     
     for (const winner of cryptoWinners) {
@@ -1098,6 +1104,15 @@ router.post('/manual', async (req, res) => {
         console.log(`✅✅✅ [SETTLEMENT] Successfully credited ${payout} USD to winner ${winner.user_id}`);
         console.log('');
         
+        // Phase 6A: Track user payout for canonical results (by provider)
+        const provider = winner.provider || 'crypto-base-usdc';
+        if (!cryptoUserPayouts.has(winner.user_id)) {
+          cryptoUserPayouts.set(winner.user_id, new Map());
+        }
+        const userPayouts = cryptoUserPayouts.get(winner.user_id)!;
+        const currentPayout = userPayouts.get(provider) || 0;
+        userPayouts.set(provider, currentPayout + payout);
+        
         settlementResults.push({
           userId: winner.user_id,
           entryId: winner.id,
@@ -1117,32 +1132,40 @@ router.post('/manual', async (req, res) => {
       }
     }
 
-    // Phase 6A: Persist canonical results for crypto winners
-    for (const [userId, totalPayout] of cryptoUserPayouts.entries()) {
-      const totalStake = cryptoUserStakes.get(userId) || 0;
-      try {
-        await upsertSettlementResult({
-          predictionId,
-          userId,
-          provider: 'crypto-base-usdc', // Default crypto provider
-          stakeTotal: totalStake,
-          returnedTotal: totalPayout,
-          net: totalPayout - totalStake,
-          status: 'win',
-          claimStatus: 'not_applicable', // Crypto is credited directly, not claimable
-        });
-      } catch (err) {
-        console.error('[SETTLEMENT] Failed to persist crypto winner result:', err);
-        // Non-fatal: continue settlement
+    // Phase 6A: Persist canonical results for crypto winners (per provider)
+    for (const [userId, userPayouts] of cryptoUserPayouts.entries()) {
+      const userStakes = cryptoUserStakes.get(userId) || new Map();
+      for (const [provider, totalPayout] of userPayouts.entries()) {
+        const totalStake = userStakes.get(provider) || 0;
+        try {
+          await upsertSettlementResult({
+            predictionId,
+            userId,
+            provider,
+            stakeTotal: totalStake,
+            returnedTotal: totalPayout,
+            net: totalPayout - totalStake,
+            status: 'win',
+            claimStatus: 'not_applicable', // Crypto is credited directly, not claimable
+          });
+        } catch (err) {
+          console.error('[SETTLEMENT] Failed to persist crypto winner result:', err);
+          // Non-fatal: continue settlement
+        }
       }
     }
 
     // Update crypto losing entries (demo losers already handled by settleDemoRail)
-    const cryptoLoserStakesByUser = new Map<string, number>();
+    const cryptoLoserStakesByUser = new Map<string, Map<string, number>>(); // userId -> provider -> stake
     for (const loser of cryptoLosers) {
       const stake = Number(loser.amount || 0);
-      const current = cryptoLoserStakesByUser.get(loser.user_id) || 0;
-      cryptoLoserStakesByUser.set(loser.user_id, current + stake);
+      const provider = loser.provider || 'crypto-base-usdc';
+      if (!cryptoLoserStakesByUser.has(loser.user_id)) {
+        cryptoLoserStakesByUser.set(loser.user_id, new Map());
+      }
+      const userStakes = cryptoLoserStakesByUser.get(loser.user_id)!;
+      const current = userStakes.get(provider) || 0;
+      userStakes.set(provider, current + stake);
 
       const { error: updateLoserError } = await supabase
         .from('prediction_entries')
@@ -1194,22 +1217,24 @@ router.post('/manual', async (req, res) => {
       }
     }
 
-    // Phase 6A: Persist canonical results for crypto losers
-    for (const [userId, totalStake] of cryptoLoserStakesByUser.entries()) {
-      try {
-        await upsertSettlementResult({
-          predictionId,
-          userId,
-          provider: 'crypto-base-usdc', // Default crypto provider
-          stakeTotal: totalStake,
-          returnedTotal: 0,
-          net: -totalStake,
-          status: 'loss',
-          claimStatus: 'not_applicable',
-        });
-      } catch (err) {
-        console.error('[SETTLEMENT] Failed to persist crypto loser result:', err);
-        // Non-fatal: continue settlement
+    // Phase 6A: Persist canonical results for crypto losers (per provider)
+    for (const [userId, userStakes] of cryptoLoserStakesByUser.entries()) {
+      for (const [provider, totalStake] of userStakes.entries()) {
+        try {
+          await upsertSettlementResult({
+            predictionId,
+            userId,
+            provider,
+            stakeTotal: totalStake,
+            returnedTotal: 0,
+            net: -totalStake,
+            status: 'loss',
+            claimStatus: 'not_applicable',
+          });
+        } catch (err) {
+          console.error('[SETTLEMENT] Failed to persist crypto loser result:', err);
+          // Non-fatal: continue settlement
+        }
       }
     }
 
