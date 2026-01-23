@@ -273,6 +273,7 @@ app.use('/api/v2/admin/settlement', adminSettlement);
 app.use('/api/v2/activity', activityRoutes);
 app.use('/api/v2/notifications', notificationsRoutes);
 app.use('/api/v2/notifications/reminders', remindersRouter);
+app.use('/api/v2/categories', categoriesRoutes);
 app.use('/api/images', imagesRoutes);
 app.use('/api/escrow', escrowRoutes);
 // walletSummary must come BEFORE walletRead to avoid route conflicts
@@ -312,6 +313,7 @@ console.log('  - /api/v2/bets (NEW: idempotent bet placement)');
 console.log('  - /api/v2/social (comments system)');
 console.log('  - /api/v2/settlement (manual/auto settlement)');
 console.log('  - /api/v2/activity (activity feed)');
+console.log('  - /api/v2/categories (prediction categories)');
 console.log('  - /api/images (auto-generated images)');
 console.log('  - /api/escrow (escrow lock/unlock)');
 console.log('  - /api/wallet (wallet summary & activity)');
