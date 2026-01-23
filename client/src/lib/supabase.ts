@@ -30,13 +30,23 @@ if (!supabaseUrl || !supabaseAnonKey) {
 const isNativePlatform = () => typeof window !== 'undefined' && Boolean(Capacitor?.isNativePlatform?.());
 
 // Helper to get the proper redirect URL for any environment
-// Uses HTTPS redirects for all platforms (Web OAuth client supports both web and native)
+// Native builds use deep link scheme (fanclubz://), web uses HTTPS
 function getRedirectUrl(next?: string) {
   const appendNext = (base: string) => {
     if (!next) return base;
     const separator = base.includes('?') ? '&' : '?';
     return `${base}${separator}next=${encodeURIComponent(next)}`;
   };
+
+  // CRITICAL: Native builds MUST use deep link scheme for OAuth callback
+  // This allows the app to receive the callback and close the Browser sheet
+  if (isNativePlatform()) {
+    const deepLinkUrl = 'fanclubz://auth/callback';
+    if (import.meta.env.DEV) {
+      console.log('🔧 Auth redirect URL (native deep link):', deepLinkUrl);
+    }
+    return appendNext(deepLinkUrl);
+  }
 
   // Check for explicit dev/local environment first
   const isLocalDev = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
@@ -59,10 +69,10 @@ function getRedirectUrl(next?: string) {
     return appendNext(import.meta.env.VITE_AUTH_REDIRECT_URL);
   }
   
-  // In production, always use the production URL (never localhost)
+  // In production web, always use the production URL (never localhost)
   const prodUrl = 'https://app.fanclubz.app/auth/callback';
   if (import.meta.env.DEV) {
-    console.log('🔧 Auth redirect URL (production):', prodUrl);
+    console.log('🔧 Auth redirect URL (production web):', prodUrl);
   }
   return appendNext(prodUrl);
 }
@@ -76,53 +86,84 @@ const ensureNativeAuthListener = () => {
 
   nativeAuthListener = CapacitorApp.addListener('appUrlOpen', async ({ url }) => {
     try {
+      console.log('═══════════════════════════════════════');
       console.log('🔐 Native appUrlOpen received:', url);
+      console.log('═══════════════════════════════════════');
       
-      // Handle HTTPS callback URLs (app.fanclubz.app/auth/callback)
-      // Also handle custom URL schemes (fanclubz://auth/callback)
-      const isAuthCallback = url && (
+      // Handle deep link callback: fanclubz://auth/callback?code=...&state=...
+      const isDeepLinkCallback = url && url.startsWith('fanclubz://auth/callback');
+      
+      // Also handle HTTPS fallback (if somehow we get HTTPS in native)
+      const isHttpsCallback = url && (
         url.includes('app.fanclubz.app/auth/callback') ||
         url.includes('localhost/auth/callback') ||
-        url.includes('127.0.0.1/auth/callback') ||
-        url.includes('fanclubz://auth/callback') ||
-        url.includes('/auth/callback')
+        url.includes('127.0.0.1/auth/callback')
       );
 
-      if (!isAuthCallback) {
+      if (!isDeepLinkCallback && !isHttpsCallback) {
+        console.log('🔐 Not an auth callback URL, ignoring');
         return;
       }
 
-      console.log('🔐 Native auth callback detected, closing browser...');
+      console.log('🔐 Auth callback detected, processing...');
 
-      // Close the browser immediately
+      // Close the browser immediately (critical for UX)
       await Browser.close().catch((err) => {
         console.warn('⚠️ Browser.close() failed (may already be closed):', err);
       });
 
-      // Extract the callback path and query params
-      let callbackPath = '/auth/callback';
-      try {
-        const urlObj = new URL(url);
-        callbackPath = urlObj.pathname + urlObj.search + urlObj.hash;
-      } catch {
-        // If URL parsing fails, try to extract manually
-        const match = url.match(/\/auth\/callback[?#]?(.*)/);
-        if (match) {
-          callbackPath = '/auth/callback' + (match[1] ? '?' + match[1] : '');
+      // For deep link (fanclubz://auth/callback?code=...), Supabase needs the full URL
+      // Extract code and state from the deep link URL
+      if (isDeepLinkCallback) {
+        console.log('🔐 Processing deep link callback...');
+        
+        // Parse the deep link URL to extract query params
+        let code: string | null = null;
+        let state: string | null = null;
+        
+        try {
+          // Deep link format: fanclubz://auth/callback?code=xxx&state=yyy
+          const urlObj = new URL(url.replace('fanclubz://', 'https://'));
+          code = urlObj.searchParams.get('code');
+          state = urlObj.searchParams.get('state');
+          
+          console.log('🔐 Extracted from deep link:', { code: code ? 'present' : 'missing', state: state ? 'present' : 'missing' });
+        } catch (err) {
+          console.error('❌ Failed to parse deep link URL:', err);
+        }
+
+        // Exchange the code for a session using Supabase PKCE flow
+        if (code) {
+          try {
+            console.log('🔐 Exchanging code for session...');
+            const { data, error } = await supabase.auth.exchangeCodeForSession(code);
+            
+            if (error) {
+              console.error('❌ Code exchange failed:', error);
+              // Fall through to route handling - AuthCallback will show error
+            } else if (data?.session) {
+              console.log('✅ Session established:', data.session.user.email);
+            }
+          } catch (err) {
+            console.error('❌ Code exchange exception:', err);
+          }
         }
       }
 
-      console.log('🔐 Navigating to callback route:', callbackPath);
-
       // Navigate to the callback route in the app
-      // The AuthCallback component will handle the session
+      // AuthCallback component will handle final session verification and redirect
+      const callbackPath = '/auth/callback' + (url.includes('?') ? url.substring(url.indexOf('?')) : '');
+      console.log('🔐 Navigating to callback route:', callbackPath);
+      console.log('═══════════════════════════════════════');
+      
+      // Use window.location to trigger full navigation (ensures AuthCallback runs)
       window.location.href = callbackPath;
     } catch (err) {
       console.error('❌ Native auth listener exception:', err);
     }
   });
   
-  console.log('✅ Native auth listener registered');
+  console.log('✅ Native auth listener registered for deep link: fanclubz://auth/callback');
 };
 
 const getAuthStorage = () => {
