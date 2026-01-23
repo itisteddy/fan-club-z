@@ -145,6 +145,24 @@ PLATFORM_TREASURY_USER_ID=<uuid>
 PLATFORM_FEE_CURRENCY=USD
 ```
 
+### **💳 Phase 7: Paystack (NGN Fiat Deposits/Withdrawals)**
+
+```bash
+# Feature Flags
+FIAT_PAYSTACK_ENABLED=true          # Enable fiat deposits/staking
+PAYSTACK_TRANSFER_ENABLED=true      # Enable automatic withdrawals (false = manual only)
+
+# Paystack API Keys (from Paystack Dashboard > Settings > API Keys & Webhooks)
+PAYSTACK_SECRET_KEY=sk_test_xxx     # Test: sk_test_..., Live: sk_live_...
+
+# URLs
+PAYSTACK_CALLBACK_URL=https://app.fanclubz.app/wallet?deposit=return
+```
+
+**Paystack Dashboard Configuration:**
+- Webhook URL: `https://fan-club-z.onrender.com/api/v2/fiat/paystack/webhook`
+- Webhook uses HMAC-SHA512 signature verification with `PAYSTACK_SECRET_KEY`
+
 ### **📈 Phase 7D: FX (display-only NGN↔USD)**
 
 ```bash
