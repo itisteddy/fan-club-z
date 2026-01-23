@@ -117,19 +117,19 @@ fiatPaystackRouter.post('/initialize', async (req, res) => {
 
     const authedUserId = (req as any)?.user?.id as string | undefined;
     const { amountNgn, userId: bodyUserId } = parsed.data;
-    if (!authedUserId) {
-      return res.status(401).json({ error: 'unauthorized', message: 'Authentication required', version: VERSION });
-    }
-    if (bodyUserId && bodyUserId !== authedUserId) {
+    // Auth is optional for initialize; webhook is the only credit path.
+    // If auth exists, enforce user match; otherwise rely on request body.
+    if (authedUserId && bodyUserId !== authedUserId) {
       return res.status(403).json({ error: 'forbidden', message: 'User mismatch', version: VERSION });
     }
 
-    const userId = authedUserId;
+    const userId = authedUserId || bodyUserId;
     const amountKobo = Math.round(amountNgn * 100);
 
     // Get user email
     let email = parsed.data.email;
-    if (!email) {
+    // Avoid looking up user emails when unauthenticated (prevents enumeration).
+    if (!email && authedUserId) {
       const { data: user } = await supabase
         .from('users')
         .select('email')
