@@ -65,6 +65,16 @@ if (BUILD_TARGET === 'ios' && typeof window !== 'undefined') {
   }).catch((err) => {
     console.error('[Bootstrap] ❌ Failed to register native OAuth listener:', err);
   });
+
+  // Handle cold-start deep links (e.g., app launched from OAuth redirect)
+  CapacitorApp.getLaunchUrl().then((launch) => {
+    if (launch?.url) {
+      console.log('[Bootstrap] launchUrl detected:', launch.url);
+      handleNativeAuthCallback(launch.url);
+    }
+  }).catch((err) => {
+    console.error('[Bootstrap] ❌ Failed to read launchUrl:', err);
+  });
 }
 
 // Phase 6: DEV-only runtime diagnostics (gated behind localStorage flag)

@@ -1,4 +1,7 @@
 PODS:
+  - ByteowlsCapacitorOauth2 (5.0.0):
+    - Capacitor
+    - OAuthSwift (= 2.2.0)
   - Capacitor (8.0.1):
     - CapacitorCordova
   - CapacitorApp (8.0.0):
@@ -6,29 +9,39 @@ PODS:
   - CapacitorBrowser (8.0.0):
     - Capacitor
   - CapacitorCordova (8.0.1)
+  - OAuthSwift (2.2.0)
 
 DEPENDENCIES:
-  - "Capacitor (from `../../node_modules/@capacitor/ios`)"
-  - "CapacitorApp (from `../../node_modules/@capacitor/app`)"
-  - "CapacitorBrowser (from `../../node_modules/@capacitor/browser`)"
-  - "CapacitorCordova (from `../../node_modules/@capacitor/ios`)"
+  - "ByteowlsCapacitorOauth2 (from `../../../node_modules/.pnpm/@byteowls+capacitor-oauth2@5.0.0_@capacitor+core@8.0.1/node_modules/@byteowls/capacitor-oauth2`)"
+  - "Capacitor (from `../../../node_modules/.pnpm/@capacitor+ios@8.0.1_@capacitor+core@8.0.1/node_modules/@capacitor/ios`)"
+  - "CapacitorApp (from `../../../node_modules/.pnpm/@capacitor+app@8.0.0_@capacitor+core@8.0.1/node_modules/@capacitor/app`)"
+  - "CapacitorBrowser (from `../../../node_modules/.pnpm/@capacitor+browser@8.0.0_@capacitor+core@8.0.1/node_modules/@capacitor/browser`)"
+  - "CapacitorCordova (from `../../../node_modules/.pnpm/@capacitor+ios@8.0.1_@capacitor+core@8.0.1/node_modules/@capacitor/ios`)"
+
+SPEC REPOS:
+  trunk:
+    - OAuthSwift
 
 EXTERNAL SOURCES:
+  ByteowlsCapacitorOauth2:
+    :path: "../../../node_modules/.pnpm/@byteowls+capacitor-oauth2@5.0.0_@capacitor+core@8.0.1/node_modules/@byteowls/capacitor-oauth2"
   Capacitor:
-    :path: "../../node_modules/@capacitor/ios"
+    :path: "../../../node_modules/.pnpm/@capacitor+ios@8.0.1_@capacitor+core@8.0.1/node_modules/@capacitor/ios"
   CapacitorApp:
-    :path: "../../node_modules/@capacitor/app"
+    :path: "../../../node_modules/.pnpm/@capacitor+app@8.0.0_@capacitor+core@8.0.1/node_modules/@capacitor/app"
   CapacitorBrowser:
-    :path: "../../node_modules/@capacitor/browser"
+    :path: "../../../node_modules/.pnpm/@capacitor+browser@8.0.0_@capacitor+core@8.0.1/node_modules/@capacitor/browser"
   CapacitorCordova:
-    :path: "../../node_modules/@capacitor/ios"
+    :path: "../../../node_modules/.pnpm/@capacitor+ios@8.0.1_@capacitor+core@8.0.1/node_modules/@capacitor/ios"
 
 SPEC CHECKSUMS:
+  ByteowlsCapacitorOauth2: 9e7cdae2bf251463a6ad89493e27fb288bf694d7
   Capacitor: 2d8b1a05870ddb600b0e1e32b83fcf0890c244e1
   CapacitorApp: cfa0120a1f3a6f69d4d37d3041782aa5c5167d0b
   CapacitorBrowser: 7452c73a202716d9c9035e5dbe5c5d8d07737f22
   CapacitorCordova: 0d65b9bb74e995dcecb9463f34f1af2aba6f955c
+  OAuthSwift: 75efbb5bd9a4b2b71a37bd7e986bf3f55ddd54c6
 
-PODFILE CHECKSUM: 34e2d65dc00b28e6a18106d1dc18fcc7776a3968
+PODFILE CHECKSUM: 5e5e25a85ecc63481c3d94a7c8629a7947b84c96
 
 COCOAPODS: 1.8.4

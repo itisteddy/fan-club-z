@@ -1,5 +1,6 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { Browser } from '@capacitor/browser';
+import { OAuth2Client } from '@byteowls/capacitor-oauth2';
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from '@/utils/environment';
 import { captureReturnTo } from '@/lib/returnTo';
 import { BUILD_TARGET } from '@/config/runtime';
@@ -249,22 +250,84 @@ export const auth = {
               window.dispatchEvent(new CustomEvent('auth-in-progress', { detail: { started: false, error: true } }));
             }
           } else if (isIOSBuild && data?.url) {
-            // Phase 3: iOS builds open Browser with OAuth URL
+            // CRITICAL FIX: Use OAuth2Client with ASWebAuthenticationSession
+            // Browser.open uses SFSafariViewController which DOES NOT pass custom URL schemes back to app
+            // OAuth2Client uses ASWebAuthenticationSession which DOES handle fanclubz:// properly
             if (import.meta.env.DEV) {
               console.log('═══════════════════════════════════════');
-              console.log('[OAuth] 🔐 EXACT Browser.open URL:');
-              console.log(data.url);
-              console.log('[OAuth] URL contains redirect_to=fanclubz:', data.url.includes('redirect_to=fanclubz'));
+              console.log('[OAuth] 🔐 Using OAuth2Client (ASWebAuthenticationSession)');
+              console.log('[OAuth] Supabase OAuth URL:', data.url);
               console.log('═══════════════════════════════════════');
             }
-            
-            // CRITICAL: Use windowTarget: '_system' to open in external Safari
-            // SFSafariViewController (in-app browser) does NOT pass URL scheme redirects to appUrlOpen
-            // External Safari properly triggers appUrlOpen when redirecting to fanclubz://
-            await Browser.open({
-              url: data.url,
-              windowTarget: '_system',
-            });
+
+            try {
+              // Parse Supabase's OAuth URL to extract components
+              const authUrl = new URL(data.url);
+              const redirectUrl = getRedirectUrl(options?.next);
+              
+              // Extract provider from URL (e.g., /auth/v1/authorize?provider=google)
+              const providerParam = authUrl.searchParams.get('provider') || provider;
+              
+              // Supabase OAuth endpoint structure: {SUPABASE_URL}/auth/v1/authorize
+              const authorizationBaseUrl = `${supabaseUrl}/auth/v1/authorize`;
+              
+              // Use OAuth2Client which properly handles custom URL schemes via ASWebAuthenticationSession
+              const result = await OAuth2Client.authenticate({
+                authorizationBaseUrl: authorizationBaseUrl,
+                appId: SUPABASE_ANON_KEY, // Supabase uses anon key as client_id
+                redirectUrl: redirectUrl,
+                responseType: 'code',
+                pkceEnabled: true,
+                scope: 'openid email profile',
+                accessTokenEndpoint: `${supabaseUrl}/auth/v1/token`, // For token exchange
+                additionalParameters: {
+                  provider: providerParam,
+                  ...Object.fromEntries(authUrl.searchParams.entries()), // Pass all Supabase params
+                },
+                ios: {
+                  responseType: 'code',
+                  redirectUrl: redirectUrl,
+                  pkceEnabled: true,
+                },
+                logsEnabled: import.meta.env.DEV,
+              });
+
+              if (import.meta.env.DEV) {
+                console.log('[OAuth] ✅ OAuth2Client result:', result);
+              }
+
+              // OAuth2Client returns the code in the callback URL, extract it
+              // The plugin handles the redirect and returns the authorization code
+              if (result?.code) {
+                const { data: sessionData, error: exchangeError } = await supabase.auth.exchangeCodeForSession(result.code);
+                if (exchangeError) {
+                  console.error('[OAuth] ❌ Code exchange failed:', exchangeError);
+                  window.dispatchEvent(new CustomEvent('auth-in-progress', {
+                    detail: { started: false, error: true, message: exchangeError.message }
+                  }));
+                } else if (sessionData?.session) {
+                  if (import.meta.env.DEV) {
+                    console.log('[OAuth] ✅ Session established via OAuth2Client');
+                  }
+                  window.dispatchEvent(new CustomEvent('auth-in-progress', {
+                    detail: { started: false, completed: true }
+                  }));
+                }
+              } else {
+                console.error('[OAuth] ❌ No code in OAuth2Client result');
+                window.dispatchEvent(new CustomEvent('auth-in-progress', {
+                  detail: { started: false, error: true }
+                }));
+              }
+            } catch (oauthError: any) {
+              console.error('[OAuth] ❌ OAuth2Client error:', oauthError);
+              // Fallback to Browser.open if OAuth2Client fails
+              console.warn('[OAuth] Falling back to Browser.open');
+              await Browser.open({
+                url: data.url,
+                presentationStyle: 'fullscreen',
+              });
+            }
           }
           
           return { data, error };

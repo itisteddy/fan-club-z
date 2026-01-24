@@ -87,6 +87,15 @@ export async function handleNativeAuthCallback(url: string): Promise<boolean> {
         code = urlObj.searchParams.get('code');
         state = urlObj.searchParams.get('state');
 
+        // Some providers return values in the hash fragment
+        if (!code && urlObj.hash) {
+          const hashParams = new URLSearchParams(urlObj.hash.replace(/^#/, ''));
+          code = hashParams.get('code');
+          if (!state) {
+            state = hashParams.get('state');
+          }
+        }
+
         if (import.meta.env.DEV) {
           console.log('[NativeOAuth] Extracted:', {
             code: code ? 'present' : 'missing',
