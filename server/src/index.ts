@@ -59,66 +59,65 @@ app.use(helmet({
   crossOriginEmbedderPolicy: false, // Required for some wallet integrations
 }));
 
-// CORS whitelist: Only allow known origins
+// CORS configuration: Single source of truth for all CORS logic
+// Phase 1: Use cors() middleware properly to eliminate preflight 500s
 const allowedOrigins = [
   'https://fanclubz.app',
   'https://app.fanclubz.app',
+  // Auth domain (Supabase auth hosted) may be used during OAuth flows
+  'https://auth.fanclubz.app',
+  // Capacitor native shells (iOS/Android WebView origins)
+  // iOS uses capacitor://app.fanclubz.app (appId-based) or capacitor://localhost
+  // These must be allowed for native app API calls to work
+  'capacitor://localhost',
+  'capacitor://app.fanclubz.app',
+  'ionic://localhost',
+  // Local development origins
+  'http://localhost',
   'http://localhost:5173',
   'http://localhost:5174', // Vite default dev port
   'http://localhost:3000',
 ];
 
-// Enhanced CORS middleware - Restricted to known origins
-app.use(cors({
+// Single CORS options object used for both normal requests and preflight
+const corsOptions: cors.CorsOptions = {
   origin: (origin, callback) => {
-    // Allow requests with no origin (like mobile apps, Postman, curl)
+    // Log all origins for debugging native app issues
+    console.log(`[CORS] Request origin: ${origin || '(no origin)'}`);
+    
+    // Allow requests with no origin (like mobile apps, Postman, curl, server-to-server)
     if (!origin) {
       return callback(null, true);
     }
+    
+    // Check exact match first
     if (allowedOrigins.includes(origin)) {
+      console.log(`[CORS] ✅ Allowed origin: ${origin}`);
       callback(null, true);
-    } else {
-      callback(new Error('Not allowed by CORS'));
+      return;
     }
+    
+    // Allow any capacitor:// or ionic:// origin for native builds
+    // This ensures iOS/Android Capacitor apps can make API calls
+    if (origin.startsWith('capacitor://') || origin.startsWith('ionic://')) {
+      console.log(`[CORS] ✅ Allowed Capacitor origin: ${origin}`);
+      callback(null, true);
+      return;
+    }
+    
+    console.log(`[CORS] ❌ Blocked origin: ${origin}`);
+    callback(new Error('Not allowed by CORS'));
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'Origin', 'X-Requested-With', 'Cache-Control', 'If-None-Match', 'X-Admin-Key'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'Origin', 'X-Requested-With', 'Cache-Control', 'If-None-Match', 'X-Admin-Key', 'apikey', 'x-client-info'],
   exposedHeaders: ['Content-Range', 'X-Content-Range', 'ETag']
-}));
+};
 
-// Explicit OPTIONS preflight handler (some hosts require this)
-app.options('*', (req, res) => {
-  const origin = req.headers.origin;
-  if (origin && allowedOrigins.includes(origin)) {
-    res.header('Access-Control-Allow-Origin', origin);
-    res.header('Access-Control-Allow-Credentials', 'true');
-    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
-    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, Accept, Origin, X-Requested-With, Cache-Control, If-None-Match, X-Admin-Key');
-    res.sendStatus(200);
-  } else {
-    res.sendStatus(403);
-  }
-});
-
-// Additional CORS headers middleware
-app.use((req, res, next) => {
-  const origin = req.headers.origin;
-  if (origin && allowedOrigins.includes(origin)) {
-    res.header('Access-Control-Allow-Origin', origin);
-    res.header('Access-Control-Allow-Credentials', 'true');
-    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
-    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, Accept, Origin, X-Requested-With, Cache-Control, If-None-Match, X-Admin-Key');
-  }
-  
-  // Handle preflight requests
-  if (req.method === 'OPTIONS') {
-    res.status(200).end();
-    return;
-  }
-  
-  next();
-});
+// CRITICAL: Register CORS middleware BEFORE any routes or auth middleware
+// This ensures OPTIONS preflight requests are handled correctly and never hit auth guards
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions));
 
 // Paystack webhooks require raw body for signature verification.
 // We capture the raw buffer ONLY for that route via express.json verify hook.
