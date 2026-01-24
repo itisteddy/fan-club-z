@@ -14,9 +14,51 @@ import { APP_VERSION, BUILD_TIMESTAMP } from './lib/version.ts'
 // [PERF] Web Vitals monitoring
 import { initWebVitals } from './lib/vitals'
 import { useMaintenanceStore } from './store/maintenanceStore'
+// Phase 3: Register native OAuth listener once at bootstrap
+import { App as CapacitorApp } from '@capacitor/app'
+import { BUILD_TARGET } from './config/runtime'
+import { handleNativeAuthCallback } from './lib/auth/nativeOAuth'
 
 // Centralized version management
 console.log(`🚀 Fan Club Z ${APP_VERSION} - CONSOLIDATED ARCHITECTURE - SINGLE SOURCE OF TRUTH`)
+
+// Phase 3: Register native OAuth deep link listener ONCE at bootstrap
+// This ensures deterministic callback handling and prevents duplicate listeners
+if (BUILD_TARGET === 'ios' && typeof window !== 'undefined') {
+  CapacitorApp.addListener('appUrlOpen', async ({ url }) => {
+    if (import.meta.env.DEV) {
+      console.log('[Bootstrap] appUrlOpen received:', url);
+    }
+    await handleNativeAuthCallback(url);
+  }).then(() => {
+    if (import.meta.env.DEV) {
+      console.log('[Bootstrap] ✅ Native OAuth listener registered (BUILD_TARGET=ios)');
+    }
+  }).catch((err) => {
+    console.error('[Bootstrap] ❌ Failed to register native OAuth listener:', err);
+  });
+}
+
+// Phase 6: DEV-only runtime diagnostics (gated behind localStorage flag)
+if (import.meta.env.DEV && typeof window !== 'undefined') {
+  const debugEnabled = localStorage.getItem('DEBUG_RUNTIME') === '1';
+  if (debugEnabled) {
+    import('./config/runtime').then(({ getRuntimeDebugInfo }) => {
+      const debugInfo = getRuntimeDebugInfo();
+      console.log('═══════════════════════════════════════');
+      console.log('[Runtime Debug] Build Configuration:');
+      console.log('  BUILD_TARGET:', debugInfo.BUILD_TARGET);
+      console.log('  IS_NATIVE:', debugInfo.IS_NATIVE);
+      console.log('  STORE_SAFE_MODE:', debugInfo.STORE_SAFE_MODE);
+      console.log('  Mode:', debugInfo.mode);
+      console.log('  Origin:', debugInfo.origin);
+      console.log('  API Base URL:', debugInfo.apiBaseUrl);
+      console.log('  Capabilities:', debugInfo.capabilities);
+      console.log('═══════════════════════════════════════');
+      console.log('[Runtime Debug] Enable with: localStorage.setItem("DEBUG_RUNTIME", "1")');
+    });
+  }
+}
 
 // CRITICAL: Disable browser's native scroll restoration to prevent conflicts with our manual scroll management
 // This is essential for React SPA navigation to work correctly

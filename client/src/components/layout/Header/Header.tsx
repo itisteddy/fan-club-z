@@ -43,18 +43,20 @@ export function Header({
       className={cn(
         // Base styling
         'sticky top-0 z-40 bg-white',
-        // Height: 56px mobile, 64px desktop
-        'h-14 md:h-16',
+        // Phase 4: Safe-area aware height - outer container includes safe-area inset
+        // Height: 56px content + safe-area-inset-top
+        'h-[calc(56px+env(safe-area-inset-top))] md:h-[calc(64px+env(safe-area-inset-top))]',
+        // Phase 4: Apply safe-area padding only once (on outer container)
+        'pt-[env(safe-area-inset-top)]',
         // Border
         'border-b border-gray-100',
         // Shadow (only when scrolled)
         showShadow && 'shadow-sm',
-        // Safe area awareness
-        'supports-[padding:env(safe-area-inset-top)]:pt-[env(safe-area-inset-top)]',
         className
       )}
     >
-      <div className="flex items-center justify-between h-full px-4 md:px-6">
+      {/* Phase 4: Inner row with fixed height - content never overlaps notch */}
+      <div className="flex items-center justify-between h-14 md:h-16 px-4 md:px-6">
         {/* Left section */}
         <div className="flex items-center space-x-3 flex-1 min-w-0">
           {/* Back button */}

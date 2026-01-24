@@ -1,7 +1,7 @@
 // PWA utility functions for service worker registration and management
 import { Capacitor } from '@capacitor/core';
 import { VAPID_PUBLIC_KEY, getApiUrl } from '@/utils/environment';
-import { STORE_SAFE_MODE } from '@/config/runtime';
+import { BUILD_TARGET, IS_NATIVE, STORE_SAFE_MODE } from '@/config/runtime';
 
 export interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
@@ -25,20 +25,23 @@ export class PWAManager {
   }
 
   private init() {
-    // Phase 2: Use STORE_SAFE_MODE instead of isNativePlatform()
-    // Store-safe mode (iOS App Store builds) should NEVER register service workers
-    // Service workers are web-only and cause issues in native WebViews
-    if (STORE_SAFE_MODE) {
-      console.log('[PWA] Skipping service worker registration in store-safe mode');
+    // Phase 5: Service worker should NEVER register in iOS/native builds
+    // Service workers are web-only and cause issues in native WebViews:
+    // - Stale auth state
+    // - Caching conflicts
+    // - "Web-like" glitches
+    // Gate by BUILD_TARGET, IS_NATIVE, and STORE_SAFE_MODE
+    if (BUILD_TARGET !== 'web' || IS_NATIVE || STORE_SAFE_MODE) {
+      console.log('[PWA] Skipping service worker registration (BUILD_TARGET=' + BUILD_TARGET + ', IS_NATIVE=' + IS_NATIVE + ', STORE_SAFE_MODE=' + STORE_SAFE_MODE + ')');
       if ('serviceWorker' in navigator) {
-        // Proactively unregister any existing SW in store-safe builds
+        // Proactively unregister any existing SW in native builds
         navigator.serviceWorker.getRegistrations().then((registrations) => {
           registrations.forEach((registration) => {
-            console.log('[PWA] Unregistering existing service worker in store-safe mode:', registration.scope);
+            console.log('[PWA] Unregistering existing service worker:', registration.scope);
             registration.unregister();
           });
         }).catch((err) => {
-          console.warn('[PWA] Failed to unregister service workers in store-safe mode:', err);
+          console.warn('[PWA] Failed to unregister service workers:', err);
         });
       }
       return;

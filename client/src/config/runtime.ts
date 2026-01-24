@@ -113,3 +113,16 @@ export const isNative = () => Runtime.isNative;
 export const getRuntimeMode = () => Runtime.mode;
 export const getCapabilities = () => Runtime.capabilities;
 export const isStoreSafeMode = () => Runtime.storeSafeMode;
+
+// Phase 6: DEV-only runtime debug helper
+export function getRuntimeDebugInfo() {
+  return {
+    BUILD_TARGET: BUILD_TARGET,
+    IS_NATIVE: IS_NATIVE,
+    STORE_SAFE_MODE: STORE_SAFE_MODE,
+    origin: typeof window !== 'undefined' ? window.location.origin : 'N/A',
+    apiBaseUrl: typeof window !== 'undefined' ? (import.meta.env.VITE_API_BASE_URL || 'N/A') : 'N/A',
+    mode: getRuntimeMode(),
+    capabilities: getCapabilities(),
+  };
+}

@@ -5,15 +5,15 @@ import SmartInstallPrompt from './SmartInstallPrompt';
 import TopUpdateToast from './TopUpdateToast';
 import { pwaManager } from '../utils/pwa';
 import { supabase } from '@/lib/supabase';
-import { STORE_SAFE_MODE } from '@/config/runtime';
+import { BUILD_TARGET, IS_NATIVE, STORE_SAFE_MODE } from '@/config/runtime';
 
 const PWAInstallManager: React.FC = () => {
   const [showIOSModal, setShowIOSModal] = useState(false);
   const [showUpdateNotification, setShowUpdateNotification] = useState(false);
 
-  // Phase 2: Use STORE_SAFE_MODE instead of isNativePlatform()
-  // Store-safe mode (iOS App Store builds) should not show PWA install prompts
-  if (STORE_SAFE_MODE) {
+  // Phase 5: PWA install UX should only render for web builds
+  // Never show in iOS builds, native builds, or store-safe mode
+  if (BUILD_TARGET !== 'web' || IS_NATIVE || STORE_SAFE_MODE) {
     return null;
   }
 

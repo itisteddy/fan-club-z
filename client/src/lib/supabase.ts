@@ -229,11 +229,14 @@ const getAuthStorage = () => {
   }
 };
 
+// Phase 3: Session persistence hardening
+// detectSessionInUrl: false for native builds (we handle deep links manually)
+// detectSessionInUrl: true for web (standard redirect flow)
 const supabaseOptions: any = {
   auth: {
     autoRefreshToken: true,
     persistSession: true,
-    detectSessionInUrl: true,
+    detectSessionInUrl: BUILD_TARGET === 'web', // Phase 3: Only detect in URL for web
     flowType: 'pkce',
   },
   db: {
@@ -339,29 +342,30 @@ export const auth = {
   },
 
       signInWithOAuth: async (provider: OAuthProvider, options?: { next?: string }) => {
-        const native = isNativePlatform();
-        if (native) {
-          await ensureNativeAuthListener();
-        }
+        // Phase 3: Use BUILD_TARGET instead of isNativePlatform() for deterministic gating
+        const isIOSBuild = BUILD_TARGET === 'ios';
 
         try {
-          console.log('═══════════════════════════════════════');
-          console.log('🔐 OAUTH SIGN IN STARTED');
-          console.log('  Provider:', provider);
-          console.log('  Is Native:', native);
-          console.log('  Capacitor Platform:', Capacitor?.getPlatform?.());
-          console.log('  Next param:', options?.next);
-          console.log('  Current hostname:', window.location.hostname);
-          console.log('  Current origin:', window.location.origin);
-          console.log('═══════════════════════════════════════');
+          if (import.meta.env.DEV && isIOSBuild) {
+            console.log('═══════════════════════════════════════');
+            console.log('[OAuth] 🔐 OAUTH SIGN IN STARTED');
+            console.log('[OAuth] Provider:', provider);
+            console.log('[OAuth] BUILD_TARGET:', BUILD_TARGET);
+            console.log('[OAuth] Next param:', options?.next);
+            console.log('═══════════════════════════════════════');
+          }
           
+          // Phase 3: iOS builds use deep link, web uses HTTPS
           const redirectUrl = getRedirectUrl(options?.next);
-          console.log('🔐 Final OAuth redirect URL:', redirectUrl);
-          console.log('🔐 Expected for native: fanclubz://auth/callback');
-          console.log('═══════════════════════════════════════');
+          
+          if (import.meta.env.DEV && isIOSBuild) {
+            console.log('[OAuth] Final OAuth redirect URL:', redirectUrl);
+            console.log('[OAuth] Expected for iOS: fanclubz://auth/callback');
+            console.log('═══════════════════════════════════════');
+          }
 
-          // Emit auth started event for overlay
-          if (native) {
+          // Emit auth started event for overlay (iOS only)
+          if (isIOSBuild) {
             window.dispatchEvent(new CustomEvent('auth-in-progress', { detail: { started: true } }));
           }
 
@@ -369,7 +373,7 @@ export const auth = {
             provider,
             options: {
               redirectTo: redirectUrl,
-              skipBrowserRedirect: native,
+              skipBrowserRedirect: isIOSBuild, // Phase 3: Skip browser redirect for iOS
               queryParams: {
                 access_type: 'offline',
                 prompt: 'consent',
@@ -378,19 +382,19 @@ export const auth = {
           });
           
           if (error) {
-            console.error('Auth signInWithOAuth error:', error);
-            if (native) {
+            console.error('[OAuth] Auth signInWithOAuth error:', error);
+            if (isIOSBuild) {
               window.dispatchEvent(new CustomEvent('auth-in-progress', { detail: { started: false, error: true } }));
             }
-          } else if (native && data?.url) {
-            // Log the EXACT URL being opened (user requested this)
-            console.log('═══════════════════════════════════════');
-            console.log('🔐 EXACT Browser.open URL:');
-            console.log(data.url);
-            console.log('═══════════════════════════════════════');
-            console.log('🔐 URL contains redirect_to=fanclubz:', data.url.includes('redirect_to=fanclubz'));
-            console.log('🔐 URL contains redirect_to=fanclubz%3A%2F%2Fauth%2Fcallback:', data.url.includes('redirect_to=fanclubz%3A%2F%2Fauth%2Fcallback'));
-            console.log('═══════════════════════════════════════');
+          } else if (isIOSBuild && data?.url) {
+            // Phase 3: iOS builds open Browser with OAuth URL
+            if (import.meta.env.DEV) {
+              console.log('═══════════════════════════════════════');
+              console.log('[OAuth] 🔐 EXACT Browser.open URL:');
+              console.log(data.url);
+              console.log('[OAuth] URL contains redirect_to=fanclubz:', data.url.includes('redirect_to=fanclubz'));
+              console.log('═══════════════════════════════════════');
+            }
             
             await Browser.open({
               url: data.url,
@@ -400,8 +404,8 @@ export const auth = {
           
           return { data, error };
         } catch (error: any) {
-          console.error('Auth signInWithOAuth exception:', error);
-          if (native) {
+          console.error('[OAuth] Auth signInWithOAuth exception:', error);
+          if (isIOSBuild) {
             window.dispatchEvent(new CustomEvent('auth-in-progress', { detail: { started: false, error: true } }));
           }
           return { data: null, error: { message: error.message || 'An unexpected error occurred' } };
@@ -659,9 +663,8 @@ export const clientDb = {
   },
 };
 
-if (isNativePlatform()) {
-  ensureNativeAuthListener();
-}
+// Phase 3: Native auth listener is registered at bootstrap in main.tsx
+// No need to register here to prevent duplicates
 
 // Real-time subscriptions
 export const realtime = {
