@@ -258,9 +258,12 @@ export const auth = {
               console.log('═══════════════════════════════════════');
             }
             
+            // CRITICAL: Use windowTarget: '_system' to open in external Safari
+            // SFSafariViewController (in-app browser) does NOT pass URL scheme redirects to appUrlOpen
+            // External Safari properly triggers appUrlOpen when redirecting to fanclubz://
             await Browser.open({
               url: data.url,
-              presentationStyle: 'fullscreen',
+              windowTarget: '_system',
             });
           }
           
