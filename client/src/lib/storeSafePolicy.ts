@@ -9,7 +9,7 @@
  * - Web builds are never affected
  */
 
-import { BUILD_TARGET, STORE_SAFE_MODE } from '@/config/runtime';
+import { STORE_SAFE_MODE } from '@/config/runtime';
 
 export type FundingSource = 'demo' | 'crypto' | 'fiat';
 

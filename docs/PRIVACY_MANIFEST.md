@@ -32,26 +32,15 @@ This file **must be**:
 
 ---
 
-## Current Privacy Declarations
+## Current Privacy Declarations (Baseline)
 
-### Data Collection
-We declare collection of:
-- **User ID** - For app functionality (authentication, user-specific data)
-- **Name** - For app functionality (user profile)
-- **Email Address** - For app functionality (authentication)
+Per the Phase 7C hard rule (**do not guess**), the committed `PrivacyInfo.xcprivacy` is a **minimal baseline**:
 
-All data is:
-- ✅ Linked to user identity
-- ❌ NOT used for tracking
-- Purpose: App functionality only
+- **Tracking**: `NSPrivacyTracking=false` and no tracking domains.
+- **Collected data types**: empty (until confirmed via Xcode privacy report + product decisions).
+- **Required-reason APIs**: empty (until confirmed via Xcode privacy report).
 
-### Tracking
-- ✅ NO tracking (`NSPrivacyTracking: false`)
-- ✅ NO tracking domains
-
-### Required-Reason APIs
-We declare use of:
-- **UserDefaults (CA92.1)** - "Accessing user defaults from the app, app extensions, or App Clips"
+This ensures the file exists and is packaged, without inventing declarations we can’t justify from an archive privacy report.
 
 ---
 
@@ -176,14 +165,11 @@ Apple maintains a list of APIs that require approved reason codes if used:
 
 ### Our Declarations
 
-**UserDefaults (CA92.1):**
-- **API:** `NSPrivacyAccessedAPICategoryUserDefaults`
-- **Reason:** CA92.1 - "Accessing user defaults from the app"
-- **Usage:** Session storage, preferences, feature flags
+None committed yet (baseline manifest keeps this empty until we confirm via Xcode’s archive Privacy Report).
 
-### How to Add More
+### How to Add (based on Privacy Report)
 
-If Xcode Privacy Report shows additional required-reason API usage:
+If the Xcode Privacy Report shows required-reason API usage:
 
 1. Identify the API category from the report
 2. Find the approved reason code from Apple's list

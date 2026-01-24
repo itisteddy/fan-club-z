@@ -3,6 +3,7 @@ import { VisuallyHidden } from '@radix-ui/react-visually-hidden';
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useConnect } from 'wagmi';
 import toast from 'react-hot-toast';
+import { policy as storeSafePolicy } from '@/lib/storeSafePolicy';
 
 const WC_ID = import.meta.env.VITE_WC_PROJECT_ID || import.meta.env.VITE_WALLETCONNECT_PROJECT_ID || '';
 const wcEnabled = WC_ID.length >= 8;
@@ -74,14 +75,24 @@ export default function ConnectWalletSheet({ isOpen, onClose }: ConnectWalletShe
   useEffect(() => {
     // Controlled mode sync
     if (typeof isOpen === 'boolean') {
+      if (!storeSafePolicy.allowCryptoWalletConnect && isOpen) {
+        toast('Not available in demo mode.', { id: 'store-safe-wallet' });
+        if (onClose) onClose();
+        setOpen(false);
+        return;
+      }
       setOpen(isOpen);
     }
-  }, [isOpen]);
+  }, [isOpen, onClose]);
 
   useEffect(() => {
     // Uncontrolled (global event) mode only when isOpen prop is not provided
     if (typeof isOpen === 'boolean') return;
     const handler = () => {
+      if (!storeSafePolicy.allowCryptoWalletConnect) {
+        toast('Not available in demo mode.', { id: 'store-safe-wallet' });
+        return;
+      }
       // On mobile, show the sheet (no auto-connect)
       setOpen(true);
     };

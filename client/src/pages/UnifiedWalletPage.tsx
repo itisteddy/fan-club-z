@@ -28,7 +28,7 @@ import { usePaystackStatus, useFiatSummary } from '@/hooks/useFiatWallet';
 import { FiatDepositSheet } from '@/components/wallet/FiatDepositSheet';
 import { FiatWithdrawalSheet } from '@/components/wallet/FiatWithdrawalSheet';
 import { Runtime } from '@/config/runtime';
-import { policy as storeSafePolicy, guardFeature, getBlockedFeatureMessage } from '@/lib/storeSafePolicy';
+import { policy as storeSafePolicy } from '@/lib/storeSafePolicy';
 
 interface WalletPageProps {
   onNavigateBack?: () => void;
@@ -50,6 +50,13 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
   const isDemoMode = showDemo && mode === 'demo';
   const isFiatMode = effectiveFiatEnabled && mode === 'fiat';
   const isCryptoMode = effectiveCryptoEnabled && !isDemoMode && !isFiatMode;
+
+  // Phase 7B: In store-safe mode, force demo mode to avoid dead ends.
+  useEffect(() => {
+    if (!storeSafePolicy.allowCryptoWalletConnect && mode !== 'demo') {
+      setMode('demo');
+    }
+  }, [mode, setMode]);
 
   // Fiat feature flag + balances (server-controlled)
   const { data: paystackStatus } = usePaystackStatus();

@@ -1,8 +1,5 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-import { Capacitor } from '@capacitor/core';
-import { App as CapacitorApp } from '@capacitor/app';
 import { Browser } from '@capacitor/browser';
-import type { PluginListenerHandle } from '@capacitor/core';
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from '@/utils/environment';
 import { captureReturnTo } from '@/lib/returnTo';
 import { BUILD_TARGET } from '@/config/runtime';
@@ -27,33 +24,6 @@ if (!supabaseUrl || !supabaseAnonKey) {
     '- VITE_SUPABASE_ANON_KEY=your-anon-public-key-here'
   );
 }
-
-// Check if running in native Capacitor shell
-const isNativePlatform = () => {
-  if (typeof window === 'undefined') return false;
-  
-  // Primary check: Capacitor.isNativePlatform()
-  const capacitorNative = Boolean(Capacitor?.isNativePlatform?.());
-  
-  // Secondary check: platform is not 'web'
-  const platformCheck = Capacitor?.getPlatform?.() !== 'web';
-  
-  // Tertiary check: user agent contains Capacitor or native indicators
-  const uaCheck = typeof navigator !== 'undefined' && /Capacitor|ionic/i.test(navigator.userAgent || '');
-  
-  const isNative = capacitorNative || platformCheck;
-  
-  // Log for debugging (always log this in production too for iOS troubleshooting)
-  console.log('📱 isNativePlatform check:', {
-    capacitorNative,
-    platform: Capacitor?.getPlatform?.(),
-    platformCheck,
-    uaCheck,
-    result: isNative
-  });
-  
-  return isNative;
-};
 
 // Helper to get the proper redirect URL for any environment
 // Phase 2: Use BUILD_TARGET to determine redirect URL (not isNative alone)
@@ -110,114 +80,6 @@ function getRedirectUrl(next?: string) {
 }
 
 export const buildAuthRedirectUrl = (next?: string) => getRedirectUrl(next);
-
-let nativeAuthListener: PluginListenerHandle | null = null;
-let nativeBrowserListener: PluginListenerHandle | null = null;
-let lastNativeAuthCallbackAt = 0;
-
-const ensureNativeAuthListener = async () => {
-  if (!isNativePlatform() || nativeAuthListener) return;
-
-  const handle = await CapacitorApp.addListener('appUrlOpen', async ({ url }) => {
-    try {
-      console.log('═══════════════════════════════════════');
-      console.log('🔐 Native appUrlOpen received:', url);
-      console.log('═══════════════════════════════════════');
-      
-      // Handle deep link callback: fanclubz://auth/callback?code=...&state=...
-      const isDeepLinkCallback = url && url.startsWith('fanclubz://auth/callback');
-      
-      // Also handle HTTPS fallback (if somehow we get HTTPS in native)
-      const isHttpsCallback = url && (
-        url.includes('app.fanclubz.app/auth/callback') ||
-        url.includes('localhost/auth/callback') ||
-        url.includes('127.0.0.1/auth/callback')
-      );
-
-      if (!isDeepLinkCallback && !isHttpsCallback) {
-        console.log('🔐 Not an auth callback URL, ignoring');
-        return;
-      }
-
-      console.log('🔐 Auth callback detected, processing...');
-      lastNativeAuthCallbackAt = Date.now();
-
-      // Close the browser immediately (critical for UX)
-      await Browser.close().catch((err) => {
-        console.warn('⚠️ Browser.close() failed (may already be closed):', err);
-      });
-
-      // For deep link (fanclubz://auth/callback?code=...), Supabase needs the full URL
-      // Extract code and state from the deep link URL
-      if (isDeepLinkCallback) {
-        console.log('🔐 Processing deep link callback...');
-        
-        // Parse the deep link URL to extract query params
-        let code: string | null = null;
-        let state: string | null = null;
-        
-        try {
-          // Deep link format: fanclubz://auth/callback?code=xxx&state=yyy
-          const urlObj = new URL(url.replace('fanclubz://', 'https://'));
-          code = urlObj.searchParams.get('code');
-          state = urlObj.searchParams.get('state');
-          
-          console.log('🔐 Extracted from deep link:', { code: code ? 'present' : 'missing', state: state ? 'present' : 'missing' });
-        } catch (err) {
-          console.error('❌ Failed to parse deep link URL:', err);
-        }
-
-        // Exchange the code for a session using Supabase PKCE flow
-        if (code) {
-          try {
-            console.log('🔐 Exchanging code for session...');
-            const { data, error } = await supabase.auth.exchangeCodeForSession(code);
-            
-            if (error) {
-              console.error('❌ Code exchange failed:', error);
-              // Fall through to route handling - AuthCallback will show error
-            } else if (data?.session) {
-              console.log('✅ Session established:', data.session.user.email);
-            }
-          } catch (err) {
-            console.error('❌ Code exchange exception:', err);
-          }
-        }
-      }
-
-      // Emit auth completed event (overlay will hide)
-      window.dispatchEvent(new CustomEvent('auth-in-progress', { detail: { started: false, completed: true } }));
-
-      // Navigate to the callback route in the app
-      // AuthCallback component will handle final session verification and redirect
-      const callbackPath = '/auth/callback' + (url.includes('?') ? url.substring(url.indexOf('?')) : '');
-      console.log('🔐 Navigating to callback route:', callbackPath);
-      console.log('═══════════════════════════════════════');
-      
-      // Use window.location to trigger full navigation (ensures AuthCallback runs)
-      window.location.href = callbackPath;
-    } catch (err) {
-      console.error('❌ Native auth listener exception:', err);
-    }
-  });
-  nativeAuthListener = handle;
-
-  // If the user closes the Browser sheet, we should exit "auth in progress"
-  // so they are not stuck behind the overlay. Note: Browser.close() also triggers
-  // browserFinished, so ignore finishes right after a successful callback.
-  if (!nativeBrowserListener) {
-    const bh = await Browser.addListener('browserFinished', () => {
-      const now = Date.now();
-      if (now - lastNativeAuthCallbackAt < 2000) {
-        return; // likely closed due to successful callback flow
-      }
-      window.dispatchEvent(new CustomEvent('auth-in-progress', { detail: { started: false, cancelled: true } }));
-    });
-    nativeBrowserListener = bh;
-  }
-  
-  console.log('✅ Native auth listener registered for deep link: fanclubz://auth/callback');
-};
 
 const getAuthStorage = () => {
   if (typeof window === 'undefined') return undefined;

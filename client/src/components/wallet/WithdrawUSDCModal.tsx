@@ -23,6 +23,7 @@ import { useWeb3Recovery } from '@/providers/Web3Provider';
 import { computeWalletStatus } from '@/utils/walletStatus';
 import StatusCallout from '@/components/ui/StatusCallout';
 import { getApiUrl } from '@/utils/environment';
+import { policy as storeSafePolicy, getBlockedFeatureMessage } from '@/lib/storeSafePolicy';
 
 const ESCROW_ADDR_ENV = (import.meta.env.VITE_BASE_ESCROW_ADDRESS 
   ? getAddress(import.meta.env.VITE_BASE_ESCROW_ADDRESS) 
@@ -114,6 +115,24 @@ export default function WithdrawUSDCModal({
   }, [submitting, onClose]);
 
   if (!isModalOpen) return null;
+
+  // Phase 7B: Store-safe builds must not allow real-money/crypto withdrawals.
+  if (!storeSafePolicy.allowWithdrawals) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={handleClose}>
+        <div className="bg-white rounded-lg p-6 max-w-md mx-4" onClick={(e) => e.stopPropagation()}>
+          <h2 className="text-lg font-semibold mb-2">Not available in demo mode</h2>
+          <p className="text-gray-600 mb-4">{getBlockedFeatureMessage('withdrawals')}</p>
+          <button
+            onClick={handleClose}
+            className="w-full px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   const walletStatus = computeWalletStatus({
     isConnected,

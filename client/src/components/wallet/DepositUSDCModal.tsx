@@ -18,6 +18,7 @@ import {
 import { getApiUrl } from '@/utils/environment';
 import { useWeb3Recovery } from '@/providers/Web3Provider';
 import { useWalletConnectSession } from '@/hooks/useWalletConnectSession';
+import { policy as storeSafePolicy, getBlockedFeatureMessage } from '@/lib/storeSafePolicy';
 
 // USDC Contract Address - ensure proper checksumming
 function getChecksummedAddress(address: string | undefined): `0x${string}` {
@@ -172,6 +173,24 @@ export default function DepositUSDCModal({
   }, [submitting, onClose]);
 
   if (!isModalOpen) return null;
+
+  // Phase 7B: Store-safe builds must not allow real-money/crypto deposits.
+  if (!storeSafePolicy.allowCryptoWalletConnect) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={handleClose}>
+        <div className="bg-white rounded-lg p-6 max-w-md mx-4" onClick={(e) => e.stopPropagation()}>
+          <h2 className="text-lg font-semibold mb-2">Not available in demo mode</h2>
+          <p className="text-gray-600 mb-4">{getBlockedFeatureMessage('crypto-wallet')}</p>
+          <button
+            onClick={handleClose}
+            className="w-full px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   if (!escrowAddress) {
     return (
