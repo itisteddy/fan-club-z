@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Download, X, Sparkles, Zap, Bell } from 'lucide-react';
 import { pwaManager } from '../utils/pwa';
+import { BUILD_TARGET, IS_NATIVE, STORE_SAFE_MODE } from '@/config/runtime';
 
 interface InstallPromptCardProps {
   onInstall: () => void;
@@ -111,6 +112,11 @@ const InstallPromptCard: React.FC<InstallPromptCardProps> = ({ onInstall, onDism
 const SmartInstallPrompt: React.FC = () => {
   const [showPrompt, setShowPrompt] = useState(false);
   const [userEngagement, setUserEngagement] = useState(0);
+
+  // Phase 5: Never show in iOS/native builds
+  if (BUILD_TARGET !== 'web' || IS_NATIVE || STORE_SAFE_MODE) {
+    return null;
+  }
 
   useEffect(() => {
     // Track user engagement

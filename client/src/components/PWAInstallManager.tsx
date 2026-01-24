@@ -14,8 +14,10 @@ const PWAInstallManager: React.FC = () => {
   // Phase 5: PWA install UX should only render for web builds
   // Never show in iOS builds, native builds, or store-safe mode
   if (BUILD_TARGET !== 'web' || IS_NATIVE || STORE_SAFE_MODE) {
+    console.log('[PWAInstallManager] Blocked: BUILD_TARGET=' + BUILD_TARGET + ', IS_NATIVE=' + IS_NATIVE + ', STORE_SAFE_MODE=' + STORE_SAFE_MODE);
     return null;
   }
+  console.log('[PWAInstallManager] Rendering: BUILD_TARGET=' + BUILD_TARGET);
 
   useEffect(() => {
     // Track session start for timing calculations

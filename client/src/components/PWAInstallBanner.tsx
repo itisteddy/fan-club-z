@@ -1,8 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { X, Download, Smartphone } from 'lucide-react';
 import { pwaManager } from '../utils/pwa';
+import { BUILD_TARGET, IS_NATIVE, STORE_SAFE_MODE } from '@/config/runtime';
 
 const PWAInstallBanner: React.FC = () => {
+  // Phase 5: Belt-and-suspenders check - NEVER show PWA banner in iOS/native builds
+  // This is a fallback in case PWAInstallManager's check fails
+  if (BUILD_TARGET !== 'web' || IS_NATIVE || STORE_SAFE_MODE) {
+    console.log('[PWAInstallBanner] Blocked: BUILD_TARGET=' + BUILD_TARGET + ', IS_NATIVE=' + IS_NATIVE + ', STORE_SAFE_MODE=' + STORE_SAFE_MODE);
+    return null;
+  }
   const [showBanner, setShowBanner] = useState(false);
   const [canInstall, setCanInstall] = useState(false);
 
