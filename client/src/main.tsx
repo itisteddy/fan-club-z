@@ -24,7 +24,8 @@ console.log(`🚀 Fan Club Z ${APP_VERSION} - CONSOLIDATED ARCHITECTURE - SINGLE
 
 // Phase A: Clear any web domain cache/storage on iOS first boot (defensive cleanup)
 // This prevents old web bundles from contaminating iOS builds
-if (BUILD_TARGET === 'ios' && typeof window !== 'undefined') {
+// Only run if actually in iOS native runtime (fail-safe)
+if (isIOSRuntime() && typeof window !== 'undefined') {
   const iOSFirstBootKey = 'ios-cache-cleared-v2';
   if (!localStorage.getItem(iOSFirstBootKey)) {
     console.log('[Bootstrap] iOS first boot: clearing web domain caches');
@@ -55,13 +56,16 @@ if (BUILD_TARGET === 'ios' && typeof window !== 'undefined') {
 }
 
 // Phase 3: Register native OAuth deep link listener ONCE at bootstrap
-// This ensures deterministic callback handling and prevents duplicate listeners
-if (BUILD_TARGET === 'ios' && typeof window !== 'undefined') {
+// CRITICAL: Only register if BOTH build target is iOS AND runtime is native iOS
+// This fail-safe prevents iOS builds deployed to web from registering native listeners
+import { shouldUseIOSDeepLinks, isIOSRuntime } from './config/platform';
+
+if (shouldUseIOSDeepLinks() && typeof window !== 'undefined') {
   CapacitorApp.addListener('appUrlOpen', async ({ url }) => {
     console.log('[Bootstrap] appUrlOpen received:', url);
     await handleNativeAuthCallback(url);
   }).then(() => {
-    console.log('[Bootstrap] ✅ Native OAuth listener registered (BUILD_TARGET=ios)');
+    console.log('[Bootstrap] ✅ Native OAuth listener registered (iOS native runtime)');
   }).catch((err) => {
     console.error('[Bootstrap] ❌ Failed to register native OAuth listener:', err);
   });

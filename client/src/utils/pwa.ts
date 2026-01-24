@@ -81,6 +81,9 @@ export class PWAManager {
         const registration = await navigator.serviceWorker.register('/sw.js');
         console.log('Service Worker registered successfully:', registration);
         
+        // Force update check after registration
+        await registration.update().catch(() => {});
+        
         // Handle service worker updates
         registration.addEventListener('updatefound', () => {
           const newWorker = registration.installing;
@@ -93,6 +96,23 @@ export class PWAManager {
             });
           }
         });
+        
+        // Check for cache version mismatch and force refresh
+        const CACHE_VERSION = '2026-01-24-01';
+        const lastVersion = localStorage.getItem('pwa-cache-version');
+        if (lastVersion && lastVersion !== CACHE_VERSION) {
+          console.log('[PWA] Cache version mismatch detected, clearing caches');
+          // Unregister SW and clear caches
+          registration.unregister().then(() => {
+            caches.keys().then((keys) => {
+              keys.forEach((key) => caches.delete(key));
+              localStorage.setItem('pwa-cache-version', CACHE_VERSION);
+              window.location.reload();
+            });
+          });
+        } else if (!lastVersion) {
+          localStorage.setItem('pwa-cache-version', CACHE_VERSION);
+        }
       } catch (error) {
         console.error('Service Worker registration failed:', error);
       }
@@ -262,5 +282,17 @@ export class PWAManager {
   }
 }
 
-// Initialize PWA manager
-export const pwaManager = PWAManager.getInstance();
+// Lazy getter: PWA manager only initializes when actually needed
+// This prevents SW/PWA code from executing in native builds
+let _pwaManager: PWAManager | null = null;
+
+export function getPWAManager(): PWAManager {
+  // CRITICAL: Never initialize PWA manager in native builds
+  if (BUILD_TARGET !== 'web' || IS_NATIVE || STORE_SAFE_MODE) {
+    throw new Error('PWA manager should not be accessed in native builds');
+  }
+  if (!_pwaManager) {
+    _pwaManager = PWAManager.getInstance();
+  }
+  return _pwaManager;
+}

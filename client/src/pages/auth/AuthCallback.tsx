@@ -133,13 +133,25 @@ const AuthCallback: React.FC = () => {
           }
         }
         
-        // For OAuth flows (Google, etc.): Supabase handles code exchange automatically
-        // via detectSessionInUrl, but we give it a moment to process
-        if (isOAuthFlow) {
+        // For OAuth flows (Google, etc.): Explicitly exchange code for session
+        // This ensures web OAuth always completes even if detectSessionInUrl fails
+        if (isOAuthFlow && code) {
           console.log('Detected OAuth flow (code parameter present)');
-          console.log('Supabase should automatically handle PKCE code exchange...');
-          // Give Supabase time to process the OAuth callback
-          await sleep(500);
+          console.log('Exchanging code for session...');
+          try {
+            const { data: exchangeData, error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
+            if (exchangeError) {
+              console.error('Code exchange error:', exchangeError);
+              throw exchangeError;
+            }
+            if (exchangeData?.session) {
+              console.log('✅ Code exchange successful, session established');
+            }
+          } catch (exchangeErr: any) {
+            console.warn('Code exchange failed, falling back to Supabase auto-handling:', exchangeErr);
+            // Fallback: give Supabase time to process automatically
+            await sleep(500);
+          }
         }
 
         // 🔐 Final session check (handles both PKCE and magic-link flows)

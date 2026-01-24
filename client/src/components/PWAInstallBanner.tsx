@@ -1,13 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { X, Download, Smartphone } from 'lucide-react';
-import { pwaManager } from '../utils/pwa';
-import { BUILD_TARGET, IS_NATIVE, STORE_SAFE_MODE } from '@/config/runtime';
+import { getPWAManager } from '../utils/pwa';
+import { shouldUseStoreSafeMode } from '@/config/platform';
+import { Capacitor } from '@capacitor/core';
 
 const PWAInstallBanner: React.FC = () => {
-  // Phase 5: Belt-and-suspenders check - NEVER show PWA banner in iOS/native builds
+  // Phase 5: Belt-and-suspenders check - NEVER show PWA banner in native builds
   // This is a fallback in case PWAInstallManager's check fails
-  if (BUILD_TARGET !== 'web' || IS_NATIVE || STORE_SAFE_MODE) {
-    console.log('[PWAInstallBanner] Blocked: BUILD_TARGET=' + BUILD_TARGET + ', IS_NATIVE=' + IS_NATIVE + ', STORE_SAFE_MODE=' + STORE_SAFE_MODE);
+  const storeSafe = shouldUseStoreSafeMode();
+  const isNative = Capacitor.isNativePlatform();
+  if (isNative || storeSafe) {
+    console.log('[PWAInstallBanner] Blocked: isNative=' + isNative + ', storeSafe=' + storeSafe);
     return null;
   }
   const [showBanner, setShowBanner] = useState(false);
@@ -16,6 +19,7 @@ const PWAInstallBanner: React.FC = () => {
   useEffect(() => {
     // Check initial install status
     const checkInstallStatus = () => {
+      const pwaManager = getPWAManager();
       if (pwaManager.isAppInstalled()) {
         setShowBanner(false);
         return;
@@ -39,6 +43,7 @@ const PWAInstallBanner: React.FC = () => {
           setTimeout(() => setShowBanner(true), 5000); // Increased delay
         } else {
           // For Android, wait for install prompt
+          const pwaManager = getPWAManager();
           setCanInstall(pwaManager.canInstall());
         }
       }
@@ -69,6 +74,7 @@ const PWAInstallBanner: React.FC = () => {
   }, []);
 
   const handleInstallClick = async () => {
+    const pwaManager = getPWAManager();
     const isIOS = pwaManager.isIOSDevice();
     
     if (isIOS) {
@@ -88,6 +94,7 @@ const PWAInstallBanner: React.FC = () => {
 
   const handleDismiss = () => {
     setShowBanner(false);
+    const pwaManager = getPWAManager();
     const storageKey = pwaManager.isIOSDevice() ? 'ios-install-dismissed' : 'pwa-banner-dismissed';
     localStorage.setItem(storageKey, Date.now().toString());
     // Also dismiss for this session
@@ -98,6 +105,7 @@ const PWAInstallBanner: React.FC = () => {
     return null;
   }
 
+  const pwaManager = getPWAManager();
   const isIOS = pwaManager.isIOSDevice();
 
   return (

@@ -1,5 +1,6 @@
 // Service Worker for Fan Club Z PWA
-const CACHE_NAME = 'fanclubz-cache';
+const CACHE_VERSION = '2026-01-24-01'; // Bump on every deploy to invalidate old caches
+const CACHE_NAME = `fanclubz-cache-${CACHE_VERSION}`;
 const STATIC_ASSETS = ['/', '/index.html', '/manifest.json', '/icons/icon-192.png', '/icons/icon-512.png'];
 const API_BASE = (() => {
   try {
@@ -64,6 +65,30 @@ self.addEventListener('fetch', (event) => {
   // Skip chrome-extension and cross-origin requests
   if (!event.request.url.startsWith(self.location.origin)) {
     return;
+  }
+
+  // CRITICAL: NEVER cache auth-related requests
+  // This prevents OAuth callbacks from being served from cache
+  const url = new URL(event.request.url);
+  if (url.pathname.startsWith('/auth') || 
+      url.searchParams.has('code') || 
+      url.searchParams.has('access_token') ||
+      url.hash.includes('access_token') ||
+      url.pathname.startsWith('/api')) {
+    // Network-only for auth and API requests
+    return fetch(event.request);
+  }
+
+  // CRITICAL: NEVER cache auth-related requests
+  // This prevents OAuth callbacks from being served from cache
+  const url = new URL(event.request.url);
+  if (url.pathname.startsWith('/auth') || 
+      url.searchParams.has('code') || 
+      url.searchParams.has('access_token') ||
+      url.hash.includes('access_token') ||
+      url.pathname.startsWith('/api')) {
+    // Network-only for auth and API requests
+    return fetch(event.request);
   }
 
   event.respondWith(

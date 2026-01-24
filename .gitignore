@@ -24,6 +24,10 @@ node_modules/.vite/
 .env.development
 .env.*
 *.local
+# Exception: Allow build-target env files to be committed (no secrets)
+!client/.env.web
+!client/.env.ios
+!client/.env.android
 
 # Logs
 *.log

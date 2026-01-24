@@ -3,7 +3,7 @@ import { Browser } from '@capacitor/browser';
 import { OAuth2Client } from '@byteowls/capacitor-oauth2';
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from '@/utils/environment';
 import { captureReturnTo } from '@/lib/returnTo';
-import { BUILD_TARGET } from '@/config/runtime';
+import { shouldUseIOSDeepLinks, isIOSRuntime } from '@/config/platform';
 
 // Environment variables from centralized config
 const supabaseUrl = SUPABASE_URL;
@@ -27,8 +27,8 @@ if (!supabaseUrl || !supabaseAnonKey) {
 }
 
 // Helper to get the proper redirect URL for any environment
-// Phase 2: Use BUILD_TARGET to determine redirect URL (not isNative alone)
-// iOS builds use deep link scheme (fanclubz://), web uses HTTPS
+// CRITICAL: Deep links require BOTH build target AND native runtime
+// This fail-safe prevents iOS builds deployed to web from breaking production
 function getRedirectUrl(next?: string) {
   const appendNext = (base: string) => {
     if (!next) return base;
@@ -36,16 +36,19 @@ function getRedirectUrl(next?: string) {
     return `${base}${separator}next=${encodeURIComponent(next)}`;
   };
 
-  // Phase 2: Use BUILD_TARGET instead of runtime isNative check
-  // This ensures web behavior is never affected by native detection
-  const isIOSBuild = BUILD_TARGET === 'ios';
+  // Use platform utility with fail-safe guard
+  const useDeepLinks = shouldUseIOSDeepLinks();
   
   // Log for debugging
-  console.log('🔧 getRedirectUrl called:', { buildTarget: BUILD_TARGET, isIOSBuild, next });
+  console.log('[auth] redirectTo', { 
+    buildTarget: import.meta.env.VITE_BUILD_TARGET || 'web',
+    native: isIOSRuntime(),
+    iosRuntime: isIOSRuntime(),
+    redirectTo: useDeepLinks ? 'fanclubz://auth/callback' : 'https'
+  });
 
-  // CRITICAL: iOS builds MUST use deep link scheme for OAuth callback
-  // This allows the app to receive the callback and close the Browser sheet
-  if (isIOSBuild) {
+  // CRITICAL: Only use deep links when BOTH build target is iOS AND runtime is native iOS
+  if (useDeepLinks) {
     const deepLinkUrl = 'fanclubz://auth/callback';
     console.log('🔧 Auth redirect URL (iOS deep link):', deepLinkUrl);
     return appendNext(deepLinkUrl);
@@ -205,88 +208,59 @@ export const auth = {
   },
 
       signInWithOAuth: async (provider: OAuthProvider, options?: { next?: string }) => {
-        // Phase 3: Use BUILD_TARGET instead of isNativePlatform() for deterministic gating
-        const isIOSBuild = BUILD_TARGET === 'ios';
+        // Use platform utility with fail-safe guard
+        const useIOSDeepLinks = shouldUseIOSDeepLinks();
+        const iosRuntime = isIOSRuntime();
 
         try {
-          if (import.meta.env.DEV && isIOSBuild) {
+          if (import.meta.env.DEV && iosRuntime) {
             console.log('═══════════════════════════════════════');
             console.log('[OAuth] 🔐 OAUTH SIGN IN STARTED');
             console.log('[OAuth] Provider:', provider);
-            console.log('[OAuth] BUILD_TARGET:', BUILD_TARGET);
             console.log('[OAuth] Next param:', options?.next);
             console.log('═══════════════════════════════════════');
           }
           
-          // Phase 3: iOS builds use deep link, web uses HTTPS
+          // Get redirect URL (uses fail-safe platform utility)
           const redirectUrl = getRedirectUrl(options?.next);
           
-          if (import.meta.env.DEV && isIOSBuild) {
+          if (import.meta.env.DEV && iosRuntime) {
             console.log('[OAuth] Final OAuth redirect URL:', redirectUrl);
-            console.log('[OAuth] Expected for iOS: fanclubz://auth/callback');
+            console.log('[OAuth] Using deep links:', useIOSDeepLinks);
             console.log('═══════════════════════════════════════');
           }
 
-          // Emit auth started event for overlay (iOS only)
-          if (isIOSBuild) {
+          // Emit auth started event for overlay (iOS native only)
+          if (iosRuntime) {
             window.dispatchEvent(new CustomEvent('auth-in-progress', { detail: { started: true } }));
           }
 
-          const { data, error} = await supabase.auth.signInWithOAuth({
-            provider,
-            options: {
-              redirectTo: redirectUrl,
-              skipBrowserRedirect: isIOSBuild, // Phase 3: Skip browser redirect for iOS
-              queryParams: {
-                access_type: 'offline',
-                prompt: 'consent',
-              },
-            },
-          });
-          
-          if (error) {
-            console.error('[OAuth] Auth signInWithOAuth error:', error);
-            if (isIOSBuild) {
-              window.dispatchEvent(new CustomEvent('auth-in-progress', { detail: { started: false, error: true } }));
-            }
-          } else if (isIOSBuild && data?.url) {
-            // CRITICAL FIX: Use OAuth2Client with ASWebAuthenticationSession
-            // Browser.open uses SFSafariViewController which DOES NOT pass custom URL schemes back to app
-            // OAuth2Client uses ASWebAuthenticationSession which DOES handle fanclubz:// properly
+          // iOS native: use OAuth2Client with ASWebAuthenticationSession
+          if (useIOSDeepLinks && iosRuntime) {
+            // iOS: use ASWebAuthenticationSession via OAuth2Client
             if (import.meta.env.DEV) {
               console.log('═══════════════════════════════════════');
               console.log('[OAuth] 🔐 Using OAuth2Client (ASWebAuthenticationSession)');
-              console.log('[OAuth] Supabase OAuth URL:', data.url);
+              console.log('[OAuth] Provider:', provider);
+              console.log('[OAuth] Redirect:', redirectUrl);
               console.log('═══════════════════════════════════════');
             }
 
             try {
-              // Parse Supabase's OAuth URL to extract components
-              const authUrl = new URL(data.url);
-              const redirectUrl = getRedirectUrl(options?.next);
-              
-              // Extract provider from URL (e.g., /auth/v1/authorize?provider=google)
-              const providerParam = authUrl.searchParams.get('provider') || provider;
-              
-              // Supabase OAuth endpoint structure: {SUPABASE_URL}/auth/v1/authorize
-              const authorizationBaseUrl = `${supabaseUrl}/auth/v1/authorize`;
-              
-              // Use OAuth2Client which properly handles custom URL schemes via ASWebAuthenticationSession
               const result = await OAuth2Client.authenticate({
-                authorizationBaseUrl: authorizationBaseUrl,
-                appId: SUPABASE_ANON_KEY, // Supabase uses anon key as client_id
-                redirectUrl: redirectUrl,
+                authorizationBaseUrl: `${supabaseUrl}/auth/v1/authorize`,
+                appId: SUPABASE_ANON_KEY, // Supabase anon key is client_id for Supabase Auth
+                redirectUrl,
                 responseType: 'code',
                 pkceEnabled: true,
                 scope: 'openid email profile',
-                accessTokenEndpoint: `${supabaseUrl}/auth/v1/token`, // For token exchange
                 additionalParameters: {
-                  provider: providerParam,
-                  ...Object.fromEntries(authUrl.searchParams.entries()), // Pass all Supabase params
+                  provider,
+                  redirect_to: redirectUrl,
                 },
                 ios: {
                   responseType: 'code',
-                  redirectUrl: redirectUrl,
+                  redirectUrl,
                   pkceEnabled: true,
                 },
                 logsEnabled: import.meta.env.DEV,
@@ -296,8 +270,6 @@ export const auth = {
                 console.log('[OAuth] ✅ OAuth2Client result:', result);
               }
 
-              // OAuth2Client returns the code in the callback URL, extract it
-              // The plugin handles the redirect and returns the authorization code
               if (result?.code) {
                 const { data: sessionData, error: exchangeError } = await supabase.auth.exchangeCodeForSession(result.code);
                 if (exchangeError) {
@@ -319,15 +291,29 @@ export const auth = {
                   detail: { started: false, error: true }
                 }));
               }
+              return { data: null, error: null };
             } catch (oauthError: any) {
               console.error('[OAuth] ❌ OAuth2Client error:', oauthError);
-              // Fallback to Browser.open if OAuth2Client fails
-              console.warn('[OAuth] Falling back to Browser.open');
-              await Browser.open({
-                url: data.url,
-                presentationStyle: 'fullscreen',
-              });
+              window.dispatchEvent(new CustomEvent('auth-in-progress', { detail: { started: false, error: true } }));
+              return { data: null, error: { message: oauthError?.message || 'OAuth failed' } };
             }
+          }
+
+          // Web: use standard Supabase OAuth flow with HTTPS callback
+          const { data, error} = await supabase.auth.signInWithOAuth({
+            provider,
+            options: {
+              redirectTo: redirectUrl,
+              skipBrowserRedirect: false, // Web uses browser redirect
+              queryParams: {
+                access_type: 'offline',
+                prompt: 'consent',
+              },
+            },
+          });
+          
+          if (error) {
+            console.error('[OAuth] Auth signInWithOAuth error:', error);
           }
           
           return { data, error };

@@ -11,7 +11,7 @@
 
 import { Browser } from '@capacitor/browser';
 import { supabase } from '@/lib/supabase';
-import { BUILD_TARGET } from '@/config/runtime';
+import { shouldUseIOSDeepLinks } from '@/config/platform';
 
 let isProcessingCallback = false;
 
@@ -22,8 +22,8 @@ let isProcessingCallback = false;
  * @returns true if this was an auth callback and was handled, false otherwise
  */
 export async function handleNativeAuthCallback(url: string): Promise<boolean> {
-  // Only process iOS build targets
-  if (BUILD_TARGET !== 'ios') {
+  // Only process if we should use iOS deep links (fail-safe guard)
+  if (!shouldUseIOSDeepLinks()) {
     return false;
   }
 

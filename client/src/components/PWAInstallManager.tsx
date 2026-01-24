@@ -3,21 +3,23 @@ import PWAInstallBanner from './PWAInstallBanner';
 import IOSInstallModal from './IOSInstallModal';
 import SmartInstallPrompt from './SmartInstallPrompt';
 import TopUpdateToast from './TopUpdateToast';
-import { pwaManager } from '../utils/pwa';
+import { getPWAManager } from '../utils/pwa';
 import { supabase } from '@/lib/supabase';
-import { BUILD_TARGET, IS_NATIVE, STORE_SAFE_MODE } from '@/config/runtime';
+import { shouldUseStoreSafeMode } from '@/config/platform';
+import { Capacitor } from '@capacitor/core';
 
 const PWAInstallManager: React.FC = () => {
   const [showIOSModal, setShowIOSModal] = useState(false);
   const [showUpdateNotification, setShowUpdateNotification] = useState(false);
 
   // Phase 5: PWA install UX should only render for web builds
-  // Never show in iOS builds, native builds, or store-safe mode
-  if (BUILD_TARGET !== 'web' || IS_NATIVE || STORE_SAFE_MODE) {
-    console.log('[PWAInstallManager] Blocked: BUILD_TARGET=' + BUILD_TARGET + ', IS_NATIVE=' + IS_NATIVE + ', STORE_SAFE_MODE=' + STORE_SAFE_MODE);
+  // Never show in native builds or store-safe mode (fail-safe guard)
+  const storeSafe = shouldUseStoreSafeMode();
+  const isNative = Capacitor.isNativePlatform();
+  if (isNative || storeSafe) {
+    console.log('[PWAInstallManager] Blocked: isNative=' + isNative + ', storeSafe=' + storeSafe);
     return null;
   }
-  console.log('[PWAInstallManager] Rendering: BUILD_TARGET=' + BUILD_TARGET);
 
   useEffect(() => {
     // Track session start for timing calculations
@@ -43,6 +45,7 @@ const PWAInstallManager: React.FC = () => {
         const alreadyRequested = localStorage.getItem('notification-permission-requested');
         
         if (hasInteracted && !alreadyRequested) {
+          const pwaManager = getPWAManager();
           const granted = await pwaManager.requestNotificationPermission();
           localStorage.setItem('notification-permission-requested', 'true');
           
