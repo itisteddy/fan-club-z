@@ -41,9 +41,8 @@ export async function adminGet<T>(
 ): Promise<T> {
   const url = buildAdminUrl(path, actorId, params);
   const adminKey = getAdminKey();
-  const headers: HeadersInit = {
-    'Content-Type': 'application/json',
-  };
+  // Avoid forcing CORS preflight on GET by not setting Content-Type.
+  const headers: HeadersInit = {};
   if (adminKey) {
     headers['x-admin-key'] = adminKey;
   }

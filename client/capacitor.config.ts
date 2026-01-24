@@ -21,6 +21,11 @@ const config: CapacitorConfig = {
     },
   },
   plugins: {
+    // CRITICAL: Patch fetch/XHR on native to use CapacitorHttp under the hood.
+    // This removes CORS fragility in iOS/Android WebViews even if some code paths still use fetch().
+    CapacitorHttp: {
+      enabled: true,
+    },
     SplashScreen: {
       launchShowDuration: 2000,
       launchAutoHide: true,

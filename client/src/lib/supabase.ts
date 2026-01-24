@@ -5,6 +5,7 @@ import { Browser } from '@capacitor/browser';
 import type { PluginListenerHandle } from '@capacitor/core';
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from '@/utils/environment';
 import { captureReturnTo } from '@/lib/returnTo';
+import { BUILD_TARGET } from '@/config/runtime';
 
 // Environment variables from centralized config
 const supabaseUrl = SUPABASE_URL;
@@ -27,10 +28,36 @@ if (!supabaseUrl || !supabaseAnonKey) {
   );
 }
 
-const isNativePlatform = () => typeof window !== 'undefined' && Boolean(Capacitor?.isNativePlatform?.());
+// Check if running in native Capacitor shell
+const isNativePlatform = () => {
+  if (typeof window === 'undefined') return false;
+  
+  // Primary check: Capacitor.isNativePlatform()
+  const capacitorNative = Boolean(Capacitor?.isNativePlatform?.());
+  
+  // Secondary check: platform is not 'web'
+  const platformCheck = Capacitor?.getPlatform?.() !== 'web';
+  
+  // Tertiary check: user agent contains Capacitor or native indicators
+  const uaCheck = typeof navigator !== 'undefined' && /Capacitor|ionic/i.test(navigator.userAgent || '');
+  
+  const isNative = capacitorNative || platformCheck;
+  
+  // Log for debugging (always log this in production too for iOS troubleshooting)
+  console.log('📱 isNativePlatform check:', {
+    capacitorNative,
+    platform: Capacitor?.getPlatform?.(),
+    platformCheck,
+    uaCheck,
+    result: isNative
+  });
+  
+  return isNative;
+};
 
 // Helper to get the proper redirect URL for any environment
-// Native builds use deep link scheme (fanclubz://), web uses HTTPS
+// Phase 2: Use BUILD_TARGET to determine redirect URL (not isNative alone)
+// iOS builds use deep link scheme (fanclubz://), web uses HTTPS
 function getRedirectUrl(next?: string) {
   const appendNext = (base: string) => {
     if (!next) return base;
@@ -38,13 +65,18 @@ function getRedirectUrl(next?: string) {
     return `${base}${separator}next=${encodeURIComponent(next)}`;
   };
 
-  // CRITICAL: Native builds MUST use deep link scheme for OAuth callback
+  // Phase 2: Use BUILD_TARGET instead of runtime isNative check
+  // This ensures web behavior is never affected by native detection
+  const isIOSBuild = BUILD_TARGET === 'ios';
+  
+  // Log for debugging
+  console.log('🔧 getRedirectUrl called:', { buildTarget: BUILD_TARGET, isIOSBuild, next });
+
+  // CRITICAL: iOS builds MUST use deep link scheme for OAuth callback
   // This allows the app to receive the callback and close the Browser sheet
-  if (isNativePlatform()) {
+  if (isIOSBuild) {
     const deepLinkUrl = 'fanclubz://auth/callback';
-    if (import.meta.env.DEV) {
-      console.log('🔧 Auth redirect URL (native deep link):', deepLinkUrl);
-    }
+    console.log('🔧 Auth redirect URL (iOS deep link):', deepLinkUrl);
     return appendNext(deepLinkUrl);
   }
 
@@ -80,11 +112,13 @@ function getRedirectUrl(next?: string) {
 export const buildAuthRedirectUrl = (next?: string) => getRedirectUrl(next);
 
 let nativeAuthListener: PluginListenerHandle | null = null;
+let nativeBrowserListener: PluginListenerHandle | null = null;
+let lastNativeAuthCallbackAt = 0;
 
-const ensureNativeAuthListener = () => {
+const ensureNativeAuthListener = async () => {
   if (!isNativePlatform() || nativeAuthListener) return;
 
-  nativeAuthListener = CapacitorApp.addListener('appUrlOpen', async ({ url }) => {
+  const handle = await CapacitorApp.addListener('appUrlOpen', async ({ url }) => {
     try {
       console.log('═══════════════════════════════════════');
       console.log('🔐 Native appUrlOpen received:', url);
@@ -106,6 +140,7 @@ const ensureNativeAuthListener = () => {
       }
 
       console.log('🔐 Auth callback detected, processing...');
+      lastNativeAuthCallbackAt = Date.now();
 
       // Close the browser immediately (critical for UX)
       await Browser.close().catch((err) => {
@@ -150,6 +185,9 @@ const ensureNativeAuthListener = () => {
         }
       }
 
+      // Emit auth completed event (overlay will hide)
+      window.dispatchEvent(new CustomEvent('auth-in-progress', { detail: { started: false, completed: true } }));
+
       // Navigate to the callback route in the app
       // AuthCallback component will handle final session verification and redirect
       const callbackPath = '/auth/callback' + (url.includes('?') ? url.substring(url.indexOf('?')) : '');
@@ -162,6 +200,21 @@ const ensureNativeAuthListener = () => {
       console.error('❌ Native auth listener exception:', err);
     }
   });
+  nativeAuthListener = handle;
+
+  // If the user closes the Browser sheet, we should exit "auth in progress"
+  // so they are not stuck behind the overlay. Note: Browser.close() also triggers
+  // browserFinished, so ignore finishes right after a successful callback.
+  if (!nativeBrowserListener) {
+    const bh = await Browser.addListener('browserFinished', () => {
+      const now = Date.now();
+      if (now - lastNativeAuthCallbackAt < 2000) {
+        return; // likely closed due to successful callback flow
+      }
+      window.dispatchEvent(new CustomEvent('auth-in-progress', { detail: { started: false, cancelled: true } }));
+    });
+    nativeBrowserListener = bh;
+  }
   
   console.log('✅ Native auth listener registered for deep link: fanclubz://auth/callback');
 };
@@ -288,13 +341,15 @@ export const auth = {
       signInWithOAuth: async (provider: OAuthProvider, options?: { next?: string }) => {
         const native = isNativePlatform();
         if (native) {
-          ensureNativeAuthListener();
+          await ensureNativeAuthListener();
         }
 
         try {
           console.log('═══════════════════════════════════════');
           console.log('🔐 OAUTH SIGN IN STARTED');
           console.log('  Provider:', provider);
+          console.log('  Is Native:', native);
+          console.log('  Capacitor Platform:', Capacitor?.getPlatform?.());
           console.log('  Next param:', options?.next);
           console.log('  Current hostname:', window.location.hostname);
           console.log('  Current origin:', window.location.origin);
@@ -302,7 +357,13 @@ export const auth = {
           
           const redirectUrl = getRedirectUrl(options?.next);
           console.log('🔐 Final OAuth redirect URL:', redirectUrl);
+          console.log('🔐 Expected for native: fanclubz://auth/callback');
           console.log('═══════════════════════════════════════');
+
+          // Emit auth started event for overlay
+          if (native) {
+            window.dispatchEvent(new CustomEvent('auth-in-progress', { detail: { started: true } }));
+          }
 
           const { data, error} = await supabase.auth.signInWithOAuth({
             provider,
@@ -318,7 +379,19 @@ export const auth = {
           
           if (error) {
             console.error('Auth signInWithOAuth error:', error);
+            if (native) {
+              window.dispatchEvent(new CustomEvent('auth-in-progress', { detail: { started: false, error: true } }));
+            }
           } else if (native && data?.url) {
+            // Log the EXACT URL being opened (user requested this)
+            console.log('═══════════════════════════════════════');
+            console.log('🔐 EXACT Browser.open URL:');
+            console.log(data.url);
+            console.log('═══════════════════════════════════════');
+            console.log('🔐 URL contains redirect_to=fanclubz:', data.url.includes('redirect_to=fanclubz'));
+            console.log('🔐 URL contains redirect_to=fanclubz%3A%2F%2Fauth%2Fcallback:', data.url.includes('redirect_to=fanclubz%3A%2F%2Fauth%2Fcallback'));
+            console.log('═══════════════════════════════════════');
+            
             await Browser.open({
               url: data.url,
               presentationStyle: 'fullscreen',
@@ -328,6 +401,9 @@ export const auth = {
           return { data, error };
         } catch (error: any) {
           console.error('Auth signInWithOAuth exception:', error);
+          if (native) {
+            window.dispatchEvent(new CustomEvent('auth-in-progress', { detail: { started: false, error: true } }));
+          }
           return { data: null, error: { message: error.message || 'An unexpected error occurred' } };
         }
       },

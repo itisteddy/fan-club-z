@@ -1,5 +1,7 @@
 // PWA utility functions for service worker registration and management
+import { Capacitor } from '@capacitor/core';
 import { VAPID_PUBLIC_KEY, getApiUrl } from '@/utils/environment';
+import { STORE_SAFE_MODE } from '@/config/runtime';
 
 export interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
@@ -23,6 +25,25 @@ export class PWAManager {
   }
 
   private init() {
+    // Phase 2: Use STORE_SAFE_MODE instead of isNativePlatform()
+    // Store-safe mode (iOS App Store builds) should NEVER register service workers
+    // Service workers are web-only and cause issues in native WebViews
+    if (STORE_SAFE_MODE) {
+      console.log('[PWA] Skipping service worker registration in store-safe mode');
+      if ('serviceWorker' in navigator) {
+        // Proactively unregister any existing SW in store-safe builds
+        navigator.serviceWorker.getRegistrations().then((registrations) => {
+          registrations.forEach((registration) => {
+            console.log('[PWA] Unregistering existing service worker in store-safe mode:', registration.scope);
+            registration.unregister();
+          });
+        }).catch((err) => {
+          console.warn('[PWA] Failed to unregister service workers in store-safe mode:', err);
+        });
+      }
+      return;
+    }
+
     // In development, do NOT register or use the PWA service worker.
     // It interferes with localhost testing by caching old bundles (including landing builds).
     if (import.meta.env.DEV) {
@@ -41,7 +62,7 @@ export class PWAManager {
       return;
     }
 
-    // Register service worker (production only)
+    // Register service worker (production web only)
     this.registerServiceWorker();
 
     // Check if app is already installed

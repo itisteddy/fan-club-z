@@ -1,0 +1,1 @@
+import{j as a}from"./ui-c369d1f3.js";import{M as p}from"./index-78beacc5.js";function r({children:m,className:s}){return a.jsx("div",{className:p("mx-auto w-full max-w-[720px] lg:max-w-[960px]","px-4 md:px-6","py-4 md:py-5","bg-gray-50 min-h-screen",s),children:a.jsx("div",{className:"space-y-4 md:space-y-5",children:m})})}export{r as P};
