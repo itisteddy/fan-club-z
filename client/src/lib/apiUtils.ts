@@ -86,15 +86,26 @@ export const fetchWithRetry = async (
       // Create abort controller for timeout
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), timeout);
-      
+
+      const method = String(fetchOptions.method || 'GET').toUpperCase();
+      const isGetLike = method === 'GET' || method === 'HEAD';
+
+      // IMPORTANT: Avoid forcing preflight on GET/HEAD by NOT setting Content-Type.
+      // Only set Content-Type when we actually send a JSON body.
+      const headers: Record<string, string> = {
+        Accept: 'application/json',
+        ...(fetchOptions.headers as any),
+      };
+
+      const hasBody = typeof fetchOptions.body !== 'undefined' && fetchOptions.body !== null;
+      if (!isGetLike && hasBody && !('Content-Type' in headers) && !('content-type' in headers)) {
+        headers['Content-Type'] = 'application/json';
+      }
+
       const response = await fetch(url, {
         ...fetchOptions,
         signal: controller.signal,
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-          ...fetchOptions.headers,
-        },
+        headers,
       });
       
       clearTimeout(timeoutId);

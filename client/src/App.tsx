@@ -20,6 +20,7 @@ import MobileShell from './components/layout/MobileShell';
 import { NetworkStatusProvider } from './providers/NetworkStatusProvider';
 import PageLoadingSpinner from './components/ui/PageLoadingSpinner';
 import { OAuthDiagnostic } from './components/diagnostics/OAuthDiagnostic';
+import { AuthInProgressOverlay } from './components/AuthInProgressOverlay';
 
 // Lazy-loaded pages for code splitting
 const LazyDiscoverPage = lazy(() => import('./pages/DiscoverPage'));
@@ -865,6 +866,42 @@ const AppContent: React.FC = () => {
 
 // Root App Component with proper provider nesting
 function App() {
+  const [authInProgress, setAuthInProgress] = React.useState(false);
+  const [authError, setAuthError] = React.useState(false);
+
+  React.useEffect(() => {
+    const handleAuthProgress = (event: CustomEvent) => {
+      const { started, completed, error, cancelled } = event.detail || {};
+      if (started) {
+        setAuthInProgress(true);
+        setAuthError(false);
+      } else if (completed) {
+        setAuthInProgress(false);
+        setAuthError(false);
+      } else if (error || cancelled) {
+        // Keep overlay visible in an "error" state so user can retry
+        setAuthInProgress(false);
+        setAuthError(true);
+      }
+    };
+
+    window.addEventListener('auth-in-progress', handleAuthProgress as EventListener);
+    return () => {
+      window.removeEventListener('auth-in-progress', handleAuthProgress as EventListener);
+    };
+  }, []);
+
+  const handleRetry = () => {
+    setAuthInProgress(false);
+    setAuthError(false);
+    // User can retry by clicking sign-in again
+  };
+
+  const handleCancel = () => {
+    setAuthInProgress(false);
+    setAuthError(false);
+  };
+
   return (
     <NetworkStatusProvider>
       <OAuthDiagnostic />
@@ -873,6 +910,12 @@ function App() {
           <RealtimeProvider>
             <AppContent />
             <ConnectWalletSheet />
+            <AuthInProgressOverlay
+              isVisible={authInProgress || authError}
+              status={authError ? 'error' : 'in_progress'}
+              onRetry={authError ? handleRetry : undefined}
+              onCancel={handleCancel}
+            />
           </RealtimeProvider>
         </AuthSessionProvider>
       </SupabaseProvider>
