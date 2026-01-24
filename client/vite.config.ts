@@ -184,6 +184,15 @@ export default defineConfig(({ mode }) => {
     define: {
       __BUILD_TIME__: JSON.stringify(new Date().toISOString()),
       __CACHE_BUST__: JSON.stringify(Date.now()),
+      // Phase C: Make BUILD_TARGET deterministic (no gitignored env files required)
+      // These are injected at build time based on --mode flag
+      // .env.* files can still override if present, but not required
+      'import.meta.env.VITE_BUILD_TARGET': JSON.stringify(
+        env.VITE_BUILD_TARGET || (mode === 'ios' || mode === 'android' ? mode : 'web')
+      ),
+      'import.meta.env.VITE_STORE_SAFE_MODE': JSON.stringify(
+        env.VITE_STORE_SAFE_MODE || (mode === 'ios' ? 'true' : 'false')
+      ),
     },
     optimizeDeps: {
       entries: ['src/main.tsx'],

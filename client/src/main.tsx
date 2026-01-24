@@ -22,18 +22,46 @@ import { handleNativeAuthCallback } from './lib/auth/nativeOAuth'
 // Centralized version management
 console.log(`🚀 Fan Club Z ${APP_VERSION} - CONSOLIDATED ARCHITECTURE - SINGLE SOURCE OF TRUTH`)
 
+// Phase A: Clear any web domain cache/storage on iOS first boot (defensive cleanup)
+// This prevents old web bundles from contaminating iOS builds
+if (BUILD_TARGET === 'ios' && typeof window !== 'undefined') {
+  const iOSFirstBootKey = 'ios-cache-cleared-v2';
+  if (!localStorage.getItem(iOSFirstBootKey)) {
+    console.log('[Bootstrap] iOS first boot: clearing web domain caches');
+    
+    // Clear service worker registrations
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistrations().then((regs) => {
+        regs.forEach((reg) => {
+          console.log('[Bootstrap] Unregistering SW:', reg.scope);
+          reg.unregister();
+        });
+      });
+    }
+    
+    // Clear caches
+    if ('caches' in window) {
+      caches.keys().then((keys) => {
+        keys.forEach((key) => {
+          console.log('[Bootstrap] Deleting cache:', key);
+          caches.delete(key);
+        });
+      });
+    }
+    
+    localStorage.setItem(iOSFirstBootKey, 'true');
+    console.log('[Bootstrap] ✅ Cache cleanup complete');
+  }
+}
+
 // Phase 3: Register native OAuth deep link listener ONCE at bootstrap
 // This ensures deterministic callback handling and prevents duplicate listeners
 if (BUILD_TARGET === 'ios' && typeof window !== 'undefined') {
   CapacitorApp.addListener('appUrlOpen', async ({ url }) => {
-    if (import.meta.env.DEV) {
-      console.log('[Bootstrap] appUrlOpen received:', url);
-    }
+    console.log('[Bootstrap] appUrlOpen received:', url);
     await handleNativeAuthCallback(url);
   }).then(() => {
-    if (import.meta.env.DEV) {
-      console.log('[Bootstrap] ✅ Native OAuth listener registered (BUILD_TARGET=ios)');
-    }
+    console.log('[Bootstrap] ✅ Native OAuth listener registered (BUILD_TARGET=ios)');
   }).catch((err) => {
     console.error('[Bootstrap] ❌ Failed to register native OAuth listener:', err);
   });

@@ -6,8 +6,10 @@ const config: CapacitorConfig = {
   webDir: 'dist',
   server: {
     androidScheme: 'https',
-    hostname: 'app.fanclubz.app',
-    // Production: uses bundled web assets (no server.url)
+    // CRITICAL: Use capacitor://localhost for iOS to prevent cross-contamination
+    // with web domain storage/cache/service worker
+    // hostname: 'app.fanclubz.app', // REMOVED - causes iOS to share storage with web
+    // Production: uses bundled web assets (capacitor://localhost)
     // For development, uncomment to use localhost:
     // url: 'http://localhost:5174',
     // cleartext: true
