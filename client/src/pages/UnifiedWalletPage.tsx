@@ -28,6 +28,7 @@ import { usePaystackStatus, useFiatSummary } from '@/hooks/useFiatWallet';
 import { FiatDepositSheet } from '@/components/wallet/FiatDepositSheet';
 import { FiatWithdrawalSheet } from '@/components/wallet/FiatWithdrawalSheet';
 import { Runtime } from '@/config/runtime';
+import { policy as storeSafePolicy, guardFeature, getBlockedFeatureMessage } from '@/lib/storeSafePolicy';
 
 interface WalletPageProps {
   onNavigateBack?: () => void;
@@ -410,17 +411,28 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
               <div className="text-center py-8">
                 <Wallet className="w-12 h-12 mx-auto mb-4 text-gray-400" />
                 <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                  Connect Your Wallet
+                  {storeSafePolicy.allowCryptoWalletConnect ? 'Connect Your Wallet' : 'Demo Mode'}
                 </h3>
                 <p className="text-sm text-gray-600 mb-4">
-                  Connect your crypto wallet to view balances and manage funds
+                  {storeSafePolicy.allowCryptoWalletConnect 
+                    ? 'Connect your crypto wallet to view balances and manage funds'
+                    : 'Crypto wallet features are not available in this build. Use demo credits to explore predictions.'}
                 </p>
-                <button
-                  onClick={() => setShowConnectWallet(true)}
-                  className="px-6 py-3 bg-emerald-600 text-white rounded-lg font-medium hover:bg-emerald-700 transition-colors"
-                >
-                  Connect Wallet
-                </button>
+                {storeSafePolicy.allowCryptoWalletConnect ? (
+                  <button
+                    onClick={() => setShowConnectWallet(true)}
+                    className="px-6 py-3 bg-emerald-600 text-white rounded-lg font-medium hover:bg-emerald-700 transition-colors"
+                  >
+                    Connect Wallet
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => setMode('demo')}
+                    className="px-6 py-3 bg-gray-600 text-white rounded-lg font-medium hover:bg-gray-700 transition-colors"
+                  >
+                    Switch to Demo Mode
+                  </button>
+                )}
                 {/* Funding Guide Link */}
                 <div className="mt-6 pt-4 border-t border-gray-100">
                   <p className="text-sm text-gray-500 mb-2">Don't have a wallet yet?</p>
@@ -752,8 +764,8 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
         />
       )}
 
-      {/* Fiat sheets (NGN) - gated by capabilities */}
-      {effectiveFiatEnabled && user?.id && capabilities.allowFiat && (
+      {/* Fiat sheets (NGN) - gated by capabilities AND store-safe policy */}
+      {effectiveFiatEnabled && user?.id && capabilities.allowFiat && storeSafePolicy.allowFiatPayments && (
         <>
           <FiatDepositSheet open={showFiatDeposit} onClose={() => setShowFiatDeposit(false)} userId={user.id} userEmail={user.email} />
           <FiatWithdrawalSheet
