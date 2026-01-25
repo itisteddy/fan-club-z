@@ -73,21 +73,13 @@ self.addEventListener('fetch', (event) => {
   if (url.pathname.startsWith('/auth') || 
       url.searchParams.has('code') || 
       url.searchParams.has('access_token') ||
+      url.searchParams.has('refresh_token') ||
       url.hash.includes('access_token') ||
       url.pathname.startsWith('/api')) {
     // Network-only for auth and API requests
-    return fetch(event.request);
-  }
-
-  // CRITICAL: NEVER cache auth-related requests
-  // This prevents OAuth callbacks from being served from cache
-  const url = new URL(event.request.url);
-  if (url.pathname.startsWith('/auth') || 
-      url.searchParams.has('code') || 
-      url.searchParams.has('access_token') ||
-      url.hash.includes('access_token') ||
-      url.pathname.startsWith('/api')) {
-    // Network-only for auth and API requests
+    if (import.meta.env.DEV) {
+      console.log('[sw] bypass auth request', url.pathname);
+    }
     return fetch(event.request);
   }
 

@@ -215,12 +215,23 @@ export const AuthSessionProvider: React.FC<AuthSessionProviderProps> = ({ childr
     }
   };
 
+  // CRITICAL: isAuthenticated must be derived from actual session, not just user object
+  // This prevents "ghost login" where UI shows logged-in but Supabase has no session
+  const isAuthenticated = Boolean(session && session.user);
+
+  // Log hydration once on mount (DEV only)
+  useEffect(() => {
+    if (initialized && import.meta.env.DEV) {
+      console.log('[auth] hydration', { hasSession: Boolean(session), userId: session?.user?.id || null });
+    }
+  }, [initialized, session]);
+
   const value: AuthSessionContextType = {
     user,
     session,
     loading,
     initialized,
-    isAuthenticated: Boolean(user),
+    isAuthenticated,
     signIn,
     signUp,
     signOut,

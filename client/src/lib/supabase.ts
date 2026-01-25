@@ -5,6 +5,7 @@ import { SUPABASE_URL, SUPABASE_ANON_KEY } from '@/utils/environment';
 import { captureReturnTo } from '@/lib/returnTo';
 import { shouldUseIOSDeepLinks, isIOSRuntime } from '@/config/platform';
 import { BUILD_TARGET } from '@/config/runtime';
+import { getWebOrigin } from '@/config/origin';
 
 // Environment variables from centralized config
 const supabaseUrl = SUPABASE_URL;
@@ -55,33 +56,15 @@ function getRedirectUrl(next?: string) {
     return appendNext(deepLinkUrl);
   }
 
-  // Check for explicit dev/local environment first
-  const isLocalDev = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+  // Web: use canonical web origin (window.location.origin when available)
+  const webOrigin = getWebOrigin();
+  const webCallbackUrl = `${webOrigin}/auth/callback`;
   
-  // In local development, always use current origin
-  if (isLocalDev) {
-    const currentOrigin = window.location.origin;
-    const fallback = `${currentOrigin}/auth/callback`;
-    if (import.meta.env.DEV) {
-      console.log('🔧 Auth redirect URL (local dev):', fallback);
-    }
-    return appendNext(fallback);
-  }
-  
-  // Check if we have a custom redirect URL override (highest priority)
-  if (import.meta.env.VITE_AUTH_REDIRECT_URL) {
-    if (import.meta.env.DEV) {
-      console.log('🔧 Auth redirect URL (override):', import.meta.env.VITE_AUTH_REDIRECT_URL);
-    }
-    return appendNext(import.meta.env.VITE_AUTH_REDIRECT_URL);
-  }
-  
-  // In production web, always use the production URL (never localhost)
-  const prodUrl = 'https://app.fanclubz.app/auth/callback';
   if (import.meta.env.DEV) {
-    console.log('🔧 Auth redirect URL (production web):', prodUrl);
+    console.log('[auth:web] starting oauth', { redirectTo: webCallbackUrl, next, origin: webOrigin });
   }
-  return appendNext(prodUrl);
+  
+  return appendNext(webCallbackUrl);
 }
 
 export const buildAuthRedirectUrl = (next?: string) => getRedirectUrl(next);

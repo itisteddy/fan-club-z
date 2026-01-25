@@ -123,12 +123,39 @@ export const useAuthGate = () => {
 };
 
 /**
+ * Check if we're currently processing an auth callback
+ * This prevents auth gates from opening during callback processing
+ */
+const isProcessingCallback = (): boolean => {
+  if (typeof window === 'undefined') return false;
+  const pathname = window.location.pathname;
+  const search = window.location.search;
+  const hash = window.location.hash;
+  
+  // Check if we're on the callback route or have callback params
+  const isCallbackRoute = pathname === '/auth/callback';
+  const hasCode = search.includes('code=') || hash.includes('code=');
+  const hasError = search.includes('error=') || hash.includes('error=');
+  const hasAccessToken = search.includes('access_token=') || hash.includes('access_token=');
+  
+  return isCallbackRoute || hasCode || hasError || hasAccessToken;
+};
+
+/**
  * Open the auth gate modal for a specific intent
  * Returns a promise that resolves when the user completes or cancels auth
  */
 export const openAuthGate = (opts: OpenOptions): Promise<AuthGateResult> => {
   if (import.meta.env.DEV && import.meta.env.VITE_DEBUG_LOGS === 'true') {
     console.log('[FCZ-QA] openAuthGate called with:', opts);
+  }
+
+  // CRITICAL: Do not open auth gate if we're processing a callback
+  if (isProcessingCallback()) {
+    if (import.meta.env.DEV) {
+      console.log('[auth:guard] bypass callback processing');
+    }
+    return Promise.resolve({ status: 'cancel', reason: 'Callback processing in progress' });
   }
 
   return new Promise<AuthGateResult>((resolve) => {
