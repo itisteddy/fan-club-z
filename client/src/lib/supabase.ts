@@ -4,6 +4,7 @@ import { OAuth2Client } from '@byteowls/capacitor-oauth2';
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from '@/utils/environment';
 import { captureReturnTo } from '@/lib/returnTo';
 import { shouldUseIOSDeepLinks, isIOSRuntime } from '@/config/platform';
+import { BUILD_TARGET } from '@/config/runtime';
 
 // Environment variables from centralized config
 const supabaseUrl = SUPABASE_URL;

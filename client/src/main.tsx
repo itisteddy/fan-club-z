@@ -18,9 +18,13 @@ import { useMaintenanceStore } from './store/maintenanceStore'
 import { App as CapacitorApp } from '@capacitor/app'
 import { BUILD_TARGET } from './config/runtime'
 import { handleNativeAuthCallback } from './lib/auth/nativeOAuth'
+import { Capacitor } from '@capacitor/core'
 
 // Centralized version management
 console.log(`🚀 Fan Club Z ${APP_VERSION} - CONSOLIDATED ARCHITECTURE - SINGLE SOURCE OF TRUTH`)
+
+// Early boot log: verify BUILD_TARGET is resolved (prevents ReferenceError)
+console.log('[bootstrap] BUILD_TARGET=' + BUILD_TARGET + ' MODE=' + (import.meta.env.MODE || 'unknown') + ' NATIVE=' + Capacitor.isNativePlatform())
 
 // Phase A: Clear any web domain cache/storage on iOS first boot (defensive cleanup)
 // This prevents old web bundles from contaminating iOS builds
