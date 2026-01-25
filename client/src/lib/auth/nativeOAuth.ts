@@ -1,15 +1,11 @@
 /**
  * Phase 3: Deterministic iOS OAuth callback handler
- * 
- * This module provides a single, centralized handler for native OAuth deep link callbacks.
- * It ensures:
- * - One place that handles fanclubz://auth/callback
- * - Automatic Browser.close() after successful exchange
- * - Proper session persistence
- * - No duplicate handling
+ *
+ * CRITICAL:
+ * - Do NOT close the auth browser sheet until AFTER a successful code exchange.
+ *   (Email/password flow runs inside the sheet and must not be interrupted.)
  */
 
-import { Browser } from '@capacitor/browser';
 import { supabase } from '@/lib/supabase';
 import { isNativeIOSRuntime } from '@/config/native';
 import { consumeReturnTo, sanitizeInternalPath } from '@/lib/returnTo';
@@ -80,7 +76,6 @@ export async function handleNativeAuthCallback(url: string): Promise<boolean> {
   }
 
   isProcessingCallback = true;
-  lastHandledUrl = url;
 
   try {
     if (import.meta.env.DEV) {
@@ -89,19 +84,6 @@ export async function handleNativeAuthCallback(url: string): Promise<boolean> {
       console.log('[NativeOAuth] URL:', url);
       console.log('[NativeOAuth] Type:', isDeepLinkCallback ? 'deep-link' : 'https');
       console.log('═══════════════════════════════════════');
-    }
-
-    // Close the browser immediately (critical for UX)
-    try {
-      await Browser.close();
-      if (import.meta.env.DEV) {
-        console.log('[NativeOAuth] ✅ Browser closed');
-      }
-    } catch (err) {
-      // Browser may already be closed, ignore
-      if (import.meta.env.DEV) {
-        console.log('[NativeOAuth] ⚠️ Browser.close() failed (may already be closed)');
-      }
     }
 
     // For deep link (fanclubz://auth/callback?code=...), extract code and exchange
@@ -160,6 +142,7 @@ export async function handleNativeAuthCallback(url: string): Promise<boolean> {
             console.log('[NativeOAuth] session userId', session.user.id);
           }
           setNativeAuthInFlight(false);
+          lastHandledUrl = url;
 
           // Emit success event (overlay will hide)
           window.dispatchEvent(new CustomEvent('auth-in-progress', {
@@ -205,7 +188,8 @@ export async function handleNativeAuthCallback(url: string): Promise<boolean> {
           }));
           isProcessingCallback = false;
           setNativeAuthInFlight(false);
-          return true; // We handled it, even if it failed
+          lastHandledUrl = null;
+          return false;
         }
       } else {
         console.error('[NativeOAuth] ❌ No code found in callback URL');
@@ -223,13 +207,6 @@ export async function handleNativeAuthCallback(url: string): Promise<boolean> {
         detail: { started: false, completed: true }
       }));
 
-      // Best-effort close browser
-      try {
-        await Browser.close();
-      } catch {
-        // ignore
-      }
-
       // Redirect to stored return URL (fallback)
       const fromReturnTo = consumeReturnTo();
       const target = sanitizeInternalPath(fromReturnTo ?? '/predictions');
@@ -241,7 +218,9 @@ export async function handleNativeAuthCallback(url: string): Promise<boolean> {
       window.dispatchEvent(new CustomEvent('native-oauth-success', { detail: { returnTo: target } }));
       setNativeAuthInFlight(false);
       isProcessingCallback = false;
-      return true;
+      // We did not establish session here; don't close the sheet.
+      lastHandledUrl = null;
+      return false;
     }
 
     isProcessingCallback = false;
@@ -252,6 +231,7 @@ export async function handleNativeAuthCallback(url: string): Promise<boolean> {
       detail: { started: false, error: true }
     }));
     isProcessingCallback = false;
-    return true; // We attempted to handle it
+    lastHandledUrl = null;
+    return false;
   }
 }

@@ -1,9 +1,12 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { Capacitor } from '@capacitor/core';
 
 export type FundingMode = 'crypto' | 'demo' | 'fiat';
 
-const DEMO_ENABLED = import.meta.env.VITE_FCZ_ENABLE_DEMO === '1';
+// Runtime-based: iOS native must support Demo Credits for minimum parity.
+const IS_IOS_NATIVE = Capacitor.isNativePlatform() === true && Capacitor.getPlatform() === 'ios';
+const DEMO_ENABLED = import.meta.env.VITE_FCZ_ENABLE_DEMO === '1' || IS_IOS_NATIVE;
 
 type FundingModeState = {
   mode: FundingMode;

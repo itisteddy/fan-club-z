@@ -242,7 +242,15 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = memo(({ children }) 
       {/* Toast Notifications */}
       <Toaster
         position="top-center"
-        containerStyle={{ zIndex: 2147483647 }}
+        // iOS safe-area: ensure toasts never sit under Dynamic Island/notch
+        containerStyle={{
+          zIndex: 2147483647,
+          top: 'var(--top-overlay-offset)',
+          left: 0,
+          right: 0,
+          paddingLeft: 'max(12px, var(--safe-left))',
+          paddingRight: 'max(12px, var(--safe-right))',
+        }}
         toastOptions={{
           duration: 4000,
           style: {
@@ -936,24 +944,26 @@ function App() {
   };
 
   return (
-    <NetworkStatusProvider>
-      <OAuthDiagnostic />
-      <SupabaseProvider>
-        <AuthSessionProvider>
-          <RealtimeProvider>
-            <NativeOAuthSuccessListener />
-            <AppContent />
-            <ConnectWalletSheet />
-            <AuthInProgressOverlay
-              isVisible={authInProgress || authError}
-              status={authError ? 'error' : 'in_progress'}
-              onRetry={authError ? handleRetry : undefined}
-              onCancel={handleCancel}
-            />
-          </RealtimeProvider>
-        </AuthSessionProvider>
-      </SupabaseProvider>
-    </NetworkStatusProvider>
+    <div className="safe-area-shell">
+      <NetworkStatusProvider>
+        <OAuthDiagnostic />
+        <SupabaseProvider>
+          <AuthSessionProvider>
+            <RealtimeProvider>
+              <NativeOAuthSuccessListener />
+              <AppContent />
+              <ConnectWalletSheet />
+              <AuthInProgressOverlay
+                isVisible={authInProgress || authError}
+                status={authError ? 'error' : 'in_progress'}
+                onRetry={authError ? handleRetry : undefined}
+                onCancel={handleCancel}
+              />
+            </RealtimeProvider>
+          </AuthSessionProvider>
+        </SupabaseProvider>
+      </NetworkStatusProvider>
+    </div>
   );
 }
 

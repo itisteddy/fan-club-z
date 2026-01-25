@@ -56,3 +56,8 @@ coverage/
 # Temp files
 typecheck-output.txt
 *.tmp
+
+# Input icon packs (do not commit raw sources)
+fcz_icon_pack 2/
+fcz_icon_pack.zip
+fcz_favicon.ico

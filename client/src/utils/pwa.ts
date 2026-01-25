@@ -99,7 +99,7 @@ export class PWAManager {
         });
         
         // Check for cache version mismatch and force refresh
-        const CACHE_VERSION = '2026-01-24-01';
+        const CACHE_VERSION = '2026-01-25-01';
         const lastVersion = localStorage.getItem('pwa-cache-version');
         if (lastVersion && lastVersion !== CACHE_VERSION) {
           console.log('[PWA] Cache version mismatch detected, clearing caches');

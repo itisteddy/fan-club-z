@@ -1,5 +1,5 @@
 // Service Worker for Fan Club Z PWA
-const CACHE_VERSION = '2026-01-24-01'; // Bump on every deploy to invalidate old caches
+const CACHE_VERSION = '2026-01-25-01'; // Bump on every deploy to invalidate old caches
 const CACHE_NAME = `fanclubz-cache-${CACHE_VERSION}`;
 const STATIC_ASSETS = ['/', '/index.html', '/manifest.json', '/icons/icon-192.png', '/icons/icon-512.png'];
 const API_BASE = (() => {

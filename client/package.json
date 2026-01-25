@@ -16,6 +16,7 @@
     "build": "vite build",
     "build:web": "vite build --mode web",
     "build:ios": "vite build --mode ios",
+    "build:android": "vite build --mode android",
     "preview": "vite preview --port 5175",
     "cap:sync": "npx cap sync",
     "cap:sync:ios": "npx cap sync ios",

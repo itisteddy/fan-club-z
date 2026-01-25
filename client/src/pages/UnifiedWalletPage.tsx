@@ -29,6 +29,7 @@ import { FiatDepositSheet } from '@/components/wallet/FiatDepositSheet';
 import { FiatWithdrawalSheet } from '@/components/wallet/FiatWithdrawalSheet';
 import { Runtime } from '@/config/runtime';
 import { policy as storeSafePolicy } from '@/lib/storeSafePolicy';
+import { resolveWalletVariant } from '@/config/walletVariant';
 
 interface WalletPageProps {
   onNavigateBack?: () => void;
@@ -42,11 +43,13 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
   // Auto-switch to Base Sepolia when connected on wrong network (crypto rail only)
   useAutoNetworkSwitch();
   const { mode, setMode, isDemoEnabled, isFiatEnabled, setFiatEnabled } = useFundingModeStore();
+  const walletVariant = useMemo(() => resolveWalletVariant(), []);
   const capabilities = Runtime.capabilities;
-  const showDemo = isDemoEnabled && capabilities.allowDemo;
+  // Runtime wallet variant is authoritative (iOS native must default to demo).
+  const showDemo = walletVariant.supportsDemo || (isDemoEnabled && capabilities.allowDemo);
   // Gate fiat/crypto modes by capabilities
   const effectiveFiatEnabled = isFiatEnabled && capabilities.allowFiat;
-  const effectiveCryptoEnabled = capabilities.allowCrypto;
+  const effectiveCryptoEnabled = walletVariant.supportsCrypto && capabilities.allowCrypto;
   const isDemoMode = showDemo && mode === 'demo';
   const isFiatMode = effectiveFiatEnabled && mode === 'fiat';
   const isCryptoMode = effectiveCryptoEnabled && !isDemoMode && !isFiatMode;
@@ -57,6 +60,13 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
       setMode('demo');
     }
   }, [mode, setMode]);
+
+  // Runtime rule: iOS native must always default to demo.
+  useEffect(() => {
+    if (walletVariant.defaultTab === 'demo' && mode !== 'demo') {
+      setMode('demo');
+    }
+  }, [walletVariant.defaultTab, mode, setMode]);
 
   // Fiat feature flag + balances (server-controlled)
   const { data: paystackStatus } = usePaystackStatus();
@@ -371,8 +381,8 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
       />
       
       <Page>
-        {/* Funding mode toggle (Demo/Fiat gated by feature flags + store-safe mode) */}
-        {(showDemo || effectiveFiatEnabled || effectiveCryptoEnabled) && (
+        {/* Funding mode toggle: show only when we have multiple supported modes */}
+        {((showDemo && effectiveCryptoEnabled) || (effectiveFiatEnabled && (showDemo || effectiveCryptoEnabled))) && (
           <div className="mb-4">
             <div className="inline-flex rounded-lg bg-gray-100 p-1 flex-wrap gap-1">
               {effectiveCryptoEnabled && (
