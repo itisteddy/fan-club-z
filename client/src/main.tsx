@@ -72,7 +72,10 @@ import { shouldUseIOSDeepLinks, isIOSRuntime } from './config/platform';
 
 if (shouldUseIOSDeepLinks() && typeof window !== 'undefined') {
   CapacitorApp.addListener('appUrlOpen', async ({ url }) => {
-    console.log('[Bootstrap] appUrlOpen received:', url);
+    if (import.meta.env.DEV) {
+      console.log('[appUrlOpen] Received URL:', url);
+      console.log('[appUrlOpen] Recognized as auth callback:', url.startsWith('fanclubz://auth/callback'));
+    }
     await handleNativeAuthCallback(url);
   }).then(() => {
     console.log('[Bootstrap] ✅ Native OAuth listener registered (iOS native runtime)');

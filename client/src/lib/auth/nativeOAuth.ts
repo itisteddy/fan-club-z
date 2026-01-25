@@ -109,13 +109,17 @@ export async function handleNativeAuthCallback(url: string): Promise<boolean> {
       }
 
       // Exchange the code for a session using Supabase PKCE flow
+      // CRITICAL: Supabase PKCE requires FULL callback URL, not just code
       if (code) {
         try {
+          // Construct the full callback URL that Supabase expects
+          const fullCallbackUrl = url; // Use the original deep link URL
+          
           if (import.meta.env.DEV) {
-            console.log('[NativeOAuth] Exchanging code for session...');
+            console.log('[NativeOAuth] Exchanging code with full URL:', fullCallbackUrl);
           }
 
-          const { data, error } = await supabase.auth.exchangeCodeForSession(code);
+          const { data, error } = await supabase.auth.exchangeCodeForSession(fullCallbackUrl);
 
           if (error) {
             console.error('[NativeOAuth] ❌ Code exchange failed:', error);
@@ -129,7 +133,7 @@ export async function handleNativeAuthCallback(url: string): Promise<boolean> {
 
           if (data?.session) {
             if (import.meta.env.DEV) {
-              console.log('[NativeOAuth] ✅ Session established:', data.session.user.email);
+              console.log('[NativeOAuth] ✅ Exchange success, session present', { userId: data.session.user.id });
             }
 
             // Emit success event (overlay will hide)
