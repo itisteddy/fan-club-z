@@ -1,6 +1,6 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { Browser } from '@capacitor/browser';
-import { OAuth2Client } from '@byteowls/capacitor-oauth2';
+import { Capacitor } from '@capacitor/core';
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from '@/utils/environment';
 import { captureReturnTo } from '@/lib/returnTo';
 import { shouldUseIOSDeepLinks, isIOSRuntime } from '@/config/platform';
@@ -193,6 +193,7 @@ export const auth = {
         // Use platform utility with fail-safe guard
         const useIOSDeepLinks = shouldUseIOSDeepLinks();
         const iosRuntime = isIOSRuntime();
+        const isIOSNative = BUILD_TARGET === 'ios' && Capacitor.isNativePlatform() === true;
 
         try {
           if (import.meta.env.DEV && iosRuntime) {
@@ -217,119 +218,12 @@ export const auth = {
             window.dispatchEvent(new CustomEvent('auth-in-progress', { detail: { started: true } }));
           }
 
-          // iOS native: use OAuth2Client with ASWebAuthenticationSession
-          if (useIOSDeepLinks && iosRuntime) {
-            // iOS: use ASWebAuthenticationSession via OAuth2Client
-            if (import.meta.env.DEV) {
-              console.log('[OAuth] Starting native OAuth', { 
-                buildTarget: BUILD_TARGET, 
-                isNativeRuntime: iosRuntime, 
-                redirectTo: redirectUrl, 
-                openMethod: 'OAuth2Client.authenticate' 
-              });
-            }
-
-            try {
-              // CRITICAL: Get the OAuth URL from Supabase first, then open it with OAuth2Client
-              // This ensures Supabase constructs the correct OAuth URL with all required parameters
-              const { data: oauthData, error: oauthError } = await supabase.auth.signInWithOAuth({
-                provider,
-                options: {
-                  redirectTo: redirectUrl,
-                  skipBrowserRedirect: true, // We'll open it manually with OAuth2Client
-                  queryParams: {
-                    access_type: 'offline',
-                    prompt: 'consent',
-                  },
-                },
-              });
-
-              if (oauthError || !oauthData?.url) {
-                console.error('[OAuth] ❌ Failed to get OAuth URL:', oauthError);
-                window.dispatchEvent(new CustomEvent('auth-in-progress', { detail: { started: false, error: true } }));
-                return { data: null, error: oauthError || { message: 'Failed to get OAuth URL' } };
-              }
-
-              // Parse the Supabase OAuth URL to extract the authorization endpoint and params
-              const oauthUrl = new URL(oauthData.url);
-              const authorizationBaseUrl = `${oauthUrl.origin}${oauthUrl.pathname}`;
-              
-              // Extract query parameters from Supabase's OAuth URL
-              const supabaseParams: Record<string, string> = {};
-              oauthUrl.searchParams.forEach((value, key) => {
-                supabaseParams[key] = value;
-              });
-
-              if (import.meta.env.DEV) {
-                console.log('[OAuth] Opening OAuth URL with OAuth2Client:', authorizationBaseUrl);
-              }
-
-              const result = await OAuth2Client.authenticate({
-                authorizationBaseUrl,
-                appId: SUPABASE_ANON_KEY,
-                redirectUrl,
-                responseType: 'code',
-                pkceEnabled: true,
-                scope: 'openid email profile',
-                additionalParameters: {
-                  ...supabaseParams, // Pass all Supabase params to ensure correct OAuth flow
-                  provider, // Ensure provider is set
-                },
-                ios: {
-                  responseType: 'code',
-                  redirectUrl,
-                  pkceEnabled: true,
-                },
-                logsEnabled: import.meta.env.DEV,
-              });
-
-              if (import.meta.env.DEV) {
-                console.log('[OAuth] ✅ OAuth2Client result:', result);
-              }
-
-              if (result?.code) {
-                // CRITICAL: Supabase PKCE requires FULL callback URL, not just code
-                // Construct the full callback URL that Supabase expects
-                const fullCallbackUrl = `${redirectUrl}?code=${encodeURIComponent(result.code)}${result.state ? `&state=${encodeURIComponent(result.state)}` : ''}`;
-                
-                if (import.meta.env.DEV) {
-                  console.log('[OAuth] Exchanging code with full URL:', fullCallbackUrl);
-                }
-                
-                const { data: sessionData, error: exchangeError } = await supabase.auth.exchangeCodeForSession(fullCallbackUrl);
-                if (exchangeError) {
-                  console.error('[OAuth] ❌ Code exchange failed:', exchangeError);
-                  window.dispatchEvent(new CustomEvent('auth-in-progress', {
-                    detail: { started: false, error: true, message: exchangeError.message }
-                  }));
-                } else if (sessionData?.session) {
-                  if (import.meta.env.DEV) {
-                    console.log('[OAuth] ✅ Session established via OAuth2Client', { userId: sessionData.session.user.id });
-                  }
-                  window.dispatchEvent(new CustomEvent('auth-in-progress', {
-                    detail: { started: false, completed: true }
-                  }));
-                }
-              } else {
-                console.error('[OAuth] ❌ No code in OAuth2Client result');
-                window.dispatchEvent(new CustomEvent('auth-in-progress', {
-                  detail: { started: false, error: true }
-                }));
-              }
-              return { data: null, error: null };
-            } catch (oauthError: any) {
-              console.error('[OAuth] ❌ OAuth2Client error:', oauthError);
-              window.dispatchEvent(new CustomEvent('auth-in-progress', { detail: { started: false, error: true } }));
-              return { data: null, error: { message: oauthError?.message || 'OAuth failed' } };
-            }
-          }
-
-          // Web: use standard Supabase OAuth flow with HTTPS callback
-          const { data, error} = await supabase.auth.signInWithOAuth({
+          // iOS native: MUST open Supabase-provided OAuth URL (do not reconstruct)
+          const { data, error } = await supabase.auth.signInWithOAuth({
             provider,
             options: {
               redirectTo: redirectUrl,
-              skipBrowserRedirect: false, // Web uses browser redirect
+              skipBrowserRedirect: isIOSNative === true, // iOS opens data.url manually; web redirects normally
               queryParams: {
                 access_type: 'offline',
                 prompt: 'consent',
@@ -339,12 +233,25 @@ export const auth = {
           
           if (error) {
             console.error('[OAuth] Auth signInWithOAuth error:', error);
+            if (iosRuntime) {
+              window.dispatchEvent(new CustomEvent('auth-in-progress', { detail: { started: false, error: true } }));
+            }
+            return { data: null, error };
           }
-          
-          return { data, error };
+
+          if (isIOSNative && data?.url) {
+            if (import.meta.env.DEV) {
+              // Log host only (no sensitive params)
+              console.log('[auth][ios] opening supabase authorize host:', new URL(data.url).host);
+            }
+            await Browser.open({ url: data.url, presentationStyle: 'fullscreen' });
+            return { data: null, error: null };
+          }
+
+          return { data, error: null };
         } catch (error: any) {
           console.error('[OAuth] Auth signInWithOAuth exception:', error);
-          if (isIOSBuild) {
+          if (iosRuntime) {
             window.dispatchEvent(new CustomEvent('auth-in-progress', { detail: { started: false, error: true } }));
           }
           return { data: null, error: { message: error.message || 'An unexpected error occurred' } };

@@ -12,8 +12,10 @@
 import { Browser } from '@capacitor/browser';
 import { supabase } from '@/lib/supabase';
 import { shouldUseIOSDeepLinks } from '@/config/platform';
+import { consumeReturnTo, sanitizeInternalPath } from '@/lib/returnTo';
 
 let isProcessingCallback = false;
+let lastHandledUrl: string | null = null;
 
 /**
  * Handle native OAuth callback from deep link
@@ -35,6 +37,14 @@ export async function handleNativeAuthCallback(url: string): Promise<boolean> {
     return false;
   }
 
+  // Ignore duplicate appUrlOpen events for the same URL
+  if (lastHandledUrl && url === lastHandledUrl) {
+    if (import.meta.env.DEV) {
+      console.log('[NativeOAuth] Duplicate callback URL received, ignoring');
+    }
+    return true;
+  }
+
   // Check if this is an auth callback URL
   const isDeepLinkCallback = url && url.startsWith('fanclubz://auth/callback');
   const isHttpsCallback = url && (
@@ -48,6 +58,7 @@ export async function handleNativeAuthCallback(url: string): Promise<boolean> {
   }
 
   isProcessingCallback = true;
+  lastHandledUrl = url;
 
   try {
     if (import.meta.env.DEV) {
@@ -80,12 +91,14 @@ export async function handleNativeAuthCallback(url: string): Promise<boolean> {
       // Parse the deep link URL to extract query params
       let code: string | null = null;
       let state: string | null = null;
+      let next: string | null = null;
 
       try {
         // Deep link format: fanclubz://auth/callback?code=xxx&state=yyy
         const urlObj = new URL(url.replace('fanclubz://', 'https://'));
         code = urlObj.searchParams.get('code');
         state = urlObj.searchParams.get('state');
+        next = urlObj.searchParams.get('next');
 
         // Some providers return values in the hash fragment
         if (!code && urlObj.hash) {
@@ -93,6 +106,9 @@ export async function handleNativeAuthCallback(url: string): Promise<boolean> {
           code = hashParams.get('code');
           if (!state) {
             state = hashParams.get('state');
+          }
+          if (!next) {
+            next = hashParams.get('next');
           }
         }
 
@@ -112,14 +128,11 @@ export async function handleNativeAuthCallback(url: string): Promise<boolean> {
       // CRITICAL: Supabase PKCE requires FULL callback URL, not just code
       if (code) {
         try {
-          // Construct the full callback URL that Supabase expects
-          const fullCallbackUrl = url; // Use the original deep link URL
-          
           if (import.meta.env.DEV) {
-            console.log('[NativeOAuth] Exchanging code with full URL:', fullCallbackUrl);
+            console.log('[NativeOAuth] Exchanging code with full URL:', url);
           }
 
-          const { data, error } = await supabase.auth.exchangeCodeForSession(fullCallbackUrl);
+          const { data, error } = await supabase.auth.exchangeCodeForSession(url);
 
           if (error) {
             console.error('[NativeOAuth] ❌ Code exchange failed:', error);
@@ -132,8 +145,9 @@ export async function handleNativeAuthCallback(url: string): Promise<boolean> {
           }
 
           if (data?.session) {
+            console.log('[NativeOAuth] ✅ Session established');
             if (import.meta.env.DEV) {
-              console.log('[NativeOAuth] ✅ Exchange success, session present', { userId: data.session.user.id });
+              console.log('[NativeOAuth] session userId', data.session.user.id);
             }
 
             // Emit success event (overlay will hide)
@@ -141,16 +155,35 @@ export async function handleNativeAuthCallback(url: string): Promise<boolean> {
               detail: { started: false, completed: true }
             }));
 
-            // Trigger session refresh in auth store
-            // The AuthCallback component will handle final verification
-            const callbackPath = '/auth/callback' + (url.includes('?') ? url.substring(url.indexOf('?')) : '');
-            
-            if (import.meta.env.DEV) {
-              console.log('[NativeOAuth] Navigating to callback route:', callbackPath);
+            // Best-effort close browser again after success (some iOS flows need it)
+            try {
+              await Browser.close();
+            } catch {
+              // ignore
             }
 
-            // Use window.location to trigger full navigation (ensures AuthCallback runs)
-            window.location.href = callbackPath;
+            // Redirect to stored return URL (or next param), default /predictions
+            let returnTo: string | null = null;
+            try {
+              // authGateAdapter uses this key
+              const gateReturn = sessionStorage.getItem('fcz.returnUrl');
+              if (gateReturn) {
+                sessionStorage.removeItem('fcz.returnUrl');
+                returnTo = gateReturn;
+              }
+            } catch {
+              // ignore
+            }
+
+            const fromReturnTo = consumeReturnTo();
+            const decodedNext = next ? decodeURIComponent(next) : null;
+            const target = sanitizeInternalPath(decodedNext ?? returnTo ?? fromReturnTo ?? '/predictions');
+
+            if (import.meta.env.DEV) {
+              console.log('[NativeOAuth] Redirecting to:', target);
+            }
+
+            window.location.href = target;
             isProcessingCallback = false;
             return true;
           }
@@ -178,9 +211,17 @@ export async function handleNativeAuthCallback(url: string): Promise<boolean> {
         detail: { started: false, completed: true }
       }));
 
-      // Navigate to callback route
-      const callbackPath = '/auth/callback' + (url.includes('?') ? url.substring(url.indexOf('?')) : '');
-      window.location.href = callbackPath;
+      // Best-effort close browser
+      try {
+        await Browser.close();
+      } catch {
+        // ignore
+      }
+
+      // Redirect to stored return URL (fallback)
+      const fromReturnTo = consumeReturnTo();
+      const target = sanitizeInternalPath(fromReturnTo ?? '/predictions');
+      window.location.href = target;
       isProcessingCallback = false;
       return true;
     }
