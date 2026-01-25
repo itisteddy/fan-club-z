@@ -18,6 +18,27 @@ import { setNativeAuthInFlight } from '@/lib/auth/nativeAuthState';
 let isProcessingCallback = false;
 let lastHandledUrl: string | null = null;
 
+export async function exchangeFromDeepLink(callbackUrl: string) {
+  let u: URL;
+  try {
+    u = new URL(callbackUrl);
+  } catch {
+    // Fallback for some URL parsers with custom schemes
+    u = new URL(callbackUrl.replace('fanclubz://', 'https://'));
+  }
+
+  const code = u.searchParams.get('code');
+  if (!code) {
+    throw new Error(`[NativeOAuth] Missing ?code= in callbackUrl: ${callbackUrl}`);
+  }
+
+  // CRITICAL: pass ONLY the code (NOT the full URL)
+  const { data, error } = await supabase.auth.exchangeCodeForSession(code);
+  if (error) throw error;
+  if (!data?.session) throw new Error('[NativeOAuth] No session after exchange');
+  return data.session;
+}
+
 /**
  * Handle native OAuth callback from deep link
  * 
@@ -126,84 +147,64 @@ export async function handleNativeAuthCallback(url: string): Promise<boolean> {
       }
 
       // Exchange the code for a session using Supabase PKCE flow
-      // CRITICAL: Supabase PKCE requires FULL callback URL, not just code
       if (code) {
         try {
           if (import.meta.env.DEV) {
-            console.log('[NativeOAuth] Exchanging code with full URL:', url);
+            console.log('[NativeOAuth] Exchanging code (code-only) from callback URL');
           }
 
-          const { data, error } = await supabase.auth.exchangeCodeForSession(url);
+          const session = await exchangeFromDeepLink(url);
 
-          if (error) {
-            console.error('[NativeOAuth] ❌ Code exchange failed:', error);
-            setNativeAuthInFlight(false);
-            // Emit error event for UI feedback
-            window.dispatchEvent(new CustomEvent('auth-in-progress', {
-              detail: { started: false, error: true, message: error.message }
-            }));
-            isProcessingCallback = false;
-            return true; // We handled it, even if it failed
+          console.log('[NativeOAuth] ✅ Session established');
+          if (import.meta.env.DEV) {
+            console.log('[NativeOAuth] session userId', session.user.id);
+          }
+          setNativeAuthInFlight(false);
+
+          // Emit success event (overlay will hide)
+          window.dispatchEvent(new CustomEvent('auth-in-progress', {
+            detail: { started: false, completed: true }
+          }));
+
+          // Redirect to stored return URL (or next param), default /predictions
+          let returnTo: string | null = null;
+          try {
+            // authGateAdapter uses this key
+            const gateReturn = sessionStorage.getItem('fcz.returnUrl');
+            if (gateReturn) {
+              sessionStorage.removeItem('fcz.returnUrl');
+              returnTo = gateReturn;
+            }
+          } catch {
+            // ignore
           }
 
-          if (data?.session) {
-            console.log('[NativeOAuth] ✅ Session established');
-            if (import.meta.env.DEV) {
-              console.log('[NativeOAuth] session userId', data.session.user.id);
-            }
-            setNativeAuthInFlight(false);
+          const fromReturnTo = consumeReturnTo();
+          const decodedNext = next ? decodeURIComponent(next) : null;
+          const target = sanitizeInternalPath(decodedNext ?? returnTo ?? fromReturnTo ?? '/predictions');
 
-            // Emit success event (overlay will hide)
-            window.dispatchEvent(new CustomEvent('auth-in-progress', {
-              detail: { started: false, completed: true }
-            }));
-
-            // Best-effort close browser again after success (some iOS flows need it)
-            try {
-              await Browser.close();
-            } catch {
-              // ignore
-            }
-
-            // Redirect to stored return URL (or next param), default /predictions
-            let returnTo: string | null = null;
-            try {
-              // authGateAdapter uses this key
-              const gateReturn = sessionStorage.getItem('fcz.returnUrl');
-              if (gateReturn) {
-                sessionStorage.removeItem('fcz.returnUrl');
-                returnTo = gateReturn;
-              }
-            } catch {
-              // ignore
-            }
-
-            const fromReturnTo = consumeReturnTo();
-            const decodedNext = next ? decodeURIComponent(next) : null;
-            const target = sanitizeInternalPath(decodedNext ?? returnTo ?? fromReturnTo ?? '/predictions');
-
-            if (import.meta.env.DEV) {
-              console.log('[NativeOAuth] Redirecting to:', target);
-            }
-
-            // Store in sessionStorage so router listener can pick it up even if it isn't mounted yet
-            try {
-              sessionStorage.setItem('native_oauth_return_to', target);
-            } catch {
-              // ignore
-            }
-
-            // Emit event for router-based navigation (no full reload)
-            window.dispatchEvent(new CustomEvent('native-oauth-success', { detail: { returnTo: target } }));
-            isProcessingCallback = false;
-            return true;
+          if (import.meta.env.DEV) {
+            console.log('[NativeOAuth] Redirecting to:', target);
           }
+
+          // Store in sessionStorage so router listener can pick it up even if it isn't mounted yet
+          try {
+            sessionStorage.setItem('native_oauth_return_to', target);
+          } catch {
+            // ignore
+          }
+
+          // Emit event for router-based navigation (no full reload)
+          window.dispatchEvent(new CustomEvent('native-oauth-success', { detail: { returnTo: target } }));
+          isProcessingCallback = false;
+          return true;
         } catch (err) {
           console.error('[NativeOAuth] ❌ Code exchange exception:', err);
           window.dispatchEvent(new CustomEvent('auth-in-progress', {
             detail: { started: false, error: true }
           }));
           isProcessingCallback = false;
+          setNativeAuthInFlight(false);
           return true; // We handled it, even if it failed
         }
       } else {

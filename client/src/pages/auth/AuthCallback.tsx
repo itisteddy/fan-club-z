@@ -97,13 +97,12 @@ const AuthCallback: React.FC = () => {
           }
         }
 
-        // For OAuth flows: exchange code for session using FULL URL
+        // For OAuth flows: exchange code for session using CODE ONLY (PKCE)
         if (isOAuthFlow && code) {
           console.log('[auth:cb] exchanging code...');
           try {
-            // CRITICAL: Use full URL for exchangeCodeForSession (Supabase expects full callback URL)
-            const fullCallbackUrl = window.location.href;
-            const { data: exchangeData, error: exchangeError } = await supabase.auth.exchangeCodeForSession(fullCallbackUrl);
+            // CRITICAL: pass ONLY the code
+            const { data: exchangeData, error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
             
             if (exchangeError) {
               console.error('[auth:cb] Code exchange error:', exchangeError);

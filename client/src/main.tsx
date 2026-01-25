@@ -81,11 +81,13 @@ if (isNativeIOSRuntime() && typeof window !== 'undefined') {
 
     console.log('[Bootstrap] appUrlOpen received:', url);
 
-    // close immediately + retry close (iOS sometimes needs a beat)
-    try { await Browser.close() } catch {}
-    setTimeout(() => Browser.close().catch(() => {}), 250);
-
-    await handleNativeAuthCallback(url);
+    try {
+      await handleNativeAuthCallback(url);
+    } finally {
+      // close immediately + retry close (iOS sometimes needs a beat)
+      try { await Browser.close() } catch {}
+      setTimeout(() => Browser.close().catch(() => {}), 250);
+    }
   }).then(() => {
     console.log('[Bootstrap] ✅ Native OAuth listener registered (iOS native runtime)');
   }).catch((err) => {
