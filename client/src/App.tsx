@@ -866,6 +866,39 @@ const AppContent: React.FC = () => {
 
 // Root App Component with proper provider nesting
 function App() {
+  // Router-based navigation for native OAuth success (no full reload)
+  const NativeOAuthSuccessListener: React.FC = () => {
+    const navigate = useNavigate();
+
+    React.useEffect(() => {
+      const navigateTo = (returnTo?: string) => {
+        if (!returnTo) return;
+        navigate(returnTo, { replace: true });
+      };
+
+      // Handle stored returnTo (covers case where event fired before React mounted)
+      try {
+        const stored = sessionStorage.getItem('native_oauth_return_to');
+        if (stored) {
+          sessionStorage.removeItem('native_oauth_return_to');
+          navigateTo(stored);
+        }
+      } catch {
+        // ignore
+      }
+
+      const handler = (event: Event) => {
+        const e = event as CustomEvent;
+        navigateTo(e.detail?.returnTo);
+      };
+
+      window.addEventListener('native-oauth-success', handler as EventListener);
+      return () => window.removeEventListener('native-oauth-success', handler as EventListener);
+    }, [navigate]);
+
+    return null;
+  };
+
   const [authInProgress, setAuthInProgress] = React.useState(false);
   const [authError, setAuthError] = React.useState(false);
 
@@ -908,6 +941,7 @@ function App() {
       <SupabaseProvider>
         <AuthSessionProvider>
           <RealtimeProvider>
+            <NativeOAuthSuccessListener />
             <AppContent />
             <ConnectWalletSheet />
             <AuthInProgressOverlay

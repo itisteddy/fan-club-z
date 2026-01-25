@@ -11,7 +11,7 @@
 
 import { Browser } from '@capacitor/browser';
 import { supabase } from '@/lib/supabase';
-import { shouldUseIOSDeepLinks } from '@/config/platform';
+import { isNativeIOSRuntime } from '@/config/native';
 import { consumeReturnTo, sanitizeInternalPath } from '@/lib/returnTo';
 
 let isProcessingCallback = false;
@@ -24,8 +24,8 @@ let lastHandledUrl: string | null = null;
  * @returns true if this was an auth callback and was handled, false otherwise
  */
 export async function handleNativeAuthCallback(url: string): Promise<boolean> {
-  // Only process if we should use iOS deep links (fail-safe guard)
-  if (!shouldUseIOSDeepLinks()) {
+  // Only process in real native iOS runtime (runtime is authoritative)
+  if (!isNativeIOSRuntime()) {
     return false;
   }
 
@@ -183,7 +183,15 @@ export async function handleNativeAuthCallback(url: string): Promise<boolean> {
               console.log('[NativeOAuth] Redirecting to:', target);
             }
 
-            window.location.href = target;
+            // Store in sessionStorage so router listener can pick it up even if it isn't mounted yet
+            try {
+              sessionStorage.setItem('native_oauth_return_to', target);
+            } catch {
+              // ignore
+            }
+
+            // Emit event for router-based navigation (no full reload)
+            window.dispatchEvent(new CustomEvent('native-oauth-success', { detail: { returnTo: target } }));
             isProcessingCallback = false;
             return true;
           }
@@ -221,7 +229,12 @@ export async function handleNativeAuthCallback(url: string): Promise<boolean> {
       // Redirect to stored return URL (fallback)
       const fromReturnTo = consumeReturnTo();
       const target = sanitizeInternalPath(fromReturnTo ?? '/predictions');
-      window.location.href = target;
+      try {
+        sessionStorage.setItem('native_oauth_return_to', target);
+      } catch {
+        // ignore
+      }
+      window.dispatchEvent(new CustomEvent('native-oauth-success', { detail: { returnTo: target } }));
       isProcessingCallback = false;
       return true;
     }

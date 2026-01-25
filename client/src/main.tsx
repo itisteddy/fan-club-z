@@ -19,6 +19,7 @@ import { App as CapacitorApp } from '@capacitor/app'
 import { BUILD_TARGET, getBuildDebugInfo } from './config/buildTarget'
 import { handleNativeAuthCallback } from './lib/auth/nativeOAuth'
 import { Capacitor } from '@capacitor/core'
+import { Browser } from '@capacitor/browser'
 
 // Centralized version management
 console.log(`🚀 Fan Club Z ${APP_VERSION} - CONSOLIDATED ARCHITECTURE - SINGLE SOURCE OF TRUTH`)
@@ -73,6 +74,12 @@ import { shouldUseIOSDeepLinks, isIOSRuntime } from './config/platform';
 if (shouldUseIOSDeepLinks() && typeof window !== 'undefined') {
   CapacitorApp.addListener('appUrlOpen', async ({ url }) => {
     console.log('[Bootstrap] appUrlOpen received:', url);
+    // Close browser ASAP so it feels native (best-effort)
+    try {
+      await Browser.close();
+    } catch {
+      // ignore
+    }
     await handleNativeAuthCallback(url);
   }).then(() => {
     console.log('[Bootstrap] ✅ Native OAuth listener registered (iOS native runtime)');

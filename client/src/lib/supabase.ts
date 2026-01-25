@@ -6,6 +6,7 @@ import { captureReturnTo } from '@/lib/returnTo';
 import { shouldUseIOSDeepLinks, isIOSRuntime } from '@/config/platform';
 import { BUILD_TARGET, isWebBuild } from '@/config/buildTarget';
 import { getWebOrigin } from '@/config/origin';
+import { getNativeRedirectTo, isNativeIOSRuntime } from '@/config/native';
 
 // Environment variables from centralized config
 const supabaseUrl = SUPABASE_URL;
@@ -193,7 +194,8 @@ export const auth = {
         // Use platform utility with fail-safe guard
         const useIOSDeepLinks = shouldUseIOSDeepLinks();
         const iosRuntime = isIOSRuntime();
-        const isIOSNative = BUILD_TARGET === 'ios' && Capacitor.isNativePlatform() === true;
+        // IMPORTANT: For iOS auth routing, trust runtime detection over BUILD_TARGET/env.
+        const isIOSNative = isNativeIOSRuntime();
 
         try {
           if (import.meta.env.DEV && iosRuntime) {
@@ -204,8 +206,10 @@ export const auth = {
             console.log('═══════════════════════════════════════');
           }
           
-          // Get redirect URL (uses fail-safe platform utility)
-          const redirectUrl = getRedirectUrl(options?.next);
+          // Redirect selection:
+          // - Native iOS runtime: ALWAYS use deep link (runtime is authoritative)
+          // - Web: existing behavior (HTTPS /auth/callback)
+          const redirectUrl = isIOSNative ? getNativeRedirectTo(options?.next) : getRedirectUrl(options?.next);
           
           if (import.meta.env.DEV && iosRuntime) {
             console.log('[OAuth] Final OAuth redirect URL:', redirectUrl);
@@ -241,8 +245,10 @@ export const auth = {
 
           if (isIOSNative && data?.url) {
             if (import.meta.env.DEV) {
-              // Log host only (no sensitive params)
-              console.log('[auth][ios] opening supabase authorize host:', new URL(data.url).host);
+              // Prove Supabase is using the deep link (no sensitive params)
+              const u = new URL(data.url);
+              console.log('[auth][ios] authorize host:', u.host);
+              console.log('[auth][ios] authorize redirect_to:', u.searchParams.get('redirect_to'));
             }
             await Browser.open({ url: data.url, presentationStyle: 'fullscreen' });
             return { data: null, error: null };
