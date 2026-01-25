@@ -16,7 +16,7 @@ import { initWebVitals } from './lib/vitals'
 import { useMaintenanceStore } from './store/maintenanceStore'
 // Phase 3: Register native OAuth listener once at bootstrap
 import { App as CapacitorApp } from '@capacitor/app'
-import { BUILD_TARGET } from './config/buildTarget'
+import { BUILD_TARGET, getBuildDebugInfo } from './config/buildTarget'
 import { handleNativeAuthCallback } from './lib/auth/nativeOAuth'
 import { Capacitor } from '@capacitor/core'
 
@@ -24,7 +24,13 @@ import { Capacitor } from '@capacitor/core'
 console.log(`🚀 Fan Club Z ${APP_VERSION} - CONSOLIDATED ARCHITECTURE - SINGLE SOURCE OF TRUTH`)
 
 // Early boot log: verify BUILD_TARGET is resolved (prevents ReferenceError)
-console.log('[bootstrap] BUILD_TARGET=' + BUILD_TARGET + ' MODE=' + (import.meta.env.MODE || 'unknown') + ' NATIVE=' + Capacitor.isNativePlatform())
+const buildDebug = getBuildDebugInfo();
+if (buildDebug) {
+  console.log('[bootstrap] BUILD_TARGET=' + BUILD_TARGET + ' MODE=' + buildDebug.mode + ' NATIVE=' + buildDebug.isNative + ' PLATFORM=' + buildDebug.platform);
+  console.log('[bootstrap] Build Debug:', buildDebug);
+} else {
+  console.log('[bootstrap] BUILD_TARGET=' + BUILD_TARGET + ' MODE=' + (import.meta.env.MODE || 'unknown') + ' NATIVE=' + Capacitor.isNativePlatform())
+}
 
 // Phase A: Clear any web domain cache/storage on iOS first boot (defensive cleanup)
 // This prevents old web bundles from contaminating iOS builds

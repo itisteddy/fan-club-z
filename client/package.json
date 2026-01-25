@@ -22,6 +22,7 @@
     "cap:sync:android": "npx cap sync android",
     "cap:ios:web": "npm run build:web && npx cap sync ios",
     "cap:ios:ios": "npm run build:ios && npx cap sync ios",
+    "cap:ios:refresh": "npm run build:ios && npx cap sync ios",
     "ios:open": "npx cap open ios",
     "android:open": "npx cap open android",
     "preflight": "pnpm clean && pnpm lint && pnpm typecheck && pnpm check:dupes && pnpm build",
