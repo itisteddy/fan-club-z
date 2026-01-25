@@ -6,7 +6,8 @@ import { captureReturnTo } from '@/lib/returnTo';
 import { shouldUseIOSDeepLinks, isIOSRuntime } from '@/config/platform';
 import { BUILD_TARGET, isWebBuild } from '@/config/buildTarget';
 import { getWebOrigin } from '@/config/origin';
-import { getNativeRedirectTo, isNativeIOSRuntime } from '@/config/native';
+import { getNativeRedirectTo, IOS_REDIRECT, isNativeIOSRuntime } from '@/config/native';
+import { setNativeAuthInFlight } from '@/lib/auth/nativeAuthState';
 
 // Environment variables from centralized config
 const supabaseUrl = SUPABASE_URL;
@@ -209,7 +210,7 @@ export const auth = {
           // Redirect selection:
           // - Native iOS runtime: ALWAYS use deep link (runtime is authoritative)
           // - Web: existing behavior (HTTPS /auth/callback)
-          const redirectUrl = isIOSNative ? getNativeRedirectTo(options?.next) : getRedirectUrl(options?.next);
+          const redirectUrl = isIOSNative ? getNativeRedirectTo() : getRedirectUrl(options?.next);
           
           if (import.meta.env.DEV && iosRuntime) {
             console.log('[OAuth] Final OAuth redirect URL:', redirectUrl);
@@ -248,8 +249,14 @@ export const auth = {
               // Prove Supabase is using the deep link (no sensitive params)
               const u = new URL(data.url);
               console.log('[auth][ios] authorize host:', u.host);
-              console.log('[auth][ios] authorize redirect_to:', u.searchParams.get('redirect_to'));
+              const redirectToParam = u.searchParams.get('redirect_to');
+              console.log('[auth][ios] authorize redirect_to:', redirectToParam);
+              if (redirectToParam !== IOS_REDIRECT) {
+                throw new Error(`[auth][ios] redirect_to mismatch: ${redirectToParam}`);
+              }
             }
+            // Mark auth as in-flight so bootstrap can force-close any lingering sheet
+            setNativeAuthInFlight(true);
             await Browser.open({ url: data.url, presentationStyle: 'fullscreen' });
             return { data: null, error: null };
           }

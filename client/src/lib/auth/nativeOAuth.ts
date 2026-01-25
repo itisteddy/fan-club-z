@@ -13,6 +13,7 @@ import { Browser } from '@capacitor/browser';
 import { supabase } from '@/lib/supabase';
 import { isNativeIOSRuntime } from '@/config/native';
 import { consumeReturnTo, sanitizeInternalPath } from '@/lib/returnTo';
+import { setNativeAuthInFlight } from '@/lib/auth/nativeAuthState';
 
 let isProcessingCallback = false;
 let lastHandledUrl: string | null = null;
@@ -136,6 +137,7 @@ export async function handleNativeAuthCallback(url: string): Promise<boolean> {
 
           if (error) {
             console.error('[NativeOAuth] ❌ Code exchange failed:', error);
+            setNativeAuthInFlight(false);
             // Emit error event for UI feedback
             window.dispatchEvent(new CustomEvent('auth-in-progress', {
               detail: { started: false, error: true, message: error.message }
@@ -149,6 +151,7 @@ export async function handleNativeAuthCallback(url: string): Promise<boolean> {
             if (import.meta.env.DEV) {
               console.log('[NativeOAuth] session userId', data.session.user.id);
             }
+            setNativeAuthInFlight(false);
 
             // Emit success event (overlay will hide)
             window.dispatchEvent(new CustomEvent('auth-in-progress', {
@@ -235,6 +238,7 @@ export async function handleNativeAuthCallback(url: string): Promise<boolean> {
         // ignore
       }
       window.dispatchEvent(new CustomEvent('native-oauth-success', { detail: { returnTo: target } }));
+      setNativeAuthInFlight(false);
       isProcessingCallback = false;
       return true;
     }

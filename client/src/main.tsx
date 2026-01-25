@@ -20,6 +20,8 @@ import { BUILD_TARGET, getBuildDebugInfo } from './config/buildTarget'
 import { handleNativeAuthCallback } from './lib/auth/nativeOAuth'
 import { Capacitor } from '@capacitor/core'
 import { Browser } from '@capacitor/browser'
+import { isNativeIOSRuntime } from './config/native'
+import { isNativeAuthInFlight } from './lib/auth/nativeAuthState'
 
 // Centralized version management
 console.log(`🚀 Fan Club Z ${APP_VERSION} - CONSOLIDATED ARCHITECTURE - SINGLE SOURCE OF TRUTH`)
@@ -71,15 +73,18 @@ if (isIOSRuntime() && typeof window !== 'undefined') {
 // This fail-safe prevents iOS builds deployed to web from registering native listeners
 import { shouldUseIOSDeepLinks, isIOSRuntime } from './config/platform';
 
-if (shouldUseIOSDeepLinks() && typeof window !== 'undefined') {
+// Register native deep link listeners as early as possible.
+// IMPORTANT: Use runtime detection (do not rely on BUILD_TARGET/env).
+if (isNativeIOSRuntime() && typeof window !== 'undefined') {
   CapacitorApp.addListener('appUrlOpen', async ({ url }) => {
+    if (!url?.startsWith('fanclubz://auth/callback')) return;
+
     console.log('[Bootstrap] appUrlOpen received:', url);
-    // Close browser ASAP so it feels native (best-effort)
-    try {
-      await Browser.close();
-    } catch {
-      // ignore
-    }
+
+    // close immediately + retry close (iOS sometimes needs a beat)
+    try { await Browser.close() } catch {}
+    setTimeout(() => Browser.close().catch(() => {}), 250);
+
     await handleNativeAuthCallback(url);
   }).then(() => {
     console.log('[Bootstrap] ✅ Native OAuth listener registered (iOS native runtime)');
@@ -95,6 +100,13 @@ if (shouldUseIOSDeepLinks() && typeof window !== 'undefined') {
     }
   }).catch((err) => {
     console.error('[Bootstrap] ❌ Failed to read launchUrl:', err);
+  });
+
+  // Extra safety: if user returns to app and auth is in-flight, force-close the sheet
+  CapacitorApp.addListener('appStateChange', ({ isActive }) => {
+    if (!isActive) return;
+    if (!isNativeAuthInFlight()) return;
+    setTimeout(() => Browser.close().catch(() => {}), 150);
   });
 }
 
