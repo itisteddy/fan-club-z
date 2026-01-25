@@ -1,7 +1,8 @@
 // PWA utility functions for service worker registration and management
 import { Capacitor } from '@capacitor/core';
 import { VAPID_PUBLIC_KEY, getApiUrl } from '@/utils/environment';
-import { BUILD_TARGET, IS_NATIVE, STORE_SAFE_MODE } from '@/config/runtime';
+import { BUILD_TARGET, isWebBuild } from '@/config/buildTarget';
+import { IS_NATIVE, STORE_SAFE_MODE } from '@/config/runtime';
 
 export interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
@@ -31,7 +32,7 @@ export class PWAManager {
     // - Caching conflicts
     // - "Web-like" glitches
     // Gate by BUILD_TARGET, IS_NATIVE, and STORE_SAFE_MODE
-    if (BUILD_TARGET !== 'web' || IS_NATIVE || STORE_SAFE_MODE) {
+    if (!isWebBuild || IS_NATIVE || STORE_SAFE_MODE) {
       console.log('[PWA] Skipping service worker registration (BUILD_TARGET=' + BUILD_TARGET + ', IS_NATIVE=' + IS_NATIVE + ', STORE_SAFE_MODE=' + STORE_SAFE_MODE + ')');
       if ('serviceWorker' in navigator) {
         // Proactively unregister any existing SW in native builds
@@ -288,7 +289,7 @@ let _pwaManager: PWAManager | null = null;
 
 export function getPWAManager(): PWAManager {
   // CRITICAL: Never initialize PWA manager in native builds
-  if (BUILD_TARGET !== 'web' || IS_NATIVE || STORE_SAFE_MODE) {
+  if (!isWebBuild || IS_NATIVE || STORE_SAFE_MODE) {
     throw new Error('PWA manager should not be accessed in native builds');
   }
   if (!_pwaManager) {

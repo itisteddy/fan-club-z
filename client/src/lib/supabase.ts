@@ -4,7 +4,7 @@ import { OAuth2Client } from '@byteowls/capacitor-oauth2';
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from '@/utils/environment';
 import { captureReturnTo } from '@/lib/returnTo';
 import { shouldUseIOSDeepLinks, isIOSRuntime } from '@/config/platform';
-import { BUILD_TARGET } from '@/config/runtime';
+import { BUILD_TARGET, isWebBuild } from '@/config/buildTarget';
 import { getWebOrigin } from '@/config/origin';
 
 // Environment variables from centralized config
@@ -41,13 +41,10 @@ function getRedirectUrl(next?: string) {
   // Use platform utility with fail-safe guard
   const useDeepLinks = shouldUseIOSDeepLinks();
   
-  // Log for debugging
-  console.log('[auth] redirectTo', { 
-    buildTarget: import.meta.env.VITE_BUILD_TARGET || 'web',
-    native: isIOSRuntime(),
-    iosRuntime: isIOSRuntime(),
-    redirectTo: useDeepLinks ? 'fanclubz://auth/callback' : 'https'
-  });
+  // Log for debugging (minimal, one-line assertion)
+  if (import.meta.env.DEV) {
+    console.log('[auth] redirectTo', { BUILD_TARGET, isNativeRuntime: isIOSRuntime(), redirectUrl: useDeepLinks ? 'fanclubz://auth/callback' : `${getWebOrigin()}/auth/callback` });
+  }
 
   // CRITICAL: Only use deep links when BOTH build target is iOS AND runtime is native iOS
   if (useDeepLinks) {
@@ -57,6 +54,7 @@ function getRedirectUrl(next?: string) {
   }
 
   // Web: use canonical web origin (window.location.origin when available)
+  // CRITICAL: When isNativeRuntime === false, redirect MUST be HTTPS callback
   const webOrigin = getWebOrigin();
   const webCallbackUrl = `${webOrigin}/auth/callback`;
   
@@ -86,7 +84,7 @@ const supabaseOptions: any = {
   auth: {
     autoRefreshToken: true,
     persistSession: true,
-    detectSessionInUrl: BUILD_TARGET === 'web', // Phase 3: Only detect in URL for web
+    detectSessionInUrl: isWebBuild, // Phase 3: Only detect in URL for web
     flowType: 'pkce',
   },
   db: {

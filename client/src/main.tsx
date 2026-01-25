@@ -16,7 +16,7 @@ import { initWebVitals } from './lib/vitals'
 import { useMaintenanceStore } from './store/maintenanceStore'
 // Phase 3: Register native OAuth listener once at bootstrap
 import { App as CapacitorApp } from '@capacitor/app'
-import { BUILD_TARGET } from './config/runtime'
+import { BUILD_TARGET } from './config/buildTarget'
 import { handleNativeAuthCallback } from './lib/auth/nativeOAuth'
 import { Capacitor } from '@capacitor/core'
 

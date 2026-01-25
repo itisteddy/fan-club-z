@@ -19,8 +19,10 @@
  */
 
 import { Capacitor } from '@capacitor/core';
+import { BUILD_TARGET as BUILD_TARGET_CANONICAL, type BuildTarget } from './buildTarget';
 
-export type BuildTarget = 'web' | 'ios' | 'android';
+// Re-export BuildTarget type for backward compatibility
+export type { BuildTarget };
 export type RuntimeMode = 'WEB' | 'STORE_SAFE' | 'INTERNAL_FULL';
 
 export interface RuntimeCapabilities {
@@ -37,11 +39,8 @@ class RuntimeConfig {
   private _capabilities: RuntimeCapabilities;
 
   constructor() {
-    // BUILD_TARGET: from env, default 'web'
-    const buildTargetEnv = (import.meta.env.VITE_BUILD_TARGET || 'web').toLowerCase();
-    this._buildTarget = (['web', 'ios', 'android'].includes(buildTargetEnv) 
-      ? buildTargetEnv 
-      : 'web') as BuildTarget;
+    // BUILD_TARGET: use canonical source (prevents undefined reference errors)
+    this._buildTarget = BUILD_TARGET_CANONICAL;
 
     // IS_NATIVE: runtime detection (Capacitor platform check)
     this._isNative = Capacitor.isNativePlatform();
@@ -106,7 +105,8 @@ class RuntimeConfig {
 export const Runtime = new RuntimeConfig();
 
 // Convenience exports (Phase 2: use these instead of direct Capacitor checks)
-export const BUILD_TARGET = Runtime.BUILD_TARGET;
+// Re-export canonical BUILD_TARGET for backward compatibility
+export const BUILD_TARGET = BUILD_TARGET_CANONICAL;
 export const IS_NATIVE = Runtime.IS_NATIVE;
 export const STORE_SAFE_MODE = Runtime.STORE_SAFE_MODE;
 export const isNative = () => Runtime.isNative;

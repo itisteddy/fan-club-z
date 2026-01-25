@@ -8,7 +8,7 @@
  */
 
 import { Capacitor } from '@capacitor/core';
-import { BUILD_TARGET } from './runtime';
+import { BUILD_TARGET, isIOSBuild } from './buildTarget';
 
 /**
  * Get build target from env (web | ios | android)
@@ -54,17 +54,16 @@ export function shouldUseIOSDeepLinks(): boolean {
  * TRUE only when BOTH: build target is iOS AND runtime is native AND store-safe flag is set
  */
 export function shouldUseStoreSafeMode(): boolean {
-  const buildTarget = getBuildTarget();
   const native = isNativeRuntime();
   const ios = isIOSRuntime();
   const storeSafeEnv = import.meta.env.VITE_STORE_SAFE_MODE === 'true' || import.meta.env.VITE_STORE_SAFE_MODE === '1';
   
   // Fail-safe: if build target is iOS but not native runtime, never use store-safe
-  if (buildTarget === 'ios' && !native) {
+  if (isIOSBuild && !native) {
     return false;
   }
   
-  return buildTarget === 'ios' && ios && storeSafeEnv;
+  return isIOSBuild && ios && storeSafeEnv;
 }
 
 /**
