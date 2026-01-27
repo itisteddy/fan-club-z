@@ -31,7 +31,8 @@ export const TopHeader: React.FC = () => {
 
   return (
     <motion.header 
-      className="fixed top-0 left-0 right-0 bg-white/95 backdrop-blur-subtle border-b border-cool-gray-100 z-40 safe-area-pt shadow-sm"
+      // Safe-area foundation: header height includes top inset; inner row stays 80px.
+      className="fixed top-0 left-0 right-0 bg-white/95 backdrop-blur-subtle border-b border-cool-gray-100 z-40 shadow-sm pt-[var(--app-safe-top)] h-[calc(80px+var(--app-safe-top))]"
       initial={{ y: -100 }}
       animate={{ y: 0 }}
       transition={{ type: "spring", stiffness: 300, damping: 30 }}

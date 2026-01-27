@@ -4,6 +4,7 @@
  */
 
 import React from 'react';
+import { LogoMarkPng } from '@/assets/brand';
 
 interface LogoProps {
   size?: 'sm' | 'md' | 'lg' | 'xl';
@@ -35,42 +36,13 @@ const Logo: React.FC<LogoProps> = ({
       role={onClick ? 'button' : undefined}
       tabIndex={onClick ? 0 : undefined}
     >
-      {/* SVG version of the FC logo */}
-      <svg
-        viewBox="0 0 100 100"
-        className="w-full h-full"
-        xmlns="http://www.w3.org/2000/svg"
-      >
-        {/* Outer circle background - Neon Teal */}
-        <circle
-          cx="50"
-          cy="50"
-          r="48"
-          fill="#00F5D4"
-          stroke="#00F5D4"
-          strokeWidth="2"
-        />
-        
-        {/* Electric Purple F section */}
-        <path
-          d="M 15 15 Q 15 15 35 15 Q 50 15 50 30 Q 50 50 35 50 L 15 50 Q 15 50 15 85 Q 15 85 35 85 Q 85 85 85 50 Q 85 15 50 15 L 35 15 Z"
-          fill="#7B2FF7"
-        />
-        
-        {/* White F letter */}
-        <g fill="white">
-          <rect x="22" y="25" width="6" height="28" />
-          <rect x="22" y="25" width="18" height="5" />
-          <rect x="22" y="36" width="14" height="4" />
-        </g>
-        
-        {/* White C letter */}
-        <g fill="white" transform="translate(45, 15)">
-          <path
-            d="M 15 10 Q 5 10 5 20 L 5 30 Q 5 40 15 40 L 25 40 L 25 35 L 15 35 Q 10 35 10 30 L 10 20 Q 10 15 15 15 L 25 15 L 25 10 Z"
-          />
-        </g>
-      </svg>
+      {/* Logo image - preserve aspect ratio, no distortion */}
+      <img
+        src={LogoMarkPng}
+        alt="Fan Club Z"
+        className="w-full h-full object-contain"
+        style={{ objectFit: 'contain' }}
+      />
       
       {/* Text variant (if full logo is requested) */}
       {variant === 'full' && size !== 'sm' && (

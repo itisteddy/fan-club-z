@@ -1,9 +1,13 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { Capacitor } from '@capacitor/core';
 
 export type FundingMode = 'crypto' | 'demo' | 'fiat';
 
-const DEMO_ENABLED = import.meta.env.VITE_FCZ_ENABLE_DEMO === '1';
+// Parity rule: native mobile defaults to Demo Credits.
+// Web can optionally enable demo via VITE_FCZ_ENABLE_DEMO.
+const IS_NATIVE = Capacitor.isNativePlatform() === true;
+const DEMO_ENABLED = import.meta.env.VITE_FCZ_ENABLE_DEMO === '1' || IS_NATIVE;
 
 type FundingModeState = {
   mode: FundingMode;

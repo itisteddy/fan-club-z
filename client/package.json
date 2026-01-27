@@ -16,6 +16,7 @@
     "build": "vite build",
     "build:web": "vite build --mode web",
     "build:ios": "vite build --mode ios",
+    "build:android": "vite build --mode android",
     "preview": "vite preview --port 5175",
     "cap:sync": "npx cap sync",
     "cap:sync:ios": "npx cap sync ios",
@@ -38,7 +39,6 @@
     "perf:lighthouse": "npx lighthouse http://localhost:5174 --view --preset=desktop"
   },
   "dependencies": {
-    "@byteowls/capacitor-oauth2": "^5.0.0",
     "@capacitor/app": "^8.0.0",
     "@capacitor/browser": "^8.0.0",
     "@capacitor/core": "^8.0.1",

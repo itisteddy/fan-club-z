@@ -129,9 +129,16 @@ const connectors: ConnectorReturn[] = [
   }),
 ];
 
-// Only add WalletConnect if project ID is valid
+// Only add WalletConnect if:
+// 1. Project ID is valid
+// 2. Crypto wallet is enabled (either via VITE_ENABLE_CRYPTO_WALLET or not in store-safe mode)
 // Note: Domain must be whitelisted at https://cloud.reown.com
-if (projectId && projectId.length >= 8) {
+const cryptoWalletEnabled = 
+  import.meta.env.VITE_ENABLE_CRYPTO_WALLET === '1' || 
+  import.meta.env.VITE_ENABLE_CRYPTO_WALLET === 'true' ||
+  import.meta.env.VITE_STORE_SAFE_MODE !== 'true'; // Not in store-safe mode means crypto is allowed
+
+if (projectId && projectId.length >= 8 && cryptoWalletEnabled) {
   try {
     const metadataUrl = typeof window !== 'undefined'
       ? (Capacitor?.isNativePlatform?.() ? 'https://app.fanclubz.app' : window.location.origin)
@@ -157,6 +164,10 @@ if (projectId && projectId.length >= 8) {
   } catch (error) {
     console.warn('[Wagmi] Failed to initialize WalletConnect connector:', error);
     // Continue without WalletConnect - injected connector will still work
+  }
+} else if (projectId && projectId.length >= 8 && !cryptoWalletEnabled) {
+  if (import.meta.env.DEV) {
+    console.log('[Wagmi] WalletConnect disabled: crypto wallet not enabled (VITE_ENABLE_CRYPTO_WALLET or store-safe mode)');
   }
 }
 

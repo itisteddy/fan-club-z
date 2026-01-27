@@ -30,7 +30,7 @@ const LandingPage: React.FC = () => {
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4">
           <div className="flex items-center gap-2">
             <img
-              src="/brand/fcz-logomark.png"
+              src="/icons/icon-32.png"
               alt="FanClubZ"
               className="h-8 w-8"
               style={{ objectFit: 'contain' }}
@@ -251,7 +251,7 @@ const LandingPage: React.FC = () => {
           <div>
             <div className="mb-3 flex items-center gap-2">
               <img
-                src="/brand/fcz-logomark.png"
+                src="/icons/icon-32.png"
                 alt="FanClubZ"
                 className="h-6 w-6"
                 style={{ objectFit: 'contain' }}

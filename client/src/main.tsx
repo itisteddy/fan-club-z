@@ -21,7 +21,6 @@ import { handleNativeAuthCallback } from './lib/auth/nativeOAuth'
 import { Capacitor } from '@capacitor/core'
 import { Browser } from '@capacitor/browser'
 import { isNativeIOSRuntime } from './config/native'
-import { isNativeAuthInFlight } from './lib/auth/nativeAuthState'
 
 // Centralized version management
 console.log(`🚀 Fan Club Z ${APP_VERSION} - CONSOLIDATED ARCHITECTURE - SINGLE SOURCE OF TRUTH`)
@@ -75,21 +74,31 @@ import { shouldUseIOSDeepLinks, isIOSRuntime } from './config/platform';
 
 // Register native deep link listeners as early as possible.
 // IMPORTANT: Use runtime detection (do not rely on BUILD_TARGET/env).
-if (isNativeIOSRuntime() && typeof window !== 'undefined') {
+if ((isNativeIOSRuntime() || Capacitor.getPlatform() === 'android') && typeof window !== 'undefined') {
   CapacitorApp.addListener('appUrlOpen', async ({ url }) => {
     if (!url?.startsWith('fanclubz://auth/callback')) return;
 
+    // CRITICAL: only handle/close for real callback URLs that contain ?code=
+    // This prevents prematurely closing the auth sheet during email/password entry.
+    let hasCode = false;
+    try {
+      const u = new URL(url.replace('fanclubz://', 'https://'));
+      hasCode = Boolean(u.searchParams.get('code'));
+    } catch {
+      hasCode = false;
+    }
+    if (!hasCode) return;
+
     console.log('[Bootstrap] appUrlOpen received:', url);
 
-    try {
-      await handleNativeAuthCallback(url);
-    } finally {
-      // close immediately + retry close (iOS sometimes needs a beat)
+    const ok = await handleNativeAuthCallback(url);
+    if (ok) {
+      // Close only after successful exchange (best-effort + retry)
       try { await Browser.close() } catch {}
       setTimeout(() => Browser.close().catch(() => {}), 250);
     }
   }).then(() => {
-    console.log('[Bootstrap] ✅ Native OAuth listener registered (iOS native runtime)');
+    console.log('[Bootstrap] ✅ Native OAuth listener registered (native runtime)');
   }).catch((err) => {
     console.error('[Bootstrap] ❌ Failed to register native OAuth listener:', err);
   });
@@ -98,17 +107,19 @@ if (isNativeIOSRuntime() && typeof window !== 'undefined') {
   CapacitorApp.getLaunchUrl().then((launch) => {
     if (launch?.url) {
       console.log('[Bootstrap] launchUrl detected:', launch.url);
-      handleNativeAuthCallback(launch.url);
+      // Only handle real callback URLs with code.
+      const url = launch.url;
+      if (!url?.startsWith('fanclubz://auth/callback')) return;
+      try {
+        const u = new URL(url.replace('fanclubz://', 'https://'));
+        if (!u.searchParams.get('code')) return;
+      } catch {
+        return;
+      }
+      handleNativeAuthCallback(url);
     }
   }).catch((err) => {
     console.error('[Bootstrap] ❌ Failed to read launchUrl:', err);
-  });
-
-  // Extra safety: if user returns to app and auth is in-flight, force-close the sheet
-  CapacitorApp.addListener('appStateChange', ({ isActive }) => {
-    if (!isActive) return;
-    if (!isNativeAuthInFlight()) return;
-    setTimeout(() => Browser.close().catch(() => {}), 150);
   });
 }
 

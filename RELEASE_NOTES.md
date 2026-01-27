@@ -1,3 +1,19 @@
+## Release notes — iOS Auth + Safe Area (v1)
+
+### iOS OAuth fix (deep link + PKCE code exchange)
+- Native iOS uses `fanclubz://auth/callback` and exchanges **code-only** via `exchangeCodeForSession(code)`.
+- The auth sheet is **closed only after** a real callback with `?code=` and a successful session exchange.
+- Removed any `Browser.close()` behavior triggered by `appStateChange` to avoid interrupting hosted email/password flows.
+
+### Safe-area fix (Dynamic Island / notch)
+- `viewport-fit=cover` enabled in `client/index.html`.
+- Global safe-area CSS variables added (`--safe-top/bottom/left/right`) plus `--top-overlay-offset`.
+- Toast/notification overlay position uses `top: var(--top-overlay-offset)` so banners/toasts never render under the notch.
+- Headers and bottom tabs use safe-area insets so content is not clipped and bottom tabs clear the home indicator.
+
+### Stability notes
+- iOS `Info.plist` uses `$(MARKETING_VERSION)` and `$(CURRENT_PROJECT_VERSION)` for versioning (incrementable in Xcode build settings).
+
 # Release Notes - v2.0.78
 
 **Release Date:** November 15, 2025  

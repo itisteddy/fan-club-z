@@ -47,7 +47,7 @@ const FundingGuidePage: React.FC = () => {
             </button>
             <div className="flex items-center gap-2">
               <img
-                src="/brand/fcz-logomark.png"
+                src="/icons/icon-32.png"
                 alt="FanClubZ"
                 className="h-8 w-8"
                 style={{ objectFit: 'contain' }}
@@ -352,7 +352,7 @@ const FundingGuidePage: React.FC = () => {
           <div className="flex flex-col md:flex-row items-center justify-between gap-4">
             <div className="flex items-center gap-2">
               <img
-                src="/brand/fcz-logomark.png"
+                src="/icons/icon-32.png"
                 alt="FanClubZ"
                 className="h-6 w-6"
                 style={{ objectFit: 'contain' }}

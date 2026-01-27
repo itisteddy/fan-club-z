@@ -45,9 +45,9 @@ export function Header({
         'sticky top-0 z-40 bg-white',
         // Phase 4: Safe-area aware height - outer container includes safe-area inset
         // Height: 56px content + safe-area-inset-top
-        'h-[calc(56px+env(safe-area-inset-top))] md:h-[calc(64px+env(safe-area-inset-top))]',
+        'h-[calc(56px+var(--app-safe-top))] md:h-[calc(64px+var(--app-safe-top))]',
         // Phase 4: Apply safe-area padding only once (on outer container)
-        'pt-[env(safe-area-inset-top)]',
+        'pt-[var(--app-safe-top)]',
         // Border
         'border-b border-gray-100',
         // Shadow (only when scrolled)

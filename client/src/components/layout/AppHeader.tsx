@@ -19,7 +19,7 @@ export function AppHeader({ title, subtitle, left, right, action, sticky = true,
   return (
     <header className={cn(
       "w-full z-20 bg-white/80 backdrop-blur supports-[backdrop-filter]:bg-white/60",
-      sticky && "sticky top-0"
+      sticky && "sticky top-0 safe-area-pt"
     )}>
       <div className="safe-px mx-auto max-w-screen-md">
         <div className="h-12 flex items-center justify-between gap-2 px-4">
