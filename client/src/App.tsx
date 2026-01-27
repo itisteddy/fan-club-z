@@ -21,6 +21,8 @@ import { NetworkStatusProvider } from './providers/NetworkStatusProvider';
 import PageLoadingSpinner from './components/ui/PageLoadingSpinner';
 import { OAuthDiagnostic } from './components/diagnostics/OAuthDiagnostic';
 import { AuthInProgressOverlay } from './components/AuthInProgressOverlay';
+import { useFundingModeStore } from './store/fundingModeStore';
+import { getServerWalletMode, setServerWalletMode } from '@/lib/walletModeSettings';
 
 // Lazy-loaded pages for code splitting
 const LazyDiscoverPage = lazy(() => import('./pages/DiscoverPage'));
@@ -245,7 +247,7 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = memo(({ children }) 
         // iOS safe-area: ensure toasts never sit under Dynamic Island/notch
         containerStyle={{
           zIndex: 2147483647,
-          top: 'var(--top-overlay-offset)',
+          top: 'calc(var(--app-safe-top, 0px) + 10px)',
           left: 0,
           right: 0,
           paddingLeft: 'max(12px, var(--safe-left))',
@@ -270,6 +272,9 @@ MainLayout.displayName = 'MainLayout';
 const BootstrapEffects: React.FC = () => {
   const { user: sessionUser, session, initialized: sessionInitialized } = useAuthSession();
   const { initializeAuth, isAuthenticated: storeAuthenticated, initialized: storeInitialized, user: storeUser } = useAuthStore();
+  const { mode, setMode } = useFundingModeStore();
+  const walletModeBootstrappedRef = useRef(false);
+  const lastPushedWalletModeRef = useRef<typeof mode | null>(null);
   
   // Initialize referral tracking
   useReferralCapture();
@@ -325,6 +330,57 @@ const BootstrapEffects: React.FC = () => {
     // Restore any pending auth state from session storage
     restorePendingAuth();
   }, []);
+
+  // Parity: server-authoritative wallet mode (defaults to demo).
+  useEffect(() => {
+    let cancelled = false;
+    walletModeBootstrappedRef.current = false;
+    lastPushedWalletModeRef.current = null;
+
+    if (!sessionInitialized || !sessionUser?.id) return;
+
+    (async () => {
+      const serverMode = await getServerWalletMode(sessionUser.id);
+      if (cancelled) return;
+
+      // If the server has a setting, it is authoritative.
+      if (serverMode && serverMode !== mode) {
+        setMode(serverMode);
+      }
+
+      walletModeBootstrappedRef.current = true;
+      lastPushedWalletModeRef.current = serverMode ?? mode;
+
+      if (import.meta.env.DEV) {
+        console.log('[wallet-mode] bootstrap', {
+          userId: sessionUser.id,
+          server: serverMode ?? null,
+          effective: serverMode ?? mode,
+        });
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+    // Intentionally exclude `mode` to avoid re-bootstrap loops.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionInitialized, sessionUser?.id, setMode]);
+
+  // Persist user choice back to the server (best-effort).
+  useEffect(() => {
+    if (!sessionInitialized || !sessionUser?.id) return;
+    if (!walletModeBootstrappedRef.current) return;
+    if (lastPushedWalletModeRef.current === mode) return;
+
+    void (async () => {
+      await setServerWalletMode(sessionUser.id, mode);
+      lastPushedWalletModeRef.current = mode;
+      if (import.meta.env.DEV) {
+        console.log('[wallet-mode] persisted', { userId: sessionUser.id, mode });
+      }
+    })();
+  }, [mode, sessionInitialized, sessionUser?.id]);
   
   return null;
 };

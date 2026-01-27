@@ -168,7 +168,7 @@
 /* Safe area adjustments for PWA */
 @supports (padding: max(0px)) {
   .pwa-banner {
-    padding-top: max(12px, env(safe-area-inset-top));
+    padding-top: max(12px, var(--app-safe-top));
     padding-left: max(16px, env(safe-area-inset-left));
     padding-right: max(16px, env(safe-area-inset-right));
   }

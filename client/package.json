@@ -39,7 +39,6 @@
     "perf:lighthouse": "npx lighthouse http://localhost:5174 --view --preset=desktop"
   },
   "dependencies": {
-    "@byteowls/capacitor-oauth2": "^5.0.0",
     "@capacitor/app": "^8.0.0",
     "@capacitor/browser": "^8.0.0",
     "@capacitor/core": "^8.0.1",

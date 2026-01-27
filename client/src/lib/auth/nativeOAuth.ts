@@ -7,7 +7,7 @@
  */
 
 import { supabase } from '@/lib/supabase';
-import { isNativeIOSRuntime } from '@/config/native';
+import { isNativeIOSRuntime, isNativeAndroidRuntime } from '@/config/native';
 import { consumeReturnTo, sanitizeInternalPath } from '@/lib/returnTo';
 import { setNativeAuthInFlight } from '@/lib/auth/nativeAuthState';
 
@@ -42,8 +42,8 @@ export async function exchangeFromDeepLink(callbackUrl: string) {
  * @returns true if this was an auth callback and was handled, false otherwise
  */
 export async function handleNativeAuthCallback(url: string): Promise<boolean> {
-  // Only process in real native iOS runtime (runtime is authoritative)
-  if (!isNativeIOSRuntime()) {
+  // Only process in real native runtime (runtime is authoritative)
+  if (!isNativeIOSRuntime() && !isNativeAndroidRuntime()) {
     return false;
   }
 

@@ -6,16 +6,18 @@ import { captureReturnTo } from '@/lib/returnTo';
 import { shouldUseIOSDeepLinks, isIOSRuntime } from '@/config/platform';
 import { BUILD_TARGET, isWebBuild } from '@/config/buildTarget';
 import { getWebOrigin } from '@/config/origin';
-import { getNativeRedirectTo, IOS_REDIRECT, isNativeIOSRuntime } from '@/config/native';
+import { getNativeRedirectTo, IOS_REDIRECT, isNativeAndroidRuntime, isNativeIOSRuntime } from '@/config/native';
 import { setNativeAuthInFlight } from '@/lib/auth/nativeAuthState';
 
 // Environment variables from centralized config
 const supabaseUrl = SUPABASE_URL;
 const supabaseAnonKey = SUPABASE_ANON_KEY;
 
-console.log('🔧 Supabase Config Check:');
-console.log('URL:', supabaseUrl ? '✅ Present' : '❌ Missing');
-console.log('Anon Key:', supabaseAnonKey ? '✅ Present' : '❌ Missing');
+if (import.meta.env.DEV) {
+  console.log('🔧 Supabase Config Check:');
+  console.log('URL:', supabaseUrl ? '✅ Present' : '❌ Missing');
+  console.log('Anon Key:', supabaseAnonKey ? '✅ Present' : '❌ Missing');
+}
 
 if (!supabaseUrl || !supabaseAnonKey) {
   const missingVars = [];
@@ -197,6 +199,8 @@ export const auth = {
         const iosRuntime = isIOSRuntime();
         // IMPORTANT: For iOS auth routing, trust runtime detection over BUILD_TARGET/env.
         const isIOSNative = isNativeIOSRuntime();
+        const isAndroidNative = isNativeAndroidRuntime();
+        const isNativeMobile = isIOSNative || isAndroidNative;
 
         try {
           if (import.meta.env.DEV && iosRuntime) {
@@ -208,9 +212,9 @@ export const auth = {
           }
           
           // Redirect selection:
-          // - Native iOS runtime: ALWAYS use deep link (runtime is authoritative)
+          // - Native iOS/Android runtime: ALWAYS use deep link (runtime is authoritative)
           // - Web: existing behavior (HTTPS /auth/callback)
-          const redirectUrl = isIOSNative ? getNativeRedirectTo() : getRedirectUrl(options?.next);
+          const redirectUrl = isNativeMobile ? getNativeRedirectTo() : getRedirectUrl(options?.next);
           
           if (import.meta.env.DEV && iosRuntime) {
             console.log('[OAuth] Final OAuth redirect URL:', redirectUrl);
@@ -218,17 +222,17 @@ export const auth = {
             console.log('═══════════════════════════════════════');
           }
 
-          // Emit auth started event for overlay (iOS native only)
-          if (iosRuntime) {
+          // Emit auth started event for overlay (native only)
+          if (Capacitor.isNativePlatform()) {
             window.dispatchEvent(new CustomEvent('auth-in-progress', { detail: { started: true } }));
           }
 
-          // iOS native: MUST open Supabase-provided OAuth URL (do not reconstruct)
+          // Native: MUST open Supabase-provided OAuth URL (do not reconstruct)
           const { data, error } = await supabase.auth.signInWithOAuth({
             provider,
             options: {
               redirectTo: redirectUrl,
-              skipBrowserRedirect: isIOSNative === true, // iOS opens data.url manually; web redirects normally
+              skipBrowserRedirect: isNativeMobile === true, // native opens data.url manually; web redirects normally
               queryParams: {
                 access_type: 'offline',
                 prompt: 'consent',
@@ -244,15 +248,15 @@ export const auth = {
             return { data: null, error };
           }
 
-          if (isIOSNative && data?.url) {
+          if (isNativeMobile && data?.url) {
             if (import.meta.env.DEV) {
               // Prove Supabase is using the deep link (no sensitive params)
               const u = new URL(data.url);
-              console.log('[auth][ios] authorize host:', u.host);
+              console.log('[auth][native] authorize host:', u.host);
               const redirectToParam = u.searchParams.get('redirect_to');
-              console.log('[auth][ios] authorize redirect_to:', redirectToParam);
+              console.log('[auth][native] authorize redirect_to:', redirectToParam);
               if (redirectToParam !== IOS_REDIRECT) {
-                throw new Error(`[auth][ios] redirect_to mismatch: ${redirectToParam}`);
+                throw new Error(`[auth][native] redirect_to mismatch: ${redirectToParam}`);
               }
             }
             // Mark auth as in-flight so bootstrap can force-close any lingering sheet

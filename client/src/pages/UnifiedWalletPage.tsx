@@ -61,12 +61,8 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
     }
   }, [mode, setMode]);
 
-  // Runtime rule: iOS native must always default to demo.
-  useEffect(() => {
-    if (walletVariant.defaultTab === 'demo' && mode !== 'demo') {
-      setMode('demo');
-    }
-  }, [walletVariant.defaultTab, mode, setMode]);
+  // NOTE: wallet mode is enforced at bootstrap (server-authoritative),
+  // not per-page. Do not force-switch here or it prevents user choice.
 
   // Fiat feature flag + balances (server-controlled)
   const { data: paystackStatus } = usePaystackStatus();

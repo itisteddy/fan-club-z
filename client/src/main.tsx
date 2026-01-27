@@ -74,7 +74,7 @@ import { shouldUseIOSDeepLinks, isIOSRuntime } from './config/platform';
 
 // Register native deep link listeners as early as possible.
 // IMPORTANT: Use runtime detection (do not rely on BUILD_TARGET/env).
-if (isNativeIOSRuntime() && typeof window !== 'undefined') {
+if ((isNativeIOSRuntime() || Capacitor.getPlatform() === 'android') && typeof window !== 'undefined') {
   CapacitorApp.addListener('appUrlOpen', async ({ url }) => {
     if (!url?.startsWith('fanclubz://auth/callback')) return;
 
@@ -98,7 +98,7 @@ if (isNativeIOSRuntime() && typeof window !== 'undefined') {
       setTimeout(() => Browser.close().catch(() => {}), 250);
     }
   }).then(() => {
-    console.log('[Bootstrap] ✅ Native OAuth listener registered (iOS native runtime)');
+    console.log('[Bootstrap] ✅ Native OAuth listener registered (native runtime)');
   }).catch((err) => {
     console.error('[Bootstrap] ❌ Failed to register native OAuth listener:', err);
   });

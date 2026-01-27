@@ -45,6 +45,9 @@
   --safe-left: env(safe-area-inset-left, 0px);
   --safe-right: env(safe-area-inset-right, 0px);
 
+  /* Unified safe-top for native insets (Android injects this; iOS falls back to env()) */
+  --app-safe-top: var(--safe-top);
+
   /* tweakable spacing for “top overlays” so they never touch the notch */
   --top-overlay-offset: calc(var(--safe-top) + 10px);
 
