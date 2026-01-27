@@ -32,22 +32,36 @@ overviewRouter.get('/', async (_req, res) => {
     ]);
 
     // Pending settlements = closed/closed-by-time and not settled yet (schema-tolerant)
+    // CRITICAL: Must count ALL predictions that are closed but not settled, regardless of date fields
     let pendingSettlements = 0;
     const preds = await supabase
       .from('predictions')
-      .select('id, status, entry_deadline, end_date, closed_at, settled_at, resolution_date')
+      .select('id, status, entry_deadline, end_date, closed_at, settled_at, resolution_date, winning_option_id')
       .limit(5000);
     if (!(preds as any).error) {
       const rows = ((preds as any).data as any[]) || [];
       pendingSettlements = rows.filter((p: any) => {
         const status = String(p.status || '').toLowerCase();
+        // Exclude already settled/voided/cancelled
         if (status === 'settled' || status === 'voided' || status === 'cancelled') return false;
+        
+        // Check if already settled (has settled_at or resolution_date or winning_option_id)
+        const settledAt = p.settled_at || p.resolution_date || null;
+        const hasWinningOption = Boolean(p.winning_option_id);
+        if (settledAt || hasWinningOption) return false;
+        
+        // A prediction is "pending settlement" if:
+        // 1. Status is "closed" (explicitly closed), OR
+        // 2. Has closed_at timestamp, OR
+        // 3. Has end_date/entry_deadline that has passed
         const closesAt = p.entry_deadline || p.end_date || null;
         const closedAt = p.closed_at || null;
-        const settledAt = p.settled_at || p.resolution_date || null;
         const isClosedByTime = closesAt ? String(closesAt) < nowIso : false;
-        const isClosed = Boolean(closedAt) || status === 'closed' || isClosedByTime;
-        return isClosed && !settledAt;
+        const isExplicitlyClosed = status === 'closed';
+        const hasClosedTimestamp = Boolean(closedAt);
+        
+        // Must be closed (by any means) and not settled
+        return (isExplicitlyClosed || hasClosedTimestamp || isClosedByTime);
       }).length;
     }
 

@@ -86,6 +86,13 @@ export const SettlementsPage: React.FC = () => {
 
   useEffect(() => {
     fetchData();
+    
+    // Listen for settlement completion events from detail page
+    const handleSettlementComplete = () => {
+      setTimeout(() => fetchData(), 1000); // Refresh after a short delay
+    };
+    window.addEventListener('settlement-complete', handleSettlementComplete);
+    return () => window.removeEventListener('settlement-complete', handleSettlementComplete);
   }, [fetchData]);
 
   const handleSync = async (predictionId: string) => {
