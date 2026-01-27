@@ -120,16 +120,25 @@ export const PredictionDetailPage: React.FC = () => {
         const s = result.settlement;
         const totalEntries = (s.demoEntriesCount || 0) + (s.cryptoEntriesCount || 0);
         toast.success(
-          `Settled! ${totalEntries} entries processed. ` +
+          `✅ Settled! ${totalEntries} entries processed. ` +
           `Fees: $${(s.totalPlatformFee || 0).toFixed(2)} platform, $${(s.totalCreatorFee || 0).toFixed(2)} creator.`
         );
       } else {
-        toast.success('Settlement complete');
+        toast.success('✅ Settlement complete');
       }
-      fetchData();
+      
+      // Wait a moment for DB to update, then refresh
+      await new Promise(resolve => setTimeout(resolve, 500));
+      await fetchData();
+      
+      // Also refresh if we're on the settlements page (trigger parent refresh)
+      if (window.location.pathname.includes('/admin/settlements')) {
+        window.dispatchEvent(new Event('settlement-complete'));
+      }
     } catch (e: any) {
       console.error('[Admin/Settlement] Error:', e);
-      toast.error(e?.message || 'Failed to settle prediction');
+      const errorMsg = e?.message || e?.error?.message || `Failed to settle prediction (${e?.status || 'unknown error'})`;
+      toast.error(errorMsg);
     } finally {
       setSettingOutcome(null);
     }

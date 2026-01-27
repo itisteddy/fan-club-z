@@ -5,6 +5,8 @@ import { VERSION } from '@fanclubz/shared';
 import { logAdminAction } from './audit';
 import { settleDemoRail } from '../settlement';
 import { upsertSettlementResult, computeSettlementAggregates } from '../../services/settlementResults';
+import { emitSettlementComplete, emitPredictionUpdate, emitWalletUpdate } from '../../services/realtime';
+import { createNotification } from '../../services/notifications';
 
 export const predictionsRouter = Router();
 
@@ -682,6 +684,94 @@ predictionsRouter.post('/:predictionId/outcome', async (req, res) => {
     if (settlementError) {
       console.error('[Admin/Settlement] Failed to create settlement record:', settlementError);
     }
+
+    // ============ EMIT REALTIME EVENTS (like creator settlement) ============
+    const winnersCount = (allEntries || []).filter((e: any) => e.option_id === optionId).length;
+    try {
+      emitSettlementComplete({ predictionId, winnersCount });
+      emitPredictionUpdate({ predictionId });
+      console.log('[Admin/Settlement] ✅ Realtime events emitted');
+    } catch (emitErr) {
+      console.error('[Admin/Settlement] Failed to emit realtime events:', emitErr);
+    }
+
+    // ============ EMIT WALLET UPDATES FOR WINNERS ============
+    try {
+      const winners = (allEntries || []).filter((e: any) => e.option_id === optionId);
+      for (const winner of winners) {
+        const payout = Number(winner.actual_payout || 0);
+        if (payout > 0) {
+          emitWalletUpdate({ 
+            userId: winner.user_id, 
+            reason: 'settlement_payout', 
+            amountDelta: payout 
+          });
+        }
+      }
+      console.log('[Admin/Settlement] ✅ Wallet update events emitted');
+    } catch (walletEmitErr) {
+      console.error('[Admin/Settlement] Failed to emit wallet updates:', walletEmitErr);
+    }
+
+    // ============ CREATE NOTIFICATIONS FOR PARTICIPANTS (like creator settlement) ============
+    console.log('[Admin/Settlement] 🔔 Creating notifications for participants...');
+    const predictionTitle = (prediction as any).title || 'Prediction';
+    for (const entry of (allEntries || [])) {
+      try {
+        const isWinner = entry.option_id === optionId;
+        const payout = isWinner ? Number(entry.actual_payout || 0) : 0;
+        const isDemo = entry.provider === DEMO_PROVIDER;
+        
+        // Win/Loss notification
+        const winLossType = isWinner ? 'win' : 'loss';
+        const winLossTitle = isWinner ? 'You won!' : 'Result settled';
+        const winLossBody = isWinner
+          ? `You won $${payout.toFixed(2)} on "${predictionTitle}"`
+          : `The prediction "${predictionTitle}" has been settled.`;
+        
+        await createNotification({
+          userId: entry.user_id,
+          type: winLossType,
+          title: winLossTitle,
+          body: winLossBody,
+          href: `/predictions/${predictionId}`,
+          metadata: {
+            predictionId,
+            predictionTitle,
+            winningOptionId: optionId,
+            entryId: entry.id,
+            payout: isWinner ? payout : 0,
+          },
+          externalRef: `notif:${winLossType}:${predictionId}:${entry.user_id}`,
+        }).catch((err) => {
+          console.warn(`[Admin/Settlement] Failed to create ${winLossType} notification for ${entry.user_id}:`, err);
+        });
+        
+        // Demo payout credited notification (for demo winners)
+        if (isWinner && isDemo && payout > 0) {
+          await createNotification({
+            userId: entry.user_id,
+            type: 'payout',
+            title: 'Payout credited',
+            body: `Your demo wallet was credited $${payout.toFixed(2)} for "${predictionTitle}".`,
+            href: `/wallet`,
+            metadata: {
+              predictionId,
+              predictionTitle,
+              entryId: entry.id,
+              payout,
+              rail: 'demo',
+            },
+            externalRef: `notif:payout_demo:${predictionId}:${entry.user_id}`,
+          }).catch((err) => {
+            console.warn(`[Admin/Settlement] Failed to create demo payout notification for ${entry.user_id}:`, err);
+          });
+        }
+      } catch (notificationError) {
+        console.error(`[Admin/Settlement] Failed to notify participant ${entry.user_id}:`, notificationError);
+      }
+    }
+    console.log('[Admin/Settlement] ✅ Participant notifications created');
 
     // Log admin action
     if (actorId) {
