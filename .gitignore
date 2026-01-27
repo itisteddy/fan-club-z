@@ -57,6 +57,11 @@ coverage/
 typecheck-output.txt
 *.tmp
 
+# Android release signing (DO NOT COMMIT)
+client/android/keystore/*.keystore
+client/android/keystore/*.jks
+client/android/keystore/keystore.properties
+
 # Input icon packs (do not commit raw sources)
 fcz_icon_pack 2/
 fcz_icon_pack.zip
