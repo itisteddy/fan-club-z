@@ -11,6 +11,8 @@ export function initRealtime(server: HttpServer) {
   const allowedOrigins = [
     'https://fanclubz.app',
     'https://app.fanclubz.app',
+    // Admin portal
+    'https://web.fanclubz.app',
     'https://auth.fanclubz.app',
     // Capacitor native shells (iOS/Android WebView origins)
     // These must be allowed for native app Socket.IO connections to work
@@ -22,6 +24,7 @@ export function initRealtime(server: HttpServer) {
     'http://localhost:5174', // Vite default dev port
     'http://localhost:3000',
   ];
+  const warnedBlockedOrigins = new Set<string>();
   
   io = new SocketIOServer(server, {
     cors: {
@@ -51,8 +54,15 @@ export function initRealtime(server: HttpServer) {
           return;
         }
         
-        console.log(`[RT-CORS] ❌ Blocked origin: ${origin}`);
-        callback(new Error('Not allowed by CORS'));
+        if (!warnedBlockedOrigins.has(origin)) {
+          warnedBlockedOrigins.add(origin);
+          console.warn(
+            `[RT-CORS] ❌ Blocked origin (Socket.IO CORS will not allow): ${origin}. ` +
+              `If this is a real frontend surface, add it to allowedOrigins in server/src/index.ts and server/src/services/realtime.ts.`
+          );
+        }
+        // Do not throw; fail closed without crashing the server.
+        callback(null, false);
       },
       credentials: true,
       methods: ['GET', 'POST'],

@@ -64,6 +64,8 @@ app.use(helmet({
 const allowedOrigins = [
   'https://fanclubz.app',
   'https://app.fanclubz.app',
+  // Admin portal
+  'https://web.fanclubz.app',
   // Auth domain (Supabase auth hosted) may be used during OAuth flows
   'https://auth.fanclubz.app',
   // Capacitor native shells (iOS/Android WebView origins)
@@ -78,6 +80,10 @@ const allowedOrigins = [
   'http://localhost:5174', // Vite default dev port
   'http://localhost:3000',
 ];
+
+// Avoid turning "origin not allowed" into a 500 again.
+// We log blocked origins (deduped) and simply omit CORS headers for them.
+const warnedBlockedOrigins = new Set<string>();
 
 // Single CORS options object used for both normal requests and preflight
 const corsOptions: cors.CorsOptions = {
@@ -105,8 +111,16 @@ const corsOptions: cors.CorsOptions = {
       return;
     }
     
-    console.log(`[CORS] ❌ Blocked origin: ${origin}`);
-    callback(new Error('Not allowed by CORS'));
+    if (!warnedBlockedOrigins.has(origin)) {
+      warnedBlockedOrigins.add(origin);
+      console.warn(
+        `[CORS] ❌ Blocked origin (no CORS headers will be set): ${origin}. ` +
+          `If this is a real frontend surface, add it to allowedOrigins in server/src/index.ts and server/src/services/realtime.ts.`
+      );
+    }
+    // CRITICAL: do NOT throw here; throwing becomes a 500 and looks like "server broken"
+    // Instead, fail closed by omitting CORS headers (browser will block the response).
+    callback(null, false);
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
