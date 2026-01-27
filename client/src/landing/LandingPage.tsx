@@ -296,6 +296,40 @@ const LandingPage: React.FC = () => {
                   Docs
                 </a>
               </li>
+              <li>
+                <a
+                  href="/support"
+                  className="hover:text-white"
+                  onClick={(e) => { e.preventDefault(); navigate('/support'); }}
+                >
+                  Support
+                </a>
+              </li>
+            </ul>
+          </div>
+          <div>
+            <div className="mb-2 text-sm font-semibold text-white/80">Legal</div>
+            <ul className="space-y-2 text-sm text-white/70">
+              <li>
+                <a href="/privacy" className="hover:text-white" onClick={(e) => { e.preventDefault(); navigate('/privacy'); }}>
+                  Privacy Policy
+                </a>
+              </li>
+              <li>
+                <a href="/terms" className="hover:text-white" onClick={(e) => { e.preventDefault(); navigate('/terms'); }}>
+                  Terms of Service
+                </a>
+              </li>
+              <li>
+                <a href="/guidelines" className="hover:text-white" onClick={(e) => { e.preventDefault(); navigate('/guidelines'); }}>
+                  Community Guidelines
+                </a>
+              </li>
+              <li>
+                <a href="/cookies" className="hover:text-white" onClick={(e) => { e.preventDefault(); navigate('/cookies'); }}>
+                  Cookie Policy
+                </a>
+              </li>
             </ul>
           </div>
           <div>
