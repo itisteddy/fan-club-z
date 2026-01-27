@@ -359,9 +359,24 @@ const FundingGuidePage: React.FC = () => {
               />
               <span className="font-semibold">FanClubZ</span>
             </div>
-            <div className="flex items-center gap-6 text-sm text-white/50">
+            <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm text-white/50">
               <button onClick={handleBackToHome} className="hover:text-white transition-colors">
                 Home
+              </button>
+              <button onClick={() => navigate('/support')} className="hover:text-white transition-colors">
+                Support
+              </button>
+              <button onClick={() => navigate('/privacy')} className="hover:text-white transition-colors">
+                Privacy
+              </button>
+              <button onClick={() => navigate('/terms')} className="hover:text-white transition-colors">
+                Terms
+              </button>
+              <button onClick={() => navigate('/guidelines')} className="hover:text-white transition-colors">
+                Guidelines
+              </button>
+              <button onClick={() => navigate('/cookies')} className="hover:text-white transition-colors">
+                Cookies
               </button>
               <a href="mailto:tech@fanclubz.app" className="hover:text-white transition-colors">
                 Contact
