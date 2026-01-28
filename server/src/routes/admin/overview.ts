@@ -24,6 +24,7 @@ function isSchemaMismatch(err: any): boolean {
 overviewRouter.get('/', async (_req, res) => {
   try {
     const nowIso = new Date().toISOString();
+    const nowMs = Date.parse(nowIso);
 
     // Note: DB uses 'open' for active predictions, not 'active'
     const [{ count: totalUsers }, { count: activePredictions }] = await Promise.all([
@@ -69,7 +70,8 @@ overviewRouter.get('/', async (_req, res) => {
 
         const closesAt = p.entry_deadline || p.end_date || null;
         const closedAt = p.closed_at || null;
-        const isClosedByTime = closesAt ? String(closesAt) < nowIso : false;
+        const closesAtMs = closesAt ? new Date(closesAt).getTime() : NaN;
+        const isClosedByTime = Number.isFinite(closesAtMs) ? closesAtMs <= nowMs : false;
         // Keep backend "closed" rules aligned with UI (`client/src/lib/predictionStatusUi.ts`)
         const isClosed =
           Boolean(closedAt) || status === 'closed' || status === 'awaiting_settlement' || isClosedByTime;
