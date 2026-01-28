@@ -104,14 +104,28 @@ export const PredictionDetailPage: React.FC = () => {
   }, [predictionId, actorId]);
 
   const handleSetOutcome = async (optionId: string) => {
-    if (!predictionId) return;
+    if (!predictionId) {
+      toast.error('Missing prediction ID');
+      return;
+    }
+    
+    // Check if we have admin access (either actorId or admin key)
+    const adminKey = typeof window !== 'undefined' ? localStorage.getItem('fcz_admin_key') : null;
+    if (!actorId && !adminKey) {
+      toast.error('Admin access required. Please ensure you are logged in or have an admin key set.');
+      return;
+    }
+    
     setSettingOutcome(optionId);
     try {
+      console.log('[Admin/Settlement] Attempting to settle prediction:', { predictionId, optionId, actorId: actorId || 'using admin key' });
       const result = await adminPost<any>(
         `/api/v2/admin/predictions/${predictionId}/outcome`,
-        actorId,
+        actorId || '',
         actorId ? { optionId, actorId } : { optionId }
       );
+      
+      console.log('[Admin/Settlement] Settlement result:', result);
       
       // Show detailed success message based on settlement results
       if (result?.alreadySettled) {
@@ -148,16 +162,45 @@ export const PredictionDetailPage: React.FC = () => {
     fetchData();
   }, [fetchData]);
 
+  // Debug: Log admin access status
+  useEffect(() => {
+    const adminKey = typeof window !== 'undefined' ? localStorage.getItem('fcz_admin_key') : null;
+    console.log('[Admin/PredictionDetail] Admin access check:', {
+      actorId: actorId || 'MISSING',
+      hasAdminKey: !!adminKey,
+      predictionId,
+    });
+  }, [actorId, predictionId]);
+
   const handleVoid = async () => {
-    if (!predictionId || !actorId || reason.length < 5) return;
+    if (!predictionId) {
+      toast.error('Missing prediction ID');
+      return;
+    }
+    if (reason.length < 5) {
+      toast.error('Please provide a reason (at least 5 characters)');
+      return;
+    }
+    
+    // Check if we have admin access (either actorId or admin key)
+    const adminKey = typeof window !== 'undefined' ? localStorage.getItem('fcz_admin_key') : null;
+    if (!actorId && !adminKey) {
+      toast.error('Admin access required. Please ensure you are logged in or have an admin key set.');
+      setShowVoidModal(false);
+      return;
+    }
+    
     setActionLoading(true);
     try {
-      const json = await adminPost<any>(`/api/v2/admin/predictions/${predictionId}/void`, actorId, { reason });
+      console.log('[Admin/Void] Attempting to void prediction:', { predictionId, reason: reason.substring(0, 20), actorId: actorId || 'using admin key' });
+      const json = await adminPost<any>(`/api/v2/admin/predictions/${predictionId}/void`, actorId || '', { reason });
+      console.log('[Admin/Void] Void result:', json);
       toast.success(`Prediction voided. ${json.refunds?.success || 0} bets refunded.`);
       setShowVoidModal(false);
       setReason('');
       fetchData();
     } catch (e: any) {
+      console.error('[Admin/Void] Error:', e);
       toast.error(e.message || 'Failed to void prediction');
     } finally {
       setActionLoading(false);
@@ -165,15 +208,34 @@ export const PredictionDetailPage: React.FC = () => {
   };
 
   const handleCancel = async () => {
-    if (!predictionId || !actorId || reason.length < 5) return;
+    if (!predictionId) {
+      toast.error('Missing prediction ID');
+      return;
+    }
+    if (reason.length < 5) {
+      toast.error('Please provide a reason (at least 5 characters)');
+      return;
+    }
+    
+    // Check if we have admin access (either actorId or admin key)
+    const adminKey = typeof window !== 'undefined' ? localStorage.getItem('fcz_admin_key') : null;
+    if (!actorId && !adminKey) {
+      toast.error('Admin access required. Please ensure you are logged in or have an admin key set.');
+      setShowCancelModal(false);
+      return;
+    }
+    
     setActionLoading(true);
     try {
-      await adminPost<any>(`/api/v2/admin/predictions/${predictionId}/cancel`, actorId, { reason });
+      console.log('[Admin/Cancel] Attempting to cancel prediction:', { predictionId, reason: reason.substring(0, 20), actorId: actorId || 'using admin key' });
+      await adminPost<any>(`/api/v2/admin/predictions/${predictionId}/cancel`, actorId || '', { reason });
+      console.log('[Admin/Cancel] Cancel successful');
       toast.success('Prediction cancelled');
       setShowCancelModal(false);
       setReason('');
       fetchData();
     } catch (e: any) {
+      console.error('[Admin/Cancel] Error:', e);
       toast.error(e.message || 'Failed to cancel prediction');
     } finally {
       setActionLoading(false);
@@ -181,14 +243,28 @@ export const PredictionDetailPage: React.FC = () => {
   };
 
   const handleReset = async () => {
-    if (!predictionId || !actorId) return;
+    if (!predictionId) {
+      toast.error('Missing prediction ID');
+      return;
+    }
     if (!window.confirm('Reset this prediction to active? This will undo settlement.')) return;
+    
+    // Check if we have admin access (either actorId or admin key)
+    const adminKey = typeof window !== 'undefined' ? localStorage.getItem('fcz_admin_key') : null;
+    if (!actorId && !adminKey) {
+      toast.error('Admin access required. Please ensure you are logged in or have an admin key set.');
+      return;
+    }
+    
     setActionLoading(true);
     try {
-      await adminPost<any>(`/api/v2/admin/predictions/${predictionId}/reset`, actorId, {});
+      console.log('[Admin/Reset] Attempting to reset prediction:', { predictionId, actorId: actorId || 'using admin key' });
+      await adminPost<any>(`/api/v2/admin/predictions/${predictionId}/reset`, actorId || '', {});
+      console.log('[Admin/Reset] Reset successful');
       toast.success('Prediction reset to active');
       fetchData();
     } catch (e: any) {
+      console.error('[Admin/Reset] Error:', e);
       toast.error(e.message || 'Failed to reset prediction');
     } finally {
       setActionLoading(false);
