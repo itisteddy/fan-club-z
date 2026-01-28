@@ -230,7 +230,9 @@ settlementsRouter.get('/queue', async (req, res) => {
         const closesAt = p.entry_deadline || p.end_date || null;
         const closedAt = p.closed_at || null;
         const isClosedByTime = closesAt ? String(closesAt) < nowIso : false;
-        const isClosed = Boolean(closedAt) || status === 'closed' || isClosedByTime;
+        // Keep backend "closed" rules aligned with UI (`client/src/lib/predictionStatusUi.ts`)
+        const isClosed =
+          Boolean(closedAt) || status === 'closed' || status === 'awaiting_settlement' || isClosedByTime;
         if (!isClosed) return false;
         return true;
       })
@@ -240,8 +242,10 @@ settlementsRouter.get('/queue', async (req, res) => {
         const closedAt = p.closed_at || null;
         const settledAt = p.settled_at || p.resolution_date || null;
         const isClosedByTime = closesAt ? String(closesAt) < nowIso : false;
-        const isClosed = Boolean(closedAt) || status === 'closed' || isClosedByTime;
-        const isSettled = Boolean(settledAt) || status === 'settled';
+        // Keep backend "closed" rules aligned with UI (`client/src/lib/predictionStatusUi.ts`)
+        const isClosed =
+          Boolean(closedAt) || status === 'closed' || status === 'awaiting_settlement' || isClosedByTime;
+        const isSettled = Boolean(settledAt) || status === 'settled' || status === 'complete';
         const hasOutcome = Boolean(p.winning_option_id);
 
         const rails = railsMap[p.id] || { hasDemo: false, hasCrypto: false };
@@ -419,26 +423,20 @@ settlementsRouter.get('/stats', async (req, res) => {
       .limit(5000);
     const pendingSettlement = ((predsRes.data as any[]) || []).filter((p: any) => {
       const status = String(p.status || '').toLowerCase();
-      // Exclude already settled/voided/cancelled
-      if (status === 'settled' || status === 'voided' || status === 'cancelled') return false;
-      
-      // Check if already settled (has settled_at or resolution_date or winning_option_id)
+      if (status === 'voided' || status === 'cancelled') return false;
+
       const settledAt = p.settled_at || p.resolution_date || null;
-      const hasWinningOption = Boolean(p.winning_option_id);
-      if (settledAt || hasWinningOption) return false;
-      
-      // A prediction is "pending settlement" if:
-      // 1. Status is "closed" (explicitly closed), OR
-      // 2. Has closed_at timestamp, OR
-      // 3. Has end_date/entry_deadline that has passed
+      const isSettled = Boolean(settledAt) || status === 'settled' || status === 'complete';
+      if (isSettled) return false;
+
       const closesAt = p.entry_deadline || p.end_date || null;
       const closedAt = p.closed_at || null;
       const isClosedByTime = closesAt ? String(closesAt) < now : false;
-      const isExplicitlyClosed = status === 'closed';
-      const hasClosedTimestamp = Boolean(closedAt);
-      
-      // Must be closed (by any means) and not settled
-      return (isExplicitlyClosed || hasClosedTimestamp || isClosedByTime);
+      // Keep backend "closed" rules aligned with UI (`client/src/lib/predictionStatusUi.ts`)
+      const isClosed =
+        Boolean(closedAt) || status === 'closed' || status === 'awaiting_settlement' || isClosedByTime;
+
+      return isClosed;
     }).length;
 
     // Settlement job stats
