@@ -31,8 +31,7 @@ overviewRouter.get('/', async (_req, res) => {
       supabase.from('predictions').select('id', { count: 'exact', head: true }).eq('status', 'open'),
     ]);
 
-    // Pending settlements = closed/closed-by-time and not settled yet (schema-tolerant)
-    // CRITICAL: Must count ALL predictions that are closed but not settled, regardless of date fields
+    // Pending settlements = closed (by UI rules) and not settled yet (schema-tolerant)
     let pendingSettlements = 0;
     const preds = await supabase
       .from('predictions')
@@ -42,26 +41,20 @@ overviewRouter.get('/', async (_req, res) => {
       const rows = ((preds as any).data as any[]) || [];
       pendingSettlements = rows.filter((p: any) => {
         const status = String(p.status || '').toLowerCase();
-        // Exclude already settled/voided/cancelled
-        if (status === 'settled' || status === 'voided' || status === 'cancelled') return false;
-        
-        // Check if already settled (has settled_at or resolution_date or winning_option_id)
+        if (status === 'voided' || status === 'cancelled') return false;
+
         const settledAt = p.settled_at || p.resolution_date || null;
-        const hasWinningOption = Boolean(p.winning_option_id);
-        if (settledAt || hasWinningOption) return false;
-        
-        // A prediction is "pending settlement" if:
-        // 1. Status is "closed" (explicitly closed), OR
-        // 2. Has closed_at timestamp, OR
-        // 3. Has end_date/entry_deadline that has passed
+        const isSettled = Boolean(settledAt) || status === 'settled' || status === 'complete';
+        if (isSettled) return false;
+
         const closesAt = p.entry_deadline || p.end_date || null;
         const closedAt = p.closed_at || null;
         const isClosedByTime = closesAt ? String(closesAt) < nowIso : false;
-        const isExplicitlyClosed = status === 'closed';
-        const hasClosedTimestamp = Boolean(closedAt);
-        
-        // Must be closed (by any means) and not settled
-        return (isExplicitlyClosed || hasClosedTimestamp || isClosedByTime);
+        // Keep backend "closed" rules aligned with UI (`client/src/lib/predictionStatusUi.ts`)
+        const isClosed =
+          Boolean(closedAt) || status === 'closed' || status === 'awaiting_settlement' || isClosedByTime;
+
+        return isClosed;
       }).length;
     }
 
