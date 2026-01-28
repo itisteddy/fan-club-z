@@ -420,21 +420,28 @@ settlementsRouter.get('/stats', async (req, res) => {
     const EXT_SELECT = 'id, status, entry_deadline, end_date, closed_at, settled_at, resolution_date, winning_option_id';
     const BASE_SELECT = 'id, status, entry_deadline, end_date, winning_option_id';
     
-    let predsRes = await supabase
+    let predsRows: any[] = [];
+    let predsError: any = null;
+    
+    const predsFirst = await supabase
       .from('predictions')
       .select(EXT_SELECT)
       .limit(5000);
     
-    // Fallback if schema mismatch
-    if (predsRes.error && isSchemaMismatch(predsRes.error)) {
-      console.warn('[Admin/Settlements] Stats schema mismatch, trying base select:', predsRes.error.message);
-      predsRes = await supabase
+    if (predsFirst.error && isSchemaMismatch(predsFirst.error)) {
+      console.warn('[Admin/Settlements] Stats schema mismatch, trying base select:', predsFirst.error.message);
+      const predsFallback = await supabase
         .from('predictions')
         .select(BASE_SELECT)
         .limit(5000);
+      predsRows = (predsFallback.data as any[]) || [];
+      predsError = predsFallback.error;
+    } else {
+      predsRows = (predsFirst.data as any[]) || [];
+      predsError = predsFirst.error;
     }
     
-    const pendingSettlement = ((predsRes.data as any[]) || []).filter((p: any) => {
+    const pendingSettlement = predsRows.filter((p: any) => {
       const status = String(p.status || '').toLowerCase();
       if (status === 'voided' || status === 'cancelled') return false;
 
@@ -452,8 +459,8 @@ settlementsRouter.get('/stats', async (req, res) => {
       return isClosed;
     }).length;
     
-    if (predsRes.error) {
-      console.error('[Admin/Settlements] Failed to fetch predictions for pending count:', predsRes.error);
+    if (predsError) {
+      console.error('[Admin/Settlements] Failed to fetch predictions for pending count:', predsError);
     }
 
     // Settlement job stats
