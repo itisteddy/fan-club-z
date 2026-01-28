@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { supabase } from '../../config/database';
 import { VERSION } from '@fanclubz/shared';
-import { logAdminAction } from './audit';
+import { getFallbackAdminActorId, logAdminAction } from './audit';
 import { settleDemoRail } from '../settlement';
 import { upsertSettlementResult, computeSettlementAggregates } from '../../services/settlementResults';
 import { emitSettlementComplete, emitPredictionUpdate, emitWalletUpdate } from '../../services/realtime';
@@ -838,7 +838,7 @@ predictionsRouter.post('/:predictionId/outcome', async (req, res) => {
 
 const VoidSchema = z.object({
   reason: z.string().min(5, 'Reason must be at least 5 characters'),
-  actorId: z.string().uuid(),
+  actorId: z.string().uuid().optional(),
 });
 
 /**
@@ -859,7 +859,8 @@ predictionsRouter.post('/:predictionId/void', async (req, res) => {
       });
     }
 
-    const { reason, actorId } = parsed.data;
+    const actorId = parsed.data.actorId || getFallbackAdminActorId();
+    const { reason } = parsed.data;
 
     // Get prediction
     const { data: prediction, error: predError } = await supabase
@@ -934,7 +935,7 @@ predictionsRouter.post('/:predictionId/void', async (req, res) => {
             kind: 'bet_refund',
             currency: provider === 'fiat-paystack' ? 'NGN' : (provider === 'demo-wallet' ? 'DEMO_USD' : 'USD'),
             reason, 
-            voided_by: actorId, 
+            voided_by: actorId || 'admin_key', 
             originalAmount: entry.amount,
           },
         });
@@ -981,18 +982,20 @@ predictionsRouter.post('/:predictionId/void', async (req, res) => {
       })
       .eq('id', predictionId);
 
-    // Log admin action
-    await logAdminAction({
-      actorId,
-      action: 'prediction_void',
-      targetType: 'prediction',
-      targetId: predictionId,
-      reason,
-      meta: {
-        title: prediction.title,
-        refunds: refundResults,
-      },
-    });
+    // Log admin action (best-effort; actorId optional in admin-key-only mode)
+    if (actorId) {
+      await logAdminAction({
+        actorId,
+        action: 'prediction_void',
+        targetType: 'prediction',
+        targetId: predictionId,
+        reason,
+        meta: {
+          title: prediction.title,
+          refunds: refundResults,
+        },
+      });
+    }
 
     return res.json({
       success: true,
@@ -1012,7 +1015,7 @@ predictionsRouter.post('/:predictionId/void', async (req, res) => {
 
 const CancelSchema = z.object({
   reason: z.string().min(5, 'Reason must be at least 5 characters'),
-  actorId: z.string().uuid(),
+  actorId: z.string().uuid().optional(),
 });
 
 /**
@@ -1033,7 +1036,8 @@ predictionsRouter.post('/:predictionId/cancel', async (req, res) => {
       });
     }
 
-    const { reason, actorId } = parsed.data;
+    const actorId = parsed.data.actorId || getFallbackAdminActorId();
+    const { reason } = parsed.data;
 
     // Get prediction
     const { data: prediction } = await supabase
@@ -1074,17 +1078,19 @@ predictionsRouter.post('/:predictionId/cancel', async (req, res) => {
       .eq('prediction_id', predictionId)
       .eq('status', 'active');
 
-    // Log admin action
-    await logAdminAction({
-      actorId,
-      action: 'prediction_cancel',
-      targetType: 'prediction',
-      targetId: predictionId,
-      reason,
-      meta: {
-        title: prediction.title,
-      },
-    });
+    // Log admin action (best-effort; actorId optional in admin-key-only mode)
+    if (actorId) {
+      await logAdminAction({
+        actorId,
+        action: 'prediction_cancel',
+        targetType: 'prediction',
+        targetId: predictionId,
+        reason,
+        meta: {
+          title: prediction.title,
+        },
+      });
+    }
 
     return res.json({
       success: true,
@@ -1102,7 +1108,7 @@ predictionsRouter.post('/:predictionId/cancel', async (req, res) => {
 });
 
 const ResetSchema = z.object({
-  actorId: z.string().uuid(),
+  actorId: z.string().uuid().optional(),
 });
 
 /**
@@ -1123,7 +1129,7 @@ predictionsRouter.post('/:predictionId/reset', async (req, res) => {
       });
     }
 
-    const { actorId } = parsed.data;
+    const actorId = parsed.data.actorId || getFallbackAdminActorId();
 
     // Get prediction
     const { data: prediction } = await supabase
@@ -1189,16 +1195,19 @@ predictionsRouter.post('/:predictionId/reset', async (req, res) => {
       .eq('bet_id', predictionId);
 
     // Log admin action
-    await logAdminAction({
-      actorId,
-      action: 'prediction_reset',
-      targetType: 'prediction',
-      targetId: predictionId,
-      meta: {
-        title: prediction.title,
-        previousStatus: prediction.status,
-      },
-    });
+    // Log admin action (best-effort; actorId optional in admin-key-only mode)
+    if (actorId) {
+      await logAdminAction({
+        actorId,
+        action: 'prediction_reset',
+        targetType: 'prediction',
+        targetId: predictionId,
+        meta: {
+          title: prediction.title,
+          previousStatus: prediction.status,
+        },
+      });
+    }
 
     return res.json({
       success: true,
