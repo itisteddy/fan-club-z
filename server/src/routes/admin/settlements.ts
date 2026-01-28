@@ -156,6 +156,7 @@ settlementsRouter.post('/:predictionId/sync', async (req, res) => {
 settlementsRouter.get('/queue', async (req, res) => {
   try {
     const nowIso = new Date().toISOString();
+    const nowMs = Date.parse(nowIso);
 
     // Fetch recent predictions; filter in-memory (schema differs between environments)
     const EXT_SELECT =
@@ -229,7 +230,8 @@ settlementsRouter.get('/queue', async (req, res) => {
         if (status === 'cancelled' || status === 'voided') return false;
         const closesAt = p.entry_deadline || p.end_date || null;
         const closedAt = p.closed_at || null;
-        const isClosedByTime = closesAt ? String(closesAt) < nowIso : false;
+        const closesAtMs = closesAt ? new Date(closesAt).getTime() : NaN;
+        const isClosedByTime = Number.isFinite(closesAtMs) ? closesAtMs <= nowMs : false;
         // Keep backend "closed" rules aligned with UI (`client/src/lib/predictionStatusUi.ts`)
         const isClosed =
           Boolean(closedAt) || status === 'closed' || status === 'awaiting_settlement' || isClosedByTime;
@@ -241,7 +243,8 @@ settlementsRouter.get('/queue', async (req, res) => {
         const closesAt = p.entry_deadline || p.end_date || null;
         const closedAt = p.closed_at || null;
         const settledAt = p.settled_at || p.resolution_date || null;
-        const isClosedByTime = closesAt ? String(closesAt) < nowIso : false;
+        const closesAtMs = closesAt ? new Date(closesAt).getTime() : NaN;
+        const isClosedByTime = Number.isFinite(closesAtMs) ? closesAtMs <= nowMs : false;
         // Keep backend "closed" rules aligned with UI (`client/src/lib/predictionStatusUi.ts`)
         const isClosed =
           Boolean(closedAt) || status === 'closed' || status === 'awaiting_settlement' || isClosedByTime;
@@ -401,6 +404,7 @@ settlementsRouter.get('/', async (req, res) => {
 settlementsRouter.get('/stats', async (req, res) => {
   try {
     const now = new Date().toISOString();
+    const nowMs = Date.parse(now);
 
     // Count by status
     // Note: DB uses 'open' not 'active' for active predictions
@@ -451,7 +455,8 @@ settlementsRouter.get('/stats', async (req, res) => {
 
       const closesAt = p.entry_deadline || p.end_date || null;
       const closedAt = p.closed_at || null;
-      const isClosedByTime = closesAt ? String(closesAt) < now : false;
+      const closesAtMs = closesAt ? new Date(closesAt).getTime() : NaN;
+      const isClosedByTime = Number.isFinite(closesAtMs) ? closesAtMs <= nowMs : false;
       // Keep backend "closed" rules aligned with UI (`client/src/lib/predictionStatusUi.ts`)
       const isClosed =
         Boolean(closedAt) || status === 'closed' || status === 'awaiting_settlement' || isClosedByTime;
