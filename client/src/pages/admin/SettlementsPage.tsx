@@ -67,6 +67,9 @@ export const SettlementsPage: React.FC = () => {
   const [stats, setStats] = useState<Stats | null>(null);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const pendingFromQueue = queue.length;
+  const pendingFromStats = stats?.predictions?.pendingSettlement ?? 0;
+  const pendingDisplay = pendingFromStats || pendingFromQueue;
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -172,7 +175,7 @@ export const SettlementsPage: React.FC = () => {
               <AlertTriangle className="w-4 h-4 text-amber-400" />
               <span className="text-sm">Pending Settlement</span>
             </div>
-            <p className="text-2xl font-bold text-amber-400">{stats.predictions.pendingSettlement}</p>
+            <p className="text-2xl font-bold text-amber-400">{pendingDisplay}</p>
           </div>
 
           <div className="bg-slate-800 border border-slate-700 rounded-xl p-4">
