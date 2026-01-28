@@ -32,13 +32,27 @@ overviewRouter.get('/', async (_req, res) => {
     ]);
 
     // Pending settlements = closed (by UI rules) and not settled yet (schema-tolerant)
+    // Try extended select first, fall back to minimal if columns don't exist
     let pendingSettlements = 0;
-    const preds = await supabase
+    const EXT_SELECT = 'id, status, entry_deadline, end_date, closed_at, settled_at, resolution_date, winning_option_id';
+    const BASE_SELECT = 'id, status, entry_deadline, end_date, winning_option_id';
+    
+    let predsResult = await supabase
       .from('predictions')
-      .select('id, status, entry_deadline, end_date, closed_at, settled_at, resolution_date, winning_option_id')
+      .select(EXT_SELECT)
       .limit(5000);
-    if (!(preds as any).error) {
-      const rows = ((preds as any).data as any[]) || [];
+    
+    // Fallback if schema mismatch
+    if (predsResult.error && isSchemaMismatch(predsResult.error)) {
+      console.warn('[Admin/Overview] Schema mismatch, trying base select:', predsResult.error.message);
+      predsResult = await supabase
+        .from('predictions')
+        .select(BASE_SELECT)
+        .limit(5000);
+    }
+    
+    if (!predsResult.error && predsResult.data) {
+      const rows = predsResult.data as any[];
       pendingSettlements = rows.filter((p: any) => {
         const status = String(p.status || '').toLowerCase();
         if (status === 'voided' || status === 'cancelled') return false;
@@ -56,6 +70,8 @@ overviewRouter.get('/', async (_req, res) => {
 
         return isClosed;
       }).length;
+    } else if (predsResult.error) {
+      console.error('[Admin/Overview] Failed to fetch predictions for pending count:', predsResult.error);
     }
 
     // Total volume = sum of stakes (best-effort; cap to protect performance)

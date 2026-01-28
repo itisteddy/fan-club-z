@@ -416,11 +416,24 @@ settlementsRouter.get('/stats', async (req, res) => {
     ]);
 
     // Pending settlements: closed/closed-by-time with no settlement yet (schema-tolerant)
-    // CRITICAL: Must count ALL predictions that are closed but not settled, regardless of date fields
-    const predsRes = await supabase
+    // Try extended select first, fall back to minimal if columns don't exist
+    const EXT_SELECT = 'id, status, entry_deadline, end_date, closed_at, settled_at, resolution_date, winning_option_id';
+    const BASE_SELECT = 'id, status, entry_deadline, end_date, winning_option_id';
+    
+    let predsRes = await supabase
       .from('predictions')
-      .select('id, status, entry_deadline, end_date, closed_at, settled_at, resolution_date, winning_option_id')
+      .select(EXT_SELECT)
       .limit(5000);
+    
+    // Fallback if schema mismatch
+    if (predsRes.error && isSchemaMismatch(predsRes.error)) {
+      console.warn('[Admin/Settlements] Stats schema mismatch, trying base select:', predsRes.error.message);
+      predsRes = await supabase
+        .from('predictions')
+        .select(BASE_SELECT)
+        .limit(5000);
+    }
+    
     const pendingSettlement = ((predsRes.data as any[]) || []).filter((p: any) => {
       const status = String(p.status || '').toLowerCase();
       if (status === 'voided' || status === 'cancelled') return false;
@@ -438,6 +451,10 @@ settlementsRouter.get('/stats', async (req, res) => {
 
       return isClosed;
     }).length;
+    
+    if (predsRes.error) {
+      console.error('[Admin/Settlements] Failed to fetch predictions for pending count:', predsRes.error);
+    }
 
     // Settlement job stats
     let jobStats: any[] = [];
