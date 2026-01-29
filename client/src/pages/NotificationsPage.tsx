@@ -97,14 +97,14 @@ export const NotificationsPage: React.FC = () => {
   if (loading && notifications.length === 0) {
     return (
       <div className="min-h-screen bg-gray-50">
-        {/* Header - Consistent with AppHeader/PredictionDetailsPageV2 styling */}
-        <header className="w-full z-20 bg-white/80 backdrop-blur supports-[backdrop-filter]:bg-white/60 sticky top-0">
+        {/* Header - safe area for notch; 44px tap target for back button */}
+        <header className="w-full z-20 bg-white/80 backdrop-blur supports-[backdrop-filter]:bg-white/60 sticky top-0 pt-[env(safe-area-inset-top,0px)]">
           <div className="safe-px mx-auto max-w-screen-md">
-            <div className="h-12 flex items-center justify-between gap-2 px-4">
-              <div className="min-w-[40px] flex items-center">
+            <div className="min-h-[48px] h-12 flex items-center justify-between gap-2 px-4">
+              <div className="min-w-[44px] min-h-[44px] flex items-center justify-center -ml-1">
                 <button
                   onClick={() => navigate(-1)}
-                  className="p-2 -ml-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2"
+                  className="min-w-[44px] min-h-[44px] flex items-center justify-center text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2"
                   aria-label="Go back"
                 >
                   <ArrowLeft className="w-5 h-5" />
@@ -113,7 +113,7 @@ export const NotificationsPage: React.FC = () => {
               <div className="flex-1 text-center">
                 <h1 className="text-base font-semibold leading-none truncate">Notifications</h1>
               </div>
-              <div className="min-w-[40px]" />
+              <div className="min-w-[44px]" />
             </div>
           </div>
           <div className="border-b border-gray-200" />
@@ -130,14 +130,14 @@ export const NotificationsPage: React.FC = () => {
   if (error && notifications.length === 0) {
     return (
       <div className="min-h-screen bg-gray-50">
-        {/* Header */}
-        <header className="w-full z-20 bg-white/80 backdrop-blur supports-[backdrop-filter]:bg-white/60 sticky top-0">
+        {/* Header - safe area for notch; 44px tap target for back button */}
+        <header className="w-full z-20 bg-white/80 backdrop-blur supports-[backdrop-filter]:bg-white/60 sticky top-0 pt-[env(safe-area-inset-top,0px)]">
           <div className="safe-px mx-auto max-w-screen-md">
-            <div className="h-12 flex items-center justify-between gap-2 px-4">
-              <div className="min-w-[40px] flex items-center">
+            <div className="min-h-[48px] h-12 flex items-center justify-between gap-2 px-4">
+              <div className="min-w-[44px] min-h-[44px] flex items-center justify-center -ml-1">
                 <button
                   onClick={() => navigate(-1)}
-                  className="p-2 -ml-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2"
+                  className="min-w-[44px] min-h-[44px] flex items-center justify-center text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2"
                   aria-label="Go back"
                 >
                   <ArrowLeft className="w-5 h-5" />
@@ -146,7 +146,7 @@ export const NotificationsPage: React.FC = () => {
               <div className="flex-1 text-center">
                 <h1 className="text-base font-semibold leading-none truncate">Notifications</h1>
               </div>
-              <div className="min-w-[40px]" />
+              <div className="min-w-[44px]" />
             </div>
           </div>
           <div className="border-b border-gray-200" />
@@ -171,14 +171,14 @@ export const NotificationsPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header - Consistent with AppHeader/PredictionDetailsPageV2 styling */}
-      <header className="w-full z-20 bg-white/80 backdrop-blur supports-[backdrop-filter]:bg-white/60 sticky top-0">
+      {/* Header - safe area for notch; 44px tap target for back button */}
+      <header className="w-full z-20 bg-white/80 backdrop-blur supports-[backdrop-filter]:bg-white/60 sticky top-0 pt-[env(safe-area-inset-top,0px)]">
         <div className="safe-px mx-auto max-w-screen-md">
-          <div className="h-12 flex items-center justify-between gap-2 px-4">
-            <div className="min-w-[40px] flex items-center">
+          <div className="min-h-[48px] h-12 flex items-center justify-between gap-2 px-4">
+            <div className="min-w-[44px] min-h-[44px] flex items-center justify-center -ml-1">
               <button
                 onClick={() => navigate(-1)}
-                className="p-2 -ml-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2"
+                className="min-w-[44px] min-h-[44px] flex items-center justify-center text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2"
                 aria-label="Go back"
               >
                 <ArrowLeft className="w-5 h-5" />
@@ -187,7 +187,7 @@ export const NotificationsPage: React.FC = () => {
             <div className="flex-1 text-center">
               <h1 className="text-base font-semibold leading-none truncate">Notifications</h1>
             </div>
-            <div className="min-w-[40px] flex items-center justify-end">
+            <div className="min-w-[44px] flex items-center justify-end">
               {unreadCount > 0 && (
                 <button
                   onClick={handleMarkAllRead}

@@ -273,6 +273,7 @@ import transactionLogRouter from './routes/wallet/transactionLog';
 import { qaCryptoMock } from './routes/qaCryptoMock';
 import referralRoutes from './routes/referrals';
 import badgeRoutes from './routes/badges';
+import { authRouter } from './routes/auth';
 import { adminRouter } from './routes/admin';
 import notificationsRoutes from './routes/notifications';
 import { remindersRouter } from './routes/notificationsReminders';
@@ -291,6 +292,7 @@ import { initRealtime } from './services/realtime';
 
 // Use routes
 app.use('/api/v2/users', usersRoutes);
+app.use('/api/v2/auth', authRouter);
 app.use('/api/v2/predictions', predictionsRoutes);
 app.use('/api/predictions', placeBetRouter);
 app.use('/api/v1/predictions', placeBetRouter); // Back-compat for older clients (snake_case route supported inside)

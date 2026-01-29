@@ -14,6 +14,7 @@ interface AuthSessionContextType {
   signUp: (email: string, password: string, userData?: any) => Promise<{ error: any }>;
   signOut: () => Promise<{ error: any }>;
   signInWithGoogle: () => Promise<{ error: any }>;
+  signInWithApple: () => Promise<{ error: any }>;
   signInWithEmailLink: (email: string) => Promise<{ error: any }>;
 }
 
@@ -193,6 +194,25 @@ export const AuthSessionProvider: React.FC<AuthSessionProviderProps> = ({ childr
     }
   };
 
+  const signInWithApple = async () => {
+    try {
+      captureReturnTo();
+      const currentPath = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+      const next = currentPath;
+      if (import.meta.env.DEV) {
+        console.log('🔐 Apple OAuth next:', next);
+      }
+      const { error } = await authHelpers.signInWithOAuth('apple', { next });
+      if (error) {
+        console.error('🔐 Apple OAuth error:', error);
+      }
+      return { error };
+    } catch (error: any) {
+      console.error('🔐 Apple OAuth exception:', error);
+      return { error: { message: error.message || 'An unexpected error occurred' } };
+    }
+  };
+
   const signInWithEmailLink = async (email: string) => {
     try {
       // Capture current location
@@ -236,6 +256,7 @@ export const AuthSessionProvider: React.FC<AuthSessionProviderProps> = ({ childr
     signUp,
     signOut,
     signInWithGoogle,
+    signInWithApple,
     signInWithEmailLink,
   };
 

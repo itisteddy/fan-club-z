@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
+import { openTerms, openPrivacy } from '@/utils/openExternalUrl';
 
 const CURRENT_YEAR = new Date().getFullYear();
 
@@ -40,8 +41,8 @@ export default function LegalLayout({ title, description, children }: Props) {
           </div>
 
           <nav className="hidden md:flex items-center gap-5 text-sm text-white/70">
-            <Link to="/privacy" className="hover:text-white">Privacy</Link>
-            <Link to="/terms" className="hover:text-white">Terms</Link>
+            <button type="button" onClick={openPrivacy} className="hover:text-white bg-transparent border-0 p-0 cursor-pointer">Privacy</button>
+            <button type="button" onClick={openTerms} className="hover:text-white bg-transparent border-0 p-0 cursor-pointer">Terms</button>
             <Link to="/support" className="hover:text-white">Support</Link>
           </nav>
         </div>
@@ -57,9 +58,9 @@ export default function LegalLayout({ title, description, children }: Props) {
 
         <div className="mt-6 text-xs text-white/50">
           Canonical URLs: {' '}
-          <a className="underline hover:text-white" href={`${SITE_URL}/privacy`} target="_blank" rel="noreferrer">{SITE_URL}/privacy</a>
+          <button type="button" onClick={openPrivacy} className="underline hover:text-white bg-transparent border-0 p-0 cursor-pointer">{SITE_URL}/privacy</button>
           {' · '}
-          <a className="underline hover:text-white" href={`${SITE_URL}/terms`} target="_blank" rel="noreferrer">{SITE_URL}/terms</a>
+          <button type="button" onClick={openTerms} className="underline hover:text-white bg-transparent border-0 p-0 cursor-pointer">{SITE_URL}/terms</button>
           {' · '}
           <a className="underline hover:text-white" href={`${SITE_URL}/support`} target="_blank" rel="noreferrer">{SITE_URL}/support</a>
           {' · '}
@@ -77,8 +78,8 @@ export default function LegalLayout({ title, description, children }: Props) {
             </div>
 
             <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm text-white/50">
-              <Link to="/privacy" className="hover:text-white transition-colors">Privacy Policy</Link>
-              <Link to="/terms" className="hover:text-white transition-colors">Terms</Link>
+              <button type="button" onClick={openPrivacy} className="hover:text-white transition-colors bg-transparent border-0 p-0 cursor-pointer">Privacy Policy</button>
+              <button type="button" onClick={openTerms} className="hover:text-white transition-colors bg-transparent border-0 p-0 cursor-pointer">Terms</button>
               <Link to="/support" className="hover:text-white transition-colors">Support</Link>
               <Link to="/guidelines" className="hover:text-white transition-colors">Community Guidelines</Link>
               <Link to="/cookies" className="hover:text-white transition-colors">Cookie Policy</Link>

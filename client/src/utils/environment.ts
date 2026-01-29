@@ -22,6 +22,14 @@ export const FCZ_COMMENTS_V2 = envClient.VITE_FCZ_COMMENTS_V2 === '1';
 export const FCZ_UNIFIED_CARDS = envClient.VITE_FCZ_UNIFIED_CARDS === '1';
 export const FCZ_COMMENTS_SORT = envClient.VITE_FCZ_COMMENTS_SORT === '1';
 
+// Compliance / phased rollout (default OFF unless env set to '1')
+export const SIGN_IN_APPLE = (envClient as any).VITE_FCZ_SIGN_IN_APPLE === '1';
+export const ACCOUNT_DELETION = (envClient as any).VITE_FCZ_ACCOUNT_DELETION === '1';
+export const UGC_MODERATION = (envClient as any).VITE_FCZ_UGC_MODERATION === '1';
+export const DISPUTES = (envClient as any).VITE_FCZ_DISPUTES === '1';
+export const ODDS_V2 = (envClient as any).VITE_FCZ_ODDS_V2 === '1';
+export const WALLET_CONNECT_V2 = (envClient as any).VITE_FCZ_WALLET_CONNECT_V2 === '1';
+
 // Debug and Development
 export const DEBUG_ENABLED = envClient.VITE_DEBUG === 'true';
 

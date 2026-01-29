@@ -151,6 +151,15 @@ export const config = {
     maxSize: process.env.LOG_MAX_SIZE || '10m',
   },
   
+  // Sign in with Apple (Phase 2 — ENV only; no secrets in code)
+  apple: {
+    clientId: process.env.APPLE_CLIENT_ID || process.env.APPLE_SERVICES_ID || '',
+    teamId: process.env.APPLE_TEAM_ID || '',
+    keyId: process.env.APPLE_KEY_ID || '',
+    privateKey: process.env.APPLE_PRIVATE_KEY || process.env.APPLE_PRIVATE_KEY_PATH || '',
+    redirectUri: process.env.APPLE_REDIRECT_URI || '',
+  },
+
   // Security Configuration
   security: {
     bcryptRounds: parseInt(process.env.BCRYPT_ROUNDS || '12', 10),

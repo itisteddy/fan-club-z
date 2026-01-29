@@ -1,6 +1,7 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Wallet, Fuel, Coins, ExternalLink, AlertCircle, CheckCircle, Copy, HelpCircle, ArrowLeft } from 'lucide-react';
+import { openTerms, openPrivacy } from '@/utils/openExternalUrl';
 
 const CURRENT_YEAR = new Date().getFullYear();
 
@@ -366,10 +367,10 @@ const FundingGuidePage: React.FC = () => {
               <button onClick={() => navigate('/support')} className="hover:text-white transition-colors">
                 Support
               </button>
-              <button onClick={() => navigate('/privacy')} className="hover:text-white transition-colors">
+              <button onClick={openPrivacy} className="hover:text-white transition-colors">
                 Privacy
               </button>
-              <button onClick={() => navigate('/terms')} className="hover:text-white transition-colors">
+              <button onClick={openTerms} className="hover:text-white transition-colors">
                 Terms
               </button>
               <button onClick={() => navigate('/guidelines')} className="hover:text-white transition-colors">

@@ -2,6 +2,7 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import AuthGateModal from '../components/auth/AuthGateModal';
+import { openTerms, openPrivacy } from '../utils/openExternalUrl';
 
 const CURRENT_YEAR = new Date().getFullYear();
 
@@ -311,24 +312,24 @@ const LandingPage: React.FC = () => {
             <div className="mb-2 text-sm font-semibold text-white/80">Legal</div>
             <ul className="space-y-2 text-sm text-white/70">
               <li>
-                <a href="/privacy" className="hover:text-white" onClick={(e) => { e.preventDefault(); navigate('/privacy'); }}>
+                <button type="button" onClick={openPrivacy} className="text-left hover:text-white underline">
                   Privacy Policy
-                </a>
+                </button>
               </li>
               <li>
-                <a href="/terms" className="hover:text-white" onClick={(e) => { e.preventDefault(); navigate('/terms'); }}>
+                <button type="button" onClick={openTerms} className="text-left hover:text-white underline">
                   Terms of Service
-                </a>
+                </button>
               </li>
               <li>
-                <a href="/guidelines" className="hover:text-white" onClick={(e) => { e.preventDefault(); navigate('/guidelines'); }}>
+                <button type="button" onClick={() => navigate('/guidelines')} className="text-left hover:text-white underline">
                   Community Guidelines
-                </a>
+                </button>
               </li>
               <li>
-                <a href="/cookies" className="hover:text-white" onClick={(e) => { e.preventDefault(); navigate('/cookies'); }}>
+                <button type="button" onClick={() => navigate('/cookies')} className="text-left hover:text-white underline">
                   Cookie Policy
-                </a>
+                </button>
               </li>
             </ul>
           </div>

@@ -1,6 +1,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import LegalLayout from './LegalLayout';
+import { openTerms, openPrivacy } from '@/utils/openExternalUrl';
 
 const SUPPORT_EMAIL = 'tech@fanclubz.app';
 
@@ -89,8 +90,8 @@ export default function SupportPage() {
         <section className="space-y-2">
           <h2 className="text-lg font-semibold text-white">Helpful links</h2>
           <ul className="list-disc pl-5 space-y-1">
-            <li><Link className="underline hover:text-white" to="/privacy">Privacy Policy</Link></li>
-            <li><Link className="underline hover:text-white" to="/terms">Terms of Service</Link></li>
+            <li><button type="button" onClick={openPrivacy} className="underline hover:text-white bg-transparent border-0 p-0 cursor-pointer text-left">Privacy Policy</button></li>
+            <li><button type="button" onClick={openTerms} className="underline hover:text-white bg-transparent border-0 p-0 cursor-pointer text-left">Terms of Service</button></li>
             <li><Link className="underline hover:text-white" to="/guidelines">Community Guidelines</Link></li>
             <li><Link className="underline hover:text-white" to="/cookies">Cookie Policy</Link></li>
             <li><Link className="underline hover:text-white" to="/docs/funding-guide">Funding guide</Link></li>

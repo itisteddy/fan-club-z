@@ -5,11 +5,13 @@ import { useAuthGate, resolveAuthGate } from '../../auth/authGateAdapter';
 import { useAuthSession } from '../../providers/AuthSessionProvider';
 import { useNetworkStatus } from '../../providers/NetworkStatusProvider';
 import { INTENT_MAP, FALLBACK_INTENT } from '../../auth/authIntents';
+import { isFeatureEnabled } from '../../config/featureFlags';
 import EmailInputModal from './EmailInputModal';
 
 const AuthGateModal: React.FC = () => {
   const { isOpen, pendingIntent, intentMeta } = useAuthGate();
-  const { signInWithGoogle, signInWithEmailLink, user } = useAuthSession();
+  const { signInWithGoogle, signInWithApple, signInWithEmailLink, user } = useAuthSession();
+  const showAppleSignIn = isFeatureEnabled('SIGN_IN_APPLE');
   const { isOnline } = useNetworkStatus();
   const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
   
@@ -100,6 +102,29 @@ const AuthGateModal: React.FC = () => {
     }
   };
 
+  // Handle Apple sign in
+  const handleAppleSignIn = async () => {
+    if (import.meta.env.DEV && import.meta.env.VITE_DEBUG_LOGS === 'true') {
+      console.log('[FCZ-QA] Apple sign in attempt');
+    }
+    try {
+      const { error } = await signInWithApple();
+      if (error) {
+        console.error('Apple sign in error:', error);
+        resolveAuthGate({
+          status: 'error',
+          reason: error.message || 'Sign in with Apple failed',
+        });
+      }
+    } catch (error) {
+      console.error('Apple sign in exception:', error);
+      resolveAuthGate({
+        status: 'error',
+        reason: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
+  };
+
   // Handle email link sign in
   const handleEmailLinkSignIn = () => {
     if (import.meta.env.DEV && import.meta.env.VITE_DEBUG_LOGS === 'true') {
@@ -179,12 +204,37 @@ const AuthGateModal: React.FC = () => {
         {/* Content */}
         <div className="p-6">
           <div className="space-y-4">
-            {/* Primary CTA - Always show Google as primary */}
+            {/* Sign in with Apple - first when enabled (Apple HIG: equal or higher prominence) */}
+            {showAppleSignIn && (
+              <button
+                type="button"
+                ref={firstButtonRef}
+                onClick={handleAppleSignIn}
+                disabled={isOffline}
+                className="w-full flex items-center justify-center gap-3 bg-black hover:bg-gray-800 disabled:bg-gray-300 text-white py-4 px-6 rounded-xl font-semibold transition-colors disabled:cursor-not-allowed shadow-lg min-h-[44px]"
+                data-qa="auth-gate-apple"
+                title="Sign in with Apple to FanClubZ"
+                aria-label="Sign in with Apple"
+              >
+                {/* Apple logo glyph (U+F8FF). Renders correctly on iOS/macOS system fonts. */}
+                <span
+                  aria-hidden
+                  className="text-[18px] leading-none"
+                  style={{ fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif' }}
+                >
+                  {'\uF8FF'}
+                </span>
+                Sign in with Apple
+              </button>
+            )}
+
+            {/* Primary CTA - Google (first when Apple is off) */}
             <button
-              ref={firstButtonRef}
+              type="button"
+              ref={!showAppleSignIn ? firstButtonRef : undefined}
               onClick={handleGoogleSignIn}
               disabled={isOffline}
-              className="w-full flex items-center justify-center gap-3 bg-emerald-500 hover:bg-emerald-600 disabled:bg-gray-300 text-white py-4 px-6 rounded-xl font-semibold transition-colors disabled:cursor-not-allowed shadow-lg relative group"
+              className="w-full flex items-center justify-center gap-3 bg-emerald-500 hover:bg-emerald-600 disabled:bg-gray-300 text-white py-4 px-6 rounded-xl font-semibold transition-colors disabled:cursor-not-allowed shadow-lg relative group min-h-[44px]"
               data-qa="auth-gate-google"
               title="You'll sign in with Google to FanClubZ"
             >
@@ -202,11 +252,12 @@ const AuthGateModal: React.FC = () => {
               </div>
             </div>
             
-            {/* Secondary CTA - Always show Email as secondary */}
+            {/* Secondary CTA - Email */}
             <button
+              type="button"
               onClick={handleEmailLinkSignIn}
               disabled={isOffline}
-              className="w-full flex items-center justify-center gap-3 bg-white border-2 border-gray-200 hover:bg-gray-50 hover:border-gray-300 disabled:bg-gray-100 disabled:border-gray-200 text-gray-700 py-4 px-6 rounded-xl font-semibold transition-colors disabled:cursor-not-allowed"
+              className="w-full flex items-center justify-center gap-3 bg-white border-2 border-gray-200 hover:bg-gray-50 hover:border-gray-300 disabled:bg-gray-100 disabled:border-gray-200 text-gray-700 py-4 px-6 rounded-xl font-semibold transition-colors disabled:cursor-not-allowed min-h-[44px]"
               data-qa="auth-gate-email"
             >
               <Mail className="w-5 h-5" />
