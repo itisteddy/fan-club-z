@@ -12,7 +12,8 @@ import {
   Calendar,
   DollarSign,
   Users,
-  BarChart3
+  BarChart3,
+  Flag
 } from 'lucide-react';
 import { usePredictionStore } from '../../store/predictionStore';
 import { useAuthSession } from '../../providers/AuthSessionProvider';
@@ -26,6 +27,9 @@ import LoadingState from '../ui/LoadingState';
 import EmptyState from '../ui/EmptyState';
 import AuthRequiredState from '../ui/empty/AuthRequiredState';
 import { t } from '@/lib/lexicon';
+import { isFeatureEnabled } from '@/config/featureFlags';
+import { ReportContentModal } from '../ugc/ReportContentModal';
+import toast from 'react-hot-toast';
 
 interface PredictionDetailsContentProps {
   predictionId: string;
@@ -36,7 +40,7 @@ const PredictionDetailsContent: React.FC<PredictionDetailsContentProps> = ({
   predictionId, 
   onNavigateBack 
 }) => {
-  const { user, isAuthenticated } = useAuthSession();
+  const { user, session, isAuthenticated } = useAuthSession();
   const { executeWithErrorHandling } = useErrorHandling({
     context: 'PredictionDetailsContent',
   });
@@ -49,6 +53,7 @@ const PredictionDetailsContent: React.FC<PredictionDetailsContentProps> = ({
   const [isLiked, setIsLiked] = useState(false);
   const [likeCount, setLikeCount] = useState(0);
   const [commentCount, setCommentCount] = useState(0);
+  const [showReportModal, setShowReportModal] = useState(false);
 
   // Refs
   const commentsRef = useRef<HTMLDivElement>(null);
@@ -60,6 +65,13 @@ const PredictionDetailsContent: React.FC<PredictionDetailsContentProps> = ({
   const prediction = useMemo(() => {
     return predictions.find(p => p.id === predictionId) || null;
   }, [predictions, predictionId]);
+
+  const ugcModerationEnabled = isFeatureEnabled('UGC_MODERATION');
+  const isCreator = useMemo(() => {
+    if (!user?.id || !prediction) return false;
+    const creatorId = (prediction as any).creator_id || prediction.creator?.id;
+    return Boolean(creatorId && String(creatorId) === String(user.id));
+  }, [prediction, user?.id]);
 
   // Handle missing creator
   const creatorMissing = useMemo(() => {
@@ -337,8 +349,29 @@ const PredictionDetailsContent: React.FC<PredictionDetailsContentProps> = ({
             <Share2 className="w-4 h-4" />
             <span>Share</span>
           </button>
+          {ugcModerationEnabled && !isCreator && (
+            <button
+              onClick={() => setShowReportModal(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200 transition-colors"
+              aria-label="Report prediction"
+            >
+              <Flag className="w-4 h-4" />
+              <span>Report</span>
+            </button>
+          )}
         </div>
       </div>
+      {ugcModerationEnabled && (
+        <ReportContentModal
+          open={showReportModal}
+          targetType="prediction"
+          targetId={predictionId}
+          label="this prediction"
+          accessToken={session?.access_token}
+          onClose={() => setShowReportModal(false)}
+          onSuccess={() => toast.success('Report submitted. Our team will review it.')}
+        />
+      )}
 
       {/* Betting Options */}
       {prediction.options && prediction.options.length > 0 && (

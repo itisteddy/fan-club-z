@@ -7,6 +7,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuthSession } from '@/providers/AuthSessionProvider';
+import toast from 'react-hot-toast';
 import {
   isReferralEnabled,
   getRefCode,
@@ -18,6 +19,7 @@ import {
   logReferralLogin,
   fetchMyReferralStats,
   fetchReferralLeaderboard,
+  getReferrerPreview,
   type ReferralStats,
   type ReferralLeaderboardEntry,
 } from '@/lib/referral';
@@ -162,13 +164,32 @@ export const useReferralLeaderboard = (
  * This extracts ref codes from URLs and stores them
  */
 export const useReferralCapture = (): void => {
+  const { user, initialized } = useAuthSession();
+
   useEffect(() => {
     if (!isReferralEnabled()) return;
+
+    const maybeShowInviteToast = () => {
+      try {
+        const shownKey = 'fanclubz_ref_invite_toast_shown';
+        if (!initialized) return;
+        if (user?.id) return; // already signed in
+        if (sessionStorage.getItem(shownKey)) return;
+        const preview = getReferrerPreview();
+        if (preview?.username) {
+          toast.success(`Invited by @${preview.username}`, { duration: 3000 });
+          sessionStorage.setItem(shownKey, '1');
+        }
+      } catch {
+        // ignore
+      }
+    };
     
     // Check for ref code in URL path (e.g., /r/code123)
     const pathMatch = window.location.pathname.match(/^\/r\/([a-zA-Z0-9]+)/);
     if (pathMatch?.[1]) {
       setRefCode(pathMatch[1]);
+      maybeShowInviteToast();
       return;
     }
     
@@ -177,12 +198,13 @@ export const useReferralCapture = (): void => {
     const refParam = urlParams.get('ref') || urlParams.get('ref_code');
     if (refParam) {
       setRefCode(refParam);
+      maybeShowInviteToast();
     }
-  }, []);
+  }, [initialized, user?.id]);
 };
 
 /**
- * Hook for attributing referrals on first login
+ * Hook for attributing referrals on first login (Phase 5: persistence + visual feedback)
  */
 export const useReferralAttribution = (): void => {
   const { user, initialized } = useAuthSession();
@@ -195,16 +217,24 @@ export const useReferralAttribution = (): void => {
       const refCode = getRefCode();
       if (!refCode) return;
       
+      // Capture referrer preview before attribution (clearRefCode clears it on success)
+      const referrerPreview = getReferrerPreview();
+      
       const result = await attributeReferral(user.id);
       if (result.attributed) {
         console.log('[Referral] Successfully attributed');
         setAttributed(true);
+        // Post-signup feedback: "You were referred by @username"
+        if (referrerPreview?.username) {
+          toast.success(`You were referred by @${referrerPreview.username}`, { duration: 4000 });
+        } else {
+          toast.success('Referral credited! Thanks for joining.', { duration: 3000 });
+        }
       }
     };
     
     handleAttribution();
-    
-    // Also log the login
+    // Log the login for active referral tracking (runs every time effect runs)
     logReferralLogin(user.id);
   }, [user?.id, initialized, attributed]);
 };

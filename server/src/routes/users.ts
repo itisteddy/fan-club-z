@@ -152,6 +152,58 @@ router.get('/leaderboard', async (req, res) => {
   }
 });
 
+// Phase 5: Current terms version; bump when Terms/Privacy/Community Guidelines change
+const TERMS_VERSION = '1.0';
+
+// GET /api/v2/users/me/terms-accepted - Check if current user has accepted current terms (Phase 5)
+router.get('/me/terms-accepted', requireSupabaseAuth, async (req: AuthenticatedRequest, res) => {
+  const userId = req.user?.id;
+  if (!userId) {
+    return res.status(401).json({ error: 'unauthorized', message: 'Authorization required', version: VERSION });
+  }
+  try {
+    const { data, error } = await supabase
+      .from('terms_acceptance')
+      .select('id, terms_version, accepted_at')
+      .eq('user_id', userId)
+      .eq('terms_version', TERMS_VERSION)
+      .maybeSingle();
+    if (error) {
+      return res.status(500).json({ error: 'Database error', message: error.message, version: VERSION });
+    }
+    return res.json({
+      accepted: !!data,
+      terms_version: TERMS_VERSION,
+      accepted_at: data?.accepted_at ?? null,
+      version: VERSION,
+    });
+  } catch (e: any) {
+    return res.status(500).json({ error: 'Internal server error', message: e?.message, version: VERSION });
+  }
+});
+
+// POST /api/v2/users/me/accept-terms - Record acceptance of Terms/Privacy/Community Guidelines (Phase 5)
+router.post('/me/accept-terms', requireSupabaseAuth, async (req: AuthenticatedRequest, res) => {
+  const userId = req.user?.id;
+  if (!userId) {
+    return res.status(401).json({ error: 'unauthorized', message: 'Authorization required', version: VERSION });
+  }
+  try {
+    const { error } = await supabase
+      .from('terms_acceptance')
+      .upsert(
+        { user_id: userId, terms_version: TERMS_VERSION, accepted_at: new Date().toISOString() },
+        { onConflict: 'user_id,terms_version' }
+      );
+    if (error) {
+      return res.status(500).json({ error: 'Database error', message: error.message, version: VERSION });
+    }
+    return res.json({ success: true, terms_version: TERMS_VERSION, version: VERSION });
+  } catch (e: any) {
+    return res.status(500).json({ error: 'Internal server error', message: e?.message, version: VERSION });
+  }
+});
+
 // POST /api/v2/users/me/delete - Delete current user account (Phase 4). Requires Bearer token.
 router.post('/me/delete', requireSupabaseAuth, async (req: AuthenticatedRequest, res) => {
   const userId = req.user?.id;
@@ -186,6 +238,78 @@ router.post('/me/delete', requireSupabaseAuth, async (req: AuthenticatedRequest,
       message: e?.message || 'Account deletion failed',
       version: VERSION,
     });
+  }
+});
+
+// GET /api/v2/users/me/blocked - List blocked user IDs (UGC moderation)
+router.get('/me/blocked', requireSupabaseAuth, async (req: AuthenticatedRequest, res) => {
+  const blockerId = req.user?.id;
+  if (!blockerId) {
+    return res.status(401).json({ error: 'unauthorized', message: 'Authorization required', version: VERSION });
+  }
+  try {
+    const { data, error } = await supabase
+      .from('user_blocks')
+      .select('blocked_user_id')
+      .eq('blocker_id', blockerId);
+    if (error) {
+      return res.status(500).json({ error: 'Database error', message: error.message, version: VERSION });
+    }
+    const blockedUserIds = (data || []).map((r: { blocked_user_id: string }) => r.blocked_user_id);
+    return res.json({ data: { blockedUserIds }, version: VERSION });
+  } catch (e: any) {
+    return res.status(500).json({ error: 'Internal server error', message: e?.message, version: VERSION });
+  }
+});
+
+// POST /api/v2/users/me/block - Block a user (UGC moderation)
+router.post('/me/block', requireSupabaseAuth, async (req: AuthenticatedRequest, res) => {
+  const blockerId = req.user?.id;
+  if (!blockerId) {
+    return res.status(401).json({ error: 'unauthorized', message: 'Authorization required', version: VERSION });
+  }
+  const userId = (req.body?.userId ?? req.body?.blockedUserId) as string | undefined;
+  if (!userId || typeof userId !== 'string') {
+    return res.status(400).json({ error: 'Bad request', message: 'userId is required', version: VERSION });
+  }
+  if (userId === blockerId) {
+    return res.status(400).json({ error: 'Bad request', message: 'Cannot block yourself', version: VERSION });
+  }
+  try {
+    const { error: insertError } = await supabase
+      .from('user_blocks')
+      .upsert(
+        { blocker_id: blockerId, blocked_user_id: userId },
+        { onConflict: 'blocker_id,blocked_user_id' }
+      );
+    if (insertError) {
+      return res.status(500).json({ error: 'Database error', message: insertError.message, version: VERSION });
+    }
+    return res.status(201).json({ data: { blockedUserId: userId }, message: 'User blocked', version: VERSION });
+  } catch (e: any) {
+    return res.status(500).json({ error: 'Internal server error', message: e?.message, version: VERSION });
+  }
+});
+
+// DELETE /api/v2/users/me/block/:userId - Unblock a user (UGC moderation)
+router.delete('/me/block/:userId', requireSupabaseAuth, async (req: AuthenticatedRequest, res) => {
+  const blockerId = req.user?.id;
+  if (!blockerId) {
+    return res.status(401).json({ error: 'unauthorized', message: 'Authorization required', version: VERSION });
+  }
+  const { userId } = req.params;
+  if (!userId) {
+    return res.status(400).json({ error: 'Bad request', message: 'userId is required', version: VERSION });
+  }
+  try {
+    await supabase
+      .from('user_blocks')
+      .delete()
+      .eq('blocker_id', blockerId)
+      .eq('blocked_user_id', userId);
+    return res.status(200).json({ data: { unblockedUserId: userId }, message: 'User unblocked', version: VERSION });
+  } catch (e: any) {
+    return res.status(500).json({ error: 'Internal server error', message: e?.message, version: VERSION });
   }
 });
 
@@ -275,10 +399,28 @@ router.get('/:id', async (req, res) => {
 });
 
 // PATCH /api/v2/users/:id/profile - Update user profile (name, avatar)
-// Uses service role key to bypass RLS
-router.patch('/:id/profile', async (req, res) => {
+// SECURITY: Must be authenticated and self-only.
+// Uses service role key to bypass RLS, but authorization is enforced here.
+router.patch('/:id/profile', requireSupabaseAuth, async (req: AuthenticatedRequest, res) => {
   const { id } = req.params;
   const { full_name, avatar_url } = req.body;
+  const actorId = req.user?.id;
+
+  if (!actorId) {
+    return res.status(401).json({
+      error: 'unauthorized',
+      message: 'Authorization required',
+      version: VERSION,
+    });
+  }
+
+  if (actorId !== id) {
+    return res.status(403).json({
+      error: 'forbidden',
+      message: 'You can only update your own profile',
+      version: VERSION,
+    });
+  }
   
   console.log(`✏️ User profile update for ID: ${id}`, { full_name, avatar_url: avatar_url ? '[provided]' : '[not provided]' });
   

@@ -2,6 +2,10 @@ import express from 'express';
 import { SocialService } from '../services/social';
 import { supabase } from '../config/database';
 import { createNotification } from '../services/notifications';
+import { assertContentAllowed } from '../services/contentFilter';
+import { requireSupabaseAuth } from '../middleware/requireSupabaseAuth';
+import { requireTermsAccepted } from '../middleware/requireTermsAccepted';
+import type { AuthenticatedRequest } from '../middleware/auth';
 
 const socialService = new SocialService();
 
@@ -34,46 +38,51 @@ router.get('/predictions/:predictionId/comments', async (req, res) => {
   }
 });
 
-// Create a new comment
-router.post('/predictions/:predictionId/comments', async (req, res) => {
+// Create a new comment (Phase 5: requires auth + terms accepted)
+router.post('/predictions/:predictionId/comments', requireSupabaseAuth, requireTermsAccepted, async (req, res) => {
+  const authReq = req as AuthenticatedRequest;
+  const authenticatedUserId = authReq.user?.id;
+  if (!authenticatedUserId) {
+    return res.status(401).json({ success: false, error: 'Authorization required' });
+  }
   try {
     const { predictionId } = req.params;
     const { content, userId, user, parentCommentId, parent_comment_id } = req.body;
 
-    // Get userId from either userId field or user object
-    const actualUserId = userId || user?.id;
+    // Phase 5: Use authenticated user; allow body userId for backward compat but must match
+    const bodyUserId = userId || user?.id;
+    const actualUserId = bodyUserId && bodyUserId === authenticatedUserId ? bodyUserId : authenticatedUserId;
     const actualParentId = parentCommentId || parent_comment_id;
 
     console.log('📝 Comment creation request:', {
       predictionId,
       content: content?.substring(0, 50) + '...',
-      userId,
-      userObject: user,
       actualUserId,
       parentCommentId,
       parent_comment_id,
       actualParentId
     });
 
-    if (!content || !actualUserId) {
-      console.log('❌ Missing required fields:', { 
-        content: !!content, 
-        contentLength: content?.length,
-        userId: !!userId,
-        userObject: !!user,
-        actualUserId: !!actualUserId,
-        fullBody: req.body 
-      });
+    if (!content) {
       return res.status(400).json({
         success: false,
-        error: 'Content and userId are required',
-        debug: {
-          hasContent: !!content,
-          hasUserId: !!userId,
-          hasUserObject: !!user,
-          extractedUserId: actualUserId
-        }
+        error: 'Content is required',
       });
+    }
+
+    // Phase 5: Basic content filtering (server-side)
+    try {
+      assertContentAllowed([{ label: 'comment', value: content }]);
+    } catch (e: any) {
+      if (e?.code === 'CONTENT_NOT_ALLOWED') {
+        return res.status(400).json({
+          success: false,
+          error: 'content_not_allowed',
+          message: 'Your comment contains disallowed language. Please revise and try again.',
+          field: e?.field,
+        });
+      }
+      throw e;
     }
 
     console.log(`💬 Creating comment for prediction ${predictionId} by user ${actualUserId}`);

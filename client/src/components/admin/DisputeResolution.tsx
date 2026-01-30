@@ -1,7 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { AlertTriangle, Eye, CheckCircle, XCircle, ExternalLink, User, Calendar, FileText } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
+import { useAuthSession } from '@/providers/AuthSessionProvider';
 import { getApiUrl } from '@/utils/environment';
+import { adminGet, adminPost } from '@/lib/adminApi';
 
 interface Dispute {
   id: string;
@@ -10,8 +12,10 @@ interface Dispute {
   created_at: string;
   status: string;
   user: {
-    username: string;
-    email: string;
+    id?: string;
+    username?: string;
+    full_name?: string | null;
+    email?: string;
   };
   prediction: {
     id: string;
@@ -326,77 +330,55 @@ const DisputeModal: React.FC<DisputeModalProps> = ({ dispute, onClose, onResolve
 };
 
 export const DisputeResolution: React.FC = () => {
+  const { user } = useAuthStore();
+  const { user: sessionUser } = useAuthSession();
+  const actorId = sessionUser?.id || user?.id || '';
   const [disputes, setDisputes] = useState<Dispute[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedDispute, setSelectedDispute] = useState<Dispute | null>(null);
 
-  useEffect(() => {
-    fetchDisputes();
-  }, []);
-
-  const fetchDisputes = async () => {
+  const fetchDisputes = useCallback(async () => {
+    if (!actorId) return;
     try {
       setLoading(true);
       setError(null);
-      const apiBase = getApiUrl();
-      
-      const token = localStorage.getItem('token');
-      const response = await fetch(`${apiBase}/api/v2/settlement/disputes`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch disputes');
-      }
-
-      const data = await response.json();
-      setDisputes(data.disputes || []);
+      const data = await adminGet<{ items: any[] }>('/api/v2/admin/settlements/disputes', actorId, { status: 'open', limit: 100 });
+      const items = data.items || [];
+      setDisputes(items.map((d: any) => ({
+        id: d.id,
+        reason: d.reason,
+        evidence_url: d.evidence_url,
+        created_at: d.created_at,
+        status: d.status,
+        user: d.user || { username: '', email: '' },
+        prediction: d.prediction || { id: d.prediction_id, title: '' },
+      })));
     } catch (err) {
       console.error('Error fetching disputes:', err);
       setError(err instanceof Error ? err.message : 'Failed to load disputes');
+      setDisputes([]);
     } finally {
       setLoading(false);
     }
-  };
+  }, [actorId]);
+
+  useEffect(() => {
+    fetchDisputes();
+  }, [fetchDisputes]);
 
   const handleResolveDispute = async (
-    disputeId: string, 
-    resolution: 'approved' | 'rejected', 
-    reason: string, 
-    newWinningOptionId?: string
+    disputeId: string,
+    resolution: 'approved' | 'rejected',
+    reason: string,
+    _newWinningOptionId?: string
   ) => {
-    try {
-      const token = localStorage.getItem('token');
-      const apiBase = getApiUrl();
-      const response = await fetch(`${apiBase}/api/v2/settlement/resolve-dispute`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          disputeId,
-          resolution,
-          resolutionReason: reason,
-          newWinningOptionId
-        })
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Resolution failed');
-      }
-
-      // Refresh the list
-      await fetchDisputes();
-    } catch (error) {
-      console.error('Resolution error:', error);
-      throw error;
-    }
+    if (!actorId) throw new Error('Not authenticated');
+    await adminPost(`/api/v2/admin/settlements/disputes/${disputeId}/resolve`, actorId, {
+      action: resolution === 'approved' ? 'accept' : 'reject',
+      reason,
+    });
+    await fetchDisputes();
   };
 
   const formatTimeAgo = (dateString: string) => {

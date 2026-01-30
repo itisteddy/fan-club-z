@@ -30,7 +30,21 @@ interface Creator {
   predictionCount: number;
 }
 
+interface ContentReport {
+  id: string;
+  reporterId: string;
+  reporterUsername: string | null;
+  targetType: string;
+  targetId: string;
+  reason: string;
+  status: string;
+  createdAt: string;
+  resolvedAt: string | null;
+  resolvedBy: string | null;
+}
+
 type TabType = 'creators' | 'reports';
+type ReportStatusFilter = 'pending' | 'resolved';
 
 export const ModerationPage: React.FC = () => {
   const navigate = useNavigate();
@@ -48,6 +62,15 @@ export const ModerationPage: React.FC = () => {
   const [banTarget, setBanTarget] = useState<Creator | null>(null);
   const [banReason, setBanReason] = useState('');
 
+  // Reports tab state
+  const [reports, setReports] = useState<ContentReport[]>([]);
+  const [reportsLoading, setReportsLoading] = useState(false);
+  const [reportStatusFilter, setReportStatusFilter] = useState<ReportStatusFilter>('pending');
+  const [resolveTarget, setResolveTarget] = useState<ContentReport | null>(null);
+  const [resolveAction, setResolveAction] = useState<'dismiss' | 'warn' | 'remove' | 'ban'>('dismiss');
+  const [resolveNotes, setResolveNotes] = useState('');
+  const [resolveLoading, setResolveLoading] = useState(false);
+
   const fetchCreators = useCallback(async () => {
     setLoading(true);
     try {
@@ -62,11 +85,35 @@ export const ModerationPage: React.FC = () => {
     }
   }, [actorId]);
 
+  const fetchReports = useCallback(async () => {
+    setReportsLoading(true);
+    try {
+      if (!actorId) throw new Error('Missing user');
+      const data = await adminGet<any>(`/api/v2/admin/moderation/reports`, actorId, {
+        status: reportStatusFilter,
+        limit: 100,
+      });
+      setReports(data.items || []);
+    } catch (e) {
+      console.error('[ModerationPage] Reports fetch error:', e);
+      toast.error('Failed to load reports');
+      setReports([]);
+    } finally {
+      setReportsLoading(false);
+    }
+  }, [actorId, reportStatusFilter]);
+
   useEffect(() => {
     if (activeTab === 'creators') {
       fetchCreators();
     }
   }, [activeTab, fetchCreators]);
+
+  useEffect(() => {
+    if (activeTab === 'reports') {
+      fetchReports();
+    }
+  }, [activeTab, reportStatusFilter, fetchReports]);
 
   const handleBan = async () => {
     if (!banTarget || !actorId || banReason.length < 5) return;
@@ -127,7 +174,34 @@ export const ModerationPage: React.FC = () => {
     }
   };
 
-  // (legacy duplicate) handled above via adminPost + actorId enforcement
+  const handleResolveReport = async () => {
+    if (!resolveTarget || !actorId) return;
+    setResolveLoading(true);
+    try {
+      await adminPost<any>(
+        `/api/v2/admin/moderation/reports/${resolveTarget.id}/resolve`,
+        actorId,
+        { action: resolveAction, actorId, notes: resolveNotes || undefined }
+      );
+      toast.success('Report resolved');
+      setResolveTarget(null);
+      setResolveNotes('');
+      setResolveAction('dismiss');
+      fetchReports();
+    } catch (e: any) {
+      toast.error(e.message || 'Failed to resolve report');
+    } finally {
+      setResolveLoading(false);
+    }
+  };
+
+  const formatReportDate = (dateStr: string) => {
+    try {
+      return new Date(dateStr).toLocaleString();
+    } catch {
+      return dateStr;
+    }
+  };
 
   const filteredCreators = searchQuery
     ? creators.filter(c =>
@@ -314,12 +388,148 @@ export const ModerationPage: React.FC = () => {
       )}
 
       {activeTab === 'reports' && (
-        <div className="bg-slate-800 border border-slate-700 rounded-xl p-8 text-center">
-          <Flag className="w-12 h-12 text-slate-600 mx-auto mb-3" />
-          <p className="text-white font-medium">Content Reports</p>
-          <p className="text-slate-400 text-sm mt-1">
-            No reports pending. Reports from users will appear here.
-          </p>
+        <>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setReportStatusFilter('pending')}
+              className={`px-3 py-1.5 rounded-lg text-sm font-medium ${
+                reportStatusFilter === 'pending'
+                  ? 'bg-amber-600 text-white'
+                  : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+              }`}
+            >
+              Pending
+            </button>
+            <button
+              onClick={() => setReportStatusFilter('resolved')}
+              className={`px-3 py-1.5 rounded-lg text-sm font-medium ${
+                reportStatusFilter === 'resolved'
+                  ? 'bg-emerald-600 text-white'
+                  : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+              }`}
+            >
+              Resolved
+            </button>
+          </div>
+
+          <div className="bg-slate-800 border border-slate-700 rounded-xl overflow-hidden">
+            {reportsLoading ? (
+              <div className="p-12 text-center">
+                <Loader2 className="w-8 h-8 text-emerald-500 animate-spin mx-auto" />
+                <p className="text-slate-400 mt-3">Loading reports...</p>
+              </div>
+            ) : reports.length === 0 ? (
+              <div className="p-12 text-center">
+                <Flag className="w-12 h-12 text-slate-600 mx-auto mb-3" />
+                <p className="text-white font-medium">
+                  {reportStatusFilter === 'pending' ? 'No pending reports' : 'No resolved reports'}
+                </p>
+                <p className="text-slate-400 text-sm mt-1">
+                  {reportStatusFilter === 'pending'
+                    ? 'User reports will appear here when submitted.'
+                    : 'Resolved reports are listed here.'}
+                </p>
+              </div>
+            ) : (
+              <div className="divide-y divide-slate-700">
+                {reports.map((report) => (
+                  <div
+                    key={report.id}
+                    className="px-4 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3"
+                  >
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="px-2 py-0.5 bg-slate-600 text-slate-300 text-xs rounded">
+                          {report.targetType}
+                        </span>
+                        <span className="text-white font-medium truncate">
+                          @{report.reporterUsername ?? report.reporterId.slice(0, 8)}
+                        </span>
+                        <span className="text-slate-500 text-xs">
+                          {formatReportDate(report.createdAt)}
+                        </span>
+                      </div>
+                      <p className="text-slate-300 text-sm mt-1 line-clamp-2">{report.reason}</p>
+                      <p className="text-slate-500 text-xs mt-0.5">
+                        Target: {report.targetType} {report.targetId.slice(0, 8)}…
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      {report.targetType === 'prediction' && (
+                        <a
+                          href={`/prediction/${report.targetId}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="px-3 py-1.5 bg-slate-700 text-white rounded-lg text-sm hover:bg-slate-600"
+                        >
+                          View
+                        </a>
+                      )}
+                      {report.status === 'pending' && (
+                        <button
+                          onClick={() => {
+                            setResolveTarget(report);
+                            setResolveAction('dismiss');
+                            setResolveNotes('');
+                          }}
+                          className="px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-sm hover:bg-emerald-700"
+                        >
+                          Resolve
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </>
+      )}
+
+      {/* Resolve Report Modal */}
+      {resolveTarget && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50">
+          <div className="bg-slate-800 rounded-xl max-w-md w-full p-6 border border-slate-700">
+            <h3 className="text-xl font-bold text-white mb-2">Resolve Report</h3>
+            <p className="text-slate-400 text-sm mb-4">
+              {resolveTarget.targetType} · reported by @{resolveTarget.reporterUsername ?? 'unknown'}
+            </p>
+            <p className="text-slate-300 text-sm mb-4 line-clamp-2">{resolveTarget.reason}</p>
+            <label className="block text-sm font-medium text-slate-300 mb-2">Resolution action</label>
+            <select
+              value={resolveAction}
+              onChange={(e) => setResolveAction(e.target.value as 'dismiss' | 'warn' | 'remove' | 'ban')}
+              className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 mb-4"
+            >
+              <option value="dismiss">Dismiss</option>
+              <option value="warn">Warn user</option>
+              <option value="remove">Remove content</option>
+              <option value="ban">Ban user</option>
+            </select>
+            <label className="block text-sm font-medium text-slate-300 mb-2">Notes (optional)</label>
+            <textarea
+              value={resolveNotes}
+              onChange={(e) => setResolveNotes(e.target.value)}
+              placeholder="Internal notes..."
+              className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 h-20 resize-none mb-4"
+            />
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => { setResolveTarget(null); setResolveNotes(''); }}
+                className="px-4 py-2 bg-slate-700 text-white rounded-lg hover:bg-slate-600"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleResolveReport}
+                disabled={resolveLoading}
+                className="px-4 py-2 bg-emerald-600 text-white rounded-lg font-medium hover:bg-emerald-700 disabled:opacity-50 flex items-center gap-2"
+              >
+                {resolveLoading && <Loader2 className="w-4 h-4 animate-spin" />}
+                Resolve
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

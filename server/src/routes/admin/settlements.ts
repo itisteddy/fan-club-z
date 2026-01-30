@@ -1189,6 +1189,8 @@ settlementsRouter.get('/:predictionId', async (req, res) => {
 const TriggerSettlementSchema = z.object({
   winningOptionId: z.string().uuid(),
   actorId: z.string().uuid(),
+  resolutionReason: z.string().max(1000).optional(),
+  resolutionSourceUrl: z.string().url().max(2000).optional(),
 });
 
 /**
@@ -1209,7 +1211,7 @@ settlementsRouter.post('/:predictionId/trigger', async (req, res) => {
       });
     }
 
-    const { winningOptionId, actorId } = parsed.data;
+    const { winningOptionId, actorId, resolutionReason, resolutionSourceUrl } = parsed.data;
 
     // Get prediction
     const { data: prediction } = await supabase
@@ -1250,14 +1252,17 @@ settlementsRouter.post('/:predictionId/trigger', async (req, res) => {
       });
     }
 
-    // Update prediction with winning option
+    // Update prediction with winning option and optional resolution fields (Phase 9)
+    const updatePayload: Record<string, unknown> = {
+      status: 'settled',
+      winning_option_id: winningOptionId,
+      resolution_date: new Date().toISOString(),
+    };
+    if (resolutionReason != null) updatePayload.resolution_reason = resolutionReason;
+    if (resolutionSourceUrl != null) updatePayload.resolution_source_url = resolutionSourceUrl;
     await supabase
       .from('predictions')
-      .update({
-        status: 'settled',
-        winning_option_id: winningOptionId,
-        resolution_date: new Date().toISOString(),
-      })
+      .update(updatePayload)
       .eq('id', predictionId);
 
     // Create settlement job

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
-import { Share2, BarChart3, Users, Calendar, DollarSign, ArrowLeft, Clock, User, Banknote } from 'lucide-react';
+import { Share2, BarChart3, Users, Calendar, DollarSign, ArrowLeft, Clock, User, Banknote, Flag } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { QK } from '@/lib/queryKeys';
 import { useAccount } from 'wagmi';
@@ -43,6 +43,8 @@ import SettlementValidationModal from '../components/modals/SettlementValidation
 import { EditPredictionSheet } from '../components/prediction/EditPredictionSheet';
 import { CancelPredictionSheet } from '../components/prediction/CancelPredictionSheet';
 import { getCategoryLabel } from '@/lib/categoryUi';
+import { isFeatureEnabled } from '@/config/featureFlags';
+import { ReportContentModal } from '@/components/ugc/ReportContentModal';
 // TODO: Re-enable share functionality after testing
 // import { useShareResult } from '../components/share/useShareResult';
 
@@ -71,7 +73,7 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
   const locationState = (location.state as DetailsLocationState) ?? null;
   const preservedStateRef = useRef<DetailsLocationState>(locationState);
   const returnToRef = useRef<string | null>(locationState?.from ?? null);
-  const { user: sessionUser } = useAuthSession();
+  const { user: sessionUser, session } = useAuthSession();
   const reduceMotion = prefersReducedMotion();
   const { isAuthenticated: storeAuth, user: storeUser } = useAuthStore();
   
@@ -109,7 +111,11 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
   const [settlementModalOpen, setSettlementModalOpen] = useState(false);
   const [editSheetOpen, setEditSheetOpen] = useState(false);
   const [cancelSheetOpen, setCancelSheetOpen] = useState(false);
-  
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [showDisputeOutcomeModal, setShowDisputeOutcomeModal] = useState(false);
+  const [disputeOutcomeReason, setDisputeOutcomeReason] = useState('');
+  const [disputeOutcomeSubmitting, setDisputeOutcomeSubmitting] = useState(false);
+
   // TODO: Re-enable share functionality after testing
   // const { SharePreview, share: shareResult } = useShareResult();
 
@@ -246,6 +252,10 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
     const status = (prediction.status || '').toLowerCase();
     return isSettled || status === 'closed' || status === 'settled' || status === 'cancelled';
   }, [prediction, isSettled]);
+  const isSettledStatus = (prediction?.status || '').toString().toLowerCase() === 'settled';
+  const ugcModerationEnabled = isFeatureEnabled('UGC_MODERATION');
+  const disputesEnabled = isFeatureEnabled('DISPUTES');
+  const oddsV2Enabled = isFeatureEnabled('ODDS_V2');
 
   const mediaMetadata = useMemo(() => {
     if (!prediction) return undefined;
@@ -600,6 +610,31 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
     }, 100);
   };
 
+  const handleDisputeOutcomeSubmit = useCallback(async () => {
+    if (!predictionId || !currentUser?.id || !disputeOutcomeReason.trim()) return;
+    setDisputeOutcomeSubmitting(true);
+    try {
+      const token = session?.access_token || (typeof window !== 'undefined' ? localStorage.getItem('token') : null);
+      const res = await fetch(`${getApiUrl()}/api/v2/settlement/${predictionId}/dispute`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify({ userId: currentUser.id, reason: disputeOutcomeReason.trim(), evidence: [] }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error((data as any)?.message || 'Failed to submit dispute');
+        return;
+      }
+      toast.success('Dispute submitted. We will review and follow up.');
+      setShowDisputeOutcomeModal(false);
+      setDisputeOutcomeReason('');
+    } catch (e) {
+      toast.error((e as Error)?.message || 'Failed to submit dispute');
+    } finally {
+      setDisputeOutcomeSubmitting(false);
+    }
+  }, [predictionId, currentUser?.id, disputeOutcomeReason, session?.access_token]);
+
   // Loading state
   if (loading && !prediction) {
     return (
@@ -709,10 +744,25 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
     );
   }
 
-  if (!prediction) return null;
+  const participantCount = prediction?.participant_count ?? 0;
+  const totalVolume = prediction?.pool_total ?? 0;
+  const poolTotal = typeof prediction?.pool_total === 'number' ? prediction.pool_total : Number(prediction?.pool_total) || 0;
 
-  const participantCount = prediction.participant_count || 0;
-  const totalVolume = prediction.pool_total || 0;
+  // ODDS_V2: selected option odds and payout preview (stake → expected return → profit)
+  const selectedOption = prediction && selectedOptionId ? prediction.options?.find((o: any) => o.id === selectedOptionId) : null;
+  const selectedOptionOdds = useMemo(() => {
+    if (!selectedOption) return 1;
+    const co = selectedOption.current_odds ?? (selectedOption as any).currentOdds ?? (selectedOption as any).odds;
+    if (typeof co === 'number' && co > 0) return co;
+    const optStaked = (selectedOption as any).total_staked ?? (selectedOption as any).totalStaked ?? 0;
+    if (poolTotal > 0 && optStaked > 0) return poolTotal / optStaked;
+    return 2;
+  }, [selectedOption, poolTotal]);
+  const numStake = parseFloat(stakeAmount || '0') || 0;
+  const expectedReturn = numStake * selectedOptionOdds;
+  const potentialProfit = expectedReturn - numStake;
+
+  if (!prediction) return null;
 
   return (
     <>
@@ -740,6 +790,15 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
               >
                 <Share2 className="w-5 h-5" />
               </button>
+              {ugcModerationEnabled && !isCreator && (
+                <button
+                  onClick={() => setShowReportModal(true)}
+                  className="p-2 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100"
+                  aria-label="Report prediction"
+                >
+                  <Flag className="w-5 h-5" />
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -870,6 +929,55 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
                       </div>
                     </div>
                   )}
+
+                  {/* Resolution section (Phase 9: winning option, timestamp, optional source/reasoning) */}
+                  {isSettled && (() => {
+                    const winningId = (prediction as any).winning_option_id || (prediction as any).winningOptionId;
+                    const winningOption = winningId ? prediction.options?.find((o: any) => o.id === winningId) : null;
+                    const settledAt = (prediction as any).settledAt ?? (prediction as any).settled_at ?? (prediction as any).resolution_date;
+                    const resolutionReason = (prediction as any).resolution_reason ?? (prediction as any).resolutionReason;
+                    const sourceUrl = (prediction as any).resolution_source_url ?? (prediction as any).source_url;
+                    if (!winningOption && !settledAt && !resolutionReason && !sourceUrl) return null;
+                    return (
+                      <div className="bg-white rounded-2xl p-4 shadow-sm border border-emerald-100">
+                        <h3 className="text-base font-semibold text-gray-900 mb-3">Resolution</h3>
+                        <div className="space-y-2 text-sm">
+                          {winningOption && (
+                            <div>
+                              <span className="text-gray-500">Winning outcome</span>
+                              <p className="font-medium text-gray-900 mt-0.5">{winningOption.label}</p>
+                            </div>
+                          )}
+                          {settledAt && (
+                            <div>
+                              <span className="text-gray-500">Settled</span>
+                              <p className="font-medium text-gray-900 mt-0.5">
+                                {new Date(settledAt).toLocaleDateString(undefined, { dateStyle: 'medium' })} at {new Date(settledAt).toLocaleTimeString(undefined, { timeStyle: 'short' })}
+                              </p>
+                            </div>
+                          )}
+                          {resolutionReason && (
+                            <div>
+                              <span className="text-gray-500">Reasoning</span>
+                              <p className="text-gray-700 mt-0.5">{resolutionReason}</p>
+                            </div>
+                          )}
+                          {sourceUrl && (
+                            <div>
+                              <a
+                                href={sourceUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-emerald-600 hover:text-emerald-700 font-medium underline"
+                              >
+                                Source
+                              </a>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })()}
 
                   {/* Description */}
                   {prediction.description && (
@@ -1067,6 +1175,34 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
                           </button>
                         ))}
                       </div>
+
+                      {/* ODDS_V2: Stake, expected return, and potential profit */}
+                      {oddsV2Enabled && selectedOptionId && numStake > 0 && (
+                        <div className="mt-4 p-4 rounded-xl bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200/80">
+                          <h4 className="text-sm font-semibold text-gray-900 mb-3">Payout preview</h4>
+                          <div className="grid grid-cols-2 gap-3 text-sm">
+                            <div>
+                              <p className="text-gray-600">Stake</p>
+                              <p className="font-semibold text-gray-900">
+                                {formatCurrency(numStake, { compact: false, currency: isFiatMode ? 'NGN' : 'USD' })}
+                              </p>
+                            </div>
+                            <div>
+                              <p className="text-gray-600">Expected return</p>
+                              <p className="font-semibold text-emerald-700">
+                                {formatCurrency(expectedReturn, { compact: false, currency: isFiatMode ? 'NGN' : 'USD' })}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="mt-3 pt-3 border-t border-emerald-200/60">
+                            <p className="text-gray-600 text-sm">Potential profit</p>
+                            <p className={`font-semibold ${potentialProfit >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                              {formatCurrency(potentialProfit, { compact: false, currency: isFiatMode ? 'NGN' : 'USD', showSign: true })}
+                            </p>
+                            <p className="text-xs text-gray-500 mt-0.5">{selectedOptionOdds.toFixed(2)}x odds</p>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
                 </motion.div>
@@ -1178,6 +1314,17 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
             }}
             userId={currentUser?.id}
           />
+          {ugcModerationEnabled && (
+            <ReportContentModal
+              open={showReportModal}
+              targetType="prediction"
+              targetId={predictionId}
+              label="this prediction"
+              accessToken={session?.access_token}
+              onClose={() => setShowReportModal(false)}
+              onSuccess={() => toast.success('Report submitted. Our team will review it.')}
+            />
+          )}
         </>
       )}
     </>

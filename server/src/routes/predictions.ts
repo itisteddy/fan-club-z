@@ -10,6 +10,10 @@ import { logAdminAction } from './admin/audit';
 import { insertWalletTransaction } from '../db/walletTransactions';
 import { createNotification } from '../services/notifications';
 import { getSettlementResult } from '../services/settlementResults';
+import { assertContentAllowed } from '../services/contentFilter';
+import { requireSupabaseAuth } from '../middleware/requireSupabaseAuth';
+import { requireTermsAccepted } from '../middleware/requireTermsAccepted';
+import type { AuthenticatedRequest } from '../middleware/auth';
 
 /**
  * Helper to enrich prediction with category info (backward compatible)
@@ -766,9 +770,19 @@ router.get('/created/:userId', async (req, res) => {
 });
 
 // POST /api/v2/predictions - Create new prediction
-router.post('/', async (req, res) => {
+router.post('/', requireSupabaseAuth, requireTermsAccepted, async (req, res) => {
   try {
     console.log('🎯 Creating new prediction:', req.body);
+
+    const authReq = req as AuthenticatedRequest;
+    const currentUserId = authReq.user?.id;
+    if (!currentUserId) {
+      return res.status(401).json({
+        error: 'Unauthorized',
+        message: 'Authentication required',
+        version: VERSION,
+      });
+    }
     
     const {
       title,
@@ -793,6 +807,28 @@ router.post('/', async (req, res) => {
         version: VERSION,
         details: 'Title, type, options, and entryDeadline are required'
       });
+    }
+
+    // Phase 5: Basic content filtering (title/description/options)
+    try {
+      const optionLabels = Array.isArray(options)
+        ? options.map((o: any) => (typeof o === 'string' ? o : (o?.label ?? o?.text ?? '')))
+        : [];
+      assertContentAllowed([
+        { label: 'title', value: title },
+        { label: 'description', value: description },
+        ...optionLabels.map((v: string, idx: number) => ({ label: `option_${idx + 1}`, value: v })),
+      ]);
+    } catch (e: any) {
+      if (e?.code === 'CONTENT_NOT_ALLOWED') {
+        return res.status(400).json({
+          error: 'content_not_allowed',
+          message: 'Your content contains disallowed language. Please revise and try again.',
+          field: e?.field,
+          version: VERSION,
+        });
+      }
+      throw e;
     }
 
     // Resolve categoryId (prefer categoryId, fallback to category slug, default to "general")
@@ -849,15 +885,11 @@ router.post('/', async (req, res) => {
       }
     }
 
-    // Get current user ID from request body (passed from frontend)
-    // In production, this would come from JWT token
-    console.log('🔍 Debug - Request body creatorId:', req.body.creatorId);
-    console.log('🔍 Debug - Full request body:', JSON.stringify(req.body, null, 2));
+    // Phase 5: Creator is the authenticated user (from JWT)
+    const requestedUserId = currentUserId;
+    console.log('🔍 Debug - Creator userId (from auth):', requestedUserId);
     
-    const requestedUserId = req.body.creatorId || '325343a7-0a32-4565-8059-7c0d9d3fed1b';
-    console.log('🔍 Debug - Requested userId:', requestedUserId);
-    
-    // Verify user exists in database
+    // Ensure user exists in public.users (create if missing for referential integrity)
     const { data: userExists, error: userError } = await supabase
       .from('users')
       .select('id')
@@ -865,23 +897,15 @@ router.post('/', async (req, res) => {
       .single();
     
     if (userError || !userExists) {
-      console.log('🔍 Debug - User not found, creating user:', requestedUserId);
-      // Create user if doesn't exist
-      const { error: createUserError } = await supabase
+      console.log('🔍 Debug - User not in users table, upserting:', requestedUserId);
+      await supabase
         .from('users')
-        .insert({
-          id: requestedUserId,
-          username: 'itisteddy',
-          full_name: 'Fan Club Z User',
-          email: 'user@fanclubz.app'
-        });
-      
-      if (createUserError && !createUserError.message.includes('duplicate')) {
-        console.error('Error creating user:', createUserError);
-      }
+        .upsert(
+          { id: requestedUserId, username: null, full_name: null, email: null, updated_at: new Date().toISOString() },
+          { onConflict: 'id' }
+        );
     }
     
-    const currentUserId = requestedUserId;
     console.log('🔍 Debug - Final currentUserId:', currentUserId);
 
     // Create prediction in database (bypass RLS with service role)
@@ -1513,11 +1537,31 @@ router.post('/:id/entries', async (req, res) => {
 });
 
 // PUT /api/v2/predictions/:id - Update prediction
-router.put('/:id', async (req, res) => {
+router.put('/:id', requireSupabaseAuth, requireTermsAccepted, async (req, res) => {
   try {
     const { id } = req.params;
     const updates = req.body;
     console.log(`🔄 Updating prediction ${id}:`, updates);
+
+    const authReq = req as AuthenticatedRequest;
+    const actorId = authReq.user?.id;
+    if (!actorId) {
+      return res.status(401).json({ error: 'unauthorized', message: 'Authorization required', version: VERSION });
+    }
+
+    const { data: existing, error: existingErr } = await supabase
+      .from('predictions')
+      .select('id, creator_id')
+      .eq('id', id)
+      .maybeSingle();
+
+    if (existingErr || !existing) {
+      return res.status(404).json({ error: 'Not found', message: 'Prediction not found', version: VERSION });
+    }
+
+    if (String((existing as any).creator_id) !== actorId) {
+      return res.status(403).json({ error: 'forbidden', message: 'Only the creator can update this prediction', version: VERSION });
+    }
     
     // Validate allowed fields
     const allowedFields = ['title', 'description', 'is_private', 'entry_deadline', 'image_url'];
@@ -1538,6 +1582,24 @@ router.put('/:id', async (req, res) => {
     
     // Add updated timestamp
     filteredUpdates.updated_at = new Date().toISOString();
+
+    // Phase 5: Basic content filtering on updated fields
+    try {
+      assertContentAllowed([
+        { label: 'title', value: filteredUpdates.title },
+        { label: 'description', value: filteredUpdates.description },
+      ]);
+    } catch (e: any) {
+      if (e?.code === 'CONTENT_NOT_ALLOWED') {
+        return res.status(400).json({
+          error: 'content_not_allowed',
+          message: 'Your content contains disallowed language. Please revise and try again.',
+          field: e?.field,
+          version: VERSION,
+        });
+      }
+      throw e;
+    }
     
     const { data: updated, error } = await supabase
       .from('predictions')
@@ -1574,16 +1636,21 @@ router.put('/:id', async (req, res) => {
 });
 
 // PATCH /api/v2/predictions/:id - Edit prediction with safe rules
-router.patch('/:id', async (req, res) => {
+router.patch('/:id', requireSupabaseAuth, requireTermsAccepted, async (req, res) => {
   try {
     const { id: predictionId } = req.params;
+    if (!predictionId) {
+      return res.status(400).json({
+        error: 'Bad Request',
+        message: 'Missing prediction id',
+        version: VERSION,
+      });
+    }
     const { title, description, options, closesAt, categoryId, editReason } = req.body;
-    
-    const tokenUserId = await resolveAuthenticatedUserId(req);
-    const userId = tokenUserId || req.body.userId || req.body.creatorId;
 
-    // Require auth in production
-    if (process.env.NODE_ENV === 'production' && !tokenUserId) {
+    const authReq = req as AuthenticatedRequest;
+    const userId = authReq.user?.id;
+    if (!userId) {
       return res.status(401).json({
         error: 'Unauthorized',
         message: 'Authentication required',
@@ -1591,15 +1658,29 @@ router.patch('/:id', async (req, res) => {
       });
     }
 
-    if (!userId) {
-      return res.status(401).json({
-        error: 'Unauthorized',
-        message: 'User ID required',
-        version: VERSION,
-      });
-    }
-
     console.log(`✏️ Edit prediction ${predictionId} requested by user ${userId}`);
+
+    // Phase 5: Basic content filtering on proposed edits
+    try {
+      const optionLabels = Array.isArray(options)
+        ? options.map((o: any) => (typeof o === 'string' ? o : (o?.label ?? o?.text ?? '')))
+        : [];
+      assertContentAllowed([
+        { label: 'title', value: title },
+        { label: 'description', value: description },
+        ...optionLabels.map((v: string, idx: number) => ({ label: `option_${idx + 1}`, value: v })),
+      ]);
+    } catch (e: any) {
+      if (e?.code === 'CONTENT_NOT_ALLOWED') {
+        return res.status(400).json({
+          error: 'content_not_allowed',
+          message: 'Your content contains disallowed language. Please revise and try again.',
+          field: e?.field,
+          version: VERSION,
+        });
+      }
+      throw e;
+    }
 
     // Load prediction with creator info
     const { data: prediction, error: predError } = await supabase

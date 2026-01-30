@@ -1,7 +1,7 @@
 # Phase 5: Critical Fixes Required Before Enablement
 
 **Date:** November 28, 2025  
-**Status:** Fixes in progress
+**Status:** Code fixes complete. Remaining: env (Render + Vercel) + QA.
 
 ---
 
@@ -61,26 +61,8 @@ ADMIN_API_KEY=d394d9f33e91823fc61979c73cd36f04c8fdd513fd5e704b6f6516437a5f1d31
 
 ---
 
-### 4. **Leaderboard UI Text** - Confusing Display
-**Problem:** Referrals tab shows "active · 0 total" which is redundant  
-**Impact:** Confusing UX, main number should be active referrals only  
-**Fix:** Remove "active · X total" text, show only active count
-
-**File:** `client/src/pages/UnifiedLeaderboardPage.tsx` (line 301)
-
-**Current:**
-```tsx
-<div className="text-xs text-gray-500">
-  active · {entry.totalSignups} total
-</div>
-```
-
-**Fixed:**
-```tsx
-<div className="text-xs text-gray-500">
-  active referrals
-</div>
-```
+### 4. **Leaderboard UI Text** — ✅ Done
+**File:** `client/src/pages/UnifiedLeaderboardPage.tsx` — referrals tab shows "active referrals" (no "active · X total").
 
 ---
 
@@ -89,8 +71,8 @@ ADMIN_API_KEY=d394d9f33e91823fc61979c73cd36f04c8fdd513fd5e704b6f6516437a5f1d31
 - [x] Generate secure ADMIN_API_KEY
 - [ ] Update ADMIN_API_KEY in Render
 - [ ] Add frontend feature flags to Vercel
-- [ ] Fix referral tracking persistence
-- [ ] Fix leaderboard UI text
+- [x] Fix referral tracking persistence (attribution on signup + post-signup toast "You were referred by @username")
+- [x] Fix leaderboard UI text (already shows "active referrals")
 - [ ] Test all fixes
 
 ---
@@ -117,17 +99,14 @@ ADMIN_API_KEY=d394d9f33e91823fc61979c73cd36f04c8fdd513fd5e704b6f6516437a5f1d31
 
 ---
 
-## 🚀 Next Steps
+## 🚀 Next Steps (manual)
 
-1. **Implement code fixes** (leaderboard UI, referral tracking)
-2. **Update Render environment** (ADMIN_API_KEY)
-3. **Update Vercel environment** (feature flags)
-4. **Deploy fixes**
-5. **Test thoroughly**
-6. **Enable features**
+1. **Update Render:** Set `ADMIN_API_KEY` to the secure value above; add `BADGES_OG_ENABLE=1`, `REFERRAL_ENABLE=1` (see `PHASE_5_ENABLE_FEATURES.md`); redeploy.
+2. **Update Vercel:** Add `VITE_BADGES_OG_ENABLE=1`, `VITE_REFERRALS_ENABLE=1`; redeploy.
+3. **Test:** Badge + referral flows per checklist above; verify wallet unchanged.
 
 ---
 
 **Created:** November 28, 2025  
-**Last Updated:** November 28, 2025
+**Last Updated:** Phase 5 code fixes complete; remaining work is env + QA.
 

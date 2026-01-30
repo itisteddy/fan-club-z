@@ -379,6 +379,7 @@ const WalletPageV2: React.FC<WalletPageV2Props> = ({ onNavigateBack }) => {
             <button
               onClick={openConnectSheet}
               className="h-11 rounded-xl bg-emerald-600 text-white font-semibold hover:bg-emerald-700 transition-colors"
+              data-qa="connect-wallet"
             >
               Connect Wallet
             </button>

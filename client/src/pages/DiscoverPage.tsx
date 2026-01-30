@@ -9,6 +9,7 @@ import { useAuthStore } from '../store/authStore';
 import PredictionCardSkeleton from '../components/PredictionCardSkeleton';
 import { PlacePredictionModal } from '../components/predictions/PlacePredictionModal';
 import { useInfiniteScroll } from '../hooks/useInfiniteScroll';
+import { useBlockedUsers } from '@/hooks/useBlockedUsers';
 import Logo from '../components/common/Logo';
 import AppHeader from '../components/layout/AppHeader';
 import { formatUSDCompact, formatNumberShort } from '@/lib/format';
@@ -281,7 +282,8 @@ const DiscoverPage = React.memo(function DiscoverPage({ onNavigateToProfile, onN
     loadMorePredictions,
     setFilters 
   } = usePredictionStore();
-  
+  const { isBlocked, isEnabled: blockListEnabled } = useBlockedUsers();
+
   const [selectedPrediction, setSelectedPrediction] = useState<Prediction | null>(null);
   const [isPredictionModalOpen, setIsPredictionModalOpen] = useState(false);
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
@@ -343,17 +345,15 @@ const DiscoverPage = React.memo(function DiscoverPage({ onNavigateToProfile, onN
     totalUsers: platformStats.totalUsers
   }), [platformStats]);
 
-  // Backend now handles filtering - no additional filtering needed
+  // Backend now handles filtering; client-side: exclude predictions from blocked users (UGC)
   const displayPredictions = useMemo(() => {
     if (!Array.isArray(predictions)) {
-      // Silently return empty array - excessive logging removed
       return [];
     }
 
     const now = Date.now();
-    const activePredictions = predictions.filter((prediction) => {
+    let activePredictions = predictions.filter((prediction) => {
       if (!prediction || !prediction.id || !prediction.title) {
-        // Silently filter invalid predictions - excessive logging removed
         return false;
       }
 
@@ -364,9 +364,15 @@ const DiscoverPage = React.memo(function DiscoverPage({ onNavigateToProfile, onN
       return isOpen && !isExpired;
     });
 
-    // Excessive logging removed - only log errors if needed
+    if (blockListEnabled) {
+      activePredictions = activePredictions.filter((prediction) => {
+        const creatorId = (prediction as any).creator_id ?? (prediction as any).creator?.id;
+        return !creatorId || !isBlocked(creatorId);
+      });
+    }
+
     return activePredictions;
-  }, [predictions]);
+  }, [predictions, blockListEnabled, isBlocked]);
 
   // Event handlers
   const handlePredict = useCallback((prediction: Prediction) => {

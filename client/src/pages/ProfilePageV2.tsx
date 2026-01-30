@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Edit3, User, Activity, DollarSign, TrendingUp, Target, Trophy, Upload, X, Mail, XCircle, Trash2 } from 'lucide-react';
+import { Edit3, User, Activity, DollarSign, TrendingUp, Target, Trophy, Upload, X, Mail, XCircle, Trash2, Ban, UserCheck } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { useAuthSession } from '../providers/AuthSessionProvider';
 import { isFeatureEnabled } from '@/config/featureFlags';
@@ -19,6 +19,8 @@ import { OGBadgeEnhanced } from '@/components/badges/OGBadgeEnhanced';
 import { ProfileBadgesSection } from '@/components/profile/ProfileBadgesSection';
 import { ProfileReferralSection } from '@/components/profile/ProfileReferralSection';
 import { useReferral } from '@/hooks/useReferral';
+import { useBlockedUsers } from '@/hooks/useBlockedUsers';
+import toast from 'react-hot-toast';
 
 interface ProfilePageV2Props {
   onNavigateBack?: () => void;
@@ -54,7 +56,9 @@ const ProfilePageV2: React.FC<ProfilePageV2Props> = ({ onNavigateBack, userId })
   
   // Referral hook
   const { isEnabled: referralsEnabled } = useReferral();
-  
+  // Block list (UGC) - for viewing other users' profiles
+  const { isEnabled: blockListEnabled, isBlocked, blockUser, unblockUser } = useBlockedUsers();
+
   // Determine user context - prioritize session user
   const user = sessionUser || storeUser;
   const authenticated = !!sessionUser || storeAuth;
@@ -482,6 +486,39 @@ const ProfilePageV2: React.FC<ProfilePageV2Props> = ({ onNavigateBack, userId })
                   ogBadgeAssignedAt={ogBadgeAssignedAt}
                   ogBadgeMemberNumber={ogBadgeMemberNumber}
                 />
+              )}
+
+              {/* Block user (UGC) - only when viewing another user's profile */}
+              {!isOwnProfile && userId && blockListEnabled && (
+                <div className="mx-auto w-full max-w-[720px] lg:max-w-[960px] px-4 mt-4">
+                  {isBlocked(userId) ? (
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        const result = await unblockUser(userId);
+                        if (result.ok) toast.success('User unblocked');
+                        else toast.error(result.message || 'Failed to unblock');
+                      }}
+                      className="w-full text-sm px-4 py-3 rounded-2xl border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 flex items-center justify-center gap-2 shadow-sm"
+                    >
+                      <UserCheck className="w-4 h-4" />
+                      Unblock user
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        const result = await blockUser(userId);
+                        if (result.ok) toast.success('User blocked. Their content will be hidden from you.');
+                        else toast.error(result.message || 'Failed to block');
+                      }}
+                      className="w-full text-sm px-4 py-3 rounded-2xl border border-amber-200 bg-white text-amber-700 hover:bg-amber-50 flex items-center justify-center gap-2 shadow-sm"
+                    >
+                      <Ban className="w-4 h-4" />
+                      Block user
+                    </button>
+                  )}
+                </div>
               )}
 
               {/* Referral Section - Show only on own profile when feature is enabled */}

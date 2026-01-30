@@ -103,6 +103,8 @@ Use this checklist before submitting for review and for regression after updates
 - [ ] **State**: No stuck loading; wrong network shows switch option; cancel shows retry.
 - [ ] **Browsers**: Test Chrome desktop, Safari, mobile Safari; test MetaMask, WalletConnect (or primary wallets).
 
+**Phase 9 implementation:** Primary CTA: Wallet page "Connect Wallet" (`data-qa="connect-wallet"`). Connect flow: `ConnectWalletSheet` (`data-qa="connect-wallet-sheet"`) with Browser Wallet + WalletConnect; clear errors + "Try again"; pending state shows "Connecting…" + "Cancel" (no stuck loading); close while pending shows "Connection cancelled. You can try again anytime." Wrong network: WalletPageV2 shows "Switch Network" when `wrong_network`. Enable: `VITE_FCZ_WALLET_CONNECT_V2=1`.
+
 ---
 
 ## Quick reference — where things live (codebase)

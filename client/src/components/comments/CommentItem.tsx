@@ -1,10 +1,15 @@
 import React, { useState, useRef } from 'react';
 import { Comment } from '../../store/unifiedCommentStore';
 import { useAuthStore } from '../../store/authStore';
+import { useAuthSession } from '@/providers/AuthSessionProvider';
+import { isFeatureEnabled } from '@/config/featureFlags';
+import { useBlockedUsers } from '@/hooks/useBlockedUsers';
 import CommentOverflowMenu from './CommentOverflowMenu';
+import { ReportContentModal } from '../ugc/ReportContentModal';
 import { formatDistanceToNow } from 'date-fns';
 import { qaLog } from '../../utils/devQa';
 import { OGBadge } from '../badges/OGBadge';
+import toast from 'react-hot-toast';
 
 interface CommentItemProps {
   comment: Comment;
@@ -22,13 +27,18 @@ const CommentItem: React.FC<CommentItemProps> = ({
   onLikeToggle,
 }) => {
   const { user } = useAuthStore();
+  const { session } = useAuthSession();
   const [isEditing, setIsEditing] = useState(false);
   const [editText, setEditText] = useState(comment.text);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showReportModal, setShowReportModal] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const isOwner = user?.id === comment.user.id;
-  
+  const ugcModerationEnabled = isFeatureEnabled('UGC_MODERATION');
+  const { blockUser, isBlocked } = useBlockedUsers();
+  const commentAuthorId = comment.user?.id;
+
   // Get OG badge from comment user data
   const ogBadge = (comment.user as any)?.og_badge || (comment.user as any)?.ogBadge || null;
 
@@ -106,11 +116,20 @@ const CommentItem: React.FC<CommentItemProps> = ({
     }
   };
 
-  // Handle report (placeholder)
   const handleReport = () => {
     qaLog(`Reporting comment ${comment.id}`);
-    // This could open a report modal or send an analytics event
-    // For now, just log the event
+    setShowReportModal(true);
+  };
+
+  const handleBlockUser = async () => {
+    if (!commentAuthorId) return;
+    if (!window.confirm(`Block @${comment.user?.username || 'this user'}? You won't see their content.`)) return;
+    const result = await blockUser(commentAuthorId);
+    if (result.ok) {
+      toast.success('User blocked. You won\'t see their content.');
+    } else {
+      toast.error(result.message || 'Failed to block user');
+    }
   };
 
   // Handle username click
@@ -237,11 +256,23 @@ const CommentItem: React.FC<CommentItemProps> = ({
               isOwner={isOwner}
               onEdit={isOwner && onEdit ? handleEditStart : undefined}
               onDelete={isOwner && onDelete ? handleDelete : undefined}
-              onReport={!isOwner ? handleReport : undefined}
+              onReport={ugcModerationEnabled && !isOwner ? handleReport : undefined}
+              onBlock={ugcModerationEnabled && !isOwner && commentAuthorId && !isBlocked(commentAuthorId) ? handleBlockUser : undefined}
             />
           </div>
         )}
       </div>
+      {ugcModerationEnabled && (
+        <ReportContentModal
+          open={showReportModal}
+          targetType="comment"
+          targetId={comment.id}
+          label="this comment"
+          accessToken={session?.access_token}
+          onClose={() => setShowReportModal(false)}
+          onSuccess={() => toast.success('Report submitted. Our team will review it.')}
+        />
+      )}
     </div>
   );
 };

@@ -10,6 +10,7 @@ import { SupabaseProvider } from './providers/SupabaseProvider';
 import { AuthSessionProvider } from './providers/AuthSessionProvider';
 import { RealtimeProvider } from './providers/RealtimeProvider';
 import AuthGateModal from './components/auth/AuthGateModal';
+import { TermsAcceptanceGate } from './components/ugc/TermsAcceptanceGate';
 import { Toaster } from 'react-hot-toast';
 import { scrollToTop, saveScrollPosition, markNavigationAsIntentional, handleRouterNavigation } from './utils/scroll';
 import NotificationContainer from './components/ui/NotificationContainer';
@@ -1007,7 +1008,9 @@ function App() {
           <AuthSessionProvider>
             <RealtimeProvider>
               <NativeOAuthSuccessListener />
-              <AppContent />
+              <TermsAcceptanceGate>
+                <AppContent />
+              </TermsAcceptanceGate>
               <ConnectWalletSheet />
               <AuthInProgressOverlay
                 isVisible={authInProgress || authError}

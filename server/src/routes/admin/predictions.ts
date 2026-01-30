@@ -44,6 +44,8 @@ function mapStatusToDb(status: string): string {
 const OutcomeSchema = z.object({
   optionId: z.string().uuid(),
   reason: z.string().optional(),
+  resolutionReason: z.string().max(1000).optional(),
+  resolutionSourceUrl: z.string().url().max(2000).optional(),
   actorId: z.string().uuid().optional(),
 });
 
@@ -432,7 +434,7 @@ predictionsRouter.post('/:predictionId/outcome', async (req, res) => {
       });
     }
 
-    const { optionId, reason, actorId } = parsed.data;
+    const { optionId, reason, resolutionReason, resolutionSourceUrl, actorId } = parsed.data;
 
     // Verify prediction exists with full details needed for settlement
     const { data: prediction, error: predErr } = await supabase
@@ -635,15 +637,19 @@ predictionsRouter.post('/:predictionId/outcome', async (req, res) => {
     }
 
     // ============ UPDATE PREDICTION STATUS TO SETTLED ============
+    const updatePayload: Record<string, unknown> = {
+      winning_option_id: optionId,
+      status: 'settled',
+      settled_at: new Date().toISOString(),
+      closed_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+    // Phase 9: persist optional resolution reasoning + source URL
+    if (resolutionReason != null) updatePayload.resolution_reason = resolutionReason;
+    if (resolutionSourceUrl != null) updatePayload.resolution_source_url = resolutionSourceUrl;
     const { error: updateError } = await supabase
       .from('predictions')
-      .update({
-        winning_option_id: optionId,
-        status: 'settled',
-        settled_at: new Date().toISOString(),
-        closed_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      } as any)
+      .update(updatePayload as any)
       .eq('id', predictionId);
 
     if (updateError) {

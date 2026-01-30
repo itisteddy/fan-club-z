@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import { useConnect } from 'wagmi';
 import toast from 'react-hot-toast';
 import { policy as storeSafePolicy } from '@/lib/storeSafePolicy';
+import { isFeatureEnabled } from '@/config/featureFlags';
 
 const WC_ID = import.meta.env.VITE_WC_PROJECT_ID || import.meta.env.VITE_WALLETCONNECT_PROJECT_ID || '';
 const wcEnabled = WC_ID.length >= 8;
@@ -30,13 +31,32 @@ export default function ConnectWalletSheet({ isOpen, onClose }: ConnectWalletShe
   const attemptedRef = useRef(false);
   const lastAttemptRef = useRef<number>(0);
 
-  // Reset attempt guard when sheet opens
+  const walletConnectV2Enabled = isFeatureEnabled('WALLET_CONNECT_V2');
+  const isPending = walletConnectV2Enabled && status === 'pending';
+
+  // Reset attempt guard and error when sheet opens
   useEffect(() => {
     if (open) {
       attemptedRef.current = false;
       setConnectError(null);
     }
   }, [open]);
+
+  // When user closes sheet while pending, allow retry next time (no stuck state)
+  const handleOpenChange = useCallback(
+    (next: boolean) => {
+      if (walletConnectV2Enabled && !next && isPending) {
+        attemptedRef.current = false;
+        toast('Connection cancelled. You can try again anytime.');
+      }
+      if (typeof isOpen === 'boolean') {
+        if (!next && onClose) onClose();
+      } else {
+        setOpen(next);
+      }
+    },
+    [isOpen, onClose, isPending, walletConnectV2Enabled]
+  );
 
   const handleConnect = useCallback(async (connector: any) => {
     // Prevent repeated attempts within 10 seconds
@@ -103,20 +123,12 @@ export default function ConnectWalletSheet({ isOpen, onClose }: ConnectWalletShe
   const browserConnector = connectors.find(c => c.id === 'injected');
 
   return (
-    <Dialog.Root
-      open={open}
-      onOpenChange={(next) => {
-        if (typeof isOpen === 'boolean') {
-          if (!next && onClose) onClose();
-        } else {
-          setOpen(next);
-        }
-      }}
-    >
+    <Dialog.Root open={open} onOpenChange={handleOpenChange}>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 bg-black/30 z-modal" />
         <Dialog.Content
           className="z-modal fixed inset-x-0 rounded-t-2xl bg-white shadow-xl bottom-[calc(64px+env(safe-area-inset-bottom,0px))] max-h-[calc(100vh-env(safe-area-inset-top,0px)-64px-env(safe-area-inset-bottom,0px))] focus:outline-none"
+          data-qa="connect-wallet-sheet"
         >
           <Dialog.Title asChild>
             <VisuallyHidden>Connect wallet</VisuallyHidden>
@@ -128,18 +140,37 @@ export default function ConnectWalletSheet({ isOpen, onClose }: ConnectWalletShe
           <div className="mx-auto mt-2 mb-3 h-1.5 w-16 rounded-full bg-gray-200" />
           <div className="px-4 pb-3">
             <h3 className="text-lg font-semibold">Connect wallet</h3>
-            <p className="text-sm text-gray-500">Choose a wallet provider to continue.</p>
+            <p className="text-sm text-gray-500">
+              {walletConnectV2Enabled && isPending
+                ? 'Approve in your wallet or cancel below.'
+                : 'Choose a wallet provider to continue.'}
+            </p>
           </div>
 
           <div className="overflow-y-auto pb-safe px-4 pt-3">
+            {walletConnectV2Enabled && isPending && (
+              <div className="mb-4 flex items-center justify-between rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
+                <span className="flex items-center gap-2 text-sm font-medium text-amber-800">
+                  <span className="h-4 w-4 animate-spin rounded-full border-2 border-amber-500 border-t-transparent" />
+                  Connecting…
+                </span>
+                <button
+                  type="button"
+                  onClick={() => handleOpenChange(false)}
+                  className="text-sm font-semibold text-amber-700 hover:text-amber-800 underline"
+                >
+                  Cancel
+                </button>
+              </div>
+            )}
             {isMobile ? (
               // On mobile, only show WalletConnect option
               <div className="rounded-xl border border-gray-100 overflow-hidden">
                 <button
                   type="button"
-                  disabled={!wcConnector || !wcEnabled}
+                  disabled={!wcConnector || !wcEnabled || isPending}
                   onClick={() => wcConnector && handleConnect(wcConnector)}
-                  className="flex w-full items-center justify-between px-4 py-4 hover:bg-gray-50 disabled:opacity-50"
+                  className="flex w-full items-center justify-between px-4 py-4 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <div className="flex items-center gap-3">
                     <span className="text-2xl">🪢</span>
@@ -162,9 +193,9 @@ export default function ConnectWalletSheet({ isOpen, onClose }: ConnectWalletShe
                 <li>
                   <button
                     type="button"
-                    disabled={!browserConnector}
+                    disabled={!browserConnector || isPending}
                     onClick={() => browserConnector && handleConnect(browserConnector)}
-                    className="flex w-full items-center justify-between px-4 py-4 hover:bg-gray-50 disabled:opacity-50"
+                    className="flex w-full items-center justify-between px-4 py-4 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <div className="flex items-center gap-3">
                       <span className="text-2xl">🦊</span>
@@ -179,9 +210,9 @@ export default function ConnectWalletSheet({ isOpen, onClose }: ConnectWalletShe
                 <li>
                   <button
                     type="button"
-                    disabled={!wcConnector || !wcEnabled}
+                    disabled={!wcConnector || !wcEnabled || isPending}
                     onClick={() => wcConnector && handleConnect(wcConnector)}
-                    className="flex w-full items-center justify-between px-4 py-4 hover:bg-gray-50 disabled:opacity-50"
+                    className="flex w-full items-center justify-between px-4 py-4 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <div className="flex items-center gap-3">
                       <span className="text-2xl">🪢</span>

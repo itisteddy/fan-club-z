@@ -88,6 +88,10 @@ export const PredictionDetailPage: React.FC = () => {
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [reason, setReason] = useState('');
   const [settingOutcome, setSettingOutcome] = useState<string | null>(null);
+  const [showSettleModal, setShowSettleModal] = useState(false);
+  const [settleOptionId, setSettleOptionId] = useState<string | null>(null);
+  const [settleResolutionReason, setSettleResolutionReason] = useState('');
+  const [settleResolutionSourceUrl, setSettleResolutionSourceUrl] = useState('');
 
   const fetchData = useCallback(async () => {
     if (!predictionId) return;
@@ -103,17 +107,20 @@ export const PredictionDetailPage: React.FC = () => {
     }
   }, [predictionId, actorId]);
 
-  const handleSetOutcome = async (optionId: string) => {
+  const handleSetOutcome = async (
+    optionId: string,
+    opts?: { resolutionReason?: string; resolutionSourceUrl?: string }
+  ): Promise<boolean> => {
     if (!predictionId) {
       toast.error('Missing prediction ID');
-      return;
+      return false;
     }
     
     // Check if we have admin access (either actorId or admin key)
     const adminKey = typeof window !== 'undefined' ? localStorage.getItem('fcz_admin_key') : null;
     if (!actorId && !adminKey) {
       toast.error('Admin access required. Please ensure you are logged in or have an admin key set.');
-      return;
+      return false;
     }
     
     setSettingOutcome(optionId);
@@ -122,7 +129,9 @@ export const PredictionDetailPage: React.FC = () => {
       const result = await adminPost<any>(
         `/api/v2/admin/predictions/${predictionId}/outcome`,
         actorId || '',
-        actorId ? { optionId, actorId } : { optionId }
+        actorId
+          ? { optionId, actorId, ...opts }
+          : { optionId, ...opts }
       );
       
       console.log('[Admin/Settlement] Settlement result:', result);
@@ -149,14 +158,37 @@ export const PredictionDetailPage: React.FC = () => {
       if (window.location.pathname.includes('/admin/settlements')) {
         window.dispatchEvent(new Event('settlement-complete'));
       }
+      return true;
     } catch (e: any) {
       console.error('[Admin/Settlement] Error:', e);
       const errorMsg = e?.message || e?.error?.message || `Failed to settle prediction (${e?.status || 'unknown error'})`;
       toast.error(errorMsg);
+      return false;
     } finally {
       setSettingOutcome(null);
     }
   };
+
+  const openSettleModal = useCallback((optionId: string) => {
+    setSettleOptionId(optionId);
+    setSettleResolutionReason('');
+    setSettleResolutionSourceUrl('');
+    setShowSettleModal(true);
+  }, []);
+
+  const confirmSettle = useCallback(async () => {
+    if (!settleOptionId) return;
+    const ok = await handleSetOutcome(settleOptionId, {
+      resolutionReason: settleResolutionReason.trim() || undefined,
+      resolutionSourceUrl: settleResolutionSourceUrl.trim() || undefined,
+    });
+    if (ok) {
+      setShowSettleModal(false);
+      setSettleOptionId(null);
+      setSettleResolutionReason('');
+      setSettleResolutionSourceUrl('');
+    }
+  }, [handleSetOutcome, settleOptionId, settleResolutionReason, settleResolutionSourceUrl]);
 
   useEffect(() => {
     fetchData();
@@ -543,7 +575,7 @@ export const PredictionDetailPage: React.FC = () => {
             {options.map((o) => (
               <button
                 key={o.id}
-                onClick={() => handleSetOutcome(o.id)}
+                onClick={() => openSettleModal(o.id)}
                 disabled={settingOutcome !== null}
                 className="px-3 py-2 bg-emerald-600 text-white rounded-lg text-sm hover:bg-emerald-700 disabled:opacity-50"
               >
@@ -598,6 +630,57 @@ export const PredictionDetailPage: React.FC = () => {
           </p>
         )}
       </div>
+
+      {/* Settle Modal (Phase 9: optional resolution reasoning + source URL) */}
+      {showSettleModal && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50">
+          <div className="bg-slate-800 rounded-xl max-w-md w-full p-6 border border-slate-700">
+            <h3 className="text-xl font-bold text-white mb-2">Confirm settlement</h3>
+            <p className="text-slate-400 mb-4">
+              Optional: add a short reasoning + source URL for the public “Resolution” section.
+            </p>
+
+            <label className="block text-sm font-medium text-slate-300 mb-2">
+              Resolution reasoning (optional)
+            </label>
+            <textarea
+              value={settleResolutionReason}
+              onChange={(e) => setSettleResolutionReason(e.target.value)}
+              placeholder="e.g. Final score 2–1 (official match report)"
+              className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 h-20 resize-none"
+              maxLength={1000}
+            />
+
+            <label className="block text-sm font-medium text-slate-300 mb-2 mt-4">
+              Source URL (optional)
+            </label>
+            <input
+              value={settleResolutionSourceUrl}
+              onChange={(e) => setSettleResolutionSourceUrl(e.target.value)}
+              placeholder="https://…"
+              className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+            />
+
+            <div className="flex justify-end gap-3 mt-5">
+              <button
+                onClick={() => { setShowSettleModal(false); setSettleOptionId(null); }}
+                className="px-4 py-2 bg-slate-700 text-white rounded-lg hover:bg-slate-600"
+                disabled={settingOutcome !== null}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmSettle}
+                disabled={!settleOptionId || settingOutcome !== null}
+                className="px-4 py-2 bg-emerald-600 text-white rounded-lg font-medium hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+              >
+                {settingOutcome && <Loader2 className="w-4 h-4 animate-spin" />}
+                Settle prediction
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Void Modal */}
       {showVoidModal && (

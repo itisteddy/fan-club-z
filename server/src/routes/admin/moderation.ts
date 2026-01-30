@@ -422,7 +422,7 @@ moderationRouter.get('/reports', async (req, res) => {
       items: (reports || []).map((r: any) => ({
         id: r.id,
         reporterId: r.reporter_id,
-        reporterUsername: r.profiles?.username || null,
+        reporterUsername: r.users?.username ?? null,
         targetType: r.target_type,
         targetId: r.target_id,
         reason: r.reason,
