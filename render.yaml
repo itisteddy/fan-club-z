@@ -5,9 +5,12 @@ services:
     region: oregon
     plan: free
     rootDir: server
-    buildCommand: cd .. && npm install --legacy-peer-deps && npm run build:server
+    # Avoid Render's shared npm cache (can corrupt/ENOENT). Use an ephemeral cache and a clean install.
+    buildCommand: cd .. && npm ci --legacy-peer-deps && npm run build:server
     startCommand: npm start
     envVars:
+      - key: NPM_CONFIG_CACHE
+        value: /tmp/npm-cache
       - key: NODE_ENV
         value: production
       - key: PORT

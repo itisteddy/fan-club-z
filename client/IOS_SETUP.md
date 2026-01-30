@@ -134,6 +134,33 @@ After setup, you should see in Xcode:
 - ✅ No red errors in Issue Navigator
 - ✅ Build succeeds without errors
 
+## Debugging in Safari (Web Inspector)
+
+If **Safari → Develop → [Your Simulator]** shows **"No Inspectable Applications"**:
+
+1. **Use a Debug build**  
+   In Xcode: **Product → Scheme → Edit Scheme…** (or ⌘<). Under **Run**, set **Build Configuration** to **Debug** (not Release). Close and run the app again (⌘R).
+
+2. **App must be running**  
+   Start the app in the simulator (⌘R), then in Safari open **Develop → [e.g. iPhone 17 (Simulator) iOS 26.2]**. The WebView is only inspectable while the app is in the foreground.
+
+3. **Enable Web Inspector on the simulator (if needed)**  
+   In the **Simulator**: **Settings → Safari → Advanced** → turn **Web Inspector** **On**.
+
+4. **Pick the right target**  
+   Under **Develop**, click the simulator entry (e.g. "iPhone 17 (Simulator) iOS 26.2"); the Fan Club Z WebView should appear as a submenu item. If it still says "No Inspectable Applications", quit the app in the simulator, run again from Xcode, and try Develop again.
+
+## Sign in with Apple on the auth modal
+
+The **Sign in with Apple** button only appears when the client is built with `VITE_FCZ_SIGN_IN_APPLE=1`. This is set in `client/.env.ios` for iOS builds. After changing it, run:
+
+```bash
+cd client
+npm run build:ios && npx cap sync ios
+```
+
+Then build and run in Xcode again. The auth modal will show **Sign in with Apple** above Google when the flag is enabled.
+
 ## Next Steps
 
 See `docs/mobile/STORE-CHECKLIST.md` for:
