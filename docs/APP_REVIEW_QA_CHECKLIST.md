@@ -55,7 +55,7 @@ Use this checklist before submitting for review and for regression after updates
 
 ---
 
-## 4. Account deletion
+## 4. Account deletion (next phase)
 
 - [ ] **Discoverability**: Delete account option is easy to find (e.g. Settings / Account).
 - [ ] **Flow**: Clear explanation of what deletion means; confirmation step (e.g. type DELETE or modal confirm).

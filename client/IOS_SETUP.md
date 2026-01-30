@@ -136,7 +136,9 @@ After setup, you should see in Xcode:
 
 ## Debugging in Safari (Web Inspector)
 
-If **Safari → Develop → [Your Simulator]** shows **"No Inspectable Applications"**:
+The app uses a custom bridge view controller (`CustomBridgeViewController`) that sets the embedded WKWebView’s `isInspectable = true`, so the Simulator WebView should appear under **Safari → Develop → [Your Simulator]** when the app is running.
+
+If **Safari → Develop → [Your Simulator]** still shows **"No Inspectable Applications"**:
 
 1. **Use a Debug build**  
    In Xcode: **Product → Scheme → Edit Scheme…** (or ⌘<). Under **Run**, set **Build Configuration** to **Debug** (not Release). Close and run the app again (⌘R).
