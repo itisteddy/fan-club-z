@@ -55,11 +55,13 @@ Use this checklist before submitting for review and for regression after updates
 
 ---
 
-## 4. Account deletion (next phase)
+## 4. Account deletion (Phase 4)
 
-- [ ] **Discoverability**: Delete account option is easy to find (e.g. Settings / Account).
-- [ ] **Flow**: Clear explanation of what deletion means; confirmation step (e.g. type DELETE or modal confirm).
-- [ ] **Outcome**: Account and associated data removed; user logged out and returned to welcome/landing.
+- [ ] **Discoverability**: Delete account option is easy to find (Profile → "Delete account" when `ACCOUNT_DELETION` enabled).
+- [ ] **Flow**: Modal explains what deletion means; user must type **DELETE** to confirm; then "Delete my account" submits.
+- [ ] **Outcome**: Account removed (Supabase auth + anonymized `users` row); user logged out and redirected to home.
+
+**Phase 4 implementation:** Backend `POST /api/v2/users/me/delete` (Bearer); client Profile page "Delete account" + confirmation modal (type DELETE). See `client/src/pages/ProfilePageV2.tsx`, `server/src/routes/users.ts`.
 
 ---
 

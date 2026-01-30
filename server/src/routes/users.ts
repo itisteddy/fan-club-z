@@ -2,6 +2,8 @@ import express from 'express';
 import crypto from 'crypto';
 import { supabase } from '../config/database';
 import { VERSION } from '@fanclubz/shared';
+import { requireSupabaseAuth } from '../middleware/requireSupabaseAuth';
+import type { AuthenticatedRequest } from '../middleware/auth';
 
 // [PERF] Helper to generate ETag from response data
 function generateETag(data: unknown): string {
@@ -146,6 +148,43 @@ router.get('/leaderboard', async (req, res) => {
       error: 'Internal server error',
       message: error?.message || 'Failed to compute leaderboard',
       version: VERSION
+    });
+  }
+});
+
+// POST /api/v2/users/me/delete - Delete current user account (Phase 4). Requires Bearer token.
+router.post('/me/delete', requireSupabaseAuth, async (req: AuthenticatedRequest, res) => {
+  const userId = req.user?.id;
+  if (!userId) {
+    return res.status(401).json({ error: 'unauthorized', message: 'Authorization required', version: VERSION });
+  }
+  try {
+    const { error: authError } = await supabase.auth.admin.deleteUser(userId);
+    if (authError) {
+      console.warn('[users/me/delete] auth.admin.deleteUser failed:', authError.message);
+      return res.status(500).json({
+        error: 'Deletion failed',
+        message: authError.message,
+        version: VERSION,
+      });
+    }
+    // Anonymize public.users row for referential integrity (predictions, entries reference user_id)
+    await supabase
+      .from('users')
+      .update({
+        username: `deleted_${userId.slice(0, 8)}`,
+        full_name: null,
+        avatar_url: null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', userId);
+    return res.status(200).json({ success: true, message: 'Account deleted', version: VERSION });
+  } catch (e: any) {
+    console.error('[users/me/delete]', e);
+    return res.status(500).json({
+      error: 'Internal server error',
+      message: e?.message || 'Account deletion failed',
+      version: VERSION,
     });
   }
 });

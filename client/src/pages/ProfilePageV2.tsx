@@ -1,7 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Edit3, User, Activity, DollarSign, TrendingUp, Target, Trophy, Upload, X, Mail, XCircle } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Edit3, User, Activity, DollarSign, TrendingUp, Target, Trophy, Upload, X, Mail, XCircle, Trash2 } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { useAuthSession } from '../providers/AuthSessionProvider';
+import { isFeatureEnabled } from '@/config/featureFlags';
+import { getApiUrl } from '@/utils/environment';
 import { usePredictionStore } from '../store/predictionStore';
 import { openAuthGate } from '../auth/authGateAdapter';
 import UserAvatar from '../components/common/UserAvatar';
@@ -22,8 +25,11 @@ interface ProfilePageV2Props {
   userId?: string;
 }
 
+const CONFIRM_DELETE_PHRASE = 'DELETE';
+
 const ProfilePageV2: React.FC<ProfilePageV2Props> = ({ onNavigateBack, userId }) => {
-  const { user: sessionUser } = useAuthSession();
+  const navigate = useNavigate();
+  const { user: sessionUser, session, signOut } = useAuthSession();
   const { user: storeUser, isAuthenticated: storeAuth } = useAuthStore();
   const { 
     getUserPredictionEntries, 
@@ -39,6 +45,12 @@ const ProfilePageV2: React.FC<ProfilePageV2Props> = ({ onNavigateBack, userId })
   const [editLastName, setEditLastName] = useState('');
   const [editBio, setEditBio] = useState('');
   const [showShareModal, setShowShareModal] = useState(false);
+
+  // Phase 4: Account deletion flow state
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
+  const [deleteInProgress, setDeleteInProgress] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   
   // Referral hook
   const { isEnabled: referralsEnabled } = useReferral();
@@ -597,6 +609,24 @@ const ProfilePageV2: React.FC<ProfilePageV2Props> = ({ onNavigateBack, userId })
       </div>
     </div>
 
+    {/* Delete account (Phase 4) — only when flag on and own profile */}
+    {authenticated && isOwnProfile && isFeatureEnabled('ACCOUNT_DELETION') && (
+      <div className="mx-auto w-full max-w-[720px] lg:max-w-[960px] px-4 mt-4">
+        <button
+          type="button"
+          onClick={() => {
+            setDeleteConfirmText('');
+            setDeleteError(null);
+            setShowDeleteModal(true);
+          }}
+          className="w-full text-sm px-4 py-3 rounded-2xl border border-red-200 bg-white text-red-600 hover:bg-red-50 flex items-center justify-center gap-2 shadow-sm"
+        >
+          <Trash2 className="w-4 h-4" />
+          Delete account
+        </button>
+      </div>
+    )}
+
     {/* Persistent Sign out CTA */}
     {authenticated && (
       <div className="mx-auto w-full max-w-[720px] lg:max-w-[960px] px-4 mt-4 mb-[calc(5rem+env(safe-area-inset-bottom))]">
@@ -702,6 +732,89 @@ const ProfilePageV2: React.FC<ProfilePageV2Props> = ({ onNavigateBack, userId })
               className="px-3 py-2 bg-emerald-600 text-white rounded-lg text-sm hover:bg-emerald-700"
             >
               Save changes
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+
+    {/* Delete account confirmation (Phase 4) */}
+    {showDeleteModal && (
+      <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
+        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+            <h2 className="text-sm font-semibold text-gray-900">Delete account</h2>
+            <button
+              type="button"
+              onClick={() => !deleteInProgress && setShowDeleteModal(false)}
+              className="p-1.5 rounded-lg hover:bg-gray-100"
+              aria-label="Close"
+            >
+              <X className="w-4 h-4 text-gray-600" />
+            </button>
+          </div>
+          <div className="p-4 space-y-4">
+            <p className="text-sm text-gray-700">
+              This will permanently delete your account. Your profile (name, avatar, username) will be removed or anonymized. 
+              Prediction and bet history may be kept in anonymized form for platform integrity. This cannot be undone.
+            </p>
+            <div>
+              <label className="block text-xs text-gray-600 mb-1">
+                Type <strong>{CONFIRM_DELETE_PHRASE}</strong> to confirm
+              </label>
+              <input
+                value={deleteConfirmText}
+                onChange={(e) => setDeleteConfirmText(e.target.value)}
+                placeholder={CONFIRM_DELETE_PHRASE}
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
+                disabled={deleteInProgress}
+              />
+            </div>
+            {deleteError && (
+              <p className="text-sm text-red-600">{deleteError}</p>
+            )}
+          </div>
+          <div className="px-4 py-3 border-t border-gray-100 flex items-center justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => !deleteInProgress && setShowDeleteModal(false)}
+              className="px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-lg"
+              disabled={deleteInProgress}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              disabled={deleteConfirmText !== CONFIRM_DELETE_PHRASE || deleteInProgress}
+              onClick={async () => {
+                if (deleteConfirmText !== CONFIRM_DELETE_PHRASE || !session?.access_token) return;
+                setDeleteInProgress(true);
+                setDeleteError(null);
+                try {
+                  const res = await fetch(`${getApiUrl()}/api/v2/users/me/delete`, {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json',
+                      Authorization: `Bearer ${session.access_token}`,
+                    },
+                  });
+                  const data = await res.json().catch(() => ({}));
+                  if (!res.ok) {
+                    setDeleteError(data?.message || data?.error || 'Deletion failed. Try again or contact support.');
+                    setDeleteInProgress(false);
+                    return;
+                  }
+                  await signOut();
+                  setShowDeleteModal(false);
+                  navigate('/', { replace: true });
+                } catch (e: any) {
+                  setDeleteError(e?.message || 'Something went wrong. Try again or contact support.');
+                  setDeleteInProgress(false);
+                }
+              }}
+              className="px-3 py-2 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {deleteInProgress ? 'Deleting…' : 'Delete my account'}
             </button>
           </div>
         </div>
