@@ -636,6 +636,48 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
     }
   }, [predictionId, currentUser?.id, disputeOutcomeReason, session?.access_token]);
 
+  // ---------------- ODDS_V2 preview (keep hooks above early returns) ----------------
+  // React minified error #310 = "Rendered more hooks than during the previous render."
+  // This happens if we call hooks (useMemo) after early returns (loading/error/not-found).
+  const poolTotal = typeof prediction?.pool_total === 'number' ? prediction.pool_total : Number(prediction?.pool_total) || 0;
+  const selectedOption = prediction && selectedOptionId ? prediction.options?.find((o: any) => o.id === selectedOptionId) : null;
+  const numStake = parseFloat(stakeAmount || '0') || 0;
+  const isPoolV2 = oddsV2Enabled && (prediction as any)?.odds_model === 'pool_v2';
+  const totalPoolCents = Math.round((typeof (prediction as any)?.totalPoolCents === 'number' ? (prediction as any).totalPoolCents : (poolTotal || 0) * 100));
+  const platformFeeBps = typeof (prediction as any)?.platformFeeBps === 'number' ? (prediction as any).platformFeeBps : 250;
+  const creatorFeeBps = typeof (prediction as any)?.creatorFeeBps === 'number' ? (prediction as any).creatorFeeBps : 100;
+  const selectedPoolCents = selectedOption
+    ? (typeof (selectedOption as any).totalStakedCents === 'number'
+        ? (selectedOption as any).totalStakedCents
+        : Math.round((Number((selectedOption as any).total_staked) || 0) * 100))
+    : 0;
+  const stakeCents = Math.round(numStake * 100);
+
+  const payoutPreviewV2 = useMemo(() => {
+    if (!isPoolV2 || !selectedOption || stakeCents <= 0) return null;
+    return computePreview({
+      totalPoolCents,
+      selectedPoolCents,
+      stakeCents,
+      platformFeeBps,
+      creatorFeeBps,
+    });
+  }, [isPoolV2, selectedOption, totalPoolCents, selectedPoolCents, stakeCents, platformFeeBps, creatorFeeBps]);
+
+  const selectedOptionOdds = useMemo(() => {
+    if (!selectedOption) return 1;
+    if (payoutPreviewV2?.multiple != null) return payoutPreviewV2.multiple;
+    if (isPoolV2 && typeof (selectedOption as any).referenceMultiple === 'number') return (selectedOption as any).referenceMultiple;
+    const co = selectedOption.current_odds ?? (selectedOption as any).currentOdds ?? (selectedOption as any).odds;
+    if (typeof co === 'number' && co > 0) return co;
+    const optStaked = (selectedOption as any).total_staked ?? (selectedOption as any).totalStaked ?? 0;
+    if (poolTotal > 0 && optStaked > 0) return poolTotal / optStaked;
+    return 2;
+  }, [selectedOption, poolTotal, isPoolV2, payoutPreviewV2]);
+
+  const expectedReturn = payoutPreviewV2 ? payoutPreviewV2.expectedReturnCents / 100 : numStake * selectedOptionOdds;
+  const potentialProfit = expectedReturn - numStake;
+
   // Loading state
   if (loading && !prediction) {
     return (
@@ -745,49 +787,11 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
     );
   }
 
+  // From here on, prediction should exist (keeps TS happy).
+  if (!prediction) return null;
+
   const participantCount = prediction?.participant_count ?? 0;
   const totalVolume = prediction?.pool_total ?? 0;
-  const poolTotal = typeof prediction?.pool_total === 'number' ? prediction.pool_total : Number(prediction?.pool_total) || 0;
-
-  // ODDS_V2: when odds_model === 'pool_v2' use shared engine; else legacy (current_odds / pool_total ratio)
-  const selectedOption = prediction && selectedOptionId ? prediction.options?.find((o: any) => o.id === selectedOptionId) : null;
-  const numStake = parseFloat(stakeAmount || '0') || 0;
-  const isPoolV2 = oddsV2Enabled && (prediction as any)?.odds_model === 'pool_v2';
-  const totalPoolCents = Math.round((typeof prediction?.totalPoolCents === 'number' ? prediction.totalPoolCents : (poolTotal || 0) * 100));
-  const platformFeeBps = typeof (prediction as any)?.platformFeeBps === 'number' ? (prediction as any).platformFeeBps : 250;
-  const creatorFeeBps = typeof (prediction as any)?.creatorFeeBps === 'number' ? (prediction as any).creatorFeeBps : 100;
-  const selectedPoolCents = selectedOption
-    ? (typeof (selectedOption as any).totalStakedCents === 'number'
-        ? (selectedOption as any).totalStakedCents
-        : Math.round((Number((selectedOption as any).total_staked) || 0) * 100))
-    : 0;
-  const stakeCents = Math.round(numStake * 100);
-
-  const payoutPreviewV2 = useMemo(() => {
-    if (!isPoolV2 || !selectedOption || stakeCents <= 0) return null;
-    return computePreview({
-      totalPoolCents,
-      selectedPoolCents,
-      stakeCents,
-      platformFeeBps,
-      creatorFeeBps,
-    });
-  }, [isPoolV2, selectedOption, totalPoolCents, selectedPoolCents, stakeCents, platformFeeBps, creatorFeeBps]);
-
-  const selectedOptionOdds = useMemo(() => {
-    if (!selectedOption) return 1;
-    if (payoutPreviewV2?.multiple != null) return payoutPreviewV2.multiple;
-    if (isPoolV2 && typeof (selectedOption as any).referenceMultiple === 'number') return (selectedOption as any).referenceMultiple;
-    const co = selectedOption.current_odds ?? (selectedOption as any).currentOdds ?? (selectedOption as any).odds;
-    if (typeof co === 'number' && co > 0) return co;
-    const optStaked = (selectedOption as any).total_staked ?? (selectedOption as any).totalStaked ?? 0;
-    if (poolTotal > 0 && optStaked > 0) return poolTotal / optStaked;
-    return 2;
-  }, [selectedOption, poolTotal, isPoolV2, payoutPreviewV2]);
-  const expectedReturn = payoutPreviewV2 ? payoutPreviewV2.expectedReturnCents / 100 : numStake * selectedOptionOdds;
-  const potentialProfit = expectedReturn - numStake;
-
-  if (!prediction) return null;
 
   return (
     <>

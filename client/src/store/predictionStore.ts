@@ -746,7 +746,7 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({})) as Record<string, unknown>;
           if (response.status === 401 || (errorData as any).code === 'FCZ_AUTH_REQUIRED') {
-            useAuthStore.getState().signOut();
+            void useAuthStore.getState().logout();
           }
           if (errorData.error === 'INSUFFICIENT_FUNDS') {
             throw new Error('Insufficient fiat balance. Please deposit more NGN.');
@@ -831,7 +831,7 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
         if (!response.ok) {
           const errorData = (await response.json().catch(() => ({}))) as Record<string, unknown>;
           if (response.status === 401 || (errorData as any).code === 'FCZ_AUTH_REQUIRED') {
-            useAuthStore.getState().signOut();
+            void useAuthStore.getState().logout();
           }
           if ((errorData as any).error === 'INSUFFICIENT_ESCROW') {
             throw new Error('INSUFFICIENT_ESCROW');
@@ -926,7 +926,7 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({})) as Record<string, unknown>;
           if (response.status === 401 || (errorData as any).code === 'FCZ_AUTH_REQUIRED') {
-            useAuthStore.getState().signOut();
+            void useAuthStore.getState().logout();
           }
           if (errorData.error === 'INSUFFICIENT_FUNDS') {
             throw new Error('Insufficient demo credits.');
@@ -1054,7 +1054,7 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({})) as Record<string, unknown>;
         if (response.status === 401 || (errorData as any).code === 'FCZ_AUTH_REQUIRED') {
-          useAuthStore.getState().signOut();
+          void useAuthStore.getState().logout();
         }
         if (errorData.error === 'INSUFFICIENT_FUNDS') {
           throw new Error('Insufficient fiat balance. Please deposit more NGN.');
