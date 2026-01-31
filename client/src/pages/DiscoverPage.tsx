@@ -438,8 +438,8 @@ const DiscoverPage = React.memo(function DiscoverPage({ onNavigateToProfile, onN
   if (loading && (!predictions || predictions.length === 0)) {
     return (
       <div className="min-h-screen bg-gray-50">
-        {/* Header skeleton */}
-        <div className="bg-white border-b border-gray-100">
+        {/* Header skeleton - safe-area so notch doesn't overlap */}
+        <div className="bg-white border-b border-gray-100 safe-area-pt">
           <div className="h-11" />
           <div className="px-4 pb-4">
             <div className="flex items-center justify-between mb-4">

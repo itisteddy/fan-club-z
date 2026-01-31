@@ -671,9 +671,9 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
     return (
       <div className="min-h-screen bg-gray-50">
         {/* Consistent Header with AppHeader styling */}
-        <header className="w-full z-20 bg-white/80 backdrop-blur supports-[backdrop-filter]:bg-white/60 sticky top-0">
+        <header className="w-full z-20 bg-white/80 backdrop-blur supports-[backdrop-filter]:bg-white/60 sticky top-0 safe-area-pt">
           <div className="safe-px mx-auto max-w-screen-md">
-            <div className="h-12 flex items-center justify-between gap-2 px-4">
+            <div className="h-12 flex items-center justify-between gap-2 pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))]">
               <div className="min-w-[40px] flex items-center">
                 <button
                   onClick={handleBack}
@@ -705,9 +705,9 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
     return (
       <div className="min-h-screen bg-gray-50">
         {/* Consistent Header with AppHeader styling */}
-        <header className="w-full z-20 bg-white/80 backdrop-blur supports-[backdrop-filter]:bg-white/60 sticky top-0">
+        <header className="w-full z-20 bg-white/80 backdrop-blur supports-[backdrop-filter]:bg-white/60 sticky top-0 safe-area-pt">
           <div className="safe-px mx-auto max-w-screen-md">
-            <div className="h-12 flex items-center justify-between gap-2 px-4">
+            <div className="h-12 flex items-center justify-between gap-2 pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))]">
               <div className="min-w-[40px] flex items-center">
                 <button
                   onClick={handleBack}
@@ -740,9 +740,9 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
     return (
       <div className="min-h-screen bg-gray-50">
         {/* Consistent Header with AppHeader styling */}
-        <header className="w-full z-20 bg-white/80 backdrop-blur supports-[backdrop-filter]:bg-white/60 sticky top-0">
+        <header className="w-full z-20 bg-white/80 backdrop-blur supports-[backdrop-filter]:bg-white/60 sticky top-0 safe-area-pt">
           <div className="safe-px mx-auto max-w-screen-md">
-            <div className="h-12 flex items-center justify-between gap-2 px-4">
+            <div className="h-12 flex items-center justify-between gap-2 pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))]">
               <div className="min-w-[40px] flex items-center">
                 <button
                   onClick={handleBack}
@@ -783,10 +783,10 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
 
   return (
     <>
-      {/* Header - Consistent with AppHeader styling */}
-      <header className="w-full z-20 bg-white/80 backdrop-blur supports-[backdrop-filter]:bg-white/60 sticky top-0">
+      {/* Header - Consistent with AppHeader styling; safe-area so notch/Dynamic Island doesn't block back/share */}
+      <header className="w-full z-20 bg-white/80 backdrop-blur supports-[backdrop-filter]:bg-white/60 sticky top-0 safe-area-pt">
         <div className="safe-px mx-auto max-w-screen-md">
-          <div className="h-12 flex items-center justify-between gap-2 px-4">
+          <div className="h-12 flex items-center justify-between gap-2 pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))]">
             <div className="min-w-[40px] flex items-center">
               <button
                 onClick={handleBack}

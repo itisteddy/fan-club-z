@@ -24,7 +24,7 @@ export default function LegalLayout({ title, description, children }: Props) {
 
   return (
     <div className="bg-gradient-to-b from-[#211234] via-[#1b1130] to-[#130c24] text-white min-h-screen">
-      <header className="sticky top-0 z-40 backdrop-blur supports-[backdrop-filter]:bg-white/5">
+      <header className="sticky top-0 z-40 backdrop-blur supports-[backdrop-filter]:bg-white/5 safe-area-pt">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4">
           <div className="flex items-center gap-4">
             <button

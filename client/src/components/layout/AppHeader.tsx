@@ -22,7 +22,7 @@ export function AppHeader({ title, subtitle, left, right, action, sticky = true,
       sticky && "sticky top-0 safe-area-pt"
     )}>
       <div className="safe-px mx-auto max-w-screen-md">
-        <div className="h-12 flex items-center justify-between gap-2 px-4">
+        <div className="h-12 flex items-center justify-between gap-2 pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))]">
           <div className="min-w-[40px] flex items-center">{left ?? null}</div>
           <div className="flex-1 text-center">
             {title && <h1 className="text-base font-semibold leading-none truncate">{title}</h1>}
