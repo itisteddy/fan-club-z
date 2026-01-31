@@ -14,6 +14,8 @@ export {
   getAuthToken,
   setAuthToken,
   removeAuthToken,
+  getAuthHeaders,
+  ApiError,
   API_BASE_URL,
   API_VERSION,
   API_URL,

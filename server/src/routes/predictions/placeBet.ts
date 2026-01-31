@@ -7,26 +7,56 @@ import crypto from 'crypto';
 import { reconcileWallet } from '../../services/walletReconciliation';
 import { emitPredictionUpdate, emitWalletUpdate } from '../../services/realtime';
 import { recomputePredictionState } from '../../services/predictionMath';
+import { requireSupabaseAuth } from '../../middleware/requireSupabaseAuth';
+import type { AuthenticatedRequest } from '../../middleware/auth';
 
 export const placeBetRouter = Router();
 
+/** Generate a short request id for logging and client debugging. */
+function requestId(): string {
+  return crypto.randomUUID?.() ?? `req_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+}
+
+/**
+ * Map DB/Supabase errors to HTTP status + FCZ error code + user-facing message.
+ * Returns { status, code, message } or null if unknown (caller uses 500).
+ */
+function mapDbError(err: any): { status: number; code: string; message: string } | null {
+  if (!err?.code) return null;
+  switch (err.code) {
+    case '23503':
+      return { status: 400, code: 'FCZ_INVALID_REFERENCE', message: 'Invalid prediction or option' };
+    case '23505':
+      return { status: 409, code: 'FCZ_DUPLICATE_BET', message: 'Bet already exists' };
+    case '23502':
+      return { status: 400, code: 'FCZ_BAD_REQUEST', message: 'Missing required fields' };
+    case '42501':
+    case 'PGRST301':
+      return { status: 403, code: 'FCZ_FORBIDDEN', message: 'Not allowed' };
+    default:
+      return null;
+  }
+}
+
 /**
  * POST /api/predictions/:predictionId/place-bet
- * Atomic, idempotent bet placement
- * 
- * Input: { predictionId, optionId, amountUSD }
- * 
- * Steps (in transaction):
- * 1. Verify ENABLE_BETS=1
- * 2. Check escrow available >= amount
- * 3. Create lock with idempotent lock_ref
- * 4. Insert entry consuming lock
- * 5. Create wallet_transaction
- * 6. Emit event_log
+ * Atomic, idempotent bet placement. Requires Authorization: Bearer <Supabase access_token>.
+ * userId is taken from the authenticated user (not from body).
  */
 async function handlePlaceBet(req: any, res: any) {
+  const reqId = requestId();
   try {
     const predictionId = req.params.predictionId;
+    const authReq = req as AuthenticatedRequest;
+    const userId = authReq.user?.id;
+    if (!userId) {
+      return res.status(401).json({
+        code: 'FCZ_AUTH_REQUIRED',
+        message: 'Authorization required',
+        requestId: reqId,
+        version: VERSION,
+      });
+    }
 
     // Verify ENABLE_BETS flag
     const enableBets = process.env.ENABLE_BETS === '1' || 
@@ -36,21 +66,21 @@ async function handlePlaceBet(req: any, res: any) {
     if (!enableBets) {
       console.log('[FCZ-BET] Bet placement disabled - ENABLE_BETS flag not set');
       return res.status(403).json({
+        code: 'FCZ_FORBIDDEN',
         error: 'BETTING_DISABLED',
         message: 'Betting is temporarily unavailable. Please try again later.',
-        hint: 'Server admin: Set ENABLE_BETS=1 in server/.env',
+        requestId: reqId,
         version: VERSION
       });
     }
 
-    // Validate input
+    // Validate input (userId comes from auth; body.userId ignored for security)
     const BodySchema = z.object({
       optionId: z.string().uuid('Invalid optionId'),
       amountUSD: z.number().positive('amountUSD must be positive').optional(),
-      userId: z.string().uuid('Invalid userId'),
+      userId: z.string().uuid().optional(),
       walletAddress: z.string().optional(),
       fundingMode: z.enum(['crypto', 'demo', 'fiat']).optional(),
-      // For fiat mode: amount in NGN (will be converted to kobo)
       amountNgn: z.number().positive().optional(),
     }).superRefine((val, ctx) => {
       const mode = val.fundingMode ?? 'crypto';
@@ -71,8 +101,11 @@ async function handlePlaceBet(req: any, res: any) {
     } catch (err) {
       if (err instanceof z.ZodError) {
         return res.status(400).json({
+          code: 'FCZ_BAD_REQUEST',
           error: 'invalid_body',
+          message: err.issues?.[0]?.message ?? 'Missing or invalid fields',
           details: err.issues,
+          requestId: reqId,
           version: VERSION
         });
       }
@@ -95,16 +128,20 @@ async function handlePlaceBet(req: any, res: any) {
 
     if (predError || !prediction) {
       return res.status(404).json({
+        code: 'FCZ_NOT_FOUND',
         error: 'prediction_not_found',
         message: 'Prediction not found',
+        requestId: reqId,
         version: VERSION
       });
     }
 
     if (prediction.status !== 'open') {
       return res.status(400).json({
+        code: 'FCZ_BAD_REQUEST',
         error: 'prediction_not_open',
         message: `Prediction is ${prediction.status}`,
+        requestId: reqId,
         version: VERSION
       });
     }
@@ -119,8 +156,10 @@ async function handlePlaceBet(req: any, res: any) {
 
     if (optError || !option) {
       return res.status(404).json({
+        code: 'FCZ_INVALID_REFERENCE',
         error: 'option_not_found',
         message: 'Option not found',
+        requestId: reqId,
         version: VERSION
       });
     }
@@ -227,7 +266,7 @@ async function handlePlaceBet(req: any, res: any) {
           .single();
         if (lockErr || !newLock?.id) {
           console.error('[FCZ-BET] demo lock create failed', lockErr);
-          return res.status(500).json({ error: 'database_error', message: 'Failed to create lock', version: VERSION });
+          return res.status(500).json({ code: 'FCZ_DATABASE_ERROR', error: 'database_error', message: 'Failed to create lock', requestId: reqId, version: VERSION });
         }
         lockId = newLock.id as any;
       }
@@ -273,8 +312,25 @@ async function handlePlaceBet(req: any, res: any) {
         .select('*')
         .single();
       if (entryErr || !entry?.id) {
-        console.error('[FCZ-BET] demo entry create failed', entryErr);
-        return res.status(500).json({ error: 'database_error', message: 'Failed to create entry', version: VERSION });
+        const errCode = (entryErr as any)?.code;
+        const errMessage = (entryErr as any)?.message;
+        console.error('[FCZ-BET] demo entry create failed', { requestId: reqId, code: errCode, message: errMessage, full: entryErr });
+        const mapped = mapDbError(entryErr);
+        if (mapped) {
+          return res.status(mapped.status).json({
+            code: mapped.code,
+            message: mapped.message,
+            requestId: reqId,
+            version: VERSION,
+          });
+        }
+        return res.status(500).json({
+          code: 'FCZ_DATABASE_ERROR',
+          error: 'database_error',
+          message: 'Failed to create entry',
+          requestId: reqId,
+          version: VERSION,
+        });
       }
 
       // Mark lock as consumed
@@ -310,6 +366,7 @@ async function handlePlaceBet(req: any, res: any) {
         entryId: entry.id,
         consumedLockId: lockId,
         data: { prediction: recomputed.prediction, entry },
+        requestId: reqId,
         version: VERSION,
       });
     }
@@ -506,7 +563,7 @@ async function handlePlaceBet(req: any, res: any) {
           .single();
         if (lockErr || !newLock?.id) {
           console.error('[FCZ-BET] fiat lock create failed', lockErr);
-          return res.status(500).json({ error: 'database_error', message: 'Failed to create lock', version: VERSION });
+          return res.status(500).json({ code: 'FCZ_DATABASE_ERROR', error: 'database_error', message: 'Failed to create lock', requestId: reqId, version: VERSION });
         }
         lockId = newLock.id as any;
       }
@@ -527,8 +584,25 @@ async function handlePlaceBet(req: any, res: any) {
         .select('*')
         .single();
       if (entryErr || !entry?.id) {
-        console.error('[FCZ-BET] fiat entry create failed', entryErr);
-        return res.status(500).json({ error: 'database_error', message: 'Failed to create entry', version: VERSION });
+        const errCode = (entryErr as any)?.code;
+        const errMessage = (entryErr as any)?.message;
+        console.error('[FCZ-BET] fiat entry create failed', { requestId: reqId, code: errCode, message: errMessage, full: entryErr });
+        const mapped = mapDbError(entryErr);
+        if (mapped) {
+          return res.status(mapped.status).json({
+            code: mapped.code,
+            message: mapped.message,
+            requestId: reqId,
+            version: VERSION,
+          });
+        }
+        return res.status(500).json({
+          code: 'FCZ_DATABASE_ERROR',
+          error: 'database_error',
+          message: 'Failed to create entry',
+          requestId: reqId,
+          version: VERSION,
+        });
       }
 
       // Mark lock as consumed
@@ -583,8 +657,10 @@ async function handlePlaceBet(req: any, res: any) {
     if (existingEntryError) {
       console.error('[FCZ-BET] Failed to fetch existing entry:', existingEntryError);
       return res.status(500).json({
+        code: 'FCZ_DATABASE_ERROR',
         error: 'entry_lookup_failed',
         message: 'Unable to verify existing bets for this prediction',
+        requestId: reqId,
         version: VERSION
       });
     }
@@ -851,8 +927,10 @@ async function handlePlaceBet(req: any, res: any) {
     const lockId = existingLock?.id;
     if (!lockId) {
       return res.status(500).json({
+        code: 'FCZ_DATABASE_ERROR',
         error: 'lock_creation_failed',
         message: 'Failed to obtain lock ID',
+        requestId: reqId,
         version: VERSION
       });
     }
@@ -910,11 +988,22 @@ async function handlePlaceBet(req: any, res: any) {
           .update({ state: 'released', status: 'released', released_at: new Date().toISOString() })
           .eq('id', lockId);
 
-        console.error('[FCZ-BET] Error creating entry:', entryError);
+        console.error('[FCZ-BET] Error creating entry:', entryError, 'requestId:', reqId);
+        const mapped = mapDbError(entryError);
+        if (mapped) {
+          return res.status(mapped.status).json({
+            code: mapped.code,
+            message: mapped.message,
+            requestId: reqId,
+            version: VERSION,
+          });
+        }
         return res.status(500).json({
+          code: 'FCZ_DATABASE_ERROR',
           error: 'database_error',
           message: 'Failed to create prediction entry',
-          version: VERSION
+          requestId: reqId,
+          version: VERSION,
         });
       }
 
@@ -1033,14 +1122,16 @@ async function handlePlaceBet(req: any, res: any) {
   } catch (error) {
     console.error('[FCZ-BET] Unhandled error:', error);
     return res.status(500).json({
+      code: 'FCZ_DATABASE_ERROR',
       error: 'internal_error',
       message: 'Failed to place bet',
+      requestId: reqId,
       version: VERSION
     });
   }
 }
 
 // Register both kebab-case and snake_case for backward compatibility
-placeBetRouter.post('/:predictionId/place-bet', handlePlaceBet);
-placeBetRouter.post('/:predictionId/place_bet', handlePlaceBet);
+placeBetRouter.post('/:predictionId/place-bet', requireSupabaseAuth, handlePlaceBet);
+placeBetRouter.post('/:predictionId/place_bet', requireSupabaseAuth, handlePlaceBet);
 

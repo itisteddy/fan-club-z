@@ -1,8 +1,15 @@
 import { create } from 'zustand';
 import { devtools } from 'zustand/middleware';
-import { apiClient } from '../lib/api'; // Use the correct apiClient
+import { apiClient, ApiError } from '../lib/api';
 import { useAuthStore } from './authStore';
 import { qaLog } from '../utils/devQa';
+
+/** Single canonical comments API (no fallback; do not use /api/v2/comments/predictions/...). */
+const COMMENTS_LIST = (predictionId: string, page: number, limit: number) =>
+  `/social/predictions/${predictionId}/comments?page=${page}&limit=${limit}`;
+const COMMENTS_CREATE = (predictionId: string) => `/social/predictions/${predictionId}/comments`;
+const COMMENTS_EDIT = (commentId: string) => `/social/comments/${commentId}`;
+const COMMENTS_DELETE = (commentId: string) => `/social/comments/${commentId}`;
 
 // Comment interface matching API response
 export interface Comment {
@@ -100,26 +107,16 @@ const transformComment = (serverComment: any): Comment => {
   };
 };
 
-// Classify errors based on response
+// Classify errors based on response (supports ApiError with .status)
 function classifyError(error: any): Status {
   if (!error) return 'network_error';
-  
+  const status = error.status ?? (error instanceof ApiError ? error.status : undefined);
   if (error.name === 'TypeError' || error.message?.includes('Failed to fetch')) {
     return 'network_error';
   }
-  
-  if (error.status >= 500) {
-    return 'server_error';
-  }
-  
-  if (error.status >= 400 && error.status < 500) {
-    return 'client_error';
-  }
-  
-  if (error.name === 'SyntaxError' || error.message?.includes('JSON')) {
-    return 'parse_error';
-  }
-  
+  if (typeof status === 'number' && status >= 500) return 'server_error';
+  if (typeof status === 'number' && status >= 400 && status < 500) return 'client_error';
+  if (error.name === 'SyntaxError' || error.message?.includes('JSON')) return 'parse_error';
   return 'network_error';
 }
 
@@ -184,29 +181,18 @@ export const useUnifiedCommentStore = create<CommentsState & CommentsActions>()(
         }));
 
         try {
-          // Try the social endpoint first, then the comments endpoint
-          let response;
-          try {
-            response = await apiClient.get(`/social/predictions/${predictionId}/comments?page=1&limit=20`);
-          } catch (socialError) {
-            qaLog('Social endpoint failed, trying comments endpoint:', socialError);
-            response = await apiClient.get(`/comments/predictions/${predictionId}/comments?page=1&limit=20`);
-          }
-          
-          // Handle different response formats
+          const response = await apiClient.get(COMMENTS_LIST(predictionId, 1, 20));
+
           let items: Comment[] = [];
           let nextCursor = null;
-          
+
           if (response.data && Array.isArray(response.data)) {
-            // New social service format
             items = response.data.map(transformComment);
             nextCursor = response.pagination?.hasNext ? 'next' : null;
           } else if (response.comments && Array.isArray(response.comments)) {
-            // Comments service format
             items = response.comments.map(transformComment);
             nextCursor = response.hasMore ? 'next' : null;
           } else if (Array.isArray(response)) {
-            // Direct array format
             items = response.map(transformComment);
           }
 
@@ -282,16 +268,9 @@ export const useUnifiedCommentStore = create<CommentsState & CommentsActions>()(
         }));
 
         try {
-          // Calculate next page
           const currentPage = Math.ceil((currentState.items?.length || 0) / 20) + 1;
-          
-          let response;
-          try {
-            response = await apiClient.get(`/social/predictions/${predictionId}/comments?page=${currentPage}&limit=20`);
-          } catch (socialError) {
-            response = await apiClient.get(`/comments/predictions/${predictionId}/comments?page=${currentPage}&limit=20`);
-          }
-          
+          const response = await apiClient.get(COMMENTS_LIST(predictionId, currentPage, 20));
+
           let newItems: Comment[] = [];
           let nextCursor = null;
           
@@ -394,21 +373,10 @@ export const useUnifiedCommentStore = create<CommentsState & CommentsActions>()(
         });
 
         try {
-          // Try social endpoint first, then comments endpoint
-          let response;
-          try {
-            response = await apiClient.post(`/social/predictions/${predictionId}/comments`, {
-              content: trimmedText,
-              userId: user?.id || 'demo-user',
-              user: user
-            });
-          } catch (socialError) {
-            qaLog('Social endpoint failed, trying comments endpoint:', socialError);
-            response = await apiClient.post(`/comments/predictions/${predictionId}/comments`, {
-              content: trimmedText,
-              user: user
-            });
-          }
+          // Single canonical endpoint: POST /api/v2/social/predictions/:predictionId/comments (no fallback)
+          const response = await apiClient.post(COMMENTS_CREATE(predictionId), {
+            content: trimmedText,
+          });
 
           // Handle different response formats
           let serverComment: Comment;
@@ -446,8 +414,17 @@ export const useUnifiedCommentStore = create<CommentsState & CommentsActions>()(
 
         } catch (error: any) {
           qaLog(`Failed to add comment for ${predictionId}:`, error);
-
-          // Remove optimistic comment and restore state
+          if (error instanceof ApiError) {
+            if (error.status === 401) {
+              // Trigger re-auth flow: sign out locally so the app routes to login as needed
+              void useAuthStore.getState().logout();
+              throw new Error('Session expired. Please log in again.');
+            }
+            if (error.status === 404) {
+              console.error(`[unifiedCommentStore] 404 – Server endpoint not found. URL used: ${error.url ?? 'unknown'}`);
+              throw new Error('Server endpoint not found.');
+            }
+          }
           set((state) => ({
             byPrediction: {
               ...state.byPrediction,
@@ -458,7 +435,6 @@ export const useUnifiedCommentStore = create<CommentsState & CommentsActions>()(
               },
             },
           }));
-
           throw error;
         }
       },
@@ -497,18 +473,13 @@ export const useUnifiedCommentStore = create<CommentsState & CommentsActions>()(
           },
         }));
 
+        const userId = useAuthStore.getState().user?.id;
         try {
-          // Try social endpoint first, then comments endpoint
-          let response;
-          try {
-            response = await apiClient.put(`/social/comments/${commentId}`, {
-              content: trimmedText
-            });
-          } catch (socialError) {
-            response = await apiClient.put(`/comments/${commentId}`, {
-              content: trimmedText
-            });
-          }
+          // Single canonical endpoint: PUT /api/v2/social/comments/:commentId (no fallback)
+          const response = await apiClient.put(COMMENTS_EDIT(commentId), {
+            content: trimmedText,
+            userId: userId ?? '',
+          });
 
           let updatedComment: Comment;
           if (response.data) {
@@ -531,8 +502,16 @@ export const useUnifiedCommentStore = create<CommentsState & CommentsActions>()(
 
         } catch (error: any) {
           qaLog(`Failed to edit comment ${commentId}:`, error);
-
-          // Rollback
+          if (error instanceof ApiError) {
+            if (error.status === 401) {
+              void useAuthStore.getState().logout();
+              throw new Error('Session expired. Please log in again.');
+            }
+            if (error.status === 404) {
+              console.error(`[unifiedCommentStore] 404 – Server endpoint not found. URL used: ${error.url ?? 'unknown'}`);
+              throw new Error('Server endpoint not found.');
+            }
+          }
           set((state) => ({
             byPrediction: {
               ...state.byPrediction,
@@ -557,6 +536,11 @@ export const useUnifiedCommentStore = create<CommentsState & CommentsActions>()(
 
         qaLog(`Deleting comment ${commentId} from ${predictionId}`);
 
+        const userId = useAuthStore.getState().user?.id;
+        if (!userId) {
+          throw new Error('Session expired. Please log in again.');
+        }
+
         // Store original for rollback
         const originalItems = get().byPrediction[predictionId]?.items ?? [];
         const commentToDelete = originalItems.find(c => c.id === commentId);
@@ -576,19 +560,23 @@ export const useUnifiedCommentStore = create<CommentsState & CommentsActions>()(
         }));
 
         try {
-          // Try social endpoint first, then comments endpoint
-          try {
-            await apiClient.delete(`/social/comments/${commentId}`);
-          } catch (socialError) {
-            await apiClient.delete(`/comments/${commentId}`);
-          }
+          // Single canonical endpoint: DELETE /api/v2/social/comments/:commentId (no fallback)
+          await apiClient.delete(`${COMMENTS_DELETE(commentId)}?userId=${encodeURIComponent(userId)}`);
 
           qaLog(`Comment ${commentId} deleted successfully`);
 
         } catch (error: any) {
           qaLog(`Failed to delete comment ${commentId}:`, error);
-
-          // Rollback
+          if (error instanceof ApiError) {
+            if (error.status === 401) {
+              void useAuthStore.getState().logout();
+              throw new Error('Session expired. Please log in again.');
+            }
+            if (error.status === 404) {
+              console.error(`[unifiedCommentStore] 404 – Server endpoint not found. URL used: ${error.url ?? 'unknown'}`);
+              throw new Error('Server endpoint not found.');
+            }
+          }
           set((state) => ({
             byPrediction: {
               ...state.byPrediction,

@@ -3,7 +3,28 @@ import { supabase } from '../lib/supabase';
 import { getApiUrl } from '../config';
 import { useAuthStore } from './authStore';
 import { apiClient } from '../lib/apiUtils';
+import { getAuthHeaders } from '../lib/api';
 import { useFundingModeStore } from './fundingModeStore';
+
+/** User-facing error messages for place-bet responses (no generic "Failed to create entry"). */
+function placeBetErrorFromResponse(status: number, errorData: Record<string, unknown>): string {
+  if (status === 401 || (errorData as any).code === 'FCZ_AUTH_REQUIRED') {
+    return 'Session expired. Sign in again.';
+  }
+  if (status === 409 || (errorData as any).code === 'FCZ_DUPLICATE_BET') {
+    return 'You already placed a stake on this prediction.';
+  }
+  if (status === 403 || (errorData as any).code === 'FCZ_FORBIDDEN') {
+    return "You don't have permission to place this bet.";
+  }
+  if (status === 400) {
+    return typeof (errorData as any).message === 'string' ? (errorData as any).message : 'Invalid stake or option.';
+  }
+  if (status >= 500) {
+    return 'Something went wrong. Try again.';
+  }
+  return typeof (errorData as any).message === 'string' ? (errorData as any).message : 'Unable to place bet. Please try again.';
+}
 
 // ---- Idempotency helpers for bet placement ----
 function computeBetKey(userId: string | undefined, predictionId: string, optionId: string, amount: number) {
@@ -709,9 +730,10 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
         set(state => ({ inFlightBets: { ...(state.inFlightBets || {}), [compositeKey]: true } }));
         const requestId = getOrCreateRequestId(compositeKey);
 
+        const authHeaders = await getAuthHeaders();
         const response = await fetch(`${getApiUrl()}/api/predictions/${predictionId}/place-bet`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', ...authHeaders },
           body: JSON.stringify({
             optionId,
             amountNgn: amount,
@@ -722,17 +744,20 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
         });
 
         if (!response.ok) {
-          const errorData = await response.json().catch(() => ({}));
+          const errorData = await response.json().catch(() => ({})) as Record<string, unknown>;
+          if (response.status === 401 || (errorData as any).code === 'FCZ_AUTH_REQUIRED') {
+            useAuthStore.getState().signOut();
+          }
           if (errorData.error === 'INSUFFICIENT_FUNDS') {
-            throw new Error('INSUFFICIENT_FUNDS');
+            throw new Error('Insufficient fiat balance. Please deposit more NGN.');
           }
           if (errorData.error === 'FIAT_DISABLED') {
-            throw new Error('FIAT_DISABLED');
+            throw new Error('Fiat betting is currently disabled.');
           }
           if (errorData.error === 'BETTING_DISABLED') {
             throw new Error('Betting is temporarily unavailable. Please try again later.');
           }
-          throw new Error(errorData.message || `Unable to place bet. Please try again.`);
+          throw new Error(placeBetErrorFromResponse(response.status, errorData));
         }
 
         const result = await response.json();
@@ -788,34 +813,33 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
         // mark in-flight
         set(state => ({ inFlightBets: { ...(state.inFlightBets || {}), [compositeKey]: true } }));
         const requestId = getOrCreateRequestId(compositeKey);
-        
+
+        const authHeaders = await getAuthHeaders();
         const response = await fetch(`${getApiUrl()}/api/predictions/${predictionId}/place-bet`, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
+          headers: { 'Content-Type': 'application/json', ...authHeaders },
           body: JSON.stringify({
             optionId,
             amountUSD: amount,
             userId,
             walletAddress: walletAddress || undefined,
+            fundingMode: 'crypto',
             requestId
           }),
         });
 
         if (!response.ok) {
-          const errorData = await response.json().catch(() => ({}));
-          
-          // Handle specific error codes
-          if (errorData.error === 'INSUFFICIENT_ESCROW') {
+          const errorData = (await response.json().catch(() => ({}))) as Record<string, unknown>;
+          if (response.status === 401 || (errorData as any).code === 'FCZ_AUTH_REQUIRED') {
+            useAuthStore.getState().signOut();
+          }
+          if ((errorData as any).error === 'INSUFFICIENT_ESCROW') {
             throw new Error('INSUFFICIENT_ESCROW');
           }
-          
-          if (errorData.error === 'BETTING_DISABLED') {
+          if ((errorData as any).error === 'BETTING_DISABLED') {
             throw new Error('Betting is temporarily unavailable. Please try again later.');
           }
-          
-          throw new Error(errorData.message || `Unable to place bet. Please try again.`);
+          throw new Error(placeBetErrorFromResponse(response.status, errorData));
         }
 
         const result = await response.json();
@@ -886,11 +910,10 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
         set(state => ({ inFlightBets: { ...(state.inFlightBets || {}), [compositeKey]: true } }));
         const requestId = getOrCreateRequestId(compositeKey);
 
+        const authHeaders = await getAuthHeaders();
         const response = await fetch(`${getApiUrl()}/api/predictions/${predictionId}/place-bet`, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
+          headers: { 'Content-Type': 'application/json', ...authHeaders },
           body: JSON.stringify({
             optionId,
             amountUSD: amount,
@@ -901,14 +924,17 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
         });
 
         if (!response.ok) {
-          const errorData = await response.json().catch(() => ({}));
+          const errorData = await response.json().catch(() => ({})) as Record<string, unknown>;
+          if (response.status === 401 || (errorData as any).code === 'FCZ_AUTH_REQUIRED') {
+            useAuthStore.getState().signOut();
+          }
           if (errorData.error === 'INSUFFICIENT_FUNDS') {
-            throw new Error('INSUFFICIENT_FUNDS');
+            throw new Error('Insufficient demo credits.');
           }
           if (errorData.error === 'BETTING_DISABLED') {
             throw new Error('Betting is temporarily unavailable. Please try again later.');
           }
-          throw new Error(errorData.message || `Unable to place bet. Please try again.`);
+          throw new Error(placeBetErrorFromResponse(response.status, errorData));
         }
 
         const result = await response.json();
@@ -1012,11 +1038,10 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
       set(state => ({ inFlightBets: { ...(state.inFlightBets || {}), [compositeKey]: true } }));
       const requestId = getOrCreateRequestId(compositeKey);
 
+      const authHeaders = await getAuthHeaders();
       const response = await fetch(`${getApiUrl()}/api/predictions/${predictionId}/place-bet`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json', ...authHeaders },
         body: JSON.stringify({
           optionId,
           amountNgn,
@@ -1027,7 +1052,10 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
       });
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
+        const errorData = await response.json().catch(() => ({})) as Record<string, unknown>;
+        if (response.status === 401 || (errorData as any).code === 'FCZ_AUTH_REQUIRED') {
+          useAuthStore.getState().signOut();
+        }
         if (errorData.error === 'INSUFFICIENT_FUNDS') {
           throw new Error('Insufficient fiat balance. Please deposit more NGN.');
         }
@@ -1037,7 +1065,7 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
         if (errorData.error === 'BETTING_DISABLED') {
           throw new Error('Betting is temporarily unavailable. Please try again later.');
         }
-        throw new Error(errorData.message || 'Unable to place bet. Please try again.');
+        throw new Error(placeBetErrorFromResponse(response.status, errorData));
       }
 
       const result = await response.json();
