@@ -112,7 +112,8 @@ async function handlePlaceBet(req: any, res: any) {
       throw err;
     }
 
-    const { optionId, userId } = body;
+    // userId is derived from Authorization (req.user) – never trust body.userId
+    const { optionId } = body;
     const amountUSD = Number((body as any).amountUSD || 0);
     const fundingMode = body.fundingMode ?? 'crypto';
     const bodyWallet = body.walletAddress ? getAddress(body.walletAddress) : undefined;
