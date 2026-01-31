@@ -342,7 +342,7 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
       toast.success('🎉 Prediction created successfully!');
       setSubmitSuccess(true);
       
-      // Navigate to My Stakes after success
+      // Navigate to Discover after success
       setTimeout(() => {
         // Reset form
         setStep(1);
@@ -362,9 +362,9 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
         setSubmitSuccess(false);
         setIsSubmitting(false);
         
-        // Navigate to My Stakes to show created prediction using react-router-dom
+        // Navigate to Discover using react-router-dom
         // Use replace: true to prevent going back to the success screen
-        navigate('/predictions', { replace: true });
+        navigate('/discover', { replace: true });
       }, 2000);
     } catch (error) {
       console.error('Failed to create prediction:', error);
@@ -395,7 +395,7 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
           
           <h2 className="text-2xl font-bold text-gray-900 mb-2">Prediction Created!</h2>
           <p className="text-gray-600 mb-4">Your prediction has been successfully created and is now live.</p>
-          <div className="text-sm text-teal-600 font-medium">Redirecting to My Predictions...</div>
+          <div className="text-sm text-teal-600 font-medium">Redirecting to Discover...</div>
         </motion.div>
       </div>
     );
