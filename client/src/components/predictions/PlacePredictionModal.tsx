@@ -149,14 +149,16 @@ export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
     (prediction?.options?.length ?? 0) > 0
       ? sumOptionPools
       : (typeof prediction?.pool_total === 'number' ? prediction.pool_total : 0);
-  const platformFeeBps =
-    Number((prediction as any)?.platformFeeBps) ??
-    (Number((prediction as any)?.platform_fee_percentage) * 100) ||
-    250;
-  const creatorFeeBps =
-    Number((prediction as any)?.creatorFeeBps) ??
-    (Number((prediction as any)?.creator_fee_percentage) * 100) ||
-    100;
+  const platformFeeBpsRaw = Number((prediction as any)?.platformFeeBps);
+  const creatorFeeBpsRaw = Number((prediction as any)?.creatorFeeBps);
+  const platformFeePct = Number((prediction as any)?.platform_fee_percentage);
+  const creatorFeePct = Number((prediction as any)?.creator_fee_percentage);
+  const platformFeeBps = Number.isFinite(platformFeeBpsRaw)
+    ? platformFeeBpsRaw
+    : (Number.isFinite(platformFeePct) ? Math.round(platformFeePct * 100) : 250);
+  const creatorFeeBps = Number.isFinite(creatorFeeBpsRaw)
+    ? creatorFeeBpsRaw
+    : (Number.isFinite(creatorFeePct) ? Math.round(creatorFeePct * 100) : 100);
   const feeBps = platformFeeBps + creatorFeeBps;
   const optionPoolUSD = selectedOption
     ? Number((selectedOption as any).total_staked) || 0
