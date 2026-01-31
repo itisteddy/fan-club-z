@@ -633,16 +633,23 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
     set({ loading: true, error: null });
     
     try {
+      const authHeaders = await getAuthHeaders();
       const response = await fetch(`${getApiUrl()}/api/v2/predictions`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          ...authHeaders,
         },
         body: JSON.stringify(predictionData),
       });
 
       if (!response.ok) {
-        throw new Error(`Failed to create prediction: ${response.statusText}`);
+        const errorData = (await response.json().catch(() => ({}))) as Record<string, unknown>;
+        if (response.status === 401 || (errorData as any).code === 'FCZ_AUTH_REQUIRED') {
+          // Keep auth state consistent: force logout on auth-required responses.
+          void useAuthStore.getState().logout();
+        }
+        throw new Error((errorData as any)?.message || `Failed to create prediction: ${response.statusText}`);
       }
 
       const data = await response.json();

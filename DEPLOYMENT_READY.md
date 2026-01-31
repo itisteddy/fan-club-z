@@ -61,7 +61,8 @@ Run this migration in **Supabase → SQL Editor** before or when enabling Odds V
 
 ## 3. iOS build and upload
 
-**Full guide:** `docs/IOS_RELEASE.md`
+**Publish checklist (versions, archive, upload):** [PUBLISH_READY.md](./PUBLISH_READY.md)  
+**Full runbook:** `docs/IOS_RELEASE.md`
 
 **Quick sequence:**
 
@@ -87,7 +88,8 @@ Then in Xcode:
 
 ## 4. Android build and upload
 
-**Full guide:** `client/android/keystore/SIGNING_STEPS.md`
+**Publish checklist (AAB path, Play upload, version):** [PUBLISH_READY.md](./PUBLISH_READY.md)  
+**Signing:** `client/android/keystore/SIGNING_STEPS.md`
 
 **Prerequisites:** `client/android/keystore/keystore.properties` with real `storePassword` and `keyPassword` (see SIGNING_STEPS.md).
 
