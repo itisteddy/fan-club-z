@@ -9,3 +9,6 @@ export * from './types/activity';
 // Social + auth types
 export * from './types/social';
 export * from './types/auth';
+
+// Odds V2 — pool-based payout engine (cents, no clamp)
+export * from './oddsV2';

@@ -4,6 +4,7 @@ import { supabase } from '../../config/database';
 import { VERSION } from '@fanclubz/shared';
 import { getFallbackAdminActorId, logAdminAction } from './audit';
 import { settleDemoRail } from '../settlement';
+import { computePoolV2SettlementTotals, allocatePoolV2PayoutsToEntries } from '../../services/settlementOddsV2';
 import { upsertSettlementResult, computeSettlementAggregates } from '../../services/settlementResults';
 import { emitSettlementComplete, emitPredictionUpdate, emitWalletUpdate } from '../../services/realtime';
 import { createNotification } from '../../services/notifications';
@@ -439,7 +440,7 @@ predictionsRouter.post('/:predictionId/outcome', async (req, res) => {
     // Verify prediction exists with full details needed for settlement
     const { data: prediction, error: predErr } = await supabase
       .from('predictions')
-      .select('id, status, title, creator_id, platform_fee_percentage, creator_fee_percentage')
+      .select('id, status, title, creator_id, platform_fee_percentage, creator_fee_percentage, odds_model')
       .eq('id', predictionId)
       .maybeSingle();
 
@@ -507,6 +508,7 @@ predictionsRouter.post('/:predictionId/outcome', async (req, res) => {
       ? Number((prediction as any).creator_fee_percentage) : 1.0;
 
     // ============ DEMO RAIL SETTLEMENT ============
+    const oddsModel = (prediction as any).odds_model ?? 'legacy';
     let demoSummary = { demoEntriesCount: 0, demoPlatformFee: 0, demoCreatorFee: 0, demoPayoutPool: 0 };
     if (hasDemoRail) {
       console.log(`[Admin/Settlement] Processing ${demoEntries.length} demo entries`);
@@ -517,6 +519,7 @@ predictionsRouter.post('/:predictionId/outcome', async (req, res) => {
         creatorId: (prediction as any).creator_id,
         platformFeePercent,
         creatorFeePercent,
+        oddsModel,
       });
       console.log('[Admin/Settlement] Demo settlement complete:', demoSummary);
     }
@@ -527,46 +530,144 @@ predictionsRouter.post('/:predictionId/outcome', async (req, res) => {
     let cryptoPayoutPool = 0;
 
     if (hasCryptoRail) {
-      console.log(`[Admin/Settlement] Processing ${cryptoEntries.length} crypto entries`);
+      console.log(`[Admin/Settlement] Processing ${cryptoEntries.length} crypto entries (odds_model: ${oddsModel})`);
       
       const cryptoWinners = cryptoEntries.filter((e: any) => e.option_id === optionId);
       const cryptoLosers = cryptoEntries.filter((e: any) => e.option_id !== optionId);
       const totalCryptoWinningStake = cryptoWinners.reduce((sum: number, e: any) => sum + Number(e.amount || 0), 0);
       const totalCryptoLosingStake = cryptoLosers.reduce((sum: number, e: any) => sum + Number(e.amount || 0), 0);
 
-      // Fees on losing stakes only
-      cryptoPlatformFee = Math.round((totalCryptoLosingStake * platformFeePercent) / 100 * 100) / 100;
-      cryptoCreatorFee = Math.round((totalCryptoLosingStake * creatorFeePercent) / 100 * 100) / 100;
-      const cryptoPrizePool = Math.max(totalCryptoLosingStake - cryptoPlatformFee - cryptoCreatorFee, 0);
-      cryptoPayoutPool = totalCryptoWinningStake + cryptoPrizePool;
+      const platformFeeBps = Math.round(platformFeePercent * 100);
+      const creatorFeeBps = Math.round(creatorFeePercent * 100);
 
-      // Track stakes and payouts by user and provider for canonical results
-      const cryptoUserStakes = new Map<string, Map<string, number>>();
-      const cryptoUserPayouts = new Map<string, Map<string, number>>();
+      if (oddsModel === 'pool_v2') {
+        // Pool V2: cents-based settlement using shared odds engine
+        const winningCents = Math.round(totalCryptoWinningStake * 100);
+        const losingCents = Math.round(totalCryptoLosingStake * 100);
+        const totals = computePoolV2SettlementTotals({
+          winningPoolCents: winningCents,
+          losingPoolCents: losingCents,
+          platformFeeBps,
+          creatorFeeBps,
+        });
+        if (totals) {
+          cryptoPlatformFee = totals.platformFeeCents / 100;
+          cryptoCreatorFee = totals.creatorFeeCents / 100;
+          cryptoPayoutPool = totals.distributableCents / 100;
+          const payoutByEntryId = allocatePoolV2PayoutsToEntries(
+            cryptoWinners.map((e: any) => ({ id: e.id, amount: Number(e.amount || 0) })),
+            totals.distributableCents
+          );
+          const cryptoUserStakes = new Map<string, Map<string, number>>();
+          const cryptoUserPayouts = new Map<string, Map<string, number>>();
+          for (const winner of cryptoWinners) {
+            const stake = Number(winner.amount || 0);
+            const provider = winner.provider || 'crypto-base-usdc';
+            const payoutCents = payoutByEntryId.get(winner.id) ?? 0;
+            const payout = payoutCents / 100;
+            if (!cryptoUserStakes.has(winner.user_id)) cryptoUserStakes.set(winner.user_id, new Map());
+            cryptoUserStakes.get(winner.user_id)!.set(provider, (cryptoUserStakes.get(winner.user_id)!.get(provider) || 0) + stake);
+            if (!cryptoUserPayouts.has(winner.user_id)) cryptoUserPayouts.set(winner.user_id, new Map());
+            cryptoUserPayouts.get(winner.user_id)!.set(provider, (cryptoUserPayouts.get(winner.user_id)!.get(provider) || 0) + payout);
+            await supabase
+              .from('prediction_entries')
+              .update({ status: 'won', actual_payout: payout, updated_at: new Date().toISOString() } as any)
+              .eq('id', winner.id);
+          }
+          // Persist canonical results for crypto winners (same block below uses cryptoUserStakes/cryptoUserPayouts)
+          for (const [userId, userPayouts] of cryptoUserPayouts.entries()) {
+            const userStakes = cryptoUserStakes.get(userId) || new Map();
+            for (const [provider, totalPayout] of userPayouts.entries()) {
+              const totalStake = userStakes.get(provider) || 0;
+              try {
+                await upsertSettlementResult({
+                  predictionId,
+                  userId,
+                  provider,
+                  stakeTotal: totalStake,
+                  returnedTotal: totalPayout,
+                  net: totalPayout - totalStake,
+                  status: 'win',
+                  claimStatus: 'not_applicable',
+                });
+              } catch (err) {
+                console.error('[Admin/Settlement] Failed to persist crypto winner result:', err);
+              }
+            }
+          }
+          // Update crypto losers and persist canonical results (same as legacy path)
+          for (const loser of cryptoLosers) {
+            const stake = Number(loser.amount || 0);
+            const provider = loser.provider || 'crypto-base-usdc';
+            if (!cryptoUserStakes.has(loser.user_id)) cryptoUserStakes.set(loser.user_id, new Map());
+            const userStakes = cryptoUserStakes.get(loser.user_id)!;
+            userStakes.set(provider, (userStakes.get(provider) || 0) + stake);
+            await supabase
+              .from('prediction_entries')
+              .update({ status: 'lost', actual_payout: 0, updated_at: new Date().toISOString() } as any)
+              .eq('id', loser.id);
+          }
+          for (const [userId, userStakes] of cryptoUserStakes.entries()) {
+            if (cryptoUserPayouts.has(userId)) continue;
+            for (const [provider, totalStake] of userStakes.entries()) {
+              try {
+                await upsertSettlementResult({
+                  predictionId,
+                  userId,
+                  provider,
+                  stakeTotal: totalStake,
+                  returnedTotal: 0,
+                  net: -totalStake,
+                  status: 'loss',
+                  claimStatus: 'not_applicable',
+                });
+              } catch (err) {
+                console.error('[Admin/Settlement] Failed to persist crypto loser result:', err);
+              }
+            }
+          }
+        } else {
+          // Fallback if totals null (e.g. no winning stake): still mark losers
+          cryptoPlatformFee = Math.round((totalCryptoLosingStake * platformFeePercent) / 100 * 100) / 100;
+          cryptoCreatorFee = Math.round((totalCryptoLosingStake * creatorFeePercent) / 100 * 100) / 100;
+          const cryptoPrizePool = Math.max(totalCryptoLosingStake - cryptoPlatformFee - cryptoCreatorFee, 0);
+          cryptoPayoutPool = totalCryptoWinningStake + cryptoPrizePool;
+          for (const loser of cryptoLosers) {
+            await supabase
+              .from('prediction_entries')
+              .update({ status: 'lost', actual_payout: 0, updated_at: new Date().toISOString() } as any)
+              .eq('id', loser.id);
+          }
+        }
+      } else {
+        // Legacy: fees on losing stakes only, payout = stake + share of prize pool
+        cryptoPlatformFee = Math.round((totalCryptoLosingStake * platformFeePercent) / 100 * 100) / 100;
+        cryptoCreatorFee = Math.round((totalCryptoLosingStake * creatorFeePercent) / 100 * 100) / 100;
+        const cryptoPrizePool = Math.max(totalCryptoLosingStake - cryptoPlatformFee - cryptoCreatorFee, 0);
+        cryptoPayoutPool = totalCryptoWinningStake + cryptoPrizePool;
 
-      // Calculate per-user payouts for crypto winners
-      for (const winner of cryptoWinners) {
-        const stake = Number(winner.amount || 0);
-        const provider = winner.provider || 'crypto-base-usdc';
-        const share = totalCryptoWinningStake > 0 ? stake / totalCryptoWinningStake : 0;
-        const payout = Math.round((stake + cryptoPrizePool * share) * 100) / 100;
+        const cryptoUserStakes = new Map<string, Map<string, number>>();
+        const cryptoUserPayouts = new Map<string, Map<string, number>>();
 
-        // Track stake
-        if (!cryptoUserStakes.has(winner.user_id)) cryptoUserStakes.set(winner.user_id, new Map());
-        const userStakes = cryptoUserStakes.get(winner.user_id)!;
-        userStakes.set(provider, (userStakes.get(provider) || 0) + stake);
+        for (const winner of cryptoWinners) {
+          const stake = Number(winner.amount || 0);
+          const provider = winner.provider || 'crypto-base-usdc';
+          const share = totalCryptoWinningStake > 0 ? stake / totalCryptoWinningStake : 0;
+          const payout = Math.round((stake + cryptoPrizePool * share) * 100) / 100;
 
-        // Track payout
-        if (!cryptoUserPayouts.has(winner.user_id)) cryptoUserPayouts.set(winner.user_id, new Map());
-        const userPayouts = cryptoUserPayouts.get(winner.user_id)!;
-        userPayouts.set(provider, (userPayouts.get(provider) || 0) + payout);
+          if (!cryptoUserStakes.has(winner.user_id)) cryptoUserStakes.set(winner.user_id, new Map());
+          const userStakes = cryptoUserStakes.get(winner.user_id)!;
+          userStakes.set(provider, (userStakes.get(provider) || 0) + stake);
 
-        // Update entry status
-        await supabase
-          .from('prediction_entries')
-          .update({ status: 'won', actual_payout: payout, updated_at: new Date().toISOString() } as any)
-          .eq('id', winner.id);
-      }
+          if (!cryptoUserPayouts.has(winner.user_id)) cryptoUserPayouts.set(winner.user_id, new Map());
+          const userPayouts = cryptoUserPayouts.get(winner.user_id)!;
+          userPayouts.set(provider, (userPayouts.get(provider) || 0) + payout);
+
+          await supabase
+            .from('prediction_entries')
+            .update({ status: 'won', actual_payout: payout, updated_at: new Date().toISOString() } as any)
+            .eq('id', winner.id);
+        }
 
       // Update crypto losers
       for (const loser of cryptoLosers) {

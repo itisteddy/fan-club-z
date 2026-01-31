@@ -9,6 +9,8 @@ export interface PredictionOption {
   total_staked?: number;
   totalStaked?: number;
   percentage?: number;
+  /** Odds V2: reference multiple from pool engine (show as "Est. X.XXx") */
+  referenceMultiple?: number;
 }
 
 interface OptionsSectionProps {
@@ -36,11 +38,16 @@ export function OptionsSection({
     <section className="rounded-2xl bg-white border shadow-sm overflow-hidden">
       <ul className="divide-y divide-gray-100">
         {options.map((option) => {
-          const odds = option.current_odds ?? option.odds ?? 1.0;
+          // Odds V2: use referenceMultiple when present (pool_v2); else legacy current_odds / pool ratio
+          const odds =
+            typeof option.referenceMultiple === 'number'
+              ? option.referenceMultiple
+              : option.current_odds ?? option.odds ?? 1.0;
+          const isEstimate = typeof option.referenceMultiple === 'number';
           const isSelected = selectedId === option.id;
           const percentage = option.percentage ?? 0;
           const isWinning = showWinningIndicator && winningOptionId && option.id === winningOptionId;
-          
+
           return (
             <li key={option.id}>
               <button
@@ -70,8 +77,8 @@ export function OptionsSection({
                     </div>
                   )}
                 </div>
-                <span className="text-emerald-600 font-semibold ml-3">
-                  {odds.toFixed(2)}x
+                <span className="text-emerald-600 font-semibold ml-3" title={isEstimate ? 'Estimate; payout changes as others stake' : undefined}>
+                  {isEstimate ? 'Est. ' : ''}{odds.toFixed(2)}x
                 </span>
               </button>
             </li>

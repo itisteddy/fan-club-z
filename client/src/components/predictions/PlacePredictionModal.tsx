@@ -23,6 +23,8 @@ import { useFundingModeStore, FundingMode } from '@/store/fundingModeStore';
 import { getApiUrl } from '@/config';
 import { setCooldown } from '@/lib/cooldowns';
 import { usePaystackStatus, useFiatSummary } from '@/hooks/useFiatWallet';
+import { computePreview } from '@fanclubz/shared';
+import { isFeatureEnabled } from '@/config/featureFlags';
 
 interface PlacePredictionModalProps {
   prediction: Prediction | null;
@@ -143,8 +145,26 @@ export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
 
   const numAmount = parseFloat(amount) || 0;
   const selectedOption = prediction?.options?.find(o => o.id === selectedOptionId);
-  const selectedOptionOdds = selectedOption?.current_odds || (selectedOption?.total_staked ? (prediction?.pool_total / selectedOption.total_staked) : 2.0);
-  const potentialPayout = selectedOption ? calculatePotentialPayout(numAmount, selectedOptionOdds) : 0;
+  const oddsV2Enabled = isFeatureEnabled('ODDS_V2');
+  const isPoolV2 = oddsV2Enabled && (prediction as any)?.odds_model === 'pool_v2';
+  const totalPoolCents = Math.round((Number((prediction as any)?.totalPoolCents ?? (prediction?.pool_total ?? 0) * 100)) || 0);
+  const platformFeeBps = Number((prediction as any)?.platformFeeBps) || 250;
+  const creatorFeeBps = Number((prediction as any)?.creatorFeeBps) || 100;
+  const selectedPoolCents = selectedOption
+    ? (Number((selectedOption as any).totalStakedCents) || Math.round((Number((selectedOption as any).total_staked) || 0) * 100))
+    : 0;
+  const stakeCents = Math.round(numAmount * 100);
+  const previewV2 = isPoolV2 && selectedOption && stakeCents > 0
+    ? computePreview({ totalPoolCents, selectedPoolCents, stakeCents, platformFeeBps, creatorFeeBps })
+    : null;
+  const selectedOptionOdds =
+    previewV2?.multiple ??
+    (typeof (selectedOption as any)?.referenceMultiple === 'number' ? (selectedOption as any).referenceMultiple : null) ??
+    selectedOption?.current_odds ??
+    (selectedOption?.total_staked && prediction?.pool_total ? prediction.pool_total / selectedOption.total_staked : 2.0);
+  const potentialPayout = selectedOption
+    ? (previewV2 ? previewV2.expectedReturnCents / 100 : calculatePotentialPayout(numAmount, selectedOptionOdds))
+    : 0;
   const demoAvailable = demoSummary?.available ?? 0;
   const fiatAvailable = fiatData?.summary?.availableNgn ?? 0;
   
@@ -463,8 +483,12 @@ export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
                       const totalStaked = option.total_staked || 0;
                       const poolTotal = prediction.pool_total || 1;
                       const percentage = poolTotal > 0 ? Math.min((totalStaked / poolTotal * 100), 100) : 50;
-                      const currentOdds = option.current_odds || (totalStaked > 0 ? (poolTotal / totalStaked) : 2.0);
-                      
+                      const currentOdds =
+                        typeof (option as any).referenceMultiple === 'number'
+                          ? (option as any).referenceMultiple
+                          : option.current_odds || (totalStaked > 0 ? (poolTotal / totalStaked) : 2.0);
+                      const hasRefMultiple = typeof (option as any).referenceMultiple === 'number';
+
                       return (
                         <Card
                           key={option.id || Math.random()}
@@ -486,7 +510,7 @@ export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
                               </div>
                               <div className="text-right">
                                 <div className="text-lg font-bold text-teal-600">
-                                  {currentOdds.toFixed(2)}x
+                                  {hasRefMultiple ? 'Est. ' : ''}{currentOdds.toFixed(2)}x
                                 </div>
                               </div>
                             </div>

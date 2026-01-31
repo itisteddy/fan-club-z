@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { config } from '../config';
 import { supabase } from '../config/database';
 import { VERSION } from '@fanclubz/shared';
+import { enrichPredictionWithOddsV2 } from '../utils/enrichPredictionOddsV2';
 import { recomputePredictionState } from '../services/predictionMath';
 import { emitPredictionUpdate } from '../services/realtime';
 import { logAdminAction } from './admin/audit';
@@ -652,7 +653,9 @@ router.get('/:id', async (req, res) => {
       .eq('prediction_id', id);
 
     // Enrich with category info
-    const enrichedPrediction = await enrichPredictionWithCategory(prediction);
+    let enrichedPrediction = await enrichPredictionWithCategory(prediction);
+    // Odds V2: add pools (cents), fee bps, reference odds
+    enrichedPrediction = enrichPredictionWithOddsV2(enrichedPrediction);
 
     // Phase 6A: Add canonical settlement fields if user is authenticated
     let canonicalFields: any = {};
@@ -927,6 +930,7 @@ router.post('/', requireSupabaseAuth, requireTermsAccepted, async (req, res) => 
         is_private: isPrivate || false,
         creator_fee_percentage: 1.0,
         platform_fee_percentage: 2.5,
+        odds_model: process.env.FLAG_ODDS_V2 === '1' ? 'pool_v2' : 'legacy',
         tags: [resolvedCategorySlug],
         participant_count: 0,
         likes_count: 0,

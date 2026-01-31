@@ -49,7 +49,7 @@ settlementsRouter.post('/:predictionId/sync', async (req, res) => {
 
     const { data: pred, error: predErr } = await supabase
       .from('predictions')
-      .select('id, title, status, winning_option_id, settled_at, resolution_date, creator_id, platform_fee_percentage, creator_fee_percentage')
+      .select('id, title, status, winning_option_id, settled_at, resolution_date, creator_id, platform_fee_percentage, creator_fee_percentage, odds_model')
       .eq('id', predictionId)
       .maybeSingle();
 
@@ -96,6 +96,7 @@ settlementsRouter.post('/:predictionId/sync', async (req, res) => {
           creatorId: ((pred as any).creator_id || ''),
           platformFeePercent: ((pred as any).platform_fee_percentage || 2.5),
           creatorFeePercent: ((pred as any).creator_fee_percentage || 1.0),
+          oddsModel: (pred as any).odds_model ?? undefined,
         });
       } catch (settleErr) {
         console.error('[Admin/Settlements] Demo settlement failed during sync:', settleErr);

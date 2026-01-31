@@ -3,6 +3,8 @@
 ## Overview
 This checklist ensures all environment variables, especially for crypto payments, are properly configured before deploying to production.
 
+**Single runbook for Web + iOS + Android:** See **[DEPLOYMENT_READY.md](./DEPLOYMENT_READY.md)** for SQL step, Render/Vercel deploy, and iOS/Android build and upload.
+
 ---
 
 ## 📋 Pre-Deployment Checklist
@@ -15,6 +17,7 @@ This checklist ensures all environment variables, especially for crypto payments
 - [ ] No hardcoded secrets or API keys in code
 
 ### ✅ 2. Database Setup (Supabase)
+- [ ] Run migration **324** (Odds V2): `server/migrations/324_prediction_odds_model.sql` in SQL Editor (adds `predictions.odds_model`). Required only if enabling Odds V2; safe to run anytime.
 - [ ] Verify `chain_addresses` table exists with production addresses
 - [ ] Insert production contract addresses (Base Sepolia):
   ```sql
@@ -71,6 +74,9 @@ VITE_AUTH_REDIRECT_URL=https://app.fanclubz.app/auth/callback
 ```bash
 # Coinbase Wallet (if enabled)
 VITE_ENABLE_COINBASE_CONNECTOR=0
+
+# Odds V2 (enable only if backend has FLAG_ODDS_V2=1 and migration 324 run)
+VITE_FCZ_ODDS_V2=1
 
 # Debug/Development
 VITE_DEBUG_LOGS=false
@@ -130,6 +136,9 @@ CORS_ORIGINS=https://app.fanclubz.app,https://fanclubz.app
 # Optional: Rate Limiting
 RATE_LIMIT_WINDOW_MS=900000
 RATE_LIMIT_MAX=100
+
+# Optional: Odds V2 (run migration 324 first)
+FLAG_ODDS_V2=1
 ```
 
 ---

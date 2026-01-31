@@ -7,6 +7,7 @@ import crypto from 'crypto';
 import { reconcileWallet } from '../../services/walletReconciliation';
 import { emitPredictionUpdate, emitWalletUpdate } from '../../services/realtime';
 import { recomputePredictionState } from '../../services/predictionMath';
+import { enrichPredictionWithOddsV2 } from '../../utils/enrichPredictionOddsV2';
 import { requireSupabaseAuth } from '../../middleware/requireSupabaseAuth';
 import type { AuthenticatedRequest } from '../../middleware/auth';
 
@@ -203,7 +204,7 @@ async function handlePlaceBet(req: any, res: any) {
         return res.status(200).json({
           ok: true,
           entryId: existingEntryId,
-          data: { prediction: recomputed.prediction, entry: entryRow || null },
+          data: { prediction: enrichPredictionWithOddsV2(recomputed.prediction), entry: entryRow || null },
           message: 'Bet already placed (idempotent)',
           version: VERSION,
         });
@@ -236,7 +237,7 @@ async function handlePlaceBet(req: any, res: any) {
             ok: true,
             entryId: entryId || null,
             consumedLockId: lockId,
-            data: { prediction: recomputed.prediction, entry: entryRow || null },
+            data: { prediction: enrichPredictionWithOddsV2(recomputed.prediction), entry: entryRow || null },
             message: 'Bet already placed (idempotent)',
             version: VERSION,
           });
@@ -366,7 +367,7 @@ async function handlePlaceBet(req: any, res: any) {
         ok: true,
         entryId: entry.id,
         consumedLockId: lockId,
-        data: { prediction: recomputed.prediction, entry },
+        data: { prediction: enrichPredictionWithOddsV2(recomputed.prediction), entry },
         requestId: reqId,
         version: VERSION,
       });
@@ -467,7 +468,7 @@ async function handlePlaceBet(req: any, res: any) {
         return res.status(200).json({
           ok: true,
           entryId: existingEntryId,
-          data: { prediction: recomputed.prediction, entry: entryRow || null },
+          data: { prediction: enrichPredictionWithOddsV2(recomputed.prediction), entry: entryRow || null },
           message: 'Bet already placed (idempotent)',
           version: VERSION,
         });
@@ -518,7 +519,7 @@ async function handlePlaceBet(req: any, res: any) {
             ok: true,
             entryId: entryId || null,
             consumedLockId: lockId,
-            data: { prediction: recomputed.prediction, entry: entryRow || null },
+            data: { prediction: enrichPredictionWithOddsV2(recomputed.prediction), entry: entryRow || null },
             message: 'Bet already placed (idempotent)',
             fundingMode: 'fiat',
             version: VERSION,
@@ -639,7 +640,7 @@ async function handlePlaceBet(req: any, res: any) {
         ok: true,
         entryId: entry.id,
         consumedLockId: lockId,
-        data: { prediction: recomputed.prediction, entry },
+        data: { prediction: enrichPredictionWithOddsV2(recomputed.prediction), entry },
         fundingMode: 'fiat',
         version: VERSION,
       });
@@ -816,7 +817,7 @@ async function handlePlaceBet(req: any, res: any) {
             entryId: existingEntry.id,
             consumedLockId: existingLock.id,
             data: {
-              prediction: recomputed.prediction,
+              prediction: enrichPredictionWithOddsV2(recomputed.prediction),
               entry: entryFetchError ? null : entryRow,
             },
             newEscrowReserved: reservedUSDC,
@@ -904,7 +905,7 @@ async function handlePlaceBet(req: any, res: any) {
                 entryId: entry.id,
                 consumedLockId: concurrentLock.id,
                 data: {
-                  prediction: recomputed.prediction,
+                  prediction: enrichPredictionWithOddsV2(recomputed.prediction),
                   entry: entryFetchError ? null : entryRow,
                 },
                 newEscrowReserved: reservedUSDC,
@@ -1114,7 +1115,7 @@ async function handlePlaceBet(req: any, res: any) {
       entryId,
       consumedLockId: lockId,
       data: {
-        prediction: recomputed.prediction,
+        prediction: enrichPredictionWithOddsV2(recomputed.prediction),
         entry: latestEntryError ? null : latestEntry,
       },
       newEscrowReserved: finalSnapshot.reservedUSDC,

@@ -9,6 +9,7 @@ import { makePublicClient } from '../chain/base/client';
 import { getEscrowAddress } from '../services/escrowContract';
 import { encodePacked, getAddress, keccak256 } from 'viem';
 import { calculatePayouts, type Entry as PayoutEntry } from '../services/payoutCalculator';
+import { computePoolV2SettlementTotals, allocatePoolV2PayoutsToEntries } from '../services/settlementOddsV2';
 import { createNotification } from '../services/notifications';
 import { upsertSettlementResult, computeSettlementAggregates } from '../services/settlementResults';
 
@@ -175,6 +176,7 @@ export async function computeMerkleSettlementCryptoOnly(args: { predictionId: st
   const totalWinningStake = winners.reduce((sum, e: any) => sum + Number(e.amount || 0), 0);
   const totalLosingStake = losers.reduce((sum, e: any) => sum + Number(e.amount || 0), 0);
 
+  const oddsModel = (prediction as any).odds_model ?? 'legacy';
   const platformFeePct = Number.isFinite((prediction as any).platform_fee_percentage)
     ? Number((prediction as any).platform_fee_percentage)
     : 2.5;
@@ -182,11 +184,40 @@ export async function computeMerkleSettlementCryptoOnly(args: { predictionId: st
     ? Number((prediction as any).creator_fee_percentage)
     : 1.0;
 
-  const platformFeeUSD = Math.max(round2((totalLosingStake * platformFeePct) / 100), 0);
-  const creatorFeeUSD = Math.max(round2((totalLosingStake * creatorFeePct) / 100), 0);
-  const prizePoolUSD = Math.max(totalLosingStake - platformFeeUSD - creatorFeeUSD, 0);
-  const payoutPoolUSD = totalWinningStake + prizePoolUSD;
+  let platformFeeUSD: number;
+  let creatorFeeUSD: number;
+  let payoutPoolUSD: number;
+
+  if (oddsModel === 'pool_v2') {
+    const winningCents = Math.round(totalWinningStake * 100);
+    const losingCents = Math.round(totalLosingStake * 100);
+    const platformFeeBps = Math.round(platformFeePct * 100);
+    const creatorFeeBps = Math.round(creatorFeePct * 100);
+    const totals = computePoolV2SettlementTotals({
+      winningPoolCents: winningCents,
+      losingPoolCents: losingCents,
+      platformFeeBps,
+      creatorFeeBps,
+    });
+    if (totals) {
+      platformFeeUSD = totals.platformFeeCents / 100;
+      creatorFeeUSD = totals.creatorFeeCents / 100;
+      payoutPoolUSD = totals.distributableCents / 100;
+    } else {
+      platformFeeUSD = Math.max(round2((totalLosingStake * platformFeePct) / 100), 0);
+      creatorFeeUSD = Math.max(round2((totalLosingStake * creatorFeePct) / 100), 0);
+      const prizePoolUSD = Math.max(totalLosingStake - platformFeeUSD - creatorFeeUSD, 0);
+      payoutPoolUSD = totalWinningStake + prizePoolUSD;
+    }
+  } else {
+    platformFeeUSD = Math.max(round2((totalLosingStake * platformFeePct) / 100), 0);
+    creatorFeeUSD = Math.max(round2((totalLosingStake * creatorFeePct) / 100), 0);
+    const prizePoolUSD = Math.max(totalLosingStake - platformFeeUSD - creatorFeeUSD, 0);
+    payoutPoolUSD = totalWinningStake + prizePoolUSD;
+  }
+
   const payoutPoolUnits = usdToUnits(payoutPoolUSD);
+  const prizePoolUSD = payoutPoolUSD - totalWinningStake;
   const predictionIdHex = toBytes32FromUuid(predictionId);
 
   // Resolve winner addresses
@@ -312,13 +343,14 @@ export async function settleDemoRail(args: {
   creatorId: string;
   platformFeePercent: number;
   creatorFeePercent: number;
+  oddsModel?: string | null;
 }): Promise<{
   demoEntriesCount: number;
   demoPlatformFee: number;
   demoCreatorFee: number;
   demoPayoutPool: number;
 }> {
-  const { predictionId, winningOptionId, predictionTitle, creatorId } = args;
+  const { predictionId, winningOptionId, predictionTitle, creatorId, oddsModel } = args;
 
   const { data: entries, error: entriesErr } = await supabase
     .from('prediction_entries')
@@ -336,31 +368,81 @@ export async function settleDemoRail(args: {
     return { demoEntriesCount: 0, demoPlatformFee: 0, demoCreatorFee: 0, demoPayoutPool: 0 };
   }
 
-  // Map entries to payout calculator format
-  const payoutEntries: PayoutEntry[] = demoEntries.map((e: any) => ({
-    userId: e.user_id,
-    optionId: e.option_id,
-    amount: Number(e.amount || 0),
-    provider: e.provider,
-  }));
-
-  // Convert fee percentages to basis points
-  const feeConfig = {
-    platformFeeBps: args.platformFeePercent * 100, // e.g., 2.5% -> 250 bps
-    creatorFeeBps: args.creatorFeePercent * 100, // e.g., 1.0% -> 100 bps
-  };
-
-  // Calculate payouts using deterministic calculator
-  const demoResult = calculatePayouts({
-    entries: payoutEntries,
-    winningOptionId,
-    feeConfig,
-    rail: 'demo',
-    providerMatch: (p) => p === DEMO_PROVIDER,
-  });
-
   const winners = demoEntries.filter((e: any) => e.option_id === winningOptionId);
   const losers = demoEntries.filter((e: any) => e.option_id !== winningOptionId);
+
+  let demoResult: {
+    totalPot: number;
+    winnersStakeTotal: number;
+    distributablePot: number;
+    platformFee: number;
+    creatorFee: number;
+    payoutsByUserId: Record<string, number>;
+  };
+
+  if (oddsModel === 'pool_v2') {
+    // Pool V2: cents-based settlement using shared odds engine
+    const winningCents = winners.reduce((s, e: any) => s + Math.round(Number(e.amount || 0) * 100), 0);
+    const losingCents = losers.reduce((s, e: any) => s + Math.round(Number(e.amount || 0) * 100), 0);
+    const platformFeeBps = Math.round(args.platformFeePercent * 100);
+    const creatorFeeBps = Math.round(args.creatorFeePercent * 100);
+    const totals = computePoolV2SettlementTotals({
+      winningPoolCents: winningCents,
+      losingPoolCents: losingCents,
+      platformFeeBps,
+      creatorFeeBps,
+    });
+    if (!totals || winningCents <= 0) {
+      demoResult = {
+        totalPot: demoEntries.reduce((s, e: any) => s + Number(e.amount || 0), 0),
+        winnersStakeTotal: 0,
+        distributablePot: 0,
+        platformFee: losingCents ? round2((losingCents * (platformFeeBps + creatorFeeBps)) / 10_000 / 100) : 0,
+        creatorFee: 0,
+        payoutsByUserId: {},
+      };
+    } else {
+      const payoutByEntryId = allocatePoolV2PayoutsToEntries(
+        winners.map((e: any) => ({ id: e.id, amount: Number(e.amount || 0) })),
+        totals.distributableCents
+      );
+      const payoutsByUserId: Record<string, number> = {};
+      for (const w of winners as any[]) {
+        const payoutCents = payoutByEntryId.get(w.id) ?? 0;
+        const payoutUSD = payoutCents / 100;
+        payoutsByUserId[w.user_id] = (payoutsByUserId[w.user_id] || 0) + payoutUSD;
+      }
+      demoResult = {
+        totalPot: demoEntries.reduce((s, e: any) => s + Number(e.amount || 0), 0),
+        winnersStakeTotal: winningCents / 100,
+        distributablePot: totals.distributableCents / 100,
+        platformFee: totals.platformFeeCents / 100,
+        creatorFee: totals.creatorFeeCents / 100,
+        payoutsByUserId,
+      };
+      // Store per-entry payout for later use when updating entries
+      (demoResult as any)._payoutCentsByEntryId = payoutByEntryId;
+    }
+  } else {
+    // Legacy: use payout calculator
+    const payoutEntries: PayoutEntry[] = demoEntries.map((e: any) => ({
+      userId: e.user_id,
+      optionId: e.option_id,
+      amount: Number(e.amount || 0),
+      provider: e.provider,
+    }));
+    const feeConfig = {
+      platformFeeBps: args.platformFeePercent * 100,
+      creatorFeeBps: args.creatorFeePercent * 100,
+    };
+    demoResult = calculatePayouts({
+      entries: payoutEntries,
+      winningOptionId,
+      feeConfig,
+      rail: 'demo',
+      providerMatch: (p) => p === DEMO_PROVIDER,
+    });
+  }
 
   // Track total stake per user for reserved balance updates
   const userStakes = new Map<string, number>();
@@ -368,6 +450,8 @@ export async function settleDemoRail(args: {
     const current = userStakes.get(entry.user_id) || 0;
     userStakes.set(entry.user_id, current + Number(entry.amount || 0));
   }
+
+  const payoutCentsByEntryId = (demoResult as any)._payoutCentsByEntryId as Map<string, number> | undefined;
 
   // Apply payouts to winners (aggregated by userId from calculator)
   for (const [userId, payoutAmount] of Object.entries(demoResult.payoutsByUserId)) {
@@ -379,7 +463,9 @@ export async function settleDemoRail(args: {
     for (const entry of userWinningEntries) {
       const stake = Number(entry.amount || 0);
       const share = demoResult.winnersStakeTotal > 0 ? stake / demoResult.winnersStakeTotal : 0;
-      const entryPayout = round2(demoResult.distributablePot * share);
+      const entryPayout = payoutCentsByEntryId
+        ? ((payoutCentsByEntryId.get(entry.id) ?? 0) / 100)
+        : round2(demoResult.distributablePot * share);
 
     await supabase
       .from('prediction_entries')
