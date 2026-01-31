@@ -728,6 +728,9 @@ predictionsRouter.post('/:predictionId/outcome', async (req, res) => {
         }
       }
 
+      // End legacy odds_model branch
+      }
+
       console.log('[Admin/Settlement] Crypto settlement complete:', {
         winners: cryptoWinners.length,
         losers: cryptoLosers.length,
