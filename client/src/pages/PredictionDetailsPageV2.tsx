@@ -44,7 +44,7 @@ import { EditPredictionSheet } from '../components/prediction/EditPredictionShee
 import { CancelPredictionSheet } from '../components/prediction/CancelPredictionSheet';
 import { getCategoryLabel } from '@/lib/categoryUi';
 import { isFeatureEnabled } from '@/config/featureFlags';
-import { computePreview } from '@fanclubz/shared';
+import { getPayoutPreview, getPreOddsMultiple } from '@fanclubz/shared';
 import { ReportContentModal } from '@/components/ugc/ReportContentModal';
 // TODO: Re-enable share functionality after testing
 // import { useShareResult } from '../components/share/useShareResult';
@@ -636,47 +636,35 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
     }
   }, [predictionId, currentUser?.id, disputeOutcomeReason, session?.access_token]);
 
-  // ---------------- ODDS_V2 preview (keep hooks above early returns) ----------------
-  // React minified error #310 = "Rendered more hooks than during the previous render."
-  // This happens if we call hooks (useMemo) after early returns (loading/error/not-found).
-  const poolTotal = typeof prediction?.pool_total === 'number' ? prediction.pool_total : Number(prediction?.pool_total) || 0;
+  // ---------------- Pool-based payout preview (keep hooks above early returns) ----------------
+  const sumOptionPools = (prediction?.options ?? []).reduce(
+    (sum: number, o: any) => sum + (Number((o as any).total_staked) || 0),
+    0
+  );
+  const totalPool =
+    (prediction?.options?.length ?? 0) > 0
+      ? sumOptionPools
+      : (typeof prediction?.pool_total === 'number' ? prediction.pool_total : 0);
+  const poolTotal = totalPool;
   const selectedOption = prediction && selectedOptionId ? prediction.options?.find((o: any) => o.id === selectedOptionId) : null;
   const numStake = parseFloat(stakeAmount || '0') || 0;
-  const isPoolV2 = oddsV2Enabled && (prediction as any)?.odds_model === 'pool_v2';
-  const totalPoolCents = Math.round((typeof (prediction as any)?.totalPoolCents === 'number' ? (prediction as any).totalPoolCents : (poolTotal || 0) * 100));
   const platformFeeBps = typeof (prediction as any)?.platformFeeBps === 'number' ? (prediction as any).platformFeeBps : 250;
   const creatorFeeBps = typeof (prediction as any)?.creatorFeeBps === 'number' ? (prediction as any).creatorFeeBps : 100;
-  const selectedPoolCents = selectedOption
-    ? (typeof (selectedOption as any).totalStakedCents === 'number'
-        ? (selectedOption as any).totalStakedCents
-        : Math.round((Number((selectedOption as any).total_staked) || 0) * 100))
-    : 0;
-  const stakeCents = Math.round(numStake * 100);
+  const feeBps = platformFeeBps + creatorFeeBps;
+  const optionPoolUSD = selectedOption ? (Number((selectedOption as any).total_staked) || 0) : 0;
 
-  const payoutPreviewV2 = useMemo(() => {
-    if (!isPoolV2 || !selectedOption || stakeCents <= 0) return null;
-    return computePreview({
-      totalPoolCents,
-      selectedPoolCents,
-      stakeCents,
-      platformFeeBps,
-      creatorFeeBps,
+  const poolPreview = useMemo(() => {
+    if (!selectedOption || numStake <= 0) return null;
+    return getPayoutPreview({
+      totalPool,
+      optionPool: optionPoolUSD,
+      stake: numStake,
+      feeBps,
     });
-  }, [isPoolV2, selectedOption, totalPoolCents, selectedPoolCents, stakeCents, platformFeeBps, creatorFeeBps]);
+  }, [selectedOption, totalPool, optionPoolUSD, numStake, feeBps]);
 
-  const selectedOptionOdds = useMemo(() => {
-    if (!selectedOption) return 1;
-    if (payoutPreviewV2?.multiple != null) return payoutPreviewV2.multiple;
-    if (isPoolV2 && typeof (selectedOption as any).referenceMultiple === 'number') return (selectedOption as any).referenceMultiple;
-    const co = selectedOption.current_odds ?? (selectedOption as any).currentOdds ?? (selectedOption as any).odds;
-    if (typeof co === 'number' && co > 0) return co;
-    const optStaked = (selectedOption as any).total_staked ?? (selectedOption as any).totalStaked ?? 0;
-    if (poolTotal > 0 && optStaked > 0) return poolTotal / optStaked;
-    return 2;
-  }, [selectedOption, poolTotal, isPoolV2, payoutPreviewV2]);
-
-  const expectedReturn = payoutPreviewV2 ? payoutPreviewV2.expectedReturnCents / 100 : numStake * selectedOptionOdds;
-  const potentialProfit = expectedReturn - numStake;
+  const expectedReturn = poolPreview ? poolPreview.expectedReturn : 0;
+  const potentialProfit = poolPreview ? poolPreview.profit : 0;
 
   // Loading state
   if (loading && !prediction) {
@@ -791,7 +779,7 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
   if (!prediction) return null;
 
   const participantCount = prediction?.participant_count ?? 0;
-  const totalVolume = prediction?.pool_total ?? 0;
+  const totalVolume = totalPool;
 
   return (
     <>
@@ -1086,6 +1074,7 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
                       disabled={isPlacingBet || !isAuthenticated || String((prediction as any).status || '').toLowerCase() !== 'open'}
                       winningOptionId={(prediction as any).winning_option_id || (prediction as any).winningOptionId}
                       showWinningIndicator={String((prediction as any).status || '').toLowerCase() === 'settled'}
+                      totalPool={totalPool}
                     />
                   )}
 
@@ -1167,6 +1156,7 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
                             className="w-full rounded-xl border bg-background pl-10 pr-4 py-3 text-lg font-semibold transition-colors border-border focus:border-primary focus:ring-primary/20 focus:outline-none focus:ring-2 disabled:opacity-50"
                           />
                         </div>
+                        <p className="text-xs text-gray-500 mt-1">Your stake moves the odds in this pool.</p>
                       </div>
                       
                       <div className="flex items-center justify-between text-sm">
@@ -1205,8 +1195,8 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
                         ))}
                       </div>
 
-                      {/* ODDS_V2: Stake, expected return, and potential profit */}
-                      {oddsV2Enabled && selectedOptionId && numStake > 0 && (
+                      {/* Payout preview — pool-based (post-stake, fees included) */}
+                      {selectedOptionId && numStake > 0 && (
                         <div className="mt-4 p-4 rounded-xl bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200/80">
                           <h4 className="text-sm font-semibold text-gray-900 mb-3">Payout preview</h4>
                           <div className="grid grid-cols-2 gap-3 text-sm">
@@ -1217,9 +1207,11 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
                               </p>
                             </div>
                             <div>
-                              <p className="text-gray-600">Expected return</p>
+                              <p className="text-gray-600">Estimated return</p>
                               <p className="font-semibold text-emerald-700">
-                                {formatCurrency(expectedReturn, { compact: false, currency: isFiatMode ? 'NGN' : 'USD' })}
+                                {poolPreview
+                                  ? formatCurrency(poolPreview.expectedReturn, { compact: false, currency: isFiatMode ? 'NGN' : 'USD' })
+                                  : formatCurrency(expectedReturn, { compact: false, currency: isFiatMode ? 'NGN' : 'USD' })}
                               </p>
                             </div>
                           </div>
@@ -1228,11 +1220,21 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
                             <p className={`font-semibold ${potentialProfit >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
                               {formatCurrency(potentialProfit, { compact: false, currency: isFiatMode ? 'NGN' : 'USD', showSign: true })}
                             </p>
-                            <p className="text-xs text-gray-500 mt-0.5">
-                              {isPoolV2 ? 'Est. ' : ''}{selectedOptionOdds.toFixed(2)}x odds
-                            </p>
-                            {isPoolV2 && (
-                              <p className="text-xs text-gray-400 mt-0.5">Estimate; payout changes as others stake.</p>
+                            {poolPreview && (
+                              <>
+                                <p className="text-xs text-gray-500 mt-0.5">
+                                  Estimated odds (with your stake): {poolPreview.multiplePost != null ? `${poolPreview.multiplePost.toFixed(2)}x` : '—'}
+                                </p>
+                                {poolPreview.multiplePre != null && (
+                                  <p className="text-xs text-gray-500">Current odds: {poolPreview.multiplePre.toFixed(2)}x</p>
+                                )}
+                                <p className="text-xs text-gray-400 mt-0.5">
+                                  Odds update as stake size changes. Final payout depends on the pool at close.
+                                </p>
+                                {feeBps > 0 && (
+                                  <p className="text-xs text-gray-400">Fees included: {(feeBps / 100).toFixed(1)}%</p>
+                                )}
+                              </>
                             )}
                           </div>
                         </div>

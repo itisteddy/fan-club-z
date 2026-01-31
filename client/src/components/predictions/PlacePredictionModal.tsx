@@ -23,8 +23,7 @@ import { useFundingModeStore, FundingMode } from '@/store/fundingModeStore';
 import { getApiUrl } from '@/config';
 import { setCooldown } from '@/lib/cooldowns';
 import { usePaystackStatus, useFiatSummary } from '@/hooks/useFiatWallet';
-import { computePreview } from '@fanclubz/shared';
-import { isFeatureEnabled } from '@/config/featureFlags';
+import { getPayoutPreview, getPreOddsMultiple } from '@fanclubz/shared';
 
 interface PlacePredictionModalProps {
   prediction: Prediction | null;
@@ -40,10 +39,6 @@ const formatCurrency = (amount: number, currency: 'USD' | 'NGN' = 'USD') => {
     minimumFractionDigits: 0,
     maximumFractionDigits: currency === 'NGN' ? 0 : 2,
   }).format(amount);
-};
-
-const calculatePotentialPayout = (amount: number, odds: number) => {
-  return amount * odds;
 };
 
 export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
@@ -145,26 +140,38 @@ export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
 
   const numAmount = parseFloat(amount) || 0;
   const selectedOption = prediction?.options?.find(o => o.id === selectedOptionId);
-  const oddsV2Enabled = isFeatureEnabled('ODDS_V2');
-  const isPoolV2 = oddsV2Enabled && (prediction as any)?.odds_model === 'pool_v2';
-  const totalPoolCents = Math.round((Number((prediction as any)?.totalPoolCents ?? (prediction?.pool_total ?? 0) * 100)) || 0);
-  const platformFeeBps = Number((prediction as any)?.platformFeeBps) || 250;
-  const creatorFeeBps = Number((prediction as any)?.creatorFeeBps) || 100;
-  const selectedPoolCents = selectedOption
-    ? (Number((selectedOption as any).totalStakedCents) || Math.round((Number((selectedOption as any).total_staked) || 0) * 100))
+  // Total pool: prefer sum(option pools) so Total Volume matches math; fallback to prediction.pool_total
+  const sumOptionPools = (prediction?.options ?? []).reduce(
+    (sum: number, o: any) => sum + (Number((o as any).total_staked) || 0),
+    0
+  );
+  const totalPool =
+    (prediction?.options?.length ?? 0) > 0
+      ? sumOptionPools
+      : (typeof prediction?.pool_total === 'number' ? prediction.pool_total : 0);
+  const platformFeeBps =
+    Number((prediction as any)?.platformFeeBps) ??
+    (Number((prediction as any)?.platform_fee_percentage) * 100) ||
+    250;
+  const creatorFeeBps =
+    Number((prediction as any)?.creatorFeeBps) ??
+    (Number((prediction as any)?.creator_fee_percentage) * 100) ||
+    100;
+  const feeBps = platformFeeBps + creatorFeeBps;
+  const optionPoolUSD = selectedOption
+    ? Number((selectedOption as any).total_staked) || 0
     : 0;
-  const stakeCents = Math.round(numAmount * 100);
-  const previewV2 = isPoolV2 && selectedOption && stakeCents > 0
-    ? computePreview({ totalPoolCents, selectedPoolCents, stakeCents, platformFeeBps, creatorFeeBps })
-    : null;
-  const selectedOptionOdds =
-    previewV2?.multiple ??
-    (typeof (selectedOption as any)?.referenceMultiple === 'number' ? (selectedOption as any).referenceMultiple : null) ??
-    selectedOption?.current_odds ??
-    (selectedOption?.total_staked && prediction?.pool_total ? prediction.pool_total / selectedOption.total_staked : 2.0);
-  const potentialPayout = selectedOption
-    ? (previewV2 ? previewV2.expectedReturnCents / 100 : calculatePotentialPayout(numAmount, selectedOptionOdds))
-    : 0;
+  const poolPreview =
+    selectedOption && numAmount > 0
+      ? getPayoutPreview({
+          totalPool,
+          optionPool: optionPoolUSD,
+          stake: numAmount,
+          feeBps,
+        })
+      : null;
+  const expectedReturn = poolPreview ? poolPreview.expectedReturn : 0;
+  const potentialProfit = poolPreview ? poolPreview.profit : 0;
   const demoAvailable = demoSummary?.available ?? 0;
   const fiatAvailable = fiatData?.summary?.availableNgn ?? 0;
   
@@ -388,7 +395,7 @@ export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
                 <div className="space-y-2">
                   <h3 className="font-semibold text-gray-900 text-base">{prediction.title}</h3>
                   <div className="flex items-center gap-4 text-sm text-gray-500">
-                    <span>{formatCurrency(prediction.pool_total || 0)} Pool</span>
+                    <span>{formatCurrency(totalPool)} Total volume</span>
                     <span>•</span>
                     <span>{prediction.participant_count || 0} Players</span>
                     <span>•</span>
@@ -475,27 +482,23 @@ export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
                   </div>
                 )}
 
-                {/* Options */}
+                {/* Options — current odds only (pre-stake); Total Volume = totalPool */}
                 <div className="space-y-3">
                   <h4 className="font-medium text-gray-900">Select your prediction:</h4>
                   <div className="space-y-2">
                     {(prediction.options || []).map((option) => {
-                      const totalStaked = option.total_staked || 0;
-                      const poolTotal = prediction.pool_total || 1;
-                      const percentage = poolTotal > 0 ? Math.min((totalStaked / poolTotal * 100), 100) : 50;
-                      const currentOdds =
-                        typeof (option as any).referenceMultiple === 'number'
-                          ? (option as any).referenceMultiple
-                          : option.current_odds || (totalStaked > 0 ? (poolTotal / totalStaked) : 2.0);
-                      const hasRefMultiple = typeof (option as any).referenceMultiple === 'number';
+                      const optionPool = Number((option as any).total_staked) || 0;
+                      const percentage =
+                        totalPool > 0 ? Math.min((optionPool / totalPool) * 100, 100) : 50;
+                      const currentOdds = getPreOddsMultiple(totalPool, optionPool);
 
                       return (
                         <Card
                           key={option.id || Math.random()}
                           className={cn(
                             "cursor-pointer transition-all border-2",
-                            selectedOptionId === option.id 
-                              ? "border-teal-500 bg-teal-50" 
+                            selectedOptionId === option.id
+                              ? "border-teal-500 bg-teal-50"
                               : "border-gray-200 hover:border-gray-300"
                           )}
                           onClick={() => setSelectedOptionId(option.id)}
@@ -509,8 +512,8 @@ export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
                                 </div>
                               </div>
                               <div className="text-right">
-                                <div className="text-lg font-bold text-teal-600">
-                                  {hasRefMultiple ? 'Est. ' : ''}{currentOdds.toFixed(2)}x
+                                <div className="text-lg font-bold text-teal-600" title="Current odds (before your stake)">
+                                  {currentOdds != null ? `${currentOdds.toFixed(2)}x` : '—'}
                                 </div>
                               </div>
                             </div>
@@ -559,6 +562,7 @@ export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
                             Max
                           </button>
                         </div>
+                        <p className="text-xs text-gray-500 mt-1">Your stake moves the odds in this pool.</p>
                       </div>
 
                       {/* Quick amounts */}
@@ -579,27 +583,61 @@ export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
                         </div>
                       </div>
 
-                      {/* Potential payout */}
+                      {/* Payout preview — pool-based (post-stake, fees included) */}
                       {numAmount > 0 && (
                         <Card className="bg-teal-50 border-teal-200">
-                          <CardContent className="p-3">
+                          <CardContent className="p-3 space-y-2">
+                            <div className="text-sm font-medium text-gray-700">Payout preview</div>
                             <div className="flex items-center justify-between">
                               <div>
-                                <div className="text-sm text-gray-500">Potential return</div>
-                                <div className="text-lg font-bold text-teal-600">
-                                  {formatCurrency(potentialPayout, displayCurrency)}
+                                <div className="text-xs text-gray-500">Stake</div>
+                                <div className="font-semibold text-gray-900">
+                                  {formatCurrency(numAmount, displayCurrency)}
                                 </div>
                               </div>
                               <div className="text-right">
-                                <div className="text-sm text-gray-500">Profit</div>
-                                <div className={cn(
-                                  "font-semibold",
-                                  potentialPayout > numAmount ? "text-teal-600" : "text-red-600"
-                                )}>
-                                  {formatCurrency(potentialPayout - numAmount, displayCurrency)}
+                                <div className="text-xs text-gray-500">Estimated return</div>
+                                <div className="font-semibold text-teal-600">
+                                  {poolPreview
+                                    ? formatCurrency(poolPreview.expectedReturn, displayCurrency)
+                                    : '—'}
                                 </div>
                               </div>
                             </div>
+                            <div className="flex items-center justify-between text-sm">
+                              <span className="text-gray-500">Potential profit</span>
+                              <span className={cn(
+                                "font-semibold",
+                                potentialProfit >= 0 ? "text-teal-600" : "text-red-600"
+                              )}>
+                                {poolPreview
+                                  ? `${potentialProfit >= 0 ? '+' : ''}${formatCurrency(potentialProfit, displayCurrency)}`
+                                  : '—'}
+                              </span>
+                            </div>
+                            {poolPreview && (
+                              <>
+                                <div className="flex items-center justify-between text-sm">
+                                  <span className="text-gray-500">Estimated odds (with your stake)</span>
+                                  <span className="font-medium text-teal-600">
+                                    {poolPreview.multiplePost != null ? `${poolPreview.multiplePost.toFixed(2)}x` : '—'}
+                                  </span>
+                                </div>
+                                {poolPreview.multiplePre != null && (
+                                  <div className="text-xs text-gray-500">
+                                    Current odds: {poolPreview.multiplePre.toFixed(2)}x
+                                  </div>
+                                )}
+                              </>
+                            )}
+                            <p className="text-xs text-gray-500 pt-1 border-t border-teal-100">
+                              Odds update as stake size changes. Final payout depends on the pool at close.
+                            </p>
+                            {feeBps > 0 && (
+                              <p className="text-xs text-gray-500">
+                                Fees included: {(feeBps / 100).toFixed(1)}%
+                              </p>
+                            )}
                           </CardContent>
                         </Card>
                       )}

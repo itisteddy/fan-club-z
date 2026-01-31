@@ -1,5 +1,6 @@
 import React from 'react';
 import { TrendingUp } from 'lucide-react';
+import { getPreOddsMultiple } from '@fanclubz/shared';
 
 export interface PredictionOption {
   id: string;
@@ -9,7 +10,7 @@ export interface PredictionOption {
   total_staked?: number;
   totalStaked?: number;
   percentage?: number;
-  /** Odds V2: reference multiple from pool engine (show as "Est. X.XXx") */
+  /** Odds V2: reference multiple from pool engine */
   referenceMultiple?: number;
 }
 
@@ -20,30 +21,34 @@ interface OptionsSectionProps {
   disabled?: boolean;
   winningOptionId?: string;
   showWinningIndicator?: boolean;
+  /** Total pool (sum of option pools) for current odds = T/Wi. When provided, option list shows current odds only. */
+  totalPool?: number;
 }
 
 /**
- * Compact options list without excessive padding
- * Shows options with odds in a tight, scannable format
+ * Compact options list without excessive padding.
+ * Shows current odds only (pre-stake): T/Wi when totalPool is provided.
  */
-export function OptionsSection({ 
-  options, 
-  selectedId, 
-  onSelect, 
+export function OptionsSection({
+  options,
+  selectedId,
+  onSelect,
   disabled = false,
   winningOptionId,
   showWinningIndicator = false,
+  totalPool,
 }: OptionsSectionProps) {
   return (
     <section className="rounded-2xl bg-white border shadow-sm overflow-hidden">
       <ul className="divide-y divide-gray-100">
         {options.map((option) => {
-          // Odds V2: use referenceMultiple when present (pool_v2); else legacy current_odds / pool ratio
+          const optStaked = option.total_staked ?? option.totalStaked ?? 0;
+          const currentOdds =
+            typeof totalPool === 'number' && totalPool > 0
+              ? getPreOddsMultiple(totalPool, optStaked)
+              : null;
           const odds =
-            typeof option.referenceMultiple === 'number'
-              ? option.referenceMultiple
-              : option.current_odds ?? option.odds ?? 1.0;
-          const isEstimate = typeof option.referenceMultiple === 'number';
+            currentOdds ?? option.current_odds ?? option.odds ?? option.referenceMultiple ?? 1.0;
           const isSelected = selectedId === option.id;
           const percentage = option.percentage ?? 0;
           const isWinning = showWinningIndicator && winningOptionId && option.id === winningOptionId;
@@ -77,8 +82,8 @@ export function OptionsSection({
                     </div>
                   )}
                 </div>
-                <span className="text-emerald-600 font-semibold ml-3" title={isEstimate ? 'Estimate; payout changes as others stake' : undefined}>
-                  {isEstimate ? 'Est. ' : ''}{odds.toFixed(2)}x
+                <span className="text-emerald-600 font-semibold ml-3" title="Current odds (before your stake)">
+                  {typeof odds === 'number' && Number.isFinite(odds) ? `${odds.toFixed(2)}x` : '—'}
                 </span>
               </button>
             </li>

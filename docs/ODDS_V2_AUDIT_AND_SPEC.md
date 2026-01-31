@@ -162,3 +162,11 @@ So: **fees are already taken from the losing pool**; winners get stake + share o
 - **Client (OptionsSection):** Displays `referenceMultiple` when present (Est. X.XXx); fallback to current_odds / pool ratio; tooltip on Est. odds.
 - **Client (PlacePredictionModal):** When ODDS_V2 + odds_model === 'pool_v2', uses `computePreview` for potential payout and `referenceMultiple` for option list; shows "Est. X.XXx" when reference odds present.
 - **Settlement (pool_v2):** Not changed in this phase; legacy settlement remains. Pool_v2 settlement can use shared `computePayoutMultiple` in a follow-up.
+
+### Pool-based payout preview (poolMath) — single source of truth
+
+- **Module:** `shared/src/poolMath.ts` — pool-based (pari-mutuel) odds and payout preview. Same fee rule as settlement: **fees taken from the LOSING pool only** (`otherPool = T' - W'`, `fees = otherPool * feeBps/10000`, `distributable = T' - fees`, `multiplePost = distributable / W'`). Used everywhere for UI so preview never shows impossible payouts (e.g. stake × preOdds).
+- **Exports:** `getPreOddsMultiple(totalPool, optionPool)`, `getPostOddsMultiple({ totalPool, optionPool, stake, feeBps })`, `getPayoutPreview({ ... })` → `{ expectedReturn, profit, multiplePre, multiplePost, distributablePool }`.
+- **Fee rule used and why it matches settlement:** Settlement (`payoutCalculator.ts`, `settlementOddsV2.ts`) takes platform + creator fees from **losing stakes only**; winners receive stake + share of (losing pool − fees). `poolMath.getPayoutPreview` uses the same rule: fees applied to `otherPool = T' - W'`, so estimated net return matches what settlement will pay.
+- **Tests:** `server/src/__tests__/poolMath.test.ts` — live bug example (T=450, Wi=75, stake=250, fee=0 → expectedReturn ≈ 538.46, NOT 1500); edge cases (optionPool=0, feeBps).
+- **UI:** Option list shows **current odds** only (`multiplePre` = T/Wi). Stake preview shows **Estimated return**, **Potential profit**, **Estimated odds (with your stake)** (`multiplePost`), **Current odds**, helper text, and "Fees included: X%". Total Volume = same totalPool used in math (sum of option pools or prediction.pool_total).
