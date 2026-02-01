@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Share2 } from 'lucide-react';
 import { usePredictionStore } from '../store/predictionStore';
+import { buildPredictionCanonicalUrl } from '@/lib/predictionUrls';
 import { getPredictionStatusUi } from '@/lib/predictionStatusUi';
 import Header from '../components/layout/Header/Header';
 import Page from '../components/ui/layout/Page';
@@ -32,10 +33,11 @@ const UnifiedPredictionDetailsPage: React.FC<UnifiedPredictionDetailsPageProps> 
   }, [predictionId, predictions, fetchPredictions]);
 
   const handleShare = () => {
-    if (navigator.share && prediction) {
+    if (navigator.share && prediction && predictionId) {
+      const shareUrl = buildPredictionCanonicalUrl(predictionId, prediction.title || prediction.question);
       navigator.share({
         title: prediction.question,
-        url: window.location.href,
+        url: shareUrl,
       }).catch(console.error);
     }
   };

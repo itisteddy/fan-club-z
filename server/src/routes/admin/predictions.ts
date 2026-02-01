@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { supabase } from '../../config/database';
 import { VERSION } from '@fanclubz/shared';
 import { getFallbackAdminActorId, logAdminAction } from './audit';
-import { settleDemoRail } from '../settlement';
+import { settleDemoRail, buildSettlementContract } from '../settlement';
 import { computePoolV2SettlementTotals, allocatePoolV2PayoutsToEntries } from '../../services/settlementOddsV2';
 import { upsertSettlementResult, computeSettlementAggregates } from '../../services/settlementResults';
 import { emitSettlementComplete, emitPredictionUpdate, emitWalletUpdate } from '../../services/realtime';
@@ -453,19 +453,7 @@ predictionsRouter.post('/:predictionId/outcome', async (req, res) => {
       return res.status(400).json({ error: 'Bad Request', message: 'Cannot set outcome for voided/cancelled prediction', version: VERSION });
     }
 
-    // Check if already settled (idempotent)
-    if (status === 'settled') {
-      return res.json({ 
-        success: true, 
-        predictionId, 
-        winningOptionId: optionId, 
-        message: 'Already settled',
-        alreadySettled: true,
-        version: VERSION 
-      });
-    }
-
-    // Verify option belongs to prediction
+    // Verify option belongs to prediction before any write
     const { data: opt, error: optErr } = await supabase
       .from('prediction_options')
       .select('id, prediction_id, label, text')
@@ -481,6 +469,54 @@ predictionsRouter.post('/:predictionId/outcome', async (req, res) => {
     }
 
     const winningOptionText = (opt as any).text || (opt as any).label || 'Unknown';
+
+    // Idempotency: conditional update — only set settled where settled_at IS NULL
+    const { data: updatedRow } = await supabase
+      .from('predictions')
+      .update({
+        status: 'settled',
+        settled_at: new Date().toISOString(),
+        winning_option_id: optionId,
+      })
+      .eq('id', predictionId)
+      .is('settled_at', null)
+      .select('id')
+      .maybeSingle();
+
+    if (!updatedRow) {
+      const { data: pred } = await supabase
+        .from('predictions')
+        .select('settled_at, winning_option_id, resolution_reason, resolution_source_url')
+        .eq('id', predictionId)
+        .maybeSingle();
+      const { data: bs } = await supabase
+        .from('bet_settlements')
+        .select('winning_option_id, settlement_time')
+        .eq('bet_id', predictionId)
+        .maybeSingle();
+      const existingWinning = (pred as any)?.winning_option_id ?? bs?.winning_option_id;
+      if (existingWinning && existingWinning !== optionId) {
+        return res.status(409).json({
+          error: 'Conflict',
+          message: 'Settlement already exists with a different winning option',
+          version: VERSION,
+        });
+      }
+      const winningOptionIdFinal = existingWinning || optionId;
+      const settledAt = (pred as any)?.settled_at ?? bs?.settlement_time ?? null;
+      console.log('settlePrediction: already settled', { predictionId });
+      return res.status(200).json(
+        buildSettlementContract({
+          predictionId,
+          alreadySettled: true,
+          winningOptionId: winningOptionIdFinal,
+          settledAt,
+          settledByUserId: actorId ?? null,
+          reason: (pred as any)?.resolution_reason ?? null,
+          sourceUrl: (pred as any)?.resolution_source_url ?? null,
+        })
+      );
+    }
 
     console.log(`[Admin/Settlement] Starting settlement for prediction ${predictionId}`);
     console.log(`[Admin/Settlement] Winning option: ${optionId} (${winningOptionText})`);
@@ -919,27 +955,20 @@ predictionsRouter.post('/:predictionId/outcome', async (req, res) => {
       console.error('[Admin/Settlement] Failed to compute aggregates:', err);
     }
 
-    console.log(`[Admin/Settlement] ✅ Settlement complete for prediction ${predictionId}`);
+    console.log('settlePrediction: settled', { predictionId });
 
-    return res.json({ 
-      success: true, 
-      predictionId, 
-      winningOptionId: optionId,
-      winningOptionText,
-      settlement: {
-        demoEntriesCount: demoEntries.length,
-        cryptoEntriesCount: cryptoEntries.length,
-        demoPlatformFee: demoSummary.demoPlatformFee,
-        demoCreatorFee: demoSummary.demoCreatorFee,
-        cryptoPlatformFee,
-        cryptoCreatorFee,
-        totalPlatformFee,
-        totalCreatorFee,
-        totalPayoutPool,
-      },
-      aggregates,
-      version: VERSION,
-    });
+    const settledAt = new Date().toISOString();
+    return res.status(200).json(
+      buildSettlementContract({
+        predictionId,
+        alreadySettled: false,
+        winningOptionId: optionId,
+        settledAt,
+        settledByUserId: actorId ?? null,
+        reason: resolutionReason ?? null,
+        sourceUrl: resolutionSourceUrl ?? null,
+      })
+    );
   } catch (error) {
     console.error('[Admin/Predictions] Set outcome + settlement error:', error);
     return res.status(500).json({ error: 'Internal Server Error', message: 'Failed to settle prediction', version: VERSION });

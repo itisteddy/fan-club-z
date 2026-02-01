@@ -22,6 +22,8 @@ interface SettlementStatus {
     status: string;
     pool_total: number;
     creator_id?: string;
+    resolution_reason?: string | null;
+    resolution_source_url?: string | null;
   };
   userEntry: {
     id: string;
@@ -422,6 +424,25 @@ const SettlementValidationModal: React.FC<SettlementValidationModalProps> = ({
                           {new Date(settlementStatus.settlement.settlement_time).toLocaleDateString()}
                         </span>
                       </div>
+                      <div>
+                        <span className="text-gray-600 block mb-0.5">Reason</span>
+                        <p className="text-gray-700 mt-0.5 whitespace-pre-wrap break-words">
+                          {settlementStatus.prediction.resolution_reason?.trim() || 'No reason provided.'}
+                        </p>
+                      </div>
+                      {settlementStatus.prediction.resolution_source_url?.trim() && (
+                        <div>
+                          <span className="text-gray-600 block mb-0.5">Source</span>
+                          <a
+                            href={settlementStatus.prediction.resolution_source_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-emerald-600 hover:text-emerald-700 font-medium underline break-all"
+                          >
+                            {settlementStatus.prediction.resolution_source_url}
+                          </a>
+                        </div>
+                      )}
                     </div>
                   </div>
                 ) : settlementStatus.needsSettlement ? (

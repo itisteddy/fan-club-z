@@ -15,6 +15,7 @@ import AppHeader from '../components/layout/AppHeader';
 import { formatUSDCompact, formatNumberShort } from '@/lib/format';
 import { useNavigate } from 'react-router-dom';
 import { useCategories, Category } from '../hooks/useCategories';
+import { buildPredictionCanonicalUrl } from '@/lib/predictionUrls';
 import * as Dialog from '@radix-ui/react-dialog';
 
 interface DiscoverPageProps {
@@ -397,9 +398,8 @@ const DiscoverPage = React.memo(function DiscoverPage({ onNavigateToProfile, onN
   }, [handleNavigateToPrediction]);
 
   const handleShare = useCallback((prediction: Prediction) => {
+    const shareUrl = buildPredictionCanonicalUrl(prediction.id, prediction.title);
     const shareText = `Check out this prediction: ${prediction.title}`;
-    const shareUrl = `${window.location.origin}/prediction/${prediction.id}`;
-    
     if (navigator.share) {
       navigator.share({
         title: prediction.title,
@@ -408,8 +408,13 @@ const DiscoverPage = React.memo(function DiscoverPage({ onNavigateToProfile, onN
       }).catch(console.error);
     } else {
       navigator.clipboard.writeText(`${shareText}\n${shareUrl}`)
-        .then(() => toast.success('Link copied to clipboard!'))
-        .catch(() => toast.error('Failed to copy link'));
+        .then(() => toast.success('Link copied'))
+        .catch(() => {
+          toast.error("Couldn't copy link");
+          try {
+            window.prompt('Copy this link:', shareUrl);
+          } catch {}
+        });
     }
   }, []);
 

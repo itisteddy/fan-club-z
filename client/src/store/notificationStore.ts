@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { buildPredictionCanonicalUrl } from '@/lib/predictionUrls';
 
 export interface Notification {
   id: string;
@@ -230,8 +231,8 @@ export const useNotificationStore = create<NotificationStore>()(
           
           // Handle navigation based on notification type
           if (notification.data?.predictionId) {
-            // Navigate to prediction detail
-            window.location.href = `/predictions/${notification.data.predictionId}`;
+            // Navigate to prediction detail (canonical URL)
+            window.location.href = buildPredictionCanonicalUrl(notification.data.predictionId);
           }
         };
 

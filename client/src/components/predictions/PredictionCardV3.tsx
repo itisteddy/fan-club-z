@@ -4,6 +4,7 @@ import { useMedia } from '../../hooks/useMedia';
 import { formatNumberShort, formatDurationShort } from '@/lib/format';
 import CreatorByline from './CreatorByline';
 import { getCategoryLabel } from '@/lib/categoryUi';
+import { buildPredictionCanonicalPath } from '@/lib/predictionUrls';
 
 type PredictionCardProps = {
   prediction: {
@@ -49,6 +50,7 @@ export default function PredictionCardV3({ prediction }: PredictionCardProps) {
     title: prediction.title,
     description: prediction.description ?? '',
     category: prediction.category,
+    image_url: (prediction as { image_url?: string | null }).image_url ?? undefined,
     options: prediction.options?.map((option) => ({
       label: option?.label ?? option?.title ?? option?.text ?? '',
     })),
@@ -81,7 +83,7 @@ export default function PredictionCardV3({ prediction }: PredictionCardProps) {
 
   return (
     <Link
-      to={`/prediction/${prediction.id}`}
+      to={buildPredictionCanonicalPath(prediction.id, prediction.title)}
       state={{ from: fromPath }}
       className="block rounded-2xl border border-black/5 bg-white hover:shadow-sm focus-visible:ring-2 focus-visible:ring-indigo-500 transition"
     >

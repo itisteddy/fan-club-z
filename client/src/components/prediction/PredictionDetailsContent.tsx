@@ -28,6 +28,7 @@ import EmptyState from '../ui/EmptyState';
 import AuthRequiredState from '../ui/empty/AuthRequiredState';
 import { t } from '@/lib/lexicon';
 import { isFeatureEnabled } from '@/config/featureFlags';
+import { buildPredictionCanonicalUrl } from '@/lib/predictionUrls';
 import { ReportContentModal } from '../ugc/ReportContentModal';
 import toast from 'react-hot-toast';
 
@@ -117,6 +118,8 @@ const PredictionDetailsContent: React.FC<PredictionDetailsContentProps> = ({
     );
   }, [isAuthenticated, isLiked, executeWithErrorHandling, predictionId]);
 
+  const shareUrl = buildPredictionCanonicalUrl(predictionId, prediction?.title);
+
   // Handle share
   const handleShare = useCallback(async () => {
     if (navigator.share) {
@@ -124,7 +127,7 @@ const PredictionDetailsContent: React.FC<PredictionDetailsContentProps> = ({
         await navigator.share({
           title: prediction?.title || 'Prediction',
           text: prediction?.description || 'Check out this prediction',
-          url: window.location.href,
+          url: shareUrl,
         });
         showSuccessToast('Shared successfully');
       } catch (error) {
@@ -133,15 +136,17 @@ const PredictionDetailsContent: React.FC<PredictionDetailsContentProps> = ({
         }
       }
     } else {
-      // Fallback to clipboard
       try {
-        await navigator.clipboard.writeText(window.location.href);
-        showSuccessToast('Link copied to clipboard');
+        await navigator.clipboard.writeText(shareUrl);
+        showSuccessToast('Link copied');
       } catch (error) {
-        showErrorToast('Failed to copy link');
+        showErrorToast("Couldn't copy link");
+        try {
+          window.prompt('Copy this link:', shareUrl);
+        } catch {}
       }
     }
-  }, [prediction]);
+  }, [prediction, predictionId, shareUrl]);
 
   // Handle comment toggle
   const handleCommentToggle = useCallback(() => {

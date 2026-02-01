@@ -286,7 +286,7 @@ import { seedCategories } from './services/categoriesSeed';
 import { startBaseDepositWatcher } from './chain/base/depositWatcher';
 import { resolveAndValidateAddresses } from './chain/base/addressRegistry';
 import { validatePaymentsEnv } from './utils/envValidation';
-import { ensureAvatarsBucket } from './startup/storage';
+import { ensureAvatarsBucket, ensurePredictionImagesBucket } from './startup/storage';
 import { startReconciliationJob } from './cron/reconcileEscrow';
 import { startLockExpirationJob } from './cron/expireLocks';
 import { initRealtime } from './services/realtime';
@@ -415,7 +415,8 @@ httpServer.listen(PORT, async () => {
   console.log(`✅ CORS enabled (restricted to whitelisted origins)`);
   console.log(`🔨 Settlement system enabled`);
   ensureAvatarsBucket();
-  
+  ensurePredictionImagesBucket();
+
   // Seed categories on startup (idempotent)
   seedCategories().catch((err) => {
     console.error('⚠️ Categories seeding failed (non-fatal):', err);

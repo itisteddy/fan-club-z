@@ -46,6 +46,7 @@ import { getCategoryLabel } from '@/lib/categoryUi';
 import { isFeatureEnabled } from '@/config/featureFlags';
 import { getPayoutPreview, getPreOddsMultiple } from '@fanclubz/shared';
 import { ReportContentModal } from '@/components/ugc/ReportContentModal';
+import { buildPredictionCanonicalPath, buildPredictionCanonicalUrl } from '@/lib/predictionUrls';
 // TODO: Re-enable share functionality after testing
 // import { useShareResult } from '../components/share/useShareResult';
 
@@ -244,6 +245,21 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
     return predictions.find(p => p.id === predictionId) || null;
   }, [predictions, predictionId]);
 
+  // Normalize browser URL to canonical SEO path (/p/:id/:slug?) once we know the title.
+  // - Legacy routes (/prediction/:id, /predictions/:id) should replace() to canonical.
+  // - If slug is missing/outdated, replace() to corrected slug.
+  useEffect(() => {
+    if (!predictionId || !prediction) return;
+    const title = (prediction as any)?.title || (prediction as any)?.question || '';
+    const canonicalPath = buildPredictionCanonicalPath(predictionId, title || undefined);
+    const stripTrailing = (p: string) => (p.replace(/\/+$/, '') || '/');
+    const currentPath = stripTrailing(location.pathname || '/');
+    const targetPath = stripTrailing(canonicalPath);
+    if (currentPath !== targetPath) {
+      navigate(`${targetPath}${location.search || ''}${location.hash || ''}`, { replace: true });
+    }
+  }, [predictionId, prediction, location.pathname, location.search, location.hash, navigate]);
+
   // Check if current user is creator
   const isCreator = useMemo(() => {
     return !!(currentUser?.id && prediction?.creator_id && currentUser.id === prediction.creator_id);
@@ -295,6 +311,7 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
       description: prediction.description ?? prediction.question ?? '',
       question: prediction.question ?? undefined,
       category: prediction.category,
+      image_url: prediction.image_url ?? undefined,
       options: prediction.options?.map(option => ({
         label: option?.label ?? option?.title ?? option?.text ?? '',
       })),
@@ -375,31 +392,12 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
   // Activity feed for count badge
   const { items: activityItems, refresh: refreshActivity } = usePredictionActivity(predictionId, { limit: 25, autoLoad: true });
 
-  // Set share URL (canonical slug) and gently rewrite URL to SEO path
+  // Set share URL from canonical builder (always /p/:id or /p/:id/:slug); set <link rel="canonical"> to same URL
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const title = prediction?.title || prediction?.question || '';
-    // Avoid rewriting/navigating while the prediction is still loading.
-    // In particular, an empty title would produce an empty slug and redirect to `/predictions`,
-    // which breaks deep links (opens the Stakes tab instead of details).
-    if (!title.trim()) {
-      setShareUrl(`${window.location.origin}/prediction/${predictionId}`);
-      return;
-    }
-    const slug = title
-      .toLowerCase()
-      .trim()
-      .replace(/[^a-z0-9\s-]/g, '')
-      .replace(/\s+/g, '-')
-      .replace(/-+/g, '-')
-      .slice(0, 80);
-    if (!slug) {
-      setShareUrl(`${window.location.origin}/prediction/${predictionId}`);
-      return;
-    }
-    const canonical = `${window.location.origin}/predictions/${slug}`;
+    const canonical = buildPredictionCanonicalUrl(predictionId, title || undefined);
     setShareUrl(canonical);
-    // Inject/replace canonical link
     try {
       let link = document.querySelector('link[rel="canonical"]') as HTMLLinkElement | null;
       if (!link) {
@@ -409,9 +407,7 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
       }
       link.setAttribute('href', canonical);
     } catch {}
-    // NOTE: We intentionally do NOT auto-navigate/replace the URL to the slug path here.
-    // Auto-rewriting has caused deep-link overrides on initial load (sending users to `/predictions`).
-  }, [prediction?.title, predictionId, navigate, locationState]);
+  }, [prediction?.title, prediction?.question, predictionId]);
 
   // Handle navigation
   const handleBack = () => {
@@ -446,13 +442,17 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
   };
 
   const handleCopyLink = async () => {
+    const url = shareUrl || buildPredictionCanonicalUrl(predictionId, prediction?.title);
     try {
-      await navigator.clipboard.writeText(shareUrl);
-      showSuccessToast('Link copied to clipboard!');
-      AriaUtils.announce('Link copied to clipboard');
+      await navigator.clipboard.writeText(url);
+      showSuccessToast('Link copied');
+      AriaUtils.announce('Link copied');
     } catch (error) {
       console.error('Failed to copy link:', error);
-      showErrorToast('Failed to copy link');
+      showErrorToast("Couldn't copy link");
+      try {
+        window.prompt('Copy this link:', url);
+      } catch {}
     }
   };
 

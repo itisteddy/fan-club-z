@@ -911,6 +911,15 @@ router.post('/', requireSupabaseAuth, requireTermsAccepted, async (req, res) => 
     
     console.log('🔍 Debug - Final currentUserId:', currentUserId);
 
+    // Optional cover image: validate URL if provided
+    let finalImageUrl: string | null = null;
+    if (imageUrl != null && typeof imageUrl === 'string' && imageUrl.trim() !== '') {
+      const url = imageUrl.trim();
+      if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('/')) {
+        finalImageUrl = url;
+      }
+    }
+
     // Create prediction in database (bypass RLS with service role)
     const { data: prediction, error: predictionError } = await supabase
       .from('predictions')
@@ -935,7 +944,7 @@ router.post('/', requireSupabaseAuth, requireTermsAccepted, async (req, res) => 
         participant_count: 0,
         likes_count: 0,
         comments_count: 0,
-        image_url: imageUrl || null // Store stable image URL
+        image_url: finalImageUrl // Optional: creator upload URL or null (random image later)
       })
       .select()
       .single();
@@ -2035,7 +2044,69 @@ router.patch('/:id', requireSupabaseAuth, requireTermsAccepted, async (req, res)
   }
 });
 
-// PATCH /api/v2/predictions/:id/image - Set stable image URL (only if not already set)
+// PATCH /api/v2/predictions/:id/cover-image - Creator-only: set or update cover image URL
+router.patch('/:id/cover-image', requireSupabaseAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const authReq = req as AuthenticatedRequest;
+    const userId = authReq.user?.id;
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized', message: 'Authentication required', version: VERSION });
+    }
+
+    const { coverImageUrl } = req.body;
+    if (!coverImageUrl || typeof coverImageUrl !== 'string' || coverImageUrl.trim() === '') {
+      return res.status(400).json({
+        error: 'Bad Request',
+        message: 'coverImageUrl is required',
+        version: VERSION
+      });
+    }
+    const url = coverImageUrl.trim();
+    if (!url.startsWith('http://') && !url.startsWith('https://') && !url.startsWith('/')) {
+      return res.status(400).json({
+        error: 'Bad Request',
+        message: 'coverImageUrl must be a valid URL or path',
+        version: VERSION
+      });
+    }
+
+    const { data: existing, error: fetchErr } = await supabase
+      .from('predictions')
+      .select('id, creator_id, image_url')
+      .eq('id', id)
+      .single();
+
+    if (fetchErr || !existing) {
+      return res.status(404).json({ error: 'Not Found', message: 'Prediction not found', version: VERSION });
+    }
+    if (String((existing as any).creator_id) !== String(userId)) {
+      return res.status(403).json({ error: 'Forbidden', message: 'Only the creator can update the cover image', version: VERSION });
+    }
+
+    const { error } = await supabase
+      .from('predictions')
+      .update({ image_url: url, updated_at: new Date().toISOString() })
+      .eq('id', id);
+
+    if (error) {
+      console.error('[PREDICTIONS] Error updating cover image:', error);
+      return res.status(500).json({ error: 'Database error', message: 'Failed to update cover image', version: VERSION });
+    }
+
+    return res.json({
+      ok: true,
+      predictionId: id,
+      coverImageUrl: url,
+      version: VERSION
+    });
+  } catch (error) {
+    console.error('[PREDICTIONS] Cover image update error:', error);
+    return res.status(500).json({ error: 'Internal server error', message: 'Failed to update cover image', version: VERSION });
+  }
+});
+
+// PATCH /api/v2/predictions/:id/image - Set stable image URL (only if not already set; used by random-image flow)
 router.patch('/:id/image', async (req, res) => {
   try {
     const { id } = req.params;

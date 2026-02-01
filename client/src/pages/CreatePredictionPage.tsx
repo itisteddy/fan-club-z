@@ -1,6 +1,6 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronLeft, Plus, X, Calendar, DollarSign, Users, Settings, Sparkles, Check, Globe, Clock, Shield, CheckCircle, AlertCircle } from 'lucide-react';
+import { ChevronLeft, Plus, X, Calendar, DollarSign, Users, Settings, Sparkles, Check, Globe, Clock, Shield, CheckCircle, AlertCircle, Image as ImageIcon } from 'lucide-react';
 import { usePredictionStore } from '../store/predictionStore';
 import { useSettlementStore } from '../store/settlementStore';
 import { useAuthStore } from '../store/authStore';
@@ -14,6 +14,7 @@ import { openAuthGate } from '../auth/authGateAdapter';
 import { useAuthSession } from '../providers/AuthSessionProvider';
 import { useCategories } from '../hooks/useCategories';
 import { CategorySelector } from '../components/prediction/CategorySelector';
+import { uploadPredictionCoverImage, COVER_IMAGE_ACCEPT } from '@/lib/predictionCoverImage';
 
 interface PredictionOption {
   id: string;
@@ -69,6 +70,10 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
     postponed: 'auto_void' as 'auto_void' | 'extend_lock' | 'keep_open',
     source_down: 'use_backup' as 'use_backup' | 'pause_and_escalate'
   });
+
+  const [coverImageFile, setCoverImageFile] = useState<File | null>(null);
+  const [coverImagePreviewUrl, setCoverImagePreviewUrl] = useState<string | null>(null);
+  const coverFileInputRef = useRef<HTMLInputElement>(null);
 
   // Check for existing draft on mount
   useEffect(() => {
@@ -282,14 +287,29 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
         }
       }
 
-      // Prepare prediction data
-      const predictionData = {
+      let coverImageUrl: string | undefined;
+      if (coverImageFile && currentUser?.id) {
+        try {
+          toast.loading('Uploading image…', { id: 'cover-upload' });
+          const result = await uploadPredictionCoverImage(coverImageFile, currentUser.id, undefined);
+          coverImageUrl = result.coverImageUrl;
+          toast.dismiss('cover-upload');
+        } catch (err) {
+          toast.dismiss('cover-upload');
+          const msg = err instanceof Error ? err.message : 'Upload failed';
+          toast.error(msg);
+          setIsSubmitting(false);
+          return;
+        }
+      }
+
+      const predictionData: Record<string, unknown> = {
         title: title.trim(),
         description: description.trim() || undefined,
-        categoryId: categoryId, // Send categoryId (UUID) to server
+        categoryId: categoryId,
         type: type as 'binary' | 'multi_outcome' | 'pool',
         options: options
-          .filter(opt => opt.label.trim()) // Only include options with labels
+          .filter(opt => opt.label.trim())
           .map(opt => ({
             id: opt.id,
             label: opt.label.trim(),
@@ -301,17 +321,16 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
         stakeMax: stakeMax ? Math.max(parseFloat(stakeMin) || 100, parseFloat(stakeMax)) : undefined,
         settlementMethod: settlementMethod as 'auto' | 'manual',
         isPrivate: isPrivate,
-        creatorId: currentUser.id // Add the real user ID
+        creatorId: currentUser.id
       };
+      if (coverImageUrl) predictionData.imageUrl = coverImageUrl;
 
-      // Validate options
       if (predictionData.options.length < 2) {
         throw new Error('At least 2 prediction options are required');
       }
 
       console.log('Creating prediction with data:', predictionData);
 
-      // Create the prediction (this is now async and saves to Supabase)
       const createdPrediction = await createPrediction(predictionData);
       
       console.log('Prediction created successfully!', createdPrediction);
@@ -361,7 +380,10 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
         setIsPrivate(false);
         setSubmitSuccess(false);
         setIsSubmitting(false);
-        
+        setCoverImageFile(null);
+        if (coverImagePreviewUrl) URL.revokeObjectURL(coverImagePreviewUrl);
+        setCoverImagePreviewUrl(null);
+
         // Navigate to Discover using react-router-dom
         // Use replace: true to prevent going back to the success screen
         navigate('/discover', { replace: true });
@@ -372,7 +394,7 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
       toast.error(errorMessage);
       setIsSubmitting(false);
     }
-  }, [validateStep, title, categoryId, entryDeadline, description, type, options, stakeMin, stakeMax, settlementMethod, isPrivate, isAuthenticated, currentUser, createPrediction, navigate, saveDraft]);
+  }, [validateStep, title, categoryId, entryDeadline, description, type, options, stakeMin, stakeMax, settlementMethod, isPrivate, isAuthenticated, currentUser, createPrediction, navigate, saveDraft, coverImageFile, coverImagePreviewUrl]);
 
   // Success View
   if (submitSuccess) {
@@ -525,6 +547,60 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
                       categories={categories}
                       isLoading={categoriesLoading}
                     />
+                  </div>
+
+                  {/* Cover image (optional) */}
+                  <div className="form-section">
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      Cover image (optional)
+                    </label>
+                    <p className="text-xs text-gray-500 mb-3">
+                      If you skip, we&apos;ll use a random image.
+                    </p>
+                    <input
+                      ref={coverFileInputRef}
+                      type="file"
+                      accept={COVER_IMAGE_ACCEPT}
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          setCoverImageFile(file);
+                          setCoverImagePreviewUrl(URL.createObjectURL(file));
+                        }
+                        e.target.value = '';
+                      }}
+                    />
+                    {!coverImageFile ? (
+                      <button
+                        type="button"
+                        onClick={() => coverFileInputRef.current?.click()}
+                        className="w-full p-6 border-2 border-dashed border-gray-200 rounded-2xl flex flex-col items-center justify-center gap-2 text-gray-500 hover:border-teal-400 hover:text-teal-600 transition-colors"
+                      >
+                        <ImageIcon className="w-10 h-10" />
+                        <span className="font-medium">Choose image</span>
+                        <span className="text-xs">JPEG, PNG or WebP, max 5 MB</span>
+                      </button>
+                    ) : (
+                      <div className="relative rounded-2xl overflow-hidden border-2 border-gray-200 aspect-video bg-gray-100">
+                        <img
+                          src={coverImagePreviewUrl}
+                          alt="Cover preview"
+                          className="w-full h-full object-cover"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setCoverImageFile(null);
+                            if (coverImagePreviewUrl) URL.revokeObjectURL(coverImagePreviewUrl);
+                            setCoverImagePreviewUrl(null);
+                          }}
+                          className="absolute top-2 right-2 p-2 bg-black/50 text-white rounded-lg hover:bg-black/70"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
               </motion.div>

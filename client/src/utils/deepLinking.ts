@@ -1,4 +1,5 @@
 import { qaLog } from './devQa';
+import { buildPredictionCanonicalUrl } from '@/lib/predictionUrls';
 
 export interface DeepLinkInfo {
   type: 'prediction' | 'profile' | 'discover' | 'unknown';
@@ -24,8 +25,8 @@ export const parseDeepLink = (path: string): DeepLinkInfo => {
     };
   }
 
-  // Prediction details: /prediction/:id or /predictions/:id
-  if (segments[0] === 'prediction' || segments[0] === 'predictions') {
+  // Prediction details: /p/:id, /p/:id/:slug, /prediction/:id, /predictions/:id
+  if (segments[0] === 'p' || segments[0] === 'prediction' || segments[0] === 'predictions') {
     if (segments.length >= 2 && segments[1]) {
       return {
         type: 'prediction',
@@ -95,11 +96,10 @@ export const isValidUserId = (id: string): boolean => {
 };
 
 /**
- * Generate a shareable URL for a prediction
+ * Generate a shareable canonical URL for a prediction (always from id/title; ignores baseUrl).
  */
-export const generatePredictionUrl = (predictionId: string, baseUrl?: string): string => {
-  const base = baseUrl || window.location.origin;
-  return `${base}/prediction/${predictionId}`;
+export const generatePredictionUrl = (predictionId: string, title?: string): string => {
+  return buildPredictionCanonicalUrl(predictionId, title);
 };
 
 /**
@@ -224,9 +224,9 @@ export const getCanonicalPath = (path: string): string => {
     return '/';
   }
   
-  // Normalize prediction paths to use /prediction/:id
+  // Normalize prediction paths to canonical /p/:id
   if (linkInfo.type === 'prediction' && linkInfo.id) {
-    return `/prediction/${linkInfo.id}`;
+    return `/p/${linkInfo.id}`;
   }
   
   // Normalize profile paths to use /profile/:id

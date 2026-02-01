@@ -132,11 +132,17 @@ export function useSettlementMerkle() {
           throw new Error(err?.message || 'Failed to prepare merkle settlement');
         }
         
-        const data: MerklePrepareResponse = await prepare.json();
+        const data = await prepare.json();
+
+        // Idempotent: server returned already settled (same contract as POST /manual)
+        if ((data as any)?.ok === true && (data as any)?.alreadySettled === true) {
+          toast.success('Prediction settled', { id: 'settle' });
+          return { queuedFinalize: false };
+        }
 
         // Demo-only settlement: server already completed off-chain; no on-chain action required.
-        if (!data?.data?.merkleRoot) {
-          toast.success('Settlement completed (demo only).', { id: 'settle' });
+        if (!(data as MerklePrepareResponse)?.data?.merkleRoot) {
+          toast.success('Prediction settled', { id: 'settle' });
           return { queuedFinalize: false };
         }
 
@@ -155,13 +161,14 @@ export function useSettlementMerkle() {
         const predictionIdHex = toBytes32FromUuid(args.predictionId);
         const root = data.data.merkleRoot as `0x${string}`;
         preparedRoot = root;
-        const creatorFee = BigInt(data.data.creatorFeeUnits || '0');
-        const platformFee = BigInt(data.data.platformFeeUnits || '0');
+        const d = (data as MerklePrepareResponse).data;
+        const creatorFee = BigInt(d.creatorFeeUnits || '0');
+        const platformFee = BigInt(d.platformFeeUnits || '0');
         
         // Calculate total fee amount for logging (used for wallet_transactions)
         const totalFeeUSD =
-          (data.data.summary?.platformFeeUSD ?? 0) +
-          (data.data.summary?.creatorFeeUSD ?? 0);
+          (d.summary?.platformFeeUSD ?? 0) +
+          (d.summary?.creatorFeeUSD ?? 0);
 
         // If wallet isn't connected/healthy, queue finalization for the admin relayer.
         // This avoids WalletConnect timeouts and prevents unsafe off-chain fallback for crypto rail.

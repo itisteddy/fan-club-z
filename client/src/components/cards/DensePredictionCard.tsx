@@ -8,6 +8,7 @@ import { useUnifiedCommentStore } from '../../store/unifiedCommentStore';
 import UserAvatar from '../common/UserAvatar';
 import { cn } from '@/utils/cn';
 import { formatTimeRemaining } from '@/lib/utils';
+import { buildPredictionCanonicalPath } from '@/lib/predictionUrls';
 
 interface DensePredictionCardProps {
   prediction: Prediction;
@@ -33,10 +34,10 @@ const DensePredictionCard: React.FC<DensePredictionCardProps> = ({
   const commentCount = getCommentCount(prediction.id);
 
   const handleCardClick = useCallback(() => {
-    navigate(`/prediction/${prediction.id}`, {
+    navigate(buildPredictionCanonicalPath(prediction.id, prediction.title || prediction.question), {
       state: { from: fromPath }
     });
-  }, [navigate, prediction.id, fromPath]);
+  }, [navigate, prediction.id, prediction.title, prediction.question, fromPath]);
 
   const handleLike = useCallback(async (e: React.MouseEvent) => {
     e.stopPropagation();

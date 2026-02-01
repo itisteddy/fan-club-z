@@ -12,6 +12,7 @@ import { formatTimeRemaining } from '@/lib/utils';
 import ImageThumb from './ui/ImageThumb';
 import { getPredictionStatusUi } from '@/lib/predictionStatusUi';
 import { getCategoryLabel } from '@/lib/categoryUi';
+import { buildPredictionCanonicalPath, buildPredictionCanonicalUrl } from '@/lib/predictionUrls';
 
 interface PredictionCardProps {
   prediction: Prediction;
@@ -136,34 +137,35 @@ const PredictionCardContent: React.FC<PredictionCardProps> = ({
   const handleShare = async (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    
+    const shareUrl = buildPredictionCanonicalUrl(prediction.id, prediction.title || prediction.question);
     try {
       const shareData = {
         title: prediction.question || prediction.title,
         text: `Check out this prediction: ${prediction.question || prediction.title}`,
-        url: `${window.location.origin}/prediction/${prediction.id}`
+        url: shareUrl,
       };
 
       if (navigator.share && navigator.canShare && navigator.canShare(shareData)) {
         await navigator.share(shareData);
       } else if (navigator.clipboard) {
-        await navigator.clipboard.writeText(shareData.url);
-        toast.success('Link copied to clipboard!');
+        await navigator.clipboard.writeText(shareUrl);
+        toast.success('Link copied');
       } else {
-        // Fallback for older browsers
         const textArea = document.createElement('textarea');
-        textArea.value = shareData.url;
+        textArea.value = shareUrl;
         document.body.appendChild(textArea);
         textArea.select();
         document.execCommand('copy');
         document.body.removeChild(textArea);
-        toast.success('Link copied to clipboard!');
+        toast.success('Link copied');
       }
-      
       if (customOnShare) customOnShare();
     } catch (error) {
       console.error('Error sharing:', error);
-      toast.error('Failed to share');
+      toast.error("Couldn't copy link");
+      try {
+        window.prompt('Copy this link:', shareUrl);
+      } catch {}
     }
   };
 
@@ -176,7 +178,7 @@ const PredictionCardContent: React.FC<PredictionCardProps> = ({
         <div className="grid grid-cols-[1fr,auto] gap-4">
           {/* LEFT: content */}
           <Link
-            to={`/prediction/${prediction.id}`}
+            to={buildPredictionCanonicalPath(prediction.id, prediction.title || prediction.question)}
             state={{ from: fromPath }}
             className="min-w-0"
           >

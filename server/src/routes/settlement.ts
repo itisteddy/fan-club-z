@@ -50,6 +50,31 @@ function isAdminRequest(req: any): boolean {
   return !!process.env.ADMIN_API_KEY && adminKey === process.env.ADMIN_API_KEY;
 }
 
+/** Build stable settlement response contract for UI (ok, alreadySettled, predictionId, status, settlement). */
+export function buildSettlementContract(payload: {
+  predictionId: string;
+  alreadySettled: boolean;
+  winningOptionId: string;
+  settledAt: string | null;
+  settledByUserId?: string | null;
+  reason?: string | null;
+  sourceUrl?: string | null;
+}) {
+  return {
+    ok: true,
+    alreadySettled: payload.alreadySettled,
+    predictionId: payload.predictionId,
+    status: 'SETTLED' as const,
+    settlement: {
+      winningOptionId: payload.winningOptionId,
+      settledAt: payload.settledAt ?? null,
+      settledByUserId: payload.settledByUserId ?? null,
+      reason: payload.reason ?? null,
+      sourceUrl: payload.sourceUrl ?? null,
+    },
+  };
+}
+
 async function ensureDemoWalletRow(userId: string) {
   await supabase
     .from('wallets')
@@ -1070,16 +1095,6 @@ router.post('/manual', async (req, res) => {
     const { predictionId, winningOptionId, proofUrl, reason } = req.body;
     const userId = req.body.userId; // In production, this would come from JWT auth
     
-    console.log('');
-    console.log('🔨🔨🔨 [SETTLEMENT] ========================================');
-    console.log('🔨 [SETTLEMENT] Manual settlement endpoint called');
-    console.log('🔨 [SETTLEMENT] Request body:', JSON.stringify(req.body, null, 2));
-    console.log('🔨 [SETTLEMENT] Prediction ID:', predictionId);
-    console.log('🔨 [SETTLEMENT] Winning Option ID:', winningOptionId);
-    console.log('🔨 [SETTLEMENT] User ID:', userId);
-    console.log('🔨🔨🔨 [SETTLEMENT] ========================================');
-    console.log('');
-    
     // Validate required fields
     if (!predictionId || !winningOptionId || !userId) {
       return res.status(400).json({
@@ -1130,38 +1145,54 @@ router.post('/manual', async (req, res) => {
       });
     }
 
-    // Phase 4A: Check if settlement already exists (idempotency check)
-    const { data: existingSettlement } = await supabase
-      .from('bet_settlements')
-      .select('status, winning_option_id, meta')
-      .eq('bet_id', predictionId)
+    // Idempotency: conditional update — only set settled where settled_at IS NULL (SETTLED is terminal)
+    const { data: updatedRow } = await supabase
+      .from('predictions')
+      .update({
+        status: 'settled',
+        settled_at: new Date().toISOString(),
+        winning_option_id: winningOptionId,
+        resolution_reason: reason ?? null,
+        resolution_source_url: proofUrl ?? null,
+      })
+      .eq('id', predictionId)
+      .is('settled_at', null)
+      .select('id')
       .maybeSingle();
 
-    // If settlement already exists with same winning option, return success (idempotent)
-    if (existingSettlement && existingSettlement.winning_option_id === winningOptionId) {
-      const currentStatus = existingSettlement.status;
-      // If already offchain_settled or beyond, return success without re-processing
-      if (['offchain_settled', 'demo_paid', 'onchain_finalized', 'completed', 'onchain_posted'].includes(currentStatus)) {
-        console.log(`[SETTLEMENT] Settlement already exists for ${predictionId} with status ${currentStatus}, returning success (idempotent)`);
-        return res.json({
-          success: true,
-          data: {
-            settlement: existingSettlement,
-            message: 'Settlement already completed (idempotent)',
-            alreadySettled: true
-          },
-          version: VERSION
+    if (!updatedRow) {
+      // Already settled: return 200 with settlement data (no duplicate payout)
+      const { data: pred } = await supabase
+        .from('predictions')
+        .select('settled_at, winning_option_id, resolution_reason, resolution_source_url, creator_id')
+        .eq('id', predictionId)
+        .maybeSingle();
+      const { data: bs } = await supabase
+        .from('bet_settlements')
+        .select('winning_option_id, settlement_time')
+        .eq('bet_id', predictionId)
+        .maybeSingle();
+      const winningOptionIdFinal = (pred?.winning_option_id ?? bs?.winning_option_id) || winningOptionId;
+      if (winningOptionIdFinal !== winningOptionId) {
+        return res.status(409).json({
+          error: 'Conflict',
+          message: 'Settlement already exists with a different winning option',
+          version: VERSION,
         });
       }
-    }
-
-    // If settlement exists with different winning option, reject (safety check)
-    if (existingSettlement && existingSettlement.winning_option_id !== winningOptionId) {
-      return res.status(409).json({
-        error: 'Conflict',
-        message: 'Settlement already exists with a different winning option',
-        version: VERSION
-      });
+      const settledAt = pred?.settled_at ?? bs?.settlement_time ?? null;
+      console.log('settlePrediction: already settled', { predictionId });
+      return res.status(200).json(
+        buildSettlementContract({
+          predictionId,
+          alreadySettled: true,
+          winningOptionId: winningOptionIdFinal,
+          settledAt,
+          settledByUserId: (pred as any)?.creator_id ?? null,
+          reason: (pred as any)?.resolution_reason ?? null,
+          sourceUrl: (pred as any)?.resolution_source_url ?? null,
+        })
+      );
     }
 
     // Get all prediction entries for this prediction
@@ -1278,51 +1309,32 @@ router.post('/manual', async (req, res) => {
       totalEntries: allEntries?.length || 0
     });
 
-    // If no participants, return fees to creator (no payouts)
+    // If no participants, create settlement record only (prediction already updated above)
     if (!allEntries || allEntries.length === 0) {
       console.log('📭 No participants - settling with creator fee only');
-      
-      // Update prediction status to settled
-      const { error: updatePredictionError } = await supabase
-        .from('predictions')
-        .update({ 
-          status: 'settled', 
-          settled_at: new Date().toISOString(),
-          winning_option_id: winningOptionId
-        })
-        .eq('id', predictionId);
-
-      if (updatePredictionError) {
-        console.error('Error updating prediction status:', updatePredictionError);
-      }
-
-      // Create settlement record
-      const { data: settlement, error: settlementError } = await supabase
+      const settledAt = new Date().toISOString();
+      await supabase
         .from('bet_settlements')
-        .insert({
+        .upsert({
           bet_id: predictionId,
           winning_option_id: winningOptionId,
           total_payout: 0,
           platform_fee_collected: 0,
           creator_payout_amount: 0,
-          settlement_time: new Date().toISOString()
+          settlement_time: settledAt,
+        } as any, { onConflict: 'bet_id' });
+      console.log('settlePrediction: settled', { predictionId });
+      return res.status(200).json(
+        buildSettlementContract({
+          predictionId,
+          alreadySettled: false,
+          winningOptionId,
+          settledAt,
+          settledByUserId: userId,
+          reason: reason ?? null,
+          sourceUrl: proofUrl ?? null,
         })
-        .select()
-        .single();
-
-      return res.json({
-        success: true,
-        data: {
-          settlement,
-          totalPayout: 0,
-          platformFee: 0,
-          creatorFee: 0,
-          winnersCount: 0,
-          participantsCount: 0
-        },
-        message: 'Prediction settled successfully (no participants)',
-        version: VERSION
-      });
+      );
     }
 
     // Process crypto winners/losers (demo already handled by settleDemoRail)
@@ -1819,19 +1831,7 @@ router.post('/manual', async (req, res) => {
       }
     }
 
-    // Update prediction status to settled
-    const { error: updatePredictionError } = await supabase
-      .from('predictions')
-      .update({ 
-        status: 'settled', 
-        settled_at: new Date().toISOString(),
-        winning_option_id: winningOptionId
-      })
-      .eq('id', predictionId);
-
-    if (updatePredictionError) {
-      console.error('Error updating prediction status:', updatePredictionError);
-    }
+    // Prediction already updated to settled at start (conditional update); no duplicate write
 
     // Record creator payout if there's a crypto fee (demo fees already recorded by settleDemoRail)
     if (cryptoCreatorFee > 0) {
@@ -1977,30 +1977,18 @@ router.post('/manual', async (req, res) => {
       // Non-fatal: continue without aggregates
     }
 
-    return res.json({
-      success: true,
-      data: {
-        settlement,
-        totalPayout: totalPayoutPool,
-        platformFee: totalPlatformFee,
-        creatorFee: totalCreatorFee,
-        demo: demoSummary,
-        crypto: {
-          platformFee: cryptoPlatformFee,
-          creatorFee: cryptoCreatorFee,
-          payoutPool: cryptoPayoutPool,
-        },
-        aggregates, // Phase 6A: Canonical aggregates
-        winnersCount,
-        participantsCount: allEntries.length,
-        results: settlementResults,
-        prediction: recomputed.prediction,
-        updatedOptions: recomputed.options
-      },
-      message: 'Prediction settled successfully',
-      version: VERSION
-    });
-
+    const settledAt = settlement?.settlement_time ?? new Date().toISOString();
+    return res.status(200).json(
+      buildSettlementContract({
+        predictionId,
+        alreadySettled: false,
+        winningOptionId,
+        settledAt,
+        settledByUserId: userId,
+        reason: reason ?? null,
+        sourceUrl: proofUrl ?? null,
+      })
+    );
   } catch (error) {
     console.error('Error in manual settlement:', error);
     return res.status(500).json({
@@ -2403,10 +2391,10 @@ router.post('/manual/merkle', async (req, res) => {
       });
     }
 
-    // Verify user is creator
+    // Verify user is creator and load settled_at for idempotency
     const { data: prediction, error: predictionError } = await supabase
       .from('predictions')
-      .select('id, creator_id, title, status, platform_fee_percentage, creator_fee_percentage')
+      .select('id, creator_id, title, status, settled_at, winning_option_id, resolution_reason, resolution_source_url, platform_fee_percentage, creator_fee_percentage')
       .eq('id', predictionId)
       .single();
     if (predictionError || !prediction) {
@@ -2422,6 +2410,38 @@ router.post('/manual/merkle', async (req, res) => {
         message: 'Only the prediction creator can initiate on-chain settlement',
         version: VERSION
       });
+    }
+
+    // Idempotency: if already settled, return 200 with contract (no duplicate payout)
+    const statusLower = String((prediction as any).status || '').toLowerCase();
+    if (statusLower === 'settled' || (prediction as any).settled_at) {
+      const { data: bs } = await supabase
+        .from('bet_settlements')
+        .select('winning_option_id, settlement_time')
+        .eq('bet_id', predictionId)
+        .maybeSingle();
+      const existingWinning = (prediction as any).winning_option_id ?? bs?.winning_option_id;
+      if (existingWinning && existingWinning !== winningOptionId) {
+        return res.status(409).json({
+          error: 'Conflict',
+          message: 'Settlement already exists with a different winning option',
+          version: VERSION,
+        });
+      }
+      const winningOptionIdFinal = existingWinning || winningOptionId;
+      const settledAt = (prediction as any).settled_at ?? bs?.settlement_time ?? null;
+      console.log('settlePrediction: already settled', { predictionId });
+      return res.status(200).json(
+        buildSettlementContract({
+          predictionId,
+          alreadySettled: true,
+          winningOptionId: winningOptionIdFinal,
+          settledAt,
+          settledByUserId: (prediction as any).creator_id ?? null,
+          reason: (prediction as any).resolution_reason ?? null,
+          sourceUrl: (prediction as any).resolution_source_url ?? null,
+        })
+      );
     }
 
     // Load entries once to decide if we have any crypto rail participants
@@ -2531,6 +2551,7 @@ router.post('/manual/merkle', async (req, res) => {
           status: 'settled',
           settled_at: new Date().toISOString(),
           winning_option_id: winningOptionId,
+          resolution_reason: reason || null,
           updated_at: new Date().toISOString()
         })
         .eq('id', predictionId);
@@ -3002,6 +3023,8 @@ router.get('/:predictionId/status', async (req, res) => {
         status: prediction.status,
         pool_total: prediction.pool_total,
         creator_id: prediction.creator_id,
+        resolution_reason: (prediction as any).resolution_reason ?? null,
+        resolution_source_url: (prediction as any).resolution_source_url ?? null,
       },
       userEntry: {
         id: userEntry.id,

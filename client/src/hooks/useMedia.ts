@@ -23,7 +23,7 @@ export function useMedia(
     category: undefined,
   };
 
-  // Map the semantic media input into the stable image prediction shape
+  // Map the semantic media input into the stable image prediction shape (include image_url so DB cover is used first)
   const stablePrediction: Prediction = {
     id: safePrediction.id,
     title: safePrediction.title || safePrediction.question || 'Prediction',
@@ -32,6 +32,7 @@ export function useMedia(
       safePrediction.description ??
       safePrediction.question ??
       '',
+    image_url: (safePrediction as { image_url?: string | null }).image_url ?? undefined,
   };
 
   // Use the stable image pipeline backed by /api/images + IndexedDB cache.

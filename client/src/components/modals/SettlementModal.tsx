@@ -38,21 +38,17 @@ const SettlementModal: React.FC<SettlementModalProps> = ({
   const { notifySettlementReady } = useNotificationStore();
 
   const handleSubmit = async () => {
+    if (isSettling || isPostingRoot) return;
     if (!selectedOptionId) {
       toast.error('Please select a winning option');
       return;
     }
-
     if (!reason.trim()) {
       toast.error('Please provide a reason for settlement');
       return;
     }
-
     try {
       clearError();
-
-      // 1) Try on-chain Merkle settlement first
-      console.log('[SETTLEMENT] Attempting on-chain Merkle settlement...');
       const result = await settleWithMerkle({
         predictionId: prediction.id,
         winningOptionId: selectedOptionId,
@@ -61,22 +57,15 @@ const SettlementModal: React.FC<SettlementModalProps> = ({
       });
 
       if (result) {
-        // If txHash exists, root was posted on-chain by the creator wallet.
-        // If queuedFinalize is true, settlement was prepared and finalization was queued for the relayer.
-        console.log('[SETTLEMENT] Settlement flow completed:', result);
         setShowConfirmation(false);
         onClose();
         if (onSettlementComplete) onSettlementComplete();
         return;
       }
-
-      // If we reach here, Merkle settlement did not complete.
-      // IMPORTANT: Do NOT fall back to off-chain settlement for crypto rail, to avoid double-settlement/logging.
-      toast.error(merkleError || 'Settlement failed. Please reconnect wallet (if needed) and try again.');
+      toast.error(merkleError || "Couldn't settle prediction");
     } catch (error) {
       console.error('Settlement submit error:', error);
-      const msg = (error as any)?.message || 'Settlement failed. Please try again.';
-      toast.error(msg);
+      toast.error((error as any)?.message || "Couldn't settle prediction");
     }
   };
 
