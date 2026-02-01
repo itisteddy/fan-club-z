@@ -554,7 +554,8 @@ const DiscoverPage = React.memo(function DiscoverPage({ onNavigateToProfile, onN
                           label: opt.label,
                           odds: opt.current_odds
                         })),
-                        description: prediction.description
+                        description: prediction.description,
+                        image_url: prediction.image_url
                       }}
                     />
                   );

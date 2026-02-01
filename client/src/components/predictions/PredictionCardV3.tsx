@@ -16,6 +16,7 @@ type PredictionCardProps = {
     players?: number;      // participants
     options?: Array<{ label?: string; title?: string; text?: string; odds?: number }>;
     description?: string | null;
+    image_url?: string | null;
     creator?: {
       id?: string;
       username?: string | null;
@@ -50,7 +51,7 @@ export default function PredictionCardV3({ prediction }: PredictionCardProps) {
     title: prediction.title,
     description: prediction.description ?? '',
     category: prediction.category,
-    image_url: (prediction as { image_url?: string | null }).image_url ?? undefined,
+    image_url: prediction.image_url ?? undefined,
     options: prediction.options?.map((option) => ({
       label: option?.label ?? option?.title ?? option?.text ?? '',
     })),
