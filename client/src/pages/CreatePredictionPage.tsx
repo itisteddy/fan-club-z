@@ -15,6 +15,7 @@ import { useAuthSession } from '../providers/AuthSessionProvider';
 import { useCategories } from '../hooks/useCategories';
 import { CategorySelector } from '../components/prediction/CategorySelector';
 import { uploadPredictionCoverImage, COVER_IMAGE_ACCEPT } from '@/lib/predictionCoverImage';
+import { getApiUrl } from '../config';
 
 interface PredictionOption {
   id: string;
@@ -31,7 +32,7 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
   const [submitSuccess, setSubmitSuccess] = useState(false);
   const { createPrediction } = usePredictionStore();
   const { user: storeUser, isAuthenticated: storeIsAuthenticated } = useAuthStore();
-  const { user: sessionUser } = useAuthSession();
+  const { user: sessionUser, session } = useAuthSession();
   const currentUser = sessionUser ?? storeUser ?? null;
   const isAuthenticated = !!sessionUser || storeIsAuthenticated;
   const navigate = useNavigate();
@@ -287,22 +288,6 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
         }
       }
 
-      let coverImageUrl: string | undefined;
-      if (coverImageFile && currentUser?.id) {
-        try {
-          toast.loading('Uploading image…', { id: 'cover-upload' });
-          const result = await uploadPredictionCoverImage(coverImageFile, currentUser.id, undefined);
-          coverImageUrl = result.coverImageUrl;
-          toast.dismiss('cover-upload');
-        } catch (err) {
-          toast.dismiss('cover-upload');
-          const msg = err instanceof Error ? err.message : 'Upload failed';
-          toast.error(msg);
-          setIsSubmitting(false);
-          return;
-        }
-      }
-
       const predictionData: Record<string, unknown> = {
         title: title.trim(),
         description: description.trim() || undefined,
@@ -323,7 +308,6 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
         isPrivate: isPrivate,
         creatorId: currentUser.id
       };
-      if (coverImageUrl) predictionData.imageUrl = coverImageUrl;
 
       if (predictionData.options.length < 2) {
         throw new Error('At least 2 prediction options are required');
@@ -334,6 +318,39 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
       const createdPrediction = await createPrediction(predictionData);
       
       console.log('Prediction created successfully!', createdPrediction);
+
+      // Optional: upload cover image AFTER creation so object path can be stable: {predictionId}/cover.webp
+      // If upload fails, do not block prediction creation; fall back to random image.
+      if (coverImageFile && createdPrediction?.id) {
+        try {
+          toast.loading('Processing cover image…', { id: 'cover-upload' });
+          const upload = await uploadPredictionCoverImage(String(createdPrediction.id), coverImageFile, { upsert: true });
+
+          const token =
+            session?.access_token ||
+            (typeof window !== 'undefined' ? localStorage.getItem('token') : null);
+
+          const res = await fetch(`${getApiUrl()}/api/v2/predictions/${createdPrediction.id}/cover-image`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+            credentials: 'include',
+            body: JSON.stringify({ coverImageUrl: upload.coverImageUrl }),
+          });
+
+          if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            throw new Error((err as any)?.message || 'Failed to save cover image');
+          }
+
+          toast.success('Cover image uploaded', { id: 'cover-upload' });
+        } catch (err) {
+          toast.dismiss('cover-upload');
+          const msg = err instanceof Error ? err.message : 'Cover upload failed';
+          toast.error(`${msg} (using default image)`);
+        }
+      } else {
+        toast.dismiss('cover-upload');
+      }
       
       // Create settlement configuration if automatic settlement is selected
       if (settlementMethod === 'auto' && createdPrediction) {
@@ -394,7 +411,7 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
       toast.error(errorMessage);
       setIsSubmitting(false);
     }
-  }, [validateStep, title, categoryId, entryDeadline, description, type, options, stakeMin, stakeMax, settlementMethod, isPrivate, isAuthenticated, currentUser, createPrediction, navigate, saveDraft, coverImageFile, coverImagePreviewUrl]);
+  }, [validateStep, title, categoryId, entryDeadline, description, type, options, stakeMin, stakeMax, settlementMethod, isPrivate, isAuthenticated, currentUser, createPrediction, navigate, saveDraft, coverImageFile, coverImagePreviewUrl, session?.access_token]);
 
   // Success View
   if (submitSuccess) {

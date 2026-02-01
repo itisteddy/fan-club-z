@@ -13,6 +13,7 @@ import EditModal from './EditModal';
 import { formatTimeRemaining } from '@/lib/utils';
 import { buildPredictionCanonicalUrl } from '@/lib/predictionUrls';
 import { uploadPredictionCoverImage, COVER_IMAGE_ACCEPT } from '@/lib/predictionCoverImage';
+import { useAuthSession } from '@/providers/AuthSessionProvider';
 
 interface ManagePredictionModalProps {
   isOpen: boolean;
@@ -79,6 +80,7 @@ const ManagePredictionModal: React.FC<ManagePredictionModalProps> = ({
   } = usePredictionStore();
   
   const { user } = useAuthStore();
+  const { session } = useAuthSession();
 
   // Helper function to determine if prediction can be settled
   const canSettle = (pred: any) => {
@@ -379,11 +381,11 @@ const ManagePredictionModal: React.FC<ManagePredictionModalProps> = ({
     if (!user?.id) return;
     setIsChangingCover(true);
     try {
-      const result = await uploadPredictionCoverImage(file, user.id, String(prediction.id));
-      const token = localStorage.getItem('token');
+      const result = await uploadPredictionCoverImage(String(prediction.id), file, { upsert: true });
+      const token = session?.access_token || localStorage.getItem('token');
       const res = await fetch(`${getApiUrl()}/api/v2/predictions/${prediction.id}/cover-image`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', Authorization: token ? `Bearer ${token}` : '' },
+        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
         credentials: 'include',
         body: JSON.stringify({ coverImageUrl: result.coverImageUrl }),
       });
@@ -459,12 +461,12 @@ const ManagePredictionModal: React.FC<ManagePredictionModalProps> = ({
             }}
           />
           <div className="flex items-center gap-4">
-            <div className="w-24 h-16 rounded-xl overflow-hidden bg-gray-100 border border-gray-200 shrink-0">
+            <div className="w-24 aspect-video rounded-xl overflow-hidden bg-gray-100 border border-gray-200 shrink-0">
               {(predictionData as any).image_url ? (
                 <img
                   src={(predictionData as any).image_url}
                   alt="Cover"
-                  className="w-full h-full object-cover"
+                  className="w-full h-full object-cover object-center block"
                 />
               ) : (
                 <div className="w-full h-full flex items-center justify-center text-gray-400">

@@ -134,8 +134,8 @@ export default function PredictionCardV3({ prediction }: PredictionCardProps) {
         </div>
       </div>
 
-        {/* Right: thumbnail (fixed) */}
-        <div className="relative h-[72px] w-[96px] shrink-0 overflow-hidden rounded-xl bg-gray-100">
+        {/* Right: thumbnail (fixed 16:9) */}
+        <div className="relative w-[96px] aspect-video shrink-0 overflow-hidden rounded-xl bg-gray-100">
           {media.url ? (
             <>
               {!imageLoaded && (
@@ -144,7 +144,7 @@ export default function PredictionCardV3({ prediction }: PredictionCardProps) {
               <img
                 src={media.url}
                 alt={media.alt || prediction.title}
-                className="h-full w-full object-cover transition-opacity duration-300"
+                className="h-full w-full object-cover object-center block transition-opacity duration-300"
                 loading="lazy"
                 onLoad={() => setImageLoaded(true)}
                 onError={() => setImageLoaded(false)}
