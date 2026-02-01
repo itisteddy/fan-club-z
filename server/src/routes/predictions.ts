@@ -2298,223 +2298,43 @@ router.post('/:id/cancel', async (req, res) => {
 
     console.log(`🚫 Cancel prediction ${predictionId} requested by user ${userId}`);
 
-    // Load prediction
-    const { data: prediction, error: predError } = await supabase
+    // Cancel + refund in a single DB transaction (idempotent)
+    const { data: cancelResult, error: cancelError } = await supabase.rpc('cancel_prediction_with_refunds', {
+      p_prediction_id: String(predictionId),
+      p_actor_id: userId,
+      p_reason: typeof reason === 'string' ? reason.trim() : null,
+    });
+
+    if (cancelError) {
+      console.error('[PREDICTIONS] cancel_prediction_with_refunds error:', cancelError);
+      const code = (cancelError as any)?.code;
+      const message = (cancelError as any)?.message || 'Failed to cancel prediction';
+
+      if (code === 'P0002') {
+        return res.status(404).json({ error: 'not_found', message: 'Prediction not found', version: VERSION });
+      }
+      if (code === '42501') {
+        return res.status(403).json({ error: 'forbidden', message: 'Only the creator can cancel this prediction', version: VERSION });
+      }
+      if (code === 'P0001') {
+        return res.status(409).json({ error: 'invalid_state', message, version: VERSION });
+      }
+      return res.status(500).json({ error: 'internal_error', message, version: VERSION });
+    }
+
+    // Fetch updated prediction for UI refresh
+    const { data: updatedPrediction } = await supabase
       .from('predictions')
-      .select('id, creator_id, status, title')
+      .select('id,status,cancelled_at,cancel_reason,updated_at')
       .eq('id', predictionId)
-      .single();
-
-    if (predError || !prediction) {
-      return res.status(404).json({
-        error: 'Not found',
-        message: 'Prediction not found',
-        version: VERSION,
-      });
-    }
-
-    // Verify creator
-    if (prediction.creator_id !== userId) {
-      return res.status(403).json({
-        error: 'Forbidden',
-        message: 'Only the creator can cancel this prediction',
-        version: VERSION,
-      });
-    }
-
-    // Cannot cancel if already settled/complete/voided/cancelled
-    const immutableStatuses = ['settled', 'complete', 'voided', 'cancelled'];
-    if (immutableStatuses.includes(prediction.status)) {
-      return res.status(400).json({
-        error: 'invalid_state',
-        message: `Cannot cancel prediction with status: ${prediction.status}`,
-        version: VERSION,
-      });
-    }
-
-    // Load all entries for this prediction
-    const { data: entries, error: entriesError } = await supabase
-      .from('prediction_entries')
-      .select('id, user_id, amount, provider, status')
-      .eq('prediction_id', predictionId);
-
-    if (entriesError) {
-      console.error('[PREDICTIONS] Error loading entries:', entriesError);
-      return res.status(500).json({
-        error: 'Database error',
-        message: 'Failed to load prediction entries',
-        version: VERSION,
-      });
-    }
-
-    // Mark prediction as cancelled
-    const { error: updateError } = await supabase
-      .from('predictions')
-      .update({
-        status: 'cancelled',
-        cancelled_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', predictionId);
-
-    if (updateError) {
-      console.error('[PREDICTIONS] Error cancelling prediction:', updateError);
-      return res.status(500).json({
-        error: 'Database error',
-        message: 'Failed to cancel prediction',
-        version: VERSION,
-      });
-    }
-
-    // Refund all entries by rail
-    let refundedDemo = 0;
-    let refundedCrypto = 0;
-    const DEMO_PROVIDER = 'demo-wallet';
-
-    // Group entries by provider
-    const demoEntries = (entries || []).filter((e) => e.provider === DEMO_PROVIDER);
-    const cryptoEntries = (entries || []).filter((e) => e.provider !== DEMO_PROVIDER);
-
-    // Refund demo entries (credit back to wallet)
-    for (const entry of demoEntries) {
-      const refundAmount = Number(entry.amount || 0);
-      if (refundAmount <= 0) continue;
-
-      const externalRef = `refund:${predictionId}:${entry.user_id}:demo`;
-      const { error: txError } = await insertWalletTransaction({
-        user_id: entry.user_id,
-        type: 'refund',
-        direction: 'credit',
-        channel: 'prediction_cancelled',
-        provider: DEMO_PROVIDER,
-        amount: refundAmount,
-        currency: 'USD',
-        status: 'completed',
-        external_ref: externalRef,
-        prediction_id: predictionId,
-        entry_id: entry.id,
-        description: `Refund for cancelled prediction: ${prediction.title || predictionId}`,
-      });
-
-      if (txError) {
-        console.error(`[PREDICTIONS] Failed to refund demo entry ${entry.id}:`, txError);
-      } else {
-        refundedDemo++;
-        console.log(`[PREDICTIONS] ✅ Refunded demo entry ${entry.id}: $${refundAmount}`);
-      }
-    }
-
-    // Refund crypto entries (release escrow locks)
-    if (cryptoEntries.length > 0) {
-      // Find associated escrow locks
-      const { data: locks, error: locksError } = await supabase
-        .from('escrow_locks')
-        .select('id, user_id, amount')
-        .eq('prediction_id', predictionId)
-        .in('status', ['locked', 'consumed']);
-
-      if (!locksError && locks) {
-        // Release all locks for this prediction
-        const { error: releaseError } = await supabase
-          .from('escrow_locks')
-          .update({
-            status: 'released',
-            state: 'released',
-            released_at: new Date().toISOString(),
-          })
-          .eq('prediction_id', predictionId)
-          .in('status', ['locked', 'consumed']);
-
-        if (releaseError) {
-          console.error('[PREDICTIONS] Error releasing escrow locks:', releaseError);
-        } else {
-          refundedCrypto = locks.length;
-          console.log(`[PREDICTIONS] ✅ Released ${refundedCrypto} crypto escrow locks`);
-        }
-      }
-    }
-
-    // Phase 4C: Create refund notifications for all participants
-    const refundedUserIds = new Set<string>();
-    
-    // Track demo refunded users
-    for (const entry of demoEntries) {
-      if (entry.user_id) {
-        refundedUserIds.add(entry.user_id);
-      }
-    }
-    
-    // Track crypto refunded users (from locks)
-    if (cryptoEntries.length > 0) {
-      const { data: locks } = await supabase
-        .from('escrow_locks')
-        .select('user_id')
-        .eq('prediction_id', predictionId)
-        .in('status', ['released']);
-      
-      if (locks) {
-        for (const lock of locks) {
-          if (lock.user_id) {
-            refundedUserIds.add(lock.user_id);
-          }
-        }
-      }
-    }
-    
-    // Create notifications for each refunded user
-    for (const refundedUserId of refundedUserIds) {
-      try {
-        // Determine rail (demo or crypto) - check if user had demo entries
-        const userDemoEntry = demoEntries.find((e) => e.user_id === refundedUserId);
-        const rail = userDemoEntry ? 'demo' : 'crypto';
-        
-        await createNotification({
-          userId: refundedUserId,
-          type: 'refund',
-          title: 'Refund initiated',
-          body: `Your stake was refunded for "${prediction.title}".`,
-          href: `/wallet`,
-          metadata: {
-            predictionId,
-            predictionTitle: prediction.title,
-            rail,
-          },
-          externalRef: `notif:refund:${predictionId}:${refundedUserId}:${rail}`,
-        }).catch((err) => {
-          console.warn(`[Notifications] Failed to create refund notification for ${refundedUserId}:`, err);
-        });
-      } catch (err) {
-        console.warn(`[Notifications] Error creating refund notification for ${refundedUserId}:`, err);
-      }
-    }
-
-    // Audit log
-    await logAdminAction({
-      actorId: userId,
-      action: 'creator_cancel_prediction',
-      targetType: 'prediction',
-      targetId: predictionId,
-      reason: reason || null,
-      meta: {
-        refundedDemo,
-        refundedCrypto,
-        totalEntries: (entries || []).length,
-      },
-    }).catch((e) => console.error('[PREDICTIONS] Audit log failed:', e));
-
-    // Emit realtime update
-    emitPredictionUpdate({ predictionId, reason: 'cancelled' });
-
-    console.log(`✅ Prediction ${predictionId} cancelled by ${userId}. Refunded: ${refundedDemo} demo, ${refundedCrypto} crypto`);
+      .maybeSingle();
 
     return res.json({
-      predictionId,
-      status: 'cancelled',
-      refunded: {
-        demo: refundedDemo,
-        crypto: refundedCrypto,
+      data: {
+        prediction: updatedPrediction ?? { id: predictionId, status: 'cancelled' },
+        result: cancelResult,
       },
-      message: 'Prediction cancelled and refunds initiated',
+      message: (cancelResult as any)?.alreadyCancelled ? 'Prediction already cancelled' : 'Prediction cancelled',
       version: VERSION,
     });
   } catch (error) {

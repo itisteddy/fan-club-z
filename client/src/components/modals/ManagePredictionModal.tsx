@@ -14,6 +14,7 @@ import { formatTimeRemaining } from '@/lib/utils';
 import { buildPredictionCanonicalUrl } from '@/lib/predictionUrls';
 import { uploadPredictionCoverImage, COVER_IMAGE_ACCEPT } from '@/lib/predictionCoverImage';
 import { useAuthSession } from '@/providers/AuthSessionProvider';
+import CoverCropModal from '@/components/modals/CoverCropModal';
 
 interface ManagePredictionModalProps {
   isOpen: boolean;
@@ -61,6 +62,9 @@ const ManagePredictionModal: React.FC<ManagePredictionModalProps> = ({
   const [predictionData, setPredictionData] = useState(prediction);
   const [isChangingCover, setIsChangingCover] = useState(false);
   const coverFileInputRef = useRef<HTMLInputElement>(null);
+  const [cropModalOpen, setCropModalOpen] = useState(false);
+  const [pendingCropSrc, setPendingCropSrc] = useState<string | null>(null);
+  const [pendingCropFile, setPendingCropFile] = useState<File | null>(null);
 
   // Update predictionData when prediction prop changes
   useEffect(() => {
@@ -381,7 +385,8 @@ const ManagePredictionModal: React.FC<ManagePredictionModalProps> = ({
     if (!user?.id) return;
     setIsChangingCover(true);
     try {
-      const result = await uploadPredictionCoverImage(String(prediction.id), file, { upsert: true });
+      const skipOptimize = (file.name || '').toLowerCase().startsWith('cover.');
+      const result = await uploadPredictionCoverImage(String(prediction.id), file, { upsert: true, skipOptimize });
       const token = session?.access_token || localStorage.getItem('token');
       const res = await fetch(`${getApiUrl()}/api/v2/predictions/${prediction.id}/cover-image`, {
         method: 'PATCH',
@@ -456,7 +461,12 @@ const ManagePredictionModal: React.FC<ManagePredictionModalProps> = ({
             className="hidden"
             onChange={(e) => {
               const file = e.target.files?.[0];
-              if (file) handleChangeCoverImage(file);
+              if (file) {
+                const src = URL.createObjectURL(file);
+                setPendingCropFile(file);
+                setPendingCropSrc(src);
+                setCropModalOpen(true);
+              }
               e.target.value = '';
             }}
           />
@@ -485,6 +495,27 @@ const ManagePredictionModal: React.FC<ManagePredictionModalProps> = ({
             </button>
           </div>
         </div>
+
+        <CoverCropModal
+          isOpen={cropModalOpen}
+          imageSrc={pendingCropSrc}
+          originalFile={pendingCropFile}
+          onClose={() => {
+            setCropModalOpen(false);
+            if (pendingCropSrc) URL.revokeObjectURL(pendingCropSrc);
+            setPendingCropSrc(null);
+            setPendingCropFile(null);
+          }}
+          onConfirm={({ file, previewUrl }) => {
+            setCropModalOpen(false);
+            if (pendingCropSrc) URL.revokeObjectURL(pendingCropSrc);
+            setPendingCropSrc(null);
+            setPendingCropFile(null);
+            if (previewUrl) URL.revokeObjectURL(previewUrl);
+            handleChangeCoverImage(file);
+          }}
+          title="Crop cover image"
+        />
 
         {/* Action Buttons - Redesigned with better spacing and UX */}
         <div className="space-y-4">

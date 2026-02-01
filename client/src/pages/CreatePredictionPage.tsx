@@ -16,6 +16,7 @@ import { useCategories } from '../hooks/useCategories';
 import { CategorySelector } from '../components/prediction/CategorySelector';
 import { uploadPredictionCoverImage, COVER_IMAGE_ACCEPT } from '@/lib/predictionCoverImage';
 import { getApiUrl } from '../config';
+import CoverCropModal from '@/components/modals/CoverCropModal';
 
 interface PredictionOption {
   id: string;
@@ -75,6 +76,9 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
   const [coverImageFile, setCoverImageFile] = useState<File | null>(null);
   const [coverImagePreviewUrl, setCoverImagePreviewUrl] = useState<string | null>(null);
   const coverFileInputRef = useRef<HTMLInputElement>(null);
+  const [cropModalOpen, setCropModalOpen] = useState(false);
+  const [pendingCropSrc, setPendingCropSrc] = useState<string | null>(null);
+  const [pendingCropFile, setPendingCropFile] = useState<File | null>(null);
 
   // Check for existing draft on mount
   useEffect(() => {
@@ -324,7 +328,8 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
       if (coverImageFile && createdPrediction?.id) {
         try {
           toast.loading('Processing cover image…', { id: 'cover-upload' });
-          const upload = await uploadPredictionCoverImage(String(createdPrediction.id), coverImageFile, { upsert: true });
+          const skipOptimize = (coverImageFile.name || '').toLowerCase().startsWith('cover.');
+          const upload = await uploadPredictionCoverImage(String(createdPrediction.id), coverImageFile, { upsert: true, skipOptimize });
 
           const token =
             session?.access_token ||
@@ -341,6 +346,11 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
             const err = await res.json().catch(() => ({}));
             throw new Error((err as any)?.message || 'Failed to save cover image');
           }
+
+          // Ensure local UI updates immediately (store + cards) without requiring refresh.
+          try {
+            await usePredictionStore.getState().fetchPredictionById(String(createdPrediction.id));
+          } catch {}
 
           toast.success('Cover image uploaded', { id: 'cover-upload' });
         } catch (err) {
@@ -582,8 +592,11 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
                       onChange={(e) => {
                         const file = e.target.files?.[0];
                         if (file) {
-                          setCoverImageFile(file);
-                          setCoverImagePreviewUrl(URL.createObjectURL(file));
+                          // Open crop modal so user controls crop region before upload
+                          const src = URL.createObjectURL(file);
+                          setPendingCropFile(file);
+                          setPendingCropSrc(src);
+                          setCropModalOpen(true);
                         }
                         e.target.value = '';
                       }}
@@ -619,6 +632,29 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
                       </div>
                     )}
                   </div>
+
+                  <CoverCropModal
+                    isOpen={cropModalOpen}
+                    imageSrc={pendingCropSrc}
+                    originalFile={pendingCropFile}
+                    onClose={() => {
+                      setCropModalOpen(false);
+                      if (pendingCropSrc) URL.revokeObjectURL(pendingCropSrc);
+                      setPendingCropSrc(null);
+                      setPendingCropFile(null);
+                    }}
+                    onConfirm={({ file, previewUrl }) => {
+                      setCropModalOpen(false);
+                      if (pendingCropSrc) URL.revokeObjectURL(pendingCropSrc);
+                      setPendingCropSrc(null);
+                      setPendingCropFile(null);
+
+                      setCoverImageFile(file);
+                      if (coverImagePreviewUrl) URL.revokeObjectURL(coverImagePreviewUrl);
+                      setCoverImagePreviewUrl(previewUrl);
+                    }}
+                    title="Crop cover image"
+                  />
                 </div>
               </motion.div>
             )}

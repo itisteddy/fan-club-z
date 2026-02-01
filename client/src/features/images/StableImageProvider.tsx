@@ -84,12 +84,44 @@ export function useStableImage({
   // Lock image once loaded to prevent any changes
   const imageLocked = useRef(false);
   const fetchedRef = useRef(false);
+  const lastDbUrlRef = useRef<string | null>(null);
 
   // Reset locks when prediction changes
   useEffect(() => {
     imageLocked.current = false;
     fetchedRef.current = false;
+    lastDbUrlRef.current = null;
   }, [prediction.id]);
+
+  // CRITICAL: if a DB-backed image_url appears later (e.g. creator uploads cover after creation),
+  // immediately switch to it even if we previously locked a fallback image.
+  useEffect(() => {
+    const url = prediction.image_url ? String(prediction.image_url).trim() : '';
+    if (url && url !== lastDbUrlRef.current) {
+      setImage({
+        url,
+        previewUrl: url,
+        width: 800,
+        height: 600,
+        photographer: '',
+        provider: 'pexels',
+      });
+      setProvider('pexels');
+      setUsedFallback(false);
+      setError(null);
+      setLoading(false);
+      imageLocked.current = true;
+      fetchedRef.current = true;
+      lastDbUrlRef.current = url;
+      return;
+    }
+    if (!url) {
+      // If image_url is cleared (rare), allow normal fetch pipeline again.
+      lastDbUrlRef.current = null;
+      imageLocked.current = false;
+      fetchedRef.current = false;
+    }
+  }, [prediction.id, prediction.image_url]);
 
   const fetchStableImage = useCallback(async () => {
     // Don't fetch if already locked or already fetching

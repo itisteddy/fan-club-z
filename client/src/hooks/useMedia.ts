@@ -1,6 +1,7 @@
 import type { PredictionMediaInput } from '@/lib/media';
 import { useStableImage } from '@/features/images/StableImageProvider';
 import type { Prediction } from '@/features/images/useAutoImage';
+import { resolvePredictionCoverUrl } from '@/lib/resolvePredictionCoverUrl';
 
 export type MediaItem = {
   id: string;
@@ -34,6 +35,8 @@ export function useMedia(
       '',
     image_url: (safePrediction as { image_url?: string | null }).image_url ?? undefined,
   };
+  // Ensure we also pick up camelCase fields from different DTOs (highest priority).
+  stablePrediction.image_url = resolvePredictionCoverUrl(safePrediction);
 
   // Use the stable image pipeline backed by /api/images + IndexedDB cache.
   // This guarantees:

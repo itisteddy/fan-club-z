@@ -196,7 +196,7 @@ function normalizePredictionId(predictionId: string): string {
 export async function uploadPredictionCoverImage(
   predictionId: string,
   file: File,
-  opts?: { upsert?: boolean }
+  opts?: { upsert?: boolean; skipOptimize?: boolean }
 ): Promise<UploadCoverImageResult> {
   validateInput(file);
   await requireSupabaseSession();
@@ -208,16 +208,27 @@ export async function uploadPredictionCoverImage(
   let ext: 'webp' | 'jpg' = 'jpg';
   let optimized = false;
 
-  try {
-    const optimizedResult = await optimizeToCover(file);
-    uploadBlob = optimizedResult.blob;
-    contentType = optimizedResult.contentType;
-    ext = optimizedResult.ext;
-    optimized = optimizedResult.optimized;
-  } catch (e) {
-    // Optimization failure should not block upload; fallback to original file
-    if (import.meta.env.DEV) {
-      console.warn('[cover-upload] optimize failed; falling back to original', e);
+  if (opts?.skipOptimize) {
+    // Assume caller already produced a 16:9 cover blob (e.g. user-cropped output).
+    // Keep stable extension based on contentType.
+    const t = (contentType || '').toLowerCase();
+    ext = t.includes('webp') ? 'webp' : 'jpg';
+    optimized = true;
+    if (uploadBlob.size > MAX_UPLOAD_BYTES) {
+      throw new Error('Cover image is too large. Please crop/zoom out or choose a smaller image.');
+    }
+  } else {
+    try {
+      const optimizedResult = await optimizeToCover(file);
+      uploadBlob = optimizedResult.blob;
+      contentType = optimizedResult.contentType;
+      ext = optimizedResult.ext;
+      optimized = optimizedResult.optimized;
+    } catch (e) {
+      // Optimization failure should not block upload; fallback to original file
+      if (import.meta.env.DEV) {
+        console.warn('[cover-upload] optimize failed; falling back to original', e);
+      }
     }
   }
 
