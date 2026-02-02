@@ -3,9 +3,8 @@
   "outputDirectory": "client/dist",
   "installCommand": "npm --prefix client install",
   "rewrites": [
-    {
-      "source": "/(.*)",
-      "destination": "/index.html"
-    }
+    { "source": "/p/:id/:slug", "destination": "/api/share/prediction?id=:id&slug=:slug" },
+    { "source": "/p/:id", "destination": "/api/share/prediction?id=:id" },
+    { "source": "/(.*)", "destination": "/index.html" }
   ]
 }

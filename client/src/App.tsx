@@ -585,6 +585,8 @@ const PredictionDetailsRouteWrapper: React.FC = () => {
   const navigate = useNavigate();
   const [resolvedId, setResolvedId] = React.useState<string | null>(null);
   const [checking, setChecking] = React.useState<boolean>(true);
+  const [resolveError, setResolveError] = React.useState<boolean>(false);
+  const [resolveNotFound, setResolveNotFound] = React.useState<boolean>(false);
   
   const handleNavigateBack = useCallback(() => {
     // Use browser back to restore previous scroll position automatically
@@ -609,22 +611,34 @@ const PredictionDetailsRouteWrapper: React.FC = () => {
       const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
       if (uuidRegex.test(id)) {
         setResolvedId(id);
+        setResolveError(false);
+        setResolveNotFound(false);
         setChecking(false);
         return;
       }
       // Treat as SEO slug - resolve to full ID
       try {
+        setResolveError(false);
+        setResolveNotFound(false);
         const apiBase = (await import('./config')).getApiUrl();
         const r = await fetch(`${apiBase}/api/v2/predictions/resolve/slug/${encodeURIComponent(id)}`, { method: 'GET' });
-        if (!r.ok) throw new Error(`resolve failed ${r.status}`);
-        const j = await r.json();
-        if (j?.id) {
+        if (r.status === 404) {
+          setResolveNotFound(true);
+          return;
+        }
+        if (!r.ok) {
+          setResolveError(true);
+          return;
+        }
+        const j = await r.json().catch(() => ({}));
+        if ((j as any)?.id) {
           setResolvedId(j.id);
         } else {
-          console.warn('Slug resolve returned no id for', id);
+          setResolveNotFound(true);
         }
       } catch (e) {
         console.warn('Slug resolve errored', e);
+        setResolveError(true);
       } finally {
         setChecking(false);
       }
@@ -653,8 +667,8 @@ const PredictionDetailsRouteWrapper: React.FC = () => {
     return <LoadingSpinner message="Loading prediction..." />;
   }
 
-  // If we couldn't resolve, show not-found state
-  if (!resolvedId) {
+  // If we confirmed not-found (404), show not-found state.
+  if (resolveNotFound) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
@@ -669,6 +683,29 @@ const PredictionDetailsRouteWrapper: React.FC = () => {
         </div>
       </div>
     );
+  }
+
+  // If we failed to resolve due to a network/server issue, do NOT show NotFound.
+  if (resolveError) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">Loading prediction…</h2>
+          <p className="text-gray-600 mb-4">We couldn’t load this prediction right now. Please try again.</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="px-4 py-2 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600"
+          >
+            Try Again
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Prevent "Prediction Not Found" flash: never render details page until we have a resolved UUID.
+  if (!resolvedId) {
+    return <LoadingSpinner message="Loading prediction..." />;
   }
 
   return <LazyPredictionDetailsPageV2 predictionId={resolvedId} />;

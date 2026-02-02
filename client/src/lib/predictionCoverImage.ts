@@ -20,6 +20,11 @@ const TARGET_ASPECT = 16 / 9;
 const TARGET_MAX_W = 1600;
 const TARGET_MAX_H = 900;
 
+// OG image (Twitter/OG preview) — prefer 1200x630
+const OG_ASPECT = 1200 / 630;
+const OG_W = 1200;
+const OG_H = 630;
+
 export const COVER_IMAGE_MAX_SIZE = MAX_INPUT_BYTES;
 export const COVER_IMAGE_ACCEPT = 'image/*';
 
@@ -29,6 +34,10 @@ export interface UploadCoverImageResult {
   contentType: string;
   size: number;
   optimized: boolean;
+  ogImageUrl?: string;
+  ogPath?: string;
+  ogContentType?: string;
+  ogSize?: number;
 }
 
 function validateInput(file: File | Blob): void {
@@ -46,23 +55,29 @@ function clamp(n: number, min: number, max: number) {
   return Math.max(min, Math.min(max, n));
 }
 
-function computeCenterCropRect(srcW: number, srcH: number): { x: number; y: number; w: number; h: number } {
-  // Center-crop to 16:9
+function computeCenterCropRectForAspect(
+  srcW: number,
+  srcH: number,
+  targetAspect: number
+): { x: number; y: number; w: number; h: number } {
   const srcAspect = srcW / srcH;
   let cropW = srcW;
   let cropH = srcH;
   let cropX = 0;
   let cropY = 0;
-  if (srcAspect > TARGET_ASPECT) {
-    // Too wide: crop left/right
-    cropW = Math.round(srcH * TARGET_ASPECT);
+  if (srcAspect > targetAspect) {
+    cropW = Math.round(srcH * targetAspect);
     cropX = Math.round((srcW - cropW) / 2);
-  } else if (srcAspect < TARGET_ASPECT) {
-    // Too tall: crop top/bottom
-    cropH = Math.round(srcW / TARGET_ASPECT);
+  } else if (srcAspect < targetAspect) {
+    cropH = Math.round(srcW / targetAspect);
     cropY = Math.round((srcH - cropH) / 2);
   }
   return { x: cropX, y: cropY, w: cropW, h: cropH };
+}
+
+function computeCenterCropRect(srcW: number, srcH: number): { x: number; y: number; w: number; h: number } {
+  // Center-crop to 16:9
+  return computeCenterCropRectForAspect(srcW, srcH, TARGET_ASPECT);
 }
 
 async function loadBitmap(file: Blob): Promise<ImageBitmap | HTMLImageElement> {
@@ -108,6 +123,24 @@ function drawCoverToCanvas(bmp: ImageBitmap | HTMLImageElement, outW: number, ou
   if (!srcW || !srcH) throw new Error('Invalid image dimensions');
 
   const { x: cropX, y: cropY, w: cropW, h: cropH } = computeCenterCropRect(srcW, srcH);
+
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(bmp as any, cropX, cropY, cropW, cropH, 0, 0, outW, outH);
+  return canvas;
+}
+
+function drawOgToCanvas(bmp: ImageBitmap | HTMLImageElement, outW: number, outH: number): HTMLCanvasElement {
+  const canvas = document.createElement('canvas');
+  canvas.width = outW;
+  canvas.height = outH;
+  const ctx = canvas.getContext('2d', { alpha: false });
+  if (!ctx) throw new Error('Canvas not supported');
+
+  const { width: srcW, height: srcH } = getBitmapSize(bmp);
+  if (!srcW || !srcH) throw new Error('Invalid image dimensions');
+
+  const { x: cropX, y: cropY, w: cropW, h: cropH } = computeCenterCropRectForAspect(srcW, srcH, OG_ASPECT);
 
   ctx.imageSmoothingEnabled = true;
   ctx.imageSmoothingQuality = 'high';
@@ -174,6 +207,35 @@ async function optimizeToCover(file: File): Promise<{ blob: Blob; contentType: s
   if (best) return { ...best, optimized: true };
 
   throw new Error('Failed to optimize image');
+}
+
+async function optimizeToOgJpeg(file: Blob): Promise<{ blob: Blob; contentType: string; ext: 'jpg' }> {
+  const bmp = await loadBitmap(file);
+  const { width: srcW, height: srcH } = getBitmapSize(bmp);
+
+  const { w: cropW, h: cropH } = computeCenterCropRectForAspect(srcW, srcH, OG_ASPECT);
+
+  // Prefer 1200x630; do not upscale beyond crop size.
+  let outW = Math.min(OG_W, cropW);
+  let outH = Math.round(outW / OG_ASPECT);
+  outH = Math.min(outH, cropH);
+  outW = Math.round(outH * OG_ASPECT);
+
+  // Reasonable minimum while staying within target.
+  outW = clamp(outW, 600, OG_W);
+  outH = Math.round(outW / OG_ASPECT);
+
+  const canvas = drawOgToCanvas(bmp, outW, outH);
+
+  for (const q of [0.86, 0.78, 0.7, 0.62]) {
+    const blob = await canvasToBlob(canvas, 'image/jpeg', q);
+    if (blob.size <= MAX_UPLOAD_BYTES) {
+      return { blob, contentType: 'image/jpeg', ext: 'jpg' };
+    }
+  }
+
+  const blob = await canvasToBlob(canvas, 'image/jpeg', 0.62);
+  return { blob, contentType: 'image/jpeg', ext: 'jpg' };
 }
 
 async function requireSupabaseSession(): Promise<void> {
@@ -259,11 +321,35 @@ export async function uploadPredictionCoverImage(
   }
 
   const { data: urlData } = supabase.storage.from(BUCKET).getPublicUrl(data.path);
-  return {
+  const result: UploadCoverImageResult = {
     coverImageUrl: urlData.publicUrl,
     path: data.path,
     contentType,
     size: uploadBlob.size,
     optimized,
   };
+
+  // Best-effort OG-friendly image for link previews (public, stable path).
+  try {
+    const og = await optimizeToOgJpeg(file);
+    const ogPath = `${safeId}/og.${og.ext}`;
+    const ogUpload = await supabase.storage
+      .from(BUCKET)
+      .upload(ogPath, og.blob, {
+        cacheControl: '3600',
+        upsert: opts?.upsert ?? true,
+        contentType: og.contentType,
+      });
+    if (!ogUpload.error) {
+      const { data: ogUrlData } = supabase.storage.from(BUCKET).getPublicUrl(ogPath);
+      result.ogImageUrl = ogUrlData.publicUrl;
+      result.ogPath = ogPath;
+      result.ogContentType = og.contentType;
+      result.ogSize = og.blob.size;
+    }
+  } catch {
+    // Do not block cover upload if OG generation fails.
+  }
+
+  return result;
 }

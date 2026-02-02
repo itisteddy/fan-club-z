@@ -292,7 +292,7 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
         }
       }
 
-      const predictionData: Record<string, unknown> = {
+      const predictionData: any = {
         title: title.trim(),
         description: description.trim() || undefined,
         categoryId: categoryId,
@@ -614,7 +614,7 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
                     ) : (
                       <div className="relative rounded-2xl overflow-hidden border-2 border-gray-200 aspect-video bg-gray-100">
                         <img
-                          src={coverImagePreviewUrl}
+                          src={coverImagePreviewUrl || ''}
                           alt="Cover preview"
                           className="w-full h-full object-cover"
                         />

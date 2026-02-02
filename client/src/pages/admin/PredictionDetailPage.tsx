@@ -556,7 +556,7 @@ export const PredictionDetailPage: React.FC = () => {
 
           {/* Go to prediction page (open in app) */}
           <button
-            onClick={() => window.open(`${appUrl.replace(/\/$/, '')}${buildPredictionCanonicalPath(predictionId, prediction?.title)}`, '_blank')}
+            onClick={() => window.open(`${appUrl.replace(/\/$/, '')}${buildPredictionCanonicalPath(String(predictionId), prediction?.title)}`, '_blank')}
             className="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 flex items-center gap-2"
           >
             <ExternalLink className="w-4 h-4" />

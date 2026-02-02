@@ -117,6 +117,9 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
   const [showDisputeOutcomeModal, setShowDisputeOutcomeModal] = useState(false);
   const [disputeOutcomeReason, setDisputeOutcomeReason] = useState('');
   const [disputeOutcomeSubmitting, setDisputeOutcomeSubmitting] = useState(false);
+  const [isLoadingPrediction, setIsLoadingPrediction] = useState(true);
+  const [notFound, setNotFound] = useState(false);
+  const [loadError, setLoadError] = useState(false);
 
   // TODO: Re-enable share functionality after testing
   // const { SharePreview, share: shareResult } = useShareResult();
@@ -376,11 +379,27 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
     }
 
     try {
+      setIsLoadingPrediction(true);
+      setNotFound(false);
+      setLoadError(false);
       console.log('🔍 Loading prediction:', predictionId);
+      const url = `${getApiUrl()}/api/v2/predictions/${predictionId}`;
+      const probe = await fetch(url, { method: 'GET' });
+      if (probe.status === 404) {
+        setNotFound(true);
+        return;
+      }
+      if (!probe.ok) {
+        setLoadError(true);
+        return;
+      }
       await fetchPredictionById(predictionId);
     } catch (error) {
       console.error('❌ Error loading prediction:', error);
       showErrorToast('Failed to load prediction details');
+      setLoadError(true);
+    } finally {
+      setIsLoadingPrediction(false);
     }
   }, [predictionId, fetchPredictionById, navigate]);
 
@@ -667,7 +686,7 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
   const potentialProfit = poolPreview ? poolPreview.profit : 0;
 
   // Loading state
-  if (loading && !prediction) {
+  if (isLoadingPrediction && !prediction) {
     return (
       <div className="min-h-screen bg-gray-50">
         {/* Consistent Header with AppHeader styling */}
@@ -701,7 +720,7 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
   }
 
   // Error state
-  if (error && !prediction) {
+  if (loadError && !prediction) {
     return (
       <div className="min-h-screen bg-gray-50">
         {/* Consistent Header with AppHeader styling */}
@@ -735,8 +754,8 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
     );
   }
 
-  // Not found state
-  if (!prediction && !loading) {
+  // Not found state (only after confirmed 404)
+  if (notFound) {
     return (
       <div className="min-h-screen bg-gray-50">
         {/* Consistent Header with AppHeader styling */}
