@@ -1,5 +1,7 @@
 # Deploy Admin Settlement Fix (resolve 400)
 
+See also: **Landing page deploys** — `docs/VERCEL_LANDING_DEPLOY.md`
+
 To fix the **400 Bad Request** on admin “Settle prediction” in production:
 
 ## 1. Deploy the fix
