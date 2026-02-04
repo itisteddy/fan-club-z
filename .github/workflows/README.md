@@ -22,7 +22,8 @@ Runs on pushes to `main` branch and version tags.
 
 **Jobs:**
 - **Build & Test**: Full build and test before deployment
-- **Deploy Frontend**: Deploys client to Vercel
+- **Deploy Main App**: Deploys client to Vercel project `fan-club-z` (main app → app.fanclubz.app)
+- **Deploy Landing Page**: Deploys client to Vercel project `landing-page` (landing → fanclubz.app); requires `VERCEL_LANDING_PROJECT_ID`; project must have `VITE_BUILD_TARGET=landing` in Vercel env
 - **Deploy Backend**: Triggers Render deployment (or uploads artifacts)
 - **Health Check**: Verifies deployments are healthy
 - **Post-Deploy Ledger Check**: Runs ledger sanity check after deployment
@@ -54,7 +55,8 @@ Configure these secrets in GitHub repository settings:
 ### Required for Deployment:
 - `VERCEL_TOKEN` - Vercel API token
 - `VERCEL_ORG_ID` - Vercel organization ID
-- `VERCEL_PROJECT_ID` - Vercel project ID
+- `VERCEL_PROJECT_ID` - Vercel project ID (main app, fan-club-z)
+- `VERCEL_LANDING_PROJECT_ID` - Vercel project ID for landing page (landing-page); if set, main branch deploys to both app and landing
 
 ### Optional (for full builds):
 - `VITE_CHAIN_ID` - Chain ID (default: 84532)
