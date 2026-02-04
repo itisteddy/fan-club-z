@@ -108,6 +108,14 @@ export const PredictionDetailPage: React.FC = () => {
     }
   }, [predictionId, actorId]);
 
+  /**
+   * Admin settlement — canonical endpoint and request shape (for diagnostics).
+   * Route: POST /api/v2/admin/predictions/:predictionId/settle
+   * (Backend also exposes POST .../outcome as alias; both use the same handler.)
+   * Request: method=POST, Content-Type=application/json, x-admin-key or session for auth.
+   * Body: { winningOptionId: string (UUID), optionId?: string, actorId?: string, resolutionReason?: string, resolutionSourceUrl?: string }
+   * Backend: 400 validation, 401/403 auth, 404 not found, 409 already settled (different option), 200 success or idempotent already-settled.
+   */
   const handleSetOutcome = async (
     optionId: string,
     opts?: { resolutionReason?: string; resolutionSourceUrl?: string }
@@ -116,59 +124,81 @@ export const PredictionDetailPage: React.FC = () => {
       toast.error('Missing prediction ID');
       return false;
     }
-    
-    // Check if we have admin access (either actorId or admin key)
     const adminKey = typeof window !== 'undefined' ? localStorage.getItem('fcz_admin_key') : null;
     if (!actorId && !adminKey) {
       toast.error('Admin access required. Please ensure you are logged in or have an admin key set.');
       return false;
     }
-    
+
+    const winningOptionId = typeof optionId === 'string' ? optionId.trim() : String(optionId);
+    if (!winningOptionId) {
+      toast.error('Invalid option: no winning option ID.');
+      return false;
+    }
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(winningOptionId)) {
+      toast.error('Invalid option ID format. Please refresh the page and try again.');
+      return false;
+    }
+    const resolutionReason = opts?.resolutionReason?.trim() || undefined;
+    const resolutionSourceUrl =
+      opts?.resolutionSourceUrl?.trim() && /^https?:\/\/[^\s]+$/i.test(opts.resolutionSourceUrl.trim())
+        ? opts.resolutionSourceUrl.trim()
+        : undefined;
+    // Canonical payload: winningOptionId required; optionId sent for backward compat with /outcome handler.
+    const body: Record<string, unknown> = {
+      winningOptionId,
+      optionId: winningOptionId,
+    };
+    if (resolutionReason != null) body.resolutionReason = resolutionReason;
+    if (resolutionReason != null) body.reason = resolutionReason;
+    if (resolutionSourceUrl != null) body.resolutionSourceUrl = resolutionSourceUrl;
+    if (actorId) body.actorId = actorId;
+
     setSettingOutcome(optionId);
     try {
-      console.log('[Admin/Settlement] Attempting to settle prediction:', { predictionId, optionId, actorId: actorId || 'using admin key' });
       const result = await adminPost<any>(
-        `/api/v2/admin/predictions/${predictionId}/outcome`,
+        `/api/v2/admin/predictions/${predictionId}/settle`,
         actorId || '',
-        actorId
-          ? { optionId, actorId, ...opts }
-          : { optionId, ...opts }
+        body as Record<string, any>
       );
-      
-      console.log('[Admin/Settlement] Settlement result:', result);
-      
-      // Show detailed success message based on settlement results
+
       if (result?.alreadySettled) {
         toast.success('Already settled');
       } else if (result?.settlement) {
         const s = result.settlement;
-        const totalEntries = (s.demoEntriesCount || 0) + (s.cryptoEntriesCount || 0);
+        const totalEntries = (s.demoEntriesCount ?? 0) + (s.cryptoEntriesCount ?? 0);
         toast.success(
           `✅ Settled! ${totalEntries} entries processed. ` +
-          `Fees: $${(s.totalPlatformFee || 0).toFixed(2)} platform, $${(s.totalCreatorFee || 0).toFixed(2)} creator.`
+          `Fees: $${(s.totalPlatformFee ?? 0).toFixed(2)} platform, $${(s.totalCreatorFee ?? 0).toFixed(2)} creator.`
         );
       } else {
         toast.success('✅ Settlement complete');
       }
-      
-      // Wait a moment for DB to update, then refresh
-      await new Promise(resolve => setTimeout(resolve, 500));
+
       await fetchData();
-      
-      // Also refresh if we're on the settlements page (trigger parent refresh)
       if (window.location.pathname.includes('/admin/settlements')) {
         window.dispatchEvent(new Event('settlement-complete'));
       }
       return true;
     } catch (e: any) {
-      console.error('[Admin/Settlement] Error:', e);
-      const errorMsg = e?.message || e?.error?.message || `Failed to settle prediction (${e?.status || 'unknown error'})`;
-      toast.error(errorMsg);
+      let errorMsg = e?.message || e?.error?.message || `Failed to settle prediction (${e?.status ?? 'unknown error'})`;
+      if (e?.details && Array.isArray(e.details) && e.details.length > 0) {
+        const first = e.details[0];
+        const path = first?.path?.join?.('.') ?? first?.path ?? 'payload';
+        const msg = first?.message ?? String(first);
+        errorMsg = `${errorMsg}: ${path} ${msg}`;
+      }
+      if (e?.requestId) errorMsg += ` (requestId: ${e.requestId})`;
+      console.error('[Admin/Settlement] Error:', e?.status, errorMsg);
+      toast.error(errorMsg, { duration: 6000 });
       return false;
     } finally {
       setSettingOutcome(null);
     }
   };
+
+  const isSettling = settingOutcome !== null;
 
   const openSettleModal = useCallback((optionId: string) => {
     setSettleOptionId(optionId);
@@ -323,8 +353,8 @@ export const PredictionDetailPage: React.FC = () => {
 
   const { prediction, creator, options, stats, entries } = data;
   const isActive = prediction.status === 'active';
-  const isSettled = prediction.status === 'settled';
   const isTerminal = prediction.status === 'voided' || prediction.status === 'cancelled';
+  const isSettled = prediction.status === 'settled' || Boolean(prediction.winningOptionId);
   const appUrl = FRONTEND_URL || 'https://app.fanclubz.app';
 
   return (
@@ -565,8 +595,8 @@ export const PredictionDetailPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Settle Prediction - Admin sets outcome and triggers immediate settlement */}
-      {!prediction.winningOptionId && !isTerminal && (
+      {/* Settle Prediction - Admin sets outcome and triggers immediate settlement. Hidden once settled. */}
+      {!isSettled && !isTerminal && (
         <div className="bg-slate-800 border border-slate-700 rounded-xl p-4">
           <h3 className="text-white font-semibold mb-2">Settle Prediction</h3>
           <p className="text-slate-400 text-sm mb-3">
@@ -577,10 +607,11 @@ export const PredictionDetailPage: React.FC = () => {
               <button
                 key={o.id}
                 onClick={() => openSettleModal(o.id)}
-                disabled={settingOutcome !== null}
-                className="px-3 py-2 bg-emerald-600 text-white rounded-lg text-sm hover:bg-emerald-700 disabled:opacity-50"
+                disabled={isSettling}
+                className="px-3 py-2 bg-emerald-600 text-white rounded-lg text-sm hover:bg-emerald-700 disabled:opacity-50 flex items-center gap-2"
               >
-                {settingOutcome === o.id ? 'Settling…' : `Settle: ${o.text}`}
+                {isSettling && settingOutcome === o.id && <Loader2 className="w-4 h-4 animate-spin" />}
+                {isSettling && settingOutcome === o.id ? 'Settling…' : `Settle: ${o.text}`}
               </button>
             ))}
           </div>
@@ -672,10 +703,10 @@ export const PredictionDetailPage: React.FC = () => {
               </button>
               <button
                 onClick={confirmSettle}
-                disabled={!settleOptionId || settingOutcome !== null}
+                disabled={!settleOptionId || isSettling}
                 className="px-4 py-2 bg-emerald-600 text-white rounded-lg font-medium hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
               >
-                {settingOutcome && <Loader2 className="w-4 h-4 animate-spin" />}
+                {isSettling && <Loader2 className="w-4 h-4 animate-spin" />}
                 Settle prediction
               </button>
             </div>

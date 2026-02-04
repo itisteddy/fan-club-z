@@ -73,15 +73,21 @@ export async function adminPost<T>(
   if (adminKey) {
     headers['x-admin-key'] = adminKey;
   }
+  const payload = body && typeof body === 'object' ? (actorId ? { ...body, actorId } : { ...body }) : (actorId ? { actorId } : {});
   const res = await fetch(url, {
     method: 'POST',
     credentials: 'include',
     headers,
-    body: JSON.stringify(actorId ? { ...(body || {}), actorId } : { ...(body || {}) }),
+    body: JSON.stringify(payload),
   });
   if (!res.ok) {
     const err: any = await parseJsonOrText(res);
-    throw new Error(err?.message || `Request failed (${res.status})`);
+    const msg = err?.message || `Request failed (${res.status})`;
+    const e = new Error(msg) as Error & { status?: number; details?: unknown; requestId?: string };
+    e.status = res.status;
+    e.details = err?.details;
+    e.requestId = err?.requestId;
+    throw e;
   }
   return (await res.json()) as T;
 }

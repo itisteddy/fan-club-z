@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import type { Request as ExpressRequest, Response as ExpressResponse } from 'express';
 import { z } from 'zod';
 import { supabase } from '../../config/database';
 import { VERSION } from '@fanclubz/shared';
@@ -42,12 +43,46 @@ function mapStatusToDb(status: string): string {
   return status;
 }
 
-const OutcomeSchema = z.object({
-  optionId: z.string().uuid(),
-  reason: z.string().optional(),
+/**
+ * Admin settlement request body.
+ * Canonical: POST /api/v2/admin/predictions/:predictionId/settle (alias: /outcome)
+ * Body: { winningOptionId: UUID, optionId?: UUID, actorId?: UUID, reason?: string, resolutionReason?: string, resolutionSourceUrl?: string }
+ * We accept optionId and/or winningOptionId (at least one required). resolutionSourceUrl is optional;
+ * if present but not a valid URL, it is coerced to undefined to avoid 400 from strict URL validation.
+ */
+function coerceOptionalUrl(val: unknown): string | undefined {
+  if (val == null || val === '') return undefined;
+  const s = String(val).trim();
+  if (!s || s.length > 2000) return undefined;
+  try {
+    new URL(s);
+    return s;
+  } catch {
+    return undefined;
+  }
+}
+const OutcomeBodySchema = z.object({
+  optionId: z.preprocess((v) => (v == null ? v : String(v).trim() || undefined), z.string().uuid().optional()),
+  winningOptionId: z.preprocess((v) => (v == null ? v : String(v).trim() || undefined), z.string().uuid().optional()),
+  reason: z.string().max(1000).optional(),
   resolutionReason: z.string().max(1000).optional(),
-  resolutionSourceUrl: z.string().url().max(2000).optional(),
-  actorId: z.string().uuid().optional(),
+  resolutionSourceUrl: z.preprocess(coerceOptionalUrl, z.string().max(2000).optional()),
+  actorId: z.preprocess((val) => (val === '' ? undefined : val), z.string().uuid().optional()),
+}).refine((data) => {
+  const hasOption = (data.optionId && data.optionId.length > 0) || (data.winningOptionId && data.winningOptionId.length > 0);
+  return !!hasOption;
+}, { message: 'Either optionId or winningOptionId (UUID) is required', path: ['winningOptionId'] });
+
+export const OutcomeSchema = OutcomeBodySchema.transform((data) => {
+  const optionId = (data.optionId && data.optionId.trim()) || (data.winningOptionId && data.winningOptionId.trim()) || '';
+  const resolutionReason = data.resolutionReason ?? data.reason;
+  return {
+    optionId,
+    reason: data.reason,
+    resolutionReason,
+    resolutionSourceUrl: data.resolutionSourceUrl,
+    actorId: data.actorId,
+  };
 });
 
 /**
@@ -419,25 +454,57 @@ predictionsRouter.get('/:predictionId', async (req, res) => {
 
 /**
  * POST /api/v2/admin/predictions/:predictionId/outcome
+ * POST /api/v2/admin/predictions/:predictionId/settle (canonical alias)
  * Set winning option for a prediction AND trigger immediate settlement.
- * This is the admin tool for settling predictions - it does the full flow.
+ * Body: { optionId?: UUID, winningOptionId?: UUID, actorId?: UUID, resolutionReason?: string, resolutionSourceUrl?: string }
  */
-predictionsRouter.post('/:predictionId/outcome', async (req, res) => {
+async function setOutcomeHandler(req: ExpressRequest, res: ExpressResponse): Promise<void | ExpressResponse> {
+  const { predictionId } = req.params;
+  const body = req.body as Record<string, unknown> | undefined;
+  const bodyKeys = body && typeof body === 'object' ? Object.keys(body) : [];
+  const requestId = `settle-${predictionId}-${Date.now()}`;
+
+  if (!body || typeof body !== 'object') {
+    console.warn('[Admin/Settlement] Missing or invalid body', { requestId, predictionId });
+    return res.status(400).json({
+      error: 'Bad Request',
+      message: 'Request body must be a JSON object',
+      details: [{ path: ['body'], message: 'Body is required' }],
+      requestId,
+      version: VERSION,
+    });
+  }
+
+  // Structured logging: exact route and payload shape for diagnostics (no PII)
+  console.log('[Admin/Settlement] Request start', {
+    requestId,
+    predictionId,
+    route: req.path,
+    bodyKeys,
+    hasOptionId: 'optionId' in body && body.optionId != null,
+    hasWinningOptionId: 'winningOptionId' in body && body.winningOptionId != null,
+  });
+
   try {
-    const { predictionId } = req.params;
     const parsed = OutcomeSchema.safeParse(req.body);
     if (!parsed.success) {
+      const issues = parsed.error.issues;
+      const firstPathRaw = issues[0]?.path;
+      const firstPath = Array.isArray(firstPathRaw) ? firstPathRaw.join('.') : firstPathRaw != null ? String(firstPathRaw) : 'payload';
+      const firstMessage = issues[0]?.message ?? 'Validation failed';
+      console.warn('[Admin/Settlement] Validation failed', { requestId, predictionId, rule: firstPath, message: firstMessage, issueCount: issues.length });
       return res.status(400).json({
         error: 'Bad Request',
-        message: 'Invalid payload',
-        details: parsed.error.issues,
+        message: `Invalid payload: ${String(firstPath)} — ${firstMessage}`,
+        details: issues,
+        requestId,
         version: VERSION,
       });
     }
 
-    const { optionId, reason, resolutionReason, resolutionSourceUrl, actorId } = parsed.data;
+    const { optionId, resolutionReason, resolutionSourceUrl, actorId } = parsed.data;
+    console.log('[Admin/Settlement] Parsed request', { requestId, predictionId, winningOptionId: optionId, adminUserId: actorId ?? 'none' });
 
-    // Verify prediction exists with full details needed for settlement
     const { data: prediction, error: predErr } = await supabase
       .from('predictions')
       .select('id, status, title, creator_id, platform_fee_percentage, creator_fee_percentage, odds_model')
@@ -445,12 +512,25 @@ predictionsRouter.post('/:predictionId/outcome', async (req, res) => {
       .maybeSingle();
 
     if (predErr || !prediction) {
-      return res.status(404).json({ error: 'Not Found', message: 'Prediction not found', version: VERSION });
+      console.warn('[Admin/Settlement] Prediction not found', { requestId, predictionId });
+      return res.status(404).json({ error: 'Not Found', message: 'Prediction not found', requestId, version: VERSION });
     }
 
     const status = String((prediction as any).status || '').toLowerCase();
     if (status === 'voided' || status === 'cancelled') {
-      return res.status(400).json({ error: 'Bad Request', message: 'Cannot set outcome for voided/cancelled prediction', version: VERSION });
+      console.warn('[Admin/Settlement] Business rule: prediction is voided/cancelled', { requestId, predictionId, status });
+      return res.status(400).json({ error: 'Bad Request', message: 'Cannot set outcome for voided/cancelled prediction', requestId, version: VERSION });
+    }
+    const allowedForSettlement = ['closed', 'awaiting_settlement', 'ended'];
+    if (!allowedForSettlement.includes(status) && status !== 'settled') {
+      console.warn('[Admin/Settlement] Business rule: prediction must be closed to settle', { requestId, predictionId, status });
+      return res.status(400).json({
+        error: 'Bad Request',
+        message: 'Prediction must be closed before settlement. Close the prediction first.',
+        details: [{ path: ['status'], message: `Current status: ${status}` }],
+        requestId,
+        version: VERSION,
+      });
     }
 
     // Verify option belongs to prediction before any write
@@ -461,9 +541,11 @@ predictionsRouter.post('/:predictionId/outcome', async (req, res) => {
       .maybeSingle();
 
     if (optErr || !opt || String((opt as any).prediction_id) !== predictionId) {
+      console.warn('[Admin/Settlement] Business rule: option does not belong to prediction', { requestId, predictionId, optionId });
       return res.status(400).json({
         error: 'Bad Request',
         message: 'Option does not belong to prediction',
+        requestId,
         version: VERSION,
       });
     }
@@ -471,13 +553,17 @@ predictionsRouter.post('/:predictionId/outcome', async (req, res) => {
     const winningOptionText = (opt as any).text || (opt as any).label || 'Unknown';
 
     // Idempotency: conditional update — only set settled where settled_at IS NULL
+    const firstUpdatePayload: Record<string, unknown> = {
+      status: 'settled',
+      settled_at: new Date().toISOString(),
+      winning_option_id: optionId,
+    };
+    if (resolutionReason != null) firstUpdatePayload.resolution_reason = resolutionReason;
+    if (resolutionSourceUrl != null) firstUpdatePayload.resolution_source_url = resolutionSourceUrl;
+
     const { data: updatedRow } = await supabase
       .from('predictions')
-      .update({
-        status: 'settled',
-        settled_at: new Date().toISOString(),
-        winning_option_id: optionId,
-      })
+      .update(firstUpdatePayload as any)
       .eq('id', predictionId)
       .is('settled_at', null)
       .select('id')
@@ -496,9 +582,11 @@ predictionsRouter.post('/:predictionId/outcome', async (req, res) => {
         .maybeSingle();
       const existingWinning = (pred as any)?.winning_option_id ?? bs?.winning_option_id;
       if (existingWinning && existingWinning !== optionId) {
+        console.warn('[Admin/Settlement] Conflict: already settled with different option', { requestId, predictionId, requestedOptionId: optionId, existingWinning });
         return res.status(409).json({
           error: 'Conflict',
           message: 'Settlement already exists with a different winning option',
+          requestId,
           version: VERSION,
         });
       }
@@ -926,7 +1014,7 @@ predictionsRouter.post('/:predictionId/outcome', async (req, res) => {
         action: 'admin_settle_prediction',
         targetType: 'prediction',
         targetId: predictionId,
-        reason: reason || undefined,
+        reason: resolutionReason || undefined,
         meta: { 
           optionId, 
           winningOptionText,
@@ -955,25 +1043,49 @@ predictionsRouter.post('/:predictionId/outcome', async (req, res) => {
       console.error('[Admin/Settlement] Failed to compute aggregates:', err);
     }
 
-    console.log('settlePrediction: settled', { predictionId });
+    const totalPaid = demoSummary.demoPayoutPool + cryptoPayoutPool;
+    console.log('[Admin/Settlement] ✅ Complete', {
+      requestId,
+      predictionId,
+      winnersCount,
+      totalPaid,
+      platformFee: totalPlatformFee,
+      creatorFee: totalCreatorFee,
+    });
 
     const settledAt = new Date().toISOString();
-    return res.status(200).json(
-      buildSettlementContract({
-        predictionId,
-        alreadySettled: false,
-        winningOptionId: optionId,
-        settledAt,
-        settledByUserId: actorId ?? null,
-        reason: resolutionReason ?? null,
-        sourceUrl: resolutionSourceUrl ?? null,
-      })
-    );
+    const base = buildSettlementContract({
+      predictionId,
+      alreadySettled: false,
+      winningOptionId: optionId,
+      settledAt,
+      settledByUserId: actorId ?? null,
+      reason: resolutionReason ?? null,
+      sourceUrl: resolutionSourceUrl ?? null,
+    });
+    return res.status(200).json({
+      ...base,
+      settlement: {
+        ...base.settlement,
+        demoEntriesCount: demoSummary.demoEntriesCount ?? 0,
+        cryptoEntriesCount: cryptoEntries.length,
+        totalPlatformFee: totalPlatformFee,
+        totalCreatorFee: totalCreatorFee,
+        totalPayoutPool: totalPaid,
+      },
+    });
   } catch (error) {
-    console.error('[Admin/Predictions] Set outcome + settlement error:', error);
-    return res.status(500).json({ error: 'Internal Server Error', message: 'Failed to settle prediction', version: VERSION });
+    console.error('[Admin/Predictions] Set outcome + settlement error', { predictionId, error });
+    return res.status(500).json({
+      error: 'Internal Server Error',
+      message: 'Failed to settle prediction',
+      version: VERSION,
+    });
   }
-});
+}
+
+predictionsRouter.post('/:predictionId/outcome', setOutcomeHandler);
+predictionsRouter.post('/:predictionId/settle', setOutcomeHandler);
 
 const VoidSchema = z.object({
   reason: z.string().min(5, 'Reason must be at least 5 characters'),
