@@ -39,7 +39,7 @@ jobs:
           npm ci
           npm --prefix server ci
           npm --prefix client ci
-          npm --prefix shared ci
+          npm --prefix shared install
 
       - name: Type check
         run: npm run typecheck
