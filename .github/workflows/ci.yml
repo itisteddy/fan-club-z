@@ -25,11 +25,7 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
-        run: |
-          npm ci --ignore-scripts
-          npm --prefix server ci
-          npm --prefix client ci
-          npm --prefix shared install
+        run: npm ci --ignore-scripts
 
       - name: Verify environment variables (dry-run)
         run: npm run verify-env
@@ -57,11 +53,7 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
-        run: |
-          npm ci
-          npm --prefix server ci
-          npm --prefix client ci
-          npm --prefix shared install
+        run: npm ci --ignore-scripts
 
       - name: Type check
         run: npm run typecheck
@@ -82,11 +74,7 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
-        run: |
-          npm ci
-          npm --prefix server ci
-          npm --prefix client ci
-          npm --prefix shared install
+        run: npm ci --ignore-scripts
 
       - name: Lint
         run: npm run lint
@@ -107,11 +95,7 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
-        run: |
-          npm ci
-          npm --prefix server ci
-          npm --prefix client ci
-          npm --prefix shared install
+        run: npm ci --ignore-scripts
 
       - name: Build client
         run: npm run build:client
@@ -161,11 +145,7 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
-        run: |
-          npm ci
-          npm --prefix server ci
-          npm --prefix client ci
-          npm --prefix shared install
+        run: npm ci --ignore-scripts
 
       - name: Run unit tests
         run: npm run test:unit
@@ -200,11 +180,7 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
-        run: |
-          npm ci
-          npm --prefix server ci
-          npm --prefix client ci
-          npm --prefix shared install
+        run: npm ci --ignore-scripts
 
       - name: Run API tests
         run: npm run test:api
@@ -231,11 +207,7 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
-        run: |
-          npm ci
-          npm --prefix server ci
-          npm --prefix client ci
-          npm --prefix shared install
+        run: npm ci --ignore-scripts
 
       - name: Run smoke tests
         run: npm run test:smoke
@@ -257,9 +229,7 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
-        run: |
-          npm ci
-          npm --prefix server ci
+        run: npm ci --ignore-scripts
 
       - name: Run ledger check
         run: npm run ledger:check
