@@ -40,6 +40,8 @@ const PredictionsPage: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNa
     fetchUserCreatedPredictions, 
     fetchUserPredictionEntries, 
     getUserPredictionEntries, 
+    fetchCompletedPredictions,
+    completedPredictions,
     loading 
   } = usePredictionStore();
   const { user: storeUser, isAuthenticated: storeAuthenticated } = useAuthStore();
@@ -108,7 +110,8 @@ const PredictionsPage: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNa
         console.log('📊 BetsTab: Fetching data for user:', user.id);
         await Promise.all([
           fetchUserCreatedPredictions(user.id),
-          fetchUserPredictionEntries(user.id)
+          fetchUserPredictionEntries(user.id),
+          fetchCompletedPredictions(user.id)
         ]);
       } finally {
         if (!cancelled) {
@@ -120,9 +123,9 @@ const PredictionsPage: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNa
     return () => {
       cancelled = true;
     };
-  }, [user?.id, isAuthenticated, fetchUserCreatedPredictions, fetchUserPredictionEntries]);
+  }, [user?.id, isAuthenticated, fetchUserCreatedPredictions, fetchUserPredictionEntries, fetchCompletedPredictions]);
 
-  // Get counts for tabs
+  // Get counts for tabs (Completed count from API-backed list)
   const getCounts = () => {
     if (!isAuthenticated || !user) return { active: 0, created: 0, completed: 0 };
     
@@ -154,22 +157,13 @@ const PredictionsPage: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNa
       return needsManagement;
     });
     
-    // Count completed entries (settled or ended)
-    const completedEntries = userEntries.filter(entry => {
-      const prediction = (entry as any).prediction || predictions.find(p => p.id === entry.prediction_id);
-      if (!prediction) return false;
-      
-      const isSettled = entry.status === 'won' || entry.status === 'lost';
-      const predictionEnded = prediction.status === 'closed' || prediction.status === 'settled' || prediction.status === 'ended';
-      const pastDeadline = new Date(prediction.entry_deadline) <= new Date();
-      
-      return isSettled || predictionEnded || pastDeadline;
-    });
+    // Completed count from backend (creator OR participant, not active)
+    const completedCount = completedPredictions.length;
     
     return {
       active: activeEntries.length,
       created: activeCreated.length,
-      completed: completedEntries.length
+      completed: completedCount
     };
   };
 
@@ -268,85 +262,63 @@ const PredictionsPage: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNa
         };
       });
 
-    const completedPredictions = userEntries
-      .filter(entry => {
-        const prediction = (entry as any).prediction || predictions.find(p => p.id === entry.prediction_id);
-        if (!prediction) return false;
-        
-        // Include entries that are settled (won/lost) OR predictions that have ended
-        const isSettled = entry.status === 'won' || entry.status === 'lost';
-        const predictionEnded =
-          prediction.status === 'closed' ||
-          prediction.status === 'awaiting_settlement' ||
-          prediction.status === 'settled' ||
-          prediction.status === 'ended';
-        const pastDeadline = new Date(prediction.entry_deadline) <= new Date();
-        
-        return isSettled || predictionEnded || pastDeadline;
-      })
-      .map(entry => {
-        const prediction = (entry as any).prediction || predictions.find(p => p.id === entry.prediction_id);
-        if (!prediction) {
-          console.warn('⚠️ No prediction found for completed entry:', entry.id);
-        return null;
-    }
-
-        // Use view-model helper for consistent mapping
-        const vm = buildPredictionCardVM({
-          prediction: {
-            id: prediction.id,
-            title: prediction.title,
-            category: prediction.category,
-            status: prediction.status,
-            settled_at: prediction.settled_at || prediction.settledAt || null,
-            entry_deadline: prediction.entry_deadline,
-            participant_count: prediction.participant_count,
-            participants: prediction.participant_count,
-            options: prediction.options,
-            updated_at: prediction.updated_at,
-            created_at: prediction.created_at,
-          },
-          myEntry: {
-            id: entry.id,
-            option_id: entry.option_id,
-            amount: entry.amount,
-            actual_payout: entry.actual_payout || null,
-            status: entry.status,
-            provider: (entry as any).provider,
-            option: entry.option || (entry as any).option,
-          },
-        });
-        
-        return {
-          // IMPORTANT: Use the prediction id (not the entry id) so users can tap
-          // Completed items and open the prediction details page reliably.
-          // Also required for claim flows which key off predictionId.
+    // Completed: from backend (creator OR participant, not active) — single source of truth
+    const completedList = (completedPredictions as any[]).map(item => {
+      const prediction = item;
+      const entry = item.myEntry;
+      const vm = buildPredictionCardVM({
+        prediction: {
           id: prediction.id,
-          predictionId: prediction.id,
-          entryId: entry.id,
-          title: vm.title,
+          title: prediction.title,
           category: prediction.category,
-          position: vm.yourPositionLabel || 'Unknown',
-          stake: vm.staked,
-          actualReturn: vm.returned,
-          profit: vm.profitLoss,
-          status: entry.status, // Keep entry status for win/lost display
-          participants: vm.participantsCount || 0,
-          settledAt: vm.statusSubtext || vm.settledAtText || '',
-          // Include prediction status and other fields needed for VM fallback
-          predictionStatus: prediction.status,
+          status: prediction.status,
+          settled_at: prediction.settled_at || prediction.settledAt || null,
           entry_deadline: prediction.entry_deadline,
+          participant_count: prediction.participant_count,
+          participants: prediction.participant_count,
           options: prediction.options,
-          // VM fields for card rendering
-          vm,
-        };
-      })
-      .filter(Boolean);
+          updated_at: prediction.updated_at,
+          created_at: prediction.created_at,
+        },
+        myEntry: entry ? {
+          id: entry.id,
+          option_id: entry.option_id,
+          amount: entry.amount,
+          actual_payout: entry.actual_payout ?? null,
+          status: entry.status,
+          provider: entry.provider,
+          option: entry.option,
+        } : undefined,
+      });
+      const statusLower = (prediction.status || '').toLowerCase();
+      const awaitingSettlement = statusLower === 'closed' || statusLower === 'awaiting_settlement';
+      return {
+        id: prediction.id,
+        predictionId: prediction.id,
+        entryId: entry?.id,
+        title: vm.title,
+        category: prediction.category,
+        position: vm.yourPositionLabel || 'Unknown',
+        stake: vm.staked,
+        actualReturn: vm.returned,
+        profit: vm.profitLoss,
+        status: entry?.status ?? '',
+        participants: vm.participantsCount || 0,
+        settledAt: vm.statusSubtext || vm.settledAtText || '',
+        predictionStatus: prediction.status,
+        entry_deadline: prediction.entry_deadline,
+        options: prediction.options,
+        vm,
+        isCreator: prediction.creator_id === user?.id,
+        awaitingSettlement,
+      };
+    });
+    const completedPredictionsMapped = completedList;
 
     return {
       Active: activePredictions as unknown as (Prediction | null)[],
       Created: createdPredictions as unknown as (Prediction | null)[],
-      Completed: completedPredictions as unknown as (Prediction | null)[]
+      Completed: completedPredictionsMapped as unknown as (Prediction | null)[]
     };
   };
 
@@ -357,7 +329,7 @@ const PredictionsPage: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNa
       console.error('Error getting user predictions:', error);
       return { Active: [], Created: [], Completed: [] };
     }
-  }, [user?.id, isAuthenticated, predictions, activeTab]);
+  }, [user?.id, isAuthenticated, predictions, completedPredictions, activeTab]);
 
   const userEntriesList = (isAuthenticated && user) ? getUserPredictionEntries(user.id) : [];
 
@@ -779,6 +751,10 @@ const PredictionsPage: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNa
     });
     
     const isSettled = vm.statusBadge.text === 'Complete';
+    const entryStatus = prediction.status;
+    const isWin = entryStatus === 'won';
+    const isLoss = entryStatus === 'lost';
+    const hasEntryOutcome = isWin || isLoss;
 
     const openSafely = async () => {
       // If status already indicates archived, do not fire a detail request at all
@@ -832,23 +808,31 @@ const PredictionsPage: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNa
                 {vm.railLabel}
               </span>
             )}
+            {prediction.awaitingSettlement && (
+              <span className="px-2 py-1 rounded-lg text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200">
+                Awaiting settlement
+              </span>
+            )}
           </div>
           <h3 className="font-semibold text-gray-900 text-lg leading-tight">{prediction.title}</h3>
+          {prediction.isCreator && (
+            <p className="text-xs text-gray-500 mt-1 border-b border-gray-100 pb-2">Created by you</p>
+          )}
         </div>
       </div>
 
       <div className={`rounded-xl p-4 mb-4 ${
-        archived ? 'bg-gray-50' : isSettled ? (prediction.status === 'won' ? 'bg-emerald-50' : 'bg-red-50') : 'bg-yellow-50'
+        archived ? 'bg-gray-50' : (isSettled && hasEntryOutcome) ? (isWin ? 'bg-emerald-50' : 'bg-red-50') : 'bg-yellow-50'
       }`}>
         <div className="flex items-center justify-between mb-2">
           <span className={`text-sm font-medium ${
-            archived ? 'text-gray-700' : isSettled ? (prediction.status === 'won' ? 'text-emerald-800' : 'text-red-800') : 'text-yellow-800'
+            archived ? 'text-gray-700' : (isSettled && hasEntryOutcome) ? (isWin ? 'text-emerald-800' : 'text-red-800') : 'text-yellow-800'
           }`}>
             {archived ? 'Archived' : vm.yourPositionLabel ? `Your Position: ${vm.yourPositionLabel}` : 'No position'}
           </span>
           <div className="flex items-center gap-3">
             {isSettled && (
-              <span className={`text-lg font-bold ${prediction.status === 'won' ? 'text-emerald-700' : 'text-red-700'}`}>
+              <span className={`text-lg font-bold ${isWin ? 'text-emerald-700' : 'text-red-700'}`}>
                 {vm.profitLoss >= 0 ? '+' : '−'}${Math.abs(vm.profitLoss).toLocaleString()}
               </span>
             )}
@@ -879,28 +863,28 @@ const PredictionsPage: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNa
         <div className="grid grid-cols-3 gap-4 mt-3">
           <div>
             <p className={`text-xs mb-1 ${
-              archived ? 'text-gray-600' : isSettled ? (prediction.status === 'won' ? 'text-emerald-600' : 'text-red-600') : 'text-yellow-600'
+              archived ? 'text-gray-600' : (isSettled && hasEntryOutcome) ? (isWin ? 'text-emerald-600' : 'text-red-600') : 'text-yellow-600'
             }`}>Staked</p>
             <p className={`font-semibold ${
-              archived ? 'text-gray-900' : isSettled ? (prediction.status === 'won' ? 'text-emerald-900' : 'text-red-900') : 'text-yellow-900'
+              archived ? 'text-gray-900' : (isSettled && hasEntryOutcome) ? (isWin ? 'text-emerald-900' : 'text-red-900') : 'text-yellow-900'
             }`}>
               ${vm.staked.toLocaleString()}
             </p>
           </div>
           <div>
             <p className={`text-xs mb-1 ${
-              archived ? 'text-gray-600' : isSettled ? (prediction.status === 'won' ? 'text-emerald-600' : 'text-red-600') : 'text-yellow-600'
+              archived ? 'text-gray-600' : (isSettled && hasEntryOutcome) ? (isWin ? 'text-emerald-600' : 'text-red-600') : 'text-yellow-600'
             }`}>Returned</p>
             <p className={`font-semibold ${
-              archived ? 'text-gray-900' : isSettled ? (prediction.status === 'won' ? 'text-emerald-900' : 'text-red-900') : 'text-yellow-900'
+              archived ? 'text-gray-900' : (isSettled && hasEntryOutcome) ? (isWin ? 'text-emerald-900' : 'text-red-900') : 'text-yellow-900'
             }`}>{isSettled ? `$${vm.returned.toLocaleString()}` : '—'}</p>
           </div>
           <div>
             <p className={`text-xs mb-1 ${
-              archived ? 'text-gray-600' : isSettled ? (prediction.status === 'won' ? 'text-emerald-600' : 'text-red-600') : 'text-yellow-600'
+              archived ? 'text-gray-600' : (isSettled && hasEntryOutcome) ? (isWin ? 'text-emerald-600' : 'text-red-600') : 'text-yellow-600'
             }`}>Profit/Loss</p>
             <p className={`font-semibold ${
-              archived ? 'text-gray-900' : isSettled ? (prediction.status === 'won' ? 'text-emerald-900' : 'text-red-900') : 'text-yellow-900'
+              archived ? 'text-gray-900' : (isSettled && hasEntryOutcome) ? (isWin ? 'text-emerald-900' : 'text-red-900') : 'text-yellow-900'
             }`}>{isSettled ? `${vm.profitLoss >= 0 ? '+' : '−'}$${Math.abs(vm.profitLoss).toLocaleString()}` : 'Pending'}</p>
           </div>
         </div>

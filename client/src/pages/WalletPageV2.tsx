@@ -31,6 +31,7 @@ import { QK } from '@/lib/queryKeys';
 import { t } from '@/lib/lexicon';
 import { useWeb3Recovery } from '@/providers/Web3Provider';
 import { computeWalletStatus } from '@/utils/walletStatus';
+import { isCryptoEnabledForClient } from '@/lib/cryptoFeatureFlags';
 
 interface WalletPageV2Props {
   onNavigateBack?: () => void;
@@ -350,6 +351,20 @@ const WalletPageV2: React.FC<WalletPageV2Props> = ({ onNavigateBack }) => {
     setShowWithdraw(true);
   }, [ensureWalletReady]);
 
+  // On iOS/native (crypto disabled), Deposit CTA must never be dead: open fiat deposit or show info.
+  const handleDepositCTA = useCallback(() => {
+    if (isCryptoEnabledForClient()) {
+      handleDeposit();
+      return;
+    }
+    if (fiatEnabled) {
+      setShowFiatDeposit(true);
+      return;
+    }
+    toast('Add funds on the web app or when NGN deposits are available.', { icon: 'ℹ️' });
+  }, [fiatEnabled, handleDeposit]);
+
+  const cryptoEnabled = isCryptoEnabledForClient();
   const actionButtons = useMemo(() => {
     const disabledSecondary =
       <button
@@ -358,6 +373,32 @@ const WalletPageV2: React.FC<WalletPageV2Props> = ({ onNavigateBack }) => {
       >
         Withdraw
       </button>;
+
+    // iOS/native: crypto disabled — Deposit CTA must always do something (fiat or info).
+    if (!cryptoEnabled) {
+      return (
+        <>
+          <button
+            onClick={handleDepositCTA}
+            className="h-11 rounded-xl bg-emerald-600 text-white font-semibold hover:bg-emerald-700 transition-colors"
+            data-qa="deposit-cta"
+          >
+            {fiatEnabled ? '+ Deposit' : 'Add funds'}
+          </button>
+          {fiatEnabled ? (
+            <button
+              onClick={() => setShowFiatWithdraw(true)}
+              disabled={!fiatSummary || fiatSummary.availableNgn < 200}
+              className="h-11 rounded-xl border-2 border-gray-300 text-gray-700 font-semibold hover:border-gray-400 transition-colors disabled:opacity-50"
+            >
+              Withdraw
+            </button>
+          ) : (
+            disabledSecondary
+          )}
+        </>
+      );
+    }
 
     switch (effectiveWalletStatus) {
       case 'reconnecting':
@@ -434,7 +475,7 @@ const WalletPageV2: React.FC<WalletPageV2Props> = ({ onNavigateBack }) => {
           </>
         );
     }
-  }, [effectiveWalletStatus, handleReconnectNow, handleSwitchToBase, handleDeposit, handleWithdraw, openConnectSheet, escrowAvailableUSD]);
+  }, [cryptoEnabled, fiatEnabled, fiatSummary, effectiveWalletStatus, handleReconnectNow, handleSwitchToBase, handleDeposit, handleDepositCTA, handleWithdraw, openConnectSheet, escrowAvailableUSD]);
 
   // Handle balance refresh after transactions
   const handleRefresh = useCallback(() => {

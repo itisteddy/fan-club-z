@@ -21,6 +21,7 @@ import { handleNativeAuthCallback } from './lib/auth/nativeOAuth'
 import { Capacitor } from '@capacitor/core'
 import { Browser } from '@capacitor/browser'
 import { isNativeIOSRuntime } from './config/native'
+import { parseDeepLink } from './utils/deepLinking'
 
 // Centralized version management
 console.log(`🚀 Fan Club Z ${APP_VERSION} - CONSOLIDATED ARCHITECTURE - SINGLE SOURCE OF TRUTH`)
@@ -72,10 +73,37 @@ if (isIOSRuntime() && typeof window !== 'undefined') {
 // This fail-safe prevents iOS builds deployed to web from registering native listeners
 import { shouldUseIOSDeepLinks, isIOSRuntime } from './config/platform';
 
+function handleAppDeepLink(url: string): boolean {
+  if (!url) return false;
+  try {
+    const normalized = url.startsWith('fanclubz://')
+      ? url.replace('fanclubz://', 'https://')
+      : url;
+    const parsed = new URL(normalized);
+    const info = parseDeepLink(parsed.pathname);
+    if (!info.isValid) return false;
+
+    let target = info.path;
+    if (info.type === 'prediction' && info.id) target = `/predictions/${info.id}`;
+    if (info.type === 'profile' && info.id) target = `/profile/${info.id}`;
+    if (info.type === 'discover') target = '/discover';
+
+    if (window.location.pathname !== target) {
+      window.location.href = target;
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 // Register native deep link listeners as early as possible.
 // IMPORTANT: Use runtime detection (do not rely on BUILD_TARGET/env).
 if ((isNativeIOSRuntime() || Capacitor.getPlatform() === 'android') && typeof window !== 'undefined') {
   CapacitorApp.addListener('appUrlOpen', async ({ url }) => {
+    if (url && !url.startsWith('fanclubz://auth/callback')) {
+      if (handleAppDeepLink(url)) return;
+    }
     if (!url?.startsWith('fanclubz://auth/callback')) return;
 
     // CRITICAL: only handle/close for real callback URLs that contain ?code=
@@ -109,6 +137,9 @@ if ((isNativeIOSRuntime() || Capacitor.getPlatform() === 'android') && typeof wi
       console.log('[Bootstrap] launchUrl detected:', launch.url);
       // Only handle real callback URLs with code.
       const url = launch.url;
+      if (url && !url.startsWith('fanclubz://auth/callback')) {
+        if (handleAppDeepLink(url)) return;
+      }
       if (!url?.startsWith('fanclubz://auth/callback')) return;
       try {
         const u = new URL(url.replace('fanclubz://', 'https://'));

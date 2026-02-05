@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.fanclubz.app",
+      "sha256_cert_fingerprints": [
+        "C4:92:B8:CF:FB:15:60:88:E2:68:9F:FF:43:15:E3:FB:96:90:A0:D4:A5:5C:02:54:6E:CB:2C:1C:6E:99:98:C0"
+      ]
+    }
+  }
+]

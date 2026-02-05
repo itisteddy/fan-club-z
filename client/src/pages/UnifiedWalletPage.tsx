@@ -30,6 +30,7 @@ import { FiatWithdrawalSheet } from '@/components/wallet/FiatWithdrawalSheet';
 import { Runtime } from '@/config/runtime';
 import { policy as storeSafePolicy } from '@/lib/storeSafePolicy';
 import { resolveWalletVariant } from '@/config/walletVariant';
+import { isCryptoEnabledForClient } from '@/lib/cryptoFeatureFlags';
 
 interface WalletPageProps {
   onNavigateBack?: () => void;
@@ -47,9 +48,9 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
   const capabilities = Runtime.capabilities;
   // Runtime wallet variant is authoritative (iOS native must default to demo).
   const showDemo = walletVariant.supportsDemo || (isDemoEnabled && capabilities.allowDemo);
-  // Gate fiat/crypto modes by capabilities
+  // Gate fiat/crypto modes by capabilities (crypto testnet web-only)
   const effectiveFiatEnabled = isFiatEnabled && capabilities.allowFiat;
-  const effectiveCryptoEnabled = walletVariant.supportsCrypto && capabilities.allowCrypto;
+  const effectiveCryptoEnabled = walletVariant.supportsCrypto && capabilities.allowCrypto && isCryptoEnabledForClient();
   const isDemoMode = showDemo && mode === 'demo';
   const isFiatMode = effectiveFiatEnabled && mode === 'fiat';
   const isCryptoMode = effectiveCryptoEnabled && !isDemoMode && !isFiatMode;

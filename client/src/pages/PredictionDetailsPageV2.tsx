@@ -15,6 +15,7 @@ import { openAuthGate } from '../auth/authGateAdapter';
 import { useAuthSession } from '../providers/AuthSessionProvider';
 import { useUnifiedBalance } from '../hooks/useUnifiedBalance';
 import { useFundingModeStore } from '../store/fundingModeStore';
+import { isCryptoEnabledForClient } from '@/lib/cryptoFeatureFlags';
 import { getApiUrl } from '../config';
 import DepositUSDCModal from '../components/wallet/DepositUSDCModal';
 import { usePaystackStatus, useFiatSummary } from '@/hooks/useFiatWallet';
@@ -170,7 +171,7 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
   const showDemo = isDemoEnabled && capabilities.allowDemo;
   // Gate fiat/crypto modes by capabilities
   const effectiveFiatEnabled = isFiatEnabled && capabilities.allowFiat;
-  const effectiveCryptoEnabled = capabilities.allowCrypto;
+  const effectiveCryptoEnabled = capabilities.allowCrypto && isCryptoEnabledForClient();
   const { data: paystackStatus } = usePaystackStatus();
   const { data: fiatData, isLoading: loadingFiat } = useFiatSummary(currentUser?.id);
   useEffect(() => {

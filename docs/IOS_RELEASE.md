@@ -91,7 +91,7 @@ open ios/App/App.xcworkspace
 
 **Automatically manage signing:** ✅ Checked
 
-**Bundle Identifier:** `app.fanclubz.mobile`
+**Bundle Identifier:** `com.fanclubz.app`
 
 **Signing Certificate:** Should show "Apple Development" or "Apple Distribution"
 
@@ -403,7 +403,7 @@ open ios/App/App.xcworkspace
 
 ### 5. Bundle ID Mismatch
 **Problem:** Upload fails with "bundle id doesn't match"  
-**Prevention:** Verify Xcode bundle ID === App Store Connect bundle ID
+**Prevention:** Verify Xcode bundle ID (`com.fanclubz.app`) === App Store Connect bundle ID
 
 ---
 

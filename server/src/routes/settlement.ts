@@ -12,8 +12,22 @@ import { calculatePayouts, type Entry as PayoutEntry } from '../services/payoutC
 import { computePoolV2SettlementTotals, allocatePoolV2PayoutsToEntries } from '../services/settlementOddsV2';
 import { createNotification } from '../services/notifications';
 import { upsertSettlementResult, computeSettlementAggregates } from '../services/settlementResults';
+import { isCryptoAllowedForClient } from '../middleware/requireCryptoEnabled';
 
 const router = express.Router();
+
+function cryptoGate(req: express.Request, res: express.Response): boolean {
+  if (!isCryptoAllowedForClient(req)) {
+    console.log('[CRYPTO-GATE] Rejected settlement: client not allowed', { client: (req as any).client });
+    res.status(403).json({
+      error: 'crypto_disabled_for_client',
+      message: 'Crypto is not available for this client',
+      version: VERSION
+    });
+    return true;
+  }
+  return false;
+}
 
 // Minimal ABI for settlement root read
 const ESCROW_MERKLE_READ_ABI = [
@@ -231,7 +245,7 @@ export async function computeMerkleSettlementCryptoOnly(args: { predictionId: st
     } else {
       platformFeeUSD = Math.max(round2((totalLosingStake * platformFeePct) / 100), 0);
       creatorFeeUSD = Math.max(round2((totalLosingStake * creatorFeePct) / 100), 0);
-      const prizePoolUSD = Math.max(totalLosingStake - platformFeeUSD - creatorFeeUSD, 0);
+  const prizePoolUSD = Math.max(totalLosingStake - platformFeeUSD - creatorFeeUSD, 0);
       payoutPoolUSD = totalWinningStake + prizePoolUSD;
     }
   } else {
@@ -1168,15 +1182,15 @@ router.post('/manual', async (req, res) => {
         .eq('id', predictionId)
         .maybeSingle();
       const { data: bs } = await supabase
-        .from('bet_settlements')
+      .from('bet_settlements')
         .select('winning_option_id, settlement_time')
-        .eq('bet_id', predictionId)
-        .maybeSingle();
+      .eq('bet_id', predictionId)
+      .maybeSingle();
       const winningOptionIdFinal = (pred?.winning_option_id ?? bs?.winning_option_id) || winningOptionId;
       if (winningOptionIdFinal !== winningOptionId) {
-        return res.status(409).json({
-          error: 'Conflict',
-          message: 'Settlement already exists with a different winning option',
+      return res.status(409).json({
+        error: 'Conflict',
+        message: 'Settlement already exists with a different winning option',
           version: VERSION,
         });
       }
@@ -2002,6 +2016,7 @@ router.post('/manual', async (req, res) => {
 
 // DEBUG/OPS: Inspect computed leaves for a prediction (only after on-chain post)
 router.get('/:predictionId/leaves', async (req, res) => {
+  if (cryptoGate(req, res)) return;
   try {
     const { predictionId } = req.params as { predictionId: string };
     const { address } = req.query as { address?: string };
@@ -2037,6 +2052,7 @@ router.get('/:predictionId/leaves', async (req, res) => {
 // GET /api/v2/settlement/:predictionId/merkle-proof?address=0x...
 // Returns the leaf/proof and claim amount for a given wallet address
 router.get('/:predictionId/merkle-proof', async (req, res) => {
+  if (cryptoGate(req, res)) return;
   try {
     const { predictionId } = req.params as { predictionId: string };
     const { address } = req.query as { address?: string };
@@ -2170,6 +2186,7 @@ router.get('/:predictionId/merkle-proof', async (req, res) => {
 // Returns claimable settlements for a given wallet address
 // Optimized to avoid slow on-chain calls where possible
 router.get('/claimable', async (req, res) => {
+  if (cryptoGate(req, res)) return;
   const startTime = Date.now();
   try {
     const { address, limit: limitStr } = req.query as { address?: string; limit?: string };
@@ -2375,6 +2392,7 @@ router.get('/claimable', async (req, res) => {
 });
 // POST /api/v2/settlement/manual/merkle - Creator-led Merkle settlement (on-chain flow)
 router.post('/manual/merkle', async (req, res) => {
+  if (cryptoGate(req, res)) return;
   try {
     const { predictionId, winningOptionId, userId, reason } = req.body as {
       predictionId: string;
@@ -2741,6 +2759,7 @@ router.post('/manual/merkle', async (req, res) => {
 
 // POST /api/v2/settlement/manual/merkle/posted - record on-chain posting (tx + root)
 router.post('/manual/merkle/posted', async (req, res) => {
+  if (cryptoGate(req, res)) return;
   try {
     const { predictionId, txHash, root } = req.body as { predictionId?: string; txHash?: string; root?: string };
     if (!predictionId || !txHash) {

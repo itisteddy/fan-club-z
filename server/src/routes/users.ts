@@ -4,6 +4,7 @@ import { supabase } from '../config/database';
 import { VERSION } from '@fanclubz/shared';
 import { requireSupabaseAuth } from '../middleware/requireSupabaseAuth';
 import type { AuthenticatedRequest } from '../middleware/auth';
+import { assertContentAllowed } from '../services/contentFilter';
 
 // [PERF] Helper to generate ETag from response data
 function generateETag(data: unknown): string {
@@ -205,23 +206,17 @@ router.post('/me/accept-terms', requireSupabaseAuth, async (req: AuthenticatedRe
 });
 
 // POST /api/v2/users/me/delete - Delete current user account (Phase 4). Requires Bearer token.
+// Order: anonymize users row first (referential integrity), then delete auth user.
+// User-facing messages are generic to avoid leaking internal errors (e.g. "Database error").
 router.post('/me/delete', requireSupabaseAuth, async (req: AuthenticatedRequest, res) => {
   const userId = req.user?.id;
   if (!userId) {
     return res.status(401).json({ error: 'unauthorized', message: 'Authorization required', version: VERSION });
   }
+  const userFacingMessage = 'Account deletion failed. Please try again or contact support.';
   try {
-    const { error: authError } = await supabase.auth.admin.deleteUser(userId);
-    if (authError) {
-      console.warn('[users/me/delete] auth.admin.deleteUser failed:', authError.message);
-      return res.status(500).json({
-        error: 'Deletion failed',
-        message: authError.message,
-        version: VERSION,
-      });
-    }
-    // Anonymize public.users row for referential integrity (predictions, entries reference user_id)
-    await supabase
+    // 1) Anonymize public.users first so FKs remain valid
+    const { error: updateError } = await supabase
       .from('users')
       .update({
         username: `deleted_${userId.slice(0, 8)}`,
@@ -230,12 +225,30 @@ router.post('/me/delete', requireSupabaseAuth, async (req: AuthenticatedRequest,
         updated_at: new Date().toISOString(),
       })
       .eq('id', userId);
+    if (updateError) {
+      console.warn('[users/me/delete] users update failed:', updateError.message);
+      return res.status(500).json({
+        error: 'Deletion failed',
+        message: userFacingMessage,
+        version: VERSION,
+      });
+    }
+    // 2) Delete auth user (idempotent: 404/user not found is treated as success)
+    const { error: authError } = await supabase.auth.admin.deleteUser(userId);
+    if (authError) {
+      console.warn('[users/me/delete] auth.admin.deleteUser failed:', authError.message);
+      return res.status(500).json({
+        error: 'Deletion failed',
+        message: userFacingMessage,
+        version: VERSION,
+      });
+    }
     return res.status(200).json({ success: true, message: 'Account deleted', version: VERSION });
   } catch (e: any) {
     console.error('[users/me/delete]', e);
     return res.status(500).json({
       error: 'Internal server error',
-      message: e?.message || 'Account deletion failed',
+      message: userFacingMessage,
       version: VERSION,
     });
   }
@@ -433,6 +446,18 @@ router.patch('/:id/profile', requireSupabaseAuth, async (req: AuthenticatedReque
   }
   
   try {
+    if (full_name !== undefined) {
+      try {
+        assertContentAllowed([{ label: 'full name', value: full_name }]);
+      } catch (err: any) {
+        return res.status(400).json({
+          error: 'Bad request',
+          message: err?.message || 'Objectionable content detected',
+          code: err?.code || 'CONTENT_NOT_ALLOWED',
+          version: VERSION,
+        });
+      }
+    }
     const updates: Record<string, any> = {
       updated_at: new Date().toISOString()
     };

@@ -7,6 +7,7 @@ import AuthRequiredState from '../ui/empty/AuthRequiredState';
 import { selectEscrowAvailableUSD } from '@/lib/balance/balanceSelector';
 import { useWalletStore } from '@/store/walletStore';
 import { t } from '@/lib/lexicon';
+import { isCryptoEnabledForClient } from '@/lib/cryptoFeatureFlags';
 
 interface PredictionOption {
   id: string;
@@ -55,9 +56,10 @@ const PredictionActionPanel: React.FC<PredictionActionPanelProps> = ({
   const { address, isConnected, chainId } = useAccount();
   const { switchChainAsync } = useSwitchChain();
 
-  // Feature flags
-  const BASE_ENABLED = import.meta.env.VITE_FCZ_BASE_ENABLE === '1';
-  const BETS_ONCHAIN = import.meta.env.VITE_FCZ_BASE_BETS === '1';
+  // Feature flags (crypto testnet web-only: hide on native)
+  const cryptoAllowed = isCryptoEnabledForClient();
+  const BASE_ENABLED = cryptoAllowed && import.meta.env.VITE_FCZ_BASE_ENABLE === '1';
+  const BETS_ONCHAIN = cryptoAllowed && import.meta.env.VITE_FCZ_BASE_BETS === '1';
   const BASE_CHAIN_ID = baseSepolia.id as 84532;
 
   // Real escrow-available balance

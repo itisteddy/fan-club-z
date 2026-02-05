@@ -37,6 +37,11 @@ ALTER TABLE users
 
 ## Architecture
 
+### Share link base URL (production)
+Referral links are built from a single source of truth (`client/src/lib/urls.ts`). In production, set **VITE_PUBLIC_APP_URL** (or **VITE_FRONTEND_URL**) to the canonical app URL so shared links never show localhost:
+- **Production:** `VITE_PUBLIC_APP_URL=https://app.fanclubz.app` (set in Vercel/env for the app build).
+If unset or set to localhost in production, the app falls back to `https://app.fanclubz.app`.
+
 ### Link Flow
 1. User A shares their referral link: `https://app.fanclubz.app/r/{code}`
 2. User B clicks the link

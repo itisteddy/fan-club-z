@@ -36,6 +36,17 @@
                     android:pathPrefix="/callback" />
             </intent-filter>
 
+            <!-- App links for prediction detail: https://app.fanclubz.app/p/... -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data
+                    android:scheme="https"
+                    android:host="app.fanclubz.app"
+                    android:pathPrefix="/p/" />
+            </intent-filter>
+
         </activity>
 
         <provider

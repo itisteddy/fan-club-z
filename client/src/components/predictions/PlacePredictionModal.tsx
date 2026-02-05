@@ -24,6 +24,7 @@ import { getApiUrl } from '@/config';
 import { setCooldown } from '@/lib/cooldowns';
 import { usePaystackStatus, useFiatSummary } from '@/hooks/useFiatWallet';
 import { getPayoutPreview, getPreOddsMultiple } from '@fanclubz/shared';
+import { isCryptoEnabledForClient } from '@/lib/cryptoFeatureFlags';
 
 interface PlacePredictionModalProps {
   prediction: Prediction | null;
@@ -77,11 +78,13 @@ export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
   const isFiatMode = isFiatEnabled && mode === 'fiat';
   const isDemoMode = isDemoEnabled && mode === 'demo';
 
+  const cryptoAllowed = isCryptoEnabledForClient();
   const BASE_BETS_ENABLED =
-    import.meta.env.VITE_FCZ_BASE_BETS === '1' ||
-    import.meta.env.ENABLE_BASE_BETS === '1' ||
-    import.meta.env.VITE_FCZ_BASE_ENABLE === '1';
-  const isCryptoMode = !isDemoMode && !isFiatMode;
+    cryptoAllowed &&
+    (import.meta.env.VITE_FCZ_BASE_BETS === '1' ||
+      import.meta.env.ENABLE_BASE_BETS === '1' ||
+      import.meta.env.VITE_FCZ_BASE_ENABLE === '1');
+  const isCryptoMode = !isDemoMode && !isFiatMode && cryptoAllowed;
 
   const [demoSummary, setDemoSummary] = useState<null | { available: number; reserved: number; total: number }>(null);
   const [demoLoading, setDemoLoading] = useState(false);

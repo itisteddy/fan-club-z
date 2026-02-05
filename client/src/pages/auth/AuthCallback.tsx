@@ -54,10 +54,10 @@ const AuthCallback: React.FC = () => {
           return;
         }
 
-        // If no code and no access_token, show error
+        // If no code and no access_token, show error (e.g. stale link or wrong redirect)
         if (!isOAuthFlow && !isMagicLinkFlow) {
           console.error('[auth:cb] No auth code or token in URL');
-          setError('No authentication code found. Please try signing in again.');
+          setError('This sign-in link is invalid or has expired. Please request a new link from the sign-in screen.');
           return;
         }
 
@@ -163,7 +163,7 @@ const AuthCallback: React.FC = () => {
 
   if (error) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
         <div className="text-center max-w-md mx-auto p-6">
           <div className="bg-red-50 rounded-lg p-4 mb-4">
             <div className="flex items-center justify-center w-12 h-12 mx-auto mb-4 bg-red-100 rounded-full">
@@ -171,15 +171,23 @@ const AuthCallback: React.FC = () => {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
               </svg>
             </div>
-            <h2 className="text-lg font-semibold text-red-800 mb-2">Authentication Error</h2>
+            <h2 className="text-lg font-semibold text-red-800 mb-2">Sign-in didn’t complete</h2>
             <p className="text-red-600 text-sm mb-4">{error}</p>
           </div>
-          <button
-            onClick={() => navigate('/', { replace: true })}
-            className="bg-emerald-500 text-white px-6 py-2 rounded-lg hover:bg-emerald-600 transition-colors"
-          >
-            Return to Home
-          </button>
+          <div className="flex flex-col sm:flex-row gap-3 justify-center">
+            <button
+              onClick={() => navigate('/', { replace: true })}
+              className="bg-emerald-500 text-white px-6 py-2 rounded-lg hover:bg-emerald-600 transition-colors"
+            >
+              Return to Home
+            </button>
+            <button
+              onClick={() => navigate('/', { replace: true })}
+              className="bg-gray-100 text-gray-800 px-6 py-2 rounded-lg hover:bg-gray-200 transition-colors border border-gray-200"
+            >
+              Back to Home (then try sign-in again)
+            </button>
+          </div>
         </div>
       </div>
     );

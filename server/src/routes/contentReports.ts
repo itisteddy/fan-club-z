@@ -16,6 +16,7 @@ export const contentReportsRouter = Router();
 const ReportBodySchema = z.object({
   targetType: z.enum(['prediction', 'comment', 'user']),
   targetId: z.string().uuid(),
+  reasonCategory: z.string().min(3).max(64).optional(),
   reason: z.string().min(3, 'Reason must be at least 3 characters').max(500),
 });
 
@@ -45,7 +46,7 @@ contentReportsRouter.post('/report', requireSupabaseAuth, async (req, res) => {
       });
     }
 
-    const { targetType, targetId, reason } = parsed.data;
+    const { targetType, targetId, reason, reasonCategory } = parsed.data;
 
     const { data: report, error } = await supabase
       .from('content_reports')
@@ -53,6 +54,7 @@ contentReportsRouter.post('/report', requireSupabaseAuth, async (req, res) => {
         reporter_id: userId,
         target_type: targetType,
         target_id: targetId,
+        reason_category: reasonCategory || null,
         reason: reason.trim(),
         status: 'pending',
       })

@@ -32,6 +32,8 @@ import { supabase } from './config/database';
 import { db } from './config/database';
 import { VERSION } from '@fanclubz/shared';
 import { checkMaintenanceMode } from './middleware/maintenance';
+import { clientIdMiddleware } from './middleware/clientId';
+import { requireCryptoEnabled } from './middleware/requireCryptoEnabled';
 
 const app = express();
 const PORT = config.server.port || 3001;
@@ -124,7 +126,7 @@ const corsOptions: cors.CorsOptions = {
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'Origin', 'X-Requested-With', 'Cache-Control', 'If-None-Match', 'X-Admin-Key', 'apikey', 'x-client-info'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'Origin', 'X-Requested-With', 'Cache-Control', 'If-None-Match', 'X-Admin-Key', 'apikey', 'x-client-info', 'X-FCZ-Client'],
   exposedHeaders: ['Content-Range', 'X-Content-Range', 'ETag']
 };
 
@@ -150,6 +152,9 @@ app.use(express.json({
 
 // Maintenance mode check (must be before routes)
 app.use(checkMaintenanceMode);
+
+// Client identification (X-FCZ-Client) for crypto testnet gating and logging
+app.use(clientIdMiddleware);
 
 // [PERF] Static assets with immutable cache headers (1 year)
 // Note: In production, these are typically served by CDN/Vercel, but this helps for direct server access
@@ -254,7 +259,6 @@ import predictionEntriesRoutes from './routes/prediction-entries';
 import betsRoutes from './routes/bets';
 import socialRoutes from './routes/social';
 import settlementRoutes from './routes/settlement';
-import { adminSettlement } from './routes/adminSettlement';
 import activityRoutes from './routes/activity';
 import imagesRoutes from './api/images/router';
 import escrowRoutes from './routes/escrow';
@@ -301,14 +305,13 @@ app.use('/api/v2/prediction-entries', predictionEntriesRoutes);
 app.use('/api/v2/bets', betsRoutes);
 app.use('/api/v2/social', socialRoutes);
 app.use('/api/v2/settlement', settlementRoutes);
-app.use('/api/v2/admin/settlement', adminSettlement);
 app.use('/api/v2/activity', activityRoutes);
 app.use('/api/v2/notifications', notificationsRoutes);
 app.use('/api/v2/notifications/reminders', remindersRouter);
 app.use('/api/v2/categories', categoriesRoutes);
 app.use('/api/v2/content', contentReportsRouter);
 app.use('/api/images', imagesRoutes);
-app.use('/api/escrow', escrowRoutes);
+app.use('/api/escrow', requireCryptoEnabled('testnet'), escrowRoutes);
 // walletSummary must come BEFORE walletRead to avoid route conflicts
 // Both handle /summary/:userId, but walletSummary returns reconciled on-chain data
 app.use('/api/wallet', walletSummary);

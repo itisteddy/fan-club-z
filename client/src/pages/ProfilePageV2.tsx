@@ -21,6 +21,7 @@ import { ProfileReferralSection } from '@/components/profile/ProfileReferralSect
 import { useReferral } from '@/hooks/useReferral';
 import { useBlockedUsers } from '@/hooks/useBlockedUsers';
 import toast from 'react-hot-toast';
+import { ReportContentModal } from '@/components/ugc/ReportContentModal';
 
 interface ProfilePageV2Props {
   onNavigateBack?: () => void;
@@ -42,6 +43,7 @@ const ProfilePageV2: React.FC<ProfilePageV2Props> = ({ onNavigateBack, userId })
   const [loading, setLoading] = useState(true);
   const [showActivityModal, setShowActivityModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [showReportModal, setShowReportModal] = useState(false);
 
   const [editFirstName, setEditFirstName] = useState('');
   const [editLastName, setEditLastName] = useState('');
@@ -488,35 +490,44 @@ const ProfilePageV2: React.FC<ProfilePageV2Props> = ({ onNavigateBack, userId })
                 />
               )}
 
-              {/* Block user (UGC) - only when viewing another user's profile */}
-              {!isOwnProfile && userId && blockListEnabled && (
-                <div className="mx-auto w-full max-w-[720px] lg:max-w-[960px] px-4 mt-4">
-                  {isBlocked(userId) ? (
-                    <button
-                      type="button"
-                      onClick={async () => {
-                        const result = await unblockUser(userId);
-                        if (result.ok) toast.success('User unblocked');
-                        else toast.error(result.message || 'Failed to unblock');
-                      }}
-                      className="w-full text-sm px-4 py-3 rounded-2xl border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 flex items-center justify-center gap-2 shadow-sm"
-                    >
-                      <UserCheck className="w-4 h-4" />
-                      Unblock user
-                    </button>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={async () => {
-                        const result = await blockUser(userId);
-                        if (result.ok) toast.success('User blocked. Their content will be hidden from you.');
-                        else toast.error(result.message || 'Failed to block');
-                      }}
-                      className="w-full text-sm px-4 py-3 rounded-2xl border border-amber-200 bg-white text-amber-700 hover:bg-amber-50 flex items-center justify-center gap-2 shadow-sm"
-                    >
-                      <Ban className="w-4 h-4" />
-                      Block user
-                    </button>
+              {/* Report + Block user (UGC) - only when viewing another user's profile */}
+              {!isOwnProfile && userId && (
+                <div className="mx-auto w-full max-w-[720px] lg:max-w-[960px] px-4 mt-4 space-y-3">
+                  <button
+                    type="button"
+                    onClick={() => setShowReportModal(true)}
+                    className="w-full text-sm px-4 py-3 rounded-2xl border border-red-200 bg-white text-red-700 hover:bg-red-50 flex items-center justify-center gap-2 shadow-sm"
+                  >
+                    Report profile
+                  </button>
+                  {blockListEnabled && (
+                    isBlocked(userId) ? (
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          const result = await unblockUser(userId);
+                          if (result.ok) toast.success('User unblocked');
+                          else toast.error(result.message || 'Failed to unblock');
+                        }}
+                        className="w-full text-sm px-4 py-3 rounded-2xl border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 flex items-center justify-center gap-2 shadow-sm"
+                      >
+                        <UserCheck className="w-4 h-4" />
+                        Unblock user
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          const result = await blockUser(userId);
+                          if (result.ok) toast.success('User blocked. Their content will be hidden from you.');
+                          else toast.error(result.message || 'Failed to block');
+                        }}
+                        className="w-full text-sm px-4 py-3 rounded-2xl border border-amber-200 bg-white text-amber-700 hover:bg-amber-50 flex items-center justify-center gap-2 shadow-sm"
+                      >
+                        <Ban className="w-4 h-4" />
+                        Block user
+                      </button>
+                    )
                   )}
                 </div>
               )}
@@ -856,6 +867,18 @@ const ProfilePageV2: React.FC<ProfilePageV2Props> = ({ onNavigateBack, userId })
           </div>
         </div>
       </div>
+    )}
+
+    {!isOwnProfile && userId && (
+      <ReportContentModal
+        open={showReportModal}
+        targetType="user"
+        targetId={userId}
+        label="this profile"
+        accessToken={session?.access_token}
+        onClose={() => setShowReportModal(false)}
+        onSuccess={() => toast.success('Report submitted. Our team will review it.')}
+      />
     )}
 
     {showActivityModal && (

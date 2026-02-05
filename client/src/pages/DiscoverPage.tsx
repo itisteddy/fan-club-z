@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo, useEffect } from 'react';
+import React, { useState, useCallback, useMemo, useEffect, useRef, useLayoutEffect } from 'react';
 import { usePredictionStore, Prediction } from '../store/predictionStore';
 import { toast } from 'react-hot-toast';
 import PredictionCard from '../components/PredictionCard';
@@ -16,12 +16,17 @@ import { formatUSDCompact, formatNumberShort } from '@/lib/format';
 import { useNavigate } from 'react-router-dom';
 import { useCategories, Category } from '../hooks/useCategories';
 import { buildPredictionCanonicalUrl } from '@/lib/predictionUrls';
+import { isReported } from '@/lib/reportedContent';
 import * as Dialog from '@radix-ui/react-dialog';
+import { makeKey, saveScroll, getScroll } from '@/lib/scrollRestoration';
 
 interface DiscoverPageProps {
   onNavigateToProfile?: () => void;
   onNavigateToPrediction?: (predictionId: string) => void;
 }
+
+// Stable category lists to avoid remount/scroll reset from array identity changes
+const TOP_N = 8;
 
 // Enhanced Category Filter Component - uses API categories
 const CategoryFilters = React.memo(function CategoryFilters({ 
@@ -36,10 +41,39 @@ const CategoryFilters = React.memo(function CategoryFilters({
   isLoading: boolean;
 }) {
   const [showMoreSheet, setShowMoreSheet] = useState(false);
-  
-  // Show top 8 categories as chips, rest in "More" sheet
-  const topCategories = categories.slice(0, 8);
-  const moreCategories = categories.slice(8);
+  const stripRef = useRef<HTMLDivElement>(null);
+  const scrollPosRef = useRef(0);
+  const selectedChipRef = useRef<HTMLButtonElement | null>(null);
+
+  // Stable slices: same reference when categories length/contents unchanged
+  const topCategories = useMemo(() => categories.slice(0, TOP_N), [categories]);
+  const moreCategories = useMemo(() => categories.slice(TOP_N), [categories]);
+
+  // Persist scroll position on scroll
+  const handleStripScroll = useCallback(() => {
+    if (stripRef.current) scrollPosRef.current = stripRef.current.scrollLeft;
+  }, []);
+
+  // Restore scroll position after selection change (before paint to avoid visible jump)
+  useLayoutEffect(() => {
+    const el = stripRef.current;
+    if (el) el.scrollLeft = scrollPosRef.current;
+  }, [selectedCategoryId]);
+
+  // Keep selected chip visible: scroll strip minimally so chip is in view
+  useLayoutEffect(() => {
+    const strip = stripRef.current;
+    const chip = selectedChipRef.current;
+    if (!strip || !chip) return;
+    const stripRect = strip.getBoundingClientRect();
+    const chipRect = chip.getBoundingClientRect();
+    const pad = 8;
+    if (chipRect.left < stripRect.left + pad) {
+      strip.scrollBy({ left: chipRect.left - stripRect.left - pad, behavior: 'smooth' });
+    } else if (chipRect.right > stripRect.right - pad) {
+      strip.scrollBy({ left: chipRect.right - stripRect.right + pad, behavior: 'smooth' });
+    }
+  }, [selectedCategoryId]);
 
   if (isLoading) {
     return (
@@ -60,10 +94,15 @@ const CategoryFilters = React.memo(function CategoryFilters({
         data-tour="category-filters"
         data-tour-id="category-filters"
       >
-        <div className="overflow-x-auto overflow-y-hidden scrollbar-hide">
+        <div
+          ref={stripRef}
+          onScroll={handleStripScroll}
+          className="overflow-x-auto overflow-y-hidden scrollbar-hide"
+        >
           <div className="flex gap-2">
             {/* "All" chip */}
             <button
+              ref={selectedCategoryId === null ? selectedChipRef : undefined}
               onClick={() => onSelect(null)}
               style={{
                 height: '28px',
@@ -103,6 +142,7 @@ const CategoryFilters = React.memo(function CategoryFilters({
             {topCategories.map((category) => (
               <button
                 key={category.id}
+                ref={selectedCategoryId === category.id ? selectedChipRef : undefined}
                 onClick={() => onSelect(category.id)}
                 style={{
                   height: '28px',
@@ -288,6 +328,53 @@ const DiscoverPage = React.memo(function DiscoverPage({ onNavigateToProfile, onN
   const [selectedPrediction, setSelectedPrediction] = useState<Prediction | null>(null);
   const [isPredictionModalOpen, setIsPredictionModalOpen] = useState(false);
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
+  const [scrollRestored, setScrollRestored] = useState(false);
+  const [hasSavedScroll, setHasSavedScroll] = useState(false);
+
+  const lastScrollYRef = useRef(0);
+  const savedScrollYRef = useRef<number | null>(null);
+
+  const discoverKey = useMemo(
+    () => makeKey('discover', { category: filters.category || 'all', search: filters.search || '' }),
+    [filters.category, filters.search]
+  );
+
+  // Read saved position on mount (same key as we use when saving)
+  useLayoutEffect(() => {
+    const saved = getScroll(discoverKey);
+    if (saved != null && saved > 0) {
+      savedScrollYRef.current = saved;
+      setHasSavedScroll(true);
+    } else {
+      setScrollRestored(true);
+    }
+  }, [discoverKey]);
+
+  // Track scroll position; on unmount save so we can restore when returning
+  useEffect(() => {
+    const onScroll = () => {
+      lastScrollYRef.current = window.scrollY ?? window.pageYOffset ?? document.documentElement.scrollTop ?? 0;
+    };
+    window.addEventListener('scroll', onScroll, { passive: true });
+    onScroll();
+    return () => {
+      window.removeEventListener('scroll', onScroll);
+      saveScroll(discoverKey, lastScrollYRef.current);
+    };
+  }, [discoverKey]);
+
+  // Restore scroll when content is ready (avoid flash-to-top)
+  useLayoutEffect(() => {
+    if (!hasSavedScroll || scrollRestored) return;
+    const y = savedScrollYRef.current;
+    if (y == null) return;
+    const contentReady = displayPredictions.length > 0 || !loading;
+    if (!contentReady) return;
+    window.scrollTo({ top: y, left: 0, behavior: 'auto' });
+    if (document.documentElement) document.documentElement.scrollTop = y;
+    if (document.scrollingElement) document.scrollingElement.scrollTop = y;
+    setScrollRestored(true);
+  }, [hasSavedScroll, scrollRestored, displayPredictions.length, loading]);
 
   const [platformStats, setPlatformStats] = useState({
     totalVolume: '0',
@@ -372,6 +459,9 @@ const DiscoverPage = React.memo(function DiscoverPage({ onNavigateToProfile, onN
       });
     }
 
+    // Hide content the current user reported (instant UX hide)
+    activePredictions = activePredictions.filter((prediction) => !isReported('prediction', prediction.id));
+
     return activePredictions;
   }, [predictions, blockListEnabled, isBlocked]);
 
@@ -425,6 +515,16 @@ const DiscoverPage = React.memo(function DiscoverPage({ onNavigateToProfile, onN
 
   const handleCategorySelect = useCallback((categoryId: string | null) => {
     console.log('📂 Category changed:', categoryId);
+    // Preserve scroll position before switching categories
+    const currentY = window.scrollY ?? window.pageYOffset ?? document.documentElement.scrollTop ?? 0;
+    lastScrollYRef.current = currentY;
+    saveScroll(discoverKey, currentY);
+
+    const nextCategory = categoryId || 'all';
+    const nextKey = makeKey('discover', { category: nextCategory, search: filters.search || '' });
+    // Keep scroll position across category switches
+    saveScroll(nextKey, currentY);
+
     setSelectedCategoryId(categoryId);
     // Send categoryId (UUID) to server - server handles both UUID and slug
     if (categoryId) {
@@ -432,7 +532,7 @@ const DiscoverPage = React.memo(function DiscoverPage({ onNavigateToProfile, onN
     } else {
       setFilters({ category: 'all' });
     }
-  }, [setFilters]);
+  }, [discoverKey, filters.search, setFilters]);
 
   const handleModalClose = useCallback(() => {
     setIsPredictionModalOpen(false);
@@ -502,9 +602,12 @@ const DiscoverPage = React.memo(function DiscoverPage({ onNavigateToProfile, onN
     );
   }
 
+  const isRestoringScroll = hasSavedScroll && !scrollRestored;
+
   return (
     <div 
       className="discover-page content-with-bottom-nav"
+      style={{ opacity: isRestoringScroll ? 0.01 : 1, transition: 'opacity 0.05s ease-out' }}
     >
       {/* Unified Header - Minimal (no logo, no descriptive text) */}
       <AppHeader title="Discover" showNotifications />

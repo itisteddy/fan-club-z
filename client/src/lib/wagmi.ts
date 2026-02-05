@@ -2,6 +2,7 @@ import { createConfig, http, createStorage } from 'wagmi';
 import { baseSepolia } from 'wagmi/chains';
 import { walletConnect, injected, coinbaseWallet } from 'wagmi/connectors';
 import { Capacitor } from '@capacitor/core';
+import { isCryptoEnabledForClient } from '@/lib/cryptoFeatureFlags';
 
 /**
  * Clean up stale WalletConnect sessions from localStorage
@@ -131,12 +132,13 @@ const connectors: ConnectorReturn[] = [
 
 // Only add WalletConnect if:
 // 1. Project ID is valid
-// 2. Crypto wallet is enabled (either via VITE_ENABLE_CRYPTO_WALLET or not in store-safe mode)
+// 2. Crypto wallet is enabled (env) AND client is allowed (web-only for testnet)
 // Note: Domain must be whitelisted at https://cloud.reown.com
-const cryptoWalletEnabled = 
-  import.meta.env.VITE_ENABLE_CRYPTO_WALLET === '1' || 
-  import.meta.env.VITE_ENABLE_CRYPTO_WALLET === 'true' ||
-  import.meta.env.VITE_STORE_SAFE_MODE !== 'true'; // Not in store-safe mode means crypto is allowed
+const cryptoWalletEnabled =
+  isCryptoEnabledForClient() &&
+  (import.meta.env.VITE_ENABLE_CRYPTO_WALLET === '1' ||
+    import.meta.env.VITE_ENABLE_CRYPTO_WALLET === 'true' ||
+    import.meta.env.VITE_STORE_SAFE_MODE !== 'true');
 
 if (projectId && projectId.length >= 8 && cryptoWalletEnabled) {
   try {

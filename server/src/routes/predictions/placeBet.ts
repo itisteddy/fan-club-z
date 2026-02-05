@@ -9,6 +9,7 @@ import { emitPredictionUpdate, emitWalletUpdate } from '../../services/realtime'
 import { recomputePredictionState } from '../../services/predictionMath';
 import { enrichPredictionWithOddsV2 } from '../../utils/enrichPredictionOddsV2';
 import { requireSupabaseAuth } from '../../middleware/requireSupabaseAuth';
+import { isCryptoAllowedForClient } from '../../middleware/requireCryptoEnabled';
 import type { AuthenticatedRequest } from '../../middleware/auth';
 
 export const placeBetRouter = Router();
@@ -118,6 +119,17 @@ async function handlePlaceBet(req: any, res: any) {
     const amountUSD = Number((body as any).amountUSD || 0);
     const fundingMode = body.fundingMode ?? 'crypto';
     const bodyWallet = body.walletAddress ? getAddress(body.walletAddress) : undefined;
+
+    if (fundingMode === 'crypto' && !isCryptoAllowedForClient(req)) {
+      console.log('[CRYPTO-GATE] Rejected place-bet: client not allowed for crypto', { client: (req as any).client });
+      return res.status(403).json({
+        code: 'FCZ_FORBIDDEN',
+        error: 'crypto_disabled_for_client',
+        message: 'Crypto is not available for this client',
+        requestId: reqId,
+        version: VERSION
+      });
+    }
 
     console.log(`[FCZ-BET] Place bet request:`, { predictionId, optionId, amountUSD, userId });
 

@@ -75,6 +75,13 @@ Build artifacts are uploaded and retained:
 
 Node modules are cached using GitHub Actions cache for faster builds.
 
+## Install strategy
+
+All workflows use the same install approach as the documented Render build fix to avoid npm cache/lockfile failures:
+
+- **Command:** `npm cache clean --force && npm install --legacy-peer-deps`
+- **Rationale:** `npm ci` can fail with cache ENOENT or lockfile mismatches; `npm install --legacy-peer-deps` is the proven fix (see `docs/RENDER_BUILD_FIX.md`). Using it in CI keeps behavior consistent with Render and avoids repeated Install & Verify failures.
+
 ## Environment Variables
 
 Some workflows use dummy values for builds when secrets aren't available. Production deployments require all secrets to be configured.
@@ -83,9 +90,10 @@ Some workflows use dummy values for builds when secrets aren't available. Produc
 
 ### Build Failures
 1. Check Node.js version compatibility (>=20.0.0)
-2. Verify all dependencies install correctly
-3. Check for TypeScript errors
-4. Review linting errors
+2. If **Install & Verify** fails (e.g. ENOENT, lockfile errors): workflows already use `npm cache clean --force && npm install --legacy-peer-deps` per `docs/RENDER_BUILD_FIX.md`. If it still fails, re-run the job or clear the GitHub Actions cache for the repo.
+3. Verify all dependencies install correctly
+4. Check for TypeScript errors
+5. Review linting errors
 
 ### Deployment Failures
 1. Verify all required secrets are set

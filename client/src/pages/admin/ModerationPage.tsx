@@ -36,6 +36,7 @@ interface ContentReport {
   reporterUsername: string | null;
   targetType: string;
   targetId: string;
+  reasonCategory?: string | null;
   reason: string;
   status: string;
   createdAt: string;
@@ -449,7 +450,14 @@ export const ModerationPage: React.FC = () => {
                           {formatReportDate(report.createdAt)}
                         </span>
                       </div>
-                      <p className="text-slate-300 text-sm mt-1 line-clamp-2">{report.reason}</p>
+                      <div className="flex items-center gap-2 mt-1">
+                        {report.reasonCategory && (
+                          <span className="text-xs px-2 py-0.5 rounded-full border border-slate-700 text-slate-200">
+                            {report.reasonCategory}
+                          </span>
+                        )}
+                        <p className="text-slate-300 text-sm line-clamp-2">{report.reason}</p>
+                      </div>
                       <p className="text-slate-500 text-xs mt-0.5">
                         Target: {report.targetType} {report.targetId.slice(0, 8)}…
                       </p>
@@ -494,7 +502,14 @@ export const ModerationPage: React.FC = () => {
             <p className="text-slate-400 text-sm mb-4">
               {resolveTarget.targetType} · reported by @{resolveTarget.reporterUsername ?? 'unknown'}
             </p>
-            <p className="text-slate-300 text-sm mb-4 line-clamp-2">{resolveTarget.reason}</p>
+            <div className="flex items-center gap-2 mb-4">
+              {resolveTarget.reasonCategory && (
+                <span className="text-xs px-2 py-0.5 rounded-full border border-slate-700 text-slate-200">
+                  {resolveTarget.reasonCategory}
+                </span>
+              )}
+              <p className="text-slate-300 text-sm line-clamp-2">{resolveTarget.reason}</p>
+            </div>
             <label className="block text-sm font-medium text-slate-300 mb-2">Resolution action</label>
             <select
               value={resolveAction}

@@ -186,6 +186,16 @@ export const config = {
     port: parseInt(process.env.WEBSOCKET_PORT || '3002', 10),
     origins: process.env.WEBSOCKET_ORIGINS?.split(',') || ['http://localhost:3000', 'http://localhost:5173'],
   },
+
+  // Crypto / testnet gating (web-only today)
+  crypto: {
+    mode: (process.env.CRYPTO_MODE || 'off') as 'off' | 'testnet' | 'mainnet',
+    allowedClients: (process.env.CRYPTO_ALLOWED_CLIENTS || 'web')
+      .split(',')
+      .map((s) => s.trim().toLowerCase())
+      .filter(Boolean),
+    allowedOrigin: process.env.CRYPTO_ALLOWED_ORIGIN || 'https://app.fanclubz.app',
+  },
 } as const;
 
 // Validate required environment variables
@@ -212,6 +222,15 @@ if (process.env.VITE_SUPABASE_URL && !process.env.VITE_SUPABASE_URL.startsWith('
 // Validate JWT secret strength in production
 if (process.env.NODE_ENV === 'production' && config.jwt.secret.length < 32) {
   throw new Error('JWT_SECRET must be at least 32 characters long in production');
+}
+
+// Fail fast: if CRYPTO_MODE=mainnet, require mainnet config (prevent accidents)
+if (config.crypto.mode === 'mainnet') {
+  if (!process.env.CRYPTO_MAINNET_CHAIN_ID || !process.env.CRYPTO_MAINNET_RPC_URL) {
+    throw new Error(
+      'CRYPTO_MODE=mainnet requires CRYPTO_MAINNET_CHAIN_ID and CRYPTO_MAINNET_RPC_URL. Do not set mainnet until ready.'
+    );
+  }
 }
 
 export default config;

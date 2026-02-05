@@ -4,6 +4,7 @@ import { supabase, auth, clientDb } from '../lib/supabase';
 import toast from 'react-hot-toast';
 import { showSuccess, showError } from './notificationStore';
 import { captureReturnTo } from '@/lib/returnTo';
+import { validateContent } from '@/lib/textFilter';
 
 interface User {
   id: string;
@@ -467,6 +468,15 @@ export const useAuthStore = create<AuthState>()(
           const currentUser = get().user;
           if (!currentUser) {
             throw new Error('No user logged in');
+          }
+
+          const validation = validateContent([
+            { label: 'first name', value: profileData.firstName || currentUser.firstName },
+            { label: 'last name', value: profileData.lastName || currentUser.lastName },
+            { label: 'bio', value: profileData.bio !== undefined ? profileData.bio : currentUser.bio },
+          ]);
+          if (!validation.ok) {
+            throw new Error(`Objectionable content detected in ${validation.field}`);
           }
 
           const { data, error } = await supabase.auth.updateUser({

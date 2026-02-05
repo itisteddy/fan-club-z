@@ -9,6 +9,14 @@ import { submitContentReport, type ReportTargetType } from '@/lib/reportContent'
 
 const MIN_REASON_LENGTH = 3;
 const MAX_REASON_LENGTH = 500;
+const REPORT_CATEGORIES = [
+  'Spam',
+  'Harassment',
+  'Hate or abuse',
+  'Nudity or sexual content',
+  'Misinformation',
+  'Other',
+];
 
 export interface ReportContentModalProps {
   open: boolean;
@@ -30,6 +38,7 @@ export function ReportContentModal({
   onSuccess,
 }: ReportContentModalProps) {
   const [reason, setReason] = useState('');
+  const [reasonCategory, setReasonCategory] = useState(REPORT_CATEGORIES[0]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -46,9 +55,10 @@ export function ReportContentModal({
     setError(null);
     setSubmitting(true);
     try {
-      const result = await submitContentReport(targetType, targetId, reason.trim(), accessToken);
+      const result = await submitContentReport(targetType, targetId, reason.trim(), reasonCategory, accessToken);
       if (result.ok) {
         setReason('');
+        setReasonCategory(REPORT_CATEGORIES[0]);
         onSuccess?.();
         onClose();
       } else {
@@ -64,6 +74,7 @@ export function ReportContentModal({
   const handleClose = () => {
     if (!submitting) {
       setReason('');
+      setReasonCategory(REPORT_CATEGORIES[0]);
       setError(null);
       onClose();
     }
@@ -90,6 +101,19 @@ export function ReportContentModal({
           <p className="text-sm text-gray-600">
             Your report will be reviewed by our team. Please describe the issue.
           </p>
+          <div>
+            <label className="block text-xs text-gray-600 mb-1">Category</label>
+            <select
+              value={reasonCategory}
+              onChange={(e) => setReasonCategory(e.target.value)}
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
+              disabled={submitting}
+            >
+              {REPORT_CATEGORIES.map((c) => (
+                <option key={c} value={c}>{c}</option>
+              ))}
+            </select>
+          </div>
           <div>
             <label className="block text-xs text-gray-600 mb-1">Reason (required)</label>
             <textarea

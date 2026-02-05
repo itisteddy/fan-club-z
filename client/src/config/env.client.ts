@@ -13,6 +13,7 @@ export const envClient = {
   // Additional environment variables that may be needed
   VITE_SUPABASE_URL: import.meta.env.VITE_SUPABASE_URL,
   VITE_SUPABASE_ANON_KEY: import.meta.env.VITE_SUPABASE_ANON_KEY,
+  VITE_PUBLIC_APP_URL: import.meta.env.VITE_PUBLIC_APP_URL,
   VITE_FRONTEND_URL: import.meta.env.VITE_FRONTEND_URL,
   VITE_FCZ_UNIFIED_HEADER: import.meta.env.VITE_FCZ_UNIFIED_HEADER,
   VITE_FCZ_DISCOVER_V2: import.meta.env.VITE_FCZ_DISCOVER_V2,

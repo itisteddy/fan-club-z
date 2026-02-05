@@ -3,7 +3,7 @@
  * Share links and browser URL bar should use /p/:id/:slug? and web origin (not capacitor://).
  */
 
-import { getFrontendUrl } from '@/config';
+import { getPublicAppBaseUrl } from '@/lib/urls';
 
 const SLUG_MAX_LENGTH = 60;
 
@@ -33,26 +33,10 @@ export function buildPredictionCanonicalPath(id: string, title?: string): string
 }
 
 /**
- * Whether the current origin looks like Capacitor (e.g. capacitor://localhost).
- * In that case we prefer env origin so copied links are web URLs.
- */
-function isCapacitorLikeOrigin(): boolean {
-  if (typeof window === 'undefined') return false;
-  const o = window.location.origin;
-  return o.startsWith('capacitor://') || o === 'capacitor://localhost';
-}
-
-/**
- * Full canonical URL for sharing: uses web origin (getFrontendUrl in Capacitor), else window.location.origin.
+ * Full canonical URL for sharing. Uses shared public app base (never localhost in production).
  */
 export function buildPredictionCanonicalUrl(id: string, title?: string): string {
   const path = buildPredictionCanonicalPath(id, title);
-  if (typeof window === 'undefined') {
-    const base = getFrontendUrl() || 'https://app.fanclubz.app';
-    return base.replace(/\/$/, '') + path;
-  }
-  const base = isCapacitorLikeOrigin()
-    ? (getFrontendUrl() || 'https://app.fanclubz.app')
-    : window.location.origin;
-  return base.replace(/\/$/, '') + path;
+  const base = getPublicAppBaseUrl().replace(/\/+$/, '');
+  return base + path;
 }

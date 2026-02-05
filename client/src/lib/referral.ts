@@ -6,6 +6,7 @@
  */
 
 import { getApiUrl } from '@/config';
+import { buildReferralUrl } from '@/lib/urls';
 
 const REFERRAL_COOKIE_NAME = 'ref_code';
 const REFERRAL_STORAGE_KEY = 'fanclubz_ref_code';
@@ -137,13 +138,11 @@ const getCookie = (name: string): string | null => {
 };
 
 /**
- * Generate the full referral link for a user
+ * Generate the full referral link for a user (canonical domain; never localhost in production).
  */
 export const getMyReferralLink = (referralCode: string | null | undefined): string | null => {
   if (!isReferralEnabled() || !referralCode) return null;
-  
-  const baseUrl = import.meta.env.VITE_FRONTEND_URL || 'https://app.fanclubz.app';
-  return `${baseUrl}/r/${referralCode}`;
+  return buildReferralUrl(referralCode);
 };
 
 /**

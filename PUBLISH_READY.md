@@ -24,12 +24,12 @@ Both platforms are **built and ready**. Follow the steps below to upload and pub
 cd client
 npm run ios:open
 ```
-Or: `open client/ios/App/App.xcworkspace` (always use `.xcworkspace`, not `.xcworkspace`).
+Or: `open client/ios/App/App.xcworkspace` (always use `.xcworkspace`, not `.xcodeproj`).
 
 ### 2. Pre-archive checks
 - **Target:** App (under TARGETS).
 - **Signing & Capabilities:** Your team selected, **Automatically manage signing** checked.
-- **General → Identity:** Bundle Identifier = `app.fanclubz.mobile` (must match App Store Connect).
+- **General → Identity:** Bundle Identifier = `com.fanclubz.app` (must match App Store Connect).
 - **General → Version:** Set **Version** (e.g. 1.0) and **Build** (e.g. 2). **Increment Build for every new upload.**
 
 ### 3. Archive
@@ -63,7 +63,9 @@ client/android/app/build/outputs/bundle/release/app-release.aab
 If you need a fresh build (e.g. after changing version):
 
 ```bash
-cd client/android
+cd client
+pnpm run prep:android
+cd android
 JAVA_HOME="$("/usr/libexec/java_home" -v 21)" ./gradlew :app:bundleRelease
 ```
 

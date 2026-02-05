@@ -285,7 +285,8 @@ interface PredictionActions {
   // User-specific data fetching
   fetchUserPredictionEntries: (userId: string) => Promise<void>;
   fetchUserCreatedPredictions: (userId: string) => Promise<void>;
-  
+  fetchCompletedPredictions: (userId: string) => Promise<void>;
+
   // Utility methods for accessing user data
   getUserPredictionEntries: (userId: string) => PredictionEntry[];
   getUserCreatedPredictions: (userId: string) => Prediction[];
@@ -1233,6 +1234,21 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
     } catch (error) {
       console.error('❌ Error fetching user created predictions:', error);
       // Don't set error state for this, just log it
+    }
+  },
+
+  fetchCompletedPredictions: async (userId: string) => {
+    try {
+      console.log('📋 Fetching completed predictions (creator or participant) for:', userId);
+      const data = await apiClient.get(`/api/v2/predictions/completed/${userId}`, {
+        timeout: 10000,
+        retryOptions: { maxRetries: 3 }
+      });
+      const completedPredictions = data.data || [];
+      set({ completedPredictions });
+      console.log('✅ Completed predictions fetched:', completedPredictions.length);
+    } catch (error) {
+      console.error('❌ Error fetching completed predictions:', error);
     }
   },
 

@@ -399,7 +399,7 @@ moderationRouter.get('/reports', async (req, res) => {
     const { data: reports, error, count } = await supabase
       .from('content_reports')
       .select(`
-        id, reporter_id, target_type, target_id, reason, status, created_at, resolved_at, resolved_by,
+        id, reporter_id, target_type, target_id, reason_category, reason, status, created_at, resolved_at, resolved_by,
         users!content_reports_reporter_id_fkey(username)
       `, { count: 'exact' })
       .eq('status', status)
@@ -425,6 +425,7 @@ moderationRouter.get('/reports', async (req, res) => {
         reporterUsername: r.users?.username ?? null,
         targetType: r.target_type,
         targetId: r.target_id,
+        reasonCategory: r.reason_category ?? null,
         reason: r.reason,
         status: r.status,
         createdAt: r.created_at,
@@ -472,6 +473,19 @@ moderationRouter.post('/reports/:reportId/resolve', async (req, res) => {
 
     const { action, actorId, notes } = parsed.data;
 
+    const { data: report, error: reportError } = await supabase
+      .from('content_reports')
+      .select('id, target_type, target_id')
+      .eq('id', reportId)
+      .maybeSingle();
+    if (reportError || !report) {
+      return res.status(404).json({
+        error: 'Not Found',
+        message: 'Report not found',
+        version: VERSION,
+      });
+    }
+
     // Update report status
     const { error: updateError } = await supabase
       .from('content_reports')
@@ -491,6 +505,44 @@ moderationRouter.post('/reports/:reportId/resolve', async (req, res) => {
         message: 'Failed to resolve report',
         version: VERSION,
       });
+    }
+
+    // Apply moderation action to target (remove/ban)
+    if (action === 'remove') {
+      const hiddenUpdate = {
+        hidden_at: new Date().toISOString(),
+        hidden_reason: notes || 'Removed via moderation report',
+        hidden_by: actorId,
+      };
+      if (report.target_type === 'prediction') {
+        await supabase.from('predictions').update(hiddenUpdate).eq('id', report.target_id);
+      }
+      if (report.target_type === 'comment') {
+        // Remove comment outright so it doesn't surface in RPC-based feeds
+        await supabase.from('comments').delete().eq('id', report.target_id);
+      }
+      if (report.target_type === 'user') {
+        await supabase
+          .from('users')
+          .update({
+            is_banned: true,
+            ban_reason: notes || 'Removed via moderation report',
+            banned_at: new Date().toISOString(),
+            banned_by: actorId,
+          })
+          .eq('id', report.target_id);
+      }
+    }
+    if (action === 'ban' && report.target_type === 'user') {
+      await supabase
+        .from('users')
+        .update({
+          is_banned: true,
+          ban_reason: notes || 'Banned via moderation report',
+          banned_at: new Date().toISOString(),
+          banned_by: actorId,
+        })
+        .eq('id', report.target_id);
     }
 
     // Log admin action

@@ -96,6 +96,16 @@ export async function getAuthHeaders(): Promise<Record<string, string>> {
 // Check if running in native Capacitor shell
 const isNative = () => Capacitor.isNativePlatform();
 
+/** Client identifier for server gating (web vs native). Sent as X-FCZ-Client on every request. */
+export function getFczClientHeader(): 'web' | 'ios' | 'android' {
+  if (typeof Capacitor?.isNativePlatform !== 'function') return 'web';
+  if (Capacitor.isNativePlatform()) {
+    const p = Capacitor.getPlatform();
+    if (p === 'ios' || p === 'android') return p;
+  }
+  return 'web';
+}
+
 /**
  * Convert HeadersInit to a plain object for CapacitorHttp
  */
@@ -129,6 +139,7 @@ async function httpRequest(
   const authHeaders = await getAuthHeaders();
   const headers: Record<string, string> = {
     ...authHeaders,
+    'X-FCZ-Client': getFczClientHeader(),
     ...(options?.headers ? headersToObject(options.headers) : {}),
   };
 

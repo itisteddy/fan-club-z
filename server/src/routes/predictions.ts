@@ -14,6 +14,7 @@ import { getSettlementResult } from '../services/settlementResults';
 import { assertContentAllowed } from '../services/contentFilter';
 import { requireSupabaseAuth } from '../middleware/requireSupabaseAuth';
 import { requireTermsAccepted } from '../middleware/requireTermsAccepted';
+import { isCryptoAllowedForClient } from '../middleware/requireCryptoEnabled';
 import type { AuthenticatedRequest } from '../middleware/auth';
 
 /**
@@ -332,6 +333,9 @@ router.get('/', async (req, res) => {
     console.log(`📊 Pagination: page=${page}, limit=${limit}, offset=${offset}`);
     console.log(`🔍 Filters: category=${category}, search=${search}`);
     
+    // Resolve user once for blocklist filtering + settlement results
+    const userId = await resolveAuthenticatedUserId(req);
+
     // Build query with filters - only show active, open predictions
     let query = supabase
       .from('predictions')
@@ -340,6 +344,7 @@ router.get('/', async (req, res) => {
         creator:users!creator_id(id, username, full_name, avatar_url, is_verified),
         options:prediction_options!prediction_options_prediction_id_fkey(*)
       `, { count: 'exact' })
+      .is('hidden_at', null)
       .eq('status', 'open') // Only show open predictions
       .gt('entry_deadline', new Date().toISOString()) // Only show predictions with future deadlines
       .order('created_at', { ascending: false });
@@ -373,6 +378,19 @@ router.get('/', async (req, res) => {
     if (search && search.trim()) {
       query = query.or(`title.ilike.%${search}%,description.ilike.%${search}%`);
     }
+
+    // Exclude blocked users' predictions (UGC block list)
+    if (userId) {
+      const { data: blocked } = await supabase
+        .from('user_blocks')
+        .select('blocked_user_id')
+        .eq('blocker_id', userId);
+      const blockedIds = (blocked || []).map((b: any) => b.blocked_user_id).filter(Boolean);
+      if (blockedIds.length > 0) {
+        const blockedList = blockedIds.map((id: string) => `'${id}'`).join(',');
+        query = query.not('creator_id', 'in', `(${blockedList})`);
+      }
+    }
     
     // Apply pagination
     query = query.range(offset, offset + limit - 1);
@@ -399,7 +417,6 @@ router.get('/', async (req, res) => {
     const enrichedPredictions = await enrichPredictionsWithCategory(predictions || []);
 
     // Phase 6A: Add canonical settlement fields if user is authenticated (batch fetch)
-    const userId = await resolveAuthenticatedUserId(req);
     if (userId && enrichedPredictions.length > 0) {
       try {
         // Batch fetch settlement results for all predictions
@@ -586,6 +603,7 @@ router.get('/trending', async (req, res) => {
         creator:users!creator_id(id, username, full_name, avatar_url, is_verified),
         options:prediction_options!prediction_options_prediction_id_fkey(*)
       `)
+      .is('hidden_at', null)
       .eq('status', 'open')
       .order('participant_count', { ascending: false })
       .limit(10);
@@ -620,6 +638,123 @@ router.get('/trending', async (req, res) => {
   }
 });
 
+// Statuses that count as "completed" (not active) for the Completed tab
+const COMPLETED_STATUSES = ['closed', 'awaiting_settlement', 'settled', 'disputed', 'cancelled', 'refunded', 'ended'] as const;
+
+// GET /api/v2/predictions/completed/:userId - Completed predictions for user (creator OR participant)
+router.get('/completed/:userId', async (req, res) => {
+  const { userId } = req.params;
+  try {
+    console.log(`📊 Completed predictions endpoint for user: ${userId}`);
+
+    // 1) Creator-owned completed predictions
+    const { data: creatorPredictions, error: creatorError } = await supabase
+      .from('predictions')
+      .select(`
+        *,
+        creator:users!creator_id(id, username, full_name, avatar_url, is_verified),
+        options:prediction_options!prediction_options_prediction_id_fkey(*)
+      `)
+      .eq('creator_id', userId)
+      .in('status', [...COMPLETED_STATUSES])
+      .order('settled_at', { ascending: false, nullsFirst: false })
+      .order('updated_at', { ascending: false })
+      .limit(100);
+
+    if (creatorError) {
+      console.error('Error fetching creator completed predictions:', creatorError);
+      return res.status(500).json({
+        error: 'Database error',
+        message: 'Failed to fetch completed predictions',
+        version: VERSION,
+        details: creatorError.message,
+      });
+    }
+
+    // 2) Participant completed: prediction IDs from entries
+    const { data: entries, error: entriesError } = await supabase
+      .from('prediction_entries')
+      .select('prediction_id')
+      .eq('user_id', userId);
+
+    if (entriesError) {
+      console.error('Error fetching user entries for completed:', entriesError);
+      return res.status(500).json({
+        error: 'Database error',
+        message: 'Failed to fetch completed predictions',
+        version: VERSION,
+        details: entriesError.message,
+      });
+    }
+
+    const participantPredictionIds = [...new Set((entries || []).map((e: any) => e.prediction_id))];
+    let participantPredictions: any[] = [];
+    if (participantPredictionIds.length > 0) {
+      const { data: partPreds, error: partError } = await supabase
+        .from('predictions')
+        .select(`
+          *,
+          creator:users!creator_id(id, username, full_name, avatar_url, is_verified),
+          options:prediction_options!prediction_options_prediction_id_fkey(*)
+        `)
+        .in('id', participantPredictionIds)
+        .in('status', [...COMPLETED_STATUSES]);
+
+      if (!partError) participantPredictions = partPreds || [];
+    }
+
+    // 3) Merge by id, no duplicates, stable order: settled_at desc nulls last, then updated_at desc
+    const byId = new Map<string, any>();
+    for (const p of creatorPredictions || []) byId.set(p.id, p);
+    for (const p of participantPredictions) {
+      if (!byId.has(p.id)) byId.set(p.id, p);
+    }
+    const merged = Array.from(byId.values()).sort((a, b) => {
+      const aTime = a.settled_at ? new Date(a.settled_at).getTime() : 0;
+      const bTime = b.settled_at ? new Date(b.settled_at).getTime() : 0;
+      if (bTime !== aTime) return bTime - aTime;
+      return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
+    }).slice(0, 50);
+
+    // 4) Batch fetch user's entries for these predictions
+    const predictionIds = merged.map((p: any) => p.id);
+    const { data: userEntries } = await supabase
+      .from('prediction_entries')
+      .select(`
+        id, prediction_id, option_id, amount, actual_payout, status, provider,
+        option:prediction_options(id, label)
+      `)
+      .eq('user_id', userId)
+      .in('prediction_id', predictionIds);
+
+    const entryByPredictionId = new Map<string, any>();
+    for (const e of userEntries || []) {
+      entryByPredictionId.set(e.prediction_id, e);
+    }
+
+    const withMyEntry = merged.map((p: any) => ({
+      ...p,
+      myEntry: entryByPredictionId.get(p.id) || undefined,
+    }));
+
+    const enrichedPredictions = await enrichPredictionsWithCategory(withMyEntry);
+
+    return res.json({
+      data: enrichedPredictions,
+      message: `Completed predictions for user ${userId}`,
+      version: VERSION,
+    });
+  } catch (error) {
+    console.error('Error fetching completed predictions:', error);
+    return res.status(500).json({
+      error: 'Internal server error',
+      message: 'Failed to fetch completed predictions',
+      version: VERSION,
+      details: process.env.NODE_ENV === 'development' ? (error as Error).message : undefined,
+    });
+  }
+});
+
 // GET /api/v2/predictions/:id - Get specific prediction
 router.get('/:id', async (req, res) => {
   try {
@@ -643,6 +778,13 @@ router.get('/:id', async (req, res) => {
       message: `Prediction ${id} not found`,
         version: VERSION,
         details: error.message
+      });
+    }
+    if ((prediction as any)?.hidden_at) {
+      return res.status(404).json({
+        error: 'Not found',
+        message: `Prediction ${id} not found`,
+        version: VERSION,
       });
     }
 
@@ -1094,7 +1236,17 @@ router.post('/:id/entries', async (req, res) => {
     });
     console.log('📦 Full request body:', JSON.stringify(req.body, null, 2));
     
-    // In crypto mode, require escrowLockId
+    // In crypto mode, require escrowLockId and allow only web client
+    if (isCryptoMode && escrowLockId) {
+      if (!isCryptoAllowedForClient(req)) {
+        console.log('[CRYPTO-GATE] Rejected prediction entry: client not allowed for crypto', { client: (req as any).client });
+        return res.status(403).json({
+          error: 'crypto_disabled_for_client',
+          message: 'Crypto is not available for this client',
+          version: VERSION
+        });
+      }
+    }
     if (isCryptoMode && !escrowLockId) {
       console.error('❌ Crypto mode requires escrowLockId:', { isCryptoMode, escrowLockId });
       return res.status(400).json({
