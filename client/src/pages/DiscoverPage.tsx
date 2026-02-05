@@ -413,13 +413,15 @@ const DiscoverPage = React.memo(function DiscoverPage({ onNavigateToProfile, onN
     if (!hasSavedScroll || scrollRestored) return;
     const y = savedScrollYRef.current;
     if (y == null) return;
-    const contentReady = displayPredictions.length > 0 || !loading;
+    // IMPORTANT: do not reference displayPredictions here; it is declared later in the module
+    // and referencing it in hook deps can trigger TDZ ReferenceError in production bundles.
+    const contentReady = (Array.isArray(predictions) && predictions.length > 0) || !loading;
     if (!contentReady) return;
     window.scrollTo({ top: y, left: 0, behavior: 'auto' });
     if (document.documentElement) document.documentElement.scrollTop = y;
     if (document.scrollingElement) document.scrollingElement.scrollTop = y;
     setScrollRestored(true);
-  }, [hasSavedScroll, scrollRestored, displayPredictions.length, loading]);
+  }, [hasSavedScroll, scrollRestored, predictions?.length, loading]);
 
   const [platformStats, setPlatformStats] = useState({
     totalVolume: '0',
