@@ -503,9 +503,16 @@ export const useAuthStore = create<AuthState>()(
               if (fullName) {
                 const { getApiUrl } = await import('@/config');
                 const apiUrl = getApiUrl();
+                // Get current session token for auth
+                const { data: sessionData } = await supabase.auth.getSession();
+                const accessToken = sessionData?.session?.access_token || '';
+                const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+                if (accessToken) {
+                  headers['Authorization'] = `Bearer ${accessToken}`;
+                }
                 const response = await fetch(`${apiUrl}/api/v2/users/${data.user.id}/profile`, {
                   method: 'PATCH',
-                  headers: { 'Content-Type': 'application/json' },
+                  headers,
                   body: JSON.stringify({ full_name: fullName }),
                 });
                 if (!response.ok) {
