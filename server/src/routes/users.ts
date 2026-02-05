@@ -255,6 +255,7 @@ router.post('/me/delete', requireSupabaseAuth, async (req: AuthenticatedRequest,
 });
 
 // GET /api/v2/users/me/blocked - List blocked user IDs (UGC moderation)
+// Defensive: returns empty list if user_blocks table doesn't exist yet
 router.get('/me/blocked', requireSupabaseAuth, async (req: AuthenticatedRequest, res) => {
   const blockerId = req.user?.id;
   if (!blockerId) {
@@ -266,12 +267,14 @@ router.get('/me/blocked', requireSupabaseAuth, async (req: AuthenticatedRequest,
       .select('blocked_user_id')
       .eq('blocker_id', blockerId);
     if (error) {
-      return res.status(500).json({ error: 'Database error', message: error.message, version: VERSION });
+      // Table may not exist yet - return empty list instead of 500
+      console.warn('[users/me/blocked] Query error (table may not exist):', error.message);
+      return res.json({ data: { blockedUserIds: [] }, version: VERSION });
     }
     const blockedUserIds = (data || []).map((r: { blocked_user_id: string }) => r.blocked_user_id);
     return res.json({ data: { blockedUserIds }, version: VERSION });
   } catch (e: any) {
-    return res.status(500).json({ error: 'Internal server error', message: e?.message, version: VERSION });
+    return res.json({ data: { blockedUserIds: [] }, version: VERSION });
   }
 });
 

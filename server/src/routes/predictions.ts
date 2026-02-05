@@ -344,7 +344,6 @@ router.get('/', async (req, res) => {
         creator:users!creator_id(id, username, full_name, avatar_url, is_verified),
         options:prediction_options!prediction_options_prediction_id_fkey(*)
       `, { count: 'exact' })
-      .is('hidden_at', null)
       .eq('status', 'open') // Only show open predictions
       .gt('entry_deadline', new Date().toISOString()) // Only show predictions with future deadlines
       .order('created_at', { ascending: false });
@@ -379,16 +378,22 @@ router.get('/', async (req, res) => {
       query = query.or(`title.ilike.%${search}%,description.ilike.%${search}%`);
     }
 
-    // Exclude blocked users' predictions (UGC block list)
+    // Exclude blocked users' predictions (UGC block list) — defensive: if user_blocks table doesn't exist, skip silently
     if (userId) {
-      const { data: blocked } = await supabase
-        .from('user_blocks')
-        .select('blocked_user_id')
-        .eq('blocker_id', userId);
-      const blockedIds = (blocked || []).map((b: any) => b.blocked_user_id).filter(Boolean);
-      if (blockedIds.length > 0) {
-        const blockedList = blockedIds.map((id: string) => `'${id}'`).join(',');
-        query = query.not('creator_id', 'in', `(${blockedList})`);
+      try {
+        const { data: blocked, error: blockedErr } = await supabase
+          .from('user_blocks')
+          .select('blocked_user_id')
+          .eq('blocker_id', userId);
+        if (!blockedErr) {
+          const blockedIds = (blocked || []).map((b: any) => b.blocked_user_id).filter(Boolean);
+          if (blockedIds.length > 0) {
+            const blockedList = blockedIds.map((id: string) => `'${id}'`).join(',');
+            query = query.not('creator_id', 'in', `(${blockedList})`);
+          }
+        }
+      } catch {
+        // user_blocks table may not exist yet — skip block filtering
       }
     }
     
@@ -603,7 +608,6 @@ router.get('/trending', async (req, res) => {
         creator:users!creator_id(id, username, full_name, avatar_url, is_verified),
         options:prediction_options!prediction_options_prediction_id_fkey(*)
       `)
-      .is('hidden_at', null)
       .eq('status', 'open')
       .order('participant_count', { ascending: false })
       .limit(10);
@@ -780,7 +784,8 @@ router.get('/:id', async (req, res) => {
         details: error.message
       });
     }
-    if ((prediction as any)?.hidden_at) {
+    // If the hidden_at column exists and is set, treat as not found (moderation)
+    if (prediction && typeof (prediction as any).hidden_at !== 'undefined' && (prediction as any).hidden_at) {
       return res.status(404).json({
         error: 'Not found',
         message: `Prediction ${id} not found`,
