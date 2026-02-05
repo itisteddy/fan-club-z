@@ -523,14 +523,22 @@ async function setOutcomeHandler(req: ExpressRequest, res: ExpressResponse): Pro
     }
     const allowedForSettlement = ['closed', 'awaiting_settlement', 'ended'];
     if (!allowedForSettlement.includes(status) && status !== 'settled') {
-      console.warn('[Admin/Settlement] Business rule: prediction must be closed to settle', { requestId, predictionId, status });
-      return res.status(400).json({
-        error: 'Bad Request',
-        message: 'Prediction must be closed before settlement. Close the prediction first.',
-        details: [{ path: ['status'], message: `Current status: ${status}` }],
-        requestId,
-        version: VERSION,
-      });
+      // Admin convenience: auto-close open predictions before settling
+      if (status === 'open') {
+        await supabase
+          .from('predictions')
+          .update({ status: 'closed', updated_at: new Date().toISOString() })
+          .eq('id', predictionId);
+      } else {
+        console.warn('[Admin/Settlement] Business rule: prediction must be closed to settle', { requestId, predictionId, status });
+        return res.status(400).json({
+          error: 'Bad Request',
+          message: 'Prediction must be closed before settlement. Close the prediction first.',
+          details: [{ path: ['status'], message: `Current status: ${status}` }],
+          requestId,
+          version: VERSION,
+        });
+      }
     }
 
     // Verify option belongs to prediction before any write

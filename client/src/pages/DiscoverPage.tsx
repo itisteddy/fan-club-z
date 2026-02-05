@@ -18,7 +18,52 @@ import { useCategories, Category } from '../hooks/useCategories';
 import { buildPredictionCanonicalUrl } from '@/lib/predictionUrls';
 import { isReported } from '@/lib/reportedContent';
 import * as Dialog from '@radix-ui/react-dialog';
-import { makeKey, saveScroll, getScroll } from '@/lib/scrollRestoration';
+// Local scroll restoration helpers (scoped to Discover to avoid cross-module init issues)
+const scrollMemory = new Map<string, number>();
+const scrollStoragePrefix = 'fcz_scroll_';
+const scrollTtlMs = 10 * 60 * 1000;
+
+function makeKey(route: string, params?: Record<string, string | null | undefined>): string {
+  if (!params || Object.keys(params).length === 0) return route;
+  const search = new URLSearchParams();
+  for (const [k, v] of Object.entries(params)) {
+    if (v != null && v !== '') search.set(k, v);
+  }
+  const q = search.toString();
+  return q ? `${route}?${q}` : route;
+}
+
+function saveScroll(key: string, y: number): void {
+  if (typeof window === 'undefined') return;
+  if (y < 0) return;
+  scrollMemory.set(key, y);
+  try {
+    sessionStorage.setItem(scrollStoragePrefix + key, JSON.stringify({ y, t: Date.now() }));
+  } catch {
+    // ignore
+  }
+}
+
+function getScroll(key: string): number | null {
+  let y: number | null = scrollMemory.get(key) ?? null;
+  try {
+    const raw = sessionStorage.getItem(scrollStoragePrefix + key);
+    if (raw) {
+      const { y: storedY, t } = JSON.parse(raw) as { y: number; t: number };
+      if (Date.now() - t < scrollTtlMs) {
+        if (y == null) y = storedY;
+        scrollMemory.set(key, storedY);
+      } else {
+        sessionStorage.removeItem(scrollStoragePrefix + key);
+        scrollMemory.delete(key);
+        return null;
+      }
+    }
+  } catch {
+    // ignore
+  }
+  return y;
+}
 
 interface DiscoverPageProps {
   onNavigateToProfile?: () => void;
