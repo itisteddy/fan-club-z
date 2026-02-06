@@ -237,10 +237,11 @@ router.post('/predictions/:predictionId/comments', requireSupabaseAuth, async (r
     // ignore
   }
 
+  const commentData = newComment as Record<string, any>;
   return res.status(201).json({
     success: true,
     data: {
-      ...newComment,
+      ...commentData,
       is_liked_by_user: false,
       is_owned_by_user: true,
       is_liked: false,
