@@ -103,17 +103,41 @@ const PredictionsPage: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNa
     setSearchParams(newParams, { replace: true });
   }, [searchParams, setSearchParams]);
 
-  // Restore scroll position on mount (when coming back from details)
+  // Restore scroll position after data loads (when coming back from details)
   useEffect(() => {
-    if (!scrollRestoredRef.current) {
-      scrollRestoredRef.current = true;
-      // Small delay to ensure content is rendered
-      const timer = setTimeout(() => {
-        restoreScrollPosition(location.pathname + location.search);
-      }, 50);
-      return () => clearTimeout(timer);
+    // Only attempt restoration once data is loaded
+    if (!entriesHydrated || scrollRestoredRef.current) return;
+    
+    scrollRestoredRef.current = true;
+    const fullPath = `${location.pathname}${location.search}`;
+    
+    // Try sessionStorage first (our direct save), then fall back to scroll manager
+    const savedScroll = sessionStorage.getItem(`fcz-scroll:${fullPath}`);
+    const targetScroll = savedScroll ? parseInt(savedScroll, 10) : null;
+    
+    // Clear the saved position after reading
+    if (savedScroll) {
+      sessionStorage.removeItem(`fcz-scroll:${fullPath}`);
     }
-  }, [location.pathname, location.search]);
+    
+    // Multiple attempts with increasing delays to handle async rendering
+    const attempts = [100, 250, 500];
+    const timers: ReturnType<typeof setTimeout>[] = [];
+    
+    const doScroll = () => {
+      if (targetScroll && targetScroll > 0) {
+        window.scrollTo({ top: targetScroll, behavior: 'instant' });
+      } else {
+        restoreScrollPosition(fullPath);
+      }
+    };
+    
+    attempts.forEach((delay) => {
+      timers.push(setTimeout(doScroll, delay));
+    });
+    
+    return () => timers.forEach(clearTimeout);
+  }, [entriesHydrated, location.pathname, location.search]);
   const isEntryActive = useCallback((status: string) => {
     const normalized = (status || '').toLowerCase();
     return !(normalized === 'won' || normalized === 'lost' || normalized === 'refunded');
@@ -149,6 +173,14 @@ const PredictionsPage: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNa
   const navigateToPrediction = useCallback((predictionId: string) => {
     // Save scroll position with the current URL including tab param
     const fullPath = `${location.pathname}${location.search}`;
+    
+    // Get current scroll position and save it to sessionStorage for reliable restoration
+    // This bypasses the scroll manager's 50px threshold
+    const scrollY = window.pageYOffset || document.documentElement.scrollTop || 0;
+    if (scrollY > 0) {
+      sessionStorage.setItem(`fcz-scroll:${fullPath}`, String(scrollY));
+    }
+    
     saveScrollPosition(fullPath);
     navigate(`/predictions/${predictionId}`);
   }, [navigate, location.pathname, location.search]);
