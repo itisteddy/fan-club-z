@@ -1,6 +1,7 @@
 -- Create settlement_validations table for tracking user validation of settlement outcomes
 -- Users can accept or dispute settlements; disputes are tracked with status
 
+-- Step 1: Create the table
 CREATE TABLE IF NOT EXISTS settlement_validations (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   prediction_id UUID NOT NULL REFERENCES predictions(id) ON DELETE CASCADE,
@@ -17,13 +18,34 @@ CREATE TABLE IF NOT EXISTS settlement_validations (
   CONSTRAINT settlement_validations_user_prediction_unique UNIQUE (prediction_id, user_id)
 );
 
--- Indexes for common queries
-CREATE INDEX IF NOT EXISTS idx_settlement_validations_prediction_id ON settlement_validations(prediction_id);
-CREATE INDEX IF NOT EXISTS idx_settlement_validations_user_id ON settlement_validations(user_id);
-CREATE INDEX IF NOT EXISTS idx_settlement_validations_status ON settlement_validations(status) WHERE status = 'pending';
+-- Step 2: Create indexes (only if table exists)
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'settlement_validations') THEN
+    -- Basic indexes
+    IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'idx_settlement_validations_prediction_id') THEN
+      CREATE INDEX idx_settlement_validations_prediction_id ON settlement_validations(prediction_id);
+    END IF;
+    
+    IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'idx_settlement_validations_user_id') THEN
+      CREATE INDEX idx_settlement_validations_user_id ON settlement_validations(user_id);
+    END IF;
+    
+    -- Partial index for pending disputes
+    IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'idx_settlement_validations_pending') THEN
+      CREATE INDEX idx_settlement_validations_pending ON settlement_validations(status) WHERE status = 'pending';
+    END IF;
+  END IF;
+END $$;
 
--- RLS policies
+-- Step 3: Enable RLS
 ALTER TABLE settlement_validations ENABLE ROW LEVEL SECURITY;
+
+-- Step 4: Create RLS policies (drop first if exist to avoid errors)
+DROP POLICY IF EXISTS "Users can view settlement validations" ON settlement_validations;
+DROP POLICY IF EXISTS "Users can create their own validations" ON settlement_validations;
+DROP POLICY IF EXISTS "Users can update their own validations" ON settlement_validations;
+DROP POLICY IF EXISTS "Service role full access" ON settlement_validations;
 
 -- Allow authenticated users to read validations for predictions they're involved in
 CREATE POLICY "Users can view settlement validations"
