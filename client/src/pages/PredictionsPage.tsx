@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import { useAuthSession } from '../providers/AuthSessionProvider';
 import { usePredictionStore } from '../store/predictionStore';
@@ -28,12 +28,20 @@ import { useClaimableClaims } from '@/hooks/useClaimableClaims';
 import { formatCurrency } from '@/lib/format';
 import { t } from '@/lib/lexicon';
 import { buildPredictionCardVM } from '@/lib/predictionCardVM';
+import { saveScrollPosition, restoreScrollPosition } from '../utils/scroll';
 
 type TabKey = 'Active' | 'Created' | 'Completed';
+
+// Valid tabs for URL param validation
+const VALID_TABS: TabKey[] = ['Active', 'Created', 'Completed'];
 
 // Production BetsTab Component - Extracted from production bundle
 const PredictionsPage: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNavigateToDiscover }) => {
   const navigate = useNavigate();
+  const location = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const scrollRestoredRef = useRef(false);
+  
   const { 
     predictions, 
     getUserCreatedPredictions, 
@@ -60,10 +68,52 @@ const PredictionsPage: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNa
     createdAt: sessionUser.created_at
   } : storeUser;
 
-  const [activeTab, setActiveTab] = useState<TabKey>('Active');
+  // Get tab from URL params, default to 'Active'
+  const getTabFromUrl = useCallback((): TabKey => {
+    const tabParam = searchParams.get('tab');
+    if (tabParam && VALID_TABS.includes(tabParam as TabKey)) {
+      return tabParam as TabKey;
+    }
+    return 'Active';
+  }, [searchParams]);
+
+  const [activeTab, setActiveTabState] = useState<TabKey>(getTabFromUrl);
   const [showManageModal, setShowManageModal] = useState(false);
   const [selectedPrediction, setSelectedPrediction] = useState(null);
   const [entriesHydrated, setEntriesHydrated] = useState(false);
+
+  // Update tab state when URL changes (e.g., on back navigation)
+  useEffect(() => {
+    const urlTab = getTabFromUrl();
+    if (urlTab !== activeTab) {
+      setActiveTabState(urlTab);
+    }
+  }, [searchParams, getTabFromUrl, activeTab]);
+
+  // Custom setActiveTab that also updates URL
+  const setActiveTab = useCallback((tab: TabKey) => {
+    setActiveTabState(tab);
+    // Update URL without adding to history stack if same tab
+    const newParams = new URLSearchParams(searchParams);
+    if (tab === 'Active') {
+      newParams.delete('tab'); // Default tab doesn't need URL param
+    } else {
+      newParams.set('tab', tab);
+    }
+    setSearchParams(newParams, { replace: true });
+  }, [searchParams, setSearchParams]);
+
+  // Restore scroll position on mount (when coming back from details)
+  useEffect(() => {
+    if (!scrollRestoredRef.current) {
+      scrollRestoredRef.current = true;
+      // Small delay to ensure content is rendered
+      const timer = setTimeout(() => {
+        restoreScrollPosition(location.pathname + location.search);
+      }, 50);
+      return () => clearTimeout(timer);
+    }
+  }, [location.pathname, location.search]);
   const isEntryActive = useCallback((status: string) => {
     const normalized = (status || '').toLowerCase();
     return !(normalized === 'won' || normalized === 'lost' || normalized === 'refunded');
@@ -95,10 +145,13 @@ const PredictionsPage: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNa
     return Math.round((maxStaked / totalStaked) * 100);
   };
 
-  // Scroll to top on mount
-  useEffect(() => {
-    window.scrollTo({ behavior: 'instant' });
-  }, []);
+  // Navigate to prediction details with scroll position preservation
+  const navigateToPrediction = useCallback((predictionId: string) => {
+    // Save scroll position with the current URL including tab param
+    const fullPath = `${location.pathname}${location.search}`;
+    saveScrollPosition(fullPath);
+    navigate(`/predictions/${predictionId}`);
+  }, [navigate, location.pathname, location.search]);
 
   // Fetch user data
   useEffect(() => {
@@ -533,7 +586,7 @@ const PredictionsPage: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNa
   const ActivePredictionCard = ({ prediction }: { prediction: any }) => (
     <div
       className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-4 hover:shadow-md transition-all duration-200 cursor-pointer"
-      onClick={() => navigate(`/predictions/${prediction.predictionId || prediction.id}`)}
+      onClick={() => navigateToPrediction(prediction.predictionId || prediction.id)}
       role="button"
       aria-label={`View prediction ${prediction.title}`}
     >
@@ -772,9 +825,9 @@ const PredictionsPage: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNa
           toast('This prediction has been archived', { icon: '🗄️' });
           return;
         }
-        navigate(`/predictions/${predictionId}`);
+        navigateToPrediction(predictionId);
       } catch {
-        navigate(`/predictions/${predictionId}`);
+        navigateToPrediction(predictionId);
       }
     };
 

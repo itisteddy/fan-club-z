@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { getApiUrl } from '@/utils/environment';
+import { getFczClientHeader } from '@/lib/apiClient';
 // no need for QK here; define a stable key inline
 
 export type ClaimableItem = {
@@ -18,7 +19,10 @@ export function useClaimableClaims(address?: string, limit = 20) {
     queryFn: async (): Promise<ClaimableItem[]> => {
       const params = new URLSearchParams({ address: String(address), limit: String(limit) });
       const r = await fetch(`${getApiUrl()}/api/v2/settlement/claimable?${params.toString()}`, {
-        headers: { Accept: 'application/json' },
+        headers: { 
+          Accept: 'application/json',
+          'X-FCZ-Client': getFczClientHeader(),
+        },
         credentials: 'include',
       });
       if (!r.ok) {
