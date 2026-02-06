@@ -126,129 +126,171 @@ router.get('/predictions/:predictionId/comments', async (req, res) => {
 // POST /predictions/:predictionId/comments — requires auth
 // ============================================================================
 router.post('/predictions/:predictionId/comments', requireSupabaseAuth, async (req, res) => {
-  const authReq = req as AuthenticatedRequest;
-  const userId = authReq.user?.id;
-  if (!userId) {
-    return res.status(401).json({ success: false, code: 'UNAUTHENTICATED', error: 'Authorization required' });
-  }
-
-  // Check account status (attached by middleware)
-  const accountStatus = (req as any).accountStatus;
-  if (accountStatus === 'deleted') {
-    return res.status(409).json({ success: false, code: 'ACCOUNT_DELETED', error: 'Account deleted. Restore to comment.' });
-  }
-  if (accountStatus === 'suspended') {
-    return res.status(403).json({ success: false, code: 'ACCOUNT_SUSPENDED', error: 'Account suspended.' });
-  }
-
-  const { predictionId } = req.params;
-  const { content, parentCommentId, parent_comment_id } = req.body;
-  const actualParentId = parentCommentId || parent_comment_id || null;
-
-  console.log(`[comments:POST] prediction=${predictionId} user=${userId} content_len=${content?.length || 0}`);
-
-  // Validate content
-  if (!content || typeof content !== 'string' || content.trim().length === 0) {
-    return res.status(422).json({ success: false, code: 'VALIDATION_ERROR', error: 'Comment content is required.' });
-  }
-  const trimmed = content.trim();
-  if (trimmed.length > 1000) {
-    return res.status(422).json({ success: false, code: 'VALIDATION_ERROR', error: 'Comment must be under 1000 characters.' });
-  }
-
-  // Content filter (best-effort)
   try {
-    assertContentAllowed([{ label: 'comment', value: trimmed }]);
-  } catch (e: any) {
-    if (e?.code === 'CONTENT_NOT_ALLOWED') {
-      return res.status(400).json({ success: false, code: 'CONTENT_NOT_ALLOWED', error: 'Your comment contains disallowed language.' });
+    const authReq = req as AuthenticatedRequest;
+    const userId = authReq.user?.id;
+    if (!userId) {
+      return res.status(401).json({ success: false, code: 'UNAUTHENTICATED', error: 'Authorization required' });
     }
-  }
 
-  // Verify prediction exists
-  const predResult = await safeQuery(() =>
-    supabase.from('predictions').select('id, title, creator_id').eq('id', predictionId).single()
-  );
-  if (predResult.error || !predResult.data) {
-    return res.status(404).json({ success: false, code: 'PREDICTION_NOT_FOUND', error: 'Prediction not found.' });
-  }
+    // Check account status (attached by middleware)
+    const accountStatus = (req as any).accountStatus;
+    if (accountStatus === 'deleted') {
+      return res.status(409).json({ success: false, code: 'ACCOUNT_DELETED', error: 'Account deleted. Restore to comment.' });
+    }
+    if (accountStatus === 'suspended') {
+      return res.status(403).json({ success: false, code: 'ACCOUNT_SUSPENDED', error: 'Account suspended.' });
+    }
 
-  // Insert comment
-  let insertResult = await safeQuery(() =>
-    supabase
-      .from('comments')
-      .insert({
-        prediction_id: predictionId,
-        user_id: userId,
-        parent_comment_id: actualParentId,
-        content: trimmed,
-      })
-      .select('*, user:users(id, username, full_name, avatar_url)')
-      .single()
-  );
+    const { predictionId } = req.params;
+    const { content, parentCommentId, parent_comment_id } = req.body;
+    const actualParentId = parentCommentId || parent_comment_id || null;
 
-  // If user join fails (missing columns), retry without it
-  if (insertResult.error) {
-    const msg = String(insertResult.error.message || '').toLowerCase();
-    if (msg.includes('does not exist')) {
-      console.warn('[comments:POST] User join failed, retrying minimal insert');
-      insertResult = await safeQuery(() =>
-        supabase
-          .from('comments')
-          .insert({
-            prediction_id: predictionId,
-            user_id: userId,
-            parent_comment_id: actualParentId,
-            content: trimmed,
-          })
-          .select('*')
-          .single()
+    console.log(`[comments:POST] prediction=${predictionId} user=${userId} content_len=${content?.length || 0}`);
+
+    // Validate content
+    if (!content || typeof content !== 'string' || content.trim().length === 0) {
+      return res.status(422).json({ success: false, code: 'VALIDATION_ERROR', error: 'Comment content is required.' });
+    }
+    const trimmed = content.trim();
+    if (trimmed.length > 1000) {
+      return res.status(422).json({ success: false, code: 'VALIDATION_ERROR', error: 'Comment must be under 1000 characters.' });
+    }
+
+    // Content filter (best-effort)
+    try {
+      assertContentAllowed([{ label: 'comment', value: trimmed }]);
+    } catch (e: any) {
+      if (e?.code === 'CONTENT_NOT_ALLOWED') {
+        return res.status(400).json({ success: false, code: 'CONTENT_NOT_ALLOWED', error: 'Your comment contains disallowed language.' });
+      }
+    }
+
+    // Verify prediction exists
+    const predResult = await safeQuery(() =>
+      supabase.from('predictions').select('id, title, creator_id').eq('id', predictionId).single()
+    );
+    if (predResult.error || !predResult.data) {
+      console.warn('[comments:POST] Prediction not found or query failed:', predResult.error);
+      return res.status(404).json({ success: false, code: 'PREDICTION_NOT_FOUND', error: 'Prediction not found.' });
+    }
+
+    // ---- INSERT (minimal, no join — safest approach) ----
+    console.log('[comments:POST] Inserting comment...');
+    const insertPayload = {
+      prediction_id: predictionId,
+      user_id: userId,
+      parent_comment_id: actualParentId,
+      content: trimmed,
+    };
+
+    let insertResult = await safeQuery(() =>
+      supabase
+        .from('comments')
+        .insert(insertPayload)
+        .select('*')
+        .single()
+    );
+
+    // If select('*') fails, try bare insert
+    if (insertResult.error) {
+      console.warn('[comments:POST] Insert+select failed:', insertResult.error?.message, '— trying bare insert');
+      const bareInsert = await safeQuery(() =>
+        supabase.from('comments').insert(insertPayload)
       );
+      if (!bareInsert.error) {
+        // Insert succeeded but we have no returned row. Fabricate response.
+        console.log('[comments:POST] Bare insert succeeded (no returned data)');
+        return res.status(201).json({
+          success: true,
+          data: {
+            id: `temp_${Date.now()}`,
+            ...insertPayload,
+            created_at: new Date().toISOString(),
+            user: null,
+            is_liked_by_user: false,
+            is_owned_by_user: true,
+            is_liked: false,
+            is_own: true,
+            replies: [],
+          },
+        });
+      }
+      // Both attempts failed
+      console.error('[comments:POST] All insert attempts failed:', insertResult.error, bareInsert.error);
+      return res.status(500).json({
+        success: false,
+        code: 'INSERT_FAILED',
+        error: 'Failed to create comment. Please try again.',
+        debug: String(insertResult.error?.message || bareInsert.error?.message || 'unknown'),
+      });
     }
-  }
 
-  if (insertResult.error || !insertResult.data) {
-    console.error('[comments:POST] Insert failed:', insertResult.error);
+    if (!insertResult.data) {
+      console.error('[comments:POST] Insert returned null data (no error)');
+      return res.status(500).json({
+        success: false,
+        code: 'INSERT_FAILED',
+        error: 'Failed to create comment. Please try again.',
+      });
+    }
+
+    // ---- Best-effort: fetch user profile for the response ----
+    let userProfile: Record<string, any> | null = null;
+    try {
+      const { data: udata } = await supabase
+        .from('users')
+        .select('id, username, full_name, avatar_url')
+        .eq('id', userId)
+        .maybeSingle();
+      if (udata) userProfile = udata as Record<string, any>;
+    } catch {
+      // User lookup failed — non-fatal
+    }
+
+    const commentRow = insertResult.data as Record<string, any>;
+    console.log('[comments:POST] Comment created successfully:', commentRow?.id);
+
+    // Best-effort notifications (never blocks response)
+    try {
+      const pred = predResult.data as any;
+      if (commentRow?.id && pred.creator_id && pred.creator_id !== userId) {
+        createNotification({
+          userId: pred.creator_id,
+          type: 'comment',
+          title: 'New comment',
+          body: `New comment on "${pred.title || 'a prediction'}"`,
+          href: `/predictions/${predictionId}?tab=comments`,
+          metadata: { predictionId, commentId: commentRow.id, fromUserId: userId },
+          externalRef: `notif:comment:creator:${commentRow.id}`,
+        }).catch(() => {});
+      }
+    } catch {
+      // ignore notification failures
+    }
+
+    return res.status(201).json({
+      success: true,
+      data: {
+        ...commentRow,
+        user: userProfile || { id: userId, username: 'You' },
+        is_liked_by_user: false,
+        is_owned_by_user: true,
+        is_liked: false,
+        is_own: true,
+        replies: [],
+      },
+    });
+  } catch (topLevelError: any) {
+    // SAFETY NET: Nothing above should ever throw, but if it does, return 500 with debug info
+    console.error('[comments:POST] UNEXPECTED top-level error:', topLevelError?.message || topLevelError);
     return res.status(500).json({
       success: false,
-      code: 'INSERT_FAILED',
+      code: 'UNEXPECTED_ERROR',
       error: 'Failed to create comment. Please try again.',
+      debug: String(topLevelError?.message || 'unknown'),
     });
   }
-
-  const newComment = insertResult.data;
-
-  // Best-effort notifications (never blocks response)
-  try {
-    const pred = predResult.data as any;
-    const commentId = (newComment as any)?.id;
-    if (commentId && pred.creator_id && pred.creator_id !== userId) {
-      createNotification({
-        userId: pred.creator_id,
-        type: 'comment',
-        title: 'New comment',
-        body: `New comment on "${pred.title || 'a prediction'}"`,
-        href: `/predictions/${predictionId}?tab=comments`,
-        metadata: { predictionId, commentId, fromUserId: userId },
-        externalRef: `notif:comment:creator:${commentId}`,
-      }).catch(() => {});
-    }
-  } catch {
-    // ignore
-  }
-
-  const commentData = newComment as Record<string, any>;
-  return res.status(201).json({
-    success: true,
-    data: {
-      ...commentData,
-      is_liked_by_user: false,
-      is_owned_by_user: true,
-      is_liked: false,
-      is_own: true,
-      replies: [],
-    },
-  });
 });
 
 // ============================================================================

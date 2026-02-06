@@ -8,51 +8,43 @@ import type { AuthenticatedRequest } from './auth';
 export type AccountStatus = 'active' | 'deleted' | 'suspended';
 
 /**
- * Reads account_status from users table.  Falls back to is_banned/ban_reason
- * when account_status column doesn't exist yet (pre-migration 329).
+ * Reads account status from users table.
+ * Uses only columns that are guaranteed to exist (username from base schema).
+ * Checks is_banned/ban_reason if available, falls back to username prefix.
+ * Never throws — returns null on any failure.
  */
 async function resolveAccountStatus(userId: string): Promise<AccountStatus | null> {
-  // Try new column first
   try {
+    // Query only columns we KNOW exist in the base schema
     const { data, error } = await supabase
       .from('users')
-      .select('account_status')
+      .select('username')
       .eq('id', userId)
       .maybeSingle();
-    if (!error && data && (data as any).account_status) {
-      return (data as any).account_status as AccountStatus;
-    }
-    // If error is about missing column, fall through to legacy
-    if (error) {
-      const msg = String(error.message || '').toLowerCase();
-      if (!msg.includes('does not exist')) {
-        // Some other error — treat as unknown, don't block
-        return null;
-      }
-    } else if (data && !(data as any).account_status) {
-      // Column exists but user not found or status null – treat as active
-      return data ? 'active' : null;
-    }
-  } catch {
-    // ignore
-  }
 
-  // Legacy fallback: is_banned + ban_reason
-  try {
-    const { data: legacy, error: legacyErr } = await supabase
-      .from('users')
-      .select('username, is_banned, ban_reason')
-      .eq('id', userId)
-      .maybeSingle();
-    if (legacyErr || !legacy) return null;
-    if ((legacy as any).is_banned) {
-      const reason = String((legacy as any).ban_reason || '').toLowerCase();
-      if (reason === 'self_deleted') return 'deleted';
-      return 'suspended';
+    if (error || !data) return null;
+
+    const username = String((data as any).username || '');
+
+    // Check username prefix (always works, no extra columns needed)
+    if (username.startsWith('deleted_')) return 'deleted';
+
+    // Best-effort: try to read is_banned for admin suspensions
+    try {
+      const { data: modData, error: modErr } = await supabase
+        .from('users')
+        .select('is_banned, ban_reason')
+        .eq('id', userId)
+        .maybeSingle();
+      if (!modErr && modData && (modData as any).is_banned) {
+        const reason = String((modData as any).ban_reason || '').toLowerCase();
+        if (reason === 'self_deleted') return 'deleted';
+        return 'suspended';
+      }
+    } catch {
+      // is_banned column may not exist — that's fine
     }
-    // Check username prefix as last resort
-    const uname = String((legacy as any).username || '');
-    if (uname.startsWith('deleted_')) return 'deleted';
+
     return 'active';
   } catch {
     return null;
