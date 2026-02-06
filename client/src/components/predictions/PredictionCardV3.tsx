@@ -5,9 +5,6 @@ import { formatNumberShort, formatDurationShort } from '@/lib/format';
 import CreatorByline from './CreatorByline';
 import { getCategoryLabel } from '@/lib/categoryUi';
 import { buildPredictionCanonicalPath } from '@/lib/predictionUrls';
-import { useAuthSession } from '@/providers/AuthSessionProvider';
-import { ReportContentModal } from '@/components/ugc/ReportContentModal';
-import toast from 'react-hot-toast';
 
 type PredictionCardProps = {
   prediction: {
@@ -75,8 +72,6 @@ export default function PredictionCardV3({ prediction }: PredictionCardProps) {
   const { media } = useMedia(prediction.id, metadata);
 
   const [imageLoaded, setImageLoaded] = useState(false);
-  const [showReportModal, setShowReportModal] = useState(false);
-  const { session } = useAuthSession();
 
   useEffect(() => {
     setImageLoaded(false);
@@ -139,20 +134,6 @@ export default function PredictionCardV3({ prediction }: PredictionCardProps) {
                 </div>
               ) : null}
             </div>
-
-            {session?.access_token && (
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  setShowReportModal(true);
-                }}
-                className="mt-2 text-xs text-red-600 hover:text-red-700"
-              >
-                Report
-              </button>
-            )}
           </div>
 
           {/* Right: thumbnail (fixed 16:9) */}
@@ -178,16 +159,6 @@ export default function PredictionCardV3({ prediction }: PredictionCardProps) {
           </div>
         </div>
     </Link>
-
-    <ReportContentModal
-      open={showReportModal}
-      targetType="prediction"
-      targetId={prediction.id}
-      label="this prediction"
-      accessToken={session?.access_token}
-      onClose={() => setShowReportModal(false)}
-      onSuccess={() => toast.success('Report submitted. Our team will review it.')}
-    />
     </>
   );
 }
