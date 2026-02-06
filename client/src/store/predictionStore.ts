@@ -15,7 +15,16 @@ function placeBetErrorFromResponse(status: number, errorData: Record<string, unk
     return 'You already placed a stake on this prediction.';
   }
   if (status === 403 || (errorData as any).code === 'FCZ_FORBIDDEN') {
-    return "You don't have permission to place this bet.";
+    // Prefer server message for gated flows (e.g., crypto disabled for this client)
+    const err = (errorData as any)?.error;
+    const msg = typeof (errorData as any)?.message === 'string' ? String((errorData as any).message) : '';
+    if (err === 'crypto_disabled_for_client' || msg.toLowerCase().includes('crypto is not available')) {
+      return 'Crypto staking isn’t available on this device right now. Switch to Demo Credits.';
+    }
+    if (err === 'BETTING_DISABLED') {
+      return 'Betting is temporarily unavailable. Please try again later.';
+    }
+    return msg || "You don't have permission to place this bet.";
   }
   if (status === 400) {
     return typeof (errorData as any).message === 'string' ? (errorData as any).message : 'Invalid stake or option.';

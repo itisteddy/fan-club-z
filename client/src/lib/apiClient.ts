@@ -90,7 +90,10 @@ async function getAccessToken(): Promise<string | null> {
  */
 export async function getAuthHeaders(): Promise<Record<string, string>> {
   const token = await getAccessToken();
-  return token ? { Authorization: `Bearer ${token}` } : {};
+  // Always include X-FCZ-Client so server can apply correct gating
+  // (crypto staking is web-only today; missing header defaults to client=unknown and 403s).
+  const clientHeader = { 'X-FCZ-Client': getFczClientHeader() } as const;
+  return token ? { Authorization: `Bearer ${token}`, ...clientHeader } : { ...clientHeader };
 }
 
 // Check if running in native Capacitor shell
