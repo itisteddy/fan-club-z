@@ -312,14 +312,14 @@ export const useUnifiedCommentStore = create<CommentsState & CommentsActions>()(
         }
       },
 
-      // Add new comment
+      // Add new comment — no optimistic insert to avoid flicker on error
       addComment: async (predictionId: string, text: string) => {
         if (!predictionId?.trim() || !text?.trim()) {
           throw new Error('Invalid input');
         }
 
         const trimmedText = text.trim();
-        if (trimmedText.length > 280) {
+        if (trimmedText.length > 1000) {
           throw new Error('Comment too long');
         }
 
@@ -335,45 +335,8 @@ export const useUnifiedCommentStore = create<CommentsState & CommentsActions>()(
           },
         }));
 
-        // Create optimistic comment with current user info
-        const { user } = useAuthStore.getState();
-        const tempId = `temp_${Date.now()}`;
-        const optimisticComment: Comment = {
-          id: tempId,
-          predictionId,
-          user: { 
-            id: user?.id || 'demo-user', 
-            username: user?.username || 'You', 
-            full_name: user?.full_name,
-            avatarUrl: user?.avatar_url,
-            is_verified: user?.is_verified || false
-          },
-          text: trimmedText,
-          content: trimmedText,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-          edited: false,
-          isDeleted: false,
-          likeCount: 0,
-          likedByMe: false,
-        };
-
-        // Add optimistic comment
-        set((state) => {
-          const currentItems = state.byPrediction[predictionId]?.items || [];
-          return {
-            byPrediction: {
-              ...state.byPrediction,
-              [predictionId]: {
-                ...state.byPrediction[predictionId],
-                items: [optimisticComment, ...currentItems],
-              },
-            },
-          };
-        });
-
         try {
-          // Single canonical endpoint: POST /api/v2/social/predictions/:predictionId/comments (no fallback)
+          // Post to server first — no optimistic insert
           const response = await apiClient.post(COMMENTS_CREATE(predictionId), {
             content: trimmedText,
           });
@@ -390,20 +353,21 @@ export const useUnifiedCommentStore = create<CommentsState & CommentsActions>()(
 
           qaLog(`Comment added successfully for ${predictionId}`);
 
-          // Replace optimistic comment with server response
-          set((state) => ({
-            byPrediction: {
-              ...state.byPrediction,
-              [predictionId]: {
-                ...state.byPrediction[predictionId],
-                items: (state.byPrediction[predictionId]?.items ?? []).map(item =>
-                  item.id === tempId ? serverComment : item
-                ) || [serverComment],
-                posting: false,
-                draft: '', // Clear draft on success
+          // Insert the confirmed comment at the top of the list
+          set((state) => {
+            const currentItems = state.byPrediction[predictionId]?.items || [];
+            return {
+              byPrediction: {
+                ...state.byPrediction,
+                [predictionId]: {
+                  ...state.byPrediction[predictionId],
+                  items: [serverComment, ...currentItems],
+                  posting: false,
+                  draft: '', // Clear draft on success
+                },
               },
-            },
-          }));
+            };
+          });
 
           // Clear draft from session storage
           try {
@@ -414,27 +378,39 @@ export const useUnifiedCommentStore = create<CommentsState & CommentsActions>()(
 
         } catch (error: any) {
           qaLog(`Failed to add comment for ${predictionId}:`, error);
-          if (error instanceof ApiError) {
-            if (error.status === 401) {
-              // Trigger re-auth flow: sign out locally so the app routes to login as needed
-              void useAuthStore.getState().logout();
-              throw new Error('Session expired. Please log in again.');
-            }
-            if (error.status === 404) {
-              console.error(`[unifiedCommentStore] 404 – Server endpoint not found. URL used: ${error.url ?? 'unknown'}`);
-              throw new Error('Server endpoint not found.');
-            }
-          }
+
           set((state) => ({
             byPrediction: {
               ...state.byPrediction,
               [predictionId]: {
                 ...state.byPrediction[predictionId],
-                items: (state.byPrediction[predictionId]?.items ?? []).filter(item => item.id !== tempId),
                 posting: false,
               },
             },
           }));
+
+          if (error instanceof ApiError) {
+            if (error.status === 401) {
+              void useAuthStore.getState().logout();
+              throw new Error('Session expired. Please log in again.');
+            }
+            if (error.status === 409) {
+              // Account deleted or terms required
+              const data = error.responseData as any;
+              throw new Error(data?.error || 'Account deleted. Restore to comment.');
+            }
+            if (error.status === 403) {
+              throw new Error('Account suspended.');
+            }
+            if (error.status === 404) {
+              console.error(`[unifiedCommentStore] 404 – Server endpoint not found. URL used: ${error.url ?? 'unknown'}`);
+              throw new Error('Server endpoint not found.');
+            }
+            if (error.status === 422) {
+              const data = error.responseData as any;
+              throw new Error(data?.error || 'Invalid comment.');
+            }
+          }
           throw error;
         }
       },

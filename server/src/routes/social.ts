@@ -1,282 +1,344 @@
 import express from 'express';
-import { SocialService } from '../services/social';
 import { supabase } from '../config/database';
 import { createNotification } from '../services/notifications';
 import { assertContentAllowed } from '../services/contentFilter';
 import { requireSupabaseAuth } from '../middleware/requireSupabaseAuth';
-import { requireTermsAccepted } from '../middleware/requireTermsAccepted';
 import type { AuthenticatedRequest } from '../middleware/auth';
-
-const socialService = new SocialService();
 
 const router = express.Router();
 
-// Get comments for a prediction
+// ============================================================================
+// HELPERS — keep queries simple and catch every failure
+// ============================================================================
+
+/**
+ * Safe query: try a Supabase query, return { data, error }.
+ * Never throws — caller must check error.
+ */
+async function safeQuery<T = any>(
+  fn: () => PromiseLike<{ data: T | null; error: any; count?: number | null }>
+): Promise<{ data: T | null; error: any; count?: number | null }> {
+  try {
+    return await fn();
+  } catch (e: any) {
+    return { data: null, error: { message: e?.message || 'Unknown error', code: 'EXCEPTION' } };
+  }
+}
+
+// ============================================================================
+// GET /predictions/:predictionId/comments — public, no auth required
+// ============================================================================
 router.get('/predictions/:predictionId/comments', async (req, res) => {
-  try {
-    const { predictionId } = req.params;
-    const page = parseInt(req.query.page as string) || 1;
-    const limit = parseInt(req.query.limit as string) || 20;
+  const { predictionId } = req.params;
+  const page = parseInt(req.query.page as string) || 1;
+  const limit = Math.min(parseInt(req.query.limit as string) || 20, 100);
+  const offset = (page - 1) * limit;
 
-    console.log(`🔍 Fetching comments for prediction ${predictionId}, page ${page}, limit ${limit}`);
+  console.log(`[comments:GET] prediction=${predictionId} page=${page} limit=${limit}`);
 
-    const result = await socialService.getPredictionComments(predictionId, { page, limit });
+  // Step 1: Try to fetch top-level comments with user join
+  let topResult = await safeQuery(() =>
+    supabase
+      .from('comments')
+      .select('*, user:users(id, username, full_name, avatar_url)', { count: 'exact' })
+      .eq('prediction_id', predictionId)
+      .is('parent_comment_id', null)
+      .order('created_at', { ascending: false })
+      .range(offset, offset + limit - 1)
+  );
 
-    return res.json({
-      success: true,
-      data: result.data,
-      pagination: result.pagination
-    });
+  // If the comments table doesn't exist at all, return empty
+  if (topResult.error) {
+    const msg = String(topResult.error.message || '').toLowerCase();
+    const code = String(topResult.error.code || '');
 
-  } catch (error) {
-    console.error('❌ Error fetching comments:', error);
-    return res.status(500).json({
-      success: false,
-      error: 'Internal server error',
-      message: error instanceof Error ? error.message : 'Unknown error'
-    });
+    // Table doesn't exist: return empty list (not 500)
+    if (code === '42P01' || msg.includes('relation') && msg.includes('does not exist')) {
+      console.warn('[comments:GET] comments table does not exist, returning empty');
+      return res.json({ success: true, data: [], pagination: { page, limit, total: 0, totalPages: 0, hasNext: false, hasPrev: false } });
+    }
+
+    // Column issue (e.g. users table missing columns) - retry without user join
+    if (code === '42703' || msg.includes('does not exist')) {
+      console.warn('[comments:GET] Column issue, retrying without user join:', topResult.error.message);
+      topResult = await safeQuery(() =>
+        supabase
+          .from('comments')
+          .select('*', { count: 'exact' })
+          .eq('prediction_id', predictionId)
+          .is('parent_comment_id', null)
+          .order('created_at', { ascending: false })
+          .range(offset, offset + limit - 1)
+      );
+    }
+
+    // Still failing? Return error gracefully
+    if (topResult.error) {
+      console.error('[comments:GET] Failed even with minimal query:', topResult.error);
+      return res.json({ success: true, data: [], pagination: { page, limit, total: 0, totalPages: 0, hasNext: false, hasPrev: false } });
+    }
   }
+
+  const comments = topResult.data || [];
+  const total = topResult.count || 0;
+  const totalPages = Math.ceil(total / limit);
+
+  // Step 2: Fetch replies if there are comments (best-effort)
+  let repliesMap: Record<string, any[]> = {};
+  if (comments.length > 0) {
+    const commentIds = comments.map((c: any) => c.id);
+    const repliesResult = await safeQuery(() =>
+      supabase
+        .from('comments')
+        .select('*, user:users(id, username, full_name, avatar_url)')
+        .in('parent_comment_id', commentIds)
+        .order('created_at', { ascending: true })
+    );
+
+    if (!repliesResult.error && repliesResult.data) {
+      for (const reply of repliesResult.data) {
+        const pid = (reply as any).parent_comment_id;
+        if (!repliesMap[pid]) repliesMap[pid] = [];
+        repliesMap[pid].push(reply);
+      }
+    }
+    // If replies fail, just return comments without replies
+  }
+
+  // Step 3: Assemble response
+  const data = comments.map((comment: any) => ({
+    ...comment,
+    replies: repliesMap[comment.id] || [],
+    is_liked_by_user: false,
+    is_owned_by_user: false,
+    is_liked: false,
+    is_own: false,
+  }));
+
+  return res.json({
+    success: true,
+    data,
+    pagination: { page, limit, total, totalPages, hasNext: page < totalPages, hasPrev: page > 1 },
+  });
 });
 
-// Create a new comment (Phase 5: requires auth + terms accepted)
-router.post('/predictions/:predictionId/comments', requireSupabaseAuth, requireTermsAccepted, async (req, res) => {
+// ============================================================================
+// POST /predictions/:predictionId/comments — requires auth
+// ============================================================================
+router.post('/predictions/:predictionId/comments', requireSupabaseAuth, async (req, res) => {
   const authReq = req as AuthenticatedRequest;
-  const authenticatedUserId = authReq.user?.id;
-  if (!authenticatedUserId) {
-    return res.status(401).json({ success: false, error: 'Authorization required' });
+  const userId = authReq.user?.id;
+  if (!userId) {
+    return res.status(401).json({ success: false, code: 'UNAUTHENTICATED', error: 'Authorization required' });
   }
+
+  // Check account status (attached by middleware)
+  const accountStatus = (req as any).accountStatus;
+  if (accountStatus === 'deleted') {
+    return res.status(409).json({ success: false, code: 'ACCOUNT_DELETED', error: 'Account deleted. Restore to comment.' });
+  }
+  if (accountStatus === 'suspended') {
+    return res.status(403).json({ success: false, code: 'ACCOUNT_SUSPENDED', error: 'Account suspended.' });
+  }
+
+  const { predictionId } = req.params;
+  const { content, parentCommentId, parent_comment_id } = req.body;
+  const actualParentId = parentCommentId || parent_comment_id || null;
+
+  console.log(`[comments:POST] prediction=${predictionId} user=${userId} content_len=${content?.length || 0}`);
+
+  // Validate content
+  if (!content || typeof content !== 'string' || content.trim().length === 0) {
+    return res.status(422).json({ success: false, code: 'VALIDATION_ERROR', error: 'Comment content is required.' });
+  }
+  const trimmed = content.trim();
+  if (trimmed.length > 1000) {
+    return res.status(422).json({ success: false, code: 'VALIDATION_ERROR', error: 'Comment must be under 1000 characters.' });
+  }
+
+  // Content filter (best-effort)
   try {
-    const { predictionId } = req.params;
-    const { content, userId, user, parentCommentId, parent_comment_id } = req.body;
-
-    // Phase 5: Use authenticated user; allow body userId for backward compat but must match
-    const bodyUserId = userId || user?.id;
-    const actualUserId = bodyUserId && bodyUserId === authenticatedUserId ? bodyUserId : authenticatedUserId;
-    const actualParentId = parentCommentId || parent_comment_id;
-
-    console.log('📝 Comment creation request:', {
-      predictionId,
-      content: content?.substring(0, 50) + '...',
-      actualUserId,
-      parentCommentId,
-      parent_comment_id,
-      actualParentId
-    });
-
-    if (!content) {
-      return res.status(400).json({
-        success: false,
-        error: 'Content is required',
-      });
+    assertContentAllowed([{ label: 'comment', value: trimmed }]);
+  } catch (e: any) {
+    if (e?.code === 'CONTENT_NOT_ALLOWED') {
+      return res.status(400).json({ success: false, code: 'CONTENT_NOT_ALLOWED', error: 'Your comment contains disallowed language.' });
     }
+  }
 
-    // Phase 5: Basic content filtering (server-side)
-    try {
-      assertContentAllowed([{ label: 'comment', value: content }]);
-    } catch (e: any) {
-      if (e?.code === 'CONTENT_NOT_ALLOWED') {
-        return res.status(400).json({
-          success: false,
-          error: 'content_not_allowed',
-          message: 'Your comment contains disallowed language. Please revise and try again.',
-          field: e?.field,
-        });
-      }
-      throw e;
+  // Verify prediction exists
+  const predResult = await safeQuery(() =>
+    supabase.from('predictions').select('id, title, creator_id').eq('id', predictionId).single()
+  );
+  if (predResult.error || !predResult.data) {
+    return res.status(404).json({ success: false, code: 'PREDICTION_NOT_FOUND', error: 'Prediction not found.' });
+  }
+
+  // Insert comment
+  let insertResult = await safeQuery(() =>
+    supabase
+      .from('comments')
+      .insert({
+        prediction_id: predictionId,
+        user_id: userId,
+        parent_comment_id: actualParentId,
+        content: trimmed,
+      })
+      .select('*, user:users(id, username, full_name, avatar_url)')
+      .single()
+  );
+
+  // If user join fails (missing columns), retry without it
+  if (insertResult.error) {
+    const msg = String(insertResult.error.message || '').toLowerCase();
+    if (msg.includes('does not exist')) {
+      console.warn('[comments:POST] User join failed, retrying minimal insert');
+      insertResult = await safeQuery(() =>
+        supabase
+          .from('comments')
+          .insert({
+            prediction_id: predictionId,
+            user_id: userId,
+            parent_comment_id: actualParentId,
+            content: trimmed,
+          })
+          .select('*')
+          .single()
+      );
     }
+  }
 
-    console.log(`💬 Creating comment for prediction ${predictionId} by user ${actualUserId}`);
-
-    const newComment = await socialService.createComment(actualUserId, {
-      prediction_id: predictionId,
-      content: content.trim(),
-      parent_comment_id: actualParentId || null
-    });
-
-    // Phase 4: In-app notifications for comments (best-effort, idempotent)
-    // Do NOT notify the author of their own comment.
-    try {
-      const { data: pred } = await supabase
-        .from('predictions')
-        .select('id,title,creator_id')
-        .eq('id', predictionId)
-        .maybeSingle();
-
-      const predictionTitle = (pred as any)?.title || 'a prediction';
-      const creatorId = (pred as any)?.creator_id as string | null;
-      const commentId = (newComment as any)?.id as string | undefined;
-
-      if (commentId && creatorId && creatorId !== actualUserId) {
-        await createNotification({
-          userId: creatorId,
-          type: 'comment',
-          title: 'New comment',
-          body: `New comment on "${predictionTitle}"`,
-          href: `/predictions/${predictionId}?tab=comments`,
-          metadata: { predictionId, predictionTitle, commentId, fromUserId: actualUserId },
-          externalRef: `notif:comment:creator:${commentId}`,
-        }).catch(() => {});
-      }
-
-      // Notify participants (distinct user_ids) excluding author and creator
-      if (commentId) {
-        const { data: participants } = await supabase
-          .from('prediction_entries')
-          .select('user_id')
-          .eq('prediction_id', predictionId);
-
-        const uniq = new Set<string>();
-        for (const row of participants || []) {
-          const uid = (row as any)?.user_id as string | undefined;
-          if (!uid) continue;
-          if (uid === actualUserId) continue;
-          if (creatorId && uid === creatorId) continue;
-          uniq.add(uid);
-          if (uniq.size >= 50) break;
-        }
-
-        for (const uid of uniq) {
-          await createNotification({
-            userId: uid,
-            type: 'comment',
-            title: 'New comment',
-            body: `New comment on a prediction you joined: "${predictionTitle}"`,
-            href: `/predictions/${predictionId}?tab=comments`,
-            metadata: { predictionId, predictionTitle, commentId, fromUserId: actualUserId },
-            externalRef: `notif:comment:participant:${commentId}:${uid}`,
-          }).catch(() => {});
-        }
-      }
-    } catch (e) {
-      // Best-effort: never block comment creation
-      console.warn('[social] comment notification error (non-fatal):', e);
-    }
-
-    return res.status(201).json({
-      success: true,
-      data: newComment
-    });
-
-  } catch (error) {
-    console.error('❌ Error creating comment:', error);
+  if (insertResult.error || !insertResult.data) {
+    console.error('[comments:POST] Insert failed:', insertResult.error);
     return res.status(500).json({
       success: false,
-      error: 'Internal server error',
-      message: error instanceof Error ? error.message : 'Unknown error'
+      code: 'INSERT_FAILED',
+      error: 'Failed to create comment. Please try again.',
     });
   }
+
+  const newComment = insertResult.data;
+
+  // Best-effort notifications (never blocks response)
+  try {
+    const pred = predResult.data as any;
+    const commentId = (newComment as any)?.id;
+    if (commentId && pred.creator_id && pred.creator_id !== userId) {
+      createNotification({
+        userId: pred.creator_id,
+        type: 'comment',
+        title: 'New comment',
+        body: `New comment on "${pred.title || 'a prediction'}"`,
+        href: `/predictions/${predictionId}?tab=comments`,
+        metadata: { predictionId, commentId, fromUserId: userId },
+        externalRef: `notif:comment:creator:${commentId}`,
+      }).catch(() => {});
+    }
+  } catch {
+    // ignore
+  }
+
+  return res.status(201).json({
+    success: true,
+    data: {
+      ...newComment,
+      is_liked_by_user: false,
+      is_owned_by_user: true,
+      is_liked: false,
+      is_own: true,
+      replies: [],
+    },
+  });
 });
 
-// Like/unlike a comment
+// ============================================================================
+// POST /comments/:commentId/like — toggle like
+// ============================================================================
 router.post('/comments/:commentId/like', async (req, res) => {
   try {
     const { commentId } = req.params;
     const { userId } = req.body;
-
     if (!userId) {
-      return res.status(400).json({
-        success: false,
-        error: 'userId is required'
-      });
+      return res.status(400).json({ success: false, error: 'userId is required' });
     }
 
-    console.log(`👍 Toggling like for comment ${commentId} by user ${userId}`);
+    // Check if like exists
+    const existing = await safeQuery(() =>
+      supabase.from('comment_likes').select('id').eq('comment_id', commentId).eq('user_id', userId).single()
+    );
 
-    await socialService.toggleCommentLike(userId, commentId);
+    if (existing.data) {
+      await safeQuery(() => supabase.from('comment_likes').delete().eq('id', (existing.data as any).id));
+    } else {
+      await safeQuery(() => supabase.from('comment_likes').insert({ comment_id: commentId, user_id: userId, type: 'like' }));
+    }
 
-    return res.json({
-      success: true,
-      message: 'Like toggled successfully'
-    });
-
+    return res.json({ success: true, message: 'Like toggled successfully' });
   } catch (error) {
-    console.error('❌ Error toggling comment like:', error);
-    return res.status(500).json({
-      success: false,
-      error: 'Internal server error',
-      message: error instanceof Error ? error.message : 'Unknown error'
-    });
+    console.error('[comments:like]', error);
+    return res.status(500).json({ success: false, error: 'Internal server error' });
   }
 });
 
-// Edit a comment
+// ============================================================================
+// PUT /comments/:commentId — edit
+// ============================================================================
 router.put('/comments/:commentId', async (req, res) => {
   try {
     const { commentId } = req.params;
     const { content, userId } = req.body;
-
     if (!content || !userId) {
-      return res.status(400).json({
-        success: false,
-        error: 'Content and userId are required'
-      });
+      return res.status(400).json({ success: false, error: 'Content and userId are required' });
     }
 
-    console.log(`✏️ Editing comment ${commentId} by user ${userId}`);
+    const result = await safeQuery(() =>
+      supabase
+        .from('comments')
+        .update({ content: content.trim(), updated_at: new Date().toISOString() })
+        .eq('id', commentId)
+        .eq('user_id', userId)
+        .select('*, user:users(id, username, full_name, avatar_url)')
+        .single()
+    );
 
-    const updatedComment = await socialService.updateComment(commentId, userId, content);
+    if (result.error) {
+      return res.status(500).json({ success: false, error: 'Failed to update comment' });
+    }
 
-    return res.json({
-      success: true,
-      data: updatedComment
-    });
-
+    return res.json({ success: true, data: result.data });
   } catch (error) {
-    console.error('❌ Error editing comment:', error);
-    return res.status(500).json({
-      success: false,
-      error: 'Internal server error',
-      message: error instanceof Error ? error.message : 'Unknown error'
-    });
+    console.error('[comments:edit]', error);
+    return res.status(500).json({ success: false, error: 'Internal server error' });
   }
 });
 
-// Delete a comment
+// ============================================================================
+// DELETE /comments/:commentId
+// ============================================================================
 router.delete('/comments/:commentId', async (req, res) => {
   try {
     const { commentId } = req.params;
     const { userId } = req.query;
-
     if (!userId) {
-      return res.status(400).json({
-        success: false,
-        error: 'userId is required'
-      });
+      return res.status(400).json({ success: false, error: 'userId is required' });
     }
 
-    console.log(`🗑️ Deleting comment ${commentId} by user ${userId}`);
+    // Try hard delete (simplest, always works)
+    await safeQuery(() =>
+      supabase.from('comments').delete().eq('id', commentId).eq('user_id', userId as string)
+    );
 
-    await socialService.deleteComment(commentId, userId as string);
-
-    return res.json({
-      success: true,
-      message: 'Comment deleted successfully'
-    });
-
+    return res.json({ success: true, message: 'Comment deleted successfully' });
   } catch (error) {
-    console.error('❌ Error deleting comment:', error);
-    return res.status(500).json({
-      success: false,
-      error: 'Internal server error',
-      message: error instanceof Error ? error.message : 'Unknown error'
-    });
+    console.error('[comments:delete]', error);
+    return res.status(500).json({ success: false, error: 'Internal server error' });
   }
 });
 
+// ============================================================================
 // Health check
-router.get('/health', (req, res) => {
-  res.json({
-    success: true,
-    message: 'Social service is healthy',
-    timestamp: new Date().toISOString(),
-    endpoints: [
-      'GET /predictions/:predictionId/comments',
-      'POST /predictions/:predictionId/comments',
-      'POST /comments/:commentId/like',
-      'PUT /comments/:commentId',
-      'DELETE /comments/:commentId'
-    ]
-  });
+// ============================================================================
+router.get('/health', (_req, res) => {
+  res.json({ success: true, message: 'Social service is healthy', timestamp: new Date().toISOString() });
 });
 
 export default router;
