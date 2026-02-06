@@ -283,6 +283,7 @@ import notificationsRoutes from './routes/notifications';
 import { remindersRouter } from './routes/notificationsReminders';
 import categoriesRoutes from './routes/categories';
 import { contentReportsRouter } from './routes/contentReports';
+import { uploadsRouter } from './routes/uploads';
 import { fiatPaystackRouter } from './routes/fiatPaystack';
 import { fiatWithdrawalsRouter } from './routes/fiatWithdrawals';
 import { fxRouter } from './routes/fx';
@@ -310,6 +311,7 @@ app.use('/api/v2/notifications', notificationsRoutes);
 app.use('/api/v2/notifications/reminders', remindersRouter);
 app.use('/api/v2/categories', categoriesRoutes);
 app.use('/api/v2/content', contentReportsRouter);
+app.use('/api/v2/uploads', uploadsRouter);
 app.use('/api/images', imagesRoutes);
 app.use('/api/escrow', requireCryptoEnabled('testnet'), escrowRoutes);
 // walletSummary must come BEFORE walletRead to avoid route conflicts

@@ -554,32 +554,36 @@ export const useAuthStore = create<AuthState>()(
         if (!state.user) throw new Error('No user logged in');
         const userId = state.user.id;
 
-        const ext = file.name.split('.').pop()?.toLowerCase() || 'jpg';
-        // Path must NOT include the bucket name; the SDK prefixes it.
-        const path = `${userId}/${Date.now()}.${ext}`;
+        // Upload via backend (service-role) to avoid client-side Storage policy failures (400 Bad Request)
+        const { data: sessionData } = await supabase.auth.getSession();
+        const accessToken = sessionData?.session?.access_token || '';
+        if (!accessToken) throw new Error('Missing session token');
 
-        // 1) Upload to storage (public bucket configured: avatars)
-        const { data: uploadData, error: uploadError } = await supabase.storage
-          .from('avatars')
-          .upload(path, file, { cacheControl: '3600', upsert: true, contentType: file.type });
+        const { getApiUrl } = await import('@/config');
+        const apiUrl = getApiUrl();
 
-        if (uploadError) {
-          const raw = uploadError.message || '';
-          const lower = raw.toLowerCase();
-          
-          if (lower.includes('file size') || lower.includes('too large') || lower.includes('maximum allowed size')) {
-            showError('Image is too large. Please choose a file under 10 MB.');
-          } else if (lower.includes('mime') || lower.includes('content-type') || lower.includes('invalid file type')) {
-            showError('Invalid image type. Please upload a JPG, PNG, or GIF image.');
-          } else {
-            showError('Failed to upload image. Please try again.');
-          }
-          throw uploadError;
+        const form = new FormData();
+        form.append('file', file);
+
+        const uploadRes = await fetch(`${apiUrl}/api/v2/uploads/avatar`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${accessToken}` },
+          body: form,
+        });
+
+        if (!uploadRes.ok) {
+          const errData = await uploadRes.json().catch(() => ({}));
+          const msg = String(errData?.message || 'Failed to upload image. Please try again.');
+          showError(msg);
+          throw new Error(msg);
         }
 
-        // 2) Get public URL
-        const { data: publicUrlData } = supabase.storage.from('avatars').getPublicUrl(uploadData.path);
-        const publicUrl = publicUrlData.publicUrl;
+        const uploadJson = await uploadRes.json().catch(() => ({}));
+        const publicUrl = uploadJson?.data?.publicUrl as string | undefined;
+        if (!publicUrl) {
+          showError('Upload succeeded but URL was not returned. Please try again.');
+          throw new Error('Missing publicUrl from upload');
+        }
 
         // 3) Save to auth user metadata
         const { data: authUpdate, error: authErr } = await supabase.auth.updateUser({ data: { avatar_url: publicUrl } });
@@ -588,8 +592,19 @@ export const useAuthStore = create<AuthState>()(
           throw authErr;
         }
 
-        // 4) Mirror to public users table for fast reads
-        await clientDb.users.updateProfile(userId, { avatar_url: publicUrl });
+        // 4) Mirror to public users table via backend API (avoids RLS/policy surprises)
+        try {
+          await fetch(`${apiUrl}/api/v2/users/${userId}/profile`, {
+            method: 'PATCH',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${accessToken}`,
+            },
+            body: JSON.stringify({ avatar_url: publicUrl }),
+          });
+        } catch {
+          // Non-fatal: auth metadata already updated
+        }
 
         // 5) Update local state - preserve OG badge data
         const extendedProfile = await fetchExtendedProfile(userId);
