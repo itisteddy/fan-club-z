@@ -148,7 +148,11 @@ const CategoryFilters = React.memo(function CategoryFilters({
             {/* "All" chip */}
             <button
               ref={selectedCategoryId === null ? selectedChipRef : undefined}
-              onClick={() => onSelect(null)}
+              onClick={() => {
+                // Capture current horizontal scroll BEFORE changing selection (prevents reset-to-start)
+                if (stripRef.current) scrollPosRef.current = stripRef.current.scrollLeft;
+                onSelect(null);
+              }}
               style={{
                 height: '28px',
                 minHeight: '28px',
@@ -188,7 +192,10 @@ const CategoryFilters = React.memo(function CategoryFilters({
               <button
                 key={category.id}
                 ref={selectedCategoryId === category.id ? selectedChipRef : undefined}
-                onClick={() => onSelect(category.id)}
+                onClick={() => {
+                  if (stripRef.current) scrollPosRef.current = stripRef.current.scrollLeft;
+                  onSelect(category.id);
+                }}
                 style={{
                   height: '28px',
                   minHeight: '28px',
