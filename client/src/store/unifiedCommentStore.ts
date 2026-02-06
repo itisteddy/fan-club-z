@@ -123,16 +123,26 @@ const transformComment = (serverComment: any): Comment => ({
 /** Build an optimistic placeholder from the current user + content. */
 function buildOptimisticComment(predictionId: string, text: string, clientTempId: string): Comment {
   const authUser = useAuthStore.getState().user;
+  
+  // Compute full_name with robust fallback (same logic as CommentInput)
+  let computedFullName = authUser?.full_name;
+  if (!computedFullName || typeof computedFullName !== 'string' || !computedFullName.trim()) {
+    const firstName = authUser?.firstName || (authUser as any)?.first_name || '';
+    const lastName = authUser?.lastName || (authUser as any)?.last_name || '';
+    const combined = `${firstName} ${lastName}`.trim();
+    computedFullName = combined || authUser?.username || 'You';
+  }
+  
   return {
     id: clientTempId,
     predictionId,
     user: {
       id: authUser?.id || '',
       username: authUser?.username || 'You',
-      full_name: authUser?.full_name || (authUser as any)?.fullName,
-      avatarUrl: authUser?.avatar_url || (authUser as any)?.avatarUrl,
-      avatar_url: authUser?.avatar_url,
-      is_verified: false,
+      full_name: computedFullName,
+      avatarUrl: authUser?.avatar_url || (authUser as any)?.avatarUrl || authUser?.avatar,
+      avatar_url: authUser?.avatar_url || authUser?.avatar,
+      is_verified: authUser?.is_verified || false,
       og_badge: (authUser as any)?.og_badge || null,
     },
     text,
@@ -221,17 +231,31 @@ export const useUnifiedCommentStore = create<CommentsState & CommentsActions>()(
         try {
           const response = await apiClient.get(COMMENTS_LIST(predictionId, 1, 20));
 
+          // DEBUG: Log raw response to diagnose issues
+          console.log(`[unifiedCommentStore] Raw response for ${predictionId}:`, {
+            hasData: !!response?.data,
+            dataIsArray: Array.isArray(response?.data),
+            dataLength: Array.isArray(response?.data) ? response.data.length : 'N/A',
+            hasComments: !!response?.comments,
+            responseIsArray: Array.isArray(response),
+            keys: response ? Object.keys(response) : [],
+          });
+
           let items: Comment[] = [];
           let nextCursor = null;
 
-          if (response.data && Array.isArray(response.data)) {
+          // Parse response - handle multiple formats
+          if (response?.data && Array.isArray(response.data)) {
             items = response.data.map(transformComment);
             nextCursor = response.pagination?.hasNext ? 'next' : null;
-          } else if (response.comments && Array.isArray(response.comments)) {
+          } else if (response?.comments && Array.isArray(response.comments)) {
             items = response.comments.map(transformComment);
             nextCursor = response.hasMore ? 'next' : null;
           } else if (Array.isArray(response)) {
             items = response.map(transformComment);
+          } else if (response?.data === null && response?.success === true) {
+            // Empty result from server
+            items = [];
           }
 
           // Preserve any local optimistic/failed items that aren't yet confirmed
@@ -240,7 +264,7 @@ export const useUnifiedCommentStore = create<CommentsState & CommentsActions>()(
             (c) => c.clientTempId && (c.sendStatus === 'sending' || c.sendStatus === 'failed')
           );
 
-          qaLog(`Fetched ${items.length} comments for ${predictionId}, preserving ${localOnlyItems.length} local items`);
+          console.log(`[unifiedCommentStore] Fetched ${items.length} comments for ${predictionId}, preserving ${localOnlyItems.length} local items`);
 
           set((state) => ({
             byPrediction: {
@@ -254,6 +278,7 @@ export const useUnifiedCommentStore = create<CommentsState & CommentsActions>()(
             },
           }));
         } catch (error: any) {
+          console.error(`[unifiedCommentStore] Error fetching comments for ${predictionId}:`, error);
           if (error.status === 404) {
             set((state) => ({
               byPrediction: {

@@ -102,6 +102,28 @@ export const CommentInput: React.FC<CommentInputProps> = ({
   const charCount = localText.length;
   const isOverLimit = charCount > 1000;
 
+  // Compute display name with robust fallback chain
+  const computeDisplayName = (): string => {
+    // Priority 1: full_name from users table (most authoritative)
+    if (user?.full_name && typeof user.full_name === 'string' && user.full_name.trim()) {
+      return user.full_name.trim();
+    }
+    // Priority 2: Combine firstName + lastName
+    const firstName = user?.firstName || user?.first_name || '';
+    const lastName = user?.lastName || user?.last_name || '';
+    const combined = `${firstName} ${lastName}`.trim();
+    if (combined) return combined;
+    // Priority 3: Auth metadata
+    if (user?.user_metadata?.full_name) return user.user_metadata.full_name;
+    // Priority 4: Username
+    if (user?.username) return user.username;
+    if (user?.user_metadata?.username) return user.user_metadata.username;
+    // Priority 5: Email
+    if (user?.email) return user.email.split('@')[0];
+    return 'Anonymous';
+  };
+  const displayName = computeDisplayName();
+
   return (
     <form onSubmit={handleSubmit} className="space-y-3">
       <div className="relative">
@@ -125,7 +147,7 @@ export const CommentInput: React.FC<CommentInputProps> = ({
 
       <div className="flex justify-between items-center">
         <div className="text-xs text-gray-500">
-          Commenting as {user?.full_name || user?.firstName || user?.user_metadata?.full_name || user?.user_metadata?.username || user?.username || user?.email}
+          Commenting as {displayName}
         </div>
         <button
           type="submit"

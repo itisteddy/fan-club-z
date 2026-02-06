@@ -480,10 +480,20 @@ export const useAuthStore = create<AuthState>()(
             throw new Error(`Objectionable content detected in ${validation.field}`);
           }
 
+          // Compute the full name BEFORE updating auth
+          const newFirstName = profileData.firstName || currentUser.firstName;
+          const newLastName = profileData.lastName || currentUser.lastName;
+          const computedFullName = `${newFirstName} ${newLastName}`.trim();
+          
+          console.log('[authStore:updateProfile] Updating profile:', { newFirstName, newLastName, computedFullName });
+
           const { data, error } = await supabase.auth.updateUser({
             data: {
-              firstName: profileData.firstName || currentUser.firstName,
-              lastName: profileData.lastName || currentUser.lastName,
+              firstName: newFirstName,
+              lastName: newLastName,
+              first_name: newFirstName,
+              last_name: newLastName,
+              full_name: computedFullName,
               bio: profileData.bio !== undefined ? profileData.bio : currentUser.bio
             }
           });
@@ -493,37 +503,49 @@ export const useAuthStore = create<AuthState>()(
           }
 
           if (data?.user) {
-            // Fetch extended profile to preserve OG badge data
-            const extendedProfile = await fetchExtendedProfile(data.user.id);
-            let updatedUser = convertSupabaseUser(data.user, extendedProfile);
-
-            // Mirror name changes into the public users table via backend API
-            // (uses service role key on server; includes auth + X-FCZ-Client via apiClient)
+            console.log('[authStore:updateProfile] Auth user updated successfully');
+            
+            // Step 1: Mirror name changes into the public users table FIRST
+            // This ensures the users table has the correct name before we fetch it
+            let mirrorSuccess = false;
             try {
-              const fullName = `${updatedUser?.firstName || ''} ${updatedUser?.lastName || ''}`.trim();
-              if (fullName) {
-                const mirrorRes = await apiClient.patch(`/users/${data.user.id}/profile`, {
-                  full_name: fullName,
-                });
-                console.log('✅ Profile name mirrored to users table via API:', fullName);
-
-                // IMPORTANT: refresh extended profile after mirror so the auth store becomes canonical
-                // (otherwise storeUser can remain stale and UI will show old name/avatar).
-                try {
-                  const refreshed = await fetchExtendedProfile(data.user.id);
-                  // If refresh failed for any reason, at least stamp the new full_name locally.
-                  if (!refreshed?.full_name) {
-                    (refreshed as any).full_name = (mirrorRes as any)?.data?.full_name || fullName;
-                  }
-                  updatedUser = convertSupabaseUser(data.user, refreshed);
-                } catch {
-                  // Best-effort only
-                  if (updatedUser) (updatedUser as any).full_name = fullName;
-                }
-              }
-            } catch (mirrorError) {
-              console.warn('Failed to mirror profile name to users table:', mirrorError);
+              console.log('[authStore:updateProfile] Mirroring to users table:', computedFullName);
+              const mirrorRes = await apiClient.patch(`/users/${data.user.id}/profile`, {
+                full_name: computedFullName,
+              });
+              console.log('[authStore:updateProfile] Mirror response:', mirrorRes);
+              mirrorSuccess = true;
+            } catch (mirrorError: any) {
+              console.warn('[authStore:updateProfile] Failed to mirror profile name to users table:', mirrorError?.message || mirrorError);
             }
+
+            // Step 2: Fetch extended profile AFTER mirroring
+            // This ensures we get the latest data from the users table
+            let extendedProfile = await fetchExtendedProfile(data.user.id);
+            console.log('[authStore:updateProfile] Extended profile fetched:', extendedProfile);
+            
+            // Step 3: If extended profile doesn't have the full_name, force it
+            if (!extendedProfile?.full_name && computedFullName) {
+              console.log('[authStore:updateProfile] Extended profile missing full_name, using computed:', computedFullName);
+              extendedProfile = { ...extendedProfile, full_name: computedFullName };
+            }
+
+            // Step 4: Convert and set the user with ALL the latest data
+            const updatedUser = convertSupabaseUser(data.user, extendedProfile);
+            
+            // Step 5: Force the full_name to be correct if it's still wrong
+            if (updatedUser && updatedUser.full_name !== computedFullName) {
+              console.log('[authStore:updateProfile] Forcing full_name from', updatedUser.full_name, 'to', computedFullName);
+              updatedUser.full_name = computedFullName;
+            }
+
+            console.log('[authStore:updateProfile] Final user state:', {
+              id: updatedUser?.id,
+              firstName: updatedUser?.firstName,
+              lastName: updatedUser?.lastName,
+              full_name: updatedUser?.full_name,
+              username: updatedUser?.username,
+            });
 
             set({ 
               user: updatedUser,

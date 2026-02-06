@@ -14,6 +14,16 @@ function generateETag(data: unknown): string {
 
 // [PERF] Helper to check conditional GET and return 304 if ETag matches
 function checkETag(req: express.Request, res: express.Response, data: unknown): boolean {
+  // Respect client's no-cache request - skip ETag check if client wants fresh data
+  const cacheControl = req.headers['cache-control'] || '';
+  const wantsFreshData = cacheControl.includes('no-cache') || cacheControl.includes('no-store');
+  
+  if (wantsFreshData) {
+    // Client explicitly asked for fresh data, don't use ETag caching
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+    return false;
+  }
+  
   const etag = generateETag(data);
   const ifNoneMatch = req.headers['if-none-match'];
   

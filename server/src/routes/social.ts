@@ -36,7 +36,8 @@ router.get('/predictions/:predictionId/comments', async (req, res) => {
 
   console.log(`[comments:GET] prediction=${predictionId} page=${page} limit=${limit}`);
 
-  // Step 1: Try to fetch top-level comments with user join
+  // --- STEP 1: Try multiple query strategies ---
+  // Strategy A: Full query with user join and parent filter
   let topResult = await safeQuery(() =>
     supabase
       .from('comments')
@@ -47,48 +48,50 @@ router.get('/predictions/:predictionId/comments', async (req, res) => {
       .range(offset, offset + limit - 1)
   );
 
+  console.log(`[comments:GET] Strategy A result: error=${!!topResult.error}, dataLength=${topResult.data?.length || 0}, count=${topResult.count}`);
+
   // If the comments table doesn't exist at all, return empty
   if (topResult.error) {
     const msg = String(topResult.error.message || '').toLowerCase();
     const code = String(topResult.error.code || '');
-    const missingParent = msg.includes('parent_comment_id');
+    console.log(`[comments:GET] Strategy A error: code=${code}, message=${msg}`);
 
     // Table doesn't exist: return empty list (not 500)
-    if (code === '42P01' || msg.includes('relation') && msg.includes('does not exist')) {
+    if (code === '42P01' || (msg.includes('relation') && msg.includes('does not exist'))) {
       console.warn('[comments:GET] comments table does not exist, returning empty');
       return res.json({ success: true, data: [], pagination: { page, limit, total: 0, totalPages: 0, hasNext: false, hasPrev: false } });
     }
 
-    // Column issue (e.g. users table missing columns or parent_comment_id missing).
-    // If parent_comment_id is missing, we must fetch all comments (cannot filter to top-level).
-    if (code === '42703' || msg.includes('does not exist')) {
-      if (missingParent) {
-        console.warn('[comments:GET] parent_comment_id missing, fetching all comments without parent filter');
-        topResult = await safeQuery(() =>
-          supabase
-            .from('comments')
-            .select('*', { count: 'exact' })
-            .eq('prediction_id', predictionId)
-            .order('created_at', { ascending: false })
-            .range(offset, offset + limit - 1)
-        );
-      } else {
-        console.warn('[comments:GET] Column issue, retrying without user join:', topResult.error.message);
-        topResult = await safeQuery(() =>
-          supabase
-            .from('comments')
-            .select('*', { count: 'exact' })
-            .eq('prediction_id', predictionId)
-            .is('parent_comment_id', null)
-            .order('created_at', { ascending: false })
-            .range(offset, offset + limit - 1)
-        );
-      }
+    // Strategy B: Without user join (in case users table has schema issues)
+    console.log('[comments:GET] Trying Strategy B: without user join');
+    topResult = await safeQuery(() =>
+      supabase
+        .from('comments')
+        .select('*', { count: 'exact' })
+        .eq('prediction_id', predictionId)
+        .is('parent_comment_id', null)
+        .order('created_at', { ascending: false })
+        .range(offset, offset + limit - 1)
+    );
+    console.log(`[comments:GET] Strategy B result: error=${!!topResult.error}, dataLength=${topResult.data?.length || 0}`);
+
+    if (topResult.error) {
+      // Strategy C: Without parent_comment_id filter (column might not exist)
+      console.log('[comments:GET] Trying Strategy C: without parent filter');
+      topResult = await safeQuery(() =>
+        supabase
+          .from('comments')
+          .select('*', { count: 'exact' })
+          .eq('prediction_id', predictionId)
+          .order('created_at', { ascending: false })
+          .range(offset, offset + limit - 1)
+      );
+      console.log(`[comments:GET] Strategy C result: error=${!!topResult.error}, dataLength=${topResult.data?.length || 0}`);
     }
 
     // Still failing? Return error gracefully
     if (topResult.error) {
-      console.error('[comments:GET] Failed even with minimal query:', topResult.error);
+      console.error('[comments:GET] All strategies failed:', topResult.error);
       return res.json({ success: true, data: [], pagination: { page, limit, total: 0, totalPages: 0, hasNext: false, hasPrev: false } });
     }
   }
@@ -97,8 +100,9 @@ router.get('/predictions/:predictionId/comments', async (req, res) => {
   let total = topResult.count || 0;
   let totalPages = Math.ceil(total / limit);
 
-  // Fallback: if no top-level comments, try fetching all comments (legacy data might only have replies)
-  if (comments.length === 0) {
+  // --- STEP 2: If no comments found with parent filter, try without it ---
+  if (comments.length === 0 && total === 0) {
+    console.log('[comments:GET] No comments with parent filter, trying fallback without parent filter');
     const fallbackResult = await safeQuery(() =>
       supabase
         .from('comments')
@@ -107,12 +111,33 @@ router.get('/predictions/:predictionId/comments', async (req, res) => {
         .order('created_at', { ascending: false })
         .range(offset, offset + limit - 1)
     );
+    console.log(`[comments:GET] Fallback result: error=${!!fallbackResult.error}, dataLength=${fallbackResult.data?.length || 0}, count=${fallbackResult.count}`);
+    
     if (!fallbackResult.error && fallbackResult.data) {
       comments = fallbackResult.data as any[];
       total = fallbackResult.count || comments.length || 0;
       totalPages = Math.ceil(total / limit);
+    } else if (fallbackResult.error) {
+      // Try without user join
+      console.log('[comments:GET] Fallback failed, trying without user join');
+      const minimalFallback = await safeQuery(() =>
+        supabase
+          .from('comments')
+          .select('*', { count: 'exact' })
+          .eq('prediction_id', predictionId)
+          .order('created_at', { ascending: false })
+          .range(offset, offset + limit - 1)
+      );
+      console.log(`[comments:GET] Minimal fallback result: error=${!!minimalFallback.error}, dataLength=${minimalFallback.data?.length || 0}`);
+      if (!minimalFallback.error && minimalFallback.data) {
+        comments = minimalFallback.data as any[];
+        total = minimalFallback.count || comments.length || 0;
+        totalPages = Math.ceil(total / limit);
+      }
     }
   }
+
+  console.log(`[comments:GET] Final: returning ${comments.length} comments, total=${total}`);
 
   // Step 2: Fetch replies if there are comments (best-effort)
   let repliesMap: Record<string, any[]> = {};
