@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { supabase, auth, clientDb } from '../lib/supabase';
+import { apiClient } from '@/lib/apiClient';
 import toast from 'react-hot-toast';
 import { showSuccess, showError } from './notificationStore';
 import { captureReturnTo } from '@/lib/returnTo';
@@ -497,30 +498,14 @@ export const useAuthStore = create<AuthState>()(
             const updatedUser = convertSupabaseUser(data.user, extendedProfile);
 
             // Mirror name changes into the public users table via backend API
-            // (uses service role key to bypass RLS)
+            // (uses service role key on server; includes auth + X-FCZ-Client via apiClient)
             try {
               const fullName = `${updatedUser?.firstName || ''} ${updatedUser?.lastName || ''}`.trim();
               if (fullName) {
-                const { getApiUrl } = await import('@/config');
-                const apiUrl = getApiUrl();
-                // Get current session token for auth
-                const { data: sessionData } = await supabase.auth.getSession();
-                const accessToken = sessionData?.session?.access_token || '';
-                const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-                if (accessToken) {
-                  headers['Authorization'] = `Bearer ${accessToken}`;
-                }
-                const response = await fetch(`${apiUrl}/api/v2/users/${data.user.id}/profile`, {
-                  method: 'PATCH',
-                  headers,
-                  body: JSON.stringify({ full_name: fullName }),
+                await apiClient.patch(`/users/${data.user.id}/profile`, {
+                  full_name: fullName,
                 });
-                if (!response.ok) {
-                  const errData = await response.json().catch(() => ({}));
-                  console.warn('Failed to mirror profile name to users table:', errData);
-                } else {
-                  console.log('✅ Profile name mirrored to users table via API:', fullName);
-                }
+                console.log('✅ Profile name mirrored to users table via API:', fullName);
               }
             } catch (mirrorError) {
               console.warn('Failed to mirror profile name to users table:', mirrorError);

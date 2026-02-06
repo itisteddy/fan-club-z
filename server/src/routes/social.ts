@@ -79,9 +79,26 @@ router.get('/predictions/:predictionId/comments', async (req, res) => {
     }
   }
 
-  const comments = topResult.data || [];
-  const total = topResult.count || 0;
-  const totalPages = Math.ceil(total / limit);
+  let comments = topResult.data || [];
+  let total = topResult.count || 0;
+  let totalPages = Math.ceil(total / limit);
+
+  // Fallback: if no top-level comments, try fetching all comments (legacy data might only have replies)
+  if (comments.length === 0) {
+    const fallbackResult = await safeQuery(() =>
+      supabase
+        .from('comments')
+        .select('*, user:users(id, username, full_name, avatar_url, is_verified, og_badge)', { count: 'exact' })
+        .eq('prediction_id', predictionId)
+        .order('created_at', { ascending: false })
+        .range(offset, offset + limit - 1)
+    );
+    if (!fallbackResult.error && fallbackResult.data) {
+      comments = fallbackResult.data as any[];
+      total = fallbackResult.count || comments.length || 0;
+      totalPages = Math.ceil(total / limit);
+    }
+  }
 
   // Step 2: Fetch replies if there are comments (best-effort)
   let repliesMap: Record<string, any[]> = {};
