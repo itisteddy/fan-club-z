@@ -419,7 +419,11 @@ router.get('/', async (req, res) => {
     console.log(`✅ Successfully fetched ${predictions?.length || 0} predictions (${count} total)`);
 
     // Enrich predictions with category info
-    const enrichedPredictions = await enrichPredictionsWithCategory(predictions || []);
+    let enrichedPredictions = await enrichPredictionsWithCategory(predictions || []);
+
+    // UGC moderation: if hidden_at exists (migration applied) hide moderated predictions.
+    // Defensive: if column doesn't exist yet, it won't be present on rows, so this is a no-op.
+    enrichedPredictions = (enrichedPredictions || []).filter((p: any) => !p?.hidden_at);
 
     // Phase 6A: Add canonical settlement fields if user is authenticated (batch fetch)
     if (userId && enrichedPredictions.length > 0) {
@@ -625,7 +629,8 @@ router.get('/trending', async (req, res) => {
     console.log(`✅ Successfully fetched ${predictions?.length || 0} trending predictions`);
 
     // Enrich with category info
-    const enrichedPredictions = await enrichPredictionsWithCategory(predictions || []);
+    let enrichedPredictions = await enrichPredictionsWithCategory(predictions || []);
+    enrichedPredictions = (enrichedPredictions || []).filter((p: any) => !p?.hidden_at);
 
     return res.json({
       data: enrichedPredictions,
@@ -750,7 +755,8 @@ router.get('/completed/:userId', requireSupabaseAuth, async (req, res) => {
       myEntry: entryByPredictionId.get(p.id) || undefined,
     }));
 
-    const enrichedPredictions = await enrichPredictionsWithCategory(withMyEntry);
+    let enrichedPredictions = await enrichPredictionsWithCategory(withMyEntry);
+    enrichedPredictions = (enrichedPredictions || []).filter((p: any) => !p?.hidden_at);
 
     return res.json({
       data: enrichedPredictions,
@@ -904,7 +910,8 @@ router.get('/created/:userId', async (req, res) => {
     }
 
     // Enrich with category info
-    const enrichedPredictions = await enrichPredictionsWithCategory(predictions || []);
+    let enrichedPredictions = await enrichPredictionsWithCategory(predictions || []);
+    enrichedPredictions = (enrichedPredictions || []).filter((p: any) => !p?.hidden_at);
 
     return res.json({
       data: enrichedPredictions,
