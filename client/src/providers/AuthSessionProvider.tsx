@@ -147,9 +147,9 @@ export const AuthSessionProvider: React.FC<AuthSessionProviderProps> = ({ childr
         password,
         options: {
           data: userData,
-          emailRedirectTo: import.meta.env.PROD 
-            ? 'https://app.fanclubz.app/'
-            : `${window.location.origin}/`,
+          // CRITICAL: email confirmation links must land on /auth/callback so the app can
+          // establish a session (AuthCallback handles magic-link + signup confirmations).
+          emailRedirectTo: buildAuthRedirectUrl('/predictions'),
         },
       });
       return { error };
