@@ -242,10 +242,12 @@ const SettlementValidationModal: React.FC<SettlementValidationModalProps> = ({
         body: JSON.stringify({ userId }),
       });
       if (!res.ok) {
-        const txt = await res.text().catch(() => '');
-        throw new Error(txt || 'Failed to request finalization');
+        // Parse JSON error response for user-friendly message
+        const errData = await res.json().catch(() => ({}));
+        const friendlyMessage = errData?.message || 'Failed to request finalization';
+        throw new Error(friendlyMessage);
       }
-      toast.success('Submitted. Admin will finalize on-chain.');
+      toast.success('Queued for on-chain finalization.');
       await fetchFinalizeStatus();
     } catch (e: any) {
       toast.error(e?.message || 'Failed to submit for finalization');
