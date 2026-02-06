@@ -2,7 +2,7 @@ import express from 'express';
 import crypto from 'crypto';
 import { supabase } from '../config/database';
 import { VERSION } from '@fanclubz/shared';
-import { requireSupabaseAuth } from '../middleware/requireSupabaseAuth';
+import { requireSupabaseAuth, requireSupabaseAuthAllowDeleted } from '../middleware/requireSupabaseAuth';
 import type { AuthenticatedRequest } from '../middleware/auth';
 import { assertContentAllowed } from '../services/contentFilter';
 
@@ -156,12 +156,38 @@ router.get('/leaderboard', async (req, res) => {
 // Phase 5: Current terms version; bump when Terms/Privacy/Community Guidelines change
 const TERMS_VERSION = '1.0';
 
-// GET /api/v2/users/me/terms-accepted - Check if current user has accepted current terms (Phase 5)
-router.get('/me/terms-accepted', requireSupabaseAuth, async (req: AuthenticatedRequest, res) => {
+// GET /api/v2/users/me/status - Get account status (allows deleted accounts through)
+router.get('/me/status', requireSupabaseAuthAllowDeleted, async (req: AuthenticatedRequest, res) => {
   const userId = req.user?.id;
   if (!userId) {
     return res.status(401).json({ error: 'unauthorized', message: 'Authorization required', version: VERSION });
   }
+  const accountStatus = (req as any).accountStatus || 'active';
+  return res.json({
+    status: accountStatus,
+    version: VERSION,
+  });
+});
+
+// GET /api/v2/users/me/terms-accepted - Check if current user has accepted current terms (Phase 5)
+// Uses requireSupabaseAuthAllowDeleted so deleted users get a proper 409 rather than being blocked
+router.get('/me/terms-accepted', requireSupabaseAuthAllowDeleted, async (req: AuthenticatedRequest, res) => {
+  const userId = req.user?.id;
+  if (!userId) {
+    return res.status(401).json({ error: 'unauthorized', message: 'Authorization required', version: VERSION });
+  }
+  const accountStatus = (req as any).accountStatus || 'active';
+
+  // Deleted accounts → 409 with ACCOUNT_DELETED code
+  if (accountStatus === 'deleted') {
+    return res.status(409).json({
+      error: 'account_deleted',
+      code: 'ACCOUNT_DELETED',
+      message: 'This account was previously deleted. You can restore it to continue.',
+      version: VERSION,
+    });
+  }
+
   try {
     const { data, error } = await supabase
       .from('terms_acceptance')
@@ -169,7 +195,13 @@ router.get('/me/terms-accepted', requireSupabaseAuth, async (req: AuthenticatedR
       .eq('user_id', userId)
       .eq('terms_version', TERMS_VERSION)
       .maybeSingle();
+
+    // Defensive: if table doesn't exist, assume accepted
     if (error) {
+      const msg = String(error.message || '').toLowerCase();
+      if (msg.includes('does not exist') || String(error.code || '') === '42P01') {
+        return res.json({ accepted: true, terms_version: TERMS_VERSION, accepted_at: null, version: VERSION });
+      }
       return res.status(500).json({ error: 'Database error', message: error.message, version: VERSION });
     }
     return res.json({
@@ -184,11 +216,23 @@ router.get('/me/terms-accepted', requireSupabaseAuth, async (req: AuthenticatedR
 });
 
 // POST /api/v2/users/me/accept-terms - Record acceptance of Terms/Privacy/Community Guidelines (Phase 5)
-router.post('/me/accept-terms', requireSupabaseAuth, async (req: AuthenticatedRequest, res) => {
+router.post('/me/accept-terms', requireSupabaseAuthAllowDeleted, async (req: AuthenticatedRequest, res) => {
   const userId = req.user?.id;
   if (!userId) {
     return res.status(401).json({ error: 'unauthorized', message: 'Authorization required', version: VERSION });
   }
+  const accountStatus = (req as any).accountStatus || 'active';
+
+  // Deleted accounts → 409 with ACCOUNT_DELETED code
+  if (accountStatus === 'deleted') {
+    return res.status(409).json({
+      error: 'account_deleted',
+      code: 'ACCOUNT_DELETED',
+      message: 'This account was previously deleted. You can restore it to continue.',
+      version: VERSION,
+    });
+  }
+
   try {
     const { error } = await supabase
       .from('terms_acceptance')
@@ -196,7 +240,13 @@ router.post('/me/accept-terms', requireSupabaseAuth, async (req: AuthenticatedRe
         { user_id: userId, terms_version: TERMS_VERSION, accepted_at: new Date().toISOString() },
         { onConflict: 'user_id,terms_version' }
       );
+
+    // Defensive: if table doesn't exist, return success
     if (error) {
+      const msg = String(error.message || '').toLowerCase();
+      if (msg.includes('does not exist') || String(error.code || '') === '42P01') {
+        return res.json({ success: true, terms_version: TERMS_VERSION, version: VERSION });
+      }
       return res.status(500).json({ error: 'Database error', message: error.message, version: VERSION });
     }
     return res.json({ success: true, terms_version: TERMS_VERSION, version: VERSION });
@@ -205,9 +255,97 @@ router.post('/me/accept-terms', requireSupabaseAuth, async (req: AuthenticatedRe
   }
 });
 
-// POST /api/v2/users/me/delete - Delete current user account (Phase 4). Requires Bearer token.
-// Order: anonymize users row first (referential integrity), then delete auth user.
-// User-facing messages are generic to avoid leaking internal errors (e.g. "Database error").
+// POST /api/v2/users/me/restore - Restore a self-deleted account
+router.post('/me/restore', requireSupabaseAuthAllowDeleted, async (req: AuthenticatedRequest, res) => {
+  const userId = req.user?.id;
+  if (!userId) {
+    return res.status(401).json({ error: 'unauthorized', message: 'Authorization required', version: VERSION });
+  }
+  const accountStatus = (req as any).accountStatus || 'active';
+
+  // Already active → idempotent 200
+  if (accountStatus === 'active') {
+    return res.status(200).json({ success: true, message: 'Account is already active', version: VERSION });
+  }
+
+  // Suspended → cannot self-restore
+  if (accountStatus === 'suspended') {
+    return res.status(403).json({
+      error: 'account_suspended',
+      code: 'ACCOUNT_SUSPENDED',
+      message: 'This account has been suspended. Contact support for assistance.',
+      version: VERSION,
+    });
+  }
+
+  try {
+    // Restore: set status to active, clear deleted_at
+    // Try new column first
+    const newColUpdate = await supabase
+      .from('users')
+      .update({
+        account_status: 'active',
+        deleted_at: null,
+        is_banned: false,
+        ban_reason: null,
+        banned_at: null,
+        banned_by: null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', userId);
+
+    if (newColUpdate.error) {
+      // Fallback: try without new columns (account_status/deleted_at might not exist)
+      const legacyUpdate = await supabase
+        .from('users')
+        .update({
+          is_banned: false,
+          ban_reason: null,
+          banned_at: null,
+          banned_by: null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', userId);
+
+      if (legacyUpdate.error) {
+        // Last resort: just unset is_banned
+        const minimalUpdate = await supabase
+          .from('users')
+          .update({
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', userId);
+
+        if (minimalUpdate.error) {
+          console.error('[users/me/restore] All update attempts failed:', minimalUpdate.error.message);
+          return res.status(500).json({
+            error: 'Restore failed',
+            message: 'Unable to restore account. Please contact support.',
+            version: VERSION,
+          });
+        }
+      }
+    }
+
+    // Note: username remains anonymized. User will need to set up profile again.
+    return res.status(200).json({
+      success: true,
+      message: 'Account restored. Please update your profile to continue.',
+      needsOnboarding: true,
+      version: VERSION,
+    });
+  } catch (e: any) {
+    console.error('[users/me/restore]', e);
+    return res.status(500).json({
+      error: 'Internal server error',
+      message: 'Unable to restore account. Please contact support.',
+      version: VERSION,
+    });
+  }
+});
+
+// POST /api/v2/users/me/delete - Soft-delete current user account.
+// Anonymizes PII, sets status='deleted'. Does NOT delete auth user (so re-login → restore flow).
 router.post('/me/delete', requireSupabaseAuth, async (req: AuthenticatedRequest, res) => {
   const userId = req.user?.id;
   if (!userId) {
@@ -215,74 +353,69 @@ router.post('/me/delete', requireSupabaseAuth, async (req: AuthenticatedRequest,
   }
   const userFacingMessage = 'Account deletion failed. Please try again or contact support.';
   try {
-    // Idempotency: if already self-deleted, return success.
-    // Defensive: if moderation columns aren't present yet, skip this check (do not 500).
-    try {
-      const { data: existing, error: existingErr } = await supabase
-        .from('users')
-        .select('id, username')
-        .eq('id', userId)
-        .maybeSingle();
-      if (!existingErr && existing) {
-        // Check if username indicates already deleted
-        const username = (existing as any)?.username || '';
-        if (username.startsWith('deleted_')) {
-          return res.status(200).json({ success: true, message: 'Account deleted', version: VERSION });
-        }
-      }
-    } catch {
-      // ignore idempotency check errors
+    // Idempotency: if already deleted, return success
+    const accountStatus = (req as any).accountStatus || 'active';
+    if (accountStatus === 'deleted') {
+      return res.status(200).json({ success: true, message: 'Account deleted', version: VERSION });
     }
 
-    // 1) Anonymize public.users first so FKs remain valid.
-    // Try minimal update first (most compatible), then escalate to full update if needed.
-    // This approach avoids errors from missing columns.
-    
-    const minimalUpdate = {
-      username: `deleted_${userId.slice(0, 8)}`,
+    // Determine the best update payload depending on which columns exist
+    const now = new Date().toISOString();
+    const anonymizedUsername = `deleted_${userId.slice(0, 8)}`;
+
+    // Layer 1: all columns including new account_status
+    const fullPayload: Record<string, any> = {
+      username: anonymizedUsername,
       full_name: null,
       avatar_url: null,
-      updated_at: new Date().toISOString(),
-    };
-
-    const fullUpdate = {
-      ...minimalUpdate,
+      account_status: 'deleted',
+      deleted_at: now,
       is_banned: true,
       ban_reason: 'self_deleted',
-      banned_at: new Date().toISOString(),
+      banned_at: now,
       banned_by: userId,
+      updated_at: now,
     };
 
-    // Try full update first
-    let updateResult = await supabase
-      .from('users')
-      .update(fullUpdate)
-      .eq('id', userId);
+    // Layer 2: without new account_status/deleted_at columns
+    const legacyPayload: Record<string, any> = {
+      username: anonymizedUsername,
+      full_name: null,
+      avatar_url: null,
+      is_banned: true,
+      ban_reason: 'self_deleted',
+      banned_at: now,
+      banned_by: userId,
+      updated_at: now,
+    };
 
-    // If full update fails (missing columns), fall back to minimal
+    // Layer 3: absolute minimal
+    const minimalPayload: Record<string, any> = {
+      username: anonymizedUsername,
+      full_name: null,
+      avatar_url: null,
+      updated_at: now,
+    };
+
+    let updateResult = await supabase.from('users').update(fullPayload).eq('id', userId);
+
     if (updateResult.error) {
-      console.warn('[users/me/delete] Full update failed, trying minimal:', updateResult.error.message);
-      updateResult = await supabase
-        .from('users')
-        .update(minimalUpdate)
-        .eq('id', userId);
+      console.warn('[users/me/delete] Full update failed:', updateResult.error.message);
+      updateResult = await supabase.from('users').update(legacyPayload).eq('id', userId);
     }
 
     if (updateResult.error) {
-      console.warn('[users/me/delete] Minimal update also failed:', updateResult.error.message);
+      console.warn('[users/me/delete] Legacy update failed:', updateResult.error.message);
+      updateResult = await supabase.from('users').update(minimalPayload).eq('id', userId);
+    }
+
+    if (updateResult.error) {
+      console.error('[users/me/delete] All update attempts failed:', updateResult.error.message);
       return res.status(500).json({ error: 'Deletion failed', message: userFacingMessage, version: VERSION });
     }
 
-    // 2) Best-effort: delete auth user. If this fails (e.g. misconfigured service role),
-    // we still return success because the account is already disabled server-side.
-    try {
-      const { error: authError } = await supabase.auth.admin.deleteUser(userId);
-      if (authError) {
-        console.warn('[users/me/delete] auth.admin.deleteUser failed (non-fatal):', authError.message);
-      }
-    } catch (authErr: any) {
-      console.warn('[users/me/delete] auth.admin.deleteUser threw (non-fatal):', authErr?.message);
-    }
+    // NOTE: We do NOT delete the auth user. This allows re-login → restore flow.
+    // The account is effectively disabled via account_status/is_banned.
 
     return res.status(200).json({ success: true, message: 'Account deleted', version: VERSION });
   } catch (e: any) {

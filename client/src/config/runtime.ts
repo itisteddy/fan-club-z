@@ -67,8 +67,9 @@ class RuntimeConfig {
 
     this._capabilities = {
       allowDemo: true, // Always enabled
-      allowFiat: this._mode === 'INTERNAL_FULL' && fiatEnabled,
-      allowCrypto: this._mode === 'INTERNAL_FULL' && cryptoEnabled,
+      allowFiat: (this._mode === 'WEB' || this._mode === 'INTERNAL_FULL') && fiatEnabled,
+      // Crypto: allowed on WEB (always — gated by isCryptoEnabledForClient) and INTERNAL_FULL
+      allowCrypto: this._mode === 'WEB' || (this._mode === 'INTERNAL_FULL' && cryptoEnabled),
     };
   }
 
