@@ -646,10 +646,19 @@ router.get('/trending', async (req, res) => {
 const COMPLETED_STATUSES = ['closed', 'awaiting_settlement', 'settled', 'disputed', 'cancelled', 'refunded', 'ended'] as const;
 
 // GET /api/v2/predictions/completed/:userId - Completed predictions for user (creator OR participant)
-router.get('/completed/:userId', async (req, res) => {
+router.get('/completed/:userId', requireSupabaseAuth, async (req, res) => {
   const { userId } = req.params;
   try {
     console.log(`📊 Completed predictions endpoint for user: ${userId}`);
+
+    // Security: self-only (prevents leaking a user's completed history)
+    const actorId = (req as AuthenticatedRequest).user?.id;
+    if (!actorId) {
+      return res.status(401).json({ error: 'unauthorized', message: 'Authorization required', version: VERSION });
+    }
+    if (actorId !== userId) {
+      return res.status(403).json({ error: 'forbidden', message: 'You can only view your own completed predictions', version: VERSION });
+    }
 
     // 1) Creator-owned completed predictions
     const { data: creatorPredictions, error: creatorError } = await supabase
