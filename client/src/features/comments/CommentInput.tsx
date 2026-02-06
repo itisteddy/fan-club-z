@@ -20,7 +20,8 @@ export const CommentInput: React.FC<CommentInputProps> = ({
 }) => {
   const { user: sessionUser } = useAuthSession();
   const { user: storeUser } = useAuthStore();
-  const user = storeUser || sessionUser;
+  // sessionUser is Supabase User, storeUser is app User — treat as a loose union here.
+  const user: any = storeUser || sessionUser;
   const { getDraft, setDraft, clearDraft } = useUnifiedCommentStore();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [localText, setLocalText] = useState('');
@@ -124,7 +125,7 @@ export const CommentInput: React.FC<CommentInputProps> = ({
 
       <div className="flex justify-between items-center">
         <div className="text-xs text-gray-500">
-          Commenting as {user.full_name || (user as any)?.firstName || user.user_metadata?.full_name || user.user_metadata?.username || user.username || user.email}
+          Commenting as {user?.full_name || user?.firstName || user?.user_metadata?.full_name || user?.user_metadata?.username || user?.username || user?.email}
         </div>
         <button
           type="submit"

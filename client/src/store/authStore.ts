@@ -495,17 +495,31 @@ export const useAuthStore = create<AuthState>()(
           if (data?.user) {
             // Fetch extended profile to preserve OG badge data
             const extendedProfile = await fetchExtendedProfile(data.user.id);
-            const updatedUser = convertSupabaseUser(data.user, extendedProfile);
+            let updatedUser = convertSupabaseUser(data.user, extendedProfile);
 
             // Mirror name changes into the public users table via backend API
             // (uses service role key on server; includes auth + X-FCZ-Client via apiClient)
             try {
               const fullName = `${updatedUser?.firstName || ''} ${updatedUser?.lastName || ''}`.trim();
               if (fullName) {
-                await apiClient.patch(`/users/${data.user.id}/profile`, {
+                const mirrorRes = await apiClient.patch(`/users/${data.user.id}/profile`, {
                   full_name: fullName,
                 });
                 console.log('✅ Profile name mirrored to users table via API:', fullName);
+
+                // IMPORTANT: refresh extended profile after mirror so the auth store becomes canonical
+                // (otherwise storeUser can remain stale and UI will show old name/avatar).
+                try {
+                  const refreshed = await fetchExtendedProfile(data.user.id);
+                  // If refresh failed for any reason, at least stamp the new full_name locally.
+                  if (!refreshed?.full_name) {
+                    (refreshed as any).full_name = (mirrorRes as any)?.data?.full_name || fullName;
+                  }
+                  updatedUser = convertSupabaseUser(data.user, refreshed);
+                } catch {
+                  // Best-effort only
+                  if (updatedUser) (updatedUser as any).full_name = fullName;
+                }
               }
             } catch (mirrorError) {
               console.warn('Failed to mirror profile name to users table:', mirrorError);

@@ -32,16 +32,18 @@ export const CommentsSection: React.FC<CommentsSectionProps> = ({
   const predictionPosting = isPostingFn(predictionId);
   const predictionHasMore = hasMoreFn(predictionId);
 
-  // Initialize comments on mount
+  // Fetch comments on mount (and when prediction changes).
+  // We intentionally do NOT gate on status==='idle' because stale empty data
+  // can otherwise stick around across deploys/navigation.
   useEffect(() => {
-    if (predictionStatus === 'idle') {
-      fetchComments(predictionId).catch((error) => {
-        if (error?.status >= 500) {
-          toast.error('Failed to load comments. Please try again.');
-        }
-      });
-    }
-  }, [predictionId, predictionStatus, fetchComments]);
+    if (!predictionId) return;
+    fetchComments(predictionId).catch((error) => {
+      if (error?.status >= 500) {
+        toast.error('Failed to load comments. Please try again.');
+      }
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [predictionId]);
 
   // Handle adding new comments
   const handleAddComment = useCallback(async (text: string) => {

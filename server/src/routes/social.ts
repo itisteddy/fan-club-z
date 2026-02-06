@@ -51,6 +51,7 @@ router.get('/predictions/:predictionId/comments', async (req, res) => {
   if (topResult.error) {
     const msg = String(topResult.error.message || '').toLowerCase();
     const code = String(topResult.error.code || '');
+    const missingParent = msg.includes('parent_comment_id');
 
     // Table doesn't exist: return empty list (not 500)
     if (code === '42P01' || msg.includes('relation') && msg.includes('does not exist')) {
@@ -58,18 +59,31 @@ router.get('/predictions/:predictionId/comments', async (req, res) => {
       return res.json({ success: true, data: [], pagination: { page, limit, total: 0, totalPages: 0, hasNext: false, hasPrev: false } });
     }
 
-    // Column issue (e.g. users table missing columns) - retry without user join
+    // Column issue (e.g. users table missing columns or parent_comment_id missing).
+    // If parent_comment_id is missing, we must fetch all comments (cannot filter to top-level).
     if (code === '42703' || msg.includes('does not exist')) {
-      console.warn('[comments:GET] Column issue, retrying without user join:', topResult.error.message);
-      topResult = await safeQuery(() =>
-        supabase
-          .from('comments')
-          .select('*', { count: 'exact' })
-          .eq('prediction_id', predictionId)
-          .is('parent_comment_id', null)
-          .order('created_at', { ascending: false })
-          .range(offset, offset + limit - 1)
-      );
+      if (missingParent) {
+        console.warn('[comments:GET] parent_comment_id missing, fetching all comments without parent filter');
+        topResult = await safeQuery(() =>
+          supabase
+            .from('comments')
+            .select('*', { count: 'exact' })
+            .eq('prediction_id', predictionId)
+            .order('created_at', { ascending: false })
+            .range(offset, offset + limit - 1)
+        );
+      } else {
+        console.warn('[comments:GET] Column issue, retrying without user join:', topResult.error.message);
+        topResult = await safeQuery(() =>
+          supabase
+            .from('comments')
+            .select('*', { count: 'exact' })
+            .eq('prediction_id', predictionId)
+            .is('parent_comment_id', null)
+            .order('created_at', { ascending: false })
+            .range(offset, offset + limit - 1)
+        );
+      }
     }
 
     // Still failing? Return error gracefully
@@ -112,7 +126,10 @@ router.get('/predictions/:predictionId/comments', async (req, res) => {
         .order('created_at', { ascending: true })
     );
 
-    if (!repliesResult.error && repliesResult.data) {
+    // If parent_comment_id doesn't exist, skip replies mapping (we'll just return flat comments).
+    if (repliesResult.error && String(repliesResult.error?.message || '').toLowerCase().includes('parent_comment_id')) {
+      repliesMap = {};
+    } else if (!repliesResult.error && repliesResult.data) {
       for (const reply of repliesResult.data) {
         const pid = (reply as any).parent_comment_id;
         if (!repliesMap[pid]) repliesMap[pid] = [];
