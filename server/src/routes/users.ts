@@ -216,17 +216,24 @@ router.post('/me/delete', requireSupabaseAuth, async (req: AuthenticatedRequest,
   const userFacingMessage = 'Account deletion failed. Please try again or contact support.';
   try {
     // Idempotency: if already self-deleted, return success.
-    const { data: existing } = await supabase
-      .from('users')
-      .select('id, is_banned, ban_reason')
-      .eq('id', userId)
-      .maybeSingle();
-    if ((existing as any)?.is_banned && String((existing as any)?.ban_reason || '').toLowerCase() === 'self_deleted') {
-      return res.status(200).json({ success: true, message: 'Account deleted', version: VERSION });
+    // Defensive: if moderation columns aren't present yet, skip this check (do not 500).
+    try {
+      const { data: existing, error: existingErr } = await supabase
+        .from('users')
+        .select('id, is_banned, ban_reason')
+        .eq('id', userId)
+        .maybeSingle();
+      if (!existingErr) {
+        if ((existing as any)?.is_banned && String((existing as any)?.ban_reason || '').toLowerCase() === 'self_deleted') {
+          return res.status(200).json({ success: true, message: 'Account deleted', version: VERSION });
+        }
+      }
+    } catch {
+      // ignore
     }
 
     // 1) Anonymize public.users first so FKs remain valid + mark disabled.
-    const { error: updateError } = await supabase
+    const fullUpdate = await supabase
       .from('users')
       .update({
         username: `deleted_${userId.slice(0, 8)}`,
@@ -240,13 +247,29 @@ router.post('/me/delete', requireSupabaseAuth, async (req: AuthenticatedRequest,
         updated_at: new Date().toISOString(),
       })
       .eq('id', userId);
+
+    let updateError = fullUpdate.error as any;
+    if (updateError) {
+      const msg = String(updateError?.message || '');
+      const missingColumn = msg.toLowerCase().includes('does not exist') && msg.toLowerCase().includes('column');
+      if (missingColumn) {
+        // Fallback for DBs without moderation columns yet (no 500).
+        const minimal = await supabase
+          .from('users')
+          .update({
+            username: `deleted_${userId.slice(0, 8)}`,
+            full_name: null,
+            avatar_url: null,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', userId);
+        updateError = minimal.error as any;
+      }
+    }
+
     if (updateError) {
       console.warn('[users/me/delete] users update failed:', updateError.message);
-      return res.status(500).json({
-        error: 'Deletion failed',
-        message: userFacingMessage,
-        version: VERSION,
-      });
+      return res.status(500).json({ error: 'Deletion failed', message: userFacingMessage, version: VERSION });
     }
 
     // 2) Best-effort: delete auth user. If this fails (e.g. misconfigured service role),

@@ -1240,9 +1240,11 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
   fetchCompletedPredictions: async (userId: string) => {
     try {
       console.log('📋 Fetching completed predictions (creator or participant) for:', userId);
+      const authHeaders = await getAuthHeaders();
       const data = await apiClient.get(`/api/v2/predictions/completed/${userId}`, {
         timeout: 10000,
-        retryOptions: { maxRetries: 3 }
+        retryOptions: { maxRetries: 3 },
+        headers: authHeaders,
       });
       const completedPredictions = data.data || [];
       set({ completedPredictions });
