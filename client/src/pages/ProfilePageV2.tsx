@@ -251,6 +251,34 @@ const ProfilePageV2: React.FC<ProfilePageV2Props> = ({ onNavigateBack, userId })
           badge: 'placed',
           badgeColor: 'text-blue-600'
         };
+      case 'wallet.deposit':
+      case 'deposit':
+        return {
+          iconBg: 'bg-emerald-100',
+          icon: <DollarSign className="w-4 h-4 text-emerald-600" />,
+          title: 'Deposit',
+          subtitle: item.data?.description || item.data?.provider || '',
+          amount: item.data?.amount ? (() => {
+            const tx = formatTxAmount({ amount: Number(item.data.amount), type: 'deposit', kind: 'deposit', compact: true });
+            return tx.display;
+          })() : null,
+          badge: 'deposit',
+          badgeColor: 'text-emerald-600'
+        };
+      case 'wallet.withdraw':
+      case 'withdraw':
+        return {
+          iconBg: 'bg-orange-100',
+          icon: <DollarSign className="w-4 h-4 text-orange-600" />,
+          title: 'Withdrawal',
+          subtitle: item.data?.description || item.data?.provider || '',
+          amount: item.data?.amount ? (() => {
+            const tx = formatTxAmount({ amount: Number(item.data.amount), type: 'withdraw', kind: 'withdraw', compact: true });
+            return tx.display;
+          })() : null,
+          badge: 'withdrawal',
+          badgeColor: 'text-orange-600'
+        };
       case 'wallet.other':
         return {
           iconBg: 'bg-gray-100',

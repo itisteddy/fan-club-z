@@ -2391,8 +2391,9 @@ router.get('/claimable', async (req, res) => {
   }
 });
 // POST /api/v2/settlement/manual/merkle - Creator-led Merkle settlement (on-chain flow)
+// NOTE: crypto gate removed from top level — demo-only predictions must always settle.
+// Crypto gate is applied later, only if the prediction has crypto-rail entries.
 router.post('/manual/merkle', async (req, res) => {
-  if (cryptoGate(req, res)) return;
   try {
     const { predictionId, winningOptionId, userId, reason } = req.body as {
       predictionId: string;
@@ -2533,6 +2534,63 @@ router.post('/manual/merkle', async (req, res) => {
           },
         },
         message: 'Demo settlement completed off-chain (no on-chain action required).',
+        version: VERSION,
+      });
+    }
+
+    // Gate: only allow crypto settlement if crypto is enabled for this client/env.
+    // Demo rail was already settled above — this block is crypto-only.
+    if (!isCryptoAllowedForClient(req)) {
+      console.log('[SETTLEMENT] Crypto rail has entries but client not allowed for crypto — skipping crypto settlement, demo already settled');
+      // Mark prediction as settled (demo done) and return success
+      try {
+        await supabase
+          .from('predictions')
+          .update({
+            status: 'settled',
+            settled_at: new Date().toISOString(),
+            winning_option_id: winningOptionId,
+            resolution_reason: reason || null,
+            updated_at: new Date().toISOString(),
+          } as any)
+          .eq('id', predictionId);
+      } catch {}
+
+      await supabase
+        .from('bet_settlements')
+        .upsert(
+          {
+            bet_id: predictionId,
+            winning_option_id: winningOptionId,
+            total_payout: demoSummary.demoPayoutPool,
+            platform_fee_collected: demoSummary.demoPlatformFee,
+            creator_payout_amount: demoSummary.demoCreatorFee,
+            settlement_time: new Date().toISOString(),
+            status: 'completed',
+            meta: { rail: 'demo', crypto_skipped: true, crypto_skip_reason: 'client_policy' },
+          } as any,
+          { onConflict: 'bet_id' } as any
+        );
+
+      emitSettlementComplete({ predictionId });
+      emitPredictionUpdate({ predictionId });
+
+      return res.json({
+        success: true,
+        data: {
+          predictionId,
+          title: prediction.title,
+          winningOptionId,
+          demo: demoSummary,
+          crypto: { settled: false, skippedReason: 'client_policy' },
+          summary: {
+            platformFeeUSD: demoSummary.demoPlatformFee,
+            creatorFeeUSD: demoSummary.demoCreatorFee,
+            payoutPoolUSD: demoSummary.demoPayoutPool,
+            winnersCount: 0,
+          },
+        },
+        message: 'Demo settlement completed. Crypto settlement skipped (not available on this client). Crypto entries can be settled later by an admin or web client.',
         version: VERSION,
       });
     }

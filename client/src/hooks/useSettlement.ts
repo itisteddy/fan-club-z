@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
 import { getApiUrl } from '../config';
+import { getFczClientHeader } from '@/lib/apiClient';
 
 interface SettlementRequest {
   predictionId: string;
@@ -50,6 +51,7 @@ export const useSettlement = () => {
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
+          'X-FCZ-Client': getFczClientHeader(),
         },
         credentials: 'include',
         body: JSON.stringify(request)
@@ -86,6 +88,7 @@ export const useSettlement = () => {
         method: 'GET',
         headers: {
           'Accept': 'application/json',
+          'X-FCZ-Client': getFczClientHeader(),
         },
         credentials: 'include'
       });

@@ -6,6 +6,7 @@ import { BaseError, type Hash } from 'viem';
 import { getAddress } from 'viem';
 import toast from 'react-hot-toast';
 import { getApiUrl } from '@/utils/environment';
+import { getFczClientHeader } from '@/lib/apiClient';
 import { ESCROW_MERKLE_ABI } from '@/chain/escrowMerkleAbi';
 import { useWalletConnectSession } from '@/hooks/useWalletConnectSession';
 import { useWeb3Recovery } from '@/providers/Web3Provider';
@@ -117,7 +118,7 @@ export function useSettlementMerkle() {
         
         const prepare = await fetch(`${getApiUrl()}/api/v2/settlement/manual/merkle`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+          headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'X-FCZ-Client': getFczClientHeader() },
           credentials: 'include',
           body: JSON.stringify({
             predictionId: args.predictionId,
@@ -177,7 +178,7 @@ export function useSettlementMerkle() {
           try {
             await fetch(`${getApiUrl()}/api/v2/settlement/${args.predictionId}/request-finalize`, {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+              headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'X-FCZ-Client': getFczClientHeader() },
               credentials: 'include',
               body: JSON.stringify({ userId: args.userId }),
             });
@@ -209,7 +210,7 @@ export function useSettlementMerkle() {
           try {
             await fetch(`${getApiUrl()}/api/v2/settlement/${args.predictionId}/request-finalize`, {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+              headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'X-FCZ-Client': getFczClientHeader() },
               credentials: 'include',
               body: JSON.stringify({ userId: args.userId }),
             });
@@ -297,7 +298,7 @@ export function useSettlementMerkle() {
         try {
           await fetch(`${getApiUrl()}/api/v2/settlement/manual/merkle/posted`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', 'X-FCZ-Client': getFczClientHeader() },
             body: JSON.stringify({ predictionId: args.predictionId, txHash, root }),
           });
         } catch {}
@@ -320,7 +321,7 @@ export function useSettlementMerkle() {
           try {
             await fetch(`${getApiUrl()}/api/v2/settlement/${args.predictionId}/request-finalize`, {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+              headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'X-FCZ-Client': getFczClientHeader() },
               credentials: 'include',
               body: JSON.stringify({ userId: args.userId }),
             });

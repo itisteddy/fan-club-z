@@ -40,10 +40,10 @@ export function useWalletSummary(userId?: string, options: WalletSummaryOptions 
     enabled: Boolean(userId) && enabled,
     refetchInterval: refetchIntervalMs,
     // PERFORMANCE FIX: Better caching settings
-    staleTime: 20_000, // Data fresh for 20 seconds
+    staleTime: 15_000, // Data fresh for 15 seconds (matches server Cache-Control max-age)
     gcTime: 60_000, // Keep in cache for 1 minute
-    refetchOnWindowFocus: false,
-    refetchOnMount: false,
+    refetchOnWindowFocus: true,  // Refresh when user switches back to app (critical on mobile)
+    refetchOnMount: 'always' as const, // Always fetch when component mounts (prevents stale mobile data)
     retry: 2,
     queryFn: async (): Promise<WalletSummary> => {
       if (!userId) {
@@ -67,8 +67,10 @@ export function useWalletSummary(userId?: string, options: WalletSummaryOptions 
         response = await fetch(url, {
           headers: {
             Accept: 'application/json',
+            'Cache-Control': 'no-cache',
           },
           signal: controller.signal,
+          cache: 'no-store',
         });
       } catch (e: any) {
         if (e?.name === 'AbortError') {
