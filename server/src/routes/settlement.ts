@@ -3512,22 +3512,26 @@ router.get('/:predictionId/history', async (req, res) => {
       }
     }
 
+    // Fetch validations without user join (user_id references auth.users, not public.users)
     const { data: validations, error: validationsError } = await supabase
       .from('settlement_validations')
-      .select(`
-        id,
-        user_id,
-        action,
-        reason,
-        created_at,
-        status,
-        user:users(username, full_name)
-      `)
+      .select('id, user_id, action, reason, created_at, status')
       .eq('prediction_id', predictionId)
       .order('created_at', { ascending: false });
 
     if (validationsError) {
       console.error('Error fetching settlement history:', validationsError);
+      // Handle table doesn't exist gracefully
+      if (validationsError.message?.includes('does not exist') || validationsError.code === '42P01') {
+        return res.json({
+          success: true,
+          data: {
+            items: [],
+            summary: { accepts: 0, disputes: 0, pendingDisputes: 0, lastActionAt: null }
+          },
+          version: VERSION
+        });
+      }
       return res.status(500).json({
         error: 'Database error',
         message: 'Failed to fetch settlement history',
@@ -3535,7 +3539,26 @@ router.get('/:predictionId/history', async (req, res) => {
       });
     }
 
-    const items = validations || [];
+    // Fetch user data separately (FK references auth.users, we need public.users data)
+    let usersMap: Record<string, { username?: string; full_name?: string }> = {};
+    if (validations && validations.length > 0) {
+      const userIds = [...new Set(validations.map((v: any) => v.user_id).filter(Boolean))];
+      if (userIds.length > 0) {
+        const { data: users } = await supabase
+          .from('users')
+          .select('id, username, full_name')
+          .in('id', userIds);
+        if (users) {
+          usersMap = Object.fromEntries(users.map((u: any) => [u.id, { username: u.username, full_name: u.full_name }]));
+        }
+      }
+    }
+
+    // Merge user data into items
+    const items = (validations || []).map((v: any) => ({
+      ...v,
+      user: usersMap[v.user_id] || null
+    }));
     const accepts = items.filter((v: any) => v.action === 'accept').length;
     const disputes = items.filter((v: any) => v.action === 'dispute').length;
     const pendingDisputes = items.filter((v: any) => v.action === 'dispute' && v.status === 'pending').length;
@@ -3571,24 +3594,24 @@ router.get('/:predictionId/disputes', async (req, res) => {
     
     console.log('📋 Fetching disputes for prediction:', predictionId);
     
-    // Get all disputes for this prediction
-    const { data: disputes, error: disputesError } = await supabase
+    // Get all disputes for this prediction (without user join - FK references auth.users)
+    const { data: rawDisputes, error: disputesError } = await supabase
       .from('settlement_validations')
-      .select(`
-        id,
-        user_id,
-        action,
-        reason,
-        created_at,
-        status,
-        user:users(username, full_name)
-      `)
+      .select('id, user_id, action, reason, created_at, status')
       .eq('prediction_id', predictionId)
       .eq('action', 'dispute')
       .order('created_at', { ascending: false });
 
     if (disputesError) {
       console.error('Error fetching disputes:', disputesError);
+      // Handle table doesn't exist gracefully
+      if (disputesError.message?.includes('does not exist') || disputesError.code === '42P01') {
+        return res.json({
+          success: true,
+          data: { disputes: [], totalDisputes: 0, pendingDisputes: 0 },
+          version: VERSION
+        });
+      }
       return res.status(500).json({
         error: 'Database error',
         message: 'Failed to fetch disputes',
@@ -3596,8 +3619,29 @@ router.get('/:predictionId/disputes', async (req, res) => {
       });
     }
 
-    const totalDisputes = disputes?.length || 0;
-    const pendingDisputes = disputes?.filter(d => d.status === 'pending').length || 0;
+    // Fetch user data separately
+    let usersMap: Record<string, { username?: string; full_name?: string }> = {};
+    if (rawDisputes && rawDisputes.length > 0) {
+      const userIds = [...new Set(rawDisputes.map((d: any) => d.user_id).filter(Boolean))];
+      if (userIds.length > 0) {
+        const { data: users } = await supabase
+          .from('users')
+          .select('id, username, full_name')
+          .in('id', userIds);
+        if (users) {
+          usersMap = Object.fromEntries(users.map((u: any) => [u.id, { username: u.username, full_name: u.full_name }]));
+        }
+      }
+    }
+
+    // Merge user data into disputes
+    const disputes = (rawDisputes || []).map((d: any) => ({
+      ...d,
+      user: usersMap[d.user_id] || null
+    }));
+
+    const totalDisputes = disputes.length;
+    const pendingDisputes = disputes.filter((d: any) => d.status === 'pending').length;
 
     console.log(`✅ Found ${totalDisputes} disputes (${pendingDisputes} pending)`);
 
