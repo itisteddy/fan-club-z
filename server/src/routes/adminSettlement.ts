@@ -214,5 +214,130 @@ adminSettlement.post('/:predictionId/finalize/retry', requireAdmin, async (req, 
   return res.json({ success: true, status: 'queued', version: VERSION });
 });
 
+// POST /api/v2/admin/settlement/disputes/:disputeId/resolve
+// Admin resolves a dispute (accept/dismiss)
+const ResolveDisputeParams = z.object({
+  actorId: z.string().uuid(),
+  resolution: z.enum(['resolved', 'dismissed']),
+  resolutionReason: z.string().min(1).max(1000).optional(),
+});
 
+adminSettlement.post('/disputes/:disputeId/resolve', requireAdmin, async (req, res) => {
+  const { disputeId } = req.params;
+  const parsed = ResolveDisputeParams.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ code: 'BAD_REQUEST', message: 'Invalid payload', details: parsed.error.issues, version: VERSION });
+  }
+  const { actorId, resolution, resolutionReason } = parsed.data;
+
+  // Get the dispute
+  const { data: dispute, error: disputeErr } = await supabase
+    .from('settlement_validations')
+    .select('id, prediction_id, user_id, action, status')
+    .eq('id', disputeId)
+    .single();
+
+  if (disputeErr || !dispute) {
+    return res.status(404).json({ code: 'NOT_FOUND', message: 'Dispute not found', version: VERSION });
+  }
+
+  if ((dispute as any).action !== 'dispute') {
+    return res.status(400).json({ code: 'BAD_REQUEST', message: 'This is not a dispute', version: VERSION });
+  }
+
+  if ((dispute as any).status !== 'pending') {
+    return res.status(409).json({ code: 'INVALID_STATE', message: 'Dispute already resolved', version: VERSION });
+  }
+
+  // Update the dispute
+  const { error: updateErr } = await supabase
+    .from('settlement_validations')
+    .update({
+      status: resolution,
+      resolution_reason: resolutionReason || null,
+      resolved_by: actorId,
+      resolved_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    } as any)
+    .eq('id', disputeId);
+
+  if (updateErr) {
+    console.error('Error resolving dispute:', updateErr);
+    return res.status(500).json({ code: 'INTERNAL', message: 'Failed to resolve dispute', version: VERSION });
+  }
+
+  // Check if there are other pending disputes for this prediction
+  const { data: otherDisputes } = await supabase
+    .from('settlement_validations')
+    .select('id')
+    .eq('prediction_id', (dispute as any).prediction_id)
+    .eq('action', 'dispute')
+    .eq('status', 'pending');
+
+  // If no more pending disputes, clear the flag on the prediction
+  if (!otherDisputes || otherDisputes.length === 0) {
+    await supabase
+      .from('predictions')
+      .update({ has_pending_dispute: false, updated_at: new Date().toISOString() } as any)
+      .eq('id', (dispute as any).prediction_id);
+  }
+
+  await audit(actorId, 'dispute_resolved', disputeId, { resolution, resolutionReason });
+
+  return res.json({ success: true, status: resolution, version: VERSION });
+});
+
+// GET /api/v2/admin/settlement/disputes - List all pending disputes across predictions
+adminSettlement.get('/disputes', requireAdmin, async (req, res) => {
+  const status = (req.query.status as string) || 'pending';
+  const limit = parseInt(req.query.limit as string || '50', 10);
+  const offset = parseInt(req.query.offset as string || '0', 10);
+
+  const { data: disputes, error } = await supabase
+    .from('settlement_validations')
+    .select(`
+      id, prediction_id, user_id, action, reason, proof_url, status, 
+      resolution_reason, resolved_at, resolved_by, created_at, updated_at
+    `)
+    .eq('action', 'dispute')
+    .eq('status', status)
+    .order('created_at', { ascending: false })
+    .range(offset, offset + limit - 1);
+
+  if (error) {
+    // Handle table doesn't exist gracefully
+    if (error.message?.includes('does not exist') || error.code === '42P01') {
+      return res.json({ success: true, data: { disputes: [], total: 0 }, version: VERSION });
+    }
+    return res.status(500).json({ code: 'INTERNAL', message: 'Failed to fetch disputes', version: VERSION });
+  }
+
+  // Get user info for disputes
+  const userIds = [...new Set((disputes || []).map((d: any) => d.user_id).filter(Boolean))];
+  let usersMap: Record<string, { username?: string; full_name?: string }> = {};
+  if (userIds.length > 0) {
+    const { data: users } = await supabase.from('users').select('id, username, full_name').in('id', userIds);
+    if (users) {
+      usersMap = Object.fromEntries(users.map((u: any) => [u.id, { username: u.username, full_name: u.full_name }]));
+    }
+  }
+
+  // Get prediction info for disputes
+  const predictionIds = [...new Set((disputes || []).map((d: any) => d.prediction_id).filter(Boolean))];
+  let predictionsMap: Record<string, { title?: string }> = {};
+  if (predictionIds.length > 0) {
+    const { data: predictions } = await supabase.from('predictions').select('id, title').in('id', predictionIds);
+    if (predictions) {
+      predictionsMap = Object.fromEntries(predictions.map((p: any) => [p.id, { title: p.title }]));
+    }
+  }
+
+  const enrichedDisputes = (disputes || []).map((d: any) => ({
+    ...d,
+    user: usersMap[d.user_id] || null,
+    prediction: predictionsMap[d.prediction_id] || null,
+  }));
+
+  return res.json({ success: true, data: { disputes: enrichedDisputes, total: enrichedDisputes.length }, version: VERSION });
+});
 

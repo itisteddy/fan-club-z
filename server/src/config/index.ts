@@ -196,6 +196,15 @@ export const config = {
       .filter(Boolean),
     allowedOrigin: process.env.CRYPTO_ALLOWED_ORIGIN || 'https://app.fanclubz.app',
   },
+  
+  // Settlement / finalization configuration
+  settlement: {
+    // Allow prediction creators to request finalization (queue for admin to finalize)
+    // If false, only admins can request finalization
+    allowCreatorFinalizationRequest: process.env.ALLOW_CREATOR_FINALIZATION_REQUEST === 'true',
+    // Dispute window in hours after settlement before finalization can occur
+    disputeWindowHours: parseInt(process.env.SETTLEMENT_DISPUTE_WINDOW_HOURS || '24', 10),
+  },
 } as const;
 
 // Validate required environment variables

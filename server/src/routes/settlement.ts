@@ -3107,6 +3107,11 @@ router.get('/:predictionId/status', async (req, res) => {
       .eq('bet_id', predictionId)
       .single();
 
+    // Check if prediction has crypto entries (non-demo providers)
+    const hasCryptoEntries = (prediction.entries || []).some(
+      (entry: any) => entry.provider && entry.provider !== DEMO_PROVIDER && entry.provider !== 'demo-wallet'
+    );
+
     const response = {
       prediction: {
         id: prediction.id,
@@ -3116,6 +3121,7 @@ router.get('/:predictionId/status', async (req, res) => {
         creator_id: prediction.creator_id,
         resolution_reason: (prediction as any).resolution_reason ?? null,
         resolution_source_url: (prediction as any).resolution_source_url ?? null,
+        hasCryptoEntries,
       },
       userEntry: {
         id: userEntry.id,
@@ -3127,7 +3133,8 @@ router.get('/:predictionId/status', async (req, res) => {
       },
       settlement: settlement || null,
       canValidate: prediction.status === 'closed' || prediction.status === 'awaiting_settlement',
-      needsSettlement: !settlement && (prediction.status === 'closed' || prediction.status === 'awaiting_settlement')
+      needsSettlement: !settlement && (prediction.status === 'closed' || prediction.status === 'awaiting_settlement'),
+      hasCryptoEntries,
     };
 
     return res.json({
@@ -3151,17 +3158,33 @@ router.get('/:predictionId/status', async (req, res) => {
 router.post('/:predictionId/validate', async (req, res) => {
   try {
     const { predictionId } = req.params;
-    const { userId, action, reason } = req.body; // action: 'accept' | 'dispute'
+    const { userId, action, reason, proofUrl } = req.body as { 
+      userId?: string; 
+      action?: string; 
+      reason?: string;
+      proofUrl?: string;
+    };
     
     console.log(`✅ Settlement validation for prediction ${predictionId}: ${action} by user ${userId}`);
     
     // Validate required fields
     if (!userId || !action || !['accept', 'dispute'].includes(action)) {
       return res.status(400).json({
-        error: 'Validation error',
+        code: 'BAD_REQUEST',
         message: 'userId and valid action (accept/dispute) are required',
         version: VERSION
       });
+    }
+    
+    // Validate dispute has reason with minimum length
+    if (action === 'dispute') {
+      if (!reason || reason.trim().length < 20) {
+        return res.status(400).json({
+          code: 'BAD_REQUEST',
+          message: 'Dispute reason must be at least 20 characters',
+          version: VERSION
+        });
+      }
     }
 
     // Check if user is a participant
@@ -3174,7 +3197,7 @@ router.post('/:predictionId/validate', async (req, res) => {
 
     if (entryError || !userEntry) {
       return res.status(403).json({
-        error: 'Unauthorized',
+        code: 'FORBIDDEN',
         message: 'You are not a participant in this prediction',
         version: VERSION
       });
@@ -3187,8 +3210,11 @@ router.post('/:predictionId/validate', async (req, res) => {
         prediction_id: predictionId,
         user_id: userId,
         action: action,
-        reason: reason || null,
-        created_at: new Date().toISOString()
+        reason: reason?.trim() || null,
+        proof_url: proofUrl?.trim() || null,
+        status: action === 'dispute' ? 'pending' : null,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
       }, {
         onConflict: 'prediction_id,user_id'
       })
@@ -3198,22 +3224,31 @@ router.post('/:predictionId/validate', async (req, res) => {
     if (validationError) {
       console.error('Error recording validation:', validationError);
       return res.status(500).json({
-        error: 'Database error',
+        code: 'INTERNAL',
         message: 'Failed to record validation',
         version: VERSION
       });
     }
 
-    // If this is a dispute, we might want to halt settlement
+    // If this is a dispute, update prediction status to indicate pending dispute
+    // Don't block settlement, but mark that there's a dispute to review
     if (action === 'dispute') {
-      // Mark prediction as disputed
-      await supabase
+      // Only update if not already finalized
+      const { data: prediction } = await supabase
         .from('predictions')
-        .update({ 
-          status: 'disputed',
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', predictionId);
+        .select('status')
+        .eq('id', predictionId)
+        .single();
+      
+      if (prediction && !['finalized'].includes(prediction.status)) {
+        await supabase
+          .from('predictions')
+          .update({ 
+            has_pending_dispute: true,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', predictionId);
+      }
     }
 
     return res.json({
@@ -3234,42 +3269,71 @@ router.post('/:predictionId/validate', async (req, res) => {
 });
 
 // POST /api/v2/settlement/:predictionId/request-finalize
-// Creator (or admin) requests finalization. No wallet required.
+// Request finalization of a settled prediction (queue for admin to finalize on-chain).
+// Authorization: Admin always allowed. Creator allowed only if config.settlement.allowCreatorFinalizationRequest is true.
 router.post('/:predictionId/request-finalize', async (req, res) => {
   try {
     const { predictionId } = req.params;
     const { userId } = req.body as { userId?: string };
     if (!userId) {
-      return res.status(400).json({ error: 'bad_request', message: 'userId is required', version: VERSION });
+      return res.status(400).json({ code: 'BAD_REQUEST', message: 'userId is required', version: VERSION });
     }
 
-    const admin = isAdminRequest(req);
+    const isAdmin = isAdminRequest(req);
 
     const { data: prediction, error: predErr } = await supabase
       .from('predictions')
-      .select('id,creator_id')
+      .select('id,creator_id,status')
       .eq('id', predictionId)
       .maybeSingle();
     if (predErr || !prediction) {
-      return res.status(404).json({ error: 'not_found', message: 'Prediction not found', version: VERSION });
+      return res.status(404).json({ code: 'NOT_FOUND', message: 'Prediction not found', version: VERSION });
     }
 
-    if (!admin && prediction.creator_id !== userId) {
-      return res.status(403).json({ error: 'forbidden', message: 'Only the creator can request finalization', version: VERSION });
+    // Authorization check: admin always allowed, creator only if flag enabled
+    const isCreator = prediction.creator_id === userId;
+    const creatorAllowed = config.settlement.allowCreatorFinalizationRequest && isCreator;
+    
+    if (!isAdmin && !creatorAllowed) {
+      return res.status(403).json({ 
+        code: 'FORBIDDEN', 
+        message: isCreator 
+          ? 'Creator finalization requests are not enabled. Contact admin.' 
+          : 'Not authorized to request finalization',
+        version: VERSION 
+      });
     }
 
-    // If there's already an active job, return it
-    const { data: activeJob } = await supabase
+    // State validation: prediction must be settled
+    const validStatuses = ['settled', 'closed'];
+    if (!validStatuses.includes(prediction.status)) {
+      return res.status(409).json({ 
+        code: 'INVALID_STATE', 
+        message: `Prediction must be settled before finalization. Current status: ${prediction.status}`,
+        version: VERSION 
+      });
+    }
+
+    // If there's already an active or completed job, return it (idempotent)
+    const { data: existingJob } = await supabase
       .from('settlement_finalize_jobs')
       .select('id,prediction_id,requested_by,status,tx_hash,error,created_at,updated_at')
       .eq('prediction_id', predictionId)
-      .in('status', ['queued', 'running'])
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle();
 
-    if (activeJob) {
-      return res.json({ success: true, status: (activeJob as any).status, job: activeJob, version: VERSION });
+    if (existingJob) {
+      const jobStatus = (existingJob as any).status;
+      // If already finalized, return success
+      if (jobStatus === 'finalized') {
+        return res.json({ success: true, status: 'finalized', job: existingJob, version: VERSION });
+      }
+      // If queued or running, return current state
+      if (jobStatus === 'queued' || jobStatus === 'running') {
+        return res.json({ success: true, status: jobStatus, job: existingJob, version: VERSION });
+      }
+      // If failed, allow re-queue
     }
 
     const { data: created, error: createErr } = await supabase
@@ -3283,13 +3347,13 @@ router.post('/:predictionId/request-finalize', async (req, res) => {
       .single();
 
     if (createErr) {
-      return res.status(500).json({ error: 'internal', message: 'Failed to create finalize job', version: VERSION });
+      return res.status(500).json({ code: 'INTERNAL', message: 'Failed to create finalize job', version: VERSION });
     }
 
     return res.json({ success: true, status: 'queued', job: created, version: VERSION });
   } catch (e: any) {
     console.error('[SETTLEMENT] request-finalize failed:', e);
-    return res.status(500).json({ error: 'internal', message: 'Failed to request finalization', version: VERSION });
+    return res.status(500).json({ code: 'INTERNAL', message: 'Failed to request finalization', version: VERSION });
   }
 });
 
@@ -3597,7 +3661,7 @@ router.get('/:predictionId/disputes', async (req, res) => {
     // Get all disputes for this prediction (without user join - FK references auth.users)
     const { data: rawDisputes, error: disputesError } = await supabase
       .from('settlement_validations')
-      .select('id, user_id, action, reason, created_at, status')
+      .select('id, user_id, action, reason, proof_url, created_at, status, resolution_reason, resolved_at, resolved_by')
       .eq('prediction_id', predictionId)
       .eq('action', 'dispute')
       .order('created_at', { ascending: false });
