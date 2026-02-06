@@ -40,7 +40,7 @@ router.get('/predictions/:predictionId/comments', async (req, res) => {
   let topResult = await safeQuery(() =>
     supabase
       .from('comments')
-      .select('*, user:users(id, username, full_name, avatar_url)', { count: 'exact' })
+      .select('*, user:users(id, username, full_name, avatar_url, is_verified, og_badge)', { count: 'exact' })
       .eq('prediction_id', predictionId)
       .is('parent_comment_id', null)
       .order('created_at', { ascending: false })
@@ -90,7 +90,7 @@ router.get('/predictions/:predictionId/comments', async (req, res) => {
     const repliesResult = await safeQuery(() =>
       supabase
         .from('comments')
-        .select('*, user:users(id, username, full_name, avatar_url)')
+        .select('*, user:users(id, username, full_name, avatar_url, is_verified, og_badge)')
         .in('parent_comment_id', commentIds)
         .order('created_at', { ascending: true })
     );
@@ -240,7 +240,7 @@ router.post('/predictions/:predictionId/comments', requireSupabaseAuth, async (r
     try {
       const { data: udata } = await supabase
         .from('users')
-        .select('id, username, full_name, avatar_url')
+        .select('id, username, full_name, avatar_url, is_verified, og_badge')
         .eq('id', userId)
         .maybeSingle();
       if (udata) userProfile = udata as Record<string, any>;
@@ -339,7 +339,7 @@ router.put('/comments/:commentId', async (req, res) => {
         .update({ content: content.trim(), updated_at: new Date().toISOString() })
         .eq('id', commentId)
         .eq('user_id', userId)
-        .select('*, user:users(id, username, full_name, avatar_url)')
+        .select('*, user:users(id, username, full_name, avatar_url, is_verified, og_badge)')
         .single()
     );
 

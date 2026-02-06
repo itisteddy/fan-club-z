@@ -9,6 +9,8 @@ interface CommentListProps {
   hasMore: boolean;
   onLoadMore?: () => void;
   onToggleLike?: (commentId: string) => void;
+  onRetry?: (clientTempId: string) => void;
+  onDismiss?: (clientTempId: string) => void;
 }
 
 export const CommentList: React.FC<CommentListProps> = ({
@@ -16,7 +18,9 @@ export const CommentList: React.FC<CommentListProps> = ({
   isLoading,
   hasMore,
   onLoadMore,
-  onToggleLike
+  onToggleLike,
+  onRetry,
+  onDismiss,
 }) => {
   if (isLoading && comments.length === 0) {
     return <CommentListSkeleton count={3} />;
@@ -35,9 +39,11 @@ export const CommentList: React.FC<CommentListProps> = ({
     <div className="space-y-4">
       {comments.map((comment) => (
         <CommentItem
-          key={comment.id}
+          key={comment.clientTempId || comment.id}
           comment={comment}
           onToggleLike={onToggleLike}
+          onRetry={onRetry}
+          onDismiss={onDismiss}
         />
       ))}
       

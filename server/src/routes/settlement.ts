@@ -12,7 +12,7 @@ import { calculatePayouts, type Entry as PayoutEntry } from '../services/payoutC
 import { computePoolV2SettlementTotals, allocatePoolV2PayoutsToEntries } from '../services/settlementOddsV2';
 import { createNotification } from '../services/notifications';
 import { upsertSettlementResult, computeSettlementAggregates } from '../services/settlementResults';
-import { isCryptoAllowedForClient } from '../middleware/requireCryptoEnabled';
+import { isCryptoAllowedForClient, isCryptoEnabledOnServer } from '../middleware/requireCryptoEnabled';
 
 const router = express.Router();
 
@@ -2390,9 +2390,17 @@ router.get('/claimable', async (req, res) => {
     return res.status(500).json({ error: 'internal', message: 'Failed to compute claimable', version: VERSION });
   }
 });
-// POST /api/v2/settlement/manual/merkle - Creator-led Merkle settlement (on-chain flow)
-// NOTE: crypto gate removed from top level — demo-only predictions must always settle.
-// Crypto gate is applied later, only if the prediction has crypto-rail entries.
+// POST /api/v2/settlement/manual/merkle - Creator-led Merkle settlement
+//
+// Settlement architecture (hybrid rails):
+//   1. Demo rail: always settled via DB ledger, regardless of client or crypto state.
+//   2. Crypto rail: if crypto entries exist AND CRYPTO_MODE != 'off' on server,
+//      compute + persist Merkle proof (root, leaves, proofs). Mark as pending_onchain.
+//      The on-chain posting (tx) is a separate step done by the creator wallet or relayer.
+//   3. Crypto rail skipped ONLY if: no crypto entries, OR CRYPTO_MODE=off on server.
+//      Client identity (mobile/web/admin) is NEVER a reason to skip crypto settlement.
+//
+// No crypto gate on this endpoint. Client gating is UI-only.
 router.post('/manual/merkle', async (req, res) => {
   try {
     const { predictionId, winningOptionId, userId, reason } = req.body as {
@@ -2538,11 +2546,13 @@ router.post('/manual/merkle', async (req, res) => {
       });
     }
 
-    // Gate: only allow crypto settlement if crypto is enabled for this client/env.
-    // Demo rail was already settled above — this block is crypto-only.
-    if (!isCryptoAllowedForClient(req)) {
-      console.log('[SETTLEMENT] Crypto rail has entries but client not allowed for crypto — skipping crypto settlement, demo already settled');
-      // Mark prediction as settled (demo done) and return success
+    // Crypto entries exist. Check if server-level crypto is enabled.
+    // NOTE: We intentionally do NOT check client identity here.
+    // Settlement = "finalize outcome + publish proof". The calling client
+    // (mobile, web, admin) is irrelevant. Claims happen later.
+    if (!isCryptoEnabledOnServer()) {
+      console.log('[SETTLEMENT] Crypto entries exist but CRYPTO_MODE=off on server — skipping crypto rail');
+      // Mark prediction as settled (demo done, crypto skipped due to env)
       try {
         await supabase
           .from('predictions')
@@ -2567,7 +2577,7 @@ router.post('/manual/merkle', async (req, res) => {
             creator_payout_amount: demoSummary.demoCreatorFee,
             settlement_time: new Date().toISOString(),
             status: 'completed',
-            meta: { rail: 'demo', crypto_skipped: true, crypto_skip_reason: 'client_policy' },
+            meta: { rail: 'demo', crypto_skipped: true, crypto_skip_reason: 'env_disabled' },
           } as any,
           { onConflict: 'bet_id' } as any
         );
@@ -2582,7 +2592,7 @@ router.post('/manual/merkle', async (req, res) => {
           title: prediction.title,
           winningOptionId,
           demo: demoSummary,
-          crypto: { settled: false, skippedReason: 'client_policy' },
+          crypto: { settled: false, skippedReason: 'env_disabled', entriesCount: cryptoEntries.length },
           summary: {
             platformFeeUSD: demoSummary.demoPlatformFee,
             creatorFeeUSD: demoSummary.demoCreatorFee,
@@ -2590,10 +2600,14 @@ router.post('/manual/merkle', async (req, res) => {
             winnersCount: 0,
           },
         },
-        message: 'Demo settlement completed. Crypto settlement skipped (not available on this client). Crypto entries can be settled later by an admin or web client.',
+        message: 'Demo settlement completed. Crypto settlement skipped (CRYPTO_MODE=off on server). Crypto entries will be settled when crypto is re-enabled.',
         version: VERSION,
       });
     }
+
+    // Server crypto is enabled + crypto entries exist → compute + persist Merkle proof.
+    // This runs regardless of which client called the endpoint (mobile, web, admin).
+    console.log(`[SETTLEMENT] Computing Merkle settlement for ${cryptoEntries.length} crypto entries`);
 
     // Compute distribution and Merkle structure (CRYPTO rail only; winners claim later)
     const settlement = await computeMerkleSettlementCryptoOnly({ predictionId, winningOptionId });

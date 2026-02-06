@@ -63,6 +63,9 @@ export function requireCryptoEnabled(mode: CryptoModeGate) {
 /**
  * Helper for use inside route handlers (e.g. shared route that has both demo and crypto path).
  * Returns true if current request is allowed to use crypto testnet.
+ * NOTE: This is a CLIENT-level check. Use for UI-facing actions (connect wallet,
+ * deposit, withdraw). Do NOT use to gate backend settlement — use
+ * isCryptoEnabledOnServer() for that.
  */
 export function isCryptoAllowedForClient(req: Request): boolean {
   const cryptoMode = config.crypto.mode;
@@ -73,4 +76,15 @@ export function isCryptoAllowedForClient(req: Request): boolean {
   const origin = req.headers.origin;
   if (origin && config.crypto.allowedOrigin && origin !== config.crypto.allowedOrigin) return false;
   return true;
+}
+
+/**
+ * Server-level crypto check — independent of the calling client.
+ * Returns true when the server environment has crypto enabled (testnet or mainnet).
+ * Use this for backend operations (settlement, proof generation) that must
+ * proceed regardless of which client triggered them.
+ */
+export function isCryptoEnabledOnServer(): boolean {
+  const mode = config.crypto.mode;
+  return mode === 'testnet' || mode === 'mainnet';
 }

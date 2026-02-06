@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useCallback } from 'react';
 import { MessageSquare } from 'lucide-react';
 import { useUnifiedCommentStore } from '../../store/unifiedCommentStore';
 import { CommentInput } from './CommentInput';
@@ -23,6 +23,8 @@ export const CommentsSection: React.FC<CommentsSectionProps> = ({
     fetchComments,
     loadMore,
     addComment,
+    retryComment,
+    dismissFailedComment,
   } = useUnifiedCommentStore();
 
   const predictionComments = getComments(predictionId);
@@ -34,7 +36,6 @@ export const CommentsSection: React.FC<CommentsSectionProps> = ({
   useEffect(() => {
     if (predictionStatus === 'idle') {
       fetchComments(predictionId).catch((error) => {
-        // Only toast for 5xx errors, not 404s (empty threads are valid)
         if (error?.status >= 500) {
           toast.error('Failed to load comments. Please try again.');
         }
@@ -43,39 +44,54 @@ export const CommentsSection: React.FC<CommentsSectionProps> = ({
   }, [predictionId, predictionStatus, fetchComments]);
 
   // Handle adding new comments
-  const handleAddComment = async (text: string) => {
+  const handleAddComment = useCallback(async (text: string) => {
     try {
       await addComment(predictionId, text);
     } catch (error: any) {
-      // Toast for user-initiated errors only
-      const message = error?.message || 'Failed to post comment';
-      toast.error(message);
-      throw error; // Re-throw so CommentInput can handle UI state
+      // Don't toast generic "failed" — the inline failed state handles it.
+      // Only toast for auth/account errors that need immediate attention.
+      const status = error?.status;
+      if (status === 401 || status === 403 || status === 409) {
+        toast.error(error?.message || 'Unable to comment.');
+      }
+      // Error propagated so CommentInput can handle UI
+      throw error;
     }
-  };
+  }, [addComment, predictionId]);
+
+  // Retry a failed comment
+  const handleRetry = useCallback(async (clientTempId: string) => {
+    try {
+      await retryComment(predictionId, clientTempId);
+    } catch (error: any) {
+      const status = error?.status;
+      if (status === 401 || status === 403 || status === 409) {
+        toast.error(error?.message || 'Unable to comment.');
+      }
+      // Failed again — store keeps it as failed with updated message
+    }
+  }, [retryComment, predictionId]);
+
+  // Dismiss a failed comment
+  const handleDismiss = useCallback((clientTempId: string) => {
+    dismissFailedComment(predictionId, clientTempId);
+  }, [dismissFailedComment, predictionId]);
 
   // Handle like toggle
-  const handleToggleLike = async (commentId: string) => {
-    try {
-      // TODO: Implement toggleCommentLike when like functionality is ready
-      toast.success('Like feature coming soon!');
-    } catch (error: any) {
-      if (error?.status >= 500) {
-        toast.error('Failed to update like. Please try again.');
-      }
-    }
-  };
+  const handleToggleLike = useCallback(async (_commentId: string) => {
+    toast.success('Like feature coming soon!');
+  }, []);
 
   // Handle load more
-  const handleLoadMore = async () => {
+  const handleLoadMore = useCallback(async () => {
     try {
       await loadMore(predictionId);
     } catch (error: any) {
       if (error?.status >= 500) {
-        toast.error('Failed to load more comments. Please try again.');
+        toast.error('Failed to load more comments.');
       }
     }
-  };
+  }, [loadMore, predictionId]);
 
   const isLoading = predictionStatus === 'loading' || predictionStatus === 'paginating';
   const showCount = getCommentCount(predictionId);
@@ -94,6 +110,7 @@ export const CommentsSection: React.FC<CommentsSectionProps> = ({
       <div className="p-4 space-y-6">
         {/* Comment Input */}
         <CommentInput
+          predictionId={predictionId}
           onSubmit={handleAddComment}
           isPosting={predictionPosting}
         />
@@ -105,6 +122,8 @@ export const CommentsSection: React.FC<CommentsSectionProps> = ({
           hasMore={predictionHasMore}
           onLoadMore={handleLoadMore}
           onToggleLike={handleToggleLike}
+          onRetry={handleRetry}
+          onDismiss={handleDismiss}
         />
       </div>
     </div>
