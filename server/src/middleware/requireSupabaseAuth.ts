@@ -1,5 +1,5 @@
 import type { Response, NextFunction } from 'express';
-import { supabaseAnon } from '../config/database';
+import { supabase, supabaseAnon } from '../config/database';
 import type { AuthenticatedRequest } from './auth';
 
 /**
@@ -31,6 +31,24 @@ export async function requireSupabaseAuth(req: AuthenticatedRequest, res: Respon
       email: data.user.email || '',
       username: (data.user.user_metadata as any)?.username,
     };
+
+    // Enforce "disabled" accounts (used for self-delete + moderation bans).
+    // Defensive: if DB query fails for any reason, do not break auth for everyone.
+    try {
+      const { data: profile, error: profileErr } = await supabase
+        .from('users')
+        .select('is_banned, ban_reason')
+        .eq('id', req.user.id)
+        .maybeSingle();
+      if (!profileErr && profile?.is_banned) {
+        return res.status(403).json({
+          error: 'account_disabled',
+          message: 'This account has been disabled.',
+        });
+      }
+    } catch {
+      // ignore
+    }
 
     return next();
   } catch (e) {

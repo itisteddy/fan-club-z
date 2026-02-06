@@ -215,13 +215,28 @@ router.post('/me/delete', requireSupabaseAuth, async (req: AuthenticatedRequest,
   }
   const userFacingMessage = 'Account deletion failed. Please try again or contact support.';
   try {
-    // 1) Anonymize public.users first so FKs remain valid
+    // Idempotency: if already self-deleted, return success.
+    const { data: existing } = await supabase
+      .from('users')
+      .select('id, is_banned, ban_reason')
+      .eq('id', userId)
+      .maybeSingle();
+    if ((existing as any)?.is_banned && String((existing as any)?.ban_reason || '').toLowerCase() === 'self_deleted') {
+      return res.status(200).json({ success: true, message: 'Account deleted', version: VERSION });
+    }
+
+    // 1) Anonymize public.users first so FKs remain valid + mark disabled.
     const { error: updateError } = await supabase
       .from('users')
       .update({
         username: `deleted_${userId.slice(0, 8)}`,
         full_name: null,
+        email: null,
         avatar_url: null,
+        is_banned: true,
+        ban_reason: 'self_deleted',
+        banned_at: new Date().toISOString(),
+        banned_by: userId,
         updated_at: new Date().toISOString(),
       })
       .eq('id', userId);
@@ -233,16 +248,14 @@ router.post('/me/delete', requireSupabaseAuth, async (req: AuthenticatedRequest,
         version: VERSION,
       });
     }
-    // 2) Delete auth user (idempotent: 404/user not found is treated as success)
+
+    // 2) Best-effort: delete auth user. If this fails (e.g. misconfigured service role),
+    // we still return success because the account is already disabled server-side.
     const { error: authError } = await supabase.auth.admin.deleteUser(userId);
     if (authError) {
-      console.warn('[users/me/delete] auth.admin.deleteUser failed:', authError.message);
-      return res.status(500).json({
-        error: 'Deletion failed',
-        message: userFacingMessage,
-        version: VERSION,
-      });
+      console.warn('[users/me/delete] auth.admin.deleteUser failed (non-fatal):', authError.message);
     }
+
     return res.status(200).json({ success: true, message: 'Account deleted', version: VERSION });
   } catch (e: any) {
     console.error('[users/me/delete]', e);
