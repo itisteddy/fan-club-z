@@ -63,4 +63,8 @@
     <!-- Permissions -->
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Camera / photo selection parity (some plugins require explicit permission) -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <!-- Android 13+ photo picker/library read permission -->
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
 </manifest>
