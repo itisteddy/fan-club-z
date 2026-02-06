@@ -139,14 +139,40 @@ router.get('/predictions/:predictionId/comments', async (req, res) => {
 
   console.log(`[comments:GET] Final: returning ${comments.length} comments, total=${total}`);
 
-  // Step 2: Fetch replies if there are comments (best-effort)
+  // --- STEP 3: Fetch user data separately (join might fail due to FK issues) ---
+  // The comments.user_id references auth.users, but we need public.users data for display
+  let usersMap: Record<string, any> = {};
+  if (comments.length > 0) {
+    const userIds = [...new Set(comments.map((c: any) => c.user_id).filter(Boolean))];
+    console.log(`[comments:GET] Fetching user data for ${userIds.length} unique users`);
+    
+    if (userIds.length > 0) {
+      const usersResult = await safeQuery(() =>
+        supabase
+          .from('users')
+          .select('id, username, full_name, avatar_url, is_verified, og_badge')
+          .in('id', userIds)
+      );
+      
+      if (usersResult.error) {
+        console.warn('[comments:GET] Failed to fetch users:', usersResult.error.message);
+      } else if (usersResult.data) {
+        console.log(`[comments:GET] Fetched ${usersResult.data.length} users`);
+        for (const user of usersResult.data) {
+          usersMap[(user as any).id] = user;
+        }
+      }
+    }
+  }
+
+  // --- STEP 4: Fetch replies if there are comments (best-effort) ---
   let repliesMap: Record<string, any[]> = {};
   if (comments.length > 0) {
     const commentIds = comments.map((c: any) => c.id);
     const repliesResult = await safeQuery(() =>
       supabase
         .from('comments')
-        .select('*, user:users(id, username, full_name, avatar_url, is_verified, og_badge)')
+        .select('*')
         .in('parent_comment_id', commentIds)
         .order('created_at', { ascending: true })
     );
@@ -155,24 +181,49 @@ router.get('/predictions/:predictionId/comments', async (req, res) => {
     if (repliesResult.error && String(repliesResult.error?.message || '').toLowerCase().includes('parent_comment_id')) {
       repliesMap = {};
     } else if (!repliesResult.error && repliesResult.data) {
+      // Collect reply user IDs and fetch their data too
+      const replyUserIds = [...new Set((repliesResult.data as any[]).map(r => r.user_id).filter(Boolean))];
+      if (replyUserIds.length > 0) {
+        const replyUsersResult = await safeQuery(() =>
+          supabase.from('users').select('id, username, full_name, avatar_url, is_verified, og_badge').in('id', replyUserIds)
+        );
+        if (replyUsersResult.data) {
+          for (const user of replyUsersResult.data) {
+            usersMap[(user as any).id] = user;
+          }
+        }
+      }
+      
       for (const reply of repliesResult.data) {
         const pid = (reply as any).parent_comment_id;
         if (!repliesMap[pid]) repliesMap[pid] = [];
-        repliesMap[pid].push(reply);
+        // Attach user data to reply
+        const replyWithUser = {
+          ...reply,
+          user: usersMap[(reply as any).user_id] || null,
+        };
+        repliesMap[pid].push(replyWithUser);
       }
     }
     // If replies fail, just return comments without replies
   }
 
-  // Step 3: Assemble response
-  const data = comments.map((comment: any) => ({
-    ...comment,
-    replies: repliesMap[comment.id] || [],
-    is_liked_by_user: false,
-    is_owned_by_user: false,
-    is_liked: false,
-    is_own: false,
-  }));
+  // --- STEP 5: Assemble response with user data ---
+  const data = comments.map((comment: any) => {
+    // Use user from join if available, otherwise use fetched user data
+    const userData = comment.user || usersMap[comment.user_id] || null;
+    return {
+      ...comment,
+      user: userData,
+      replies: repliesMap[comment.id] || [],
+      is_liked_by_user: false,
+      is_owned_by_user: false,
+      is_liked: false,
+      is_own: false,
+    };
+  });
+
+  console.log(`[comments:GET] Assembled ${data.length} comments with user data`);
 
   return res.json({
     success: true,

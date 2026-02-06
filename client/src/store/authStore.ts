@@ -176,8 +176,19 @@ export const useAuthStore = create<AuthState>()(
           return;
         }
 
-        // If we have valid persisted data and it's recent, use it
+        // If we have valid persisted data and it's recent, still refresh extended profile to get latest name
         if (state.isAuthenticated && state.user && state.token && (now - state.lastAuthCheck < 300000)) { // 5 minutes
+          // Refresh extended profile in background to get latest full_name/avatar
+          fetchExtendedProfile(state.user.id).then(extended => {
+            if (extended?.full_name && extended.full_name !== state.user?.full_name) {
+              console.log('[authStore:initializeAuth] Updating stale full_name:', state.user?.full_name, '->', extended.full_name);
+              set({
+                user: state.user ? { ...state.user, ...extended } : null,
+                lastAuthCheck: now,
+              });
+            }
+          }).catch(() => {});
+          
           set({ 
             loading: false, 
             initialized: true,
@@ -520,23 +531,23 @@ export const useAuthStore = create<AuthState>()(
             }
 
             // Step 2: Fetch extended profile AFTER mirroring
-            // This ensures we get the latest data from the users table
+            // This ensures we get other fields (badges, etc.) from the users table
             let extendedProfile = await fetchExtendedProfile(data.user.id);
             console.log('[authStore:updateProfile] Extended profile fetched:', extendedProfile);
             
-            // Step 3: If extended profile doesn't have the full_name, force it
-            if (!extendedProfile?.full_name && computedFullName) {
-              console.log('[authStore:updateProfile] Extended profile missing full_name, using computed:', computedFullName);
-              extendedProfile = { ...extendedProfile, full_name: computedFullName };
-            }
+            // Step 3: ALWAYS override full_name with the computed value since user just updated it
+            // The PATCH might have failed, so we can't rely on the extended profile having the new name
+            extendedProfile = { ...extendedProfile, full_name: computedFullName };
+            console.log('[authStore:updateProfile] Overriding full_name to:', computedFullName);
 
             // Step 4: Convert and set the user with ALL the latest data
             const updatedUser = convertSupabaseUser(data.user, extendedProfile);
             
-            // Step 5: Force the full_name to be correct if it's still wrong
-            if (updatedUser && updatedUser.full_name !== computedFullName) {
-              console.log('[authStore:updateProfile] Forcing full_name from', updatedUser.full_name, 'to', computedFullName);
+            // Step 5: Ensure the full_name is definitely correct (belt and suspenders)
+            if (updatedUser) {
               updatedUser.full_name = computedFullName;
+              updatedUser.firstName = newFirstName;
+              updatedUser.lastName = newLastName;
             }
 
             console.log('[authStore:updateProfile] Final user state:', {
