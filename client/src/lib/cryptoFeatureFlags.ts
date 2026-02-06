@@ -15,18 +15,31 @@ export interface CryptoFeatureFlags {
 
 /**
  * Build-time + runtime flags for crypto. Use for UI gating only; server enforces.
- * - enabled: CRYPTO_MODE is testnet or legacy VITE_FCZ_BASE_BETS is on
- * - mode: from VITE_CRYPTO_MODE (off | testnet | mainnet)
+ * - enabled: CRYPTO_MODE is testnet or legacy VITE_FCZ_BASE_BETS is on, or web with no explicit 'off'
+ * - mode: from VITE_CRYPTO_MODE (off | testnet | mainnet), defaults to 'testnet' for web if not set
  * - clientAllowed: true only when client is web (not ios/android)
  */
 export function getCryptoFeatureFlags(): CryptoFeatureFlags {
-  const modeRaw = (import.meta.env.VITE_CRYPTO_MODE as string) || '';
-  const mode: CryptoMode =
-    modeRaw === 'testnet' || modeRaw === 'mainnet' ? modeRaw : 'off';
-  const legacyBaseBets = import.meta.env.VITE_FCZ_BASE_BETS === '1';
-  const enabled = mode === 'testnet' || legacyBaseBets;
   const client = getFczClientHeader();
   const clientAllowed = client === 'web';
+  
+  const modeRaw = (import.meta.env.VITE_CRYPTO_MODE as string) || '';
+  const legacyBaseBets = import.meta.env.VITE_FCZ_BASE_BETS === '1';
+  
+  // Determine mode: if not set and on web, default to testnet (backward compatible)
+  let mode: CryptoMode;
+  if (modeRaw === 'off') {
+    mode = 'off';
+  } else if (modeRaw === 'testnet' || modeRaw === 'mainnet') {
+    mode = modeRaw;
+  } else if (clientAllowed || legacyBaseBets) {
+    // Default to testnet for web clients when env var not explicitly set
+    mode = 'testnet';
+  } else {
+    mode = 'off';
+  }
+  
+  const enabled = mode === 'testnet' || mode === 'mainnet';
   return { enabled, mode, clientAllowed };
 }
 

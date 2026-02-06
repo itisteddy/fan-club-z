@@ -662,26 +662,37 @@ export class SocialService {
         throw new Error('Prediction not found');
       }
 
-      // If replying to a comment, verify parent exists
+      // If replying to a comment, verify parent exists (defensive: skip if table has issues)
       if (commentData.parent_comment_id) {
-        const { data: parentComment, error: parentError } =
-          await this.runWithIsDeletedFallback<any>(async (includeIsDeleted) => {
-            let q = this.supabase
-              .from('comments')
-              .select('id')
-              .eq('id', commentData.parent_comment_id)
-              .single();
-            if (includeIsDeleted) q = q.eq('is_deleted', false);
-            return await q;
-          });
+        try {
+          const { data: parentComment, error: parentError } =
+            await this.runWithIsDeletedFallback<any>(async (includeIsDeleted) => {
+              let q = this.supabase
+                .from('comments')
+                .select('id')
+                .eq('id', commentData.parent_comment_id)
+                .single();
+              if (includeIsDeleted) q = q.eq('is_deleted', false);
+              return await q;
+            });
 
-        if (parentError || !parentComment) {
-          throw new Error('Parent comment not found');
+          if (parentError || !parentComment) {
+            throw new Error('Parent comment not found');
+          }
+        } catch (parentCheckError: any) {
+          // If parent check fails for non-critical reasons, log and continue
+          // This allows replies even if is_deleted check fails
+          const msg = String(parentCheckError?.message || '').toLowerCase();
+          if (!msg.includes('not found')) {
+            logger.warn('Parent comment check failed (non-fatal):', parentCheckError?.message);
+          } else {
+            throw parentCheckError;
+          }
         }
       }
 
-      // Insert the comment
-      const { data, error } = await this.supabase
+      // Insert the comment - try with full select first, fallback to minimal
+      let insertResult = await this.supabase
         .from('comments')
         .insert({
           prediction_id: commentData.prediction_id,
@@ -695,11 +706,30 @@ export class SocialService {
         `)
         .single();
 
-      if (error) {
-        logger.error('Error creating comment:', error);
+      // If the insert failed due to is_verified column missing on users, retry with minimal select
+      if (insertResult.error && this.looksLikeMissingColumn(insertResult.error, 'is_verified')) {
+        logger.warn('Retrying comment insert without is_verified column');
+        insertResult = await this.supabase
+          .from('comments')
+          .insert({
+            prediction_id: commentData.prediction_id,
+            user_id: userId,
+            parent_comment_id: commentData.parent_comment_id || null,
+            content: commentData.content.trim(),
+          })
+          .select(`
+            *,
+            user:users(id, username, full_name, avatar_url)
+          `)
+          .single();
+      }
+
+      if (insertResult.error) {
+        logger.error('Error creating comment:', insertResult.error);
         throw new Error('Failed to create comment');
       }
 
+      const data = insertResult.data;
       const enhancedComment: EnhancedComment = {
         ...data,
         is_liked_by_user: false,

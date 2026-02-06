@@ -220,63 +220,68 @@ router.post('/me/delete', requireSupabaseAuth, async (req: AuthenticatedRequest,
     try {
       const { data: existing, error: existingErr } = await supabase
         .from('users')
-        .select('id, is_banned, ban_reason')
+        .select('id, username')
         .eq('id', userId)
         .maybeSingle();
-      if (!existingErr) {
-        if ((existing as any)?.is_banned && String((existing as any)?.ban_reason || '').toLowerCase() === 'self_deleted') {
+      if (!existingErr && existing) {
+        // Check if username indicates already deleted
+        const username = (existing as any)?.username || '';
+        if (username.startsWith('deleted_')) {
           return res.status(200).json({ success: true, message: 'Account deleted', version: VERSION });
         }
       }
     } catch {
-      // ignore
+      // ignore idempotency check errors
     }
 
-    // 1) Anonymize public.users first so FKs remain valid + mark disabled.
-    const fullUpdate = await supabase
+    // 1) Anonymize public.users first so FKs remain valid.
+    // Try minimal update first (most compatible), then escalate to full update if needed.
+    // This approach avoids errors from missing columns.
+    
+    const minimalUpdate = {
+      username: `deleted_${userId.slice(0, 8)}`,
+      full_name: null,
+      avatar_url: null,
+      updated_at: new Date().toISOString(),
+    };
+
+    const fullUpdate = {
+      ...minimalUpdate,
+      is_banned: true,
+      ban_reason: 'self_deleted',
+      banned_at: new Date().toISOString(),
+      banned_by: userId,
+    };
+
+    // Try full update first
+    let updateResult = await supabase
       .from('users')
-      .update({
-        username: `deleted_${userId.slice(0, 8)}`,
-        full_name: null,
-        email: null,
-        avatar_url: null,
-        is_banned: true,
-        ban_reason: 'self_deleted',
-        banned_at: new Date().toISOString(),
-        banned_by: userId,
-        updated_at: new Date().toISOString(),
-      })
+      .update(fullUpdate)
       .eq('id', userId);
 
-    let updateError = fullUpdate.error as any;
-    if (updateError) {
-      const msg = String(updateError?.message || '');
-      const missingColumn = msg.toLowerCase().includes('does not exist') && msg.toLowerCase().includes('column');
-      if (missingColumn) {
-        // Fallback for DBs without moderation columns yet (no 500).
-        const minimal = await supabase
-          .from('users')
-          .update({
-            username: `deleted_${userId.slice(0, 8)}`,
-            full_name: null,
-            avatar_url: null,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', userId);
-        updateError = minimal.error as any;
-      }
+    // If full update fails (missing columns), fall back to minimal
+    if (updateResult.error) {
+      console.warn('[users/me/delete] Full update failed, trying minimal:', updateResult.error.message);
+      updateResult = await supabase
+        .from('users')
+        .update(minimalUpdate)
+        .eq('id', userId);
     }
 
-    if (updateError) {
-      console.warn('[users/me/delete] users update failed:', updateError.message);
+    if (updateResult.error) {
+      console.warn('[users/me/delete] Minimal update also failed:', updateResult.error.message);
       return res.status(500).json({ error: 'Deletion failed', message: userFacingMessage, version: VERSION });
     }
 
     // 2) Best-effort: delete auth user. If this fails (e.g. misconfigured service role),
     // we still return success because the account is already disabled server-side.
-    const { error: authError } = await supabase.auth.admin.deleteUser(userId);
-    if (authError) {
-      console.warn('[users/me/delete] auth.admin.deleteUser failed (non-fatal):', authError.message);
+    try {
+      const { error: authError } = await supabase.auth.admin.deleteUser(userId);
+      if (authError) {
+        console.warn('[users/me/delete] auth.admin.deleteUser failed (non-fatal):', authError.message);
+      }
+    } catch (authErr: any) {
+      console.warn('[users/me/delete] auth.admin.deleteUser threw (non-fatal):', authErr?.message);
     }
 
     return res.status(200).json({ success: true, message: 'Account deleted', version: VERSION });

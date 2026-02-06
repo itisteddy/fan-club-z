@@ -379,7 +379,13 @@ const DiscoverPage = React.memo(function DiscoverPage({ onNavigateToProfile, onN
 
   const [selectedPrediction, setSelectedPrediction] = useState<Prediction | null>(null);
   const [isPredictionModalOpen, setIsPredictionModalOpen] = useState(false);
-  const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
+  // Initialize selectedCategoryId from store to persist selection across navigation
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(() => {
+    // If filter is 'all' or undefined, show "All" chip selected (null)
+    const storedCategory = filters.category;
+    if (!storedCategory || storedCategory === 'all') return null;
+    return storedCategory;
+  });
   const [scrollRestored, setScrollRestored] = useState(false);
   const [hasSavedScroll, setHasSavedScroll] = useState(false);
 
