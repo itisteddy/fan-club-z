@@ -6,7 +6,7 @@
 import { getApiUrl } from '@/config';
 
 export async function fetchBlockedUserIds(accessToken: string): Promise<string[]> {
-  const res = await fetch(`${getApiUrl()}/api/v2/users/me/blocked`, {
+  const res = await fetch(`${getApiUrl()}/api/v2/moderation/blocks`, {
     headers: { Authorization: `Bearer ${accessToken}` },
   });
   const data = await res.json().catch(() => ({}));
@@ -16,13 +16,13 @@ export async function fetchBlockedUserIds(accessToken: string): Promise<string[]
 
 export async function blockUser(userId: string, accessToken: string): Promise<{ ok: boolean; message?: string }> {
   try {
-    const res = await fetch(`${getApiUrl()}/api/v2/users/me/block`, {
+    const res = await fetch(`${getApiUrl()}/api/v2/moderation/blocks`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${accessToken}`,
       },
-      body: JSON.stringify({ userId }),
+      body: JSON.stringify({ blockedUserId: userId }),
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
@@ -36,7 +36,7 @@ export async function blockUser(userId: string, accessToken: string): Promise<{ 
 
 export async function unblockUser(userId: string, accessToken: string): Promise<{ ok: boolean; message?: string }> {
   try {
-    const res = await fetch(`${getApiUrl()}/api/v2/users/me/block/${encodeURIComponent(userId)}`, {
+    const res = await fetch(`${getApiUrl()}/api/v2/moderation/blocks/${encodeURIComponent(userId)}`, {
       method: 'DELETE',
       headers: { Authorization: `Bearer ${accessToken}` },
     });

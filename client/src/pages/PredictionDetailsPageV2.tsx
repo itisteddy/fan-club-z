@@ -88,8 +88,28 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
 
   // Get prediction ID from multiple sources (URL params, props)
   const predictionId = propPredictionId || params.id || params.predictionId || '';
-  const getCommentCount = useUnifiedCommentStore((s) => s.getCommentCount);
-  const liveCommentCount = predictionId ? getCommentCount(predictionId) : 0;
+  const commentStatus = useUnifiedCommentStore((s) => (
+    predictionId ? (s.byPrediction[predictionId]?.status || 'idle') : 'idle'
+  ));
+  const fetchComments = useUnifiedCommentStore((s) => s.fetchComments);
+  const liveCommentItems = useUnifiedCommentStore((s) => (
+    predictionId ? (s.byPrediction[predictionId]?.items || []) : []
+  ));
+  const liveCommentCount = useMemo(() => {
+    let count = 0;
+    for (const item of liveCommentItems) {
+      if (item.sendStatus !== 'failed' && !item.isDeleted && !item.deleted_at) count += 1;
+      for (const reply of item.replies || []) {
+        if (reply.sendStatus !== 'failed' && !reply.isDeleted && !reply.deleted_at) count += 1;
+      }
+    }
+    return count;
+  }, [liveCommentItems]);
+  // Only treat the store as authoritative for *counts* when we have actual items
+  // or a completed load state. Error states with an empty list should not override
+  // the server-provided prediction.comments_count (prevents tab badge flicker).
+  const hasLoadedLiveComments =
+    liveCommentItems.length > 0 || commentStatus === 'loaded' || commentStatus === 'paginating';
 
   // Local state
   const [selectedOptionId, setSelectedOptionId] = useState<string | null>(null);
@@ -121,6 +141,14 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
   const [isLoadingPrediction, setIsLoadingPrediction] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [loadError, setLoadError] = useState(false);
+
+  useEffect(() => {
+    if (!predictionId) return;
+    // If we already have items or a loaded/paginating state, don't spam refetch.
+    if (hasLoadedLiveComments) return;
+    // If we previously errored and have no items, allow a fresh attempt.
+    fetchComments(predictionId).catch(() => {});
+  }, [fetchComments, predictionId, hasLoadedLiveComments]);
 
   // TODO: Re-enable share functionality after testing
   // const { SharePreview, share: shareResult } = useShareResult();
@@ -248,6 +276,9 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
     if (!predictionId) return null;
     return predictions.find(p => p.id === predictionId) || null;
   }, [predictions, predictionId]);
+  const tabCommentCount = hasLoadedLiveComments
+    ? liveCommentCount
+    : (prediction?.comments_count || 0);
 
   // Normalize browser URL to canonical SEO path (/p/:id/:slug?) once we know the title.
   // - Legacy routes (/prediction/:id, /predictions/:id) should replace() to canonical.
@@ -888,7 +919,7 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
           <PredictionDetailsTabs
             activeTab={activeTab}
             onTabChange={setActiveTab}
-            commentCount={liveCommentCount || prediction.comments_count || 0}
+            commentCount={tabCommentCount}
             activityCount={activityItems.length}
           >
           <AnimatePresence mode="wait">
@@ -1272,7 +1303,7 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
                   exit={reduceMotion ? {} : { opacity: 0, x: 20 }}
                   data-qa="comments-section"
                 >
-                  <CommentsSection predictionId={predictionId} />
+                  <CommentsSection predictionId={predictionId} predictionTitle={prediction?.title} />
                 </motion.div>
               )}
 

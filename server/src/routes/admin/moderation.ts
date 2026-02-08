@@ -6,6 +6,26 @@ import { logAdminAction } from './audit';
 
 export const moderationRouter = Router();
 
+async function logModerationAction(args: {
+  actorId: string;
+  actionType: string;
+  targetType: string;
+  targetId: string;
+  notes?: string | null;
+}) {
+  try {
+    await supabase.from('moderation_actions').insert({
+      actor_user_id: args.actorId,
+      action_type: args.actionType,
+      target_type: args.targetType,
+      target_id: args.targetId,
+      notes: args.notes || null,
+    });
+  } catch (e) {
+    // best-effort; table may not exist
+  }
+}
+
 /**
  * GET /api/v2/admin/moderation/creators
  * List creators with stats (predictions created, total stake, etc.)
@@ -392,9 +412,17 @@ moderationRouter.post('/users/:userId/unverify', async (req, res) => {
  */
 moderationRouter.get('/reports', async (req, res) => {
   try {
-    const status = req.query.status || 'pending';
+    const status = String(req.query.status || 'open');
     const limit = Math.min(100, Number(req.query.limit) || 50);
     const offset = Number(req.query.offset) || 0;
+
+    const statusFilter = status === 'open'
+      ? ['open']
+      : status === 'resolved'
+        ? ['resolved']
+        : status === 'dismissed'
+          ? ['dismissed']
+          : ['open'];
 
     const { data: reports, error, count } = await supabase
       .from('content_reports')
@@ -402,8 +430,8 @@ moderationRouter.get('/reports', async (req, res) => {
         id, reporter_id, target_type, target_id, reason_category, reason, status, created_at, resolved_at, resolved_by,
         users!content_reports_reporter_id_fkey(username)
       `, { count: 'exact' })
-      .eq('status', status)
-      .order('created_at', { ascending: false })
+      .in('status', statusFilter)
+      .order('created_at', { ascending: statusFilter[0] === 'open' })
       .range(offset, offset + limit - 1);
 
     if (error) {
@@ -429,6 +457,7 @@ moderationRouter.get('/reports', async (req, res) => {
         reason: r.reason,
         status: r.status,
         createdAt: r.created_at,
+        ageHours: r.created_at ? Math.floor((Date.now() - new Date(r.created_at).getTime()) / 3600000) : 0,
         resolvedAt: r.resolved_at,
         resolvedBy: r.resolved_by,
       })),
@@ -447,10 +476,247 @@ moderationRouter.get('/reports', async (req, res) => {
   }
 });
 
+/**
+ * GET /api/v2/admin/moderation/reports/comments
+ * Comments-only moderation queue alias (oldest first by default).
+ */
+moderationRouter.get('/reports/comments', async (req, res) => {
+  try {
+    const status = String(req.query.status || 'open');
+    const limit = Math.min(100, Number(req.query.limit) || 50);
+    const offset = Number(req.query.offset) || 0;
+
+    const statusFilter = status === 'open'
+      ? ['open']
+      : status === 'resolved'
+        ? ['resolved']
+        : status === 'dismissed'
+          ? ['dismissed']
+          : ['open'];
+
+    const { data: reports, error, count } = await supabase
+      .from('content_reports')
+      .select(`
+        id, reporter_id, target_type, target_id, reason_category, reason, status, created_at, resolved_at, resolved_by,
+        users!content_reports_reporter_id_fkey(username)
+      `, { count: 'exact' })
+      .eq('target_type', 'comment')
+      .in('status', statusFilter)
+      .order('created_at', { ascending: true })
+      .range(offset, offset + limit - 1);
+
+    if (error) {
+      console.warn('[Admin/Moderation] Comment reports query error:', error);
+      return res.json({ items: [], total: 0, limit, offset, version: VERSION });
+    }
+
+    return res.json({
+      items: (reports || []).map((r: any) => ({
+        id: r.id,
+        reporterId: r.reporter_id,
+        reporterUsername: r.users?.username ?? null,
+        targetType: r.target_type,
+        targetId: r.target_id,
+        reasonCategory: r.reason_category ?? null,
+        reason: r.reason,
+        status: r.status,
+        createdAt: r.created_at,
+        ageHours: r.created_at ? Math.floor((Date.now() - new Date(r.created_at).getTime()) / 3600000) : 0,
+        resolvedAt: r.resolved_at,
+        resolvedBy: r.resolved_by,
+      })),
+      total: count || 0,
+      limit,
+      offset,
+      version: VERSION,
+    });
+  } catch (error) {
+    console.error('[Admin/Moderation] Comment reports error:', error);
+    return res.status(500).json({
+      error: 'Internal Server Error',
+      message: 'Failed to fetch comment reports',
+      version: VERSION,
+    });
+  }
+});
+
 const ResolveReportSchema = z.object({
   action: z.enum(['dismiss', 'warn', 'remove', 'ban']),
   actorId: z.string().uuid(),
   notes: z.string().optional(),
+});
+
+const RemoveContentSchema = z.object({
+  targetType: z.enum(['prediction', 'comment', 'user']),
+  targetId: z.string().uuid(),
+  reason: z.string().min(3).max(500),
+  actorId: z.string().uuid(),
+});
+
+const SuspendUserSchema = z.object({
+  userId: z.string().uuid(),
+  reason: z.string().min(3).max(500),
+  actorId: z.string().uuid(),
+});
+
+async function applyModerationRemove(args: {
+  actorId: string;
+  targetType: 'prediction' | 'comment' | 'user';
+  targetId: string;
+  reason: string;
+}) {
+  if (args.targetType === 'prediction') {
+    await supabase
+      .from('predictions')
+      .update({
+        removed_at: new Date().toISOString(),
+        removed_by: args.actorId,
+        remove_reason: args.reason,
+        hidden_at: new Date().toISOString(),
+        hidden_by: args.actorId,
+        hidden_reason: args.reason,
+      })
+      .eq('id', args.targetId);
+  }
+  if (args.targetType === 'comment') {
+    await supabase
+      .from('comments')
+      .update({
+        is_deleted: true,
+        deleted_at: new Date().toISOString(),
+        deleted_by: args.actorId,
+        deleted_reason: args.reason,
+        content: null,
+      })
+      .eq('id', args.targetId);
+  }
+  if (args.targetType === 'user') {
+    await supabase
+      .from('users')
+      .update({
+        is_banned: true,
+        ban_reason: args.reason,
+        banned_at: new Date().toISOString(),
+        banned_by: args.actorId,
+      })
+      .eq('id', args.targetId);
+  }
+
+  await logModerationAction({
+    actorId: args.actorId,
+    actionType: 'remove_content',
+    targetType: args.targetType,
+    targetId: args.targetId,
+    notes: args.reason,
+  });
+}
+
+async function applyModerationSuspend(args: {
+  actorId: string;
+  userId: string;
+  reason: string;
+}) {
+  await supabase
+    .from('users')
+    .update({
+      is_banned: true,
+      ban_reason: args.reason,
+      banned_at: new Date().toISOString(),
+      banned_by: args.actorId,
+    })
+    .eq('id', args.userId);
+
+  await logModerationAction({
+    actorId: args.actorId,
+    actionType: 'suspend_user',
+    targetType: 'user',
+    targetId: args.userId,
+    notes: args.reason,
+  });
+}
+
+/**
+ * POST /api/v2/admin/moderation/remove
+ * Remove content (soft delete or hide) by admin action
+ */
+moderationRouter.post('/remove', async (req, res) => {
+  try {
+    const parsed = RemoveContentSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({
+        error: 'Bad Request',
+        message: 'Invalid payload',
+        details: parsed.error.issues,
+        version: VERSION,
+      });
+    }
+    const { targetType, targetId, reason, actorId } = parsed.data;
+
+    await applyModerationRemove({ actorId, targetType, targetId, reason });
+
+    await logAdminAction({
+      actorId,
+      action: 'moderation_remove',
+      targetType,
+      targetId,
+      reason,
+    });
+
+    return res.json({
+      success: true,
+      message: 'Content removed',
+      version: VERSION,
+    });
+  } catch (error) {
+    console.error('[Admin/Moderation] Remove error:', error);
+    return res.status(500).json({
+      error: 'Internal Server Error',
+      message: 'Failed to remove content',
+      version: VERSION,
+    });
+  }
+});
+
+/**
+ * POST /api/v2/admin/moderation/suspend-user
+ * Suspend a user (admin action)
+ */
+moderationRouter.post('/suspend-user', async (req, res) => {
+  try {
+    const parsed = SuspendUserSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({
+        error: 'Bad Request',
+        message: 'Invalid payload',
+        details: parsed.error.issues,
+        version: VERSION,
+      });
+    }
+    const { userId, reason, actorId } = parsed.data;
+
+    await applyModerationSuspend({ actorId, userId, reason });
+
+    await logAdminAction({
+      actorId,
+      action: 'user_suspend',
+      targetType: 'user',
+      targetId: userId,
+      reason,
+    });
+
+    return res.json({
+      success: true,
+      message: 'User suspended',
+      version: VERSION,
+    });
+  } catch (error) {
+    console.error('[Admin/Moderation] Suspend error:', error);
+    return res.status(500).json({
+      error: 'Internal Server Error',
+      message: 'Failed to suspend user',
+      version: VERSION,
+    });
+  }
 });
 
 /**
@@ -486,11 +752,11 @@ moderationRouter.post('/reports/:reportId/resolve', async (req, res) => {
       });
     }
 
-    // Update report status
+    const nextStatus = action === 'dismiss' ? 'dismissed' : 'resolved';
     const { error: updateError } = await supabase
       .from('content_reports')
       .update({
-        status: 'resolved',
+        status: nextStatus,
         resolution_action: action,
         resolution_notes: notes || null,
         resolved_at: new Date().toISOString(),
@@ -507,42 +773,21 @@ moderationRouter.post('/reports/:reportId/resolve', async (req, res) => {
       });
     }
 
-    // Apply moderation action to target (remove/ban)
+    // Apply moderation action to target (remove/suspend)
     if (action === 'remove') {
-      const hiddenUpdate = {
-        hidden_at: new Date().toISOString(),
-        hidden_reason: notes || 'Removed via moderation report',
-        hidden_by: actorId,
-      };
-      if (report.target_type === 'prediction') {
-        await supabase.from('predictions').update(hiddenUpdate).eq('id', report.target_id);
-      }
-      if (report.target_type === 'comment') {
-        // Remove comment outright so it doesn't surface in RPC-based feeds
-        await supabase.from('comments').delete().eq('id', report.target_id);
-      }
-      if (report.target_type === 'user') {
-        await supabase
-          .from('users')
-          .update({
-            is_banned: true,
-            ban_reason: notes || 'Removed via moderation report',
-            banned_at: new Date().toISOString(),
-            banned_by: actorId,
-          })
-          .eq('id', report.target_id);
-      }
+      await applyModerationRemove({
+        actorId,
+        targetType: report.target_type,
+        targetId: report.target_id,
+        reason: notes || 'Removed via moderation report',
+      });
     }
     if (action === 'ban' && report.target_type === 'user') {
-      await supabase
-        .from('users')
-        .update({
-          is_banned: true,
-          ban_reason: notes || 'Banned via moderation report',
-          banned_at: new Date().toISOString(),
-          banned_by: actorId,
-        })
-        .eq('id', report.target_id);
+      await applyModerationSuspend({
+        actorId,
+        userId: report.target_id,
+        reason: notes || 'Suspended via moderation report',
+      });
     }
 
     // Log admin action
@@ -553,6 +798,13 @@ moderationRouter.post('/reports/:reportId/resolve', async (req, res) => {
       targetId: reportId,
       reason: notes || undefined,
       meta: { resolution_action: action },
+    });
+    await logModerationAction({
+      actorId,
+      actionType: `report_${action}`,
+      targetType: report.target_type,
+      targetId: report.target_id,
+      notes: notes || null,
     });
 
     return res.json({
@@ -569,4 +821,3 @@ moderationRouter.post('/reports/:reportId/resolve', async (req, res) => {
     });
   }
 });
-

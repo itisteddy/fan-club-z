@@ -16,13 +16,13 @@ export async function submitContentReport(
   accessToken: string
 ): Promise<{ ok: boolean; message?: string }> {
   try {
-    const res = await fetch(`${getApiUrl()}/api/v2/content/report`, {
+    const res = await fetch(`${getApiUrl()}/api/v2/moderation/reports`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${accessToken}`,
       },
-      body: JSON.stringify({ targetType, targetId, reason: reason.trim(), reasonCategory }),
+      body: JSON.stringify({ targetType, targetId, reason: reason.trim(), details: null, reasonCategory }),
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {

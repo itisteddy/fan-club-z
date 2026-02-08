@@ -5,7 +5,7 @@ const config: CapacitorConfig = {
   appName: 'Fan Club Z',
   webDir: 'dist',
   server: {
-    androidScheme: 'https',
+    androidScheme: 'http',
     // CRITICAL: Use capacitor://localhost for iOS to prevent cross-contamination
     // with web domain storage/cache/service worker
     // hostname: 'app.fanclubz.app', // REMOVED - causes iOS to share storage with web
@@ -40,4 +40,3 @@ const config: CapacitorConfig = {
 };
 
 export default config;
-

@@ -37,6 +37,11 @@ import { requireCryptoEnabled } from './middleware/requireCryptoEnabled';
 
 const app = express();
 const PORT = config.server.port || 3001;
+const HOST =
+  process.env.HOST ||
+  (String(process.env.NODE_ENV || config.server.nodeEnv || '').toLowerCase() === 'production'
+    ? undefined
+    : '0.0.0.0');
 
 console.log(`🚀 Fan Club Z Server v${VERSION} - CORS FIXED - WITH SETTLEMENT`);
 console.log('📡 Starting server with enhanced CORS support and settlement functionality...');
@@ -258,6 +263,7 @@ import predictionsRoutes from './routes/predictions';
 import predictionEntriesRoutes from './routes/prediction-entries';
 import betsRoutes from './routes/bets';
 import socialRoutes from './routes/social';
+import { moderationRouter } from './routes/moderation';
 import settlementRoutes from './routes/settlement';
 import activityRoutes from './routes/activity';
 import imagesRoutes from './api/images/router';
@@ -305,6 +311,7 @@ app.use('/api/v1/predictions', placeBetRouter); // Back-compat for older clients
 app.use('/api/v2/prediction-entries', predictionEntriesRoutes);
 app.use('/api/v2/bets', betsRoutes);
 app.use('/api/v2/social', socialRoutes);
+app.use('/api/v2/moderation', moderationRouter);
 app.use('/api/v2/settlement', settlementRoutes);
 app.use('/api/v2/activity', activityRoutes);
 app.use('/api/v2/notifications', notificationsRoutes);
@@ -410,10 +417,10 @@ export { generateETag, setCacheHeaders, checkConditionalGet };
 // Start server (HTTP + Socket.io)
 const httpServer = http.createServer(app);
 initRealtime(httpServer);
-httpServer.listen(PORT, async () => {
+httpServer.listen(PORT, HOST as any, async () => {
   console.log(`🚀 Fan Club Z Server started successfully!`);
   console.log(`📡 Environment: ${config.server.nodeEnv || 'production'}`);
-  console.log(`🌐 Server running on port ${PORT}`);
+  console.log(`🌐 Server running on ${HOST || '0.0.0.0'}:${PORT}`);
   console.log(`📊 Version: ${VERSION}`);
   console.log(`🔗 API URL: ${config.api.url || `https://fan-club-z.onrender.com`}`);
   console.log(`🎯 Frontend URL: ${config.frontend.url || 'https://app.fanclubz.app'}`);

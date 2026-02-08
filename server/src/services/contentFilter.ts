@@ -8,22 +8,7 @@
  */
 export type ContentField = { label: string; value: string | null | undefined };
 
-const DEFAULT_BANNED_TERMS = [
-  // Profanity (basic baseline)
-  'fuck',
-  'shit',
-  'bitch',
-  'cunt',
-  'asshole',
-  'dick',
-  'pussy',
-  // Sexual content / nudity (basic)
-  'porn',
-  'nude',
-  'nudes',
-  'sex',
-  'xxx',
-];
+import { BLOCKED_URL_DOMAINS, DEFAULT_BANNED_TERMS } from '../moderation/wordlist';
 
 function normalizeForScan(input: string): string {
   return input
@@ -72,6 +57,32 @@ function containsBannedTerm(text: string, bannedTerms: string[]): string | null 
   return null;
 }
 
+function extractDomains(text: string): string[] {
+  if (!text) return [];
+  const matches = text.match(/\bhttps?:\/\/[^\s)]+/gi) || [];
+  const out: string[] = [];
+  for (const raw of matches) {
+    try {
+      const host = new URL(raw).hostname.toLowerCase().replace(/^www\./, '');
+      if (host) out.push(host);
+    } catch {
+      // Ignore unparsable URLs.
+    }
+  }
+  return out;
+}
+
+function containsBlockedDomain(text: string): string | null {
+  const domains = extractDomains(text);
+  if (!domains.length) return null;
+  for (const domain of domains) {
+    if (BLOCKED_URL_DOMAINS.some((blocked) => domain === blocked || domain.endsWith(`.${blocked}`))) {
+      return domain;
+    }
+  }
+  return null;
+}
+
 /**
  * Throws an Error if any field contains disallowed content.
  */
@@ -90,6 +101,13 @@ export function assertContentAllowed(fields: ContentField[]) {
       (err as any).term = hit;
       throw err;
     }
+    const blockedDomain = containsBlockedDomain(raw);
+    if (blockedDomain) {
+      const err = new Error(`Blocked domain detected in ${f.label}`);
+      (err as any).code = 'CONTENT_NOT_ALLOWED';
+      (err as any).field = f.label;
+      (err as any).domain = blockedDomain;
+      throw err;
+    }
   }
 }
-

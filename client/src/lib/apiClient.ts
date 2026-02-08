@@ -18,15 +18,17 @@ import { CapacitorHttp } from '@capacitor/core';
 import { getApiUrl } from '@/utils/environment';
 import { supabase } from '@/lib/supabase';
 
-const API_BASE_URL = getApiUrl();
-const API_VERSION = 'v2';
+// Legacy named exports retained for compatibility with old imports.
+export const API_BASE_URL = getApiUrl();
+export const API_VERSION = 'v2';
 const joinUrl = (base: string, path: string) => {
   // Safely join URL parts without double slashes
   const b = String(base || '').replace(/\/+$/, '');
   const p = String(path || '').replace(/^\/+/, '');
   return `${b}/${p}`;
 };
-const API_URL = joinUrl(API_BASE_URL, `/api/${API_VERSION}`);
+const getApiBaseUrl = () => joinUrl(getApiUrl(), `/api/${API_VERSION}`);
+export const API_URL = joinUrl(API_BASE_URL, `/api/${API_VERSION}`);
 
 // Auth helpers (sync, for compatibility)
 const getAuthToken = () => localStorage.getItem('token');
@@ -81,7 +83,28 @@ async function getAccessToken(): Promise<string | null> {
 
   // 3) Legacy fallback token key
   const legacy = getAuthToken();
-  return legacy ? legacy : null;
+  if (legacy) return legacy;
+
+  // 4) Supabase persisted storage fallback (sb-<ref>-auth-token)
+  // Handles native/web cases where session exists but getSession() is temporarily stale.
+  try {
+    const keys = Object.keys(localStorage).filter((k) => k.startsWith('sb-') && k.endsWith('-auth-token'));
+    for (const key of keys) {
+      const raw = localStorage.getItem(key);
+      if (!raw) continue;
+      const parsed = JSON.parse(raw);
+      const token =
+        parsed?.access_token ||
+        parsed?.currentSession?.access_token ||
+        parsed?.session?.access_token ||
+        (Array.isArray(parsed) ? parsed[0]?.access_token : undefined);
+      if (typeof token === 'string' && token.trim()) return token.trim();
+    }
+  } catch {
+    // ignore
+  }
+
+  return null;
 }
 
 /**
@@ -138,7 +161,7 @@ async function httpRequest(
     headers?: HeadersInit;
   }
 ): Promise<any> {
-  const url = joinUrl(API_URL, endpoint);
+  const url = joinUrl(getApiBaseUrl(), endpoint);
   const authHeaders = await getAuthHeaders();
   const headers: Record<string, string> = {
     ...authHeaders,
@@ -289,4 +312,3 @@ export const apiClient = {
 
 // Export auth helpers for compatibility
 export { getAuthToken, setAuthToken, removeAuthToken };
-export { API_BASE_URL, API_VERSION, API_URL };

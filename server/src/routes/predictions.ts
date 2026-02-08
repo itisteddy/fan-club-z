@@ -164,6 +164,47 @@ async function resolveAuthenticatedUserId(req: express.Request): Promise<string 
   }
 }
 
+async function getViewerHiddenPredictionIds(viewerId: string): Promise<string[]> {
+  try {
+    const { data, error } = await supabase
+      .from('content_hides')
+      .select('target_id')
+      .eq('user_id', viewerId)
+      .eq('target_type', 'prediction');
+    if (error || !data) return [];
+    return (data as any[]).map((r) => r.target_id).filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+
+async function getViewerBlockedUserIds(viewerId: string): Promise<string[]> {
+  try {
+    const { data, error } = await supabase
+      .from('user_blocks')
+      .select('blocked_user_id')
+      .eq('blocker_id', viewerId);
+    if (error || !data) return [];
+    return (data as any[]).map((r) => r.blocked_user_id).filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+
+async function filterPredictionsForViewer(predictions: any[], viewerId: string | null): Promise<any[]> {
+  if (!viewerId || !predictions.length) return predictions;
+  const [hiddenPredictionIds, blockedUserIds] = await Promise.all([
+    getViewerHiddenPredictionIds(viewerId),
+    getViewerBlockedUserIds(viewerId),
+  ]);
+
+  return predictions.filter((p) => {
+    if (hiddenPredictionIds.length > 0 && hiddenPredictionIds.includes(p.id)) return false;
+    if (blockedUserIds.length > 0 && blockedUserIds.includes(p.creator_id)) return false;
+    return true;
+  });
+}
+
 // Local slugify helper (must match client)
 function slugify(input: string): string {
   return String(input || '')
@@ -423,7 +464,8 @@ router.get('/', async (req, res) => {
 
     // UGC moderation: if hidden_at exists (migration applied) hide moderated predictions.
     // Defensive: if column doesn't exist yet, it won't be present on rows, so this is a no-op.
-    enrichedPredictions = (enrichedPredictions || []).filter((p: any) => !p?.hidden_at);
+    enrichedPredictions = (enrichedPredictions || []).filter((p: any) => !p?.hidden_at && !p?.removed_at);
+    enrichedPredictions = await filterPredictionsForViewer(enrichedPredictions, userId);
 
     // Phase 6A: Add canonical settlement fields if user is authenticated (batch fetch)
     if (userId && enrichedPredictions.length > 0) {
@@ -603,7 +645,8 @@ router.get('/stats/platform', async (req, res) => {
 router.get('/trending', async (req, res) => {
   try {
     console.log('🔥 Trending predictions endpoint called - origin:', req.headers.origin);
-    
+    const viewerId = await resolveAuthenticatedUserId(req);
+
     // For now, return the same as regular predictions but ordered by activity
     const { data: predictions, error } = await supabase
       .from('predictions')
@@ -630,7 +673,8 @@ router.get('/trending', async (req, res) => {
 
     // Enrich with category info
     let enrichedPredictions = await enrichPredictionsWithCategory(predictions || []);
-    enrichedPredictions = (enrichedPredictions || []).filter((p: any) => !p?.hidden_at);
+    enrichedPredictions = (enrichedPredictions || []).filter((p: any) => !p?.hidden_at && !p?.removed_at);
+    enrichedPredictions = await filterPredictionsForViewer(enrichedPredictions, viewerId);
 
     return res.json({
       data: enrichedPredictions,
@@ -756,7 +800,8 @@ router.get('/completed/:userId', requireSupabaseAuth, async (req, res) => {
     }));
 
     let enrichedPredictions = await enrichPredictionsWithCategory(withMyEntry);
-    enrichedPredictions = (enrichedPredictions || []).filter((p: any) => !p?.hidden_at);
+    enrichedPredictions = (enrichedPredictions || []).filter((p: any) => !p?.hidden_at && !p?.removed_at);
+    enrichedPredictions = await filterPredictionsForViewer(enrichedPredictions, userId);
 
     return res.json({
       data: enrichedPredictions,
@@ -807,6 +852,36 @@ router.get('/:id', async (req, res) => {
         version: VERSION,
       });
     }
+    if (prediction && typeof (prediction as any).removed_at !== 'undefined' && (prediction as any).removed_at) {
+      return res.status(404).json({
+        error: 'Not found',
+        message: `Prediction ${id} not found`,
+        version: VERSION,
+      });
+    }
+
+    // Viewer-specific hides/blocks
+    const viewerId = await resolveAuthenticatedUserId(req);
+    if (viewerId) {
+      const [hiddenPredictionIds, blockedUserIds] = await Promise.all([
+        getViewerHiddenPredictionIds(viewerId),
+        getViewerBlockedUserIds(viewerId),
+      ]);
+      if (hiddenPredictionIds.includes(id)) {
+        return res.status(404).json({
+          error: 'Not found',
+          message: `Prediction ${id} not found`,
+          version: VERSION,
+        });
+      }
+      if (blockedUserIds.includes((prediction as any).creator_id)) {
+        return res.status(404).json({
+          error: 'Not found',
+          message: `Prediction ${id} not found`,
+          version: VERSION,
+        });
+      }
+    }
 
     // Count entries for client (needed for edit UI)
     const { count: entriesCount } = await supabase
@@ -821,12 +896,11 @@ router.get('/:id', async (req, res) => {
 
     // Phase 6A: Add canonical settlement fields if user is authenticated
     let canonicalFields: any = {};
-    const userId = await resolveAuthenticatedUserId(req);
-    if (userId) {
+    if (viewerId) {
       try {
         // Try demo first, then crypto
-        const demoResult = await getSettlementResult(id, userId, 'demo-wallet');
-        const cryptoResult = await getSettlementResult(id, userId, 'crypto-base-usdc');
+        const demoResult = await getSettlementResult(id, viewerId, 'demo-wallet');
+        const cryptoResult = await getSettlementResult(id, viewerId, 'crypto-base-usdc');
         
         // Prefer demo if exists, otherwise use crypto
         const result = demoResult || cryptoResult;
@@ -911,7 +985,7 @@ router.get('/created/:userId', async (req, res) => {
 
     // Enrich with category info
     let enrichedPredictions = await enrichPredictionsWithCategory(predictions || []);
-    enrichedPredictions = (enrichedPredictions || []).filter((p: any) => !p?.hidden_at);
+    enrichedPredictions = (enrichedPredictions || []).filter((p: any) => !p?.hidden_at && !p?.removed_at);
 
     return res.json({
       data: enrichedPredictions,
@@ -2428,8 +2502,13 @@ router.get('/user/:id', async (req, res) => {
       });
     }
 
+    let enrichedPredictions = await enrichPredictionsWithCategory(predictions || []);
+    enrichedPredictions = (enrichedPredictions || []).filter((p: any) => !p?.hidden_at && !p?.removed_at);
+    const viewerId = await resolveAuthenticatedUserId(req);
+    enrichedPredictions = await filterPredictionsForViewer(enrichedPredictions, viewerId);
+
     return res.json({
-      data: predictions || [],
+      data: enrichedPredictions || [],
       message: 'User predictions fetched successfully (alias)',
       version: VERSION,
     });

@@ -3,7 +3,13 @@
  * Ensures production never shows localhost; uses canonical base (https://app.fanclubz.app) when env is missing or wrong.
  */
 
+import { Capacitor } from '@capacitor/core';
+
 const CANONICAL_PROD_BASE = 'https://app.fanclubz.app';
+
+function isNativeApp(): boolean {
+  return Boolean(Capacitor?.isNativePlatform?.());
+}
 
 /**
  * Returns true if the given origin or URL is localhost/loopback.
@@ -32,6 +38,12 @@ export function getPublicAppBaseUrl(): string {
     (import.meta.env.VITE_PUBLIC_APP_URL || import.meta.env.VITE_FRONTEND_URL) as string | undefined
   )?.trim() ?? '';
   const isProd = import.meta.env.PROD;
+
+  // Share links should always use the canonical web origin in native shells,
+  // even during local dev, so users don't copy `http://localhost/...`.
+  if (typeof window !== 'undefined' && isNativeApp()) {
+    return CANONICAL_PROD_BASE;
+  }
 
   if (envBase && !(isProd && isLocalhostOrigin(envBase))) {
     return envBase.replace(/\/+$/, '');

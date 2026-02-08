@@ -4,6 +4,7 @@ import { useAuthSession } from '../../providers/AuthSessionProvider';
 import { useAuthStore } from '../../store/authStore';
 import { useUnifiedCommentStore } from '../../store/unifiedCommentStore';
 import { openAuthGate } from '../../auth/authGateAdapter';
+import { apiClient } from '../../lib/api';
 
 interface CommentInputProps {
   predictionId: string;
@@ -25,6 +26,9 @@ export const CommentInput: React.FC<CommentInputProps> = ({
   const { getDraft, setDraft, clearDraft } = useUnifiedCommentStore();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [localText, setLocalText] = useState('');
+  const [mentionQuery, setMentionQuery] = useState('');
+  const [mentionResults, setMentionResults] = useState<any[]>([]);
+  const mentionTimerRef = useRef<ReturnType<typeof setTimeout>>();
 
   // Load draft from store on mount
   useEffect(() => {
@@ -45,15 +49,57 @@ export const CommentInput: React.FC<CommentInputProps> = ({
     const val = e.target.value;
     setLocalText(val);
 
-    // Auto-resize
-    const ta = e.target;
-    ta.style.height = 'auto';
-    ta.style.height = Math.min(Math.max(ta.scrollHeight, 48), 120) + 'px';
-
     // Debounced draft save
     clearTimeout(draftTimerRef.current);
     draftTimerRef.current = setTimeout(() => setDraft(predictionId, val), 300);
+
+    // Mention detection (simple: last token @query)
+    const match = val.slice(0, e.target.selectionStart).match(/@([a-zA-Z0-9_]{2,32})$/);
+    if (match && match[1]) {
+      setMentionQuery(match[1]);
+    } else {
+      setMentionQuery('');
+      setMentionResults([]);
+    }
   }, [predictionId, setDraft]);
+
+  // Fetch mention suggestions (debounced)
+  useEffect(() => {
+    if (!mentionQuery || mentionQuery.length < 2) return;
+    clearTimeout(mentionTimerRef.current);
+    mentionTimerRef.current = setTimeout(async () => {
+      try {
+        const res = await apiClient.get(`/social/users/search?q=${encodeURIComponent(mentionQuery)}&limit=8`);
+        if (res?.data && Array.isArray(res.data)) {
+          setMentionResults(res.data);
+        } else if (Array.isArray(res)) {
+          setMentionResults(res);
+        } else {
+          setMentionResults([]);
+        }
+      } catch {
+        setMentionResults([]);
+      }
+    }, 200);
+  }, [mentionQuery]);
+
+  const handleSelectMention = (username: string) => {
+    const ta = textareaRef.current;
+    if (!ta) return;
+    const caret = ta.selectionStart;
+    const before = localText.slice(0, caret).replace(/@([a-zA-Z0-9_]{2,32})$/, `@${username} `);
+    const after = localText.slice(caret);
+    const next = `${before}${after}`;
+    setLocalText(next);
+    setMentionQuery('');
+    setMentionResults([]);
+    // Restore cursor near end of inserted mention
+    requestAnimationFrame(() => {
+      const pos = before.length;
+      ta.setSelectionRange(pos, pos);
+      ta.focus();
+    });
+  };
 
   const handleSubmit = async (e?: React.FormEvent) => {
     e?.preventDefault();
@@ -70,9 +116,6 @@ export const CommentInput: React.FC<CommentInputProps> = ({
       // On success: clear local text + draft
       setLocalText('');
       clearDraft(predictionId);
-      if (textareaRef.current) {
-        textareaRef.current.style.height = '48px';
-      }
     } catch {
       // Error handling done by store (marks comment as failed inline).
       // Keep text in the input so user can edit + retry.
@@ -134,15 +177,39 @@ export const CommentInput: React.FC<CommentInputProps> = ({
           onKeyDown={handleKeyDown}
           placeholder={placeholder}
           disabled={isPosting}
-          rows={2}
-          className="w-full p-3 border rounded-lg resize-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed"
+          rows={3}
+          className="w-full h-[120px] p-3 border rounded-lg resize-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed"
           maxLength={1000}
-          style={{ minHeight: '48px', maxHeight: '120px' }}
+          style={{ minHeight: '120px', maxHeight: '120px' }}
           aria-label="Write a comment"
         />
         <div className="absolute bottom-2 right-2 text-xs text-gray-400">
           {charCount}/1000
         </div>
+        {mentionResults.length > 0 && (
+          <div className="absolute z-10 mt-2 w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-auto">
+            {mentionResults.map((u) => (
+              <button
+                key={u.id || u.username}
+                type="button"
+                onClick={() => handleSelectMention(u.username)}
+                className="w-full text-left px-3 py-2 hover:bg-gray-50 flex items-center gap-2"
+              >
+                <div className="w-6 h-6 rounded-full bg-gray-200 overflow-hidden flex items-center justify-center text-xs">
+                  {u.avatar_url ? (
+                    <img src={u.avatar_url} alt={u.username} className="w-6 h-6 object-cover" />
+                  ) : (
+                    <span>{String(u.username || 'U').charAt(0).toUpperCase()}</span>
+                  )}
+                </div>
+                <div className="text-sm text-gray-900">
+                  {u.full_name || u.username}
+                  {u.username && <span className="text-xs text-gray-500 ml-2">@{u.username}</span>}
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="flex justify-between items-center">

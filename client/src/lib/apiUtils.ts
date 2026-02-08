@@ -4,6 +4,7 @@
  */
 
 import { getApiUrl } from '../config';
+import { Capacitor } from '@capacitor/core';
 
 interface RetryOptions {
   maxRetries?: number;
@@ -96,6 +97,17 @@ export const fetchWithRetry = async (
         Accept: 'application/json',
         ...(fetchOptions.headers as any),
       };
+
+      // Native Android dev (CapacitorHttp/OkHttp) has been intermittently failing with
+      // "unexpected end of stream" against the local backend when compression is enabled.
+      // The server already supports opt-out via `x-no-compression`.
+      if (typeof window !== 'undefined' && Boolean(Capacitor?.isNativePlatform?.())) {
+        const isLocalDevBackend =
+          url.startsWith('http://127.0.0.1:3001') || url.startsWith('http://localhost:3001');
+        if (isLocalDevBackend && !('x-no-compression' in headers)) {
+          headers['x-no-compression'] = '1';
+        }
+      }
 
       const hasBody = typeof fetchOptions.body !== 'undefined' && fetchOptions.body !== null;
       if (!isGetLike && hasBody && !('Content-Type' in headers) && !('content-type' in headers)) {

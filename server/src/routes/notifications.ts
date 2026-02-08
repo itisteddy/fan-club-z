@@ -25,6 +25,33 @@ async function resolveAuthenticatedUserId(req: any): Promise<string | null> {
   }
 }
 
+async function resolveNotificationUserIds(authUserId: string): Promise<string[]> {
+  const ids = new Set<string>([authUserId]);
+  try {
+    const byAuth = await supabase
+      .from('users')
+      .select('id, auth_user_id')
+      .eq('auth_user_id', authUserId)
+      .maybeSingle();
+    if (!byAuth.error && byAuth.data?.id) {
+      ids.add(String(byAuth.data.id));
+    } else if (String(byAuth.error?.code || '') === '42703') {
+      // Fallback for schemas without auth_user_id column: try id direct match.
+      const byId = await supabase
+        .from('users')
+        .select('id')
+        .eq('id', authUserId)
+        .maybeSingle();
+      if (!byId.error && byId.data?.id) {
+        ids.add(String(byId.data.id));
+      }
+    }
+  } catch {
+    // fail-open with auth id only
+  }
+  return Array.from(ids);
+}
+
 /**
  * GET /api/v2/notifications
  * Get user's notifications (paged, newest first)
@@ -34,8 +61,8 @@ async function resolveAuthenticatedUserId(req: any): Promise<string | null> {
  */
 router.get('/', async (req, res) => {
   try {
-    const userId = await resolveAuthenticatedUserId(req);
-    if (!userId) {
+    const authUserId = await resolveAuthenticatedUserId(req);
+    if (!authUserId) {
       return res.status(401).json({
         error: 'Unauthorized',
         message: 'Authentication required',
@@ -43,6 +70,7 @@ router.get('/', async (req, res) => {
       });
     }
 
+    const userIds = await resolveNotificationUserIds(authUserId);
     const limit = Math.min(parseInt((req.query.limit as string) || '20', 10), 100);
     const cursor = (req.query.cursor as string) || null;
 
@@ -50,7 +78,7 @@ router.get('/', async (req, res) => {
     let query = supabase
       .from('notifications')
       .select('id, type, title, body, href, metadata, read_at, created_at', { count: 'exact' })
-      .eq('user_id', userId)
+      .in('user_id', userIds)
       .order('created_at', { ascending: false })
       .limit(limit + 1); // Fetch one extra to determine if there's a next page
 
@@ -86,7 +114,7 @@ router.get('/', async (req, res) => {
     const { count: unreadCount } = await supabase
       .from('notifications')
       .select('id', { count: 'exact', head: true })
-      .eq('user_id', userId)
+      .in('user_id', userIds)
       .is('read_at', null);
 
     return res.json({
@@ -125,8 +153,8 @@ const MarkReadSchema = z.object({
  */
 router.post('/mark-read', async (req, res) => {
   try {
-    const userId = await resolveAuthenticatedUserId(req);
-    if (!userId) {
+    const authUserId = await resolveAuthenticatedUserId(req);
+    if (!authUserId) {
       return res.status(401).json({
         error: 'Unauthorized',
         message: 'Authentication required',
@@ -145,12 +173,13 @@ router.post('/mark-read', async (req, res) => {
     }
 
     const { ids } = parsed.data;
+    const userIds = await resolveNotificationUserIds(authUserId);
 
     // Update read_at for notifications that belong to this user
     const { error } = await supabase
       .from('notifications')
       .update({ read_at: new Date().toISOString() })
-      .eq('user_id', userId)
+      .in('user_id', userIds)
       .in('id', ids)
       .is('read_at', null); // Only update unread notifications
 
@@ -184,8 +213,8 @@ router.post('/mark-read', async (req, res) => {
  */
 router.post('/mark-all-read', async (req, res) => {
   try {
-    const userId = await resolveAuthenticatedUserId(req);
-    if (!userId) {
+    const authUserId = await resolveAuthenticatedUserId(req);
+    if (!authUserId) {
       return res.status(401).json({
         error: 'Unauthorized',
         message: 'Authentication required',
@@ -193,18 +222,19 @@ router.post('/mark-all-read', async (req, res) => {
       });
     }
 
+    const userIds = await resolveNotificationUserIds(authUserId);
     // Update all unread notifications for this user
     // First get count, then update
     const { count: unreadCount } = await supabase
       .from('notifications')
       .select('id', { count: 'exact', head: true })
-      .eq('user_id', userId)
+      .in('user_id', userIds)
       .is('read_at', null);
 
     const { error } = await supabase
       .from('notifications')
       .update({ read_at: new Date().toISOString() })
-      .eq('user_id', userId)
+      .in('user_id', userIds)
       .is('read_at', null);
 
     if (error) {

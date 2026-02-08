@@ -48,6 +48,21 @@ contentReportsRouter.post('/report', requireSupabaseAuth, async (req, res) => {
 
     const { targetType, targetId, reason, reasonCategory } = parsed.data;
 
+    // Basic rate limit: max 5 reports per 10 minutes (per user)
+    const windowStart = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+    const { count: recentCount } = await supabase
+      .from('content_reports')
+      .select('id', { count: 'exact', head: true })
+      .eq('reporter_id', userId)
+      .gte('created_at', windowStart);
+    if ((recentCount || 0) >= 5) {
+      return res.status(429).json({
+        error: 'rate_limited',
+        message: 'Too many reports. Please try again later.',
+        version: VERSION,
+      });
+    }
+
     const { data: report, error } = await supabase
       .from('content_reports')
       .insert({
@@ -56,22 +71,42 @@ contentReportsRouter.post('/report', requireSupabaseAuth, async (req, res) => {
         target_id: targetId,
         reason_category: reasonCategory || null,
         reason: reason.trim(),
-        status: 'pending',
+        status: 'open',
       })
       .select('id')
       .single();
+    const reportId = (report as { id?: string } | null)?.id;
 
     if (error) {
       console.warn('[ContentReports] Insert error:', error);
-      return res.status(500).json({
-        error: 'Internal Server Error',
+      // Unique constraint -> already reported
+      if (String((error as any).code || '') === '23505') {
+        return res.status(200).json({
+          data: { id: reportId },
+          message: 'Report already submitted.',
+          version: VERSION,
+        });
+      }
+      return res.status(503).json({
+        error: 'Service Unavailable',
         message: 'Failed to submit report',
         version: VERSION,
       });
     }
 
+    // Hide content immediately for reporter (best-effort)
+    try {
+      await supabase.from('content_hides').insert({
+        user_id: userId,
+        target_type: targetType,
+        target_id: targetId,
+      });
+    } catch {
+      // best-effort
+    }
+
     return res.status(201).json({
-      data: { id: report?.id },
+      data: { id: reportId },
       message: 'Report submitted. Our team will review it.',
       version: VERSION,
     });

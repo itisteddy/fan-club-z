@@ -40,12 +40,13 @@ interface ContentReport {
   reason: string;
   status: string;
   createdAt: string;
+  ageHours?: number;
   resolvedAt: string | null;
   resolvedBy: string | null;
 }
 
 type TabType = 'creators' | 'reports';
-type ReportStatusFilter = 'pending' | 'resolved';
+type ReportStatusFilter = 'open' | 'resolved' | 'dismissed';
 
 export const ModerationPage: React.FC = () => {
   const navigate = useNavigate();
@@ -66,7 +67,7 @@ export const ModerationPage: React.FC = () => {
   // Reports tab state
   const [reports, setReports] = useState<ContentReport[]>([]);
   const [reportsLoading, setReportsLoading] = useState(false);
-  const [reportStatusFilter, setReportStatusFilter] = useState<ReportStatusFilter>('pending');
+  const [reportStatusFilter, setReportStatusFilter] = useState<ReportStatusFilter>('open');
   const [resolveTarget, setResolveTarget] = useState<ContentReport | null>(null);
   const [resolveAction, setResolveAction] = useState<'dismiss' | 'warn' | 'remove' | 'ban'>('dismiss');
   const [resolveNotes, setResolveNotes] = useState('');
@@ -392,14 +393,14 @@ export const ModerationPage: React.FC = () => {
         <>
           <div className="flex gap-2">
             <button
-              onClick={() => setReportStatusFilter('pending')}
+              onClick={() => setReportStatusFilter('open')}
               className={`px-3 py-1.5 rounded-lg text-sm font-medium ${
-                reportStatusFilter === 'pending'
+                reportStatusFilter === 'open'
                   ? 'bg-amber-600 text-white'
                   : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
               }`}
             >
-              Pending
+              Open
             </button>
             <button
               onClick={() => setReportStatusFilter('resolved')}
@@ -410,6 +411,16 @@ export const ModerationPage: React.FC = () => {
               }`}
             >
               Resolved
+            </button>
+            <button
+              onClick={() => setReportStatusFilter('dismissed')}
+              className={`px-3 py-1.5 rounded-lg text-sm font-medium ${
+                reportStatusFilter === 'dismissed'
+                  ? 'bg-slate-600 text-white'
+                  : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+              }`}
+            >
+              Dismissed
             </button>
           </div>
 
@@ -423,12 +434,18 @@ export const ModerationPage: React.FC = () => {
               <div className="p-12 text-center">
                 <Flag className="w-12 h-12 text-slate-600 mx-auto mb-3" />
                 <p className="text-white font-medium">
-                  {reportStatusFilter === 'pending' ? 'No pending reports' : 'No resolved reports'}
+                  {reportStatusFilter === 'open'
+                    ? 'No open reports'
+                    : reportStatusFilter === 'resolved'
+                      ? 'No resolved reports'
+                      : 'No dismissed reports'}
                 </p>
                 <p className="text-slate-400 text-sm mt-1">
-                  {reportStatusFilter === 'pending'
+                  {reportStatusFilter === 'open'
                     ? 'User reports will appear here when submitted.'
-                    : 'Resolved reports are listed here.'}
+                    : reportStatusFilter === 'resolved'
+                      ? 'Resolved reports are listed here.'
+                      : 'Dismissed reports are listed here.'}
                 </p>
               </div>
             ) : (
@@ -448,6 +465,20 @@ export const ModerationPage: React.FC = () => {
                         </span>
                         <span className="text-slate-500 text-xs">
                           {formatReportDate(report.createdAt)}
+                        </span>
+                        {typeof report.ageHours === 'number' && (
+                          <span
+                            className={`text-xs px-2 py-0.5 rounded-full border ${
+                              report.ageHours >= 24
+                                ? 'border-red-500 text-red-400'
+                                : 'border-slate-600 text-slate-300'
+                            }`}
+                          >
+                            {report.ageHours}h
+                          </span>
+                        )}
+                        <span className="text-xs px-2 py-0.5 rounded-full border border-slate-700 text-slate-400">
+                          {report.status}
                         </span>
                       </div>
                       <div className="flex items-center gap-2 mt-1">
@@ -473,7 +504,7 @@ export const ModerationPage: React.FC = () => {
                           View
                         </a>
                       )}
-                      {report.status === 'pending' && (
+                      {report.status === 'open' && (
                         <button
                           onClick={() => {
                             setResolveTarget(report);
@@ -519,7 +550,7 @@ export const ModerationPage: React.FC = () => {
               <option value="dismiss">Dismiss</option>
               <option value="warn">Warn user</option>
               <option value="remove">Remove content</option>
-              <option value="ban">Ban user</option>
+              <option value="ban">Suspend user</option>
             </select>
             <label className="block text-sm font-medium text-slate-300 mb-2">Notes (optional)</label>
             <textarea
@@ -590,4 +621,3 @@ export const ModerationPage: React.FC = () => {
 };
 
 export default ModerationPage;
-

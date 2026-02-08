@@ -63,7 +63,7 @@ export const isDevelopment = () => isDev;
 export const isProduction = () => isProd;
 
 // API helpers
-export const getApiUrl = () => APP_CONFIG.api.url;
+export const getApiUrl = () => getEnvironmentConfig().apiUrl;
 export const getFrontendUrl = () => APP_CONFIG.frontend.url;
 
 // Version helpers

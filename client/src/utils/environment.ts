@@ -57,6 +57,8 @@ export interface EnvironmentConfig {
   isProduction: boolean;
 }
 
+let didLogNativeEnv = false;
+
 export function getEnvironmentConfig(): EnvironmentConfig {
   const hostname = window.location.hostname;
   const protocol = window.location.protocol;
@@ -110,7 +112,33 @@ export function getEnvironmentConfig(): EnvironmentConfig {
     return config;
   }
 
-  // Capacitor / native shell builds always target production API
+  // Environment variable override (useful for pointing native shells at a dev/staging API)
+  // NOTE: This must run before the native-shell forced-production branch.
+  if (API_BASE) {
+    let normalizedApiBase = API_BASE;
+    if (runningInNativeApp) {
+      // Android WebView/network-security can reject cleartext "localhost".
+      // Use loopback IP so adb reverse routing stays deterministic.
+      normalizedApiBase = normalizedApiBase.replace(/^http:\/\/localhost(?=[:/]|$)/i, 'http://127.0.0.1');
+    }
+    // In native shells, a relative API base like "/api" points to the Capacitor local origin
+    // (http://localhost/...), which is not a backend. Ignore it and fall through.
+    if (runningInNativeApp && normalizedApiBase.trim().startsWith('/')) {
+      if (DEBUG_ENABLED) console.log('📱 Native shell detected: ignoring relative VITE_API_BASE:', API_BASE);
+    } else {
+    const config: EnvironmentConfig = {
+      apiUrl: normalizedApiBase,
+      socketUrl: normalizedApiBase,
+      environment: isProd ? 'production' : 'development',
+      isDevelopment: !isProd,
+      isProduction: isProd
+    };
+    if (DEBUG_ENABLED) console.log('🔧 Using VITE_API_BASE:', config);
+    return config;
+    }
+  }
+
+  // Capacitor / native shell builds always target production API (unless overridden above)
   if (runningInNativeApp && !isDev) {
     const config: EnvironmentConfig = {
       apiUrl: productionApi,
@@ -123,6 +151,20 @@ export function getEnvironmentConfig(): EnvironmentConfig {
     return config;
   }
   
+  // Native dev shells must use loopback so adb reverse is deterministic.
+  if (runningInNativeApp && (isDev || mode === 'development')) {
+    const devNativeApi = 'http://127.0.0.1:3001';
+    const config: EnvironmentConfig = {
+      apiUrl: devNativeApi,
+      socketUrl: devNativeApi,
+      environment: 'development',
+      isDevelopment: true,
+      isProduction: false,
+    };
+    if (DEBUG_ENABLED) console.log('📱 Native dev shell detected -> forcing loopback API:', config);
+    return config;
+  }
+
   // Check if local development server is running (regardless of hostname)
   // Prefer the current hostname for LAN access so other devices can reach the API
   if (isDev || mode === 'development') {
@@ -137,19 +179,6 @@ export function getEnvironmentConfig(): EnvironmentConfig {
       isProduction: false
     };
     if (DEBUG_ENABLED) console.log('🏠 Development mode detected (dynamic host for LAN):', config);
-    return config;
-  }
-  
-  // Check environment variable override
-  if (API_BASE) {
-    const config: EnvironmentConfig = {
-      apiUrl: API_BASE,
-      socketUrl: API_BASE,
-      environment: isProd ? 'production' : 'development',
-      isDevelopment: !isProd,
-      isProduction: isProd
-    };
-    if (DEBUG_ENABLED) console.log('🔧 Using VITE_API_BASE:', config);
     return config;
   }
   
@@ -179,7 +208,13 @@ export function getEnvironmentConfig(): EnvironmentConfig {
 }
 
 export function getApiUrl(): string {
-  return getEnvironmentConfig().apiUrl;
+  const config = getEnvironmentConfig();
+  // Always log the chosen API base once in native shells to make device debugging deterministic.
+  if (!didLogNativeEnv && typeof window !== 'undefined' && Boolean(Capacitor?.isNativePlatform?.())) {
+    didLogNativeEnv = true;
+    console.log('[env] native apiUrl:', config.apiUrl);
+  }
+  return config.apiUrl;
 }
 
 export function getSocketUrl(): string {

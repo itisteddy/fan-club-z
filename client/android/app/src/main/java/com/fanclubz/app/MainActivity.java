@@ -2,6 +2,8 @@ package com.fanclubz.app;
 
 import android.os.Bundle;
 import android.view.View;
+import android.webkit.WebSettings;
+import android.content.pm.ApplicationInfo;
 
 import com.getcapacitor.BridgeActivity;
 
@@ -13,6 +15,16 @@ public class MainActivity extends BridgeActivity {
   @Override
   public void onCreate(Bundle savedInstanceState) {
     super.onCreate(savedInstanceState);
+    
+    // Allow http/ws connections from the embedded https WebView in debug builds.
+    try {
+      boolean isDebug = (getApplicationInfo().flags & ApplicationInfo.FLAG_DEBUGGABLE) != 0;
+      if (isDebug) {
+        getBridge().getWebView().getSettings().setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
+      }
+    } catch (Exception ignored) {
+      // If the WebView isn't ready yet, the default will apply.
+    }
 
     // Deterministic safe-area top inset for Android:
     // Compute window insets (status bar + cutout) and inject as CSS variable:

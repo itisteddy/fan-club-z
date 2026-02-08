@@ -27,7 +27,7 @@ export default defineConfig(({ mode }) => {
   const stripLogs = env.VITE_STRIP_LOGS === '1' && mode === 'production';
   
   // [PERF] Check if SW should be enabled (default off in dev)
-  const enableSW = env.VITE_ENABLE_SW === '1' || mode === 'production';
+  const enableSW = env.VITE_ENABLE_SW === '1';
 
   // [PERF] Build plugins array conditionally
   const plugins: PluginOption[] = [
@@ -39,6 +39,8 @@ export default defineConfig(({ mode }) => {
     plugins.push(
       VitePWA({
         registerType: 'autoUpdate',
+        // Avoid intermittent workbox terser crashes in CI/local builds.
+        minify: false,
         // [PERF] Disable in dev to avoid SW caching issues
         devOptions: {
           enabled: false,

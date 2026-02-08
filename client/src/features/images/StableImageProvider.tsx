@@ -22,7 +22,7 @@ import type { Prediction } from './useAutoImage';
 import { qaLog } from '../../utils/devQa';
 import { getApiUrl } from '@/utils/environment';
 
-const API_BASE = `${getApiUrl()}/api`;
+const getImagesApiBase = () => `${getApiUrl()}/api`;
 
 /**
  * Save image URL to database for permanent storage
@@ -36,7 +36,7 @@ async function saveImageToDatabase(predictionId: string, imageUrl: string): Prom
   }
   
   try {
-    const response = await fetch(`${API_BASE}/v2/predictions/${predictionId}/image`, {
+    const response = await fetch(`${getImagesApiBase()}/v2/predictions/${predictionId}/image`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ imageUrl }),
@@ -275,7 +275,7 @@ export function useStableImage({
         });
 
         // PERFORMANCE FIX: Reduced timeout to prevent hanging
-        const response = await fetch(`${API_BASE}/images?${params}`, {
+        const response = await fetch(`${getImagesApiBase()}/images?${params}`, {
           signal: AbortSignal.timeout(5000) // 5 second timeout (reduced from 10s)
         });
 
@@ -316,4 +316,3 @@ export function useStableImage({
     provider
   };
 }
-

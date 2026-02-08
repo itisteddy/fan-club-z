@@ -1,17 +1,23 @@
-import React, { useEffect, useCallback } from 'react';
+import React, { useEffect, useCallback, useRef, useState } from 'react';
 import { MessageSquare } from 'lucide-react';
 import { useUnifiedCommentStore } from '../../store/unifiedCommentStore';
 import { CommentInput } from './CommentInput';
 import { CommentList } from './CommentList';
 import toast from 'react-hot-toast';
+import { useAuthSession } from '../../providers/AuthSessionProvider';
+import { ReportContentModal } from '../../components/ugc/ReportContentModal';
+import { useBlockedUsers } from '@/hooks/useBlockedUsers';
+import { ConfirmationModal } from '../../components/modals/ConfirmationModal';
 
 interface CommentsSectionProps {
   predictionId: string;
+  predictionTitle?: string;
   className?: string;
 }
 
 export const CommentsSection: React.FC<CommentsSectionProps> = ({
   predictionId,
+  predictionTitle,
   className = ''
 }) => {
   const {
@@ -25,7 +31,19 @@ export const CommentsSection: React.FC<CommentsSectionProps> = ({
     addComment,
     retryComment,
     dismissFailedComment,
+    editComment,
+    deleteComment,
+    toggleLike,
   } = useUnifiedCommentStore();
+  const { session } = useAuthSession();
+  const { blockedUserIds, blockUser, isBlocked } = useBlockedUsers();
+  const [reportTargetId, setReportTargetId] = useState<string | null>(null);
+  const [reportNonce, setReportNonce] = useState(0);
+  const [openMenuCommentId, setOpenMenuCommentId] = useState<string | null>(null);
+  const [pendingBlockUserId, setPendingBlockUserId] = useState<string | null>(null);
+  const [isBlocking, setIsBlocking] = useState(false);
+  const menuOpenedAtRef = useRef(0);
+  const menuOpenScrollPosRef = useRef({ x: 0, y: 0 });
 
   const predictionComments = getComments(predictionId);
   const predictionStatus = getStatus(predictionId);
@@ -81,8 +99,71 @@ export const CommentsSection: React.FC<CommentsSectionProps> = ({
 
   // Handle like toggle
   const handleToggleLike = useCallback(async (_commentId: string) => {
-    toast.success('Like feature coming soon!');
-  }, []);
+    try {
+      await toggleLike(predictionId, _commentId);
+    } catch (error: any) {
+      const status = error?.status;
+      if (status === 401 || status === 403) {
+        toast.error(error?.message || 'Please sign in to like comments.');
+      }
+    }
+  }, [toggleLike, predictionId]);
+
+  const handleEdit = useCallback(async (commentId: string, text: string) => {
+    try {
+      await editComment(predictionId, commentId, text);
+    } catch (error: any) {
+      toast.error(error?.message || 'Failed to edit comment.');
+      throw error;
+    }
+  }, [editComment, predictionId]);
+
+  const handleDelete = useCallback(async (commentId: string) => {
+    try {
+      await deleteComment(predictionId, commentId);
+    } catch (error: any) {
+      toast.error(error?.message || 'Failed to delete comment.');
+      throw error;
+    }
+  }, [deleteComment, predictionId]);
+
+  const handleReply = useCallback(async (parentCommentId: string, text: string) => {
+    try {
+      await addComment(predictionId, text, parentCommentId);
+    } catch (error: any) {
+      toast.error(error?.message || 'Failed to reply.');
+      throw error;
+    }
+  }, [addComment, predictionId]);
+
+  const handleReport = useCallback((commentId: string) => {
+    if (!session?.access_token) {
+      toast.error('Please sign in to report content.');
+      return;
+    }
+    setReportTargetId(commentId);
+  }, [session?.access_token]);
+
+  const handleBlockUser = useCallback((userId: string) => {
+    if (!userId || isBlocked(userId)) return;
+    setPendingBlockUserId(userId);
+  }, [isBlocked]);
+
+  const handleConfirmBlockUser = useCallback(async () => {
+    if (!pendingBlockUserId) return;
+    setIsBlocking(true);
+    try {
+      const result = await blockUser(pendingBlockUserId);
+      if (result.ok) {
+        toast.success('User blocked. Content removed.');
+        setPendingBlockUserId(null);
+      } else {
+        toast.error(result.message || 'Failed to block user.');
+      }
+    } finally {
+      setIsBlocking(false);
+    }
+  }, [blockUser, pendingBlockUserId]);
 
   // Handle load more
   const handleLoadMore = useCallback(async () => {
@@ -94,6 +175,49 @@ export const CommentsSection: React.FC<CommentsSectionProps> = ({
       }
     }
   }, [loadMore, predictionId]);
+
+  const handleCloseMenu = useCallback(() => {
+    setOpenMenuCommentId(null);
+  }, []);
+
+  const handleOpenMenu = useCallback((commentId: string) => {
+    menuOpenedAtRef.current = Date.now();
+    menuOpenScrollPosRef.current = {
+      x: window.scrollX,
+      y: window.scrollY,
+    };
+    setOpenMenuCommentId(commentId);
+  }, []);
+
+  useEffect(() => {
+    if (!openMenuCommentId) return;
+    const MIN_OPEN_MS = 700;
+    const isMobileViewport =
+      typeof window !== 'undefined' &&
+      window.matchMedia('(max-width: 768px)').matches;
+    const shouldCloseNow = () => Date.now() - menuOpenedAtRef.current > MIN_OPEN_MS;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') handleCloseMenu();
+    };
+    const handleScroll = () => {
+      if (isMobileViewport) return;
+      // Some mobile browsers emit scroll events during taps/touch adjustments.
+      // Close only when the viewport actually moved to avoid dropping menu-item clicks.
+      const dx = Math.abs(window.scrollX - menuOpenScrollPosRef.current.x);
+      const dy = Math.abs(window.scrollY - menuOpenScrollPosRef.current.y);
+      const didScroll = dx > 8 || dy > 8;
+      if (didScroll && shouldCloseNow()) handleCloseMenu();
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('scroll', handleScroll, true);
+    window.addEventListener('resize', handleScroll);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('scroll', handleScroll, true);
+      window.removeEventListener('resize', handleScroll);
+    };
+  }, [openMenuCommentId, handleCloseMenu]);
 
   const isLoading = predictionStatus === 'loading' || predictionStatus === 'paginating';
   const showCount = getCommentCount(predictionId);
@@ -126,8 +250,41 @@ export const CommentsSection: React.FC<CommentsSectionProps> = ({
           onToggleLike={handleToggleLike}
           onRetry={handleRetry}
           onDismiss={handleDismiss}
-        />
+          onEdit={handleEdit}
+          onDelete={handleDelete}
+          onReply={handleReply}
+          onReport={handleReport}
+          onBlockUser={handleBlockUser}
+          blockedUserIds={blockedUserIds}
+          reportNonce={reportNonce}
+              predictionTitle={predictionTitle}
+              openMenuCommentId={openMenuCommentId}
+              onOpenMenu={handleOpenMenu}
+              onCloseMenu={handleCloseMenu}
+            />
       </div>
+
+      <ReportContentModal
+        open={!!reportTargetId}
+        targetType="comment"
+        targetId={reportTargetId || ''}
+        label="this comment"
+        accessToken={session?.access_token}
+        onClose={() => setReportTargetId(null)}
+        onSuccess={() => setReportNonce((n) => n + 1)}
+      />
+
+      <ConfirmationModal
+        isOpen={!!pendingBlockUserId}
+        onClose={() => setPendingBlockUserId(null)}
+        onConfirm={handleConfirmBlockUser}
+        title="Block this user?"
+        message="You won’t see their content anymore."
+        confirmText="Block"
+        cancelText="Cancel"
+        variant="danger"
+        isLoading={isBlocking}
+      />
     </div>
   );
 };

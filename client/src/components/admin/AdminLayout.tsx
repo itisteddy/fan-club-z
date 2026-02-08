@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuthSession } from '../../providers/AuthSessionProvider';
 import { FRONTEND_URL } from '@/utils/environment';
+import { adminGet } from '@/lib/adminApi';
 import {
   LayoutDashboard,
   Users,
@@ -34,6 +35,34 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
   const { user } = useAuthSession();
   const navigate = useNavigate();
   const appUrl = FRONTEND_URL || 'https://app.fanclubz.app';
+  const [openReportsCount, setOpenReportsCount] = useState<number>(0);
+
+  useEffect(() => {
+    let mounted = true;
+    const actorId = user?.id;
+    if (!actorId) return;
+
+    const fetchCount = async () => {
+      try {
+        const data = await adminGet<any>(`/api/v2/admin/moderation/reports`, actorId, {
+          status: 'open',
+          limit: 1,
+        });
+        if (!mounted) return;
+        setOpenReportsCount(Number(data?.total || 0));
+      } catch {
+        if (!mounted) return;
+        setOpenReportsCount(0);
+      }
+    };
+
+    fetchCount();
+    const timer = setInterval(fetchCount, 60000);
+    return () => {
+      mounted = false;
+      clearInterval(timer);
+    };
+  }, [user?.id]);
 
   return (
     <div className="min-h-screen bg-slate-900 flex">
@@ -68,7 +97,12 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
               }
             >
               <item.icon className="w-5 h-5" />
-              {item.label}
+              <span className="flex-1">{item.label}</span>
+              {item.path === '/admin/moderation' && openReportsCount > 0 && (
+                <span className="min-w-[20px] px-2 py-0.5 text-xs rounded-full bg-amber-500 text-slate-900 font-semibold">
+                  {openReportsCount}
+                </span>
+              )}
             </NavLink>
           ))}
         </nav>
@@ -110,4 +144,3 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
 };
 
 export default AdminLayout;
-

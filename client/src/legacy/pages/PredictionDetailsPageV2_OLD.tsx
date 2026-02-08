@@ -674,7 +674,7 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
                   exit={reduceMotion ? {} : { opacity: 0, x: 20 }}
                   data-qa="comments-section"
                 >
-                  <CommentsSection predictionId={predictionId} />
+                  <CommentsSection predictionId={predictionId} predictionTitle={prediction?.title} />
                 </motion.div>
               )}
 
