@@ -4,7 +4,7 @@ import { toast } from 'react-hot-toast';
 import PredictionCard from '../components/PredictionCard';
 import PredictionCardV3, { PredictionCardV3Skeleton } from '../components/predictions/PredictionCardV3';
 import { motion, AnimatePresence } from 'framer-motion';
-import { TrendingUp, Search, Loader2, Bell, ChevronDown, X } from 'lucide-react';
+import { TrendingUp, Search, Loader2, Bell } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import PredictionCardSkeleton from '../components/PredictionCardSkeleton';
 import { PlacePredictionModal } from '../components/predictions/PlacePredictionModal';
@@ -17,7 +17,6 @@ import { useNavigate } from 'react-router-dom';
 import { useCategories, Category } from '../hooks/useCategories';
 import { buildPredictionCanonicalUrl } from '@/lib/predictionUrls';
 import { isReported } from '@/lib/reportedContent';
-import * as Dialog from '@radix-ui/react-dialog';
 // Local scroll restoration helpers (scoped to Discover to avoid cross-module init issues)
 const scrollMemory = new Map<string, number>();
 const scrollStoragePrefix = 'fcz_scroll_';
@@ -70,9 +69,6 @@ interface DiscoverPageProps {
   onNavigateToPrediction?: (predictionId: string) => void;
 }
 
-// Stable category lists to avoid remount/scroll reset from array identity changes
-const TOP_N = 8;
-
 // Enhanced Category Filter Component - uses API categories
 const CategoryFilters = React.memo(function CategoryFilters({ 
   selectedCategoryId, 
@@ -85,40 +81,23 @@ const CategoryFilters = React.memo(function CategoryFilters({
   categories: Category[];
   isLoading: boolean;
 }) {
-  const [showMoreSheet, setShowMoreSheet] = useState(false);
   const stripRef = useRef<HTMLDivElement>(null);
-  const scrollPosRef = useRef(0);
-  const selectedChipRef = useRef<HTMLButtonElement | null>(null);
+  const chipRefs = useRef(new Map<string, HTMLButtonElement | null>());
 
-  // Stable slices: same reference when categories length/contents unchanged
-  const topCategories = useMemo(() => categories.slice(0, TOP_N), [categories]);
-  const moreCategories = useMemo(() => categories.slice(TOP_N), [categories]);
+  const setChipRef = useCallback(
+    (key: string) => (el: HTMLButtonElement | null) => {
+      chipRefs.current.set(key, el);
+    },
+    []
+  );
 
-  // Persist scroll position on scroll
-  const handleStripScroll = useCallback(() => {
-    if (stripRef.current) scrollPosRef.current = stripRef.current.scrollLeft;
-  }, []);
-
-  // Restore scroll position after selection change (before paint to avoid visible jump)
+  // Keep selected chip visible: scroll to center it in view
   useLayoutEffect(() => {
-    const el = stripRef.current;
-    if (el) el.scrollLeft = scrollPosRef.current;
-  }, [selectedCategoryId]);
-
-  // Keep selected chip visible: scroll strip minimally so chip is in view
-  useLayoutEffect(() => {
-    const strip = stripRef.current;
-    const chip = selectedChipRef.current;
-    if (!strip || !chip) return;
-    const stripRect = strip.getBoundingClientRect();
-    const chipRect = chip.getBoundingClientRect();
-    const pad = 8;
-    if (chipRect.left < stripRect.left + pad) {
-      strip.scrollBy({ left: chipRect.left - stripRect.left - pad, behavior: 'smooth' });
-    } else if (chipRect.right > stripRect.right - pad) {
-      strip.scrollBy({ left: chipRect.right - stripRect.right + pad, behavior: 'smooth' });
-    }
-  }, [selectedCategoryId]);
+    const key = selectedCategoryId ?? 'all';
+    const chip = chipRefs.current.get(key);
+    if (!chip) return;
+    chip.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+  }, [selectedCategoryId, categories.length]);
 
   if (isLoading) {
     return (
@@ -141,18 +120,16 @@ const CategoryFilters = React.memo(function CategoryFilters({
       >
         <div
           ref={stripRef}
-          onScroll={handleStripScroll}
           className="overflow-x-auto overflow-y-hidden scrollbar-hide"
         >
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-nowrap w-max">
             {/* "All" chip */}
             <button
-              ref={selectedCategoryId === null ? selectedChipRef : undefined}
+              ref={setChipRef('all')}
               onClick={() => {
-                // Capture current horizontal scroll BEFORE changing selection (prevents reset-to-start)
-                if (stripRef.current) scrollPosRef.current = stripRef.current.scrollLeft;
                 onSelect(null);
               }}
+              aria-pressed={selectedCategoryId === null}
               style={{
                 height: '28px',
                 minHeight: '28px',
@@ -187,15 +164,15 @@ const CategoryFilters = React.memo(function CategoryFilters({
               All
             </button>
 
-            {/* Top categories as chips */}
-            {topCategories.map((category) => (
+            {/* All categories as chips */}
+            {categories.map((category) => (
               <button
                 key={category.id}
-                ref={selectedCategoryId === category.id ? selectedChipRef : undefined}
+                ref={setChipRef(category.id)}
                 onClick={() => {
-                  if (stripRef.current) scrollPosRef.current = stripRef.current.scrollLeft;
                   onSelect(category.id);
                 }}
+                aria-pressed={selectedCategoryId === category.id}
                 style={{
                   height: '28px',
                   minHeight: '28px',
@@ -230,93 +207,9 @@ const CategoryFilters = React.memo(function CategoryFilters({
                 {category.label}
               </button>
             ))}
-
-            {/* "More" button if there are additional categories */}
-            {moreCategories.length > 0 && (
-              <button
-                onClick={() => setShowMoreSheet(true)}
-                style={{
-                  height: '28px',
-                  minHeight: '28px',
-                  padding: '0 12px',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '4px',
-                  fontSize: '13px',
-                  fontWeight: 500,
-                  lineHeight: 1,
-                  borderRadius: '14px',
-                  border: 'none',
-                  cursor: 'pointer',
-                  whiteSpace: 'nowrap',
-                  flexShrink: 0,
-                  transition: 'all 0.2s',
-                  backgroundColor: '#f1f5f9',
-                  color: '#475569',
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.backgroundColor = '#e2e8f0';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.backgroundColor = '#f1f5f9';
-                }}
-              >
-                More
-                <ChevronDown className="w-3 h-3" />
-              </button>
-            )}
           </div>
         </div>
       </div>
-
-      {/* More categories sheet */}
-      {moreCategories.length > 0 && (
-        <Dialog.Root open={showMoreSheet} onOpenChange={setShowMoreSheet}>
-          <Dialog.Portal>
-            <Dialog.Overlay className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[12000]" />
-            <Dialog.Content className="fixed bottom-0 left-0 right-0 bg-white rounded-t-2xl shadow-2xl z-[12001] max-h-[calc(100vh-5rem-env(safe-area-inset-bottom))] overflow-y-auto">
-              <div className="sticky top-0 bg-white border-b border-gray-200 px-4 py-4 flex items-center justify-between z-10">
-                <Dialog.Title className="text-lg font-semibold text-gray-900">All Categories</Dialog.Title>
-                <Dialog.Close className="p-2 rounded-lg hover:bg-gray-100">
-                  <X className="w-5 h-5 text-gray-500" />
-                </Dialog.Close>
-              </div>
-              <div className="px-4 py-4 space-y-2">
-                <button
-                  onClick={() => {
-                    onSelect(null);
-                    setShowMoreSheet(false);
-                  }}
-                  className={`w-full text-left px-4 py-3 rounded-xl transition-colors ${
-                    selectedCategoryId === null
-                      ? 'bg-purple-600 text-white'
-                      : 'bg-gray-50 text-gray-900 hover:bg-gray-100'
-                  }`}
-                >
-                  All
-                </button>
-                {moreCategories.map((category) => (
-                  <button
-                    key={category.id}
-                    onClick={() => {
-                      onSelect(category.id);
-                      setShowMoreSheet(false);
-                    }}
-                    className={`w-full text-left px-4 py-3 rounded-xl transition-colors ${
-                      selectedCategoryId === category.id
-                        ? 'bg-purple-600 text-white'
-                        : 'bg-gray-50 text-gray-900 hover:bg-gray-100'
-                    }`}
-                  >
-                    {category.label}
-                  </button>
-                ))}
-              </div>
-            </Dialog.Content>
-          </Dialog.Portal>
-        </Dialog.Root>
-      )}
     </>
   );
 });

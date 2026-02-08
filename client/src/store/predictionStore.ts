@@ -5,6 +5,7 @@ import { useAuthStore } from './authStore';
 import { apiClient } from '../lib/apiUtils';
 import { getAuthHeaders } from '../lib/api';
 import { useFundingModeStore } from './fundingModeStore';
+import type { CategorySlug } from '@/constants/categories';
 
 /** User-facing error messages for place-bet responses (no generic "Failed to create entry"). */
 function placeBetErrorFromResponse(status: number, errorData: Record<string, unknown>): string {
@@ -67,7 +68,7 @@ export interface Prediction {
   title: string;
   question?: string;
   description?: string;
-  category: 'sports' | 'pop_culture' | 'custom' | 'esports' | 'celebrity_gossip' | 'politics';
+  category: CategorySlug | string;
   type: 'binary' | 'multi_outcome' | 'pool';
   status: 'pending' | 'open' | 'closed' | 'settled' | 'disputed' | 'cancelled' | 'awaiting_settlement' | 'ended' | 'refunded';
   stake_min: number;

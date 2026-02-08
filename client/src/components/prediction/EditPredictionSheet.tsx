@@ -8,6 +8,10 @@ import { supabase } from '@/lib/supabase';
 
 type PredictionCategory = Prediction['category'];
 
+const MAX_OPTIONS = 50;
+const MAX_OPTION_LENGTH = 80;
+const normalizeOptionLabel = (value: string): string => value.trim().replace(/\s+/g, ' ');
+
 interface EditPredictionSheetProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -66,12 +70,21 @@ export function EditPredictionSheet({
 
       if (options.length < 2) {
         newErrors.options = 'Must have at least 2 options';
+      } else if (options.length > MAX_OPTIONS) {
+        newErrors.options = `Max ${MAX_OPTIONS} options allowed`;
       } else {
         // Check for duplicate labels (case-insensitive)
-        const labels = options.map((o) => o.label.toLowerCase().trim()).filter(Boolean);
-        const uniqueLabels = new Set(labels);
-        if (labels.length !== uniqueLabels.size) {
-          newErrors.options = 'Option labels must be unique';
+        const labels = options.map((o) => normalizeOptionLabel(o.label));
+        if (labels.some((label) => !label)) {
+          newErrors.options = 'Option labels cannot be empty';
+        } else if (labels.some((label) => label.length > MAX_OPTION_LENGTH)) {
+          newErrors.options = `Option labels must be ${MAX_OPTION_LENGTH} characters or less`;
+        } else {
+          const lowered = labels.map((label) => label.toLowerCase());
+          const uniqueLabels = new Set(lowered);
+          if (lowered.length !== uniqueLabels.size) {
+            newErrors.options = 'Option labels must be unique';
+          }
         }
       }
     }
@@ -150,7 +163,9 @@ export function EditPredictionSheet({
             return !oldOpt || opt.label !== oldOpt.label;
           });
         if (optionsChanged) {
-          payload.options = options.filter((opt) => opt.label.trim());
+          payload.options = options
+            .map((opt) => ({ ...opt, label: normalizeOptionLabel(opt.label) }))
+            .filter((opt) => opt.label);
         }
       }
 

@@ -47,7 +47,8 @@ export const CommentItem: React.FC<CommentItemProps> = ({
   const createdAt = comment.created_at || comment.createdAt;
   const content = comment.content || comment.text;
   const displayName = comment.user?.full_name || comment.user?.username || 'Anonymous';
-  const username = comment.user?.username || 'Anonymous';
+  const username = comment.user?.username || '';
+  const handle = username && username !== 'Anonymous' ? `@${username}` : null;
   const avatarUrl = comment.user?.avatar_url || comment.user?.avatarUrl;
 
   const isSending = comment.sendStatus === 'sending';
@@ -86,8 +87,16 @@ export const CommentItem: React.FC<CommentItemProps> = ({
   const effectiveFullName =
     (sessionUser?.user_metadata as any)?.full_name ||
     currentFullName;
-  const commentUserId = comment.user?.id;
-  const commentUserAuthId = (comment.user as any)?.auth_user_id || (comment.user as any)?.authUserId;
+  const commentUserId =
+    comment.user?.id ||
+    (comment as any).user_id ||
+    (comment as any).userId ||
+    (comment as any).authorId;
+  const commentUserAuthId =
+    (comment.user as any)?.auth_user_id ||
+    (comment.user as any)?.authUserId ||
+    (comment as any).auth_user_id ||
+    (comment as any).authorAuthId;
   const commentUsername = comment.user?.username;
   const commentFullName = comment.user?.full_name;
   const ownerByIdentity = Boolean(
@@ -246,7 +255,7 @@ export const CommentItem: React.FC<CommentItemProps> = ({
 
   const handleCopyLink = async () => {
     const base = buildPredictionCanonicalUrl(comment.predictionId, predictionTitle);
-    const url = `${base}?comment=${comment.id}`;
+    const url = `${base}?commentId=${comment.id}`;
     try {
       await navigator.clipboard.writeText(url);
       toast.success('Link copied');
@@ -327,9 +336,9 @@ export const CommentItem: React.FC<CommentItemProps> = ({
       id={`comment-${comment.id}`}
       className={`border-b border-gray-100 pb-4 last:border-b-0 ${isFailed ? 'opacity-80' : ''} ${isSending ? 'opacity-60' : ''}`}
     >
-      <div className="flex gap-3">
+      <div className="grid grid-cols-[40px_minmax(0,1fr)_auto] gap-x-3">
         {/* Avatar */}
-        <div className="flex-shrink-0">
+        <div className="row-span-4 flex-shrink-0">
           {avatarUrl ? (
             <img
               src={avatarUrl}
@@ -345,220 +354,223 @@ export const CommentItem: React.FC<CommentItemProps> = ({
           )}
         </div>
 
-        {/* Content */}
-        <div className="flex-1 min-w-0">
-          {/* Header */}
-          <div className="flex items-start gap-2 mb-1">
-            <span className="font-medium text-sm text-gray-900 leading-none">
+        {/* Row 1: Name + verified */}
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <span className="font-medium text-sm text-gray-900 leading-tight truncate">
               {displayName}
             </span>
-            {displayName !== username && username !== 'Anonymous' && (
-              <span className="text-xs text-gray-500">@{username}</span>
-            )}
             {comment.user?.is_verified && (
               <BadgeCheck className="w-4 h-4 text-blue-500 flex-shrink-0" aria-label="Verified" />
             )}
-            {!isOptimistic && (
-              <div className="flex items-center gap-1 text-xs text-gray-500">
-                <Clock className="w-3 h-3" />
-                {formatDistanceToNow(new Date(createdAt), { addSuffix: true })}
-              </div>
-            )}
-            {!isOptimistic && comment.edited && (
-              <span className="text-xs text-gray-400">edited</span>
-            )}
-            {isSaving && <span className="text-xs text-gray-400">saving…</span>}
-            {isDeleting && <span className="text-xs text-gray-400">deleting…</span>}
-            {isSending && (
-              <span className="flex items-center gap-1 text-xs text-gray-400">
-                <Loader2 className="w-3 h-3 animate-spin" /> Sending…
-              </span>
-            )}
-            {!isOptimistic && actions.length > 0 && (
-              <div className="ml-auto">
-                <button
-                  ref={menuButtonRef}
-                  type="button"
-                  onMouseDown={(e) => e.stopPropagation()}
-                  onClick={handleMenuToggle}
-                  className="p-1.5 rounded-md hover:bg-gray-100"
-                  aria-label="Comment actions"
-                  aria-expanded={isMenuOpen}
-                  aria-haspopup="menu"
-                >
-                  <MoreVertical className="w-4 h-4 text-gray-500" />
-                </button>
-              </div>
-            )}
           </div>
+        </div>
 
-          {/* Comment text */}
-          <div className="text-sm text-gray-900 leading-relaxed mb-2">
-            {isDeleted ? 'Comment deleted' : content}
+        {/* Row 1: Kebab */}
+        {!isOptimistic && actions.length > 0 && (
+          <div className="flex items-start justify-end">
+            <button
+              ref={menuButtonRef}
+              type="button"
+              onMouseDown={(e) => e.stopPropagation()}
+              onClick={handleMenuToggle}
+              className="p-1.5 rounded-md hover:bg-gray-100"
+              aria-label="Comment actions"
+              aria-expanded={isMenuOpen}
+              aria-haspopup="menu"
+            >
+              <MoreVertical className="w-4 h-4 text-gray-500" />
+            </button>
           </div>
+        )}
 
-          {/* Edit UI */}
-          {isEditing && !isDeleted && (
-            <div className="mt-2 space-y-2">
-              <textarea
-                value={editText}
-                onChange={(e) => {
-                  setEditText(e.target.value);
-                  const match = e.target.value.match(/@([a-zA-Z0-9_]{2,32})$/);
-                  if (match && match[1]) setMentionQuery(match[1]);
-                  else { setMentionQuery(''); setMentionResults([]); }
-                }}
-                rows={3}
-                className="w-full border rounded-lg p-2 text-sm"
-              />
-              {mentionResults.length > 0 && (
-                <div className="bg-white border border-gray-200 rounded-lg shadow-lg max-h-40 overflow-auto">
-                  {mentionResults.map((u) => (
-                    <button
-                      key={u.id || u.username}
-                      type="button"
-                      onClick={() => handleSelectMention(u.username, 'edit')}
-                      className="w-full text-left px-3 py-2 hover:bg-gray-50 flex items-center gap-2"
-                    >
-                      <span className="text-sm">{u.full_name || u.username}</span>
-                      {u.username && <span className="text-xs text-gray-500">@{u.username}</span>}
-                    </button>
-                  ))}
-                </div>
-              )}
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={handleEditSave}
-                  className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded-md"
-                  disabled={!editText.trim()}
-                >
-                  Save
-                </button>
-                <button
-                  type="button"
-                  onClick={() => { setIsEditing(false); setEditText(comment.content || comment.text || ''); }}
-                  className="px-3 py-1.5 text-sm text-gray-600"
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
+        {/* Row 2: Meta line */}
+        <div className="col-start-2 col-span-2 mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-gray-500">
+          {handle && <span className="truncate">{handle}</span>}
+          {!isOptimistic && (
+            <span className="flex items-center gap-1">
+              <Clock className="w-3 h-3" />
+              {formatDistanceToNow(new Date(createdAt), { addSuffix: true })}
+            </span>
           )}
-
-          {/* Failed state: inline retry/dismiss */}
-          {isFailed && comment.clientTempId && (
-            <div className="flex items-center gap-3 mt-1">
-              <div className="flex items-center gap-1 text-xs text-red-600">
-                <AlertCircle className="w-3.5 h-3.5" />
-                <span>{comment.errorMessage || 'Failed to post.'}</span>
-              </div>
-              {onRetry && (
-                <button
-                  onClick={() => onRetry(comment.clientTempId!)}
-                  className="flex items-center gap-1 text-xs font-medium text-blue-600 hover:text-blue-700 transition-colors"
-                >
-                  <RefreshCw className="w-3 h-3" /> Retry
-                </button>
-              )}
-              <button
-                onClick={async () => {
-                  try {
-                    await navigator.clipboard.writeText(comment.text || comment.content || '');
-                  } catch {
-                    window.prompt('Copy comment text:', comment.text || comment.content || '');
-                  }
-                }}
-                className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700 transition-colors"
-              >
-                <Link2 className="w-3 h-3" /> Copy text
-              </button>
-              {onDismiss && (
-                <button
-                  onClick={() => onDismiss(comment.clientTempId!)}
-                  className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700 transition-colors"
-                >
-                  <X className="w-3 h-3" /> Dismiss
-                </button>
-              )}
-            </div>
+          {!isOptimistic && comment.edited && (
+            <span className="text-gray-400">edited</span>
           )}
-
-          {/* Actions (only for confirmed comments) */}
-          {!isOptimistic && !isDeleted && (
-            <div className="flex items-center gap-4">
-              <button
-                onClick={() => onToggleLike?.(comment.id)}
-                className={`flex items-center gap-1 text-xs transition-colors ${
-                  isLiked
-                    ? 'text-red-600 hover:text-red-700'
-                    : 'text-gray-500 hover:text-red-600'
-                }`}
-              >
-                <Heart className={`w-4 h-4 ${isLiked ? 'fill-current' : ''}`} />
-                {likeCount > 0 && <span>{likeCount}</span>}
-              </button>
-              {!isReply && !isDeleted && onReply && (
-                <button
-                  type="button"
-                  onClick={() => setIsReplying((v) => !v)}
-                  className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700"
-                >
-                  <Reply className="w-4 h-4" /> Reply
-                </button>
-              )}
-            </div>
-          )}
-
-          {isReplying && !isDeleted && onReply && (
-            <div className="mt-2 space-y-2">
-              <textarea
-                value={replyText}
-                onChange={(e) => {
-                  setReplyText(e.target.value);
-                  const match = e.target.value.match(/@([a-zA-Z0-9_]{2,32})$/);
-                  if (match && match[1]) setMentionQuery(match[1]);
-                  else { setMentionQuery(''); setMentionResults([]); }
-                }}
-                rows={2}
-                className="w-full border rounded-lg p-2 text-sm"
-                placeholder="Write a reply..."
-              />
-              {mentionResults.length > 0 && (
-                <div className="bg-white border border-gray-200 rounded-lg shadow-lg max-h-40 overflow-auto">
-                  {mentionResults.map((u) => (
-                    <button
-                      key={u.id || u.username}
-                      type="button"
-                      onClick={() => handleSelectMention(u.username, 'reply')}
-                      className="w-full text-left px-3 py-2 hover:bg-gray-50 flex items-center gap-2"
-                    >
-                      <span className="text-sm">{u.full_name || u.username}</span>
-                      {u.username && <span className="text-xs text-gray-500">@{u.username}</span>}
-                    </button>
-                  ))}
-                </div>
-              )}
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={handleReplySubmit}
-                  className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded-md"
-                  disabled={!replyText.trim()}
-                >
-                  Reply
-                </button>
-                <button
-                  type="button"
-                  onClick={() => { setIsReplying(false); setReplyText(''); }}
-                  className="px-3 py-1.5 text-sm text-gray-600"
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
+          {isSaving && <span className="text-gray-400">saving…</span>}
+          {isDeleting && <span className="text-gray-400">deleting…</span>}
+          {isSending && (
+            <span className="flex items-center gap-1 text-gray-400">
+              <Loader2 className="w-3 h-3 animate-spin" /> Sending…
+            </span>
           )}
         </div>
+
+        {/* Comment text */}
+        <div className="col-start-2 col-span-2 mt-2 text-sm text-gray-900 leading-relaxed">
+          {isDeleted ? <span className="text-gray-400">Comment deleted</span> : content}
+        </div>
+
+        {/* Edit UI */}
+        {isEditing && !isDeleted && (
+          <div className="col-start-2 col-span-2 mt-2 space-y-2">
+            <textarea
+              value={editText}
+              onChange={(e) => {
+                setEditText(e.target.value);
+                const match = e.target.value.match(/@([a-zA-Z0-9_]{2,32})$/);
+                if (match && match[1]) setMentionQuery(match[1]);
+                else { setMentionQuery(''); setMentionResults([]); }
+              }}
+              rows={3}
+              className="w-full border rounded-lg p-2 text-sm"
+            />
+            {mentionResults.length > 0 && (
+              <div className="bg-white border border-gray-200 rounded-lg shadow-lg max-h-40 overflow-auto">
+                {mentionResults.map((u) => (
+                  <button
+                    key={u.id || u.username}
+                    type="button"
+                    onClick={() => handleSelectMention(u.username, 'edit')}
+                    className="w-full text-left px-3 py-2 hover:bg-gray-50 flex items-center gap-2"
+                  >
+                    <span className="text-sm">{u.full_name || u.username}</span>
+                    {u.username && <span className="text-xs text-gray-500">@{u.username}</span>}
+                  </button>
+                ))}
+              </div>
+            )}
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={handleEditSave}
+                className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded-md"
+                disabled={!editText.trim()}
+              >
+                Save
+              </button>
+              <button
+                type="button"
+                onClick={() => { setIsEditing(false); setEditText(comment.content || comment.text || ''); }}
+                className="px-3 py-1.5 text-sm text-gray-600"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Failed state: inline retry/dismiss */}
+        {isFailed && comment.clientTempId && (
+          <div className="col-start-2 col-span-2 mt-1 flex items-center gap-3">
+            <div className="flex items-center gap-1 text-xs text-red-600">
+              <AlertCircle className="w-3.5 h-3.5" />
+              <span>{comment.errorMessage || 'Failed to post.'}</span>
+            </div>
+            {onRetry && (
+              <button
+                onClick={() => onRetry(comment.clientTempId!)}
+                className="flex items-center gap-1 text-xs font-medium text-blue-600 hover:text-blue-700 transition-colors"
+              >
+                <RefreshCw className="w-3 h-3" /> Retry
+              </button>
+            )}
+            <button
+              onClick={async () => {
+                try {
+                  await navigator.clipboard.writeText(comment.text || comment.content || '');
+                } catch {
+                  window.prompt('Copy comment text:', comment.text || comment.content || '');
+                }
+              }}
+              className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700 transition-colors"
+            >
+              <Link2 className="w-3 h-3" /> Copy text
+            </button>
+            {onDismiss && (
+              <button
+                onClick={() => onDismiss(comment.clientTempId!)}
+                className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700 transition-colors"
+              >
+                <X className="w-3 h-3" /> Dismiss
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* Actions (only for confirmed comments) */}
+        {!isOptimistic && !isDeleted && (
+          <div className="col-start-2 col-span-2 mt-2 flex items-center gap-4">
+            <button
+              onClick={() => onToggleLike?.(comment.id)}
+              className={`flex items-center gap-1 text-xs transition-colors ${
+                isLiked
+                  ? 'text-red-600 hover:text-red-700'
+                  : 'text-gray-500 hover:text-red-600'
+              }`}
+            >
+              <Heart className={`w-4 h-4 ${isLiked ? 'fill-current' : ''}`} />
+              {likeCount > 0 && <span>{likeCount}</span>}
+            </button>
+            {!isReply && !isDeleted && onReply && (
+              <button
+                type="button"
+                onClick={() => setIsReplying((v) => !v)}
+                className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700"
+              >
+                <Reply className="w-4 h-4" /> Reply
+              </button>
+            )}
+          </div>
+        )}
+
+        {isReplying && !isDeleted && onReply && (
+          <div className="col-start-2 col-span-2 mt-2 space-y-2">
+            <textarea
+              value={replyText}
+              onChange={(e) => {
+                setReplyText(e.target.value);
+                const match = e.target.value.match(/@([a-zA-Z0-9_]{2,32})$/);
+                if (match && match[1]) setMentionQuery(match[1]);
+                else { setMentionQuery(''); setMentionResults([]); }
+              }}
+              rows={2}
+              className="w-full border rounded-lg p-2 text-sm"
+              placeholder="Write a reply..."
+            />
+            {mentionResults.length > 0 && (
+              <div className="bg-white border border-gray-200 rounded-lg shadow-lg max-h-40 overflow-auto">
+                {mentionResults.map((u) => (
+                  <button
+                    key={u.id || u.username}
+                    type="button"
+                    onClick={() => handleSelectMention(u.username, 'reply')}
+                    className="w-full text-left px-3 py-2 hover:bg-gray-50 flex items-center gap-2"
+                  >
+                    <span className="text-sm">{u.full_name || u.username}</span>
+                    {u.username && <span className="text-xs text-gray-500">@{u.username}</span>}
+                  </button>
+                ))}
+              </div>
+            )}
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={handleReplySubmit}
+                className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded-md"
+                disabled={!replyText.trim()}
+              >
+                Reply
+              </button>
+              <button
+                type="button"
+                onClick={() => { setIsReplying(false); setReplyText(''); }}
+                className="px-3 py-1.5 text-sm text-gray-600"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {isMenuOpen && !isMobile && (
@@ -602,12 +614,15 @@ export const CommentItem: React.FC<CommentItemProps> = ({
             onMouseDown={(e) => e.stopPropagation()}
             onTouchStart={(e) => e.stopPropagation()}
             className="fixed inset-x-0 bottom-0 z-50 rounded-t-2xl bg-white shadow-2xl"
-            style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
+            style={{
+              paddingBottom: 'calc(16px + env(safe-area-inset-bottom, 0px) + var(--app-bottom-nav-offset, 0px))',
+              maxHeight: 'min(80vh, 520px)',
+            }}
           >
             <div className="flex justify-center py-2">
               <div className="h-1 w-10 rounded-full bg-gray-300" />
             </div>
-            <div className="px-4 pb-2">
+            <div className="px-4 pb-2 overflow-y-auto">
               {actions.map((action) => {
                 const Icon = action.icon;
                 const isDestructive = action.destructive;

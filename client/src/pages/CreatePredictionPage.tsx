@@ -27,6 +27,14 @@ interface CreatePredictionPageProps {
   onNavigateBack?: () => void;
 }
 
+const MAX_OPTIONS = 50;
+const MAX_OPTION_LENGTH = 80;
+const SOFT_WARNING_THRESHOLD = 12;
+
+const normalizeOptionLabel = (value: string): string => value.trim().replace(/\\s+/g, ' ');
+const isUuid = (value: string): boolean =>
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+
 const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateBack }) => {
   const [step, setStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -57,6 +65,8 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
     { id: '1', label: 'Yes' },
     { id: '2', label: 'No' }
   ]);
+  const [optionErrors, setOptionErrors] = useState<Record<string, string>>({});
+  const [optionsError, setOptionsError] = useState<string | null>(null);
   const [entryDeadline, setEntryDeadline] = useState('');
   const [stakeMin, setStakeMin] = useState('1');
   const [stakeMax, setStakeMax] = useState('1000');
@@ -191,27 +201,102 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
     }
   ];
 
+  const validateOptions = useCallback((opts: PredictionOption[]) => {
+    const errors: Record<string, string> = {};
+    const normalizedOptions = opts.map((opt) => ({
+      ...opt,
+      label: normalizeOptionLabel(opt.label),
+    }));
+
+    let generalError: string | null = null;
+    if (normalizedOptions.length < 2) {
+      generalError = 'Add at least 2 options';
+    } else if (normalizedOptions.length > MAX_OPTIONS) {
+      generalError = `Max ${MAX_OPTIONS} options allowed`;
+    }
+
+    const seen = new Map<string, string>();
+    for (const opt of normalizedOptions) {
+      const label = opt.label;
+      if (!label) {
+        errors[opt.id] = 'Option cannot be empty';
+        continue;
+      }
+      if (label.length > MAX_OPTION_LENGTH) {
+        errors[opt.id] = `Max ${MAX_OPTION_LENGTH} characters`;
+        continue;
+      }
+      const key = label.toLowerCase();
+      if (seen.has(key)) {
+        errors[opt.id] = 'Duplicate option';
+        const firstId = seen.get(key);
+        if (firstId && !errors[firstId]) {
+          errors[firstId] = 'Duplicate option';
+        }
+      } else {
+        seen.set(key, opt.id);
+      }
+    }
+
+    return {
+      normalizedOptions,
+      errors,
+      generalError,
+      isValid: !generalError && Object.keys(errors).length === 0,
+    };
+  }, []);
+
   const addOption = useCallback(() => {
+    if (options.length >= MAX_OPTIONS) {
+      toast.error(`Max ${MAX_OPTIONS} options allowed for stability`);
+      return;
+    }
     const newId = (options.length + 1).toString();
     setOptions(prev => [...prev, { id: newId, label: '' }]);
+    setOptionsError(null);
   }, [options.length]);
 
   const removeOption = useCallback((id: string) => {
     setOptions(prev => prev.filter(option => option.id !== id));
+    setOptionErrors((prev) => {
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
+    setOptionsError(null);
   }, []);
 
   const updateOption = useCallback((id: string, label: string) => {
     setOptions(prev => prev.map(option =>
       option.id === id ? { ...option, label } : option
     ));
+    setOptionErrors((prev) => {
+      if (!prev[id]) return prev;
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
+    setOptionsError(null);
   }, []);
+
+  const handleOptionBlur = useCallback((id: string) => {
+    setOptions((prev) => {
+      const next = prev.map((option) =>
+        option.id === id ? { ...option, label: normalizeOptionLabel(option.label) } : option
+      );
+      const { errors, generalError } = validateOptions(next);
+      setOptionErrors(errors);
+      setOptionsError(generalError);
+      return next;
+    });
+  }, [validateOptions]);
 
   const validateStep = useCallback((stepNumber: number): boolean => {
     switch (stepNumber) {
       case 1:
         return !!(title.trim() && categoryId);
       case 2:
-        return !!(type && options.every(opt => opt.label.trim()));
+        return !!(type && validateOptions(options).isValid);
       case 3:
         return !!(entryDeadline && stakeMin);
       case 4:
@@ -219,15 +304,24 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
       default:
         return true;
     }
-  }, [title, categoryId, type, options, entryDeadline, stakeMin]);
+  }, [title, categoryId, type, options, entryDeadline, stakeMin, validateOptions]);
 
   const handleNext = useCallback(() => {
+    if (step === 2) {
+      const { errors, generalError, isValid } = validateOptions(options);
+      setOptionErrors(errors);
+      setOptionsError(generalError);
+      if (!isValid) {
+        toast.error('Please fix the option errors');
+        return;
+      }
+    }
     if (validateStep(step) && step < 4) {
       setStep(step + 1);
       // Scroll to top when advancing to next step
       scrollToTop({ delay: 150 });
     }
-  }, [step, validateStep]);
+  }, [step, validateStep, validateOptions, options]);
 
   const handleBack = useCallback(() => {
     if (step > 1) {
@@ -292,12 +386,23 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
         }
       }
 
+      const { normalizedOptions, errors, generalError, isValid } = validateOptions(options);
+      if (!isValid) {
+        setOptionErrors(errors);
+        setOptionsError(generalError);
+        throw new Error(generalError || 'Please fix the option errors');
+      }
+
+      const categoryPayload = categoryId && isUuid(categoryId)
+        ? { categoryId }
+        : { category: categoryId };
+
       const predictionData: any = {
         title: title.trim(),
         description: description.trim() || undefined,
-        categoryId: categoryId,
+        ...categoryPayload,
         type: type as 'binary' | 'multi_outcome' | 'pool',
-        options: options
+        options: normalizedOptions
           .filter(opt => opt.label.trim())
           .map(opt => ({
             id: opt.id,
@@ -697,12 +802,16 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
                                 { id: '1', label: 'Yes' },
                                 { id: '2', label: 'No' }
                               ]);
+                              setOptionErrors({});
+                              setOptionsError(null);
                             } else if (predType.id === 'multiple') {
                               setOptions([
                                 { id: '1', label: '' },
                                 { id: '2', label: '' },
                                 { id: '3', label: '' }
                               ]);
+                              setOptionErrors({});
+                              setOptionsError(null);
                             }
                           }}
                           className={`motion-button w-full p-4 rounded-2xl border-2 text-left transition-all duration-200 ${
@@ -729,7 +838,7 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
                       <label className="block text-sm font-semibold text-gray-700 mb-3">
                         Prediction Options *
                       </label>
-                      <div className="space-y-3">
+                      <div className={`space-y-3 ${options.length > 6 ? 'max-h-72 overflow-y-auto pr-2' : ''}`}>
                         {options.map((option, index) => (
                           <div key={option.id} className="flex items-center gap-3">
                             <div className="input-container flex-1">
@@ -737,9 +846,15 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
                                 type="text"
                                 value={option.label}
                                 onChange={(e) => updateOption(option.id, e.target.value)}
+                                onBlur={() => handleOptionBlur(option.id)}
                                 placeholder={`Option ${index + 1}`}
-                                className="w-full p-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none transition-all duration-200"
+                                className={`w-full p-3 border-2 rounded-xl focus:border-blue-500 focus:outline-none transition-all duration-200 ${
+                                  optionErrors[option.id] ? 'border-red-300' : 'border-gray-200'
+                                }`}
                               />
+                              {optionErrors[option.id] && (
+                                <p className="text-xs text-red-500 mt-1">{optionErrors[option.id]}</p>
+                              )}
                             </div>
                             {type === 'multiple' && options.length > 2 && (
                               <motion.button
@@ -754,18 +869,33 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
                           </div>
                         ))}
                         
-                        {type === 'multiple' && options.length < 6 && (
-                          <motion.button
-                            whileHover={{ scale: 1.02 }}
-                            whileTap={{ scale: 0.98 }}
-                            onClick={addOption}
-                            className="motion-button w-full p-3 border-2 border-dashed border-gray-300 rounded-xl text-gray-600 hover:border-blue-400 hover:text-blue-600 transition-all duration-200 flex items-center justify-center gap-2"
-                          >
-                            <Plus size={18} />
-                            <span>Add Option</span>
-                          </motion.button>
+                        {type === 'multiple' && (
+                          <div className={options.length > 6 ? 'sticky bottom-0 bg-white pt-2' : ''}>
+                            <motion.button
+                              whileHover={{ scale: 1.02 }}
+                              whileTap={{ scale: 0.98 }}
+                              onClick={addOption}
+                              disabled={options.length >= MAX_OPTIONS}
+                              className={`motion-button w-full p-3 border-2 border-dashed rounded-xl transition-all duration-200 flex items-center justify-center gap-2 ${
+                                options.length >= MAX_OPTIONS
+                                  ? 'border-gray-200 text-gray-400 cursor-not-allowed'
+                                  : 'border-gray-300 text-gray-600 hover:border-blue-400 hover:text-blue-600'
+                              }`}
+                            >
+                              <Plus size={18} />
+                              <span>Add Option</span>
+                            </motion.button>
+                          </div>
                         )}
                       </div>
+                      {optionsError && (
+                        <p className="text-xs text-red-600 mt-2">{optionsError}</p>
+                      )}
+                      {options.length >= SOFT_WARNING_THRESHOLD && (
+                        <p className="text-xs text-amber-600 mt-2">
+                          Lots of options can reduce participation. Consider consolidating.
+                        </p>
+                      )}
                     </div>
                   )}
                 </div>

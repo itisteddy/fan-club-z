@@ -34,6 +34,7 @@ export const CommentsSection: React.FC<CommentsSectionProps> = ({
     editComment,
     deleteComment,
     toggleLike,
+    setHighlighted,
   } = useUnifiedCommentStore();
   const { session } = useAuthSession();
   const { blockedUserIds, blockUser, isBlocked } = useBlockedUsers();
@@ -44,6 +45,7 @@ export const CommentsSection: React.FC<CommentsSectionProps> = ({
   const [isBlocking, setIsBlocking] = useState(false);
   const menuOpenedAtRef = useRef(0);
   const menuOpenScrollPosRef = useRef({ x: 0, y: 0 });
+  const pendingHighlightRef = useRef<string | null>(null);
 
   const predictionComments = getComments(predictionId);
   const predictionStatus = getStatus(predictionId);
@@ -62,6 +64,29 @@ export const CommentsSection: React.FC<CommentsSectionProps> = ({
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [predictionId]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    const targetId = params.get('commentId') || params.get('comment');
+    if (targetId) pendingHighlightRef.current = targetId;
+  }, [predictionId]);
+
+  useEffect(() => {
+    const targetId = pendingHighlightRef.current;
+    if (!targetId) return;
+    const exists = predictionComments.some((comment) => {
+      if (comment.id === targetId) return true;
+      return (comment.replies || []).some((reply) => reply.id === targetId);
+    });
+    if (!exists) return;
+    setHighlighted(predictionId, targetId);
+    requestAnimationFrame(() => {
+      const el = document.getElementById(`comment-${targetId}`);
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    });
+    pendingHighlightRef.current = null;
+  }, [predictionComments, predictionId, setHighlighted]);
 
   // Handle adding new comments
   const handleAddComment = useCallback(async (text: string) => {
@@ -192,15 +217,11 @@ export const CommentsSection: React.FC<CommentsSectionProps> = ({
   useEffect(() => {
     if (!openMenuCommentId) return;
     const MIN_OPEN_MS = 700;
-    const isMobileViewport =
-      typeof window !== 'undefined' &&
-      window.matchMedia('(max-width: 768px)').matches;
     const shouldCloseNow = () => Date.now() - menuOpenedAtRef.current > MIN_OPEN_MS;
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') handleCloseMenu();
     };
     const handleScroll = () => {
-      if (isMobileViewport) return;
       // Some mobile browsers emit scroll events during taps/touch adjustments.
       // Close only when the viewport actually moved to avoid dropping menu-item clicks.
       const dx = Math.abs(window.scrollX - menuOpenScrollPosRef.current.x);

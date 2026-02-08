@@ -123,6 +123,68 @@ async function enrichPredictionsWithCategory(predictions: any[]): Promise<any[]>
   });
 }
 
+const MAX_PREDICTION_OPTIONS = 50;
+const MAX_OPTION_LABEL_LENGTH = 80;
+
+function normalizeOptionLabel(label: string): string {
+  return String(label || '').trim().replace(/\s+/g, ' ');
+}
+
+function normalizeOptionInput(options: any[]): Array<{ id?: string; label: string; currentOdds?: any }> {
+  const list = Array.isArray(options) ? options : [];
+  return list.map((opt: any) => {
+    if (typeof opt === 'string') {
+      return { label: normalizeOptionLabel(opt) };
+    }
+    const label = normalizeOptionLabel(opt?.label ?? opt?.text ?? '');
+    const id = typeof opt?.id === 'string' ? opt.id : undefined;
+    const currentOdds = opt?.currentOdds;
+    return { ...(id ? { id } : {}), label, currentOdds };
+  });
+}
+
+function validatePredictionOptions(options: any[]): {
+  normalizedOptions: Array<{ id?: string; label: string; currentOdds?: any }>;
+  errors: string[];
+  isValid: boolean;
+} {
+  const normalizedOptions = normalizeOptionInput(options);
+  const errors: string[] = [];
+
+  if (normalizedOptions.length < 2) {
+    errors.push('Must have at least 2 options');
+  }
+
+  if (normalizedOptions.length > MAX_PREDICTION_OPTIONS) {
+    errors.push(`Max ${MAX_PREDICTION_OPTIONS} options allowed`);
+  }
+
+  const seen = new Set<string>();
+  normalizedOptions.forEach((opt, index) => {
+    const label = opt.label;
+    if (!label) {
+      errors.push(`Option ${index + 1} cannot be empty`);
+      return;
+    }
+    if (label.length > MAX_OPTION_LABEL_LENGTH) {
+      errors.push(`Option ${index + 1} exceeds ${MAX_OPTION_LABEL_LENGTH} characters`);
+      return;
+    }
+    const key = label.toLowerCase();
+    if (seen.has(key)) {
+      errors.push(`Duplicate option: ${label}`);
+    } else {
+      seen.add(key);
+    }
+  });
+
+  return {
+    normalizedOptions,
+    errors,
+    isValid: errors.length === 0,
+  };
+}
+
 // [PERF] Helper to generate ETag from response data
 function generateETag(data: unknown): string {
   const hash = crypto.createHash('md5').update(JSON.stringify(data)).digest('hex');
@@ -1049,11 +1111,20 @@ router.post('/', requireSupabaseAuth, requireTermsAccepted, async (req, res) => 
       });
     }
 
+    const { normalizedOptions, errors: optionErrors, isValid: optionsValid } = validatePredictionOptions(options);
+    if (!optionsValid) {
+      return res.status(400).json({
+        code: 'VALIDATION_ERROR',
+        field: 'options',
+        message: 'Invalid prediction options',
+        details: optionErrors,
+        version: VERSION,
+      });
+    }
+
     // Phase 5: Basic content filtering (title/description/options)
     try {
-      const optionLabels = Array.isArray(options)
-        ? options.map((o: any) => (typeof o === 'string' ? o : (o?.label ?? o?.text ?? '')))
-        : [];
+      const optionLabels = normalizedOptions.map((o) => o.label);
       assertContentAllowed([
         { label: 'title', value: title },
         { label: 'description', value: description },
@@ -1198,10 +1269,10 @@ router.post('/', requireSupabaseAuth, requireTermsAccepted, async (req, res) => 
 
     // Create prediction options (and return inserted rows)
     let insertedOptions: any[] = [];
-    if (options && options.length > 0) {
-      const optionData = options.map((option: any, index: number) => ({
+    if (normalizedOptions && normalizedOptions.length > 0) {
+      const optionData = normalizedOptions.map((option: any, index: number) => ({
         prediction_id: prediction.id,
-        label: String(option.label || '').trim(),
+        label: option.label || `Option ${index + 1}`,
         total_staked: 0,
         current_odds: Number(option.currentOdds) || 2.0,
       }));
@@ -2101,21 +2172,13 @@ router.patch('/:id', requireSupabaseAuth, requireTermsAccepted, async (req, res)
 
       // Handle options update (only if no entries)
       if (options !== undefined && Array.isArray(options)) {
-        if (options.length < 2) {
+        const { normalizedOptions, errors: optionErrors, isValid } = validatePredictionOptions(options);
+        if (!isValid) {
           return res.status(400).json({
-            error: 'invalid_options',
-            message: 'Must have at least 2 options',
-            version: VERSION,
-          });
-        }
-
-        // Validate unique labels (case-insensitive)
-        const labels = options.map((o: any) => (o.label || '').toLowerCase().trim()).filter(Boolean);
-        const uniqueLabels = new Set(labels);
-        if (labels.length !== uniqueLabels.size) {
-          return res.status(400).json({
-            error: 'duplicate_options',
-            message: 'Option labels must be unique',
+            code: 'VALIDATION_ERROR',
+            field: 'options',
+            message: 'Invalid prediction options',
+            details: optionErrors,
             version: VERSION,
           });
         }
@@ -2140,13 +2203,13 @@ router.patch('/:id', requireSupabaseAuth, requireTermsAccepted, async (req, res)
 
         const existingIds = new Set((existingOptions || []).map((o: any) => o.id));
         const incomingIds = new Set(
-          (options || [])
+          (normalizedOptions || [])
             .map((o: any) => o?.id)
             .filter((id: any) => typeof id === 'string' && id.length > 0)
         );
 
         // Update labels for existing options with ids
-        for (const opt of options) {
+        for (const opt of normalizedOptions) {
           const id = opt?.id;
           if (typeof id === 'string' && existingIds.has(id)) {
             const label = String(opt?.label || '').trim();
@@ -2190,7 +2253,7 @@ router.patch('/:id', requireSupabaseAuth, requireTermsAccepted, async (req, res)
         }
 
         // Insert new options without ids
-        const newOptions = (options || []).filter((o: any) => !o?.id);
+        const newOptions = (normalizedOptions || []).filter((o: any) => !o?.id);
         if (newOptions.length > 0) {
           const insertPayload = newOptions.map((option: any) => ({
             prediction_id: predictionId,

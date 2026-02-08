@@ -173,7 +173,7 @@
    * We keep the dense 14px body text, but force form controls to 16px on touch devices.
    * (Do NOT disable user zoom via viewport meta; that's bad for accessibility.)
    */
-  @media (pointer: coarse) {
+  @supports (-webkit-touch-callout: none) {
     input[type='text'],
     input[type='email'],
     input[type='password'],

@@ -52,7 +52,6 @@ export const CommentList: React.FC<CommentListProps> = ({
   };
 
   const filteredComments = comments.filter((c) => {
-    if (c.isDeleted || c.deleted_at) return false;
     if (blockedUserIds.includes(c.user?.id)) return false;
     if (hideIfReported(c.id)) return false;
     return true;
@@ -92,7 +91,7 @@ export const CommentList: React.FC<CommentListProps> = ({
               onCloseMenu={onCloseMenu}
             />
           {(comment.replies || [])
-            .filter((reply) => !reply.isDeleted && !reply.deleted_at && !blockedUserIds.includes(reply.user?.id) && !hideIfReported(reply.id))
+            .filter((reply) => !blockedUserIds.includes(reply.user?.id) && !hideIfReported(reply.id))
             .map((reply) => (
               <div key={reply.clientTempId || reply.id} className="pl-4 border-l border-gray-100/80">
                 <CommentItem
