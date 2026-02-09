@@ -18,6 +18,7 @@ DO_RESET_DATA=0
 DO_LAUNCH=1
 DO_FORCE_RESTART_SERVER=0
 DO_WATCH=0
+SKIP_BUILD_ON_REINSTALL=0
 
 usage() {
   cat <<'EOF'
@@ -26,6 +27,7 @@ Usage: bash server/scripts/start-mobile-dev.sh [options]
 Options:
   --build             Build Android web assets + sync + assembleDebug
   --reinstall         Install APK on device (uses APK_PATH)
+  --no-build          Skip build step (advanced; mainly for fast relaunches)
   --reset-data        Clear app data before launch
   --no-launch         Do not relaunch the app
   --restart-server    Force backend restart even if healthy
@@ -41,6 +43,7 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --build) DO_BUILD=1 ;;
     --reinstall) DO_REINSTALL=1 ;;
+    --no-build) SKIP_BUILD_ON_REINSTALL=1 ;;
     --reset-data) DO_RESET_DATA=1 ;;
     --no-launch) DO_LAUNCH=0 ;;
     --restart-server) DO_FORCE_RESTART_SERVER=1 ;;
@@ -54,6 +57,13 @@ while [[ $# -gt 0 ]]; do
   esac
   shift
 done
+
+# Default safe behavior: when reinstalling, include a fresh build so
+# connected-device testing always reflects latest client code changes.
+if [[ "${DO_REINSTALL}" -eq 1 && "${DO_BUILD}" -eq 0 && "${SKIP_BUILD_ON_REINSTALL}" -eq 0 ]]; then
+  DO_BUILD=1
+  echo "[mobile-dev] --reinstall detected: enabling --build to ensure latest app code is deployed."
+fi
 
 is_server_up() {
   curl -fsS -m 6 "${HEALTH_URL}" >/dev/null 2>&1
@@ -112,8 +122,13 @@ else
     PORT_PID=""
   fi
   if [[ -n "${PORT_PID}" ]]; then
-    echo "[mobile-dev] port ${SERVER_PORT} still occupied after restart attempt."
-    exit 1
+    # Watchdog may have already brought the backend back up. Only fail if it's unstable.
+    if is_server_up; then
+      echo "[mobile-dev] port ${SERVER_PORT} occupied by healthy backend (pid ${PORT_PID}); continuing."
+    else
+      echo "[mobile-dev] port ${SERVER_PORT} still occupied after restart attempt."
+      exit 1
+    fi
   else
     echo "[mobile-dev] starting backend..."
     bash "${ROOT_DIR}/server/scripts/start-local-dev-daemon.sh"

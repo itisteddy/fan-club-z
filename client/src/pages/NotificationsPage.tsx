@@ -6,6 +6,7 @@ import { formatDistanceToNow } from 'date-fns';
 import Page from '../components/ui/layout/Page';
 import EmptyState from '../components/ui/empty/EmptyState';
 import { cn } from '../utils/cn';
+import { normalizeCommentTargetId } from '@/lib/commentDeepLink';
 
 /**
  * Notifications page - displays list of notifications with mark read functionality
@@ -27,6 +28,82 @@ export const NotificationsPage: React.FC = () => {
 
   const [markingRead, setMarkingRead] = useState<string[]>([]);
   const [markingAllRead, setMarkingAllRead] = useState(false);
+
+  const asObject = (value: unknown): Record<string, any> => {
+    if (value && typeof value === 'object' && !Array.isArray(value)) {
+      return value as Record<string, any>;
+    }
+    if (typeof value === 'string') {
+      try {
+        const parsed = JSON.parse(value);
+        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+          return parsed as Record<string, any>;
+        }
+      } catch {
+        // ignore parse errors
+      }
+    }
+    return {};
+  };
+
+  const extractCommentId = (metadata: Record<string, any>): string | null => {
+    const candidates: unknown[] = [
+      metadata.commentId,
+      metadata.replyId,
+      metadata.comment_id,
+      metadata.reply_id,
+      metadata?.comment?.id,
+      metadata?.reply?.id,
+      metadata?.data?.commentId,
+      metadata?.data?.replyId,
+      metadata?.data?.comment_id,
+      metadata?.data?.reply_id,
+    ];
+    for (const candidate of candidates) {
+      const normalized = normalizeCommentTargetId(candidate);
+      if (normalized) return normalized;
+    }
+    return null;
+  };
+
+  const extractPredictionId = (metadata: Record<string, any>): string => {
+    const candidates: unknown[] = [
+      metadata.predictionId,
+      metadata.prediction_id,
+      metadata?.prediction?.id,
+      metadata?.data?.predictionId,
+      metadata?.data?.prediction_id,
+    ];
+    for (const candidate of candidates) {
+      if (typeof candidate === 'string' && candidate.trim()) return candidate.trim();
+    }
+    return '';
+  };
+
+  const buildCommentTargetFromNotification = useCallback((notification: Notification): string | null => {
+    const metadata = asObject(notification.metadata || {});
+    const commentId = extractCommentId(metadata);
+    const predictionId = extractPredictionId(metadata);
+    const href = String(notification.href || '').trim();
+
+    if (!href) {
+      return commentId && predictionId ? `/p/${predictionId}/comments/${commentId}` : null;
+    }
+    const pathOnly = href.split('?')[0] || '';
+    const hasCommentPath = /\/comments\/[^/?#]+/i.test(pathOnly);
+    if (hasCommentPath) {
+      const hrefCommentId = normalizeCommentTargetId(pathOnly);
+      if (!hrefCommentId) return href;
+      const hrefPred = pathOnly.match(/\/p\/([^/?#]+)/i)?.[1];
+      return hrefPred ? `/p/${hrefPred}/comments/${hrefCommentId}` : href;
+    }
+
+    if (commentId && predictionId) return `/p/${predictionId}/comments/${commentId}`;
+
+    const predMatch = pathOnly.match(/\/p\/([^/?#]+)(?:\/[^/?#]+)?$/i) || pathOnly.match(/\/predictions\/([^/?#]+)$/i);
+    if (!predMatch || !commentId) return null;
+    return `/p/${predMatch[1]}/comments/${commentId}`;
+  }, []);
 
   const getNotificationIcon = (type: string) => {
     switch (type) {
@@ -67,19 +144,38 @@ export const NotificationsPage: React.FC = () => {
       }
 
       // Navigate to href if present
-      if (notification.href) {
-        // Handle query params in href (e.g., /prediction/:id?tab=comments)
-        const [path, query] = notification.href.split('?');
+      if (notification.href || notification.metadata) {
+        const metadata = asObject(notification.metadata || {});
+        const normalized = buildCommentTargetFromNotification(notification);
+        const targetHref = normalized || String(notification.href || '').trim();
+        const focusCommentId =
+          normalizeCommentTargetId(targetHref) ||
+          extractCommentId(metadata) ||
+          undefined;
+        console.log('[DEEPLINK][Notifications] click', {
+          id: notification.id,
+          title: notification.title,
+          href: notification.href,
+          metadata,
+          normalized,
+          targetHref,
+          focusCommentId,
+        });
+        const [path, query] = targetHref.split('?');
         if (path) {
           if (query) {
-            navigate(`${path}?${query}`);
+            navigate(`${path}?${query}`, {
+              state: focusCommentId ? { focusCommentId } : undefined,
+            });
           } else {
-            navigate(path);
+            navigate(path, {
+              state: focusCommentId ? { focusCommentId } : undefined,
+            });
           }
         }
       }
     },
-    [markRead, navigate]
+    [markRead, navigate, buildCommentTargetFromNotification]
   );
 
   const handleMarkAllRead = useCallback(async () => {

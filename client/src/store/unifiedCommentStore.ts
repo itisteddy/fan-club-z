@@ -11,6 +11,8 @@ const COMMENTS_LIST = (predictionId: string, page: number, limit: number) =>
 const COMMENTS_CREATE = (predictionId: string) => `/social/predictions/${predictionId}/comments`;
 const COMMENTS_EDIT = (commentId: string) => `/social/comments/${commentId}`;
 const COMMENTS_DELETE = (commentId: string) => `/social/comments/${commentId}`;
+const COMMENTS_GET_ONE = (predictionId: string, commentId: string) =>
+  `/social/predictions/${predictionId}/comments/${commentId}`;
 
 // ---------------------------------------------------------------------------
 // Comment interface — single canonical shape used everywhere
@@ -85,6 +87,7 @@ interface CommentsActions {
   editComment: (predictionId: string, commentId: string, text: string) => Promise<void>;
   deleteComment: (predictionId: string, commentId: string) => Promise<void>;
   toggleLike: (predictionId: string, commentId: string) => Promise<void>;
+  fetchCommentById: (predictionId: string, commentId: string) => Promise<{ ok: boolean; status?: number }>;
   loadMore: (predictionId: string) => Promise<void>;
   setDraft: (predictionId: string, draft: string) => void;
   clearDraft: (predictionId: string) => void;
@@ -232,6 +235,17 @@ const mergeCommentUpdate = (existing: Comment, incoming: Comment): Comment => {
     user: mergedUser,
     is_own: typeof incoming.is_own === 'boolean' ? incoming.is_own : existing.is_own,
   };
+};
+
+const upsertList = (items: Comment[], incoming: Comment[], options?: { prependNew?: boolean }) => {
+  const incomingById = new Map(incoming.map((c) => [c.id, c]));
+  const merged = items.map((item) => {
+    const next = incomingById.get(item.id);
+    return next ? mergeCommentUpdate(item, next) : item;
+  });
+  const existingIds = new Set(items.map((c) => c.id));
+  const newOnes = incoming.filter((c) => !existingIds.has(c.id));
+  return options?.prependNew ? [...newOnes, ...merged] : [...merged, ...newOnes];
 };
 
 /** De-duplicate by stable id; later items replace earlier ones but keep order. */
@@ -1078,6 +1092,79 @@ export const useUnifiedCommentStore = create<CommentsState & CommentsActions>()(
           }));
           if (error instanceof ApiError && error.status === 401) void useAuthStore.getState().logout();
           throw error;
+        }
+      },
+
+      // ---- Fetch single comment (deep link) ----
+      fetchCommentById: async (predictionId: string, commentId: string) => {
+        if (!predictionId?.trim() || !commentId?.trim()) return { ok: false, status: 400 };
+        try {
+          console.log('[DEEPLINK][Store] fetchCommentById request', { predictionId, commentId });
+          const response = await apiClient.get(COMMENTS_GET_ONE(predictionId, commentId));
+          const payload = response?.data ?? response;
+          const commentRow = payload?.comment || payload?.data?.comment;
+          if (!commentRow) {
+            console.log('[DEEPLINK][Store] fetchCommentById empty payload', { predictionId, commentId, payload });
+            return { ok: false, status: 404 };
+          }
+          const thread = payload?.thread || payload?.data?.thread || {};
+          const comment = transformComment(commentRow);
+          const parent = thread.parent ? transformComment(thread.parent) : null;
+          const replies = Array.isArray(thread.replies) ? thread.replies.map(transformComment) : [];
+
+          set((state) => {
+            const items = state.byPrediction[predictionId]?.items ?? [];
+            let nextItems = items;
+
+            if (comment.parentCommentId) {
+              const parentId = comment.parentCommentId;
+              const existingParent = items.find((item) => item.id === parentId);
+              const baseParent = existingParent
+                ? mergeCommentUpdate(existingParent, parent || existingParent)
+                : (parent || null);
+              if (baseParent) {
+                const mergedReplies = upsertList(baseParent.replies || [], [comment, ...replies]);
+                const updatedParent = { ...baseParent, replies: mergedReplies };
+                nextItems = existingParent
+                  ? items.map((item) => (item.id === parentId ? updatedParent : item))
+                  : upsertList(items, [updatedParent], { prependNew: true });
+              }
+            } else {
+              const mergedTop = upsertList(items, [comment], { prependNew: true });
+              const mergedReplies = replies.length > 0 ? upsertList(comment.replies || [], replies) : comment.replies;
+              nextItems = mergedTop.map((item) => {
+                if (item.id !== comment.id) return item;
+                return mergedReplies ? { ...item, replies: mergedReplies } : item;
+              });
+            }
+
+            return {
+              byPrediction: {
+                ...state.byPrediction,
+                [predictionId]: {
+                  ...state.byPrediction[predictionId],
+                  items: nextItems,
+                },
+              },
+            };
+          });
+          console.log('[DEEPLINK][Store] fetchCommentById success', {
+            requested: commentId,
+            returned: comment.id,
+            parentCommentId: comment.parentCommentId,
+          });
+          return { ok: true, status: 200 };
+        } catch (error: any) {
+          console.log('[DEEPLINK][Store] fetchCommentById error', {
+            predictionId,
+            commentId,
+            status: error instanceof ApiError ? error.status : 500,
+            message: error?.message,
+          });
+          if (error instanceof ApiError) {
+            return { ok: false, status: error.status };
+          }
+          return { ok: false, status: 500 };
         }
       },
 

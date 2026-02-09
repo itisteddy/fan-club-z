@@ -56,6 +56,11 @@
   --sab: var(--safe-bottom);
   --sal: var(--safe-left);
   --sar: var(--safe-right);
+
+  /* Mobile-safe control typography (prevents iOS Safari input focus zoom). */
+  --fc-form-control-font-size-touch: 16px;
+  --fc-form-control-font-size-desktop: var(--text-body-size);
+  --fc-form-control-line-height: 1.4;
 }
 
 /* Safe area shell - wraps entire app to provide safe area context */
@@ -167,23 +172,23 @@
     max-width: 100%;
   }
 
+  /* Keep focused controls visible in sheets/modals with sticky headers. */
+  input,
+  textarea,
+  select {
+    scroll-margin-top: calc(var(--safe-top) + 72px);
+  }
+
   /*
-   * Mobile UX: prevent iOS Safari "viewport zoom" on focus.
-   * iOS will auto-zoom inputs when their computed font-size is < 16px.
-   * We keep the dense 14px body text, but force form controls to 16px on touch devices.
-   * (Do NOT disable user zoom via viewport meta; that's bad for accessibility.)
+   * Mobile UX: iOS Safari auto-zooms on focus when computed input font-size is < 16px.
+   * Enforce 16px for text-entry controls on touch/coarse-pointer devices.
    */
-  @supports (-webkit-touch-callout: none) {
-    input[type='text'],
-    input[type='email'],
-    input[type='password'],
-    input[type='number'],
-    input[type='tel'],
-    input[type='url'],
-    input[type='search'],
+  @media (hover: none) and (pointer: coarse), (any-hover: none) and (any-pointer: coarse) {
+    input:not([type='button']):not([type='submit']):not([type='reset']):not([type='checkbox']):not([type='radio']):not([type='range']):not([type='color']):not([type='file']):not([type='image']):not([type='hidden']),
     textarea,
     select {
-      font-size: 16px;
+      font-size: var(--fc-form-control-font-size-touch) !important;
+      line-height: var(--fc-form-control-line-height);
     }
   }
 
@@ -238,6 +243,18 @@
 
   ::-webkit-scrollbar-thumb:hover {
     background: #94a3b8;
+  }
+}
+
+/* Shared form-control class for reusable UI components. */
+.fc-form-control {
+  font-size: var(--fc-form-control-font-size-touch);
+  line-height: var(--fc-form-control-line-height);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .fc-form-control {
+    font-size: var(--fc-form-control-font-size-desktop);
   }
 }
 

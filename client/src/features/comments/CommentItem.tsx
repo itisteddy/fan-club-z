@@ -3,7 +3,7 @@ import { Heart, Clock, AlertCircle, RefreshCw, X, Loader2, MoreVertical, Edit3, 
 import { Comment } from '../../store/unifiedCommentStore';
 import { formatDistanceToNow } from 'date-fns';
 import { apiClient } from '../../lib/api';
-import { buildPredictionCanonicalUrl } from '@/lib/predictionUrls';
+import { buildPredictionCommentUrl } from '@/lib/predictionUrls';
 import toast from 'react-hot-toast';
 import { useAuthStore } from '../../store/authStore';
 import { useAuthSession } from '../../providers/AuthSessionProvider';
@@ -24,6 +24,7 @@ interface CommentItemProps {
   openMenuCommentId?: string | null;
   onOpenMenu?: (commentId: string) => void;
   onCloseMenu?: () => void;
+  highlighted?: boolean;
 }
 
 export const CommentItem: React.FC<CommentItemProps> = ({
@@ -41,6 +42,7 @@ export const CommentItem: React.FC<CommentItemProps> = ({
   openMenuCommentId,
   onOpenMenu,
   onCloseMenu,
+  highlighted = false,
 }) => {
   const likeCount = comment.likes_count || comment.likeCount || 0;
   const isLiked = comment.is_liked || comment.likedByMe || false;
@@ -63,6 +65,7 @@ export const CommentItem: React.FC<CommentItemProps> = ({
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showLinkedBadge, setShowLinkedBadge] = useState(false);
   const [mentionQuery, setMentionQuery] = useState('');
   const [mentionResults, setMentionResults] = useState<any[]>([]);
   const [isMobile, setIsMobile] = useState<boolean>(() => {
@@ -183,6 +186,13 @@ export const CommentItem: React.FC<CommentItemProps> = ({
   }, [isMenuOpen]);
 
   useEffect(() => {
+    if (!highlighted) return;
+    setShowLinkedBadge(true);
+    const timer = setTimeout(() => setShowLinkedBadge(false), 2000);
+    return () => clearTimeout(timer);
+  }, [highlighted]);
+
+  useEffect(() => {
     setEditText(comment.content || comment.text || '');
   }, [comment.content, comment.text]);
 
@@ -254,8 +264,7 @@ export const CommentItem: React.FC<CommentItemProps> = ({
   };
 
   const handleCopyLink = async () => {
-    const base = buildPredictionCanonicalUrl(comment.predictionId, predictionTitle);
-    const url = `${base}?commentId=${comment.id}`;
+    const url = buildPredictionCommentUrl(comment.predictionId, comment.id, predictionTitle);
     try {
       await navigator.clipboard.writeText(url);
       toast.success('Link copied');
@@ -334,7 +343,7 @@ export const CommentItem: React.FC<CommentItemProps> = ({
   return (
     <div
       id={`comment-${comment.id}`}
-      className={`border-b border-gray-100 pb-4 last:border-b-0 ${isFailed ? 'opacity-80' : ''} ${isSending ? 'opacity-60' : ''}`}
+      className={`border-b border-gray-100 pb-4 last:border-b-0 ${isFailed ? 'opacity-80' : ''} ${isSending ? 'opacity-60' : ''} ${highlighted ? 'comment-highlight' : ''}`}
     >
       <div className="grid grid-cols-[40px_minmax(0,1fr)_auto] gap-x-3">
         {/* Avatar */}
@@ -395,6 +404,9 @@ export const CommentItem: React.FC<CommentItemProps> = ({
           )}
           {!isOptimistic && comment.edited && (
             <span className="text-gray-400">edited</span>
+          )}
+          {showLinkedBadge && (
+            <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[11px] text-gray-600">Linked comment</span>
           )}
           {isSaving && <span className="text-gray-400">saving…</span>}
           {isDeleting && <span className="text-gray-400">deleting…</span>}

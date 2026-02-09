@@ -8,17 +8,21 @@ import { useAuthSession } from '../../providers/AuthSessionProvider';
 import { ReportContentModal } from '../../components/ugc/ReportContentModal';
 import { useBlockedUsers } from '@/hooks/useBlockedUsers';
 import { ConfirmationModal } from '../../components/modals/ConfirmationModal';
+import { normalizeCommentTargetId } from '@/lib/commentDeepLink';
+import { unsuppressScrollToTop } from '@/utils/scroll';
 
 interface CommentsSectionProps {
   predictionId: string;
   predictionTitle?: string;
   className?: string;
+  deepLinkCommentId?: string | null;
 }
 
 export const CommentsSection: React.FC<CommentsSectionProps> = ({
   predictionId,
   predictionTitle,
-  className = ''
+  className = '',
+  deepLinkCommentId = null,
 }) => {
   const {
     getComments,
@@ -35,6 +39,7 @@ export const CommentsSection: React.FC<CommentsSectionProps> = ({
     deleteComment,
     toggleLike,
     setHighlighted,
+    fetchCommentById,
   } = useUnifiedCommentStore();
   const { session } = useAuthSession();
   const { blockedUserIds, blockUser, isBlocked } = useBlockedUsers();
@@ -45,16 +50,61 @@ export const CommentsSection: React.FC<CommentsSectionProps> = ({
   const [isBlocking, setIsBlocking] = useState(false);
   const menuOpenedAtRef = useRef(0);
   const menuOpenScrollPosRef = useRef({ x: 0, y: 0 });
-  const pendingHighlightRef = useRef<string | null>(null);
 
   const predictionComments = getComments(predictionId);
   const predictionStatus = getStatus(predictionId);
   const predictionPosting = isPostingFn(predictionId);
   const predictionHasMore = hasMoreFn(predictionId);
+  const highlightedId = useUnifiedCommentStore((s) => s.byPrediction[predictionId]?.highlightedId);
+  const [deepLinkStatus, setDeepLinkStatus] = useState<'idle' | 'locating' | 'missing'>('idle');
+  const [deepLinkMessage, setDeepLinkMessage] = useState<string | null>(null);
+  const deepLinkProcessedRef = useRef(false);
+
+  const getTargetCommentId = useCallback((): string | null => {
+    if (typeof window === 'undefined') return null;
+    const params = new URLSearchParams(window.location.search);
+    const fromPath = window.location.pathname.match(/\/comments\/([^/?#]+)/)?.[1] || null;
+    const fromHash = window.location.hash.match(/^#comment-(.+)$/)?.[1] || null;
+    const candidates = [
+      fromPath,
+      params.get('commentId'),
+      params.get('comment'),
+      params.get('replyId'),
+      deepLinkCommentId,
+      fromHash,
+    ];
+    for (const candidate of candidates) {
+      const normalized = normalizeCommentTargetId(candidate);
+      if (normalized) {
+        console.log('[DEEPLINK][Comments] target candidate matched', {
+          pathname: window.location.pathname,
+          search: window.location.search,
+          fromPath,
+          fromHash,
+          deepLinkCommentId,
+          candidate,
+          normalized,
+        });
+        return normalized;
+      }
+    }
+    return null;
+  }, [deepLinkCommentId]);
+
+  const scrollToCommentNode = useCallback((targetId: string): boolean => {
+    const node = document.getElementById(`comment-${targetId}`);
+    if (!node) return false;
+
+    // scrollIntoView is the most reliable cross-browser/mobile approach
+    try {
+      node.scrollIntoView({ block: 'center', behavior: 'instant' as ScrollBehavior });
+    } catch {
+      node.scrollIntoView(true);
+    }
+    return true;
+  }, []);
 
   // Fetch comments on mount (and when prediction changes).
-  // We intentionally do NOT gate on status==='idle' because stale empty data
-  // can otherwise stick around across deploys/navigation.
   useEffect(() => {
     if (!predictionId) return;
     fetchComments(predictionId).catch((error) => {
@@ -65,35 +115,138 @@ export const CommentsSection: React.FC<CommentsSectionProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [predictionId]);
 
+  // Reset deep-link processed flag when predictionId or target changes
   useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const params = new URLSearchParams(window.location.search);
-    const targetId = params.get('commentId') || params.get('comment');
-    if (targetId) pendingHighlightRef.current = targetId;
-  }, [predictionId]);
+    deepLinkProcessedRef.current = false;
+  }, [predictionId, deepLinkCommentId]);
 
+  // Single unified deep-link effect: waits for initial load, then locates/fetches/scrolls
   useEffect(() => {
-    const targetId = pendingHighlightRef.current;
+    // Only run once per deep-link target
+    if (deepLinkProcessedRef.current) return;
+
+    const targetId = getTargetCommentId();
     if (!targetId) return;
-    const exists = predictionComments.some((comment) => {
-      if (comment.id === targetId) return true;
-      return (comment.replies || []).some((reply) => reply.id === targetId);
-    });
-    if (!exists) return;
-    setHighlighted(predictionId, targetId);
-    requestAnimationFrame(() => {
-      const el = document.getElementById(`comment-${targetId}`);
-      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    });
-    pendingHighlightRef.current = null;
-  }, [predictionComments, predictionId, setHighlighted]);
+
+    // Wait until the initial comment list has loaded before doing anything
+    if (predictionStatus !== 'loaded') return;
+
+    // Mark as processed so we don't re-run on every predictionComments change
+    deepLinkProcessedRef.current = true;
+    let cancelled = false;
+
+    const findInComments = (): boolean => {
+      const currentComments = useUnifiedCommentStore.getState().byPrediction[predictionId]?.items ?? [];
+      return currentComments.some((comment) => {
+        if (comment.id === targetId) return true;
+        return (comment.replies || []).some((reply) => reply.id === targetId);
+      });
+    };
+
+    const scrollAndHighlight = () => {
+      if (cancelled) return;
+      setHighlighted(predictionId, targetId);
+      let attempts = 0;
+      const maxAttempts = 20;
+      let scrollCount = 0;
+      const tick = () => {
+        if (cancelled) return;
+        attempts += 1;
+
+        const node = document.getElementById(`comment-${targetId}`);
+        const nodeExists = !!node;
+        if (!nodeExists) {
+          if (attempts < maxAttempts) {
+            window.setTimeout(tick, 200);
+          } else {
+            setDeepLinkStatus('idle');
+            setDeepLinkMessage(null);
+            unsuppressScrollToTop();
+          }
+          return;
+        }
+
+        // Node exists — scroll to it
+        scrollCount += 1;
+        scrollToCommentNode(targetId);
+        const rect = node.getBoundingClientRect();
+        const viewportH = window.innerHeight || document.documentElement.clientHeight;
+        const inView = rect.bottom > -200 && rect.top < viewportH + 200;
+
+        if (inView) {
+          setDeepLinkStatus('idle');
+          setDeepLinkMessage(null);
+          unsuppressScrollToTop();
+          return;
+        }
+
+        if (attempts < maxAttempts) {
+          window.setTimeout(tick, 500);
+        } else {
+          setDeepLinkStatus('idle');
+          setDeepLinkMessage(null);
+          unsuppressScrollToTop();
+        }
+      };
+      // Initial delay: wait for scroll manager cascade + Framer Motion to settle
+      window.setTimeout(tick, 600);
+    };
+
+    const run = async () => {
+      // Check if the comment is already in the loaded list
+      if (findInComments()) {
+        console.log('[DEEPLINK][Comments] target found in loaded list', { targetId });
+        scrollAndHighlight();
+        return;
+      }
+
+      // Not in list \u2014 fetch it from the API
+      setDeepLinkStatus('locating');
+      setDeepLinkMessage('Opening comment\u2026');
+
+      try {
+        const currentItems = useUnifiedCommentStore.getState().byPrediction[predictionId]?.items ?? [];
+        console.log('[DEEPLINK][Comments] fetching target by id', {
+          predictionId,
+          targetId,
+          loadedTopLevelIds: currentItems.map((c) => c.id),
+          loadedReplyIds: currentItems.flatMap((c) => (c.replies || []).map((r) => r.id)),
+        });
+        const result = await fetchCommentById(predictionId, targetId);
+        if (cancelled) return;
+
+        if (result?.ok === false) {
+          console.log('[DEEPLINK][Comments] target not found from API', { predictionId, targetId, status: result.status });
+          setDeepLinkStatus('missing');
+          setDeepLinkMessage('This comment isn\u2019t available.');
+          return;
+        }
+
+        // fetchCommentById merged the comment into the store \u2014 now scroll to it
+        console.log('[DEEPLINK][Comments] target fetched, scrolling', { targetId });
+        scrollAndHighlight();
+      } catch (err) {
+        if (cancelled) return;
+        console.error('[DEEPLINK][Comments] fetch error', err);
+        setDeepLinkStatus('missing');
+        setDeepLinkMessage('This comment isn\u2019t available.');
+      }
+    };
+
+    void run();
+    return () => { cancelled = true; };
+  // NOTE: predictionComments is intentionally EXCLUDED from deps.
+  // Including it causes the effect to re-run (and cancel its timers) when
+  // fetchCommentById merges new data into the store, killing the scroll.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [predictionStatus, predictionId, getTargetCommentId, setHighlighted, scrollToCommentNode, fetchCommentById]);
 
   // Handle adding new comments
   const handleAddComment = useCallback(async (text: string) => {
     try {
       await addComment(predictionId, text);
     } catch (error: any) {
-      // Don't toast generic "failed" — the inline failed state handles it.
+      // Don't toast generic "failed" \u2014 the inline failed state handles it.
       // Only toast for auth/account errors that need immediate attention.
       const status = error?.status;
       if (status === 401 || status === 403 || status === 409) {
@@ -113,7 +266,7 @@ export const CommentsSection: React.FC<CommentsSectionProps> = ({
       if (status === 401 || status === 403 || status === 409) {
         toast.error(error?.message || 'Unable to comment.');
       }
-      // Failed again — store keeps it as failed with updated message
+      // Failed again \u2014 store keeps it as failed with updated message
     }
   }, [retryComment, predictionId]);
 
@@ -255,6 +408,28 @@ export const CommentsSection: React.FC<CommentsSectionProps> = ({
 
       {/* Content */}
       <div className="p-4 space-y-6">
+        {(deepLinkStatus === 'locating' || deepLinkStatus === 'missing') && (
+          <div className="rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-700 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              {deepLinkStatus === 'locating' && (
+                <span className="inline-block h-3 w-3 rounded-full border-2 border-gray-300 border-t-gray-600 animate-spin" />
+              )}
+              <span>{deepLinkMessage}</span>
+            </div>
+            {deepLinkStatus === 'missing' && (
+              <button
+                type="button"
+                className="text-emerald-600 font-medium hover:text-emerald-700"
+                onClick={() => {
+                  setDeepLinkStatus('idle');
+                  setDeepLinkMessage(null);
+                }}
+              >
+                View latest comments
+              </button>
+            )}
+          </div>
+        )}
         {/* Comment Input */}
         <CommentInput
           predictionId={predictionId}
@@ -278,11 +453,12 @@ export const CommentsSection: React.FC<CommentsSectionProps> = ({
           onBlockUser={handleBlockUser}
           blockedUserIds={blockedUserIds}
           reportNonce={reportNonce}
-              predictionTitle={predictionTitle}
-              openMenuCommentId={openMenuCommentId}
-              onOpenMenu={handleOpenMenu}
-              onCloseMenu={handleCloseMenu}
-            />
+          predictionTitle={predictionTitle}
+          openMenuCommentId={openMenuCommentId}
+          onOpenMenu={handleOpenMenu}
+          onCloseMenu={handleCloseMenu}
+          highlightedId={highlightedId}
+        />
       </div>
 
       <ReportContentModal
@@ -300,7 +476,7 @@ export const CommentsSection: React.FC<CommentsSectionProps> = ({
         onClose={() => setPendingBlockUserId(null)}
         onConfirm={handleConfirmBlockUser}
         title="Block this user?"
-        message="You won’t see their content anymore."
+        message="You won't see their content anymore."
         confirmText="Block"
         cancelText="Cancel"
         variant="danger"

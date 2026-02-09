@@ -40,3 +40,21 @@ export function buildPredictionCanonicalUrl(id: string, title?: string): string 
   const base = getPublicAppBaseUrl().replace(/\/+$/, '');
   return base + path;
 }
+
+/**
+ * Canonical path for a specific comment deep link.
+ * Uses the /p/:id/:slug?/comments/:commentId route.
+ */
+export function buildPredictionCommentPath(id: string, commentId: string, title?: string): string {
+  const base = buildPredictionCanonicalPath(id, title);
+  return `${base}/comments/${commentId}`;
+}
+
+/**
+ * Canonical URL for a specific comment deep link.
+ */
+export function buildPredictionCommentUrl(id: string, commentId: string, title?: string): string {
+  const path = buildPredictionCommentPath(id, commentId, title);
+  const base = getPublicAppBaseUrl().replace(/\/+$/, '');
+  return base + path;
+}

@@ -46,7 +46,7 @@ if [[ -n "${existing_listener}" ]] && is_healthy; then
   exit 0
 fi
 
-export HOST="${HOST:-0.0.0.0}"
+export HOST="${HOST:-127.0.0.1}"
 export PORT
 # Mobile/local device testing should be deterministic and lightweight.
 # Allow overriding these from the shell when needed.

@@ -23,6 +23,7 @@ interface CommentListProps {
   openMenuCommentId?: string | null;
   onOpenMenu?: (commentId: string) => void;
   onCloseMenu?: () => void;
+  highlightedId?: string;
 }
 
 export const CommentList: React.FC<CommentListProps> = ({
@@ -44,6 +45,7 @@ export const CommentList: React.FC<CommentListProps> = ({
   openMenuCommentId,
   onOpenMenu,
   onCloseMenu,
+  highlightedId,
 }) => {
   const reportVersion = reportNonce ?? 0;
   const hideIfReported = (commentId: string) => {
@@ -89,6 +91,7 @@ export const CommentList: React.FC<CommentListProps> = ({
               openMenuCommentId={openMenuCommentId}
               onOpenMenu={onOpenMenu}
               onCloseMenu={onCloseMenu}
+              highlighted={highlightedId === comment.id}
             />
           {(comment.replies || [])
             .filter((reply) => !blockedUserIds.includes(reply.user?.id) && !hideIfReported(reply.id))
@@ -109,6 +112,7 @@ export const CommentList: React.FC<CommentListProps> = ({
                   openMenuCommentId={openMenuCommentId}
                   onOpenMenu={onOpenMenu}
                   onCloseMenu={onCloseMenu}
+                  highlighted={highlightedId === reply.id}
                 />
               </div>
             ))}

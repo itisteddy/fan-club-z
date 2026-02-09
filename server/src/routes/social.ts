@@ -451,6 +451,141 @@ router.get('/predictions/:predictionId/comments', async (req, res) => {
 });
 
 // ============================================================================
+// GET /predictions/:predictionId/comments/:commentId — public, no auth required
+// ============================================================================
+router.get('/predictions/:predictionId/comments/:commentId', async (req, res) => {
+  try {
+    const { predictionId, commentId } = req.params;
+    const viewerId = await getOptionalUserId(req);
+    const viewerIdentitySet = await resolveViewerIdentitySet(viewerId);
+
+    const commentResult = await safeQuery(() =>
+      supabase.from('comments').select('*').eq('id', commentId).maybeSingle()
+    );
+    const comment = commentResult.data as any;
+    if (commentResult.error || !comment?.id) {
+      return res.status(404).json({ success: false, code: 'NOT_FOUND', error: 'Comment not found.' });
+    }
+    if (String(comment.prediction_id || '') !== String(predictionId)) {
+      return res.status(404).json({ success: false, code: 'NOT_FOUND', error: 'Comment not found.' });
+    }
+
+    const isDeleted = Boolean(
+      comment.is_deleted ||
+      comment.deleted_at ||
+      String(comment.content || '').trim().toLowerCase() === 'comment deleted'
+    );
+    if (isDeleted) {
+      return res.status(404).json({ success: false, code: 'NOT_FOUND', error: 'Comment not found.' });
+    }
+
+    let blockedUserIds: string[] = [];
+    let hiddenCommentIds: string[] = [];
+    let hiddenUserIds: string[] = [];
+    if (viewerId) {
+      const blockedResult = await safeQuery(() =>
+        supabase.from('user_blocks').select('blocked_user_id').eq('blocker_id', viewerId)
+      );
+      if (!blockedResult.error && blockedResult.data) {
+        blockedUserIds = (blockedResult.data as any[]).map((r) => r.blocked_user_id).filter(Boolean);
+      }
+      const hidesResult = await safeQuery(() =>
+        supabase.from('content_hides').select('target_type, target_id').eq('user_id', viewerId)
+      );
+      if (!hidesResult.error && hidesResult.data) {
+        const rows = hidesResult.data as any[];
+        hiddenCommentIds = rows.filter((r) => r.target_type === 'comment').map((r) => r.target_id).filter(Boolean);
+        hiddenUserIds = rows.filter((r) => r.target_type === 'user').map((r) => r.target_id).filter(Boolean);
+      }
+    }
+
+    if (blockedUserIds.includes(comment.user_id) || hiddenUserIds.includes(comment.user_id) || hiddenCommentIds.includes(comment.id)) {
+      return res.status(404).json({ success: false, code: 'NOT_FOUND', error: 'Comment not found.' });
+    }
+
+    const userLookup = await fetchUsersByIdentityIds([String(comment.user_id || '')]);
+    const userData = userLookup[String(comment.user_id || '')] || null;
+    const isOwn = Boolean(
+      viewerId &&
+      (comment.user_id === viewerId ||
+        viewerIdentitySet.has(comment.user_id) ||
+        (userData?.auth_user_id && String(userData.auth_user_id) === viewerId))
+    );
+
+    const likeStatus = viewerId
+      ? await safeQuery(() => supabase.from('comment_likes').select('comment_id').eq('user_id', viewerId).eq('comment_id', comment.id))
+      : { data: null, error: null };
+    const isLiked = Boolean(viewerId && !likeStatus.error && (likeStatus.data as any[])?.length);
+
+    let threadParent: any | null = null;
+    let threadReplies: any[] = [];
+    const parentId = comment.parent_comment_id || null;
+    if (parentId) {
+      const parentResult = await safeQuery(() =>
+        supabase.from('comments').select('*').eq('id', parentId).maybeSingle()
+      );
+      const parent = parentResult.data as any;
+      const parentDeleted = parent && Boolean(
+        parent.is_deleted ||
+        parent.deleted_at ||
+        String(parent.content || '').trim().toLowerCase() === 'comment deleted'
+      );
+      if (parent && !parentDeleted) {
+        const parentUsers = await fetchUsersByIdentityIds([String(parent.user_id || '')]);
+        threadParent = {
+          ...parent,
+          user: parentUsers[String(parent.user_id || '')] || null,
+        };
+      }
+      const repliesResult = await safeQuery(() =>
+        supabase
+          .from('comments')
+          .select('*')
+          .eq('parent_comment_id', parentId)
+          .order('created_at', { ascending: true })
+          .limit(20)
+      );
+      const replies = (repliesResult.data as any[]) || [];
+      const replyUsers = await fetchUsersByIdentityIds(replies.map((r) => r.user_id).filter(Boolean));
+      threadReplies = replies
+        .filter((r) => !Boolean(r.is_deleted || r.deleted_at || String(r.content || '').trim().toLowerCase() === 'comment deleted'))
+        .map((r) => ({ ...r, user: replyUsers[String(r.user_id || '')] || null }));
+    } else {
+      const repliesResult = await safeQuery(() =>
+        supabase
+          .from('comments')
+          .select('*')
+          .eq('parent_comment_id', comment.id)
+          .order('created_at', { ascending: true })
+          .limit(20)
+      );
+      const replies = (repliesResult.data as any[]) || [];
+      const replyUsers = await fetchUsersByIdentityIds(replies.map((r) => r.user_id).filter(Boolean));
+      threadReplies = replies
+        .filter((r) => !Boolean(r.is_deleted || r.deleted_at || String(r.content || '').trim().toLowerCase() === 'comment deleted'))
+        .map((r) => ({ ...r, user: replyUsers[String(r.user_id || '')] || null }));
+    }
+
+    return res.json({
+      success: true,
+      comment: {
+        ...comment,
+        user: userData,
+        is_own: isOwn,
+        is_liked: isLiked,
+      },
+      thread: {
+        parent: threadParent,
+        replies: threadReplies,
+      },
+    });
+  } catch (error) {
+    console.error('[comments:GET:single]', error);
+    return res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+});
+
+// ============================================================================
 // GET /users/search — mention autocomplete (auth required)
 // ============================================================================
 router.get('/users/search', requireSupabaseAuth, async (req, res) => {
@@ -721,7 +856,7 @@ router.post('/predictions/:predictionId/comments', requireSupabaseAuth, requireT
               type: 'comment',
               title: 'You were mentioned',
               body: previewText ? `"${previewText}"` : 'A comment mentioned you.',
-              href: `/predictions/${predictionId}?tab=comments`,
+              href: `/p/${predictionId}/comments/${commentRow.id}`,
               metadata: { predictionId, commentId: commentRow.id, authorId: userId, subtype: 'mention.comment' },
               externalRef: `notif:comment:mention:${commentRow.id}:${uid}`,
             }))
@@ -742,7 +877,7 @@ router.post('/predictions/:predictionId/comments', requireSupabaseAuth, requireT
           type: 'comment',
           title: 'New comment',
           body: `New comment on "${pred.title || 'a prediction'}"`,
-          href: `/predictions/${predictionId}?tab=comments`,
+          href: `/p/${predictionId}/comments/${commentRow.id}`,
           metadata: { predictionId, commentId: commentRow.id, fromUserId: userId },
           externalRef: `notif:comment:creator:${commentRow.id}`,
         }).catch(() => {});
@@ -1038,7 +1173,7 @@ router.patch('/comments/:commentId', requireSupabaseAuth, requireTermsAccepted, 
               type: 'comment',
               title: 'You were mentioned',
               body: `"${trimmed.slice(0, 120)}"`,
-              href: `/predictions/${existing.prediction_id}?tab=comments`,
+              href: `/p/${existing.prediction_id}/comments/${commentId}`,
               metadata: { predictionId: existing.prediction_id, commentId, authorId: userId, subtype: 'mention.comment' },
               externalRef: `notif:comment:mention:${commentId}:${uid}`,
             }))

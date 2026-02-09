@@ -48,6 +48,8 @@ import { isFeatureEnabled } from '@/config/featureFlags';
 import { getPayoutPreview, getPreOddsMultiple } from '@fanclubz/shared';
 import { ReportContentModal } from '@/components/ugc/ReportContentModal';
 import { buildPredictionCanonicalPath, buildPredictionCanonicalUrl } from '@/lib/predictionUrls';
+import { normalizeCommentTargetId } from '@/lib/commentDeepLink';
+import { suppressScrollToTop, unsuppressScrollToTop } from '@/utils/scroll';
 // TODO: Re-enable share functionality after testing
 // import { useShareResult } from '../components/share/useShareResult';
 
@@ -65,14 +67,14 @@ interface PredictionDetailsPageProps {
   predictionId?: string;
 }
 
-type DetailsLocationState = { from?: string } | null;
+type DetailsLocationState = { from?: string; focusCommentId?: string } | null;
 
 const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
   predictionId: propPredictionId
 }) => {
   const navigate = useNavigate();
   const location = useLocation();
-  const params = useParams<{ id?: string; predictionId?: string }>();
+  const params = useParams<{ id?: string; predictionId?: string; slug?: string; commentId?: string }>();
   const locationState = (location.state as DetailsLocationState) ?? null;
   const preservedStateRef = useRef<DetailsLocationState>(locationState);
   const returnToRef = useRef<string | null>(locationState?.from ?? null);
@@ -88,6 +90,7 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
 
   // Get prediction ID from multiple sources (URL params, props)
   const predictionId = propPredictionId || params.id || params.predictionId || '';
+  const routeCommentId = params.commentId || null;
   const commentStatus = useUnifiedCommentStore((s) => (
     predictionId ? (s.byPrediction[predictionId]?.status || 'idle') : 'idle'
   ));
@@ -115,19 +118,73 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
   const [selectedOptionId, setSelectedOptionId] = useState<string | null>(null);
   const [stakeAmount, setStakeAmount] = useState<string>('');
   const [isPlacingBet, setIsPlacingBet] = useState(false);
-  // Check URL for tab query param on mount
+  // Check URL for tab/query on mount
   const searchParams = new URLSearchParams(location.search);
-  const initialTab = searchParams.get('tab') || 'overview';
+  const queryCommentId = normalizeCommentTargetId(
+    searchParams.get('commentId') || searchParams.get('comment') || searchParams.get('replyId')
+  );
+  const stateCommentId = normalizeCommentTargetId(locationState?.focusCommentId || null);
+  const deepLinkCommentId = normalizeCommentTargetId(routeCommentId) || queryCommentId || stateCommentId;
+
+  // CRITICAL: Suppress scroll-to-top at the PAGE level, immediately on mount.
+  // CommentsSection won't mount until the prediction loads, so its own suppress
+  // effect fires too late — after URL canonicalization already triggered scrollToTop.
+  // This runs on mount before any route-change or canonicalization effects.
+  useEffect(() => {
+    if (!deepLinkCommentId) return;
+    suppressScrollToTop(10000); // auto-unsuppress after 10s safety net
+    return () => { unsuppressScrollToTop(); };
+  }, [deepLinkCommentId]);
+
+  useEffect(() => {
+    if (!deepLinkCommentId) return;
+    console.log('[DEEPLINK][PredictionDetails] target resolved', {
+      pathname: location.pathname,
+      search: location.search,
+      routeCommentId,
+      queryCommentId,
+      stateCommentId,
+      deepLinkCommentId,
+    });
+  }, [deepLinkCommentId, location.pathname, location.search, routeCommentId, queryCommentId, stateCommentId]);
+  const initialTab = deepLinkCommentId ? 'comments' : (searchParams.get('tab') || 'overview');
   const [activeTab, setActiveTab] = useState(initialTab);
   
-  // Update tab when query param changes
+  // Update tab when query param or deep-link changes
   useEffect(() => {
     const currentSearchParams = new URLSearchParams(location.search);
     const tabFromUrl = currentSearchParams.get('tab');
-    if (tabFromUrl && ['overview', 'comments', 'activity'].includes(tabFromUrl)) {
-      setActiveTab(tabFromUrl);
+    const commentFromUrl = normalizeCommentTargetId(
+      currentSearchParams.get('commentId') || currentSearchParams.get('comment') || currentSearchParams.get('replyId')
+    );
+    const routeTarget = normalizeCommentTargetId(routeCommentId);
+    const nextTab = (routeTarget || commentFromUrl)
+      ? 'comments'
+      : (tabFromUrl && ['overview', 'comments', 'activity'].includes(tabFromUrl) ? tabFromUrl : 'overview');
+    setActiveTab(nextTab);
+  }, [location.search, routeCommentId]);
+
+  const handleTabChange = useCallback((tab: string) => {
+    setActiveTab(tab);
+    const nextParams = new URLSearchParams(location.search);
+    if (tab === 'comments') nextParams.set('tab', 'comments');
+    else if (tab === 'activity') nextParams.set('tab', 'activity');
+    else nextParams.delete('tab');
+
+    if (tab !== 'comments') {
+      nextParams.delete('commentId');
+      nextParams.delete('comment');
+      nextParams.delete('replyId');
     }
-  }, [location.search]);
+
+    const slug = params.slug;
+    const basePath = slug ? `/p/${predictionId}/${slug}` : `/p/${predictionId}`;
+    if (location.pathname.includes('/comments/') && tab !== 'comments') {
+      navigate(`${basePath}${nextParams.toString() ? `?${nextParams.toString()}` : ''}`, { replace: true });
+      return;
+    }
+    navigate(`${location.pathname}${nextParams.toString() ? `?${nextParams.toString()}` : ''}`, { replace: true });
+  }, [location.pathname, location.search, navigate, params.slug, predictionId]);
   const [shareUrl, setShareUrl] = useState('');
   const [showDepositModal, setShowDepositModal] = useState(false);
   const [justPlaced, setJustPlaced] = useState<{ amount: number; optionLabel: string } | null>(null);
@@ -289,11 +346,16 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
     const canonicalPath = buildPredictionCanonicalPath(predictionId, title || undefined);
     const stripTrailing = (p: string) => (p.replace(/\/+$/, '') || '/');
     const currentPath = stripTrailing(location.pathname || '/');
-    const targetPath = stripTrailing(canonicalPath);
+    const isCommentDeepLink = currentPath.includes('/comments/');
+    const targetPath = stripTrailing(
+      isCommentDeepLink && params.commentId
+        ? `${canonicalPath}/comments/${encodeURIComponent(params.commentId)}`
+        : canonicalPath
+    );
     if (currentPath !== targetPath) {
       navigate(`${targetPath}${location.search || ''}${location.hash || ''}`, { replace: true });
     }
-  }, [predictionId, prediction, location.pathname, location.search, location.hash, navigate]);
+  }, [predictionId, prediction, location.pathname, location.search, location.hash, navigate, params.commentId]);
 
   // Check if current user is creator
   const isCreator = useMemo(() => {
@@ -652,7 +714,7 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
 
   // Handle comment navigation
   const handleComment = () => {
-    setActiveTab('comments');
+    handleTabChange('comments');
     // Scroll to comments after tab change
     setTimeout(() => {
       const commentsSection = document.querySelector('[data-qa="comments-section"]');
@@ -918,7 +980,7 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
         {/* Tabs */}
           <PredictionDetailsTabs
             activeTab={activeTab}
-            onTabChange={setActiveTab}
+            onTabChange={handleTabChange}
             commentCount={tabCommentCount}
             activityCount={activityItems.length}
           >
@@ -1303,7 +1365,11 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
                   exit={reduceMotion ? {} : { opacity: 0, x: 20 }}
                   data-qa="comments-section"
                 >
-                  <CommentsSection predictionId={predictionId} predictionTitle={prediction?.title} />
+                  <CommentsSection
+                    predictionId={predictionId}
+                    predictionTitle={prediction?.title}
+                    deepLinkCommentId={deepLinkCommentId || undefined}
+                  />
                 </motion.div>
               )}
 

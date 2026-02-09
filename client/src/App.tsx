@@ -930,6 +930,8 @@ const AppContent: React.FC = () => {
                     <Route path="/r/:code" element={<LazyReferralRedirectPage />} />
                     <Route path="/predictions" element={<PredictionsPageWrapper />} />
                     <Route path="/predictions/:id" element={<PredictionDetailsRouteWrapper />} />
+                    <Route path="/p/:id/comments/:commentId" element={<PredictionDetailsRouteWrapper />} />
+                    <Route path="/p/:id/:slug/comments/:commentId" element={<PredictionDetailsRouteWrapper />} />
                     <Route path="/p/:id/:slug?" element={<PredictionDetailsRouteWrapper />} />
                     <Route path="/bets" element={<PredictionsPageWrapper />} />
                     <Route path="/leaderboard" element={<LeaderboardPageWrapper />} />
