@@ -93,6 +93,7 @@ const WalletPageV2: React.FC<WalletPageV2Props> = ({ onNavigateBack }) => {
   // Fiat wallet modal state (Phase 7)
   const [showFiatDeposit, setShowFiatDeposit] = useState(false);
   const [showFiatWithdraw, setShowFiatWithdraw] = useState(false);
+  const [showDepositInfo, setShowDepositInfo] = useState(false);
   const [claimingId, setClaimingId] = useState<string | null>(null);
   const [bulkClaiming, setBulkClaiming] = useState(false);
   const [bulkTotal, setBulkTotal] = useState(0);
@@ -361,7 +362,7 @@ const WalletPageV2: React.FC<WalletPageV2Props> = ({ onNavigateBack }) => {
       setShowFiatDeposit(true);
       return;
     }
-    toast('Add funds on the web app or when NGN deposits are available.', { icon: 'ℹ️' });
+    setShowDepositInfo(true);
   }, [fiatEnabled, handleDeposit]);
 
   const cryptoEnabled = isCryptoEnabledForClient();
@@ -1172,6 +1173,29 @@ const WalletPageV2: React.FC<WalletPageV2Props> = ({ onNavigateBack }) => {
             />
           )}
         </>
+      )}
+
+      {/* Deposit info modal (shown on iOS when deposits unavailable) */}
+      {showDepositInfo && (
+        <div className="fixed inset-0 z-modal flex items-end md:items-center justify-center">
+          <div className="absolute inset-0 bg-black/60" onClick={() => setShowDepositInfo(false)} />
+          <div className="relative w-full max-w-md mx-auto bg-white rounded-t-2xl md:rounded-2xl shadow-xl p-6 animate-slide-up">
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">Deposits Coming Soon</h3>
+            <p className="text-sm text-gray-600 mb-4">
+              Deposits are not yet available on the mobile app. You can add funds by visiting
+              the web app at <span className="font-medium text-emerald-600">app.fanclubz.app</span>.
+            </p>
+            <p className="text-sm text-gray-500 mb-5">
+              We're working on bringing deposits directly to the app. Stay tuned!
+            </p>
+            <button
+              onClick={() => setShowDepositInfo(false)}
+              className="w-full h-11 rounded-xl bg-emerald-600 text-white font-semibold hover:bg-emerald-700 transition-colors"
+            >
+              Got it
+            </button>
+          </div>
+        </div>
       )}
 
       {/* Activity detail sheet */}

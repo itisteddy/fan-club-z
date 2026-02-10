@@ -410,18 +410,35 @@ router.post('/me/delete', requireSupabaseAuth, async (req: AuthenticatedRequest,
     let updateResult = await supabase.from('users').update(fullPayload).eq('id', userId);
 
     if (updateResult.error) {
-      console.warn('[users/me/delete] Full update failed:', updateResult.error.message);
+      console.warn('[users/me/delete] Full update failed:', updateResult.error.message, updateResult.error.code);
       updateResult = await supabase.from('users').update(legacyPayload).eq('id', userId);
     }
 
     if (updateResult.error) {
-      console.warn('[users/me/delete] Legacy update failed:', updateResult.error.message);
+      console.warn('[users/me/delete] Legacy update failed:', updateResult.error.message, updateResult.error.code);
       updateResult = await supabase.from('users').update(minimalPayload).eq('id', userId);
     }
 
     if (updateResult.error) {
-      console.error('[users/me/delete] All update attempts failed:', updateResult.error.message);
-      return res.status(500).json({ error: 'Deletion failed', message: userFacingMessage, version: VERSION });
+      console.error('[users/me/delete] Minimal update failed:', updateResult.error.message, updateResult.error.code);
+      // Last resort: try updating only updated_at to confirm DB connectivity
+      const pingResult = await supabase.from('users').update({ updated_at: now }).eq('id', userId);
+      if (pingResult.error) {
+        console.error('[users/me/delete] Even updated_at-only write failed:', pingResult.error.message);
+        return res.status(500).json({ error: 'Deletion failed', message: userFacingMessage, version: VERSION });
+      }
+      // DB is reachable but columns are missing — still mark as soft-deleted via auth metadata
+      console.warn('[users/me/delete] Columns missing but updated_at succeeded; marking via auth metadata');
+    }
+
+    // Also mark deletion in Supabase auth metadata (belt-and-suspenders)
+    try {
+      await supabase.auth.admin.updateUserById(userId, {
+        user_metadata: { account_status: 'deleted', deleted_at: now },
+      });
+    } catch (authErr: any) {
+      // Non-fatal: users table update was the primary operation
+      console.warn('[users/me/delete] Auth metadata update failed (non-fatal):', authErr?.message);
     }
 
     // NOTE: We do NOT delete the auth user. This allows re-login → restore flow.

@@ -106,16 +106,21 @@ if ((isNativeIOSRuntime() || Capacitor.getPlatform() === 'android') && typeof wi
     }
     if (!url?.startsWith('fanclubz://auth/callback')) return;
 
-    // CRITICAL: only handle/close for real callback URLs that contain ?code=
+    // CRITICAL: only handle/close for real callback URLs that contain ?code= or token_hash=
     // This prevents prematurely closing the auth sheet during email/password entry.
-    let hasCode = false;
+    let hasAuthParam = false;
     try {
       const u = new URL(url.replace('fanclubz://', 'https://'));
-      hasCode = Boolean(u.searchParams.get('code'));
+      hasAuthParam = Boolean(u.searchParams.get('code')) || Boolean(u.searchParams.get('token_hash'));
+      // Also check hash fragment for access_token (magic link fallback)
+      if (!hasAuthParam && u.hash) {
+        const hashParams = new URLSearchParams(u.hash.replace(/^#/, ''));
+        hasAuthParam = Boolean(hashParams.get('access_token'));
+      }
     } catch {
-      hasCode = false;
+      hasAuthParam = false;
     }
-    if (!hasCode) return;
+    if (!hasAuthParam) return;
 
     console.log('[Bootstrap] appUrlOpen received:', url);
 
@@ -143,7 +148,7 @@ if ((isNativeIOSRuntime() || Capacitor.getPlatform() === 'android') && typeof wi
       if (!url?.startsWith('fanclubz://auth/callback')) return;
       try {
         const u = new URL(url.replace('fanclubz://', 'https://'));
-        if (!u.searchParams.get('code')) return;
+        if (!u.searchParams.get('code') && !u.searchParams.get('token_hash')) return;
       } catch {
         return;
       }

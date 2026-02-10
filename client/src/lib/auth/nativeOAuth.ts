@@ -128,6 +128,45 @@ export async function handleNativeAuthCallback(url: string): Promise<boolean> {
         return false;
       }
 
+      // Handle email confirmation token_hash (Supabase sends this for email signup confirmation)
+      const tokenHash = urlObj.searchParams.get('token_hash');
+      const type = urlObj.searchParams.get('type');
+      if (tokenHash && type) {
+        try {
+          if (import.meta.env.DEV) {
+            console.log('[NativeOAuth] Email confirmation detected:', { type, tokenHash: 'present' });
+          }
+          const { data: verifyData, error: verifyError } = await supabase.auth.verifyOtp({
+            token_hash: tokenHash,
+            type: type as any,
+          });
+          if (verifyError) throw verifyError;
+          if (!verifyData?.session) throw new Error('[NativeOAuth] No session after email verification');
+          
+          console.log('[NativeOAuth] \u2705 Email verification session established');
+          setNativeAuthInFlight(false);
+          lastHandledUrl = url;
+          window.dispatchEvent(new CustomEvent('auth-in-progress', {
+            detail: { started: false, completed: true }
+          }));
+          const fromReturnTo = consumeReturnTo();
+          const target = sanitizeInternalPath(fromReturnTo ?? '/predictions');
+          try { sessionStorage.setItem('native_oauth_return_to', target); } catch {}
+          window.dispatchEvent(new CustomEvent('native-oauth-success', { detail: { returnTo: target } }));
+          isProcessingCallback = false;
+          return true;
+        } catch (err) {
+          console.error('[NativeOAuth] \u274c Email verification failed:', err);
+          window.dispatchEvent(new CustomEvent('auth-in-progress', {
+            detail: { started: false, error: true }
+          }));
+          isProcessingCallback = false;
+          setNativeAuthInFlight(false);
+          lastHandledUrl = null;
+          return false;
+        }
+      }
+
       // Exchange the code for a session using Supabase PKCE flow
       if (code) {
         try {

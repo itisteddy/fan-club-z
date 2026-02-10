@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Edit3, User, Activity, DollarSign, TrendingUp, Target, Trophy, Upload, X, Mail, XCircle, Trash2, Ban, UserCheck } from 'lucide-react';
+import { Edit3, User, Activity, DollarSign, TrendingUp, Target, Trophy, Upload, X, Mail, XCircle, Trash2, Ban, UserCheck, Loader2 } from 'lucide-react';
+import { Capacitor } from '@capacitor/core';
 import { useAuthStore } from '../store/authStore';
 import { useAuthSession } from '../providers/AuthSessionProvider';
 import { isFeatureEnabled } from '@/config/featureFlags';
@@ -48,6 +49,8 @@ const ProfilePageV2: React.FC<ProfilePageV2Props> = ({ onNavigateBack, userId })
   const [editFirstName, setEditFirstName] = useState('');
   const [editLastName, setEditLastName] = useState('');
   const [editBio, setEditBio] = useState('');
+  const [avatarUploading, setAvatarUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [showShareModal, setShowShareModal] = useState(false);
 
   // Phase 4: Account deletion flow state
@@ -765,24 +768,40 @@ const ProfilePageV2: React.FC<ProfilePageV2Props> = ({ onNavigateBack, userId })
             </div>
             <div>
               <label className="block text-xs text-gray-600 mb-2">Profile photo</label>
-              <label className="inline-flex items-center gap-2 px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-700 hover:bg-gray-50 cursor-pointer">
-                <Upload className="w-4 h-4 text-gray-500" />
-                Upload image
-                <input
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={async (e) => {
-                    const file = e.target.files?.[0];
-                    if (!file) return;
-                    try {
-                      await useAuthStore.getState().uploadAvatar(file);
-                    } catch (err) {
-                      console.error('Avatar upload failed', err);
-                    }
-                  }}
-                />
-              </label>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept={Capacitor.isNativePlatform() ? 'image/png,image/jpeg,image/webp,image/heic' : 'image/*'}
+                className="hidden"
+                onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  setAvatarUploading(true);
+                  try {
+                    await useAuthStore.getState().uploadAvatar(file);
+                    toast.success('Profile photo updated!');
+                  } catch (err) {
+                    console.error('Avatar upload failed', err);
+                    toast.error('Failed to upload photo. Please try again.');
+                  } finally {
+                    setAvatarUploading(false);
+                    // Reset input so same file can be re-selected
+                    if (fileInputRef.current) fileInputRef.current.value = '';
+                  }
+                }}
+              />
+              <button
+                type="button"
+                disabled={avatarUploading}
+                onClick={() => fileInputRef.current?.click()}
+                className="inline-flex items-center gap-2 px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+              >
+                {avatarUploading ? (
+                  <><Loader2 className="w-4 h-4 text-gray-500 animate-spin" /> Uploading…</>
+                ) : (
+                  <><Upload className="w-4 h-4 text-gray-500" /> Choose from library</>
+                )}
+              </button>
             </div>
           </div>
           <div className="px-4 py-3 border-t border-gray-100 flex items-center justify-end gap-2">
@@ -847,7 +866,10 @@ const ProfilePageV2: React.FC<ProfilePageV2Props> = ({ onNavigateBack, userId })
               />
             </div>
             {deleteError && (
-              <p className="text-sm text-red-600">{deleteError}</p>
+              <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+                <p className="text-sm text-red-700 font-medium">{deleteError}</p>
+                <p className="text-xs text-red-500 mt-1">If this keeps happening, please contact support@fanclubz.app</p>
+              </div>
             )}
           </div>
           <div className="px-4 py-3 border-t border-gray-100 flex items-center justify-end gap-2">
