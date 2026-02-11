@@ -1,58 +1,55 @@
 /**
- * ConnectWalletSheet — Context-aware wallet connection UI
+ * ConnectWalletSheet — Context-aware, wallet-agnostic connection UI
  *
  * Uses the Orchestrator state machine to provide reliable wallet connections
  * across all browser contexts:
  *
- * - MetaMask in-app browser → injected provider (no WalletConnect)
- * - Android Chrome → WalletConnect with deep link CTA
- * - iOS Safari → WalletConnect with universal link CTA
- * - Desktop → injected (MetaMask extension) or WalletConnect QR
- *
- * Every state has explicit UI. No "hope the modal works" patterns.
+ * - Wallet in-app browser → injected provider (no WalletConnect)
+ * - Android Chrome → WalletConnect with OS app chooser (wc: scheme, any wallet)
+ * - iOS Safari → WalletConnect with wallet picker (MetaMask, Trust, Coinbase, Rainbow)
+ * - Desktop → injected (extension) or WalletConnect QR (scan from any wallet)
  *
  * CRITICAL DESIGN DECISIONS:
  * - showQrModal is FALSE in wagmi config — we own all UI here
  * - Deep links use button onClick (NOT <a href>) for Android gesture compliance
- * - QR codes rendered client-side via inline SVG (no external API dependency)
+ * - QR codes rendered with fallback chain (no single API dependency)
+ * - Android: generic wc: deep link triggers OS wallet chooser — NOT locked to MetaMask
+ * - iOS: wallet picker with universal links for top wallets
+ * - Desktop: QR auto-shown (primary use case is scan from phone)
  * - Timeout shows recovery options but doesn't kill the connection
- * - Desktop: QR shown by default (primary use case is scan-from-phone)
- * - Mobile: "Open MetaMask" CTA shown primary, QR behind toggle
  */
 
 import * as Dialog from '@radix-ui/react-dialog';
 import { VisuallyHidden } from '@radix-ui/react-visually-hidden';
-import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import toast from 'react-hot-toast';
 import React from 'react';
 import { policy as storeSafePolicy } from '@/lib/storeSafePolicy';
-import { useWalletOrchestrator, type ConnectionMethod } from '@/lib/wallet/connectOrchestrator';
-import { Copy, Check, RefreshCw, ExternalLink, Smartphone, QrCode, Monitor, Loader2, AlertCircle, X as XIcon, Wallet } from 'lucide-react';
+import {
+  useWalletOrchestrator,
+  WALLET_REGISTRY,
+  IOS_WALLET_ORDER,
+  type ConnectionMethod,
+  type WalletTarget,
+} from '@/lib/wallet/connectOrchestrator';
+import {
+  Copy, Check, RefreshCw, ExternalLink, Smartphone, QrCode,
+  Monitor, Loader2, AlertCircle, X as XIcon, Wallet, ChevronDown,
+} from 'lucide-react';
 
 type ConnectWalletSheetProps = {
   isOpen?: boolean;
   onClose?: () => void;
 };
 
-// ─── Inline QR Code Generator ────────────────────────────────────────────────
+// ─── Inline QR Code Image ────────────────────────────────────────────────────
 
-/**
- * Minimal QR code generator that produces an SVG data URI.
- * No external dependencies or API calls required.
- * Uses a simplified approach: encode the URI as a QR code image URL
- * via Google Charts API (runs client-side, no CORS issues) with
- * graceful fallback to text display.
- */
 function QRCodeImage({ data, size = 200 }: { data: string; size?: number }) {
   const [error, setError] = useState(false);
-  // Primary: Google Charts QR API (reliable, no CORS)
-  // Fallback: qrserver.com
-  // Final fallback: show raw URI for copy
   const primarySrc = `https://chart.googleapis.com/chart?cht=qr&chs=${size}x${size}&chl=${encodeURIComponent(data)}&choe=UTF-8`;
   const fallbackSrc = `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&data=${encodeURIComponent(data)}`;
 
   if (error) {
-    // Both APIs failed — show copyable URI
     return (
       <div className="bg-white rounded-lg p-3 border border-gray-200 w-full max-w-[200px]">
         <p className="text-xs text-gray-500 mb-2 text-center">Connection URI:</p>
@@ -69,7 +66,6 @@ function QRCodeImage({ data, size = 200 }: { data: string; size?: number }) {
       height={size}
       className="rounded-lg border border-gray-200 bg-white p-2"
       onError={(e) => {
-        // Try fallback
         const img = e.currentTarget;
         if (img.src === primarySrc) {
           img.src = fallbackSrc;
@@ -81,12 +77,42 @@ function QRCodeImage({ data, size = 200 }: { data: string; size?: number }) {
   );
 }
 
+// ─── Wallet Icon ─────────────────────────────────────────────────────────────
+
+function WalletIcon({ wallet, size = 28 }: { wallet: WalletTarget; size?: number }) {
+  const info = WALLET_REGISTRY[wallet];
+  if (!info?.iconUrl) {
+    return (
+      <div
+        className="flex items-center justify-center rounded-lg bg-blue-100"
+        style={{ width: size, height: size }}
+      >
+        <Wallet className="text-blue-600" style={{ width: size * 0.55, height: size * 0.55 }} />
+      </div>
+    );
+  }
+  return (
+    <img
+      src={info.iconUrl}
+      alt={info.label}
+      width={size}
+      height={size}
+      className="rounded-lg"
+      onError={(e) => {
+        // Fallback to generic icon
+        e.currentTarget.style.display = 'none';
+      }}
+    />
+  );
+}
+
 // ─── Component ───────────────────────────────────────────────────────────────
 
 export default function ConnectWalletSheet({ isOpen, onClose }: ConnectWalletSheetProps) {
   const orch = useWalletOrchestrator();
   const [open, setOpen] = useState<boolean>(Boolean(isOpen));
   const [showQR, setShowQR] = useState(false);
+  const [showMoreWallets, setShowMoreWallets] = useState(false);
   const [copied, setCopied] = useState(false);
 
   // ── Controlled / uncontrolled sync ──────────────────────────────────────
@@ -103,7 +129,6 @@ export default function ConnectWalletSheet({ isOpen, onClose }: ConnectWalletShe
     }
   }, [isOpen, onClose]);
 
-  // Uncontrolled (global event) mode
   useEffect(() => {
     if (typeof isOpen === 'boolean') return;
     const handler = () => {
@@ -117,7 +142,6 @@ export default function ConnectWalletSheet({ isOpen, onClose }: ConnectWalletShe
     return () => window.removeEventListener('fcz:wallet:connect', handler);
   }, [isOpen]);
 
-  // Auto-close on successful connection
   useEffect(() => {
     if (orch.state === 'connected' && open) {
       toast.success('Wallet connected!');
@@ -125,10 +149,10 @@ export default function ConnectWalletSheet({ isOpen, onClose }: ConnectWalletShe
     }
   }, [orch.state, open]);
 
-  // Reset state when sheet opens
   useEffect(() => {
     if (open) {
       setShowQR(false);
+      setShowMoreWallets(false);
       setCopied(false);
     } else {
       orch.cancel();
@@ -155,7 +179,6 @@ export default function ConnectWalletSheet({ isOpen, onClose }: ConnectWalletShe
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      // Fallback
       try {
         const ta = document.createElement('textarea');
         ta.value = orch.wcUri;
@@ -172,29 +195,27 @@ export default function ConnectWalletSheet({ isOpen, onClose }: ConnectWalletShe
   }, [orch.wcUri]);
 
   /**
-   * CRITICAL: Deep link must be triggered from a direct user gesture (onClick).
-   * Android Chrome blocks deep links triggered from async code, re-renders, or
-   * <a href> during mount. Using window.location.href from a button onClick
-   * is the most reliable cross-platform approach.
+   * Open a wallet via deep link.
+   * CRITICAL: Must be called from button onClick (user gesture for Android).
    */
-  const handleOpenWallet = useCallback((wallet: 'metamask' | 'trust' | 'coinbase' = 'metamask') => {
+  const handleOpenWallet = useCallback((wallet: WalletTarget = 'generic') => {
     const deepLink = orch.buildWalletDeepLink(wallet);
     if (!deepLink) {
       toast.error('Connection not ready yet. Please wait a moment.');
       return;
     }
-    console.log('[ConnectSheet] Opening wallet deep link for', wallet);
+    const info = WALLET_REGISTRY[wallet];
+    console.log('[ConnectSheet] Opening wallet deep link:', wallet, info?.label);
     window.location.href = deepLink;
   }, [orch.buildWalletDeepLink]);
 
   const handleRetry = useCallback(async () => {
     const prevMethod = orch.method;
     await orch.resetAndRetry();
-    // Auto-start again with same method
     orch.startConnect(prevMethod || undefined);
   }, [orch.method, orch.resetAndRetry, orch.startConnect]);
 
-  // ── Detect which UI to show ────────────────────────────────────────────
+  // ── Context ────────────────────────────────────────────────────────────
 
   const ctx = orch.browserContext;
   const isWalletInApp = ctx.context === 'wallet_inapp';
@@ -203,9 +224,115 @@ export default function ConnectWalletSheet({ isOpen, onClose }: ConnectWalletShe
     : ctx.inAppName === 'coinbase' ? 'Coinbase Wallet'
     : ctx.inAppName || 'Wallet';
 
-  // Desktop: show QR by default when URI is ready (primary use case: scan from phone)
+  // Desktop: QR auto-shown when URI is ready
   const shouldAutoShowQR = !ctx.isMobile && orch.wcUri;
   const qrVisible = showQR || !!shouldAutoShowQR;
+
+  // ── Wallet Deep Link Buttons ──────────────────────────────────────────
+
+  /** Render the primary "Open Wallet" CTA for mobile */
+  const renderMobileWalletCTA = () => {
+    if (!orch.wcUri || !ctx.isMobile) return null;
+
+    if (ctx.os === 'android') {
+      // Android: single "Open Wallet App" button that triggers OS chooser
+      return (
+        <button
+          type="button"
+          className="flex items-center justify-center gap-2 w-full h-12 rounded-xl bg-emerald-500 text-white font-semibold hover:bg-emerald-600 active:bg-emerald-700 transition-colors"
+          onClick={() => handleOpenWallet('generic')}
+        >
+          <ExternalLink className="w-5 h-5" />
+          Open Wallet App
+        </button>
+      );
+    }
+
+    // iOS: show wallet picker since iOS can't do scheme-level app chooser
+    return (
+      <div className="space-y-2">
+        {/* Top wallets as individual buttons */}
+        {IOS_WALLET_ORDER.slice(0, 2).map((w) => {
+          const info = WALLET_REGISTRY[w];
+          return (
+            <button
+              key={w}
+              type="button"
+              className="flex items-center gap-3 w-full h-12 px-4 rounded-xl border border-gray-200 hover:bg-gray-50 active:bg-gray-100 transition-colors"
+              onClick={() => handleOpenWallet(w)}
+            >
+              <WalletIcon wallet={w} size={28} />
+              <span className="font-medium text-gray-900">{info.label}</span>
+              <ExternalLink className="w-4 h-4 text-gray-400 ml-auto" />
+            </button>
+          );
+        })}
+
+        {/* "More wallets" expandable */}
+        {!showMoreWallets && (
+          <button
+            type="button"
+            onClick={() => setShowMoreWallets(true)}
+            className="flex items-center justify-center gap-1 w-full h-10 text-sm text-gray-500 hover:text-gray-700 transition-colors"
+          >
+            More wallets
+            <ChevronDown className="w-4 h-4" />
+          </button>
+        )}
+        {showMoreWallets && IOS_WALLET_ORDER.slice(2).map((w) => {
+          const info = WALLET_REGISTRY[w];
+          return (
+            <button
+              key={w}
+              type="button"
+              className="flex items-center gap-3 w-full h-12 px-4 rounded-xl border border-gray-200 hover:bg-gray-50 active:bg-gray-100 transition-colors"
+              onClick={() => handleOpenWallet(w)}
+            >
+              <WalletIcon wallet={w} size={28} />
+              <span className="font-medium text-gray-900">{info.label}</span>
+              <ExternalLink className="w-4 h-4 text-gray-400 ml-auto" />
+            </button>
+          );
+        })}
+      </div>
+    );
+  };
+
+  /** Render wallet options in the failed/recovery state */
+  const renderRecoveryWalletButtons = () => {
+    if (!orch.wcUri || !ctx.isMobile) return null;
+
+    if (ctx.os === 'android') {
+      return (
+        <button
+          type="button"
+          className="flex items-center justify-center gap-2 w-full h-11 rounded-xl border border-gray-200 text-gray-700 font-medium hover:bg-gray-50 transition-colors"
+          onClick={() => handleOpenWallet('generic')}
+        >
+          <ExternalLink className="w-4 h-4" />
+          Open Wallet App
+        </button>
+      );
+    }
+
+    // iOS: compact wallet row
+    return (
+      <div className="flex items-center justify-center gap-3 py-2">
+        {IOS_WALLET_ORDER.map((w) => (
+          <button
+            key={w}
+            type="button"
+            onClick={() => handleOpenWallet(w)}
+            className="flex flex-col items-center gap-1 p-2 rounded-xl hover:bg-gray-50 transition-colors"
+            title={WALLET_REGISTRY[w].label}
+          >
+            <WalletIcon wallet={w} size={36} />
+            <span className="text-[10px] text-gray-500">{WALLET_REGISTRY[w].shortLabel}</span>
+          </button>
+        ))}
+      </div>
+    );
+  };
 
   return (
     <Dialog.Root open={open} onOpenChange={handleOpenChange}>
@@ -251,7 +378,7 @@ export default function ConnectWalletSheet({ isOpen, onClose }: ConnectWalletShe
             {/* ── IDLE: Show connection options ── */}
             {orch.state === 'idle' && (
               <div className="space-y-2">
-                {/* In wallet browser: only show injected option */}
+                {/* Wallet in-app: only injected */}
                 {isWalletInApp && ctx.injectedEthereumAvailable && (
                   <button
                     type="button"
@@ -268,10 +395,10 @@ export default function ConnectWalletSheet({ isOpen, onClose }: ConnectWalletShe
                   </button>
                 )}
 
-                {/* System browser options */}
+                {/* System browser */}
                 {!isWalletInApp && (
                   <>
-                    {/* Desktop: Browser wallet (injected) */}
+                    {/* Desktop: injected (extension) */}
                     {!ctx.isMobile && ctx.injectedEthereumAvailable && (
                       <button
                         type="button"
@@ -288,7 +415,7 @@ export default function ConnectWalletSheet({ isOpen, onClose }: ConnectWalletShe
                       </button>
                     )}
 
-                    {/* WalletConnect (mobile + desktop fallback) */}
+                    {/* WalletConnect */}
                     <button
                       type="button"
                       onClick={() => orch.startConnect('walletconnect')}
@@ -302,7 +429,9 @@ export default function ConnectWalletSheet({ isOpen, onClose }: ConnectWalletShe
                           {ctx.isMobile ? 'Mobile Wallet' : 'WalletConnect'}
                         </div>
                         <div className="text-xs text-gray-500">
-                          {ctx.isMobile ? 'Open MetaMask or other wallet app' : 'Scan QR or deep link to mobile wallet'}
+                          {ctx.isMobile
+                            ? 'MetaMask, Trust Wallet, Coinbase & more'
+                            : 'Scan QR code with any wallet app'}
                         </div>
                       </div>
                     </button>
@@ -311,7 +440,7 @@ export default function ConnectWalletSheet({ isOpen, onClose }: ConnectWalletShe
               </div>
             )}
 
-            {/* ── STARTING: Spinner ── */}
+            {/* ── STARTING ── */}
             {orch.state === 'starting' && (
               <div className="flex flex-col items-center py-8">
                 <Loader2 className="w-8 h-8 text-emerald-500 animate-spin mb-3" />
@@ -319,7 +448,7 @@ export default function ConnectWalletSheet({ isOpen, onClose }: ConnectWalletShe
               </div>
             )}
 
-            {/* ── AWAITING WALLET (injected): User must approve in wallet popup ── */}
+            {/* ── AWAITING: Injected ── */}
             {orch.state === 'awaiting_wallet' && orch.method === 'injected' && (
               <div className="flex flex-col items-center py-8">
                 <div className="flex items-center justify-center w-16 h-16 rounded-2xl bg-emerald-100 mb-4">
@@ -339,15 +468,15 @@ export default function ConnectWalletSheet({ isOpen, onClose }: ConnectWalletShe
               </div>
             )}
 
-            {/* ── AWAITING WALLET (walletconnect): Deep link + QR + copy ── */}
+            {/* ── AWAITING: WalletConnect ── */}
             {orch.state === 'awaiting_wallet' && orch.method === 'walletconnect' && (
               <div className="space-y-3">
-                {/* QR Code — auto-shown on desktop, toggle on mobile */}
+                {/* QR Code — auto on desktop, toggle on mobile */}
                 {qrVisible && orch.wcUri && (
                   <div className="flex flex-col items-center py-4 px-2 rounded-xl bg-gray-50 border border-gray-100">
                     <QRCodeImage data={orch.wcUri} />
                     <p className="text-xs text-gray-500 mt-3 text-center">
-                      {ctx.isMobile ? 'Scan this QR code with another device' : 'Scan this QR code with your wallet app'}
+                      Scan with any WalletConnect-compatible wallet
                     </p>
                   </div>
                 )}
@@ -357,26 +486,16 @@ export default function ConnectWalletSheet({ isOpen, onClose }: ConnectWalletShe
                     <Loader2 className="w-6 h-6 text-emerald-500 animate-spin mb-3" />
                     <p className="text-sm font-medium text-gray-900">Waiting for wallet…</p>
                     <p className="text-xs text-gray-500 text-center mt-1 max-w-xs">
-                      Approve the connection in your wallet app, or use the options below.
+                      Approve the connection in your wallet app, or choose a wallet below.
                     </p>
                   </div>
                 )}
 
-                {/* Action buttons */}
+                {/* Wallet deep link CTA(s) */}
                 <div className="space-y-2">
-                  {/* Primary: Open MetaMask (deep link) — mobile only */}
-                  {orch.wcUri && ctx.isMobile && (
-                    <button
-                      type="button"
-                      className="flex items-center justify-center gap-2 w-full h-12 rounded-xl bg-emerald-500 text-white font-semibold hover:bg-emerald-600 active:bg-emerald-700 transition-colors"
-                      onClick={() => handleOpenWallet('metamask')}
-                    >
-                      <ExternalLink className="w-5 h-5" />
-                      Open MetaMask
-                    </button>
-                  )}
+                  {renderMobileWalletCTA()}
 
-                  {/* Show QR toggle — mobile only (desktop auto-shows) */}
+                  {/* QR toggle — mobile only (desktop auto-shows) */}
                   {ctx.isMobile && (
                     <button
                       type="button"
@@ -403,7 +522,6 @@ export default function ConnectWalletSheet({ isOpen, onClose }: ConnectWalletShe
                     )}
                   </button>
 
-                  {/* Cancel */}
                   <button
                     type="button"
                     onClick={() => orch.cancel()}
@@ -425,7 +543,7 @@ export default function ConnectWalletSheet({ isOpen, onClose }: ConnectWalletShe
               </div>
             )}
 
-            {/* ── FAILED: Recovery UI ── */}
+            {/* ── FAILED: Recovery ── */}
             {orch.state === 'failed' && (
               <div className="space-y-3">
                 <div className="flex items-start gap-3 p-4 rounded-xl bg-amber-50 border border-amber-100">
@@ -437,7 +555,7 @@ export default function ConnectWalletSheet({ isOpen, onClose }: ConnectWalletShe
                 </div>
 
                 <div className="space-y-2 pt-1">
-                  {/* Retry with cleanup */}
+                  {/* Retry */}
                   <button
                     type="button"
                     onClick={handleRetry}
@@ -451,17 +569,8 @@ export default function ConnectWalletSheet({ isOpen, onClose }: ConnectWalletShe
                     )}
                   </button>
 
-                  {/* Open wallet (deep link) if WC URI exists — mobile only */}
-                  {orch.wcUri && ctx.isMobile && (
-                    <button
-                      type="button"
-                      className="flex items-center justify-center gap-2 w-full h-11 rounded-xl border border-gray-200 text-gray-700 font-medium hover:bg-gray-50 transition-colors"
-                      onClick={() => handleOpenWallet('metamask')}
-                    >
-                      <ExternalLink className="w-4 h-4" />
-                      Open MetaMask
-                    </button>
-                  )}
+                  {/* Wallet deep link options */}
+                  {renderRecoveryWalletButtons()}
 
                   {/* Copy link */}
                   {orch.wcUri && (
@@ -478,7 +587,7 @@ export default function ConnectWalletSheet({ isOpen, onClose }: ConnectWalletShe
                     </button>
                   )}
 
-                  {/* Show QR */}
+                  {/* QR */}
                   {orch.wcUri && (
                     <>
                       <button
@@ -492,13 +601,12 @@ export default function ConnectWalletSheet({ isOpen, onClose }: ConnectWalletShe
                       {showQR && (
                         <div className="flex flex-col items-center py-4 px-2 rounded-xl bg-gray-50 border border-gray-100">
                           <QRCodeImage data={orch.wcUri} />
-                          <p className="text-xs text-gray-500 mt-3 text-center">Scan this QR code with your wallet app</p>
+                          <p className="text-xs text-gray-500 mt-3 text-center">Scan with any wallet app</p>
                         </div>
                       )}
                     </>
                   )}
 
-                  {/* Dismiss */}
                   <button
                     type="button"
                     onClick={handleClose}

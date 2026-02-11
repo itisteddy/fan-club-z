@@ -18,6 +18,7 @@
  * - Deep links triggered ONLY from button onClick (user gesture)
  * - Timeout shows recovery UI but does NOT kill the connection
  * - Provider listeners are named and cleaned per-attempt
+ * - Deep links are WALLET-AGNOSTIC by default (use wc: scheme on Android)
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -29,6 +30,19 @@ import { getBrowserContext, type BrowserContextInfo } from '@/lib/browserContext
 export type OrchestratorState = 'idle' | 'starting' | 'awaiting_wallet' | 'connected' | 'failed';
 
 export type ConnectionMethod = 'injected' | 'walletconnect';
+
+/** Supported wallet targets for deep links */
+export type WalletTarget = 'generic' | 'metamask' | 'trust' | 'coinbase' | 'rainbow';
+
+export interface WalletDeepLinkInfo {
+  label: string;
+  /** Short name for compact UI */
+  shortLabel: string;
+  /** URL to wallet's logo (hosted on WC explorer CDN or direct) */
+  iconUrl: string;
+  /** Build the deep link URL for this wallet given a WC URI */
+  buildUrl: (wcUri: string, os: 'android' | 'ios' | 'desktop') => string | null;
+}
 
 export interface OrchestratorResult {
   state: OrchestratorState;
@@ -46,11 +60,104 @@ export interface OrchestratorResult {
   resetAndRetry: () => Promise<void>;
   /** Cancel the current attempt and return to idle */
   cancel: () => void;
-  /** Build a deep link URL to open the wallet app (Android intent + universal link) */
-  buildWalletDeepLink: (wallet?: 'metamask' | 'trust' | 'coinbase') => string | null;
+  /** Build a deep link URL — defaults to generic (OS wallet chooser) */
+  buildWalletDeepLink: (wallet?: WalletTarget) => string | null;
   /** Whether a retry/reset operation is in progress */
   isRetrying: boolean;
 }
+
+// ─── Wallet Registry ─────────────────────────────────────────────────────────
+//
+// Static registry of popular wallets with their deep link patterns.
+// Android: generic `wc:` scheme triggers OS app chooser (ideal).
+// iOS: must use wallet-specific universal links (iOS doesn't have scheme chooser).
+
+export const WALLET_REGISTRY: Record<WalletTarget, WalletDeepLinkInfo> = {
+  generic: {
+    label: 'Open Wallet App',
+    shortLabel: 'Wallet',
+    iconUrl: '', // Uses a generic wallet icon in UI
+    buildUrl: (wcUri, os) => {
+      const encoded = encodeURIComponent(wcUri);
+      if (os === 'android') {
+        // Android intent with wc: scheme — NO package restriction.
+        // This triggers the OS app chooser showing ALL installed wallets
+        // that registered the wc:// scheme (MetaMask, Trust, Coinbase, etc.)
+        return `intent://wc?uri=${encoded}#Intent;scheme=wc;end`;
+      }
+      if (os === 'ios') {
+        // iOS: raw wc: URI. iOS will check if any app handles it,
+        // but this is less reliable than universal links.
+        // UI should prefer showing specific wallet buttons on iOS.
+        return `wc:${wcUri.replace(/^wc:/, '')}`;
+      }
+      return null; // Desktop uses QR code
+    },
+  },
+  metamask: {
+    label: 'MetaMask',
+    shortLabel: 'MetaMask',
+    iconUrl: 'https://registry.walletconnect.com/api/v1/logo/md/c57ca95b47569778a828d19178114f4db188b89b763c899ba0be274e97267d96',
+    buildUrl: (wcUri, os) => {
+      const encoded = encodeURIComponent(wcUri);
+      if (os === 'android') {
+        return `intent://wc?uri=${encoded}#Intent;scheme=wc;package=io.metamask;S.browser_fallback_url=${encodeURIComponent('https://play.google.com/store/apps/details?id=io.metamask')};end`;
+      }
+      if (os === 'ios') {
+        return `https://metamask.app.link/wc?uri=${encoded}`;
+      }
+      return null;
+    },
+  },
+  trust: {
+    label: 'Trust Wallet',
+    shortLabel: 'Trust',
+    iconUrl: 'https://registry.walletconnect.com/api/v1/logo/md/4622a2b2d6af1c9844944291e5e7351a6aa24cd7b23099efac1b2fd875da31a0',
+    buildUrl: (wcUri, os) => {
+      const encoded = encodeURIComponent(wcUri);
+      if (os === 'android') {
+        return `intent://wc?uri=${encoded}#Intent;scheme=wc;package=com.wallet.crypto.trustapp;S.browser_fallback_url=${encodeURIComponent('https://play.google.com/store/apps/details?id=com.wallet.crypto.trustapp')};end`;
+      }
+      if (os === 'ios') {
+        return `https://link.trustwallet.com/wc?uri=${encoded}`;
+      }
+      return null;
+    },
+  },
+  coinbase: {
+    label: 'Coinbase Wallet',
+    shortLabel: 'Coinbase',
+    iconUrl: 'https://registry.walletconnect.com/api/v1/logo/md/fd20dc426fb37566d803205b19bbc1d4096b248ac04548e18e75ee6b23ab0b24',
+    buildUrl: (wcUri, os) => {
+      const encoded = encodeURIComponent(wcUri);
+      if (os === 'android') {
+        return `intent://wc?uri=${encoded}#Intent;scheme=wc;package=org.toshi;S.browser_fallback_url=${encodeURIComponent('https://play.google.com/store/apps/details?id=org.toshi')};end`;
+      }
+      if (os === 'ios') {
+        return `https://go.cb-w.com/wc?uri=${encoded}`;
+      }
+      return null;
+    },
+  },
+  rainbow: {
+    label: 'Rainbow',
+    shortLabel: 'Rainbow',
+    iconUrl: 'https://registry.walletconnect.com/api/v1/logo/md/1ae92b26df02f0abca6304df07debccd18262fdf5fe82daa81593582dac9a369',
+    buildUrl: (wcUri, os) => {
+      const encoded = encodeURIComponent(wcUri);
+      if (os === 'android') {
+        return `intent://wc?uri=${encoded}#Intent;scheme=wc;package=me.rainbow;S.browser_fallback_url=${encodeURIComponent('https://play.google.com/store/apps/details?id=me.rainbow')};end`;
+      }
+      if (os === 'ios') {
+        return `https://rnbwapp.com/wc?uri=${encoded}`;
+      }
+      return null;
+    },
+  },
+};
+
+/** Ordered list of wallets to show in iOS picker (iOS needs specific universal links) */
+export const IOS_WALLET_ORDER: WalletTarget[] = ['metamask', 'trust', 'coinbase', 'rainbow'];
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -94,7 +201,6 @@ export function useWalletOrchestrator(): OrchestratorResult {
     return () => {
       mountedRef.current = false;
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
-      // Clean up the URI listener on unmount
       detachUriListener();
     };
   }, []);
@@ -208,10 +314,8 @@ export function useWalletOrchestrator(): OrchestratorResult {
     if (preferredMethod) {
       chosenMethod = preferredMethod;
     } else if (browserContext.context === 'wallet_inapp' && browserContext.injectedEthereumAvailable) {
-      // Inside a wallet browser → use injected provider (no WalletConnect needed)
       chosenMethod = 'injected';
     } else {
-      // System browser: check for injected first (desktop), else WalletConnect
       const hasInjected = browserContext.injectedEthereumAvailable;
       if (hasInjected && !browserContext.isMobile) {
         chosenMethod = 'injected';
@@ -251,18 +355,11 @@ export function useWalletOrchestrator(): OrchestratorResult {
 
     try {
       // For WalletConnect: register URI listener BEFORE calling connect().
-      //
-      // CRITICAL FIX: The `display_uri` event can fire synchronously during
-      // connect(), so the listener MUST be attached first. We use a named
-      // handler stored in a ref so we can cleanly remove it later without
-      // nuking other listeners.
       if (chosenMethod === 'walletconnect') {
         try {
           const provider = await (connector as any).getProvider?.();
           if (provider?.on) {
             providerRef.current = provider;
-
-            // Create a named handler for this attempt
             const handler = (uri: string) => {
               if (mountedRef.current) {
                 log('wc_uri_captured', { hasUri: !!uri, uriLength: uri?.length });
@@ -303,14 +400,10 @@ export function useWalletOrchestrator(): OrchestratorResult {
         },
       });
 
-      // For injected: awaiting user approval in wallet popup
       if (chosenMethod === 'injected') {
         setState('awaiting_wallet');
       }
 
-      // Timeout for WalletConnect flows:
-      // After timeout, show recovery options but DON'T kill the connection —
-      // the wallet app might still complete the handshake.
       if (chosenMethod === 'walletconnect') {
         timeoutRef.current = setTimeout(() => {
           if (mountedRef.current && stateRef.current !== 'connected' && stateRef.current !== 'idle') {
@@ -335,16 +428,12 @@ export function useWalletOrchestrator(): OrchestratorResult {
     setIsRetrying(true);
 
     if (timeoutRef.current) clearTimeout(timeoutRef.current);
-
-    // Clean up URI listener
     detachUriListener();
 
-    // Disconnect at both wagmi level AND WC provider level
     try { disconnect(); } catch {}
     await disconnectWcProvider();
     await new Promise(r => setTimeout(r, 100));
 
-    // Clear stale storage
     cleanupWcStorage();
     await new Promise(r => setTimeout(r, 200));
 
@@ -369,40 +458,22 @@ export function useWalletOrchestrator(): OrchestratorResult {
 
   /**
    * Build wallet deep link URL.
+   *
    * MUST be called from a button onClick handler (user gesture).
    *
-   * For MetaMask on Android: uses intent:// with S.browser_fallback_url
-   * pointing to Play Store, so if MetaMask isn't installed the user gets
-   * redirected to install it instead of a silent failure.
+   * - `'generic'` (default): On Android, uses `wc:` scheme with no package
+   *   restriction — triggers OS app chooser showing ALL installed WC wallets.
+   *   On iOS, uses the raw `wc:` URI.
+   *
+   * - Specific wallet (e.g. 'metamask'): Uses wallet-specific deep link /
+   *   universal link. On Android, includes `S.browser_fallback_url` pointing
+   *   to Play Store if the wallet isn't installed.
    */
-  const buildWalletDeepLink = useCallback((wallet: 'metamask' | 'trust' | 'coinbase' = 'metamask'): string | null => {
+  const buildWalletDeepLink = useCallback((wallet: WalletTarget = 'generic'): string | null => {
     if (!wcUri) return null;
-    const encoded = encodeURIComponent(wcUri);
-
-    if (wallet === 'metamask') {
-      if (browserContext.os === 'android') {
-        // Android intent with Play Store fallback if MetaMask not installed
-        return `intent://wc?uri=${encoded}#Intent;scheme=wc;package=io.metamask;S.browser_fallback_url=${encodeURIComponent('https://play.google.com/store/apps/details?id=io.metamask')};end`;
-      }
-      // iOS universal link
-      return `https://metamask.app.link/wc?uri=${encoded}`;
-    }
-
-    if (wallet === 'trust') {
-      if (browserContext.os === 'android') {
-        return `intent://wc?uri=${encoded}#Intent;scheme=wc;package=com.wallet.crypto.trustapp;S.browser_fallback_url=${encodeURIComponent('https://play.google.com/store/apps/details?id=com.wallet.crypto.trustapp')};end`;
-      }
-      return `https://link.trustwallet.com/wc?uri=${encoded}`;
-    }
-
-    if (wallet === 'coinbase') {
-      if (browserContext.os === 'android') {
-        return `intent://wc?uri=${encoded}#Intent;scheme=wc;package=org.toshi;S.browser_fallback_url=${encodeURIComponent('https://play.google.com/store/apps/details?id=org.toshi')};end`;
-      }
-      return `https://go.cb-w.com/wc?uri=${encoded}`;
-    }
-
-    return null;
+    const info = WALLET_REGISTRY[wallet];
+    if (!info) return null;
+    return info.buildUrl(wcUri, browserContext.os);
   }, [wcUri, browserContext.os]);
 
   return {
