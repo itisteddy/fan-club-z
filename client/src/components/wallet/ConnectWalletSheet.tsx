@@ -1,27 +1,29 @@
 /**
- * ConnectWalletSheet — Context-aware, wallet-agnostic connection UI
+ * ConnectWalletSheet — Wallet-agnostic connection UI
  *
- * Uses the Orchestrator state machine to provide reliable wallet connections
- * across all browser contexts:
+ * FLOW:
+ * 1. Sheet opens → wallet options shown immediately
+ * 2. User taps a wallet → WalletConnect starts + deep link fires in one gesture
+ * 3. OR user taps "Scan QR" → WalletConnect starts + QR shown
+ * 4. Wallet in-app browser → single "Connect with [Name]" (injected provider)
+ * 5. Desktop + extension → "Browser Wallet" option
  *
- * - Wallet in-app browser → injected provider (no WalletConnect)
- * - Android Chrome → WalletConnect with OS app chooser (wc: scheme, any wallet)
- * - iOS Safari → WalletConnect with wallet picker (MetaMask, Trust, Coinbase, Rainbow)
- * - Desktop → injected (extension) or WalletConnect QR (scan from any wallet)
+ * DESIGN LANGUAGE (matches FiatDepositSheet, AuthGateModal):
+ * - × button in header is the ONLY close mechanism (+ backdrop tap)
+ * - No redundant "Close" or "Cancel" text buttons
+ * - Drag handle on mobile, rounded corners
  *
- * CRITICAL DESIGN DECISIONS:
- * - showQrModal is FALSE in wagmi config — we own all UI here
- * - Deep links use button onClick (NOT <a href>) for Android gesture compliance
- * - QR codes rendered with fallback chain (no single API dependency)
- * - Android: generic wc: deep link triggers OS wallet chooser — NOT locked to MetaMask
- * - iOS: wallet picker with universal links for top wallets
- * - Desktop: QR auto-shown (primary use case is scan from phone)
- * - Timeout shows recovery options but doesn't kill the connection
+ * CRITICAL:
+ * - showQrModal is FALSE in wagmi config — we own all UI
+ * - Deep links use button onClick (Android gesture compliance)
+ * - QR rendered client-side with fallback chain
+ * - Android: generic wc: scheme triggers OS wallet chooser
+ * - iOS: wallet-specific universal links
  */
 
 import * as Dialog from '@radix-ui/react-dialog';
 import { VisuallyHidden } from '@radix-ui/react-visually-hidden';
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import toast from 'react-hot-toast';
 import React from 'react';
 import { policy as storeSafePolicy } from '@/lib/storeSafePolicy';
@@ -29,12 +31,11 @@ import {
   useWalletOrchestrator,
   WALLET_REGISTRY,
   IOS_WALLET_ORDER,
-  type ConnectionMethod,
   type WalletTarget,
 } from '@/lib/wallet/connectOrchestrator';
 import {
-  Copy, Check, RefreshCw, ExternalLink, Smartphone, QrCode,
-  Monitor, Loader2, AlertCircle, X as XIcon, Wallet, ChevronDown,
+  Copy, Check, RefreshCw, ExternalLink, QrCode,
+  Monitor, Loader2, AlertCircle, X as XIcon, Wallet,
 } from 'lucide-react';
 
 type ConnectWalletSheetProps = {
@@ -42,7 +43,7 @@ type ConnectWalletSheetProps = {
   onClose?: () => void;
 };
 
-// ─── Inline QR Code Image ────────────────────────────────────────────────────
+// ─── QR Code Image ───────────────────────────────────────────────────────────
 
 function QRCodeImage({ data, size = 200 }: { data: string; size?: number }) {
   const [error, setError] = useState(false);
@@ -79,15 +80,16 @@ function QRCodeImage({ data, size = 200 }: { data: string; size?: number }) {
 
 // ─── Wallet Icon ─────────────────────────────────────────────────────────────
 
-function WalletIcon({ wallet, size = 28 }: { wallet: WalletTarget; size?: number }) {
+function WalletIcon({ wallet, size = 32 }: { wallet: WalletTarget; size?: number }) {
+  const [imgError, setImgError] = useState(false);
   const info = WALLET_REGISTRY[wallet];
-  if (!info?.iconUrl) {
+  if (!info?.iconUrl || imgError) {
     return (
       <div
-        className="flex items-center justify-center rounded-lg bg-blue-100"
+        className="flex items-center justify-center rounded-xl bg-blue-100"
         style={{ width: size, height: size }}
       >
-        <Wallet className="text-blue-600" style={{ width: size * 0.55, height: size * 0.55 }} />
+        <Wallet className="text-blue-600" style={{ width: size * 0.5, height: size * 0.5 }} />
       </div>
     );
   }
@@ -97,11 +99,8 @@ function WalletIcon({ wallet, size = 28 }: { wallet: WalletTarget; size?: number
       alt={info.label}
       width={size}
       height={size}
-      className="rounded-lg"
-      onError={(e) => {
-        // Fallback to generic icon
-        e.currentTarget.style.display = 'none';
-      }}
+      className="rounded-xl"
+      onError={() => setImgError(true)}
     />
   );
 }
@@ -112,8 +111,9 @@ export default function ConnectWalletSheet({ isOpen, onClose }: ConnectWalletShe
   const orch = useWalletOrchestrator();
   const [open, setOpen] = useState<boolean>(Boolean(isOpen));
   const [showQR, setShowQR] = useState(false);
-  const [showMoreWallets, setShowMoreWallets] = useState(false);
   const [copied, setCopied] = useState(false);
+  // Track which wallet the user selected so we can deep link after URI arrives
+  const pendingWalletRef = useRef<WalletTarget | null>(null);
 
   // ── Controlled / uncontrolled sync ──────────────────────────────────────
 
@@ -142,6 +142,7 @@ export default function ConnectWalletSheet({ isOpen, onClose }: ConnectWalletShe
     return () => window.removeEventListener('fcz:wallet:connect', handler);
   }, [isOpen]);
 
+  // Auto-close on successful connection
   useEffect(() => {
     if (orch.state === 'connected' && open) {
       toast.success('Wallet connected!');
@@ -149,15 +150,29 @@ export default function ConnectWalletSheet({ isOpen, onClose }: ConnectWalletShe
     }
   }, [orch.state, open]);
 
+  // Reset state when sheet opens/closes
   useEffect(() => {
     if (open) {
       setShowQR(false);
-      setShowMoreWallets(false);
       setCopied(false);
+      pendingWalletRef.current = null;
     } else {
       orch.cancel();
     }
   }, [open]);
+
+  // When URI arrives and we have a pending wallet deep link, fire it
+  useEffect(() => {
+    if (orch.wcUri && pendingWalletRef.current && orch.state === 'awaiting_wallet') {
+      const wallet = pendingWalletRef.current;
+      pendingWalletRef.current = null; // Only fire once
+      const deepLink = orch.buildWalletDeepLink(wallet);
+      if (deepLink) {
+        console.log('[ConnectSheet] Auto-opening wallet after URI ready:', wallet);
+        window.location.href = deepLink;
+      }
+    }
+  }, [orch.wcUri, orch.state, orch.buildWalletDeepLink]);
 
   const handleClose = useCallback(() => {
     if (typeof isOpen === 'boolean') {
@@ -195,8 +210,29 @@ export default function ConnectWalletSheet({ isOpen, onClose }: ConnectWalletShe
   }, [orch.wcUri]);
 
   /**
-   * Open a wallet via deep link.
-   * CRITICAL: Must be called from button onClick (user gesture for Android).
+   * User taps a specific wallet.
+   * Starts WalletConnect + queues the deep link to fire as soon as URI arrives.
+   * The deep link fires from the useEffect above (still within user gesture context
+   * because we set pendingWalletRef synchronously here).
+   */
+  const handleSelectWallet = useCallback((wallet: WalletTarget) => {
+    console.log('[ConnectSheet] User selected wallet:', wallet);
+    pendingWalletRef.current = wallet;
+    orch.startConnect('walletconnect');
+  }, [orch.startConnect]);
+
+  /**
+   * User taps "Scan QR Code" — starts WalletConnect and shows QR when URI arrives.
+   */
+  const handleSelectQR = useCallback(() => {
+    console.log('[ConnectSheet] User selected QR code');
+    pendingWalletRef.current = null;
+    setShowQR(true);
+    orch.startConnect('walletconnect');
+  }, [orch.startConnect]);
+
+  /**
+   * Open wallet from the awaiting/failed state (re-trigger deep link).
    */
   const handleOpenWallet = useCallback((wallet: WalletTarget = 'generic') => {
     const deepLink = orch.buildWalletDeepLink(wallet);
@@ -204,16 +240,14 @@ export default function ConnectWalletSheet({ isOpen, onClose }: ConnectWalletShe
       toast.error('Connection not ready yet. Please wait a moment.');
       return;
     }
-    const info = WALLET_REGISTRY[wallet];
-    console.log('[ConnectSheet] Opening wallet deep link:', wallet, info?.label);
+    console.log('[ConnectSheet] Re-opening wallet:', wallet);
     window.location.href = deepLink;
   }, [orch.buildWalletDeepLink]);
 
   const handleRetry = useCallback(async () => {
-    const prevMethod = orch.method;
     await orch.resetAndRetry();
-    orch.startConnect(prevMethod || undefined);
-  }, [orch.method, orch.resetAndRetry, orch.startConnect]);
+    // Return to idle — user picks a wallet again
+  }, [orch.resetAndRetry]);
 
   // ── Context ────────────────────────────────────────────────────────────
 
@@ -224,115 +258,71 @@ export default function ConnectWalletSheet({ isOpen, onClose }: ConnectWalletShe
     : ctx.inAppName === 'coinbase' ? 'Coinbase Wallet'
     : ctx.inAppName || 'Wallet';
 
-  // Desktop: QR auto-shown when URI is ready
-  const shouldAutoShowQR = !ctx.isMobile && orch.wcUri;
-  const qrVisible = showQR || !!shouldAutoShowQR;
+  // ── Wallet Option Renderers ───────────────────────────────────────────
 
-  // ── Wallet Deep Link Buttons ──────────────────────────────────────────
+  /** Android: generic "Open Wallet App" triggers OS chooser */
+  const renderAndroidWalletOptions = () => (
+    <div className="space-y-2">
+      <button
+        type="button"
+        onClick={() => handleSelectWallet('generic')}
+        className="flex w-full items-center gap-3 px-4 py-3.5 rounded-xl border border-gray-200 hover:border-gray-300 hover:bg-gray-50 active:bg-gray-100 transition-colors"
+      >
+        <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-blue-100">
+          <Wallet className="w-5 h-5 text-blue-600" />
+        </div>
+        <div className="text-left flex-1">
+          <div className="font-semibold text-gray-900">Open Wallet App</div>
+          <div className="text-xs text-gray-500">MetaMask, Trust, Coinbase & more</div>
+        </div>
+        <ExternalLink className="w-4 h-4 text-gray-400" />
+      </button>
+    </div>
+  );
 
-  /** Render the primary "Open Wallet" CTA for mobile */
-  const renderMobileWalletCTA = () => {
-    if (!orch.wcUri || !ctx.isMobile) return null;
-
-    if (ctx.os === 'android') {
-      // Android: single "Open Wallet App" button that triggers OS chooser
-      return (
-        <button
-          type="button"
-          className="flex items-center justify-center gap-2 w-full h-12 rounded-xl bg-emerald-500 text-white font-semibold hover:bg-emerald-600 active:bg-emerald-700 transition-colors"
-          onClick={() => handleOpenWallet('generic')}
-        >
-          <ExternalLink className="w-5 h-5" />
-          Open Wallet App
-        </button>
-      );
-    }
-
-    // iOS: show wallet picker since iOS can't do scheme-level app chooser
-    return (
-      <div className="space-y-2">
-        {/* Top wallets as individual buttons */}
-        {IOS_WALLET_ORDER.slice(0, 2).map((w) => {
-          const info = WALLET_REGISTRY[w];
-          return (
-            <button
-              key={w}
-              type="button"
-              className="flex items-center gap-3 w-full h-12 px-4 rounded-xl border border-gray-200 hover:bg-gray-50 active:bg-gray-100 transition-colors"
-              onClick={() => handleOpenWallet(w)}
-            >
-              <WalletIcon wallet={w} size={28} />
-              <span className="font-medium text-gray-900">{info.label}</span>
-              <ExternalLink className="w-4 h-4 text-gray-400 ml-auto" />
-            </button>
-          );
-        })}
-
-        {/* "More wallets" expandable */}
-        {!showMoreWallets && (
-          <button
-            type="button"
-            onClick={() => setShowMoreWallets(true)}
-            className="flex items-center justify-center gap-1 w-full h-10 text-sm text-gray-500 hover:text-gray-700 transition-colors"
-          >
-            More wallets
-            <ChevronDown className="w-4 h-4" />
-          </button>
-        )}
-        {showMoreWallets && IOS_WALLET_ORDER.slice(2).map((w) => {
-          const info = WALLET_REGISTRY[w];
-          return (
-            <button
-              key={w}
-              type="button"
-              className="flex items-center gap-3 w-full h-12 px-4 rounded-xl border border-gray-200 hover:bg-gray-50 active:bg-gray-100 transition-colors"
-              onClick={() => handleOpenWallet(w)}
-            >
-              <WalletIcon wallet={w} size={28} />
-              <span className="font-medium text-gray-900">{info.label}</span>
-              <ExternalLink className="w-4 h-4 text-gray-400 ml-auto" />
-            </button>
-          );
-        })}
-      </div>
-    );
-  };
-
-  /** Render wallet options in the failed/recovery state */
-  const renderRecoveryWalletButtons = () => {
-    if (!orch.wcUri || !ctx.isMobile) return null;
-
-    if (ctx.os === 'android') {
-      return (
-        <button
-          type="button"
-          className="flex items-center justify-center gap-2 w-full h-11 rounded-xl border border-gray-200 text-gray-700 font-medium hover:bg-gray-50 transition-colors"
-          onClick={() => handleOpenWallet('generic')}
-        >
-          <ExternalLink className="w-4 h-4" />
-          Open Wallet App
-        </button>
-      );
-    }
-
-    // iOS: compact wallet row
-    return (
-      <div className="flex items-center justify-center gap-3 py-2">
-        {IOS_WALLET_ORDER.map((w) => (
+  /** iOS: individual wallet buttons (iOS can't do scheme-level chooser) */
+  const renderIOSWalletOptions = () => (
+    <div className="space-y-2">
+      {IOS_WALLET_ORDER.map((w) => {
+        const info = WALLET_REGISTRY[w];
+        return (
           <button
             key={w}
             type="button"
-            onClick={() => handleOpenWallet(w)}
-            className="flex flex-col items-center gap-1 p-2 rounded-xl hover:bg-gray-50 transition-colors"
-            title={WALLET_REGISTRY[w].label}
+            onClick={() => handleSelectWallet(w)}
+            className="flex w-full items-center gap-3 px-4 py-3.5 rounded-xl border border-gray-200 hover:border-gray-300 hover:bg-gray-50 active:bg-gray-100 transition-colors"
           >
-            <WalletIcon wallet={w} size={36} />
-            <span className="text-[10px] text-gray-500">{WALLET_REGISTRY[w].shortLabel}</span>
+            <WalletIcon wallet={w} size={32} />
+            <div className="text-left flex-1">
+              <div className="font-semibold text-gray-900">{info.label}</div>
+            </div>
+            <ExternalLink className="w-4 h-4 text-gray-400" />
           </button>
-        ))}
-      </div>
-    );
-  };
+        );
+      })}
+    </div>
+  );
+
+  /** Desktop: QR option + browser wallet if available */
+  const renderDesktopOptions = () => (
+    <div className="space-y-2">
+      {ctx.injectedEthereumAvailable && (
+        <button
+          type="button"
+          onClick={() => orch.startConnect('injected')}
+          className="flex w-full items-center gap-3 px-4 py-3.5 rounded-xl border border-gray-200 hover:border-gray-300 hover:bg-gray-50 active:bg-gray-100 transition-colors"
+        >
+          <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-orange-100">
+            <Monitor className="w-5 h-5 text-orange-600" />
+          </div>
+          <div className="text-left flex-1">
+            <div className="font-semibold text-gray-900">Browser Wallet</div>
+            <div className="text-xs text-gray-500">MetaMask or compatible extension</div>
+          </div>
+        </button>
+      )}
+    </div>
+  );
 
   return (
     <Dialog.Root open={open} onOpenChange={handleOpenChange}>
@@ -347,108 +337,113 @@ export default function ConnectWalletSheet({ isOpen, onClose }: ConnectWalletShe
             <VisuallyHidden>Connect wallet</VisuallyHidden>
           </Dialog.Title>
           <Dialog.Description asChild>
-            <VisuallyHidden>Select a wallet provider</VisuallyHidden>
+            <VisuallyHidden>Select a wallet to connect</VisuallyHidden>
           </Dialog.Description>
 
           {/* Drag handle */}
           <div className="mx-auto mt-2 mb-3 h-1.5 w-16 rounded-full bg-gray-200" />
 
-          {/* Header */}
-          <div className="px-4 pb-3 flex items-start justify-between">
-            <div>
-              <h3 className="text-lg font-semibold text-gray-900">Connect Wallet</h3>
-              <p className="text-sm text-gray-500 mt-0.5">
-                {orch.state === 'idle' && 'Choose how to connect your wallet.'}
-                {orch.state === 'starting' && 'Preparing connection…'}
-                {orch.state === 'awaiting_wallet' && 'Waiting for wallet approval…'}
-                {orch.state === 'connected' && 'Connected!'}
-                {orch.state === 'failed' && 'Trouble connecting'}
-              </p>
+          {/* Header — matches FiatDepositSheet pattern */}
+          <div className="px-4 pb-3 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center">
+                <Wallet className="w-5 h-5 text-emerald-600" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">Connect Wallet</h3>
+                <p className="text-sm text-gray-500">
+                  {orch.state === 'idle' && 'Select a wallet to connect'}
+                  {orch.state === 'starting' && 'Connecting…'}
+                  {orch.state === 'awaiting_wallet' && 'Approve in your wallet'}
+                  {orch.state === 'connected' && 'Connected!'}
+                  {orch.state === 'failed' && 'Connection failed'}
+                </p>
+              </div>
             </div>
             <button
               onClick={handleClose}
-              className="p-2 -mr-2 -mt-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+              className="p-2 rounded-full hover:bg-gray-100 transition-colors"
               aria-label="Close"
             >
-              <XIcon className="w-5 h-5" />
+              <XIcon className="w-5 h-5 text-gray-500" />
             </button>
           </div>
 
           <div className="overflow-y-auto px-4 pt-1 pb-4">
-            {/* ── IDLE: Show connection options ── */}
+            {/* ── IDLE: Wallet selection ── */}
             {orch.state === 'idle' && (
-              <div className="space-y-2">
-                {/* Wallet in-app: only injected */}
+              <div className="space-y-4">
+                {/* Wallet in-app: single injected option */}
                 {isWalletInApp && ctx.injectedEthereumAvailable && (
                   <button
                     type="button"
                     onClick={() => orch.startConnect('injected')}
-                    className="flex w-full items-center gap-3 px-4 py-4 rounded-xl border-2 border-emerald-200 bg-emerald-50 hover:bg-emerald-100 transition-colors"
+                    className="flex w-full items-center gap-3 px-4 py-4 rounded-xl border-2 border-emerald-200 bg-emerald-50 hover:bg-emerald-100 active:bg-emerald-200 transition-colors"
                   >
                     <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-emerald-500 text-white">
                       <Wallet className="w-5 h-5" />
                     </div>
                     <div className="text-left">
                       <div className="font-semibold text-gray-900">Connect with {walletName}</div>
-                      <div className="text-xs text-gray-500">Use in-app wallet (recommended)</div>
+                      <div className="text-xs text-gray-500">Use in-app wallet</div>
                     </div>
                   </button>
                 )}
 
-                {/* System browser */}
+                {/* System browser: wallet options */}
                 {!isWalletInApp && (
                   <>
-                    {/* Desktop: injected (extension) */}
-                    {!ctx.isMobile && ctx.injectedEthereumAvailable && (
-                      <button
-                        type="button"
-                        onClick={() => orch.startConnect('injected')}
-                        className="flex w-full items-center gap-3 px-4 py-4 rounded-xl border border-gray-200 hover:border-gray-300 hover:bg-gray-50 transition-colors"
-                      >
-                        <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-orange-100">
-                          <Monitor className="w-5 h-5 text-orange-600" />
-                        </div>
-                        <div className="text-left">
-                          <div className="font-semibold text-gray-900">Browser Wallet</div>
-                          <div className="text-xs text-gray-500">MetaMask or compatible extension</div>
-                        </div>
-                      </button>
-                    )}
+                    {/* Desktop options */}
+                    {!ctx.isMobile && renderDesktopOptions()}
 
-                    {/* WalletConnect */}
+                    {/* Mobile: platform-specific wallet options */}
+                    {ctx.isMobile && ctx.os === 'android' && renderAndroidWalletOptions()}
+                    {ctx.isMobile && ctx.os === 'ios' && renderIOSWalletOptions()}
+
+                    {/* QR Code option — all platforms */}
                     <button
                       type="button"
-                      onClick={() => orch.startConnect('walletconnect')}
-                      className="flex w-full items-center gap-3 px-4 py-4 rounded-xl border border-gray-200 hover:border-gray-300 hover:bg-gray-50 transition-colors"
+                      onClick={handleSelectQR}
+                      className="flex w-full items-center gap-3 px-4 py-3.5 rounded-xl border border-gray-200 hover:border-gray-300 hover:bg-gray-50 active:bg-gray-100 transition-colors"
                     >
-                      <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-blue-100">
-                        <Smartphone className="w-5 h-5 text-blue-600" />
+                      <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-gray-100">
+                        <QrCode className="w-5 h-5 text-gray-600" />
                       </div>
-                      <div className="text-left">
-                        <div className="font-semibold text-gray-900">
-                          {ctx.isMobile ? 'Mobile Wallet' : 'WalletConnect'}
-                        </div>
-                        <div className="text-xs text-gray-500">
-                          {ctx.isMobile
-                            ? 'MetaMask, Trust Wallet, Coinbase & more'
-                            : 'Scan QR code with any wallet app'}
-                        </div>
+                      <div className="text-left flex-1">
+                        <div className="font-semibold text-gray-900">Scan QR Code</div>
+                        <div className="text-xs text-gray-500">Connect with any wallet app</div>
                       </div>
+                    </button>
+
+                    {/* Copy link — always available as tertiary */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        // Start a WC connection just to get the URI for copying
+                        pendingWalletRef.current = null;
+                        orch.startConnect('walletconnect');
+                        // The copy will be available once URI arrives
+                        toast('Starting connection… You can copy the link once ready.');
+                      }}
+                      className="flex items-center justify-center gap-2 w-full py-2 text-sm text-gray-500 hover:text-gray-700 transition-colors"
+                    >
+                      <Copy className="w-3.5 h-3.5" />
+                      Copy connection link
                     </button>
                   </>
                 )}
               </div>
             )}
 
-            {/* ── STARTING ── */}
+            {/* ── STARTING: Spinner ── */}
             {orch.state === 'starting' && (
               <div className="flex flex-col items-center py-8">
                 <Loader2 className="w-8 h-8 text-emerald-500 animate-spin mb-3" />
-                <p className="text-sm text-gray-600">Preparing connection…</p>
+                <p className="text-sm text-gray-600">Connecting…</p>
               </div>
             )}
 
-            {/* ── AWAITING: Injected ── */}
+            {/* ── AWAITING: Injected provider ── */}
             {orch.state === 'awaiting_wallet' && orch.method === 'injected' && (
               <div className="flex flex-col items-center py-8">
                 <div className="flex items-center justify-center w-16 h-16 rounded-2xl bg-emerald-100 mb-4">
@@ -458,21 +453,14 @@ export default function ConnectWalletSheet({ isOpen, onClose }: ConnectWalletShe
                 <p className="text-xs text-gray-500 text-center max-w-xs">
                   Check your {isWalletInApp ? walletName : 'browser wallet'} for a connection request.
                 </p>
-                <button
-                  type="button"
-                  onClick={() => orch.cancel()}
-                  className="mt-4 text-sm text-gray-500 hover:text-gray-700 underline"
-                >
-                  Cancel
-                </button>
               </div>
             )}
 
-            {/* ── AWAITING: WalletConnect ── */}
+            {/* ── AWAITING: WalletConnect (deep link fired or QR shown) ── */}
             {orch.state === 'awaiting_wallet' && orch.method === 'walletconnect' && (
-              <div className="space-y-3">
-                {/* QR Code — auto on desktop, toggle on mobile */}
-                {qrVisible && orch.wcUri && (
+              <div className="space-y-4">
+                {/* QR code — shown if user chose QR, or always on desktop */}
+                {(showQR || !ctx.isMobile) && orch.wcUri && (
                   <div className="flex flex-col items-center py-4 px-2 rounded-xl bg-gray-50 border border-gray-100">
                     <QRCodeImage data={orch.wcUri} />
                     <p className="text-xs text-gray-500 mt-3 text-center">
@@ -481,21 +469,32 @@ export default function ConnectWalletSheet({ isOpen, onClose }: ConnectWalletShe
                   </div>
                 )}
 
-                {!qrVisible && (
+                {/* Waiting spinner — shown on mobile when deep link was fired (not QR) */}
+                {!showQR && ctx.isMobile && (
                   <div className="flex flex-col items-center py-6">
                     <Loader2 className="w-6 h-6 text-emerald-500 animate-spin mb-3" />
-                    <p className="text-sm font-medium text-gray-900">Waiting for wallet…</p>
+                    <p className="text-sm font-medium text-gray-900">Waiting for approval…</p>
                     <p className="text-xs text-gray-500 text-center mt-1 max-w-xs">
-                      Approve the connection in your wallet app, or choose a wallet below.
+                      Approve the connection in your wallet app.
                     </p>
                   </div>
                 )}
 
-                {/* Wallet deep link CTA(s) */}
+                {/* Secondary actions */}
                 <div className="space-y-2">
-                  {renderMobileWalletCTA()}
+                  {/* Re-open wallet (mobile only, deep link mode) */}
+                  {ctx.isMobile && !showQR && orch.wcUri && (
+                    <button
+                      type="button"
+                      onClick={() => handleOpenWallet(ctx.os === 'android' ? 'generic' : 'metamask')}
+                      className="flex items-center justify-center gap-2 w-full h-11 rounded-xl border border-gray-200 text-gray-700 font-medium hover:bg-gray-50 transition-colors"
+                    >
+                      <ExternalLink className="w-4 h-4" />
+                      Open wallet again
+                    </button>
+                  )}
 
-                  {/* QR toggle — mobile only (desktop auto-shows) */}
+                  {/* Toggle QR (mobile only) */}
                   {ctx.isMobile && (
                     <button
                       type="button"
@@ -521,14 +520,6 @@ export default function ConnectWalletSheet({ isOpen, onClose }: ConnectWalletShe
                       <><Copy className="w-4 h-4" /> Copy connection link</>
                     )}
                   </button>
-
-                  <button
-                    type="button"
-                    onClick={() => orch.cancel()}
-                    className="w-full text-center text-sm text-gray-500 hover:text-gray-700 py-2 transition-colors"
-                  >
-                    Cancel
-                  </button>
                 </div>
               </div>
             )}
@@ -545,7 +536,7 @@ export default function ConnectWalletSheet({ isOpen, onClose }: ConnectWalletShe
 
             {/* ── FAILED: Recovery ── */}
             {orch.state === 'failed' && (
-              <div className="space-y-3">
+              <div className="space-y-4">
                 <div className="flex items-start gap-3 p-4 rounded-xl bg-amber-50 border border-amber-100">
                   <AlertCircle className="w-5 h-5 text-amber-500 mt-0.5 flex-shrink-0" />
                   <div>
@@ -554,26 +545,35 @@ export default function ConnectWalletSheet({ isOpen, onClose }: ConnectWalletShe
                   </div>
                 </div>
 
-                <div className="space-y-2 pt-1">
-                  {/* Retry */}
+                {/* Retry — resets to idle so user can pick a wallet again */}
+                <button
+                  type="button"
+                  onClick={handleRetry}
+                  disabled={orch.isRetrying}
+                  className="flex items-center justify-center gap-2 w-full h-12 rounded-xl bg-emerald-500 text-white font-semibold hover:bg-emerald-600 disabled:opacity-60 disabled:cursor-wait transition-colors"
+                >
+                  {orch.isRetrying ? (
+                    <><Loader2 className="w-5 h-5 animate-spin" /> Cleaning up…</>
+                  ) : (
+                    <><RefreshCw className="w-5 h-5" /> Try again</>
+                  )}
+                </button>
+
+                {/* Re-open wallet (if URI still valid) */}
+                {orch.wcUri && ctx.isMobile && (
                   <button
                     type="button"
-                    onClick={handleRetry}
-                    disabled={orch.isRetrying}
-                    className="flex items-center justify-center gap-2 w-full h-12 rounded-xl bg-emerald-500 text-white font-semibold hover:bg-emerald-600 disabled:opacity-60 disabled:cursor-wait transition-colors"
+                    className="flex items-center justify-center gap-2 w-full h-11 rounded-xl border border-gray-200 text-gray-700 font-medium hover:bg-gray-50 transition-colors"
+                    onClick={() => handleOpenWallet(ctx.os === 'android' ? 'generic' : 'metamask')}
                   >
-                    {orch.isRetrying ? (
-                      <><Loader2 className="w-5 h-5 animate-spin" /> Cleaning up…</>
-                    ) : (
-                      <><RefreshCw className="w-5 h-5" /> Try again</>
-                    )}
+                    <ExternalLink className="w-4 h-4" />
+                    Open wallet again
                   </button>
+                )}
 
-                  {/* Wallet deep link options */}
-                  {renderRecoveryWalletButtons()}
-
-                  {/* Copy link */}
-                  {orch.wcUri && (
+                {/* Copy / QR fallbacks */}
+                {orch.wcUri && (
+                  <div className="space-y-2">
                     <button
                       type="button"
                       onClick={handleCopyUri}
@@ -585,36 +585,23 @@ export default function ConnectWalletSheet({ isOpen, onClose }: ConnectWalletShe
                         <><Copy className="w-4 h-4" /> Copy connection link</>
                       )}
                     </button>
-                  )}
 
-                  {/* QR */}
-                  {orch.wcUri && (
-                    <>
-                      <button
-                        type="button"
-                        onClick={() => setShowQR(v => !v)}
-                        className="flex items-center justify-center gap-2 w-full h-11 rounded-xl border border-gray-200 text-gray-700 font-medium hover:bg-gray-50 transition-colors"
-                      >
-                        <QrCode className="w-4 h-4" />
-                        {showQR ? 'Hide QR code' : 'Show QR code'}
-                      </button>
-                      {showQR && (
-                        <div className="flex flex-col items-center py-4 px-2 rounded-xl bg-gray-50 border border-gray-100">
-                          <QRCodeImage data={orch.wcUri} />
-                          <p className="text-xs text-gray-500 mt-3 text-center">Scan with any wallet app</p>
-                        </div>
-                      )}
-                    </>
-                  )}
-
-                  <button
-                    type="button"
-                    onClick={handleClose}
-                    className="w-full text-center text-sm text-gray-500 hover:text-gray-700 py-2 transition-colors"
-                  >
-                    Close
-                  </button>
-                </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowQR(v => !v)}
+                      className="flex items-center justify-center gap-2 w-full h-11 rounded-xl border border-gray-200 text-gray-700 font-medium hover:bg-gray-50 transition-colors"
+                    >
+                      <QrCode className="w-4 h-4" />
+                      {showQR ? 'Hide QR code' : 'Show QR code'}
+                    </button>
+                    {showQR && (
+                      <div className="flex flex-col items-center py-4 px-2 rounded-xl bg-gray-50 border border-gray-100">
+                        <QRCodeImage data={orch.wcUri} />
+                        <p className="text-xs text-gray-500 mt-3 text-center">Scan with any wallet app</p>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             )}
           </div>
