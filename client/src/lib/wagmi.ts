@@ -149,12 +149,13 @@ if (projectId && projectId.length >= 8 && cryptoWalletEnabled) {
     connectors.push(
       walletConnect({
         projectId,
-        showQrModal: true,
-        qrModalOptions: { 
-          themeMode: 'light',
-          // Better mobile support
-          enableExplorer: true,
-        },
+        // CRITICAL: Disable WC's built-in modal. We own the entire connect UI
+        // via ConnectWalletSheet + connectOrchestrator. Having showQrModal: true
+        // creates a dual-modal fight that causes:
+        //   - "modal doesn't appear" (WC modal steals focus)
+        //   - "requires multiple attempts" (two modals racing)
+        //   - "Open is disabled" (WC modal's CTA conflicts with our deep link)
+        showQrModal: false,
         metadata: {
           name: 'Fan Club Z',
           description: 'Prediction Platform',

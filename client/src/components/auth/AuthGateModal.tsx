@@ -6,6 +6,8 @@ import { useAuthSession } from '../../providers/AuthSessionProvider';
 import { useNetworkStatus } from '../../providers/NetworkStatusProvider';
 import { INTENT_MAP, FALLBACK_INTENT } from '../../auth/authIntents';
 import { isFeatureEnabled } from '../../config/featureFlags';
+import { isGoogleOAuthSupported } from '@/lib/browserContext';
+import InAppBrowserGate from './InAppBrowserGate';
 import EmailInputModal from './EmailInputModal';
 
 const AuthGateModal: React.FC = () => {
@@ -14,6 +16,7 @@ const AuthGateModal: React.FC = () => {
   const showAppleSignIn = isFeatureEnabled('SIGN_IN_APPLE');
   const { isOnline } = useNetworkStatus();
   const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
+  const [showBrowserGate, setShowBrowserGate] = useState(false);
   
   const modalRef = useRef<HTMLDivElement>(null);
   const firstButtonRef = useRef<HTMLButtonElement>(null);
@@ -77,8 +80,15 @@ const AuthGateModal: React.FC = () => {
     resolveAuthGate({ status: 'cancel' });
   };
 
-  // Handle Google sign in
+  // Handle Google sign in — with in-app browser gate
   const handleGoogleSignIn = async () => {
+    // Gate: block Google OAuth in in-app browsers (403 disallowed_useragent)
+    if (!isGoogleOAuthSupported()) {
+      console.log('[FCZ-QA] Google OAuth blocked: in-app browser detected');
+      setShowBrowserGate(true);
+      return;
+    }
+
     if (import.meta.env.DEV && import.meta.env.VITE_DEBUG_LOGS === 'true') {
       console.log('[FCZ-QA] Google sign in attempt');
     }
@@ -102,8 +112,14 @@ const AuthGateModal: React.FC = () => {
     }
   };
 
-  // Handle Apple sign in
+  // Handle Apple sign in — also gated (Apple OAuth has similar in-app restrictions)
   const handleAppleSignIn = async () => {
+    if (!isGoogleOAuthSupported()) {
+      console.log('[FCZ-QA] Apple OAuth blocked: in-app browser detected');
+      setShowBrowserGate(true);
+      return;
+    }
+
     if (import.meta.env.DEV && import.meta.env.VITE_DEBUG_LOGS === 'true') {
       console.log('[FCZ-QA] Apple sign in attempt');
     }
@@ -282,6 +298,12 @@ const AuthGateModal: React.FC = () => {
            </p>
          </div>
        </div>
+
+       {/* In-App Browser Gate (blocks Google/Apple OAuth in MetaMask, Instagram, etc.) */}
+       <InAppBrowserGate
+         open={showBrowserGate}
+         onClose={() => setShowBrowserGate(false)}
+       />
 
        {/* Email Input Modal */}
        <EmailInputModal
