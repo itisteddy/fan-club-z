@@ -524,7 +524,7 @@ async function setOutcomeHandler(req: ExpressRequest, res: ExpressResponse): Pro
     const allowedForSettlement = ['closed', 'awaiting_settlement', 'ended'];
     if (!allowedForSettlement.includes(status) && status !== 'settled') {
       // Admin convenience: auto-close open predictions before settling
-      if (status === 'open') {
+      if (status === 'open' || status === 'active' || status === 'pending') {
         await supabase
           .from('predictions')
           .update({ status: 'closed', updated_at: new Date().toISOString() })
@@ -542,14 +542,34 @@ async function setOutcomeHandler(req: ExpressRequest, res: ExpressResponse): Pro
     }
 
     // Verify option belongs to prediction before any write
-    const { data: opt, error: optErr } = await supabase
+    // Some deployments don't have prediction_options.text yet; mirror the detail-route fallback
+    let opt: any = null;
+    let optErr: any = null;
+    const optFirst = await supabase
       .from('prediction_options')
       .select('id, prediction_id, label, text')
       .eq('id', optionId)
       .maybeSingle();
+    if (optFirst.error && isSchemaMismatch(optFirst.error)) {
+      const optFallback = await supabase
+        .from('prediction_options')
+        .select('id, prediction_id, label')
+        .eq('id', optionId)
+        .maybeSingle();
+      opt = optFallback.data;
+      optErr = optFallback.error;
+    } else {
+      opt = optFirst.data;
+      optErr = optFirst.error;
+    }
 
     if (optErr || !opt || String((opt as any).prediction_id) !== predictionId) {
-      console.warn('[Admin/Settlement] Business rule: option does not belong to prediction', { requestId, predictionId, optionId });
+      console.warn('[Admin/Settlement] Business rule: option does not belong to prediction', {
+        requestId,
+        predictionId,
+        optionId,
+        optionLookupError: optErr ? String(optErr.message || optErr) : null,
+      });
       return res.status(400).json({
         error: 'Bad Request',
         message: 'Option does not belong to prediction',
@@ -1482,4 +1502,3 @@ predictionsRouter.post('/:predictionId/reset', async (req, res) => {
     });
   }
 });
-
