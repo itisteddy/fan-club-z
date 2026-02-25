@@ -7,7 +7,10 @@ import { recomputePredictionState } from '../services/predictionMath';
 import { computeMerkleSettlement } from '../services/settlementMerkle';
 import { makePublicClient } from '../chain/base/client';
 import { getEscrowAddress } from '../services/escrowContract';
-import { getAddress } from 'viem';
+import { encodePacked, getAddress, keccak256 } from 'viem';
+import { calculatePayouts, type Entry as PayoutEntry } from '../services/payoutCalculator';
+import { computePoolV2SettlementTotals, allocatePoolV2PayoutsToEntries } from '../services/settlementOddsV2';
+import { upsertSettlementResult } from '../services/settlementResults';
 
 const router = express.Router();
 
@@ -35,6 +38,625 @@ const ESCROW_MERKLE_READ_ABI = [
 function toBytes32FromUuid(uuid: string): `0x${string}` {
   const hex = uuid.replace(/-/g, '').toLowerCase().padEnd(64, '0');
   return `0x${hex}` as const;
+}
+
+
+// ---- Demo wallet helpers (DB-backed ledger) ----
+const DEMO_CURRENCY = 'DEMO_USD';
+const DEMO_PROVIDER = 'demo-wallet';
+
+function isAdminRequest(req: any): boolean {
+  const adminKey = req.headers['x-admin-key'] || req.headers['authorization'];
+  return !!process.env.ADMIN_API_KEY && adminKey === process.env.ADMIN_API_KEY;
+}
+
+/** Build stable settlement response contract for UI (ok, alreadySettled, predictionId, status, settlement). */
+export function buildSettlementContract(payload: {
+  predictionId: string;
+  alreadySettled: boolean;
+  winningOptionId: string;
+  settledAt: string | null;
+  settledByUserId?: string | null;
+  reason?: string | null;
+  sourceUrl?: string | null;
+}) {
+  return {
+    ok: true,
+    alreadySettled: payload.alreadySettled,
+    predictionId: payload.predictionId,
+    status: 'SETTLED' as const,
+    settlement: {
+      winningOptionId: payload.winningOptionId,
+      settledAt: payload.settledAt ?? null,
+      settledByUserId: payload.settledByUserId ?? null,
+      reason: payload.reason ?? null,
+      sourceUrl: payload.sourceUrl ?? null,
+    },
+  };
+}
+
+async function ensureDemoWalletRow(userId: string) {
+  await supabase
+    .from('wallets')
+    .upsert(
+      { user_id: userId, currency: DEMO_CURRENCY, available_balance: 0, reserved_balance: 0, updated_at: new Date().toISOString() } as any,
+      { onConflict: 'user_id,currency', ignoreDuplicates: true }
+    );
+}
+
+async function applyDemoDelta(userId: string, args: { availableDelta: number; reservedDelta: number }) {
+  await ensureDemoWalletRow(userId);
+  // CAS-style update to reduce races: fetch -> compute -> update with equality guards
+  const { data: w, error: wErr } = await supabase
+    .from('wallets')
+    .select('available_balance,reserved_balance')
+    .eq('user_id', userId)
+    .eq('currency', DEMO_CURRENCY)
+    .maybeSingle();
+  if (wErr) throw wErr;
+  const prevAvail = Number((w as any)?.available_balance || 0);
+  const prevRes = Number((w as any)?.reserved_balance || 0);
+  const nextAvail = prevAvail + args.availableDelta;
+  const nextRes = prevRes + args.reservedDelta;
+
+  const { error: updErr } = await supabase
+    .from('wallets')
+    .update({ available_balance: nextAvail, reserved_balance: nextRes, updated_at: new Date().toISOString() } as any)
+    .eq('user_id', userId)
+    .eq('currency', DEMO_CURRENCY)
+    .eq('available_balance', prevAvail)
+    .eq('reserved_balance', prevRes);
+  if (updErr) throw updErr;
+}
+
+function round2(n: number): number {
+  return Math.round((Number(n) || 0) * 100) / 100;
+}
+
+function usdToUnits(n: number): bigint {
+  return BigInt(Math.round((Number(n) || 0) * 1_000_000));
+}
+
+function hashLeaf(args: { predictionIdHex: `0x${string}`; address: `0x${string}`; amountUnits: bigint }): `0x${string}` {
+  return keccak256(
+    encodePacked(
+      ['bytes32', 'address', 'uint256'],
+      [args.predictionIdHex, args.address, args.amountUnits]
+    )
+  );
+}
+
+function buildMerkle(
+  leaves: `0x${string}`[]
+): { root: `0x${string}`; getProof: (leaf: `0x${string}`) => `0x${string}`[] } {
+  const uniqueLeaves = Array.from(new Set(leaves));
+  if (uniqueLeaves.length === 0) {
+    return { root: keccak256('0x'), getProof: () => [] };
+  }
+
+  const tree: `0x${string}`[][] = [];
+  tree.push(uniqueLeaves.slice().sort());
+
+  while (true) {
+    const prev = tree[tree.length - 1] ?? [];
+    if (prev.length <= 1) break;
+    const next: `0x${string}`[] = [];
+    for (let i = 0; i < prev.length; i += 2) {
+      const a = prev[i];
+      if (!a) continue;
+      if (i + 1 === prev.length) {
+        next.push(a);
+      } else {
+        const b = prev[i + 1] ?? a;
+        const [x, y] = a.toLowerCase() < b.toLowerCase() ? [a, b] : [b, a];
+        next.push(keccak256(encodePacked(['bytes32', 'bytes32'], [x, y])));
+      }
+    }
+    tree.push(next);
+  }
+
+  const rootLevel = tree[tree.length - 1] ?? [];
+  const root = (rootLevel[0] ?? keccak256('0x')) as `0x${string}`;
+
+  function getProof(leaf: `0x${string}`): `0x${string}`[] {
+    const proof: `0x${string}`[] = [];
+    const baseLevel = tree[0] ?? [];
+    let idx = baseLevel.indexOf(leaf);
+    if (idx === -1) return [];
+    for (let level = 0; level < tree.length - 1; level++) {
+      const nodes = tree[level] ?? [];
+      const isRightNode = idx % 2 === 1;
+      const pairIndex = isRightNode ? idx - 1 : idx + 1;
+      const pairNode = nodes[pairIndex];
+      if (pairNode) proof.push(pairNode);
+      idx = Math.floor(idx / 2);
+    }
+    return proof;
+  }
+
+  return { root, getProof };
+}
+
+export async function computeMerkleSettlementCryptoOnly(args: { predictionId: string; winningOptionId: string }) {
+  const { predictionId, winningOptionId } = args;
+
+  const { data: prediction, error: predictionError } = await supabase
+    .from('predictions')
+    .select('*')
+    .eq('id', predictionId)
+    .maybeSingle();
+  if (predictionError || !prediction) throw new Error('Prediction not found');
+
+  // CRITICAL: exclude demo entries from on-chain settlement
+  const { data: entries, error: entriesError } = await supabase
+    .from('prediction_entries')
+    .select('*')
+    .eq('prediction_id', predictionId)
+    .neq('provider', DEMO_PROVIDER);
+  if (entriesError) throw new Error('Failed to load entries');
+
+  const winners = (entries || []).filter((e: any) => e.option_id === winningOptionId);
+  const losers = (entries || []).filter((e: any) => e.option_id !== winningOptionId);
+
+  const totalWinningStake = winners.reduce((sum, e: any) => sum + Number(e.amount || 0), 0);
+  const totalLosingStake = losers.reduce((sum, e: any) => sum + Number(e.amount || 0), 0);
+
+  const oddsModel = (prediction as any).odds_model ?? 'legacy';
+  const platformFeePct = Number.isFinite((prediction as any).platform_fee_percentage)
+    ? Number((prediction as any).platform_fee_percentage)
+    : 2.5;
+  const creatorFeePct = Number.isFinite((prediction as any).creator_fee_percentage)
+    ? Number((prediction as any).creator_fee_percentage)
+    : 1.0;
+
+  let platformFeeUSD: number;
+  let creatorFeeUSD: number;
+  let payoutPoolUSD: number;
+
+  if (oddsModel === 'pool_v2') {
+    const winningCents = Math.round(totalWinningStake * 100);
+    const losingCents = Math.round(totalLosingStake * 100);
+    const platformFeeBps = Math.round(platformFeePct * 100);
+    const creatorFeeBps = Math.round(creatorFeePct * 100);
+    const totals = computePoolV2SettlementTotals({
+      winningPoolCents: winningCents,
+      losingPoolCents: losingCents,
+      platformFeeBps,
+      creatorFeeBps,
+    });
+    if (totals) {
+      platformFeeUSD = totals.platformFeeCents / 100;
+      creatorFeeUSD = totals.creatorFeeCents / 100;
+      payoutPoolUSD = totals.distributableCents / 100;
+    } else {
+      platformFeeUSD = Math.max(round2((totalLosingStake * platformFeePct) / 100), 0);
+      creatorFeeUSD = Math.max(round2((totalLosingStake * creatorFeePct) / 100), 0);
+  const prizePoolUSD = Math.max(totalLosingStake - platformFeeUSD - creatorFeeUSD, 0);
+      payoutPoolUSD = totalWinningStake + prizePoolUSD;
+    }
+  } else {
+    platformFeeUSD = Math.max(round2((totalLosingStake * platformFeePct) / 100), 0);
+    creatorFeeUSD = Math.max(round2((totalLosingStake * creatorFeePct) / 100), 0);
+    const prizePoolUSD = Math.max(totalLosingStake - platformFeeUSD - creatorFeeUSD, 0);
+    payoutPoolUSD = totalWinningStake + prizePoolUSD;
+  }
+
+  const payoutPoolUnits = usdToUnits(payoutPoolUSD);
+  const prizePoolUSD = payoutPoolUSD - totalWinningStake;
+  const predictionIdHex = toBytes32FromUuid(predictionId);
+
+  // Resolve winner addresses
+  const userIds = Array.from(new Set(winners.map((w: any) => w.user_id)));
+  const { data: addresses } = await supabase
+    .from('crypto_addresses')
+    .select('user_id,address')
+    .in('user_id', userIds)
+    .order('created_at', { ascending: false });
+  const latestByUser = new Map<string, string>();
+  (addresses || []).forEach((r: any) => {
+    if (!latestByUser.has(r.user_id)) latestByUser.set(r.user_id, r.address);
+  });
+
+  // Aggregate stakes by user to ensure ONE leaf per address
+  type Aggregated = { user_id: string; stakeUSD: number; address: `0x${string}` | null };
+  const byUser = new Map<string, Aggregated>();
+  for (const w of winners as any[]) {
+    const prev = byUser.get(w.user_id);
+    const inc = Number(w.amount || 0);
+    const addressRaw = latestByUser.get(w.user_id) || null;
+    const address = addressRaw ? (getAddress(addressRaw) as `0x${string}`) : null;
+    if (!prev) {
+      byUser.set(w.user_id, { user_id: w.user_id, stakeUSD: inc, address });
+    } else {
+      prev.stakeUSD += inc;
+      prev.address = prev.address || address;
+    }
+  }
+
+  const stakeCentsByUser = Array.from(byUser.values()).map((u) => ({
+    ...u,
+    stakeCents: Math.round(u.stakeUSD * 100),
+  }));
+  const totalWinningStakeCents = stakeCentsByUser.reduce((s, u) => s + u.stakeCents, 0);
+
+  const provisional = stakeCentsByUser.map((u) => {
+    const numerator = BigInt(u.stakeCents) * payoutPoolUnits;
+    const denom = BigInt(totalWinningStakeCents || 1);
+    const units = numerator / denom;
+    const remainder = numerator % denom;
+    return { ...u, units, remainder };
+  });
+
+  const allocated = provisional.reduce((s, u) => s + u.units, 0n);
+  let leftover = payoutPoolUnits - allocated;
+
+  provisional.sort((a, b) => {
+    if (a.remainder === b.remainder) {
+      const ax = (a.address || '0x').toLowerCase();
+      const bx = (b.address || '0x').toLowerCase();
+      return ax < bx ? -1 : ax > bx ? 1 : 0;
+    }
+    return a.remainder > b.remainder ? -1 : 1;
+  });
+
+  for (let i = 0; i < provisional.length && leftover > 0n; i++) {
+    const target = provisional[i];
+    if (!target) continue;
+    target.units += 1n;
+    leftover -= 1n;
+  }
+
+  const winnersPayouts = provisional.map((u) => ({
+    user_id: u.user_id,
+    address: u.address,
+    stakeUSD: u.stakeUSD,
+    payoutUSD: Number(u.units) / 1_000_000,
+    payoutUnits: u.units,
+  }));
+
+  const leaves = winnersPayouts
+    .filter((w) => !!w.address && w.payoutUnits > 0n)
+    .map((w) => hashLeaf({ predictionIdHex, address: w.address as `0x${string}`, amountUnits: w.payoutUnits }));
+
+  const { root, getProof } = buildMerkle(leaves);
+
+  const leafOutputs = winnersPayouts
+    .filter((w) => !!w.address && w.payoutUnits > 0n)
+    .map((w) => {
+      const leaf = hashLeaf({ predictionIdHex, address: w.address as `0x${string}`, amountUnits: w.payoutUnits });
+      return {
+        user_id: w.user_id,
+        address: w.address as `0x${string}`,
+        amountUnits: w.payoutUnits,
+        leaf,
+        proof: getProof(leaf),
+      };
+    });
+
+  return {
+    predictionId,
+    winningOptionId,
+    platformFeeUSD,
+    creatorFeeUSD,
+    platformFeeUnits: usdToUnits(platformFeeUSD),
+    creatorFeeUnits: usdToUnits(creatorFeeUSD),
+    prizePoolUSD,
+    payoutPoolUSD,
+    winners: winnersPayouts,
+    root,
+    leaves: leafOutputs,
+  };
+}
+
+async function upsertDemoTx(payload: any): Promise<boolean> {
+  // Idempotency: only apply wallet balance deltas if this tx row is newly created
+  const { data, error } = await supabase
+    .from('wallet_transactions')
+    .upsert(payload, { onConflict: 'provider,external_ref', ignoreDuplicates: true } as any)
+    .select('id');
+  if (error && (error as any).code !== '23505') {
+    console.warn('[SETTLEMENT] demo tx upsert error (non-fatal):', error);
+    return false;
+  }
+  return Array.isArray(data) ? data.length > 0 : Boolean((data as any)?.id);
+}
+
+export async function settleDemoRail(args: {
+  predictionId: string;
+  predictionTitle: string;
+  winningOptionId: string;
+  creatorId: string;
+  platformFeePercent: number;
+  creatorFeePercent: number;
+  oddsModel?: string | null;
+}): Promise<{
+  demoEntriesCount: number;
+  demoPlatformFee: number;
+  demoCreatorFee: number;
+  demoPayoutPool: number;
+}> {
+  const { predictionId, winningOptionId, predictionTitle, creatorId, oddsModel } = args;
+
+  const { data: entries, error: entriesErr } = await supabase
+    .from('prediction_entries')
+    .select('id,user_id,amount,option_id,provider')
+    .eq('prediction_id', predictionId)
+    .eq('provider', DEMO_PROVIDER);
+
+  if (entriesErr) {
+    console.warn('[SETTLEMENT] Failed to load demo entries:', entriesErr);
+    return { demoEntriesCount: 0, demoPlatformFee: 0, demoCreatorFee: 0, demoPayoutPool: 0 };
+  }
+
+  const demoEntries = (entries || []) as any[];
+  if (demoEntries.length === 0) {
+    return { demoEntriesCount: 0, demoPlatformFee: 0, demoCreatorFee: 0, demoPayoutPool: 0 };
+  }
+
+  const winners = demoEntries.filter((e: any) => e.option_id === winningOptionId);
+  const losers = demoEntries.filter((e: any) => e.option_id !== winningOptionId);
+
+  let demoResult: {
+    totalPot: number;
+    winnersStakeTotal: number;
+    distributablePot: number;
+    platformFee: number;
+    creatorFee: number;
+    payoutsByUserId: Record<string, number>;
+  };
+
+  if (oddsModel === 'pool_v2') {
+    // Pool V2: cents-based settlement using shared odds engine
+    const winningCents = winners.reduce((s, e: any) => s + Math.round(Number(e.amount || 0) * 100), 0);
+    const losingCents = losers.reduce((s, e: any) => s + Math.round(Number(e.amount || 0) * 100), 0);
+    const platformFeeBps = Math.round(args.platformFeePercent * 100);
+    const creatorFeeBps = Math.round(args.creatorFeePercent * 100);
+    const totals = computePoolV2SettlementTotals({
+      winningPoolCents: winningCents,
+      losingPoolCents: losingCents,
+      platformFeeBps,
+      creatorFeeBps,
+    });
+    if (!totals || winningCents <= 0) {
+      demoResult = {
+        totalPot: demoEntries.reduce((s, e: any) => s + Number(e.amount || 0), 0),
+        winnersStakeTotal: 0,
+        distributablePot: 0,
+        platformFee: losingCents ? round2((losingCents * (platformFeeBps + creatorFeeBps)) / 10_000 / 100) : 0,
+        creatorFee: 0,
+        payoutsByUserId: {},
+      };
+    } else {
+      const payoutByEntryId = allocatePoolV2PayoutsToEntries(
+        winners.map((e: any) => ({ id: e.id, amount: Number(e.amount || 0) })),
+        totals.distributableCents
+      );
+      const payoutsByUserId: Record<string, number> = {};
+      for (const w of winners as any[]) {
+        const payoutCents = payoutByEntryId.get(w.id) ?? 0;
+        const payoutUSD = payoutCents / 100;
+        payoutsByUserId[w.user_id] = (payoutsByUserId[w.user_id] || 0) + payoutUSD;
+      }
+      demoResult = {
+        totalPot: demoEntries.reduce((s, e: any) => s + Number(e.amount || 0), 0),
+        winnersStakeTotal: winningCents / 100,
+        distributablePot: totals.distributableCents / 100,
+        platformFee: totals.platformFeeCents / 100,
+        creatorFee: totals.creatorFeeCents / 100,
+        payoutsByUserId,
+      };
+      // Store per-entry payout for later use when updating entries
+      (demoResult as any)._payoutCentsByEntryId = payoutByEntryId;
+    }
+  } else {
+    // Legacy: use payout calculator
+    const payoutEntries: PayoutEntry[] = demoEntries.map((e: any) => ({
+      userId: e.user_id,
+      optionId: e.option_id,
+      amount: Number(e.amount || 0),
+      provider: e.provider,
+    }));
+    const feeConfig = {
+      platformFeeBps: args.platformFeePercent * 100,
+      creatorFeeBps: args.creatorFeePercent * 100,
+    };
+    demoResult = calculatePayouts({
+      entries: payoutEntries,
+      winningOptionId,
+      feeConfig,
+      rail: 'demo',
+      providerMatch: (p) => p === DEMO_PROVIDER,
+    });
+  }
+
+  // Track total stake per user for reserved balance updates
+  const userStakes = new Map<string, number>();
+  for (const entry of demoEntries) {
+    const current = userStakes.get(entry.user_id) || 0;
+    userStakes.set(entry.user_id, current + Number(entry.amount || 0));
+  }
+
+  const payoutCentsByEntryId = (demoResult as any)._payoutCentsByEntryId as Map<string, number> | undefined;
+
+  // Apply payouts to winners (aggregated by userId from calculator)
+  for (const [userId, payoutAmount] of Object.entries(demoResult.payoutsByUserId)) {
+    // Find all entries for this user that won
+    const userWinningEntries = winners.filter((e: any) => e.user_id === userId);
+    const userTotalStake = userStakes.get(userId) || 0;
+
+    // Update entry statuses
+    for (const entry of userWinningEntries) {
+      const stake = Number(entry.amount || 0);
+      const share = demoResult.winnersStakeTotal > 0 ? stake / demoResult.winnersStakeTotal : 0;
+      const entryPayout = payoutCentsByEntryId
+        ? ((payoutCentsByEntryId.get(entry.id) ?? 0) / 100)
+        : round2(demoResult.distributablePot * share);
+
+    await supabase
+      .from('prediction_entries')
+        .update({ status: 'won', actual_payout: entryPayout, updated_at: new Date().toISOString() } as any)
+        .eq('id', entry.id);
+
+      // Record individual entry payout transaction (idempotent)
+    const inserted = await upsertDemoTx({
+        user_id: userId,
+      direction: 'credit',
+      type: 'deposit',
+      channel: 'fiat',
+      provider: DEMO_PROVIDER,
+        amount: entryPayout,
+      currency: DEMO_CURRENCY,
+      status: 'completed',
+        external_ref: `demo_payout:${predictionId}:${entry.id}`,
+      prediction_id: predictionId,
+        entry_id: entry.id,
+      description: `Demo payout for "${predictionTitle}"`,
+        meta: { kind: 'payout', provider: DEMO_PROVIDER, prediction_id: predictionId, entry_id: entry.id },
+    } as any);
+    if (inserted) {
+        // Only apply delta once per user (not per entry)
+        if (userWinningEntries.indexOf(entry) === 0) {
+          await applyDemoDelta(userId, { availableDelta: payoutAmount, reservedDelta: -userTotalStake });
+      try {
+            emitWalletUpdate({ userId, reason: 'payout', amountDelta: payoutAmount });
+      } catch {}
+        }
+      }
+    }
+
+    // Phase 6A: Persist canonical settlement result for winner
+    try {
+      await upsertSettlementResult({
+        predictionId,
+        userId,
+        provider: DEMO_PROVIDER,
+        stakeTotal: userTotalStake,
+        returnedTotal: payoutAmount,
+        net: payoutAmount - userTotalStake,
+        status: 'win',
+        claimStatus: 'not_applicable',
+      });
+    } catch (err) {
+      console.error('[SETTLEMENT] Failed to persist demo winner result:', err);
+      // Non-fatal: continue settlement
+    }
+  }
+
+  // Record losses (stake already debited at bet placement, so this is just status update)
+  // Group losers by user for canonical results
+  const loserStakesByUser = new Map<string, number>();
+  for (const l of losers) {
+    const stake = Number(l.amount || 0);
+    const current = loserStakesByUser.get(l.user_id) || 0;
+    loserStakesByUser.set(l.user_id, current + stake);
+
+    await supabase
+      .from('prediction_entries')
+      .update({ status: 'lost', actual_payout: 0, updated_at: new Date().toISOString() } as any)
+      .eq('id', l.id);
+
+    // Record loss transaction (idempotent)
+    const inserted = await upsertDemoTx({
+      user_id: l.user_id,
+      direction: 'debit',
+      type: 'withdraw',
+      channel: 'fiat',
+      provider: DEMO_PROVIDER,
+      amount: stake,
+      currency: DEMO_CURRENCY,
+      status: 'completed',
+      external_ref: `demo_loss:${predictionId}:${l.id}`,
+      prediction_id: predictionId,
+      entry_id: l.id,
+      description: `Demo loss for "${predictionTitle}"`,
+      meta: { kind: 'loss', provider: DEMO_PROVIDER, prediction_id: predictionId, entry_id: l.id },
+    } as any);
+    if (inserted) {
+      await applyDemoDelta(l.user_id, { availableDelta: 0, reservedDelta: -stake });
+      try {
+        emitWalletUpdate({ userId: l.user_id, reason: 'loss', amountDelta: -stake });
+      } catch {}
+    }
+  }
+
+  // Phase 6A: Persist canonical settlement results for losers
+  for (const [userId, totalStake] of loserStakesByUser.entries()) {
+    try {
+      await upsertSettlementResult({
+        predictionId,
+        userId,
+        provider: DEMO_PROVIDER,
+        stakeTotal: totalStake,
+        returnedTotal: 0,
+        net: -totalStake,
+        status: 'loss',
+        claimStatus: 'not_applicable',
+      });
+    } catch (err) {
+      console.error('[SETTLEMENT] Failed to persist loser result:', err);
+      // Non-fatal: continue settlement
+    }
+  }
+
+  // Demo creator/platform fees (ALWAYS computed and credited if pot > 0, idempotent)
+  // This fixes the bug where fees were skipped in hybrid mode
+  if (demoResult.totalPot > 0 && (demoResult.platformFee > 0 || demoResult.creatorFee > 0)) {
+    if (demoResult.creatorFee > 0) {
+    const inserted = await upsertDemoTx({
+      user_id: creatorId,
+      direction: 'credit',
+      type: 'deposit',
+      channel: 'fiat',
+      provider: DEMO_PROVIDER,
+        amount: demoResult.creatorFee,
+      currency: DEMO_CURRENCY,
+      status: 'completed',
+      external_ref: `demo_creator_fee:${predictionId}`,
+      prediction_id: predictionId,
+      description: `Demo creator fee for "${predictionTitle}"`,
+      meta: { kind: 'creator_fee', provider: DEMO_PROVIDER, prediction_id: predictionId },
+    } as any);
+    if (inserted) {
+        await applyDemoDelta(creatorId, { availableDelta: demoResult.creatorFee, reservedDelta: 0 });
+      try {
+          emitWalletUpdate({ userId: creatorId, reason: 'creator_fee_paid', amountDelta: demoResult.creatorFee });
+      } catch {}
+    }
+  }
+
+    if (demoResult.platformFee > 0) {
+    const treasuryUserId = await resolveTreasuryUserId();
+    if (treasuryUserId) {
+      const inserted = await upsertDemoTx({
+        user_id: treasuryUserId,
+        direction: 'credit',
+        type: 'deposit',
+        channel: 'fiat',
+        provider: DEMO_PROVIDER,
+          amount: demoResult.platformFee,
+        currency: DEMO_CURRENCY,
+        status: 'completed',
+        external_ref: `demo_platform_fee:${predictionId}`,
+        prediction_id: predictionId,
+        description: `Demo platform fee for "${predictionTitle}"`,
+        meta: { kind: 'platform_fee', provider: DEMO_PROVIDER, prediction_id: predictionId },
+      } as any);
+      if (inserted) {
+          await applyDemoDelta(treasuryUserId, { availableDelta: demoResult.platformFee, reservedDelta: 0 });
+        try {
+            emitWalletUpdate({ userId: treasuryUserId, reason: 'platform_fee_collected', amountDelta: demoResult.platformFee });
+        } catch {}
+        }
+      }
+    }
+  }
+
+  return {
+    demoEntriesCount: demoEntries.length,
+    demoPlatformFee: demoResult.platformFee,
+    demoCreatorFee: demoResult.creatorFee,
+    demoPayoutPool: demoResult.distributablePot,
+  };
 }
 
 async function ensureOnchainPosted(predictionId: string): Promise<`0x${string}` | null> {
@@ -79,7 +701,7 @@ async function isClaimedOnchain(predictionId: string, account: string): Promise<
   }
 }
 
-async function resolveTreasuryUserId(): Promise<string | null> {
+export async function resolveTreasuryUserId(): Promise<string | null> {
   const raw = config.platform?.treasuryUserId;
   if (!raw) return null;
 
@@ -124,6 +746,100 @@ async function resolveTreasuryUserId(): Promise<string | null> {
   }
 
   return trimmed;
+}
+
+export async function recordOnchainPosted(args: { predictionId: string; txHash: string; root?: string | null }) {
+  const { predictionId, txHash, root } = args;
+
+  // Phase 4A: Update to onchain_finalized state (explicit state machine)
+  // Also preserve existing meta and update stateMachine flags
+  const { data: existing } = await supabase
+    .from('bet_settlements')
+    .select('meta')
+    .eq('bet_id', predictionId)
+    .maybeSingle();
+
+  const existingMeta = (existing?.meta as any) || {};
+  const existingStateMachine = existingMeta.stateMachine || {};
+
+  await supabase
+    .from('bet_settlements')
+    .update({
+      status: 'onchain_finalized',  // Phase 4A: Use explicit state machine status
+      meta: {
+        ...existingMeta,
+        tx_hash: txHash,
+        merkle_root: root || null,
+        updated_at: new Date().toISOString(),
+        stateMachine: {
+          ...existingStateMachine,
+          onchain_finalized: true,
+        }
+      }
+    } as any)
+    .eq('bet_id', predictionId);
+
+  // Create on-chain fee activity rows for creator and platform (if available)
+  try {
+    const { data: pred } = await supabase
+      .from('predictions')
+      .select('id,title,creator_id,winning_option_id,platform_fee_percentage,creator_fee_percentage')
+      .eq('id', predictionId)
+      .maybeSingle();
+    if (pred?.winning_option_id) {
+      // Ensure demo rail (if any) is settled off-chain as well (idempotent via external_ref)
+      await settleDemoRail({
+        predictionId,
+        predictionTitle: pred.title,
+        winningOptionId: pred.winning_option_id,
+        creatorId: pred.creator_id,
+        platformFeePercent: Number.isFinite((pred as any).platform_fee_percentage) ? Number((pred as any).platform_fee_percentage) : 2.5,
+        creatorFeePercent: Number.isFinite((pred as any).creator_fee_percentage) ? Number((pred as any).creator_fee_percentage) : 1.0,
+      });
+
+      const settlement = await computeMerkleSettlementCryptoOnly({ predictionId, winningOptionId: pred.winning_option_id });
+      const currency = 'USD';
+      // Creator fee
+      if (settlement.creatorFeeUSD > 0 && pred.creator_id) {
+        await supabase.from('wallet_transactions').insert({
+          user_id: pred.creator_id,
+          direction: 'credit',
+          type: 'deposit',
+          channel: 'creator_fee',
+          provider: 'onchain-escrow',
+          amount: settlement.creatorFeeUSD,
+          currency,
+          status: 'completed',
+          prediction_id: predictionId,
+          description: `Creator fee (on-chain) for "${pred.title}"`,
+          tx_hash: txHash,
+          meta: { merkle_root: settlement.root }
+        } as any);
+      }
+      // Platform fee
+      if (settlement.platformFeeUSD > 0) {
+        const treasuryUserId = await resolveTreasuryUserId();
+        if (treasuryUserId) {
+          await supabase.from('wallet_transactions').insert({
+            user_id: treasuryUserId,
+            direction: 'credit',
+            type: 'deposit',
+            channel: 'platform_fee',
+            provider: 'onchain-escrow',
+            amount: settlement.platformFeeUSD,
+            currency,
+            status: 'completed',
+            prediction_id: predictionId,
+            description: `Platform fee (on-chain) for "${pred.title}"`,
+            tx_hash: txHash,
+            meta: { merkle_root: settlement.root }
+          } as any);
+        }
+      }
+    }
+  } catch (postErr) {
+    console.warn('[SETTLEMENT] Failed to record on-chain fee activity:', postErr);
+  }
 }
 
 // POST /api/v2/settlement/manual - Manual settlement by creator

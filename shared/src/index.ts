@@ -9,3 +9,6 @@ export * from './types/activity';
 // Social + auth types
 export * from './types/social';
 export * from './types/auth';
+
+// Odds / settlement math
+export * from './oddsV2';

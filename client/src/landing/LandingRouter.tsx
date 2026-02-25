@@ -2,6 +2,7 @@ import React from 'react';
 import { Routes, Route } from 'react-router-dom';
 import LandingPage from './LandingPage';
 import FundingGuidePage from './FundingGuidePage';
+import LandingAdminRouter from './LandingAdminRouter';
 
 /**
  * LandingRouter handles routing for the landing/marketing site (fanclubz.app)
@@ -10,6 +11,7 @@ import FundingGuidePage from './FundingGuidePage';
 const LandingRouter: React.FC = () => {
   return (
     <Routes>
+      <Route path="/admin/*" element={<LandingAdminRouter />} />
       <Route path="/" element={<LandingPage />} />
       <Route path="/docs/funding-guide" element={<FundingGuidePage />} />
       {/* Fallback to landing page for any unmatched routes */}

@@ -1,8 +1,9 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
-import { BrowserRouter } from 'react-router-dom'
+import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import App from './App.tsx'
 import LandingRouter from './landing/LandingRouter'
+import LandingAdminRouter from './landing/LandingAdminRouter'
 import ErrorBoundary from './components/ErrorBoundary.tsx'
 import { NetworkStatusProvider } from './providers/NetworkStatusProvider'
 import { SupabaseProvider } from './providers/SupabaseProvider'
@@ -25,6 +26,14 @@ if ('scrollRestoration' in history) {
 
 const isLandingBuild = import.meta.env.VITE_BUILD_TARGET === 'landing';
 const RootComponent = isLandingBuild ? LandingRouter : App;
+
+const RootRouter: React.FC = () => (
+  <Routes>
+    {/* Always route admin to the shared admin router regardless of build target. */}
+    <Route path="/admin/*" element={<LandingAdminRouter />} />
+    <Route path="*" element={<RootComponent />} />
+  </Routes>
+);
 
 // Note: Global error handlers are now managed by Web3Provider for WalletConnect errors
 // This provides coordinated error handling with automatic session recovery
@@ -82,7 +91,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
             <SupabaseProvider>
               <AuthSessionProvider>
                 <BrowserRouter>
-                  <RootComponent />
+                  <RootRouter />
                 </BrowserRouter>
               </AuthSessionProvider>
             </SupabaseProvider>
