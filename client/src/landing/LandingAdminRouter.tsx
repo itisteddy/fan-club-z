@@ -1,5 +1,7 @@
 import React from 'react';
 import { Routes, Route } from 'react-router-dom';
+import { useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import AdminGate from '@/components/admin/AdminGate';
 import AdminLayout from '@/components/admin/AdminLayout';
 
@@ -24,10 +26,31 @@ import { CategoriesPage } from '@/pages/admin/CategoriesPage';
  * This enables fanclubz.app/admin/* when VITE_BUILD_TARGET=landing.
  */
 const LandingAdminRouter: React.FC = () => {
+  const location = useLocation();
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const host = window.location.hostname.toLowerCase();
+    const shouldCanonicalize = host === 'app.fanclubz.app' || host === 'www.fanclubz.app';
+    if (!shouldCanonicalize) return;
+    const target = `https://fanclubz.app${location.pathname}${location.search}${location.hash}`;
+    if (window.location.href !== target) {
+      window.location.replace(target);
+    }
+  }, [location.pathname, location.search, location.hash]);
+
+  if (typeof window !== 'undefined') {
+    const host = window.location.hostname.toLowerCase();
+    if (host === 'app.fanclubz.app' || host === 'www.fanclubz.app') {
+      return null;
+    }
+  }
+
   return (
     <AdminGate>
       <AdminLayout>
         <Routes>
+          <Route index element={<AdminHomePage />} />
           <Route path="/" element={<AdminHomePage />} />
           <Route path="users" element={<UsersPage />} />
           <Route path="users/:userId" element={<UserDetailPage />} />
@@ -50,5 +73,4 @@ const LandingAdminRouter: React.FC = () => {
 };
 
 export default LandingAdminRouter;
-
 

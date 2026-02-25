@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
 import App from './App.tsx'
 import LandingRouter from './landing/LandingRouter'
+import LandingAdminRouter from './landing/LandingAdminRouter'
 import ErrorBoundary from './components/ErrorBoundary.tsx'
 import { NetworkStatusProvider } from './providers/NetworkStatusProvider'
 import { SupabaseProvider } from './providers/SupabaseProvider'
@@ -221,6 +222,16 @@ if (typeof window !== 'undefined' && typeof window.fetch === 'function') {
 const isLandingBuild = import.meta.env.VITE_BUILD_TARGET === 'landing';
 const RootComponent = isLandingBuild ? LandingRouter : App;
 
+function RootRouter() {
+  const pathname = typeof window !== 'undefined' ? window.location.pathname : '';
+  // Always use the shared admin router for /admin/* regardless of build target.
+  // This prevents route drift between fanclubz.app and app.fanclubz.app.
+  if (/^\/admin(?:\/|$)/.test(pathname)) {
+    return <LandingAdminRouter />;
+  }
+  return <RootComponent />;
+}
+
 // Note: Global error handlers are now managed by Web3Provider for WalletConnect errors
 // This provides coordinated error handling with automatic session recovery
 
@@ -276,9 +287,9 @@ const AppContent = isLandingBuild ? (
         <NetworkStatusProvider>
           <SupabaseProvider>
             <AuthSessionProvider>
-              <BrowserRouter>
-                <RootComponent />
-              </BrowserRouter>
+                <BrowserRouter>
+                <RootRouter />
+                </BrowserRouter>
             </AuthSessionProvider>
           </SupabaseProvider>
         </NetworkStatusProvider>
@@ -301,7 +312,7 @@ const AppContent = isLandingBuild ? (
             <SupabaseProvider>
               <AuthSessionProvider>
                 <BrowserRouter>
-                  <RootComponent />
+                  <RootRouter />
                 </BrowserRouter>
               </AuthSessionProvider>
             </SupabaseProvider>
