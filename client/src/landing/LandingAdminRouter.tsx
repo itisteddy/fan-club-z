@@ -1,27 +1,12 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Routes, Route, useLocation } from 'react-router-dom';
-import AdminGate from '@/components/admin/AdminGate';
-import AdminLayout from '@/components/admin/AdminLayout';
-
-import AdminHomePage from '@/pages/admin/AdminHomePage';
-import UsersPage from '@/pages/admin/UsersPage';
-import UserDetailPage from '@/pages/admin/UserDetailPage';
-import UserViewPage from '@/pages/admin/UserViewPage';
-import WalletsPage from '@/pages/admin/WalletsPage';
-import UserWalletPage from '@/pages/admin/UserWalletPage';
-import PredictionsPage from '@/pages/admin/PredictionsPage';
-import PredictionDetailPage from '@/pages/admin/PredictionDetailPage';
-import SettlementsPage from '@/pages/admin/SettlementsPage';
-import SettlementDetailPage from '@/pages/admin/SettlementDetailPage';
-import SupportPage from '@/pages/admin/SupportPage';
-import ModerationPage from '@/pages/admin/ModerationPage';
-import ConfigPage from '@/pages/admin/ConfigPage';
-import AuditLogPage from '@/pages/admin/AuditLogPage';
-import { CategoriesPage } from '@/pages/admin/CategoriesPage';
+import { useLocation } from 'react-router-dom';
 
 /**
- * LandingAdminRouter mounts the admin dashboard under the WEBSITE build router.
- * This enables fanclubz.app/admin/* when VITE_BUILD_TARGET=landing.
+ * LandingAdminRouter fallback for landing builds.
+ *
+ * The full admin dashboard pages are not bundled in this release branch.
+ * We keep a compile-safe redirect/placeholder so landing builds succeed
+ * without shipping unrelated admin module work.
  */
 const LandingAdminRouter: React.FC = () => {
   const location = useLocation();
@@ -57,27 +42,22 @@ const LandingAdminRouter: React.FC = () => {
   }
 
   return (
-    <AdminGate>
-      <AdminLayout>
-        <Routes>
-          <Route index element={<AdminHomePage />} />
-          <Route path="users" element={<UsersPage />} />
-          <Route path="users/:userId" element={<UserDetailPage />} />
-          <Route path="users/:userId/view" element={<UserViewPage />} />
-          <Route path="wallets" element={<WalletsPage />} />
-          <Route path="wallets/:userId" element={<UserWalletPage />} />
-          <Route path="predictions" element={<PredictionsPage />} />
-          <Route path="predictions/:predictionId" element={<PredictionDetailPage />} />
-          <Route path="settlements" element={<SettlementsPage />} />
-          <Route path="settlements/:predictionId" element={<SettlementDetailPage />} />
-          <Route path="support" element={<SupportPage />} />
-          <Route path="moderation" element={<ModerationPage />} />
-          <Route path="config" element={<ConfigPage />} />
-          <Route path="categories" element={<CategoriesPage />} />
-          <Route path="audit" element={<AuditLogPage />} />
-        </Routes>
-      </AdminLayout>
-    </AdminGate>
+    <div className="min-h-screen bg-slate-900 flex items-center justify-center px-6">
+      <div className="max-w-md text-center">
+        <p className="text-slate-200 text-lg font-semibold">Admin portal</p>
+        <p className="text-slate-400 text-sm mt-2">
+          Redirecting to the canonical admin app…
+        </p>
+        {!canonicalRedirectUrl && (
+          <a
+            href="https://fanclubz.app/admin"
+            className="inline-flex mt-4 rounded-lg bg-white px-4 py-2 text-sm font-semibold text-slate-900 hover:bg-slate-100"
+          >
+            Open Admin
+          </a>
+        )}
+      </div>
+    </div>
   );
 };
 
