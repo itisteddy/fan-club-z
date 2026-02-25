@@ -3,6 +3,15 @@ import crypto from 'crypto';
 import { supabase } from '../config/database';
 import { VERSION } from '@fanclubz/shared';
 import { reconcileWallet } from '../services/walletReconciliation';
+import { requireSupabaseAuth } from '../middleware/requireSupabaseAuth';
+import type { AuthenticatedRequest } from '../middleware/auth';
+import { z } from 'zod';
+import {
+  getWalletBalanceAccountsSummary,
+  listCreatorEarningsHistory,
+  transferCreatorEarningsToStake,
+  WalletBalanceError,
+} from '../services/walletBalanceAccounts';
 
 // [PERF] Helper to generate ETag from response data
 function generateETag(data: unknown): string {
@@ -11,6 +20,10 @@ function generateETag(data: unknown): string {
 }
 
 export const walletRead = Router();
+
+const TransferCreatorEarningsSchema = z.object({
+  amount: z.number().positive(),
+});
 
 /**
  * GET /api/wallet/summary/:userId
@@ -35,7 +48,7 @@ walletRead.get('/summary/:userId', async (req, res) => {
     // Get database wallet balance (source of truth for available funds after settlements)
     const { data: wallet, error: walletError } = await supabase
       .from('wallets')
-      .select('available_balance, reserved_balance, total_deposited, total_withdrawn, updated_at')
+      .select('available_balance, reserved_balance, total_deposited, total_withdrawn, updated_at, stake_balance, creator_earnings_balance')
       .eq('user_id', userId)
       .eq('currency', 'USD')
       .maybeSingle();
@@ -90,6 +103,23 @@ walletRead.get('/summary/:userId', async (req, res) => {
     const available = Number(wallet?.available_balance ?? 0);
     const reserved = Number(wallet?.reserved_balance ?? 0);
     const total = available + reserved;
+    let balanceAccounts: {
+      demoCredits: number;
+      creatorEarnings: number;
+      stakeBalance: number;
+      stakeReserved: number;
+    };
+    try {
+      balanceAccounts = await getWalletBalanceAccountsSummary(userId);
+    } catch (balanceErr) {
+      console.warn('[walletRead] Failed to load explicit balance accounts, falling back:', balanceErr);
+      balanceAccounts = {
+        demoCredits: 0,
+        creatorEarnings: Number(wallet?.creator_earnings_balance ?? 0),
+        stakeBalance: Number(wallet?.stake_balance ?? wallet?.available_balance ?? 0),
+        stakeReserved: Number(wallet?.reserved_balance ?? 0),
+      };
+    }
 
     const summary = {
       user_id: userId,
@@ -101,6 +131,15 @@ walletRead.get('/summary/:userId', async (req, res) => {
       totalWithdrawn: Number((wallet?.total_withdrawn ?? 0).toFixed(2)),
       updatedAt: wallet?.updated_at ?? new Date().toISOString(),
       walletAddress: preferredAddress,
+      balances: {
+        demoCredits: Number((balanceAccounts.demoCredits ?? 0).toFixed(2)),
+        creatorEarnings: Number((balanceAccounts.creatorEarnings ?? 0).toFixed(2)),
+        stakeBalance: Number((balanceAccounts.stakeBalance ?? available).toFixed(2)),
+      },
+      demoCredits: Number((balanceAccounts.demoCredits ?? 0).toFixed(2)),
+      creatorEarnings: Number((balanceAccounts.creatorEarnings ?? 0).toFixed(2)),
+      stakeBalance: Number((balanceAccounts.stakeBalance ?? available).toFixed(2)),
+      legacyAvailableBalance: Number(available.toFixed(2)),
       // Populate escrow metrics from on-chain snapshot when available
       availableToStakeUSDC: Number(
         (onchain?.availableToStakeUSDC ??
@@ -142,6 +181,10 @@ walletRead.get('/summary/:userId', async (req, res) => {
         totalWithdrawn: 0,
         updatedAt: new Date().toISOString(),
         walletAddress: null,
+        balances: { demoCredits: 0, creatorEarnings: 0, stakeBalance: 0 },
+        demoCredits: 0,
+        creatorEarnings: 0,
+        stakeBalance: 0,
         availableToStakeUSDC: 0,
         reservedUSDC: 0,
         escrowUSDC: 0,
@@ -153,6 +196,73 @@ walletRead.get('/summary/:userId', async (req, res) => {
   }
 });
 
+walletRead.post('/transfer-creator-earnings', requireSupabaseAuth, async (req: AuthenticatedRequest, res) => {
+  try {
+    if (!req.user?.id) {
+      return res.status(401).json({ error: 'unauthorized', message: 'Authorization required', version: VERSION });
+    }
+
+    const parsed = TransferCreatorEarningsSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({
+        error: 'invalid_body',
+        message: 'Invalid transfer payload',
+        details: parsed.error.issues,
+        version: VERSION,
+      });
+    }
+
+    const result = await transferCreatorEarningsToStake({
+      userId: req.user.id,
+      amount: parsed.data.amount,
+    });
+
+    const accounts = await getWalletBalanceAccountsSummary(req.user.id);
+
+    return res.json({
+      ok: true,
+      transactionId: result.transactionId,
+      balances: {
+        demoCredits: Number(accounts.demoCredits.toFixed(2)),
+        creatorEarnings: Number(accounts.creatorEarnings.toFixed(2)),
+        stakeBalance: Number(accounts.stakeBalance.toFixed(2)),
+      },
+      version: VERSION,
+    });
+  } catch (error) {
+    if (error instanceof WalletBalanceError) {
+      return res.status(error.status).json({
+        error: error.code,
+        message: error.message,
+        version: VERSION,
+      });
+    }
+    console.error('[walletRead] transfer creator earnings failed:', error);
+    return res.status(500).json({
+      error: 'internal',
+      message: 'Failed to move creator earnings to balance',
+      version: VERSION,
+    });
+  }
+});
+
+walletRead.get('/creator-earnings/history', requireSupabaseAuth, async (req: AuthenticatedRequest, res) => {
+  try {
+    if (!req.user?.id) {
+      return res.status(401).json({ error: 'unauthorized', message: 'Authorization required', version: VERSION });
+    }
+    const limit = Number((req.query as any)?.limit ?? 20);
+    const items = await listCreatorEarningsHistory(req.user.id, limit);
+    return res.json({ ok: true, items, version: VERSION });
+  } catch (error) {
+    console.error('[walletRead] creator earnings history failed:', error);
+    return res.status(500).json({
+      error: 'internal',
+      message: 'Failed to load creator earnings history',
+      version: VERSION,
+    });
+  }
+});
+
 // NOTE: /activity route has been moved to walletActivity.ts to avoid duplicate routes
 // The walletActivity route properly handles deposits, withdrawals, and locks with correct normalization
-

@@ -28,7 +28,16 @@ async function ensureDemoWalletRow(userId: string) {
   await supabase
     .from('wallets')
     .upsert(
-      { user_id: userId, currency: CURRENCY, available_balance: 0, reserved_balance: 0, updated_at: new Date().toISOString() } as any,
+      {
+        user_id: userId,
+        currency: CURRENCY,
+        available_balance: 0,
+        reserved_balance: 0,
+        demo_credits_balance: 0,
+        creator_earnings_balance: 0,
+        stake_balance: 0,
+        updated_at: new Date().toISOString()
+      } as any,
       { onConflict: 'user_id,currency', ignoreDuplicates: true }
     );
 }
@@ -37,12 +46,12 @@ async function fetchDemoSummary(userId: string) {
   await ensureDemoWalletRow(userId);
   const { data, error } = await supabase
     .from('wallets')
-    .select('available_balance, reserved_balance, updated_at')
+    .select('available_balance, reserved_balance, demo_credits_balance, updated_at')
     .eq('user_id', userId)
     .eq('currency', CURRENCY)
     .maybeSingle();
   if (error) throw error;
-  const available = Number((data as any)?.available_balance || 0);
+  const available = Number(((data as any)?.demo_credits_balance ?? (data as any)?.available_balance) || 0);
   const reserved = Number((data as any)?.reserved_balance || 0);
   const updatedAt = (data as any)?.updated_at ? new Date((data as any).updated_at).toISOString() : new Date().toISOString();
   return { currency: CURRENCY, available, reserved, total: available + reserved, lastUpdated: updatedAt };
@@ -128,21 +137,29 @@ demoWallet.post('/faucet', async (req, res) => {
       // Compare-and-swap update to reduce race issues
       const { data: w } = await supabase
         .from('wallets')
-        .select('available_balance,reserved_balance')
+        .select('available_balance,reserved_balance,demo_credits_balance')
         .eq('user_id', userId)
         .eq('currency', CURRENCY)
         .maybeSingle();
       const prevAvail = Number((w as any)?.available_balance || 0);
       const prevRes = Number((w as any)?.reserved_balance || 0);
+      const prevDemo = Number((w as any)?.demo_credits_balance ?? prevAvail);
       const nextAvail = prevAvail + amount;
+      const nextDemo = prevDemo + amount;
 
       const { error: updErr } = await supabase
         .from('wallets')
-        .update({ available_balance: nextAvail, reserved_balance: prevRes, updated_at: new Date().toISOString() } as any)
+        .update({
+          available_balance: nextAvail,
+          reserved_balance: prevRes,
+          demo_credits_balance: nextDemo,
+          updated_at: new Date().toISOString()
+        } as any)
         .eq('user_id', userId)
         .eq('currency', CURRENCY)
         .eq('available_balance', prevAvail)
-        .eq('reserved_balance', prevRes);
+        .eq('reserved_balance', prevRes)
+        .eq('demo_credits_balance', prevDemo);
 
       if (updErr) {
         console.warn('[DEMO-WALLET] faucet balance update warning (non-fatal):', updErr);
@@ -397,4 +414,3 @@ demoWallet.get('/combined-summary', async (req, res) => {
     return res.status(500).json({ error: 'Internal', message: 'Failed to load wallet summary', version: VERSION });
   }
 });
-
