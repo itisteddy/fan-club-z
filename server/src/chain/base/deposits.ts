@@ -9,6 +9,10 @@ type Ctx = {
   usdc: Address;
 };
 
+// Base Sepolia RPC enforces an eth_getLogs block span limit (~10,000).
+// Keep a safety margin because the range is inclusive.
+const MAX_GET_LOGS_BLOCK_SPAN = 9_500n;
+
 function envOn(): boolean {
   return process.env.PAYMENTS_ENABLE === '1' && process.env.ENABLE_BASE_DEPOSITS === '1';
 }
@@ -29,6 +33,28 @@ export async function startBaseDepositWatcher(ctx: Ctx) {
 
   console.log('[FCZ-PAY] Starting HTTP polling mode (more reliable than WebSocket)...');
   let fromBlock: bigint | undefined;
+
+  const fetchTransferLogsChunked = async (start: bigint, end: bigint) => {
+    const out: Log[] = [];
+    let cursor = start;
+    while (cursor <= end) {
+      const chunkEnd = cursor + MAX_GET_LOGS_BLOCK_SPAN < end
+        ? cursor + MAX_GET_LOGS_BLOCK_SPAN
+        : end;
+      const chunkLogs = await client.getLogs({
+        address: usdc,
+        event: { type: 'event', name: 'Transfer', inputs: ERC20_ABI[0].inputs as any },
+        fromBlock: cursor,
+        toBlock: chunkEnd
+      });
+      if (chunkLogs.length > 0) {
+        console.log(`[FCZ-PAY] Found ${chunkLogs.length} Transfer events in chunk ${cursor}-${chunkEnd}`);
+      }
+      out.push(...(chunkLogs as any));
+      cursor = chunkEnd + 1n;
+    }
+    return out;
+  };
   
   const poll = async () => {
     try {
@@ -37,12 +63,7 @@ export async function startBaseDepositWatcher(ctx: Ctx) {
       
       console.log(`[FCZ-PAY] Polling blocks ${start} to ${latest}...`);
       
-      const logs = await client.getLogs({
-        address: usdc,
-        event: { type: 'event', name: 'Transfer', inputs: ERC20_ABI[0].inputs as any },
-        fromBlock: start,
-        toBlock: latest
-      });
+      const logs = await fetchTransferLogsChunked(start, latest);
       
       if (logs.length > 0) {
         console.log(`[FCZ-PAY] Found ${logs.length} Transfer events`);
