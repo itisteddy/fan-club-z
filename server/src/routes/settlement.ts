@@ -11,6 +11,7 @@ import { encodePacked, getAddress, keccak256 } from 'viem';
 import { calculatePayouts, type Entry as PayoutEntry } from '../services/payoutCalculator';
 import { computePoolV2SettlementTotals, allocatePoolV2PayoutsToEntries } from '../services/settlementOddsV2';
 import { upsertSettlementResult } from '../services/settlementResults';
+import { creditCreatorEarnings } from '../services/walletBalanceAccounts';
 
 const router = express.Router();
 
@@ -79,7 +80,16 @@ async function ensureDemoWalletRow(userId: string) {
   await supabase
     .from('wallets')
     .upsert(
-      { user_id: userId, currency: DEMO_CURRENCY, available_balance: 0, reserved_balance: 0, updated_at: new Date().toISOString() } as any,
+      {
+        user_id: userId,
+        currency: DEMO_CURRENCY,
+        available_balance: 0,
+        reserved_balance: 0,
+        demo_credits_balance: 0,
+        creator_earnings_balance: 0,
+        stake_balance: 0,
+        updated_at: new Date().toISOString()
+      } as any,
       { onConflict: 'user_id,currency', ignoreDuplicates: true }
     );
 }
@@ -89,23 +99,34 @@ async function applyDemoDelta(userId: string, args: { availableDelta: number; re
   // CAS-style update to reduce races: fetch -> compute -> update with equality guards
   const { data: w, error: wErr } = await supabase
     .from('wallets')
-    .select('available_balance,reserved_balance')
+    .select('available_balance,reserved_balance,demo_credits_balance')
     .eq('user_id', userId)
     .eq('currency', DEMO_CURRENCY)
     .maybeSingle();
   if (wErr) throw wErr;
   const prevAvail = Number((w as any)?.available_balance || 0);
   const prevRes = Number((w as any)?.reserved_balance || 0);
+  const prevDemo = Number((w as any)?.demo_credits_balance ?? prevAvail);
   const nextAvail = prevAvail + args.availableDelta;
   const nextRes = prevRes + args.reservedDelta;
+  const nextDemo = prevDemo + args.availableDelta;
+  if (nextDemo < 0 || nextAvail < 0 || nextRes < 0) {
+    throw new Error('Demo wallet balance would become negative');
+  }
 
   const { error: updErr } = await supabase
     .from('wallets')
-    .update({ available_balance: nextAvail, reserved_balance: nextRes, updated_at: new Date().toISOString() } as any)
+    .update({
+      available_balance: nextAvail,
+      reserved_balance: nextRes,
+      demo_credits_balance: nextDemo,
+      updated_at: new Date().toISOString()
+    } as any)
     .eq('user_id', userId)
     .eq('currency', DEMO_CURRENCY)
     .eq('available_balance', prevAvail)
-    .eq('reserved_balance', prevRes);
+    .eq('reserved_balance', prevRes)
+    .eq('demo_credits_balance', prevDemo);
   if (updErr) throw updErr;
 }
 
@@ -602,27 +623,25 @@ export async function settleDemoRail(args: {
   // This fixes the bug where fees were skipped in hybrid mode
   if (demoResult.totalPot > 0 && (demoResult.platformFee > 0 || demoResult.creatorFee > 0)) {
     if (demoResult.creatorFee > 0) {
-    const inserted = await upsertDemoTx({
-      user_id: creatorId,
-      direction: 'credit',
-      type: 'deposit',
-      channel: 'fiat',
-      provider: DEMO_PROVIDER,
-        amount: demoResult.creatorFee,
-      currency: DEMO_CURRENCY,
-      status: 'completed',
-      external_ref: `demo_creator_fee:${predictionId}`,
-      prediction_id: predictionId,
-      description: `Demo creator fee for "${predictionTitle}"`,
-      meta: { kind: 'creator_fee', provider: DEMO_PROVIDER, prediction_id: predictionId },
-    } as any);
-    if (inserted) {
-        await applyDemoDelta(creatorId, { availableDelta: demoResult.creatorFee, reservedDelta: 0 });
       try {
+        await creditCreatorEarnings({
+          userId: creatorId,
+          amount: demoResult.creatorFee,
+          provider: DEMO_PROVIDER,
+          externalRef: `demo_creator_fee:${predictionId}`,
+          predictionId,
+          description: `Creator earnings (demo settlement) for "${predictionTitle}"`,
+          referenceType: 'settlement',
+          referenceId: predictionId,
+          metadata: { kind: 'creator_fee', provider: DEMO_PROVIDER, prediction_id: predictionId, rail: 'demo' },
+        });
+        try {
           emitWalletUpdate({ userId: creatorId, reason: 'creator_fee_paid', amountDelta: demoResult.creatorFee });
-      } catch {}
+        } catch {}
+      } catch (creatorFeeErr) {
+        console.error('[SETTLEMENT] Failed to credit demo creator earnings:', creatorFeeErr);
+      }
     }
-  }
 
     if (demoResult.platformFee > 0) {
     const treasuryUserId = await resolveTreasuryUserId();
@@ -801,20 +820,18 @@ export async function recordOnchainPosted(args: { predictionId: string; txHash: 
       const currency = 'USD';
       // Creator fee
       if (settlement.creatorFeeUSD > 0 && pred.creator_id) {
-        await supabase.from('wallet_transactions').insert({
-          user_id: pred.creator_id,
-          direction: 'credit',
-          type: 'deposit',
-          channel: 'creator_fee',
-          provider: 'onchain-escrow',
+        await creditCreatorEarnings({
+          userId: pred.creator_id,
           amount: settlement.creatorFeeUSD,
+          provider: 'onchain-escrow',
+          externalRef: `onchain_settlement:${predictionId}:creator_fee:${txHash}`,
+          predictionId,
           currency,
-          status: 'completed',
-          prediction_id: predictionId,
-          description: `Creator fee (on-chain) for "${pred.title}"`,
-          tx_hash: txHash,
-          meta: { merkle_root: settlement.root }
-        } as any);
+          description: `Creator earnings (on-chain settlement) for "${pred.title}"`,
+          referenceType: 'settlement',
+          referenceId: predictionId,
+          metadata: { merkle_root: settlement.root, tx_hash: txHash, rail: 'crypto' },
+        });
       }
       // Platform fee
       if (settlement.platformFeeUSD > 0) {
@@ -1202,31 +1219,26 @@ router.post('/manual', async (req, res) => {
         console.log(`🎨🎨🎨 [SETTLEMENT] ========================================`);
         console.log('');
         
-        console.log(`🎨 [SETTLEMENT] Step 1: Updating creator wallet balance...`);
-        await db.wallets.directUpdateBalance(prediction.creator_id, feeCurrency, creatorFee, 0);
-        console.log(`🎨 [SETTLEMENT] Step 1 COMPLETE`);
-        
-        console.log(`🎨 [SETTLEMENT] Step 2: Creating creator fee transaction...`);
-        const creatorTxResult = await db.transactions.create({
-          user_id: prediction.creator_id,
-          direction: 'credit',
-          type: 'deposit',
-          channel: 'creator_fee',
-          provider: 'crypto-base-usdc',
+        console.log(`🎨 [SETTLEMENT] Step 1: Crediting creator earnings balance + ledger...`);
+        const creatorTxResult = await creditCreatorEarnings({
+          userId: prediction.creator_id,
           amount: creatorFee,
+          provider: 'crypto-base-usdc',
+          externalRef: `settlement:${predictionId}:creator_fee`,
+          predictionId,
           currency: feeCurrency,
-          status: 'completed',
-          external_ref: `settlement:${predictionId}:creator_fee`,
-          description: `Creator fee for "${prediction.title}"`,
-          meta: {
+          description: `Creator earnings for "${prediction.title}"`,
+          referenceType: 'settlement',
+          referenceId: predictionId,
+          metadata: {
             prediction_id: predictionId,
             winning_option_id: winningOptionId,
             reason: 'creator_fee',
             settlement_type: 'manual',
-            prediction_title: prediction.title
-          }
+            prediction_title: prediction.title,
+          },
         });
-        console.log(`🎨 [SETTLEMENT] Step 2 COMPLETE - Transaction:`, JSON.stringify(creatorTxResult, null, 2));
+        console.log(`🎨 [SETTLEMENT] Step 1 COMPLETE - Result:`, JSON.stringify(creatorTxResult, null, 2));
         console.log('');
         console.log(`✅ [SETTLEMENT] Creator fee credited successfully`);
         console.log('');
@@ -2097,19 +2109,17 @@ router.post('/manual/merkle/posted', async (req, res) => {
         const currency = 'USD';
         // Creator fee
         if (settlement.creatorFeeUSD > 0 && pred.creator_id) {
-          await supabase.from('wallet_transactions').insert({
-            user_id: pred.creator_id,
-            direction: 'credit',
-            type: 'deposit',
-            channel: 'creator_fee',
-            provider: 'onchain-escrow',
+          await creditCreatorEarnings({
+            userId: pred.creator_id,
             amount: settlement.creatorFeeUSD,
+            provider: 'onchain-escrow',
+            externalRef: `onchain_settlement:${predictionId}:creator_fee:${txHash}`,
+            predictionId,
             currency,
-            status: 'completed',
-            prediction_id: predictionId,
-            description: `Creator fee (on-chain) for "${pred.title}"`,
-            tx_hash: txHash,
-            meta: { merkle_root: settlement.root }
+            description: `Creator earnings (on-chain settlement) for "${pred.title}"`,
+            referenceType: 'settlement',
+            referenceId: predictionId,
+            metadata: { merkle_root: settlement.root, tx_hash: txHash, rail: 'crypto' },
           });
         }
         // Platform fee

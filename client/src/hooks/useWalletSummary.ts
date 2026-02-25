@@ -7,6 +7,14 @@ export type WalletSummary = {
   available: number;
   reserved: number;
   total: number;
+  demoCredits: number;
+  creatorEarnings: number;
+  stakeBalance: number;
+  balances?: {
+    demoCredits: number;
+    creatorEarnings: number;
+    stakeBalance: number;
+  };
   availableToStakeUSDC: number;
   reservedUSDC: number;
   escrowUSDC: number;
@@ -74,6 +82,14 @@ export function useWalletSummary(userId?: string, options: WalletSummaryOptions 
         available: Number(summary.available ?? 0),
         reserved: Number(summary.reserved ?? 0),
         total: Number(summary.total ?? 0),
+        demoCredits: Number(summary.demoCredits ?? summary.balances?.demoCredits ?? 0),
+        creatorEarnings: Number(summary.creatorEarnings ?? summary.balances?.creatorEarnings ?? 0),
+        stakeBalance: Number(summary.stakeBalance ?? summary.balances?.stakeBalance ?? summary.available ?? 0),
+        balances: {
+          demoCredits: Number(summary.demoCredits ?? summary.balances?.demoCredits ?? 0),
+          creatorEarnings: Number(summary.creatorEarnings ?? summary.balances?.creatorEarnings ?? 0),
+          stakeBalance: Number(summary.stakeBalance ?? summary.balances?.stakeBalance ?? summary.available ?? 0),
+        },
         availableToStakeUSDC: Number(summary.availableToStakeUSDC ?? summary.available ?? 0),
         reservedUSDC: Number(summary.reservedUSDC ?? summary.reserved ?? 0),
         escrowUSDC: Number(summary.escrowUSDC ?? summary.total ?? 0),
