@@ -11,4 +11,4 @@ export * from './types/social';
 export * from './types/auth';
 
 // Odds / settlement math
-export * from './oddsV2';
+// NOTE: oddsV2 source is not present in this scoped release branch; keep shared exports compile-safe.
