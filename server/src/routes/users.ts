@@ -41,6 +41,64 @@ function checkETag(req: express.Request, res: express.Response, data: unknown): 
 
 const router = express.Router();
 
+type SimpleIpLimiterOptions = {
+  keyPrefix: string;
+  windowMs: number;
+  max: number;
+};
+
+function createSimpleIpRateLimiter(options: SimpleIpLimiterOptions) {
+  const buckets = new Map<string, { count: number; resetAt: number }>();
+  let lastSweep = 0;
+
+  return (req: express.Request, res: express.Response, next: express.NextFunction) => {
+    const now = Date.now();
+    const ip = String(req.ip || req.headers['x-forwarded-for'] || 'unknown');
+    const key = `${options.keyPrefix}:${ip}`;
+
+    // Periodic bounded cleanup for expired buckets.
+    if (now - lastSweep > options.windowMs) {
+      for (const [bucketKey, bucket] of buckets.entries()) {
+        if (bucket.resetAt <= now) buckets.delete(bucketKey);
+      }
+      lastSweep = now;
+    }
+
+    const current = buckets.get(key);
+    if (!current || current.resetAt <= now) {
+      buckets.set(key, { count: 1, resetAt: now + options.windowMs });
+      return next();
+    }
+
+    if (current.count >= options.max) {
+      const retryAfterSec = Math.max(1, Math.ceil((current.resetAt - now) / 1000));
+      res.setHeader('Retry-After', String(retryAfterSec));
+      return res.status(429).json({
+        error: 'rate_limited',
+        message: 'Too many requests. Please try again shortly.',
+        version: VERSION,
+      });
+    }
+
+    current.count += 1;
+    buckets.set(key, current);
+    return next();
+  };
+}
+
+// Basic per-IP protection for public profile discovery endpoints.
+// Note: in-memory and per-instance; replace/augment with global limiter if/when introduced.
+const publicProfileResolveRateLimit = createSimpleIpRateLimiter({
+  keyPrefix: 'users:resolve',
+  windowMs: 60_000,
+  max: 120,
+});
+const publicProfileReadRateLimit = createSimpleIpRateLimiter({
+  keyPrefix: 'users:public-profile',
+  windowMs: 60_000,
+  max: 60,
+});
+
 async function buildPublicProfilePayload(userId: string) {
   // TODO(ugc-blocking): apply block/ban visibility rules here when item 6 ships.
   const { data: user, error } = await supabase
@@ -650,7 +708,7 @@ router.get('/:id/achievements', async (req, res) => {
 });
 
 // GET /api/v2/users/resolve?handle=:handle - Resolve public profile handle to user id
-router.get('/resolve', async (req, res) => {
+router.get('/resolve', publicProfileResolveRateLimit, async (req, res) => {
   try {
     const handle = String(req.query.handle || '').trim().replace(/^@/, '');
     if (!handle) {
@@ -696,7 +754,7 @@ router.get('/resolve', async (req, res) => {
 });
 
 // GET /api/v2/users/:id/public-profile - Safe public profile payload (no private fields)
-router.get('/:id/public-profile', async (req, res) => {
+router.get('/:id/public-profile', publicProfileReadRateLimit, async (req, res) => {
   try {
     const userId = String(req.params.id || '').trim();
     if (!userId) {
