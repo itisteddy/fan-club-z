@@ -238,7 +238,14 @@ async function handlePlaceBet(req: any, res: any) {
       await supabase
         .from('wallets')
         .upsert(
-          { user_id: userId, currency: DEMO_CURRENCY, available_balance: 0, reserved_balance: 0, updated_at: new Date().toISOString() } as any,
+          {
+            user_id: userId,
+            currency: DEMO_CURRENCY,
+            available_balance: 0,
+            reserved_balance: 0,
+            demo_credits_balance: 0,
+            updated_at: new Date().toISOString(),
+          } as any,
           { onConflict: 'user_id,currency', ignoreDuplicates: true }
         );
 
@@ -334,24 +341,36 @@ async function handlePlaceBet(req: any, res: any) {
       // Reserve demo balance (compare-and-swap to reduce race issues)
       const { data: w } = await supabase
         .from('wallets')
-        .select('available_balance,reserved_balance')
+        .select('available_balance,reserved_balance,demo_credits_balance')
         .eq('user_id', userId)
         .eq('currency', DEMO_CURRENCY)
         .maybeSingle();
-      const prevAvail = Number((w as any)?.available_balance || 0);
+      const prevAvailLegacy = Number((w as any)?.available_balance || 0);
+      const hasExplicitDemoAvail = (w as any)?.demo_credits_balance !== null && (w as any)?.demo_credits_balance !== undefined;
+      const prevDemoAvail = Number((w as any)?.demo_credits_balance ?? prevAvailLegacy);
       const prevRes = Number((w as any)?.reserved_balance || 0);
-      if (prevAvail < amountUSD) {
+      if (prevDemoAvail < amountUSD) {
         return res.status(400).json({ error: 'INSUFFICIENT_FUNDS', message: 'Insufficient demo credits', version: VERSION });
       }
-      const nextAvail = prevAvail - amountUSD;
+      const nextDemoAvail = prevDemoAvail - amountUSD;
       const nextRes = prevRes + amountUSD;
-      const { error: balErr } = await supabase
+      let balanceUpdateQuery = supabase
         .from('wallets')
-        .update({ available_balance: nextAvail, reserved_balance: nextRes, updated_at: new Date().toISOString() } as any)
+        .update({
+          // Keep legacy available_balance mirrored for old readers, but demo_credits_balance is source of truth.
+          available_balance: nextDemoAvail,
+          demo_credits_balance: nextDemoAvail,
+          reserved_balance: nextRes,
+          updated_at: new Date().toISOString(),
+        } as any)
         .eq('user_id', userId)
         .eq('currency', DEMO_CURRENCY)
-        .eq('available_balance', prevAvail)
+        .eq('available_balance', prevAvailLegacy)
         .eq('reserved_balance', prevRes);
+      if (hasExplicitDemoAvail) {
+        balanceUpdateQuery = balanceUpdateQuery.eq('demo_credits_balance', prevDemoAvail);
+      }
+      const { error: balErr } = await balanceUpdateQuery;
       if (balErr) {
         return res.status(400).json({ error: 'INSUFFICIENT_FUNDS', message: 'Insufficient demo credits', version: VERSION });
       }
