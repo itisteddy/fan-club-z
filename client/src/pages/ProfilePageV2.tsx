@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Edit3, User, Activity, DollarSign, TrendingUp, Target, Trophy, Upload, X, Mail, XCircle } from 'lucide-react';
+import { useNavigate, useParams } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import { useAuthSession } from '../providers/AuthSessionProvider';
 import { usePredictionStore } from '../store/predictionStore';
@@ -17,13 +18,43 @@ import { ProfileReferralSection } from '@/components/profile/ProfileReferralSect
 import { ProfileAchievementsSection } from '@/components/profile/ProfileAchievementsSection';
 import { useReferral } from '@/hooks/useReferral';
 import { useUserAchievements } from '@/hooks/useUserAchievements';
+import { apiClient } from '@/lib/apiClient';
 
 interface ProfilePageV2Props {
   onNavigateBack?: () => void;
   userId?: string;
 }
 
+type PublicProfilePayload = {
+  user: {
+    id: string;
+    handle: string;
+    displayName: string;
+    avatarUrl?: string | null;
+    createdAt?: string | null;
+    ogBadge?: 'gold' | 'silver' | 'bronze' | null;
+    ogBadgeAssignedAt?: string | null;
+  };
+  stats: {
+    predictionsCreated: number;
+    predictionsParticipated: number;
+    totalVolume: number;
+    totalInvested: number;
+    totalEarnings: number;
+    profitLoss: number;
+    winRate: number;
+    wonEntries: number;
+    completedEntries: number;
+    activeStakes: number;
+    rank: number;
+  };
+  achievements?: any;
+  recentActivity?: any[];
+};
+
 const ProfilePageV2: React.FC<ProfilePageV2Props> = ({ onNavigateBack, userId }) => {
+  const navigate = useNavigate();
+  const { userId: routeUserId, handle: routeHandle } = useParams<{ userId?: string; handle?: string }>();
   const { user: sessionUser } = useAuthSession();
   const { user: storeUser, isAuthenticated: storeAuth } = useAuthStore();
   const { 
@@ -35,6 +66,10 @@ const ProfilePageV2: React.FC<ProfilePageV2Props> = ({ onNavigateBack, userId })
   const [loading, setLoading] = useState(true);
   const [showActivityModal, setShowActivityModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [publicProfile, setPublicProfile] = useState<PublicProfilePayload | null>(null);
+  const [publicProfileLoading, setPublicProfileLoading] = useState(false);
+  const [publicProfileError, setPublicProfileError] = useState<string | null>(null);
+  const [resolvedPublicUserId, setResolvedPublicUserId] = useState<string | null>(null);
 
   const [editFirstName, setEditFirstName] = useState('');
   const [editLastName, setEditLastName] = useState('');
@@ -44,10 +79,15 @@ const ProfilePageV2: React.FC<ProfilePageV2Props> = ({ onNavigateBack, userId })
   // Referral hook
   const { isEnabled: referralsEnabled } = useReferral();
   
+  // Determine user context - profile is self-mode only for /profile (no explicit target route).
+  const explicitRouteUserId = (userId || routeUserId || '').trim();
+  const explicitRouteHandle = (routeHandle || '').trim();
+  const isPublicRoute = Boolean(explicitRouteUserId || explicitRouteHandle);
+
   // Determine user context - prioritize session user
   const user = sessionUser || storeUser;
   const authenticated = !!sessionUser || storeAuth;
-  const isOwnProfile = !userId || userId === user?.id;
+  const isOwnProfile = !isPublicRoute;
   const displayUser = user;
   const baseUser: any = displayUser || {};
   const userMetadata: any = baseUser.user_metadata || {};
@@ -77,28 +117,76 @@ const ProfilePageV2: React.FC<ProfilePageV2Props> = ({ onNavigateBack, userId })
       (displayEmail ? displayEmail.split('@')[0] : '')) || 'user';
   
   // Get OG badge from user metadata
-  const ogBadge = (user as any)?.user_metadata?.og_badge || (user as any)?.og_badge || null;
-  const ogBadgeAssignedAt = (user as any)?.user_metadata?.og_badge_assigned_at || (user as any)?.og_badge_assigned_at || null;
+  const ogBadge = isOwnProfile
+    ? ((user as any)?.user_metadata?.og_badge || (user as any)?.og_badge || null)
+    : (publicProfile?.user.ogBadge || null);
+  const ogBadgeAssignedAt = isOwnProfile
+    ? ((user as any)?.user_metadata?.og_badge_assigned_at || (user as any)?.og_badge_assigned_at || null)
+    : (publicProfile?.user.ogBadgeAssignedAt || null);
   const ogBadgeMemberNumber = (user as any)?.user_metadata?.og_badge_member_number || (user as any)?.og_badge_member_number || null;
 
   useEffect(() => {
+    if (isPublicRoute) {
+      setLoading(false);
+      return;
+    }
     if (authenticated && user?.id) {
       setLoading(false);
     } else if (!authenticated) {
       setLoading(false);
     }
-  }, [authenticated, user?.id]);
+  }, [authenticated, user?.id, isPublicRoute]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const run = async () => {
+      if (!isPublicRoute) {
+        setPublicProfile(null);
+        setPublicProfileError(null);
+        setResolvedPublicUserId(null);
+        return;
+      }
+      setPublicProfileLoading(true);
+      setPublicProfileError(null);
+      try {
+        let targetUserId = explicitRouteUserId;
+        if (!targetUserId && explicitRouteHandle) {
+          const resolved = await apiClient.get(`/users/resolve?handle=${encodeURIComponent(explicitRouteHandle)}`);
+          targetUserId = String(resolved?.data?.userId || '');
+          if (!targetUserId) throw new Error('Profile not found');
+        }
+        const profileRes = await apiClient.get(`/users/${encodeURIComponent(targetUserId)}/public-profile`);
+        if (cancelled) return;
+        setResolvedPublicUserId(targetUserId);
+        setPublicProfile((profileRes?.data || null) as PublicProfilePayload | null);
+      } catch (err: any) {
+        if (cancelled) return;
+        setPublicProfile(null);
+        setPublicProfileError(
+          err?.status === 404 || String(err?.message || '').includes('404')
+            ? 'Profile not found'
+            : (err?.message || 'Failed to load profile')
+        );
+      } finally {
+        if (!cancelled) setPublicProfileLoading(false);
+      }
+    };
+    void run();
+    return () => { cancelled = true; };
+  }, [isPublicRoute, explicitRouteUserId, explicitRouteHandle]);
 
   // Ensure profile analytics are calculated from fresh data
   useEffect(() => {
-    if (authenticated && user?.id) {
+    if (isOwnProfile && authenticated && user?.id) {
       fetchUserPredictionEntries(user.id);
       fetchUserCreatedPredictions(user.id);
     }
-  }, [authenticated, user?.id, fetchUserPredictionEntries, fetchUserCreatedPredictions]);
+  }, [isOwnProfile, authenticated, user?.id, fetchUserPredictionEntries, fetchUserCreatedPredictions]);
 
   // Calculate user stats
-  const activityUserId = userId ?? user?.id ?? '';
+  const activityUserId = isOwnProfile
+    ? (user?.id ?? '')
+    : (publicProfile?.user.id || resolvedPublicUserId || explicitRouteUserId || '');
   const {
     data: achievements,
     isLoading: achievementsLoading,
@@ -106,16 +194,16 @@ const ProfilePageV2: React.FC<ProfilePageV2Props> = ({ onNavigateBack, userId })
     refetch: refetchAchievements,
   } = useUserAchievements(
     activityUserId || null,
-    Boolean(activityUserId)
+    isOwnProfile && Boolean(activityUserId)
   );
 
   const { items: activityItems, loading: loadingActivity } = useUserActivity(activityUserId, {
     limit: 50,
-    autoLoad: Boolean(activityUserId)
+    autoLoad: isOwnProfile && Boolean(activityUserId)
   });
 
-  const userEntries = getUserPredictionEntries(user?.id || '') || [];
-  const userCreated = getUserCreatedPredictions(user?.id || '') || [];
+  const userEntries = isOwnProfile ? (getUserPredictionEntries(user?.id || '') || []) : [];
+  const userCreated = isOwnProfile ? (getUserCreatedPredictions(user?.id || '') || []) : [];
   const completedEntries = userEntries.filter(entry => entry?.status === 'won' || entry?.status === 'lost');
   const wonEntries = userEntries.filter(entry => entry?.status === 'won');
   const totalInvested = userEntries.reduce((sum, entry) => sum + (entry?.amount || 0), 0);
@@ -124,8 +212,8 @@ const ProfilePageV2: React.FC<ProfilePageV2Props> = ({ onNavigateBack, userId })
   const balance = totalEarnings - totalInvested;
 
   // Recent activity (last 5 items)
-  const recentActivity = activityItems.slice(0, 5);
-  const isActivityLoading = loadingActivity && activityItems.length === 0;
+  const recentActivity = isOwnProfile ? activityItems.slice(0, 5) : [];
+  const isActivityLoading = isOwnProfile && loadingActivity && activityItems.length === 0;
 
   // Calculate professional KPIs for Profile - must be before any early returns
   const uniquePredictionsBetOn = React.useMemo(() => {
@@ -135,9 +223,33 @@ const ProfilePageV2: React.FC<ProfilePageV2Props> = ({ onNavigateBack, userId })
     }
     return ids.size;
   }, [userEntries]);
-  const totalPredictions = uniquePredictionsBetOn + userCreated.length;
-  const successRate = completedEntries.length > 0 ? (wonEntries.length / completedEntries.length) * 100 : 0;
-  const userRank = Math.max(1, Math.ceil((100 - winRate) / 10)); // Simple ranking based on win rate
+  const totalPredictions = isOwnProfile
+    ? (uniquePredictionsBetOn + userCreated.length)
+    : Number((publicProfile?.stats?.predictionsCreated || 0) + (publicProfile?.stats?.predictionsParticipated || 0));
+  const successRate = isOwnProfile
+    ? (completedEntries.length > 0 ? (wonEntries.length / completedEntries.length) * 100 : 0)
+    : Number(publicProfile?.stats?.winRate || 0);
+  const userRank = isOwnProfile
+    ? Math.max(1, Math.ceil((100 - winRate) / 10))
+    : Number(publicProfile?.stats?.rank || 1);
+
+  const profileDisplayName = isOwnProfile
+    ? (((displayFirstName || displayLastName) ? `${displayFirstName} ${displayLastName}`.trim() : (displayHandle || 'User')))
+    : (publicProfile?.user.displayName || 'User');
+  const profileHandle = isOwnProfile ? (displayHandle || 'user') : (publicProfile?.user.handle || 'user');
+  const profileAvatar = isOwnProfile ? displayAvatar : (publicProfile?.user.avatarUrl || '');
+  const profileActiveStakes = isOwnProfile
+    ? userEntries.filter(e => e.status === 'active').length
+    : Number(publicProfile?.stats?.activeStakes || 0);
+  const profileCompletedCount = isOwnProfile
+    ? completedEntries.length
+    : Number(publicProfile?.stats?.completedEntries || 0);
+  const profileProfitLoss = isOwnProfile
+    ? balance
+    : Number(publicProfile?.stats?.profitLoss || 0);
+  const profileAchievements = isOwnProfile ? achievements : publicProfile?.achievements;
+  const profileAchievementsLoading = isOwnProfile ? achievementsLoading : publicProfileLoading;
+  const profileAchievementsError = isOwnProfile ? achievementsError : (publicProfileError ? new Error(publicProfileError) : null);
 
   const getActivityDisplay = (item: FeedActivityItem) => {
     switch (item.type) {
@@ -235,8 +347,62 @@ const ProfilePageV2: React.FC<ProfilePageV2Props> = ({ onNavigateBack, userId })
     }
   };
 
-  // Handle authentication required - NO UPSELL, clean experience (same visual structure as wallet)
-  if (!authenticated) {
+  if (isPublicRoute && publicProfileLoading && !publicProfile) {
+    return (
+      <div className="min-h-screen bg-gray-50 pb-[calc(5rem+env(safe-area-inset-bottom))]">
+        <AppHeader title="Profile" />
+        <div className="mx-auto w-full max-w-[720px] lg:max-w-[960px] px-4 py-4">
+          <div className="space-y-4">
+            <div className="grid grid-cols-3 gap-3">
+              {[...Array(3)].map((_, i) => (
+                <div key={i} className="bg-white rounded-2xl border border-black/[0.06] p-4 min-h-[88px] animate-pulse">
+                  <div className="h-3 bg-gray-200 rounded mb-2 w-16"></div>
+                  <div className="h-6 bg-gray-200 rounded w-20"></div>
+                </div>
+              ))}
+            </div>
+            <div className="bg-white rounded-2xl border border-black/[0.06] p-4 animate-pulse h-28" />
+            <div className="bg-white rounded-2xl border border-black/[0.06] p-4 animate-pulse h-48" />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (isPublicRoute && publicProfileError && !publicProfile) {
+    return (
+      <div className="min-h-screen bg-gray-50 pb-[calc(5rem+env(safe-area-inset-bottom))]">
+        <AppHeader title="Profile" />
+        <div className="mx-auto w-full max-w-[720px] lg:max-w-[960px] px-4 py-6">
+          <div className="bg-white rounded-2xl border border-black/[0.06] p-5">
+            <h3 className="text-base font-semibold text-gray-900 mb-2">
+              {publicProfileError === 'Profile not found' ? 'Profile not found' : 'Unable to load profile'}
+            </h3>
+            <p className="text-sm text-gray-600 mb-4">{publicProfileError}</p>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => navigate(-1)}
+                className="px-3 py-2 rounded-lg border border-black/[0.08] bg-white text-sm font-medium text-gray-900 hover:bg-gray-50"
+              >
+                Back
+              </button>
+              <button
+                type="button"
+                onClick={() => window.location.reload()}
+                className="px-3 py-2 rounded-lg bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-700"
+              >
+                Retry
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Handle authentication required - only for self profile
+  if (!isPublicRoute && !authenticated) {
     return (
       <div className="min-h-screen bg-gray-50 pb-[calc(5rem+env(safe-area-inset-bottom))]">
         <AppHeader title="Profile" />
@@ -349,7 +515,9 @@ const ProfilePageV2: React.FC<ProfilePageV2Props> = ({ onNavigateBack, userId })
                     {formatLargeNumber(totalPredictions)}
                   </div>
                   <div className="text-xs text-gray-500 mt-1">
-                    {userEntries.length} {t('bets')}, {userCreated.length} created
+                    {isOwnProfile
+                      ? `${userEntries.length} ${t('bets')}, ${userCreated.length} created`
+                      : `${formatLargeNumber(Number(publicProfile?.stats?.predictionsParticipated || 0))} ${t('bets')}, ${formatLargeNumber(Number(publicProfile?.stats?.predictionsCreated || 0))} created`}
                   </div>
                 </div>
                 
@@ -365,7 +533,9 @@ const ProfilePageV2: React.FC<ProfilePageV2Props> = ({ onNavigateBack, userId })
                     {formatPercentage(successRate / 100)}
                   </div>
                   <div className="text-xs text-gray-500 mt-1">
-                    {wonEntries.length}/{completedEntries.length} won
+                    {isOwnProfile
+                      ? `${wonEntries.length}/${completedEntries.length} won`
+                      : `${formatLargeNumber(Number(publicProfile?.stats?.wonEntries || 0))}/${formatLargeNumber(profileCompletedCount)} won`}
                   </div>
                 </div>
                 
@@ -378,7 +548,7 @@ const ProfilePageV2: React.FC<ProfilePageV2Props> = ({ onNavigateBack, userId })
                     #{userRank}
                   </div>
                   <div className="text-xs text-gray-500 mt-1">
-                    {balance >= 0 ? 'profitable' : 'improving'}
+                    {profileProfitLoss >= 0 ? 'profitable' : 'improving'}
                   </div>
                 </div>
               </div>
@@ -389,35 +559,31 @@ const ProfilePageV2: React.FC<ProfilePageV2Props> = ({ onNavigateBack, userId })
                   {/* Avatar with OG Badge overlay */}
                   <AvatarWithBadge tier={ogBadge} badgePosition="bottom-right" badgeSize="sm">
                     <UserAvatar
-                      email={displayEmail}
-                      username={displayFirstName || displayHandle}
-                      avatarUrl={displayAvatar}
+                      email={isOwnProfile ? displayEmail : ''}
+                      username={profileDisplayName || profileHandle}
+                      avatarUrl={profileAvatar}
                       size="lg"
                     />
                   </AvatarWithBadge>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
-                      <h3 className="text-xl font-bold text-gray-900">
-                        {(displayFirstName || displayLastName)
-                          ? `${displayFirstName} ${displayLastName}`.trim()
-                          : displayHandle || 'User'}
-                      </h3>
+                  <h3 className="text-xl font-bold text-gray-900">{profileDisplayName}</h3>
                       {/* Inline OG Badge next to name */}
                       <OGBadge tier={ogBadge} size="md" />
                     </div>
                     <p className="text-sm text-gray-600 mb-2">
-                      @{displayHandle}
+                      @{profileHandle}
                     </p>
                     <div className="flex items-center space-x-4 text-xs">
                       <span className="flex items-center gap-1 text-emerald-600">
                         <div className="w-2 h-2 bg-emerald-500 rounded-full"></div>
-                        {userEntries.filter(e => e.status === 'active').length} active {t('bets')}
+                        {profileActiveStakes} active {t('bets')}
                       </span>
                       <span className="text-gray-500">
-                        {completedEntries.length} completed
+                        {profileCompletedCount} completed
                       </span>
                       <span className="text-gray-500">
-                        {formatCurrency(Math.abs(balance), { compact: true })} {balance >= 0 ? 'profit' : 'loss'}
+                        {formatCurrency(Math.abs(profileProfitLoss), { compact: true })} {profileProfitLoss >= 0 ? 'profit' : 'loss'}
                       </span>
                     </div>
                   </div>
@@ -448,15 +614,21 @@ const ProfilePageV2: React.FC<ProfilePageV2Props> = ({ onNavigateBack, userId })
                 />
               )}
 
-              <ProfileAchievementsSection
-                awardDefinitions={achievements?.awardDefinitions || []}
-                awards={achievements?.awards || []}
-                badgeDefinitions={achievements?.badgeDefinitions || []}
-                badgesEarned={achievements?.badgesEarned || []}
-                badges={achievements?.badges || []}
-                loading={achievementsLoading}
-                error={achievementsError instanceof Error ? achievementsError.message : null}
-                onRetry={() => { void refetchAchievements(); }}
+                <ProfileAchievementsSection
+                awardDefinitions={profileAchievements?.awardDefinitions || []}
+                awards={profileAchievements?.awards || []}
+                badgeDefinitions={profileAchievements?.badgeDefinitions || []}
+                badgesEarned={profileAchievements?.badgesEarned || []}
+                badges={profileAchievements?.badges || []}
+                loading={profileAchievementsLoading}
+                error={profileAchievementsError instanceof Error ? profileAchievementsError.message : null}
+                onRetry={() => {
+                  if (isOwnProfile) {
+                    void refetchAchievements();
+                    return;
+                  }
+                  window.location.reload();
+                }}
               />
 
               {/* Referral Section - Show only on own profile when feature is enabled */}
@@ -468,6 +640,7 @@ const ProfilePageV2: React.FC<ProfilePageV2Props> = ({ onNavigateBack, userId })
               )}
 
               {/* Recent Activity Card - Enhanced activity display */}
+              {isOwnProfile && (
               <div className="bg-white rounded-2xl border border-black/[0.06] p-4">
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-sm font-semibold text-gray-900">Recent Activity</h3>
@@ -549,6 +722,7 @@ const ProfilePageV2: React.FC<ProfilePageV2Props> = ({ onNavigateBack, userId })
                   </div>
                 )}
               </div>
+              )}
 
               {/* Contact Support CTA */}
               <div className="bg-gradient-to-br from-emerald-500 via-teal-500 to-indigo-500 rounded-2xl shadow-lg border border-white/10 p-4 sm:p-5 text-white">
@@ -576,7 +750,7 @@ const ProfilePageV2: React.FC<ProfilePageV2Props> = ({ onNavigateBack, userId })
     </div>
 
     {/* Persistent Sign out CTA */}
-    {authenticated && (
+    {authenticated && isOwnProfile && (
       <div className="mx-auto w-full max-w-[720px] lg:max-w-[960px] px-4 mt-4 mb-[calc(5rem+env(safe-area-inset-bottom))]">
         <button
           onClick={async () => {

@@ -942,6 +942,10 @@ const AppContent: React.FC = () => {
                     <Route path="/profile/:userId" element={
                       <PageWrapper title="Profile"><LazyProfilePageV2 /></PageWrapper>
                     } />
+                    {/* Public profile route uses handle for shareable deep links; /profile/:userId kept as fallback/back-compat. */}
+                    <Route path="/u/:handle" element={
+                      <PageWrapper title="Profile"><LazyProfilePageV2 /></PageWrapper>
+                    } />
                     <Route path="/wallet" element={
                       <PageWrapper title="Wallet"><LazyUnifiedWalletPage /></PageWrapper>
                     } />

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Trophy, TrendingUp, Target, Medal, Crown, Award, Users, Gift } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuthStore } from '../store/authStore';
@@ -34,6 +35,7 @@ type TabType = 'predictions' | 'profit' | 'winrate' | 'referrals';
 
 const UnifiedLeaderboardPage: React.FC = () => {
   const { user } = useAuthStore();
+  const navigate = useNavigate();
   
   // Determine available tabs based on feature flags
   const referralsEnabled = useMemo(() => isReferralEnabled(), []);
@@ -46,6 +48,15 @@ const UnifiedLeaderboardPage: React.FC = () => {
   const [isSticky, setIsSticky] = useState(false);
   const filterRef = useRef<HTMLDivElement>(null);
 
+  const openUserProfile = (leaderUser: LeaderboardUser) => {
+    const handle = String(leaderUser.username || '').trim();
+    if (handle) {
+      navigate(`/u/${encodeURIComponent(handle)}`);
+      return;
+    }
+    navigate(`/profile/${encodeURIComponent(String(leaderUser.id))}`);
+  };
+
   // Fetch standard leaderboard data
   const fetchLeaderboardData = async (type: 'predictions' | 'profit' | 'winrate') => {
     try {
@@ -57,9 +68,7 @@ const UnifiedLeaderboardPage: React.FC = () => {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
-          'Cache-Control': 'no-cache',
         },
-        cache: 'no-store',
       });
 
       if (!response.ok) {
@@ -485,19 +494,30 @@ const UnifiedLeaderboardPage: React.FC = () => {
                         </div>
                         
                         {/* User Avatar */}
-                        <UserAvatar 
-                          email={leaderUser.username}
-                          username={leaderUser.username}
-                          avatarUrl={leaderUser.avatar_url}
-                          size="md"
-                        />
+                        <button
+                          type="button"
+                          onClick={() => openUserProfile(leaderUser)}
+                          className="rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
+                          aria-label={`Open profile for ${leaderUser.full_name || leaderUser.username}`}
+                        >
+                          <UserAvatar 
+                            email={leaderUser.username}
+                            username={leaderUser.username}
+                            avatarUrl={leaderUser.avatar_url}
+                            size="md"
+                          />
+                        </button>
                         
                         {/* User Info */}
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center space-x-2">
-                            <h4 className="font-semibold text-gray-900 truncate">
+                            <button
+                              type="button"
+                              onClick={() => openUserProfile(leaderUser)}
+                              className="font-semibold text-gray-900 truncate hover:text-emerald-700 text-left"
+                            >
                               {leaderUser.full_name || leaderUser.username}
-                            </h4>
+                            </button>
                             <OGBadge tier={leaderUser.og_badge} size="sm" />
                             {isCurrentUser && (
                               <motion.span
@@ -510,9 +530,13 @@ const UnifiedLeaderboardPage: React.FC = () => {
                               </motion.span>
                             )}
                           </div>
-                          <p className="text-sm text-gray-600 truncate">
+                          <button
+                            type="button"
+                            onClick={() => openUserProfile(leaderUser)}
+                            className="text-sm text-gray-600 truncate hover:text-gray-800 text-left"
+                          >
                             @{leaderUser.username}
-                          </p>
+                          </button>
                         </div>
                       </div>
                       

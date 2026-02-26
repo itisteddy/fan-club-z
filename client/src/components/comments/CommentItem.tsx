@@ -1,15 +1,11 @@
 import React, { useState, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Comment } from '../../store/unifiedCommentStore';
 import { useAuthStore } from '../../store/authStore';
-import { useAuthSession } from '@/providers/AuthSessionProvider';
-import { isFeatureEnabled } from '@/config/featureFlags';
-import { useBlockedUsers } from '@/hooks/useBlockedUsers';
 import CommentOverflowMenu from './CommentOverflowMenu';
-import { ReportContentModal } from '../ugc/ReportContentModal';
 import { formatDistanceToNow } from 'date-fns';
 import { qaLog } from '../../utils/devQa';
 import { OGBadge } from '../badges/OGBadge';
-import toast from 'react-hot-toast';
 
 interface CommentItemProps {
   comment: Comment;
@@ -26,19 +22,15 @@ const CommentItem: React.FC<CommentItemProps> = ({
   onDelete,
   onLikeToggle,
 }) => {
+  const navigate = useNavigate();
   const { user } = useAuthStore();
-  const { session } = useAuthSession();
   const [isEditing, setIsEditing] = useState(false);
   const [editText, setEditText] = useState(comment.text);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [showReportModal, setShowReportModal] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const isOwner = user?.id === comment.user.id;
-  const ugcModerationEnabled = isFeatureEnabled('UGC_MODERATION');
-  const { blockUser, isBlocked } = useBlockedUsers();
-  const commentAuthorId = comment.user?.id;
-
+  
   // Get OG badge from comment user data
   const ogBadge = (comment.user as any)?.og_badge || (comment.user as any)?.ogBadge || null;
 
@@ -116,26 +108,24 @@ const CommentItem: React.FC<CommentItemProps> = ({
     }
   };
 
+  // Handle report (placeholder)
   const handleReport = () => {
     qaLog(`Reporting comment ${comment.id}`);
-    setShowReportModal(true);
-  };
-
-  const handleBlockUser = async () => {
-    if (!commentAuthorId) return;
-    if (!window.confirm(`Block @${comment.user?.username || 'this user'}? You won't see their content.`)) return;
-    const result = await blockUser(commentAuthorId);
-    if (result.ok) {
-      toast.success('User blocked. You won\'t see their content.');
-    } else {
-      toast.error(result.message || 'Failed to block user');
-    }
+    // This could open a report modal or send an analytics event
+    // For now, just log the event
   };
 
   // Handle username click
   const handleUsernameClick = () => {
-    // Could navigate to user profile
     qaLog(`Username clicked: ${comment.user.username}`);
+    const handle = String(comment.user.username || '').trim();
+    if (handle) {
+      navigate(`/u/${encodeURIComponent(handle)}`);
+      return;
+    }
+    if (comment.user.id) {
+      navigate(`/profile/${encodeURIComponent(String(comment.user.id))}`);
+    }
   };
 
   // Auto-grow textarea
@@ -174,7 +164,12 @@ const CommentItem: React.FC<CommentItemProps> = ({
       id={`comment-${comment.id}`}
     >
       {/* Avatar */}
-      <div className="comment-avatar">
+      <button
+        type="button"
+        className="comment-avatar p-0 border-0 bg-transparent appearance-none"
+        onClick={handleUsernameClick}
+        aria-label={`Open profile for ${comment.user.username}`}
+      >
         {comment.user.avatarUrl ? (
           <img 
             src={comment.user.avatarUrl} 
@@ -184,7 +179,7 @@ const CommentItem: React.FC<CommentItemProps> = ({
         ) : (
           comment.user.username.charAt(0).toUpperCase()
         )}
-      </div>
+      </button>
 
       {/* Content */}
       <div className="comment-content">
@@ -256,23 +251,11 @@ const CommentItem: React.FC<CommentItemProps> = ({
               isOwner={isOwner}
               onEdit={isOwner && onEdit ? handleEditStart : undefined}
               onDelete={isOwner && onDelete ? handleDelete : undefined}
-              onReport={ugcModerationEnabled && !isOwner ? handleReport : undefined}
-              onBlock={ugcModerationEnabled && !isOwner && commentAuthorId && !isBlocked(commentAuthorId) ? handleBlockUser : undefined}
+              onReport={!isOwner ? handleReport : undefined}
             />
           </div>
         )}
       </div>
-      {ugcModerationEnabled && (
-        <ReportContentModal
-          open={showReportModal}
-          targetType="comment"
-          targetId={comment.id}
-          label="this comment"
-          accessToken={session?.access_token}
-          onClose={() => setShowReportModal(false)}
-          onSuccess={() => toast.success('Report submitted. Our team will review it.')}
-        />
-      )}
     </div>
   );
 };

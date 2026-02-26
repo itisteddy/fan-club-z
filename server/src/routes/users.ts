@@ -41,6 +41,78 @@ function checkETag(req: express.Request, res: express.Response, data: unknown): 
 
 const router = express.Router();
 
+async function buildPublicProfilePayload(userId: string) {
+  // TODO(ugc-blocking): apply block/ban visibility rules here when item 6 ships.
+  const { data: user, error } = await supabase
+    .from('users')
+    .select('id, username, full_name, avatar_url, created_at, og_badge, og_badge_assigned_at')
+    .eq('id', userId)
+    .single();
+
+  if (error || !user) {
+    const notFound = new Error(`User ${userId} not found`);
+    (notFound as any).status = 404;
+    throw notFound;
+  }
+
+  const [createdPredictions, participatedPredictions, achievements] = await Promise.all([
+    supabase
+      .from('predictions')
+      .select('id, status, pool_total', { count: 'exact' })
+      .eq('creator_id', userId),
+    supabase
+      .from('prediction_entries')
+      .select('id, status, amount, actual_payout', { count: 'exact' })
+      .eq('user_id', userId),
+    getUserAchievements(userId),
+  ]);
+
+  if (createdPredictions.error) throw createdPredictions.error;
+  if (participatedPredictions.error) throw participatedPredictions.error;
+
+  const entries = participatedPredictions.data || [];
+  const wonEntries = entries.filter((entry: any) => entry.status === 'won');
+  const completedEntries = entries.filter((entry: any) => entry.status === 'won' || entry.status === 'lost');
+  const activeEntries = entries.filter((entry: any) => entry.status === 'active');
+  const totalInvested = entries.reduce((sum: number, entry: any) => sum + Number(entry.amount || 0), 0);
+  const totalEarnings = entries.reduce((sum: number, entry: any) => sum + Number(entry.actual_payout || 0), 0);
+  const winRate = (participatedPredictions.count || 0) > 0
+    ? (wonEntries.length / (participatedPredictions.count || 1)) * 100
+    : 0;
+  const totalVolume = (createdPredictions.data || []).reduce(
+    (sum: number, pred: any) => sum + Number(pred.pool_total || 0),
+    0,
+  );
+  const rank = Math.max(1, Math.ceil((100 - Math.round(winRate)) / 10));
+
+  return {
+    user: {
+      id: user.id,
+      handle: user.username || 'user',
+      displayName: user.full_name || user.username || 'User',
+      avatarUrl: user.avatar_url || null,
+      createdAt: user.created_at || null,
+      ogBadge: (user as any).og_badge || null,
+      ogBadgeAssignedAt: (user as any).og_badge_assigned_at || null,
+    },
+    stats: {
+      predictionsCreated: createdPredictions.count || 0,
+      predictionsParticipated: participatedPredictions.count || 0,
+      totalVolume,
+      totalInvested,
+      totalEarnings,
+      profitLoss: totalEarnings - totalInvested,
+      winRate,
+      wonEntries: wonEntries.length,
+      completedEntries: completedEntries.length,
+      activeStakes: activeEntries.length,
+      rank,
+    },
+    achievements,
+    recentActivity: [],
+  };
+}
+
 // GET /api/v2/users/me/achievements - auth-only convenience alias
 router.get('/me/achievements', requireSupabaseAuth as any, async (req, res) => {
   try {
@@ -577,6 +649,88 @@ router.get('/:id/achievements', async (req, res) => {
   }
 });
 
+// GET /api/v2/users/resolve?handle=:handle - Resolve public profile handle to user id
+router.get('/resolve', async (req, res) => {
+  try {
+    const handle = String(req.query.handle || '').trim().replace(/^@/, '');
+    if (!handle) {
+      return res.status(400).json({
+        error: 'Bad request',
+        message: 'handle is required',
+        version: VERSION,
+      });
+    }
+
+    const { data, error } = await supabase
+      .from('users')
+      .select('id, username, full_name')
+      .eq('username', handle)
+      .maybeSingle();
+
+    if (error) throw error;
+    if (!data) {
+      return res.status(404).json({
+        error: 'Not found',
+        message: 'User handle not found',
+        version: VERSION,
+      });
+    }
+
+    return res.json({
+      data: {
+        userId: data.id,
+        handle: data.username,
+        displayName: data.full_name || data.username,
+      },
+      message: 'User handle resolved successfully',
+      version: VERSION,
+    });
+  } catch (error: any) {
+    console.error('[Users] resolve handle error:', error);
+    return res.status(500).json({
+      error: 'Internal server error',
+      message: error?.message || 'Failed to resolve handle',
+      version: VERSION,
+    });
+  }
+});
+
+// GET /api/v2/users/:id/public-profile - Safe public profile payload (no private fields)
+router.get('/:id/public-profile', async (req, res) => {
+  try {
+    const userId = String(req.params.id || '').trim();
+    if (!userId) {
+      return res.status(400).json({
+        error: 'Bad request',
+        message: 'user id is required',
+        version: VERSION,
+      });
+    }
+
+    const data = await buildPublicProfilePayload(userId);
+    return res.json({
+      data,
+      message: 'Public profile fetched successfully',
+      version: VERSION,
+    });
+  } catch (error: any) {
+    const status = Number(error?.status || 500);
+    if (status === 404) {
+      return res.status(404).json({
+        error: 'Not found',
+        message: 'Profile not found',
+        version: VERSION,
+      });
+    }
+    console.error('[Users] public profile error:', error);
+    return res.status(500).json({
+      error: 'Internal server error',
+      message: error?.message || 'Failed to fetch public profile',
+      version: VERSION,
+    });
+  }
+});
+
 // GET /api/v2/users/:id - Get user profile by ID
 router.get('/:id', async (req, res) => {
   const { id } = req.params;
@@ -590,16 +744,11 @@ router.get('/:id', async (req, res) => {
         id,
         username,
         full_name,
-        email,
         avatar_url,
         created_at,
         updated_at,
         og_badge,
-        og_badge_assigned_at,
-        referral_code,
-        referred_by,
-        first_login_at,
-        last_login_at
+        og_badge_assigned_at
       `)
       .eq('id', id)
       .single();
