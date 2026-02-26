@@ -1286,7 +1286,6 @@ const WalletPageV2: React.FC<WalletPageV2Props> = ({ onNavigateBack }) => {
             >
               Got it
             </button>
-            </button>
           </div>
         </div>
       )}

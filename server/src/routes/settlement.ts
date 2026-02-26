@@ -1672,7 +1672,6 @@ router.post('/manual', async (req, res) => {
             reason: 'creator_fee',
             settlement_type: 'manual',
             rail: 'crypto',
-            prediction_title: prediction.title
             prediction_title: prediction.title,
           },
         });
