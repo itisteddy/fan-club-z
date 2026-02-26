@@ -39,6 +39,12 @@ export type AchievementBadgeDefinition = {
   iconKey?: string | null;
   sortOrder?: number;
   isKey?: boolean;
+  progressMetric?: 'stakes_count' | 'comments_count' | 'creator_earnings_amount' | null;
+  goalValue?: number | null;
+  currentValue?: number;
+  progressPct?: number;
+  progressLabel?: string;
+  isEarned?: boolean;
 };
 
 export type UserAchievementsPayload = {
@@ -89,6 +95,12 @@ export function useUserAchievements(userId?: string | null, enabled = true) {
           iconKey: d.iconKey ?? null,
           sortOrder: Number(d.sortOrder ?? 999),
           isKey: d.isKey == null ? true : Boolean(d.isKey),
+          progressMetric: d.progressMetric ?? null,
+          goalValue: d.goalValue == null ? null : Number(d.goalValue),
+          currentValue: Number(d.currentValue ?? 0),
+          progressPct: d.progressPct == null ? undefined : Number(d.progressPct),
+          progressLabel: d.progressLabel == null ? undefined : String(d.progressLabel),
+          isEarned: d.isEarned == null ? undefined : Boolean(d.isEarned),
         })) : [],
         badgesEarned: Array.isArray(data.badgesEarned) ? data.badgesEarned.map((b: any) => ({
           badgeKey: String(b.badgeKey),

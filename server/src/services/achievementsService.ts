@@ -51,6 +51,8 @@ export type BadgeDefinition = {
   isEnabled: boolean;
   sortOrder: number;
   isKey: boolean;
+  progressMetric?: 'stakes_count' | 'comments_count' | 'creator_earnings_amount' | null;
+  goalValue?: number | null;
 };
 
 export type AchievementsResponse = {
@@ -72,6 +74,12 @@ export type AchievementsResponse = {
     iconKey: string | null;
     sortOrder: number;
     isKey: boolean;
+    progressMetric?: 'stakes_count' | 'comments_count' | 'creator_earnings_amount' | null;
+    goalValue?: number | null;
+    currentValue?: number;
+    progressPct?: number;
+    progressLabel?: string;
+    isEarned?: boolean;
   }>;
   badgesEarned: Array<{
     badgeKey: string;
@@ -93,6 +101,7 @@ const AWARD_METRICS: AwardMetric[] = [
 ];
 
 const BADGE_KEYS = ['FIRST_STAKE', 'TEN_STAKES', 'FIRST_COMMENT', 'FIRST_CREATOR_EARNING'] as const;
+type BadgeProgressMetric = 'stakes_count' | 'comments_count' | 'creator_earnings_amount';
 
 function assertAwardMetric(metric: string): AwardMetric {
   if (!AWARD_METRICS.includes(metric as AwardMetric)) {
@@ -140,10 +149,60 @@ export function computeBadgeEligibility(rows: Array<{ userId: string; stakesCoun
   for (const row of rows) {
     if (row.stakesCount > 0) out.push({ userId: row.userId, badgeKey: 'FIRST_STAKE' });
     if (row.stakesCount >= 10) out.push({ userId: row.userId, badgeKey: 'TEN_STAKES' });
-    if (row.commentsCount > 0) out.push({ userId: row.userId, badgeKey: 'FIRST_COMMENT' });
-    if (row.creatorEarningsAmount > 0) out.push({ userId: row.userId, badgeKey: 'FIRST_CREATOR_EARNING' });
+    if (row.commentsCount >= 100) out.push({ userId: row.userId, badgeKey: 'FIRST_COMMENT' });
+    if (row.creatorEarningsAmount >= 10) out.push({ userId: row.userId, badgeKey: 'FIRST_CREATOR_EARNING' });
   }
   return out;
+}
+
+type UserBadgeProgressStats = {
+  userId: string;
+  stakesCount: number;
+  commentsCount: number;
+  creatorEarningsAmount: number;
+};
+
+type BadgeEligibilityDefinition = {
+  key: string;
+  progressMetric: BadgeProgressMetric | null;
+  goalValue: number | null;
+};
+
+function currentProgressValue(stats: UserBadgeProgressStats, metric: BadgeProgressMetric): number {
+  switch (metric) {
+    case 'stakes_count':
+      return stats.stakesCount;
+    case 'comments_count':
+      return stats.commentsCount;
+    case 'creator_earnings_amount':
+      return stats.creatorEarningsAmount;
+    default:
+      return 0;
+  }
+}
+
+function computeBadgeEligibilityFromDefinitions(
+  rows: UserBadgeProgressStats[],
+  definitions: BadgeEligibilityDefinition[],
+): Array<{ userId: string; badgeKey: string }> {
+  const out: Array<{ userId: string; badgeKey: string }> = [];
+  for (const row of rows) {
+    for (const def of definitions) {
+      if (!def.progressMetric || def.goalValue == null || !Number.isFinite(def.goalValue)) continue;
+      const current = currentProgressValue(row, def.progressMetric);
+      if (current >= def.goalValue) out.push({ userId: row.userId, badgeKey: def.key });
+    }
+  }
+  return out;
+}
+
+function formatBadgeProgressLabel(metric: BadgeProgressMetric | null | undefined, current: number, target: number): string {
+  const safeCurrent = Math.max(0, current);
+  const safeTarget = Math.max(0, target);
+  if (metric === 'creator_earnings_amount') {
+    return `${safeCurrent.toFixed(2)} / ${safeTarget.toFixed(2)}`;
+  }
+  return `${Math.floor(safeCurrent)} / ${Math.floor(safeTarget)}`;
 }
 
 function utcDayRange(day: string): { startIso: string; endIso: string } {
@@ -415,14 +474,34 @@ export async function evaluateAndAwardBadges() {
        GROUP BY user_id`
     );
 
-    const eligible = computeBadgeEligibility(
-      rows.map((r: any) => ({
-        userId: String(r.user_id),
-        stakesCount: Number(r.stakes_count || 0),
-        commentsCount: Number(r.comments_count || 0),
-        creatorEarningsAmount: Number(r.creator_earnings_amount || 0),
-      }))
-    );
+    const aggregatedRows: UserBadgeProgressStats[] = rows.map((r: any) => ({
+      userId: String(r.user_id),
+      stakesCount: Number(r.stakes_count || 0),
+      commentsCount: Number(r.comments_count || 0),
+      creatorEarningsAmount: Number(r.creator_earnings_amount || 0),
+    }));
+
+    let eligible: Array<{ userId: string; badgeKey: string }> = [];
+    try {
+      const defsRes = await client.query(
+        `SELECT key, progress_metric, goal_value
+         FROM badge_definitions
+         WHERE COALESCE(is_enabled, true) = true`
+      );
+      const defs: BadgeEligibilityDefinition[] = (defsRes.rows || []).map((r: any) => ({
+        key: String(r.key),
+        progressMetric: r.progress_metric ? String(r.progress_metric) as BadgeProgressMetric : null,
+        goalValue: r.goal_value == null ? null : Number(r.goal_value),
+      }));
+      eligible = computeBadgeEligibilityFromDefinitions(aggregatedRows, defs);
+    } catch (err: any) {
+      // Compatibility fallback when migration 117 has not been applied yet.
+      if (String(err?.message || '').includes('progress_metric') || String(err?.message || '').includes('goal_value')) {
+        eligible = computeBadgeEligibility(aggregatedRows);
+      } else {
+        throw err;
+      }
+    }
 
     let inserted = 0;
     for (const row of eligible) {
@@ -493,10 +572,15 @@ export async function getUserAchievements(userId: string): Promise<AchievementsR
   const badgeDefsResPromise = (async () => {
     const withFields = await supabase
       .from('badge_definitions')
-      .select('key, title, description, icon_key, is_enabled, sort_order, is_key')
+      .select('key, title, description, icon_key, is_enabled, sort_order, is_key, progress_metric, goal_value')
       .eq('is_enabled', true);
     if (!withFields.error) return withFields;
-    if (!isMissingColumnError(withFields.error, 'sort_order') && !isMissingColumnError(withFields.error, 'is_key')) {
+    if (
+      !isMissingColumnError(withFields.error, 'sort_order') &&
+      !isMissingColumnError(withFields.error, 'is_key') &&
+      !isMissingColumnError(withFields.error, 'progress_metric') &&
+      !isMissingColumnError(withFields.error, 'goal_value')
+    ) {
       return withFields;
     }
     return supabase
@@ -505,17 +589,24 @@ export async function getUserAchievements(userId: string): Promise<AchievementsR
       .eq('is_enabled', true);
   })();
 
-  const [awardsRes, awardDefsRes, userBadgesRes, badgeDefsRes] = await Promise.all([
+  const userProgressResPromise = supabase
+    .from('user_stats_daily')
+    .select('stakes_count, comments_count, creator_earnings_amount')
+    .eq('user_id', userId);
+
+  const [awardsRes, awardDefsRes, userBadgesRes, badgeDefsRes, userProgressRes] = await Promise.all([
     awardsResPromise,
     awardDefsResPromise,
     userBadgesResPromise,
     badgeDefsResPromise,
+    userProgressResPromise,
   ]);
 
   if (awardsRes.error) throw awardsRes.error;
   if (awardDefsRes.error) throw awardDefsRes.error;
   if (userBadgesRes.error) throw userBadgesRes.error;
   if (badgeDefsRes.error) throw badgeDefsRes.error;
+  if (userProgressRes.error) throw userProgressRes.error;
 
   const awardDefByKey = new Map(
     (awardDefsRes.data || []).map((d: any) => [String(d.key), d])
@@ -587,6 +678,8 @@ export async function getUserAchievements(userId: string): Promise<AchievementsR
       iconKey: d.icon_key ? String(d.icon_key) : null,
       sortOrder: Number(d.sort_order ?? 999),
       isKey: d.is_key == null ? true : Boolean(d.is_key),
+      progressMetric: d.progress_metric ? String(d.progress_metric) as BadgeProgressMetric : null,
+      goalValue: d.goal_value == null ? null : Number(d.goal_value),
     }))
     .sort((a, b) => (a.sortOrder - b.sortOrder) || a.key.localeCompare(b.key));
 
@@ -596,11 +689,46 @@ export async function getUserAchievements(userId: string): Promise<AchievementsR
     metadata: b.metadata,
   }));
 
+  const progressRows = (userProgressRes.data || []) as Array<{
+    stakes_count?: number | string | null;
+    comments_count?: number | string | null;
+    creator_earnings_amount?: number | string | null;
+  }>;
+  const userProgressStats: UserBadgeProgressStats = progressRows.reduce<UserBadgeProgressStats>(
+    (acc, row) => {
+      acc.stakesCount += Number(row.stakes_count || 0);
+      acc.commentsCount += Number(row.comments_count || 0);
+      acc.creatorEarningsAmount += Number(row.creator_earnings_amount || 0);
+      return acc;
+    },
+    { userId, stakesCount: 0, commentsCount: 0, creatorEarningsAmount: 0 },
+  );
+  const earnedKeySet = new Set(badgesEarned.map((b) => b.badgeKey));
+  const badgeDefinitionsWithProgress = badgeDefinitions.map((def) => {
+    const currentValue = def.progressMetric ? currentProgressValue(userProgressStats, def.progressMetric) : 0;
+    const goalValue = def.goalValue == null ? null : Number(def.goalValue);
+    const isEarned = earnedKeySet.has(def.key);
+    const progressPct = goalValue && goalValue > 0
+      ? Math.max(0, Math.min(100, (currentValue / goalValue) * 100))
+      : undefined;
+    const progressLabel = goalValue && def.progressMetric
+      ? formatBadgeProgressLabel(def.progressMetric, currentValue, goalValue)
+      : undefined;
+    return {
+      ...def,
+      currentValue,
+      goalValue,
+      progressPct,
+      progressLabel,
+      isEarned,
+    };
+  });
+
   return {
     userId,
     awardDefinitions,
     awards,
-    badgeDefinitions,
+    badgeDefinitions: badgeDefinitionsWithProgress,
     badgesEarned,
     badges,
     version: VERSION,

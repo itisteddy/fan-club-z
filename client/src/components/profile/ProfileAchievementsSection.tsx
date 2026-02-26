@@ -113,9 +113,9 @@ function badgeHowToEarnBullets(badgeKey: string): string[] {
     case 'TEN_STAKES':
       return ['Place at least 10 stake actions.', 'Stakes can be across different markets.'];
     case 'FIRST_COMMENT':
-      return ['Post a comment on a market.', 'Comment must be successfully submitted.'];
+      return ['Post 100 comments on markets.', 'Comments must be successfully submitted.'];
     case 'FIRST_CREATOR_EARNING':
-      return ['Create a market that earns creator fees.', 'Creator fees must be credited to your creator earnings.'];
+      return ['Accumulate 10 creator earnings credits.', 'Creator fees must be credited to your creator earnings balance.'];
     default:
       return ['Complete the achievement activity shown above.'];
   }
@@ -243,7 +243,10 @@ export const ProfileAchievementsSection: React.FC<Props> = ({
           <div className="space-y-3">
             <section className="rounded-xl border border-black/[0.06] p-3">
               <div className="text-xs font-medium text-gray-700 mb-2">Titles</div>
-              <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+              <div
+                className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+                style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' } as React.CSSProperties}
+              >
                 {titleTiles.map((tile) => {
                   const Icon = iconForKey(tile.definition.iconKey);
                   const active = tile.activeAward;
@@ -297,6 +300,8 @@ export const ProfileAchievementsSection: React.FC<Props> = ({
                 {badgeTiles.map((tile) => {
                   const Icon = iconForKey(tile.definition.iconKey);
                   const earned = Boolean(tile.earned);
+                  const progressLabel = tile.definition.progressLabel;
+                  const progressPct = typeof tile.definition.progressPct === 'number' ? tile.definition.progressPct : 0;
                   return (
                     <button
                       key={tile.definition.key}
@@ -308,7 +313,7 @@ export const ProfileAchievementsSection: React.FC<Props> = ({
                           ? 'bg-white border-black/[0.08] hover:bg-gray-50'
                           : 'bg-gray-50 border-gray-200 hover:bg-gray-100',
                       ].join(' ')}
-                      aria-label={`${tile.definition.title}. ${earned ? 'Earned.' : 'Locked.'}`}
+                      aria-label={`${tile.definition.title}. ${earned ? 'Earned.' : `Locked. Progress ${progressLabel || ''}`}`}
                     >
                       {!earned && (
                         <div className="absolute top-1.5 right-1.5 w-4 h-4 rounded-full bg-white border border-gray-200 flex items-center justify-center">
@@ -326,6 +331,17 @@ export const ProfileAchievementsSection: React.FC<Props> = ({
                       <div className={['mt-2 text-[10px] leading-tight line-clamp-2', earned ? 'text-gray-700' : 'text-gray-500'].join(' ')}>
                         {tile.definition.title}
                       </div>
+                      {!earned && progressLabel && (
+                        <div className="mt-1 space-y-1">
+                          <div className="text-[10px] text-gray-400">{progressLabel}</div>
+                          <div className="h-1 w-full rounded-full bg-gray-200 overflow-hidden">
+                            <div
+                              className="h-full rounded-full bg-gray-400/70"
+                              style={{ width: `${Math.max(0, Math.min(100, progressPct))}%` }}
+                            />
+                          </div>
+                        </div>
+                      )}
                     </button>
                   );
                 })}
@@ -420,6 +436,22 @@ export const ProfileAchievementsSection: React.FC<Props> = ({
                         <div className="flex items-center justify-between px-3 py-2 text-sm">
                           <span className="text-gray-500">Earned</span>
                           <span className="font-medium text-gray-900">{formatTimeAgo(detail.earned.earnedAt)}</span>
+                        </div>
+                      )}
+                      {detail.definition.progressLabel && (
+                        <div className="px-3 py-2">
+                          <div className="flex items-center justify-between text-sm">
+                            <span className="text-gray-500">Progress</span>
+                            <span className="font-medium text-gray-900">{detail.definition.progressLabel}</span>
+                          </div>
+                          {!detail.earned && (
+                            <div className="mt-2 h-1.5 rounded-full bg-gray-200 overflow-hidden">
+                              <div
+                                className="h-full rounded-full bg-gray-500/70"
+                                style={{ width: `${Math.max(0, Math.min(100, detail.definition.progressPct ?? 0))}%` }}
+                              />
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>

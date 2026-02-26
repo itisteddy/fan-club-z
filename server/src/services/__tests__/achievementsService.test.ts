@@ -57,7 +57,7 @@ describe('achievementsService.rankAwardScores', () => {
 describe('achievementsService.computeBadgeEligibility', () => {
   it('awards only eligible permanent badges once per rule', () => {
     const result = computeBadgeEligibility([
-      { userId: 'u1', stakesCount: 10, commentsCount: 1, creatorEarningsAmount: 2 },
+      { userId: 'u1', stakesCount: 10, commentsCount: 100, creatorEarningsAmount: 10 },
       { userId: 'u2', stakesCount: 0, commentsCount: 0, creatorEarningsAmount: 0 },
     ]);
 
@@ -96,4 +96,3 @@ describe('achievementsService.recomputeUserStatsDaily', () => {
     expect(insertStatements[0]).toContain('ON CONFLICT (user_id, day)');
   });
 });
-
