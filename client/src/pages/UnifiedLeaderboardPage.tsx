@@ -57,6 +57,15 @@ const UnifiedLeaderboardPage: React.FC = () => {
     navigate(`/profile/${encodeURIComponent(String(leaderUser.id))}`);
   };
 
+  const openReferralProfile = (entry: ReferralLeaderboardEntry) => {
+    const handle = String(entry.username || '').trim();
+    if (handle) {
+      navigate(`/u/${encodeURIComponent(handle)}`);
+      return;
+    }
+    navigate(`/profile/${encodeURIComponent(String(entry.userId))}`);
+  };
+
   // Fetch standard leaderboard data
   const fetchLeaderboardData = async (type: 'predictions' | 'profit' | 'winrate') => {
     try {
@@ -242,7 +251,7 @@ const UnifiedLeaderboardPage: React.FC = () => {
       <motion.div 
         key={entry.userId}
         className={cn(
-          "bg-white rounded-2xl p-4 transition-all duration-200",
+          "bg-white rounded-2xl px-4 py-3 transition-all duration-200",
           "hover:shadow-md hover:scale-[1.01] border",
           isCurrentUser 
             ? 'bg-emerald-50 border-emerald-200 shadow-sm' 
@@ -258,7 +267,7 @@ const UnifiedLeaderboardPage: React.FC = () => {
         aria-label={`${entry.fullName || entry.username}, rank ${rank}, ${entry.activeReferrals} active referrals`}
       >
         <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-4 flex-1 min-w-0">
+          <div className="flex items-center space-x-3 flex-1 min-w-0">
             {/* Rank Badge */}
             <div className={cn(
               "w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold border-2",
@@ -272,19 +281,30 @@ const UnifiedLeaderboardPage: React.FC = () => {
             </div>
             
             {/* User Avatar */}
-            <UserAvatar 
-              email={entry.username}
-              username={entry.username}
-              avatarUrl={entry.avatarUrl}
-              size="md"
-            />
+            <button
+              type="button"
+              onClick={() => openReferralProfile(entry)}
+              className="rounded-full p-0 border-0 bg-transparent appearance-none leading-none focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
+              aria-label={`Open profile for ${entry.fullName || entry.username}`}
+            >
+              <UserAvatar 
+                email={entry.username}
+                username={entry.username}
+                avatarUrl={entry.avatarUrl}
+                size="md"
+              />
+            </button>
             
             {/* User Info */}
             <div className="flex-1 min-w-0">
               <div className="flex items-center space-x-2">
-                <h4 className="font-semibold text-gray-900 truncate">
+                <button
+                  type="button"
+                  onClick={() => openReferralProfile(entry)}
+                  className="font-semibold text-gray-900 truncate hover:text-emerald-700 text-left p-0 border-0 bg-transparent appearance-none leading-tight"
+                >
                   {entry.fullName || entry.username}
-                </h4>
+                </button>
                 <OGBadge tier={entry.ogBadge} size="sm" />
                 {isCurrentUser && (
                   <motion.span
@@ -297,9 +317,13 @@ const UnifiedLeaderboardPage: React.FC = () => {
                   </motion.span>
                 )}
               </div>
-              <p className="text-sm text-gray-600 truncate">
+              <button
+                type="button"
+                onClick={() => openReferralProfile(entry)}
+                className="text-sm text-gray-600 truncate hover:text-gray-800 text-left p-0 border-0 bg-transparent appearance-none leading-tight"
+              >
                 @{entry.username}
-              </p>
+              </button>
             </div>
           </div>
           
@@ -464,7 +488,7 @@ const UnifiedLeaderboardPage: React.FC = () => {
                   <motion.div 
                     key={leaderUser.id}
                     className={cn(
-                      "bg-white rounded-2xl p-4 transition-all duration-200",
+                      "bg-white rounded-2xl px-4 py-3 transition-all duration-200",
                       "hover:shadow-md hover:scale-[1.01] border",
                       isCurrentUser 
                         ? 'bg-emerald-50 border-emerald-200 shadow-sm' 
@@ -480,7 +504,7 @@ const UnifiedLeaderboardPage: React.FC = () => {
                     aria-label={`${leaderUser.full_name || leaderUser.username}, rank ${leaderUser.rank}, ${statDisplay.primary} ${activeTab === 'predictions' ? 'predictions' : activeTab === 'profit' ? 'profit' : 'win rate'}`}
                   >
                     <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-4 flex-1 min-w-0">
+                      <div className="flex items-center space-x-3 flex-1 min-w-0">
                         {/* Rank Badge */}
                         <div className={cn(
                           "w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold border-2",

@@ -59,6 +59,12 @@ function iconForKey(iconKey?: string | null) {
   }
 }
 
+function iconForBadge(definition: AchievementBadgeDefinition) {
+  // Keep creator-earnings visual language aligned with profit/gains iconography.
+  if (definition.key === 'FIRST_CREATOR_EARNING') return TrendingUp;
+  return iconForKey(definition.iconKey);
+}
+
 function shortAwardTitle(title: string) {
   return title
     .replace(/^Top\s+/i, '')
@@ -190,8 +196,8 @@ export const ProfileAchievementsSection: React.FC<Props> = ({
 
   return (
     <>
-      <div className="bg-white rounded-2xl border border-black/[0.06] p-4">
-        <div className="flex items-center justify-end mb-3">
+      <div className="bg-white rounded-2xl border border-black/[0.06] px-4 pb-4 pt-2">
+        <div className="flex items-center justify-end mb-2">
           <button
             type="button"
             onClick={() => setShowInfo(true)}
@@ -247,7 +253,7 @@ export const ProfileAchievementsSection: React.FC<Props> = ({
                 style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' } as React.CSSProperties}
               >
                 {titleTiles.map((tile) => {
-                  const Icon = iconForKey(tile.definition.iconKey);
+                  const Icon = iconForBadge(tile.definition);
                   const active = tile.activeAward;
                   return (
                     <button

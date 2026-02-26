@@ -5,6 +5,7 @@ import { formatDistanceToNow } from 'date-fns';
 import { apiClient } from '../../lib/api';
 import { buildPredictionCommentUrl } from '@/lib/predictionUrls';
 import toast from 'react-hot-toast';
+import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
 import { useAuthSession } from '../../providers/AuthSessionProvider';
 import { ConfirmationModal } from '../../components/modals/ConfirmationModal';
@@ -44,6 +45,7 @@ export const CommentItem: React.FC<CommentItemProps> = ({
   onCloseMenu,
   highlighted = false,
 }) => {
+  const navigate = useNavigate();
   const likeCount = comment.likes_count || comment.likeCount || 0;
   const isLiked = comment.is_liked || comment.likedByMe || false;
   const createdAt = comment.created_at || comment.createdAt;
@@ -102,6 +104,17 @@ export const CommentItem: React.FC<CommentItemProps> = ({
     (comment as any).authorAuthId;
   const commentUsername = comment.user?.username;
   const commentFullName = comment.user?.full_name;
+  const openAuthorProfile = () => {
+    const profileHandle = String(comment.user?.username || '').trim();
+    if (profileHandle) {
+      navigate(`/u/${encodeURIComponent(profileHandle)}`);
+      return;
+    }
+    if (commentUserId) {
+      navigate(`/profile/${encodeURIComponent(String(commentUserId))}`);
+    }
+  };
+  const canOpenAuthorProfile = Boolean(String(comment.user?.username || '').trim() || commentUserId);
   const ownerByIdentity = Boolean(
     (effectiveUserId && commentUserId && effectiveUserId === commentUserId) ||
     (effectiveUserId && commentUserAuthId && effectiveUserId === commentUserAuthId) ||
@@ -348,7 +361,28 @@ export const CommentItem: React.FC<CommentItemProps> = ({
       <div className="grid grid-cols-[40px_minmax(0,1fr)_auto] gap-x-3">
         {/* Avatar */}
         <div className="row-span-4 flex-shrink-0">
-          {avatarUrl ? (
+          {canOpenAuthorProfile ? (
+            <button
+              type="button"
+              onClick={openAuthorProfile}
+              className="rounded-full p-0 border-0 bg-transparent appearance-none leading-none focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
+              aria-label={`Open profile for ${displayName}`}
+            >
+              {avatarUrl ? (
+                <img
+                  src={avatarUrl}
+                  alt={displayName}
+                  className="w-8 h-8 rounded-full object-cover"
+                />
+              ) : (
+                <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center">
+                  <span className="text-sm font-medium text-gray-600">
+                    {displayName.charAt(0).toUpperCase()}
+                  </span>
+                </div>
+              )}
+            </button>
+          ) : avatarUrl ? (
             <img
               src={avatarUrl}
               alt={displayName}
@@ -366,9 +400,19 @@ export const CommentItem: React.FC<CommentItemProps> = ({
         {/* Row 1: Name + verified */}
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <span className="font-medium text-sm text-gray-900 leading-tight truncate">
-              {displayName}
-            </span>
+            {canOpenAuthorProfile ? (
+              <button
+                type="button"
+                onClick={openAuthorProfile}
+                className="font-medium text-sm text-gray-900 leading-tight truncate hover:text-emerald-700 text-left p-0 border-0 bg-transparent appearance-none"
+              >
+                {displayName}
+              </button>
+            ) : (
+              <span className="font-medium text-sm text-gray-900 leading-tight truncate">
+                {displayName}
+              </span>
+            )}
             {comment.user?.is_verified && (
               <BadgeCheck className="w-4 h-4 text-blue-500 flex-shrink-0" aria-label="Verified" />
             )}
@@ -395,7 +439,19 @@ export const CommentItem: React.FC<CommentItemProps> = ({
 
         {/* Row 2: Meta line */}
         <div className="col-start-2 col-span-2 mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-gray-500">
-          {handle && <span className="truncate">{handle}</span>}
+          {handle && (
+            canOpenAuthorProfile ? (
+              <button
+                type="button"
+                onClick={openAuthorProfile}
+                className="truncate hover:text-gray-700 text-left p-0 border-0 bg-transparent appearance-none"
+              >
+                {handle}
+              </button>
+            ) : (
+              <span className="truncate">{handle}</span>
+            )
+          )}
           {!isOptimistic && (
             <span className="flex items-center gap-1">
               <Clock className="w-3 h-3" />
