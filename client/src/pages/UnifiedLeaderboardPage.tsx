@@ -251,7 +251,7 @@ const UnifiedLeaderboardPage: React.FC = () => {
       <motion.div 
         key={entry.userId}
         className={cn(
-          "bg-white rounded-2xl px-4 py-3 transition-all duration-200",
+          "bg-white rounded-xl px-3 py-2.5 transition-all duration-200",
           "hover:shadow-md hover:scale-[1.01] border",
           isCurrentUser 
             ? 'bg-emerald-50 border-emerald-200 shadow-sm' 
@@ -266,15 +266,15 @@ const UnifiedLeaderboardPage: React.FC = () => {
         role="listitem"
         aria-label={`${entry.fullName || entry.username}, rank ${rank}, ${entry.activeReferrals} active referrals`}
       >
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-3 flex-1 min-w-0">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center space-x-2.5 flex-1 min-w-0">
             {/* Rank Badge */}
             <div className={cn(
-              "w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold border-2",
+              "w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold border-2 shrink-0",
               rankBadge.color
             )}>
               {isTopThree ? (
-                <RankIcon className="w-5 h-5" />
+                <RankIcon className="w-4 h-4" />
               ) : (
                 <span className="text-xs">{rank}</span>
               )}
@@ -291,7 +291,7 @@ const UnifiedLeaderboardPage: React.FC = () => {
                 email={entry.username}
                 username={entry.username}
                 avatarUrl={entry.avatarUrl}
-                size="md"
+                size="sm"
               />
             </button>
             
@@ -301,13 +301,13 @@ const UnifiedLeaderboardPage: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => openReferralProfile(entry)}
-                  className="font-semibold text-sm text-gray-900 truncate hover:text-emerald-700 cursor-pointer text-left p-0 border-0 bg-transparent appearance-none leading-tight"
+                  className="font-semibold text-sm text-gray-900 truncate hover:text-emerald-700 cursor-pointer text-left p-0 border-0 bg-transparent appearance-none leading-tight m-0"
                 >
                   {entry.fullName || entry.username}
                 </button>
                 <OGBadge tier={entry.ogBadge} size="sm" />
                 {isCurrentUser && (
-                  <span className="flex-shrink-0 px-1.5 py-0.5 bg-emerald-100 text-emerald-700 text-xs font-medium rounded-full">
+                  <span className="flex-shrink-0 px-1.5 py-0.5 bg-emerald-100 text-emerald-700 text-[10px] font-medium rounded-full leading-none">
                     You
                   </span>
                 )}
@@ -315,7 +315,7 @@ const UnifiedLeaderboardPage: React.FC = () => {
               <button
                 type="button"
                 onClick={() => openReferralProfile(entry)}
-                className="text-xs text-gray-500 truncate hover:text-gray-700 cursor-pointer text-left p-0 border-0 bg-transparent appearance-none leading-tight"
+                className="text-xs text-gray-500 truncate hover:text-gray-700 cursor-pointer text-left p-0 border-0 bg-transparent appearance-none leading-tight m-0"
               >
                 @{entry.username}
               </button>
@@ -323,12 +323,12 @@ const UnifiedLeaderboardPage: React.FC = () => {
           </div>
           
           {/* Referral Stats */}
-          <div className="text-right">
-            <div className="text-lg font-bold font-mono text-emerald-600">
+          <div className="text-right shrink-0">
+            <div className="text-base md:text-lg leading-none font-bold font-mono text-emerald-600">
               {entry.activeReferrals}
             </div>
-            <div className="text-xs text-gray-500">
-              active referrals
+            <div className="text-[10px] leading-tight text-gray-500 mt-0.5">
+              referrals
             </div>
           </div>
         </div>
@@ -483,7 +483,7 @@ const UnifiedLeaderboardPage: React.FC = () => {
                   <motion.div 
                     key={leaderUser.id}
                     className={cn(
-                      "bg-white rounded-2xl px-4 py-3 transition-all duration-200",
+                      "bg-white rounded-xl px-3 py-2.5 transition-all duration-200",
                       "hover:shadow-md hover:scale-[1.01] border",
                       isCurrentUser 
                         ? 'bg-emerald-50 border-emerald-200 shadow-sm' 
@@ -498,15 +498,15 @@ const UnifiedLeaderboardPage: React.FC = () => {
                     role="listitem"
                     aria-label={`${leaderUser.full_name || leaderUser.username}, rank ${leaderUser.rank}, ${statDisplay.primary} ${activeTab === 'predictions' ? 'predictions' : activeTab === 'profit' ? 'profit' : 'win rate'}`}
                   >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-3 flex-1 min-w-0">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex items-center space-x-2.5 flex-1 min-w-0">
                         {/* Rank Badge */}
                         <div className={cn(
-                          "w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold border-2",
+                          "w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold border-2 shrink-0",
                           rankBadge.color
                         )}>
                           {isTopThree ? (
-                            <RankIcon className="w-5 h-5" />
+                            <RankIcon className="w-4 h-4" />
                           ) : (
                             <span className="text-xs">{leaderUser.rank}</span>
                           )}
@@ -523,7 +523,7 @@ const UnifiedLeaderboardPage: React.FC = () => {
                             email={leaderUser.username}
                             username={leaderUser.username}
                             avatarUrl={leaderUser.avatar_url}
-                            size="md"
+                            size="sm"
                           />
                         </button>
                         
@@ -533,13 +533,13 @@ const UnifiedLeaderboardPage: React.FC = () => {
                             <button
                               type="button"
                               onClick={() => openUserProfile(leaderUser)}
-                              className="font-semibold text-sm text-gray-900 truncate hover:text-emerald-700 cursor-pointer text-left p-0 border-0 bg-transparent appearance-none leading-tight"
+                              className="font-semibold text-sm text-gray-900 truncate hover:text-emerald-700 cursor-pointer text-left p-0 border-0 bg-transparent appearance-none leading-tight m-0"
                             >
                               {leaderUser.full_name || leaderUser.username}
                             </button>
                             <OGBadge tier={leaderUser.og_badge} size="sm" />
                             {isCurrentUser && (
-                              <span className="flex-shrink-0 px-1.5 py-0.5 bg-emerald-100 text-emerald-700 text-xs font-medium rounded-full">
+                              <span className="flex-shrink-0 px-1.5 py-0.5 bg-emerald-100 text-emerald-700 text-[10px] font-medium rounded-full leading-none">
                                 You
                               </span>
                             )}
@@ -547,7 +547,7 @@ const UnifiedLeaderboardPage: React.FC = () => {
                           <button
                             type="button"
                             onClick={() => openUserProfile(leaderUser)}
-                            className="text-xs text-gray-500 truncate hover:text-gray-700 cursor-pointer text-left p-0 border-0 bg-transparent appearance-none leading-tight"
+                            className="text-xs text-gray-500 truncate hover:text-gray-700 cursor-pointer text-left p-0 border-0 bg-transparent appearance-none leading-tight m-0"
                           >
                             @{leaderUser.username}
                           </button>
@@ -555,8 +555,8 @@ const UnifiedLeaderboardPage: React.FC = () => {
                       </div>
                       
                       {/* Enhanced Stats Display - Simplified */}
-                      <div className="text-right">
-                        <div className={cn("text-lg font-bold font-mono", statDisplay.color)}>
+                      <div className="text-right shrink-0">
+                        <div className={cn("text-base md:text-lg leading-none font-bold font-mono", statDisplay.color)}>
                           {statDisplay.primary}
                         </div>
                       </div>

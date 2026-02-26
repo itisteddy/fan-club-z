@@ -116,14 +116,37 @@ const ProfilePageV2: React.FC<ProfilePageV2Props> = ({ onNavigateBack, userId })
       userMetadata.username ??
       (displayEmail ? displayEmail.split('@')[0] : '')) || 'user';
   
-  // Get OG badge from user metadata
+  // OG badge fields may be present on session metadata or the richer auth-store profile object.
+  // Prefer session values when available, then fall back to store profile fields so /profile and /u/:handle stay consistent.
+  const sessionMeta: any = (sessionUser as any)?.user_metadata || {};
+  const storeMeta: any = (storeUser as any)?.user_metadata || {};
   const ogBadge = isOwnProfile
-    ? ((user as any)?.user_metadata?.og_badge || (user as any)?.og_badge || null)
+    ? (
+        sessionMeta.og_badge ||
+        (sessionUser as any)?.og_badge ||
+        storeMeta.og_badge ||
+        (storeUser as any)?.og_badge ||
+        null
+      )
     : (publicProfile?.user.ogBadge || null);
   const ogBadgeAssignedAt = isOwnProfile
-    ? ((user as any)?.user_metadata?.og_badge_assigned_at || (user as any)?.og_badge_assigned_at || null)
+    ? (
+        sessionMeta.og_badge_assigned_at ||
+        (sessionUser as any)?.og_badge_assigned_at ||
+        storeMeta.og_badge_assigned_at ||
+        (storeUser as any)?.og_badge_assigned_at ||
+        null
+      )
     : (publicProfile?.user.ogBadgeAssignedAt || null);
-  const ogBadgeMemberNumber = (user as any)?.user_metadata?.og_badge_member_number || (user as any)?.og_badge_member_number || null;
+  const ogBadgeMemberNumber = isOwnProfile
+    ? (
+        sessionMeta.og_badge_member_number ||
+        (sessionUser as any)?.og_badge_member_number ||
+        storeMeta.og_badge_member_number ||
+        (storeUser as any)?.og_badge_member_number ||
+        null
+      )
+    : null;
 
   useEffect(() => {
     if (isPublicRoute) {
