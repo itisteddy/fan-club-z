@@ -45,16 +45,16 @@ ON CONFLICT (key) DO UPDATE SET
 
 CREATE TABLE IF NOT EXISTS public.user_awards_current (
   award_key TEXT NOT NULL REFERENCES public.award_definitions(key) ON DELETE CASCADE,
-  window TEXT NOT NULL CHECK (window IN ('7d', '30d', 'all')),
+  time_window TEXT NOT NULL CHECK (time_window IN ('7d', '30d', 'all')),
   user_id UUID NOT NULL,
   rank INTEGER NOT NULL CHECK (rank > 0),
   score NUMERIC(18,8) NOT NULL,
   computed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  PRIMARY KEY (award_key, window, user_id)
+  PRIMARY KEY (award_key, time_window, user_id)
 );
 
 CREATE INDEX IF NOT EXISTS idx_user_awards_current_rank
-  ON public.user_awards_current (award_key, window, rank);
+  ON public.user_awards_current (award_key, time_window, rank);
 
 CREATE TABLE IF NOT EXISTS public.badge_definitions (
   key TEXT PRIMARY KEY,

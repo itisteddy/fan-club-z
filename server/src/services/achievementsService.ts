@@ -303,11 +303,11 @@ export async function computeAwardsCurrent(params?: { windows?: AwardWindow[]; t
           rows.map((r: any) => ({ userId: String(r.user_id), score: Number(r.score || 0) }))
         );
 
-        await client.query('DELETE FROM user_awards_current WHERE award_key = $1 AND window = $2', [def.key, window]);
+        await client.query('DELETE FROM user_awards_current WHERE award_key = $1 AND time_window = $2', [def.key, window]);
 
         for (const row of ranked) {
           await client.query(
-            `INSERT INTO user_awards_current (award_key, window, user_id, rank, score, computed_at)
+            `INSERT INTO user_awards_current (award_key, time_window, user_id, rank, score, computed_at)
              VALUES ($1, $2, $3, $4, $5, $6)`,
             [def.key, window, row.userId, row.rank, row.score, computedAt]
           );
@@ -393,9 +393,9 @@ export async function getUserAchievements(userId: string): Promise<AchievementsR
   const [awardsRes, awardDefsRes, userBadgesRes, badgeDefsRes] = await Promise.all([
     supabase
       .from('user_awards_current')
-      .select('award_key, window, rank, score, computed_at')
+      .select('award_key, time_window, rank, score, computed_at')
       .eq('user_id', userId)
-      .order('window', { ascending: true })
+      .order('time_window', { ascending: true })
       .order('rank', { ascending: true }),
     supabase
       .from('award_definitions')
@@ -434,7 +434,7 @@ export async function getUserAchievements(userId: string): Promise<AchievementsR
         description: String(def.description),
         iconKey: def.icon_key ? String(def.icon_key) : null,
         metric: assertAwardMetric(String(def.metric)),
-        window: row.window as AwardWindow,
+        window: row.time_window as AwardWindow,
         rank: Number(row.rank || 0),
         score: Number(row.score || 0),
         computedAt: String(row.computed_at),
