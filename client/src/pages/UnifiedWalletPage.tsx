@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Plus, ArrowDownToLine, DollarSign, Lock, Wallet, RefreshCw, HelpCircle, X, ArrowRightLeft, Banknote } from 'lucide-react';
+import { Plus, ArrowDownToLine, DollarSign, Lock, Wallet, RefreshCw, HelpCircle, X, ArrowRightLeft, Banknote, Gift } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { useAccount, useDisconnect, useSwitchChain } from 'wagmi';
 import { baseSepolia } from 'wagmi/chains';
@@ -16,6 +16,8 @@ import { formatUSDCompact, truncateText, formatCurrency } from '@/lib/format';
 import { useEscrowSnapshot } from '../hooks/useEscrowSnapshot';
 import { useUSDCBalance } from '../hooks/useUSDCBalance';
 import { useWalletActivity } from '../hooks/useWalletActivity';
+import { useWalletSummary } from '../hooks/useWalletSummary';
+import { useCreatorEarningsHistory, useTransferCreatorEarnings } from '../hooks/useCreatorEarningsWallet';
 import DepositUSDCModal from '../components/wallet/DepositUSDCModal';
 import WithdrawUSDCModal from '../components/wallet/WithdrawUSDCModal';
 import ConnectWalletSheet from '../components/wallet/ConnectWalletSheet';
@@ -156,6 +158,11 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
 
   // Transaction history from database
   const { data: activityData, isLoading: loadingActivity, refetch: refetchActivity } = useWalletActivity(user?.id, 20);
+  const { data: walletSummary, refetch: refetchWalletSummary } = useWalletSummary(user?.id, {
+    walletAddress: address?.toLowerCase() ?? undefined,
+    enabled: Boolean(user?.id),
+    refetchIntervalMs: 30_000,
+  });
 
   const fetchDemoSummary = useCallback(async () => {
     if (!user?.id) return;
@@ -237,8 +244,21 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
 
   const [showFiatDeposit, setShowFiatDeposit] = useState(false);
   const [showFiatWithdraw, setShowFiatWithdraw] = useState(false);
+  const [showCreatorTransfer, setShowCreatorTransfer] = useState(false);
+  const [showCreatorHistory, setShowCreatorHistory] = useState(false);
+  const [creatorTransferAmount, setCreatorTransferAmount] = useState('');
+
+  const { data: creatorEarningsHistory, isLoading: isLoadingCreatorHistory } = useCreatorEarningsHistory(showCreatorHistory, 20);
+  const transferCreatorEarnings = useTransferCreatorEarnings();
 
   const isLoading = isFiatMode ? loadingFiat : (loadingWalletBalance || loadingSnapshot);
+  const demoCreditsBalance = Number(walletSummary?.demoCredits ?? walletSummary?.balances?.demoCredits ?? demoSummary?.available ?? 0);
+  const creatorEarningsBalance = Number(walletSummary?.creatorEarnings ?? walletSummary?.balances?.creatorEarnings ?? 0);
+  const stakeBalance = Number(walletSummary?.stakeBalance ?? walletSummary?.balances?.stakeBalance ?? walletSummary?.available ?? 0);
+  const parsedTransferAmount = Number.parseFloat(creatorTransferAmount || '0');
+  const hasValidTransferAmount = Number.isFinite(parsedTransferAmount) && parsedTransferAmount > 0 && parsedTransferAmount <= creatorEarningsBalance;
+  const previewCreatorAfter = hasValidTransferAmount ? Math.max(0, creatorEarningsBalance - parsedTransferAmount) : creatorEarningsBalance;
+  const previewStakeAfter = hasValidTransferAmount ? stakeBalance + parsedTransferAmount : stakeBalance;
 
   const recordOnchainTransactions = useCallback(async () => {
     if (!user?.id) return;
@@ -255,8 +275,21 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
 
   const handleRefresh = useCallback(async () => {
     await recordOnchainTransactions();
-    await Promise.all([refetchWallet(), refetchSnapshot(), refetchActivity(), refetchFiat()]);
-  }, [recordOnchainTransactions, refetchWallet, refetchSnapshot, refetchActivity, refetchFiat]);
+    await Promise.all([refetchWallet(), refetchSnapshot(), refetchActivity(), refetchFiat(), refetchWalletSummary()]);
+  }, [recordOnchainTransactions, refetchWallet, refetchSnapshot, refetchActivity, refetchFiat, refetchWalletSummary]);
+
+  const handleSubmitCreatorTransfer = useCallback(async () => {
+    if (!hasValidTransferAmount) return;
+    try {
+      await transferCreatorEarnings.mutateAsync(parsedTransferAmount);
+      toast.success('Creator earnings moved to balance');
+      setShowCreatorTransfer(false);
+      setCreatorTransferAmount('');
+      await Promise.all([refetchWalletSummary(), refetchActivity()]);
+    } catch (e: any) {
+      toast.error(e?.message || 'Failed to move creator earnings');
+    }
+  }, [hasValidTransferAmount, parsedTransferAmount, transferCreatorEarnings, refetchWalletSummary, refetchActivity]);
 
   const handleDeposit = () => {
     if (isFiatMode) {
@@ -554,6 +587,64 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
               )}
             </StatRow>
 
+            {/* Creator earnings (explicit internal balance, near top) */}
+            <Card>
+              <CardHeader title="Creator Earnings" />
+              <CardContent>
+                <div className="rounded-xl border border-amber-100 bg-amber-50 p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-medium text-amber-700">Available creator earnings</p>
+                      <p className="mt-1 text-2xl font-semibold text-amber-900 font-mono">
+                        {formatCurrency(creatorEarningsBalance, { compact: false })}
+                      </p>
+                      <p className="mt-1 text-xs text-amber-700/80">
+                        Earnings from creator activity. Move to balance to use for staking.
+                      </p>
+                    </div>
+                    <Gift className="w-5 h-5 text-amber-500 shrink-0 mt-1" />
+                  </div>
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCreatorTransferAmount('');
+                        setShowCreatorTransfer(true);
+                      }}
+                      disabled={creatorEarningsBalance <= 0}
+                      className="inline-flex items-center justify-center rounded-lg bg-amber-200 px-3 py-2 text-xs font-semibold text-amber-900 hover:bg-amber-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Move to Balance
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowCreatorHistory(true)}
+                      className="inline-flex items-center justify-center rounded-lg border border-amber-200 bg-white px-3 py-2 text-xs font-semibold text-amber-900 hover:bg-amber-100/40"
+                    >
+                      View history
+                    </button>
+                  </div>
+                </div>
+
+                <div className="mt-4 rounded-xl border border-gray-100 bg-gray-50 p-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-sm">
+                    <div className="flex items-center justify-between sm:block">
+                      <p className="text-gray-500 text-xs">Demo Credits</p>
+                      <p className="font-mono font-medium text-gray-900">{formatCurrency(demoCreditsBalance, { compact: false })}</p>
+                    </div>
+                    <div className="flex items-center justify-between sm:block">
+                      <p className="text-gray-500 text-xs">Wallet / Stake Balance</p>
+                      <p className="font-mono font-medium text-gray-900">{formatCurrency(stakeBalance, { compact: false })}</p>
+                    </div>
+                    <div className="flex items-center justify-between sm:block">
+                      <p className="text-gray-500 text-xs">Creator Earnings</p>
+                      <p className="font-mono font-semibold text-amber-700">{formatCurrency(creatorEarningsBalance, { compact: false })}</p>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
             {/* Phase 7D: FX USD estimates (display-only) */}
             {isFiatMode && (
               <div className="mt-3 mb-1 px-1">
@@ -789,6 +880,125 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
             fiatSummary={fiatData?.summary ?? null}
           />
         </>
+      )}
+
+      {showCreatorTransfer && (
+        <div className="fixed inset-0 z-modal flex items-end md:items-center justify-center">
+          <div className="absolute inset-0 bg-black/50" onClick={() => setShowCreatorTransfer(false)} />
+          <div className="relative w-full md:max-w-md bg-white rounded-t-3xl md:rounded-2xl shadow-2xl p-5 z-[1] mb-[calc(72px+env(safe-area-inset-bottom,0px))] pb-[calc(16px+env(safe-area-inset-bottom,0px))]">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <p className="text-xs uppercase tracking-wide text-gray-500">Creator Earnings</p>
+                <h3 className="text-lg font-semibold text-gray-900">Move to Balance</h3>
+              </div>
+              <button
+                className="p-2 rounded-full hover:bg-gray-100"
+                onClick={() => setShowCreatorTransfer(false)}
+                aria-label="Close transfer"
+              >
+                <X className="w-4 h-4 text-gray-600" />
+              </button>
+            </div>
+            <div className="rounded-2xl border border-amber-100 bg-amber-50 p-3 mb-4">
+              <p className="text-xs text-amber-700">Available creator earnings</p>
+              <p className="text-xl font-semibold text-amber-900 font-mono">{formatCurrency(creatorEarningsBalance, { compact: false })}</p>
+            </div>
+            <div className="space-y-3">
+              <label className="block">
+                <span className="text-xs font-medium text-gray-700">Amount</span>
+                <div className="mt-1 flex items-center gap-2">
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={creatorTransferAmount}
+                    onChange={(e) => setCreatorTransferAmount(e.target.value)}
+                    className="flex-1 rounded-xl border border-gray-200 px-3 py-2 text-sm font-mono text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-200"
+                    placeholder="0.00"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setCreatorTransferAmount(creatorEarningsBalance > 0 ? creatorEarningsBalance.toFixed(2) : '0')}
+                    className="rounded-xl border border-gray-200 px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50"
+                  >
+                    Max
+                  </button>
+                </div>
+              </label>
+              <div className="rounded-2xl bg-gray-50 border border-gray-100 p-3">
+                <p className="text-xs font-medium text-gray-600 mb-2">Preview</p>
+                <div className="space-y-1 text-sm">
+                  <div className="flex items-center justify-between">
+                    <span className="text-gray-600">Creator Earnings after</span>
+                    <span className="font-mono text-gray-900">{formatCurrency(previewCreatorAfter, { compact: false })}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-gray-600">Wallet / Stake Balance after</span>
+                    <span className="font-mono text-gray-900">{formatCurrency(previewStakeAfter, { compact: false })}</span>
+                  </div>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={handleSubmitCreatorTransfer}
+                disabled={!hasValidTransferAmount || transferCreatorEarnings.isPending}
+                className="w-full rounded-xl bg-emerald-600 py-3 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {transferCreatorEarnings.isPending ? 'Moving…' : 'Confirm Move'}
+              </button>
+              {!hasValidTransferAmount && creatorTransferAmount.trim().length > 0 && (
+                <p className="text-xs text-rose-600">Amount must be greater than 0 and no more than your creator earnings.</p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showCreatorHistory && (
+        <div className="fixed inset-0 z-modal flex items-end md:items-center justify-center">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setShowCreatorHistory(false)} />
+          <div className="relative w-full md:max-w-lg bg-white rounded-t-2xl md:rounded-2xl shadow-xl p-4 pb-[calc(16px+env(safe-area-inset-bottom,0px))] mb-[calc(72px+env(safe-area-inset-bottom,0px))] max-h-[80vh] overflow-y-auto">
+            <div className="sticky top-0 bg-white/95 backdrop-blur px-4 pt-2 pb-3 -mx-4 border-b border-gray-100 flex items-center justify-between">
+              <h3 className="text-base font-semibold text-gray-900">Creator Earnings History</h3>
+              <button
+                className="p-1.5 rounded-lg hover:bg-gray-100"
+                onClick={() => setShowCreatorHistory(false)}
+                aria-label="Close creator earnings history"
+              >
+                <X className="w-4 h-4 text-gray-700" />
+              </button>
+            </div>
+            {isLoadingCreatorHistory ? (
+              <div className="p-4 text-sm text-gray-500">Loading earnings history…</div>
+            ) : !(creatorEarningsHistory?.items?.length) ? (
+              <div className="p-4 text-sm text-gray-500">No creator earnings activity yet.</div>
+            ) : (
+              <div className="divide-y divide-gray-100">
+                {creatorEarningsHistory.items.map((item) => {
+                  const isTransfer = item.eventType === 'CREATOR_EARNING_TRANSFER';
+                  return (
+                    <div key={item.id} className="py-3 flex items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-gray-900 truncate">
+                          {isTransfer ? 'Moved to Balance' : 'Creator Earnings Credit'}
+                        </p>
+                        <p className="text-xs text-gray-500 truncate">
+                          {item.description || (isTransfer ? 'Creator earnings transfer' : 'Settlement creator fee')}
+                        </p>
+                        <p className="text-[11px] text-gray-400">
+                          {new Date(item.createdAt).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
+                        </p>
+                      </div>
+                      <div className={`font-mono text-sm font-semibold ${isTransfer ? 'text-blue-700' : 'text-emerald-700'}`}>
+                        {isTransfer ? '-' : '+'}{formatCurrency(item.amount, { compact: false })}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
       )}
       
       {/* Connect wallet - gated by capabilities */}
