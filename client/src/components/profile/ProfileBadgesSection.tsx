@@ -229,8 +229,8 @@ export const ProfileBadgesCompact: React.FC<ProfileBadgesCompactProps> = ({
       <OGBadgeEnhanced
         tier={ogBadge}
         size="sm"
-        showTooltip={true}
-        animate={true}
+        showTooltip={false}
+        animate={false}
       />
       <span className={cn('text-sm font-semibold', config.pillText)}>
         {config.subtitle}

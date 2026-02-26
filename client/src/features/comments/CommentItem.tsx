@@ -114,7 +114,7 @@ export const CommentItem: React.FC<CommentItemProps> = ({
       navigate(`/profile/${encodeURIComponent(String(commentUserId))}`);
     }
   };
-  const canOpenAuthorProfile = Boolean(String(comment.user?.username || '').trim() || commentUserId);
+  const canOpenAuthorProfile = Boolean(comment.user && (String(comment.user.username || '').trim() || commentUserId));
   const ownerByIdentity = Boolean(
     (effectiveUserId && commentUserId && effectiveUserId === commentUserId) ||
     (effectiveUserId && commentUserAuthId && effectiveUserId === commentUserAuthId) ||
@@ -404,7 +404,7 @@ export const CommentItem: React.FC<CommentItemProps> = ({
               <button
                 type="button"
                 onClick={openAuthorProfile}
-                className="font-medium text-sm text-gray-900 leading-tight truncate hover:text-emerald-700 text-left p-0 border-0 bg-transparent appearance-none"
+                className="font-medium text-sm text-gray-900 leading-tight truncate hover:text-emerald-700 cursor-pointer text-left p-0 border-0 bg-transparent appearance-none"
               >
                 {displayName}
               </button>
@@ -444,7 +444,7 @@ export const CommentItem: React.FC<CommentItemProps> = ({
               <button
                 type="button"
                 onClick={openAuthorProfile}
-                className="truncate hover:text-gray-700 text-left p-0 border-0 bg-transparent appearance-none"
+                className="truncate hover:text-gray-700 cursor-pointer text-left p-0 border-0 bg-transparent appearance-none"
               >
                 {handle}
               </button>

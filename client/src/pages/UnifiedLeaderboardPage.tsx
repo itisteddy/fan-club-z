@@ -296,31 +296,26 @@ const UnifiedLeaderboardPage: React.FC = () => {
             </button>
             
             {/* User Info */}
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center space-x-2">
+            <div className="flex-1 min-w-0 flex flex-col justify-center gap-0">
+              <div className="flex items-center gap-1.5 min-w-0">
                 <button
                   type="button"
                   onClick={() => openReferralProfile(entry)}
-                  className="font-semibold text-gray-900 truncate hover:text-emerald-700 text-left p-0 border-0 bg-transparent appearance-none leading-tight"
+                  className="font-semibold text-sm text-gray-900 truncate hover:text-emerald-700 cursor-pointer text-left p-0 border-0 bg-transparent appearance-none leading-tight"
                 >
                   {entry.fullName || entry.username}
                 </button>
                 <OGBadge tier={entry.ogBadge} size="sm" />
                 {isCurrentUser && (
-                  <motion.span
-                    className="px-2 py-0.5 bg-emerald-100 text-emerald-700 text-xs font-medium rounded-full"
-                    initial={{ scale: 0 }}
-                    animate={{ scale: 1 }}
-                    transition={{ type: "spring", stiffness: 400, damping: 25 }}
-                  >
+                  <span className="flex-shrink-0 px-1.5 py-0.5 bg-emerald-100 text-emerald-700 text-xs font-medium rounded-full">
                     You
-                  </motion.span>
+                  </span>
                 )}
               </div>
               <button
                 type="button"
                 onClick={() => openReferralProfile(entry)}
-                className="text-sm text-gray-600 truncate hover:text-gray-800 text-left p-0 border-0 bg-transparent appearance-none leading-tight"
+                className="text-xs text-gray-500 truncate hover:text-gray-700 cursor-pointer text-left p-0 border-0 bg-transparent appearance-none leading-tight"
               >
                 @{entry.username}
               </button>
@@ -533,31 +528,26 @@ const UnifiedLeaderboardPage: React.FC = () => {
                         </button>
                         
                         {/* User Info */}
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center space-x-2">
+                        <div className="flex-1 min-w-0 flex flex-col justify-center gap-0">
+                          <div className="flex items-center gap-1.5 min-w-0">
                             <button
                               type="button"
                               onClick={() => openUserProfile(leaderUser)}
-                              className="font-semibold text-gray-900 truncate hover:text-emerald-700 text-left p-0 border-0 bg-transparent appearance-none leading-tight"
+                              className="font-semibold text-sm text-gray-900 truncate hover:text-emerald-700 cursor-pointer text-left p-0 border-0 bg-transparent appearance-none leading-tight"
                             >
                               {leaderUser.full_name || leaderUser.username}
                             </button>
                             <OGBadge tier={leaderUser.og_badge} size="sm" />
                             {isCurrentUser && (
-                              <motion.span
-                                className="px-2 py-0.5 bg-emerald-100 text-emerald-700 text-xs font-medium rounded-full"
-                                initial={{ scale: 0 }}
-                                animate={{ scale: 1 }}
-                                transition={{ type: "spring", stiffness: 400, damping: 25 }}
-                              >
+                              <span className="flex-shrink-0 px-1.5 py-0.5 bg-emerald-100 text-emerald-700 text-xs font-medium rounded-full">
                                 You
-                              </motion.span>
+                              </span>
                             )}
                           </div>
                           <button
                             type="button"
                             onClick={() => openUserProfile(leaderUser)}
-                            className="text-sm text-gray-600 truncate hover:text-gray-800 text-left p-0 border-0 bg-transparent appearance-none leading-tight"
+                            className="text-xs text-gray-500 truncate hover:text-gray-700 cursor-pointer text-left p-0 border-0 bg-transparent appearance-none leading-tight"
                           >
                             @{leaderUser.username}
                           </button>

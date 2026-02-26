@@ -196,17 +196,15 @@ export const ProfileAchievementsSection: React.FC<Props> = ({
 
   return (
     <>
-      <div className="bg-white rounded-2xl border border-black/[0.06] px-4 pb-4 pt-2">
-        <div className="flex items-center justify-end mb-2">
-          <button
-            type="button"
-            onClick={() => setShowInfo(true)}
-            className="inline-flex items-center justify-center w-8 h-8 rounded-lg border border-black/[0.06] text-gray-500 hover:bg-gray-50"
-            aria-label="Achievements info"
-          >
-            <HelpCircle className="w-4 h-4" />
-          </button>
-        </div>
+      <div className="relative bg-white rounded-2xl border border-black/[0.06] px-4 pb-4 pt-4">
+        <button
+          type="button"
+          onClick={() => setShowInfo(true)}
+          className="absolute top-3 right-3 inline-flex items-center justify-center w-7 h-7 rounded-lg border border-black/[0.06] text-gray-400 hover:bg-gray-50 hover:text-gray-600"
+          aria-label="Achievements info"
+        >
+          <HelpCircle className="w-3.5 h-3.5" />
+        </button>
 
         {loading ? (
           <div className="space-y-3">
@@ -303,7 +301,7 @@ export const ProfileAchievementsSection: React.FC<Props> = ({
               <div className="text-xs font-medium text-gray-700 mb-2">Badges</div>
               <div className="grid grid-cols-3 gap-2">
                 {badgeTiles.map((tile) => {
-                  const Icon = iconForKey(tile.definition.iconKey);
+                  const Icon = iconForBadge(tile.definition);
                   const earned = Boolean(tile.earned);
                   const progressLabel = tile.definition.progressLabel;
                   const progressPct = typeof tile.definition.progressPct === 'number' ? tile.definition.progressPct : 0;

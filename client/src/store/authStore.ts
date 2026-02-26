@@ -176,14 +176,20 @@ export const useAuthStore = create<AuthState>()(
           return;
         }
 
-        // If we have valid persisted data and it's recent, still refresh extended profile to get latest name
+        // If we have valid persisted data and it's recent, still refresh extended profile to get latest name/badge
         if (state.isAuthenticated && state.user && state.token && (now - state.lastAuthCheck < 300000)) { // 5 minutes
-          // Refresh extended profile in background to get latest full_name/avatar
+          // Refresh extended profile in background to get latest full_name/avatar/og_badge
           fetchExtendedProfile(state.user.id).then(extended => {
-            if (extended?.full_name && extended.full_name !== state.user?.full_name) {
-              console.log('[authStore:initializeAuth] Updating stale full_name:', state.user?.full_name, '->', extended.full_name);
+            const currentUser = get().user;
+            if (!extended || !currentUser) return;
+            const hasChanges =
+              extended.full_name !== currentUser.full_name ||
+              extended.og_badge !== currentUser.og_badge ||
+              extended.avatar_url !== currentUser.avatar_url ||
+              extended.username !== currentUser.username;
+            if (hasChanges) {
               set({
-                user: state.user ? { ...state.user, ...extended } : null,
+                user: { ...currentUser, ...extended },
                 lastAuthCheck: now,
               });
             }

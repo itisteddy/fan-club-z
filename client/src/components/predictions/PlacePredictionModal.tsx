@@ -146,10 +146,10 @@ export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
   }, [user?.id]);
 
   useEffect(() => {
-    if (isDemoMode) {
+    if (isDemoMode && isOpen) {
       void fetchDemoSummary();
     }
-  }, [isDemoMode, fetchDemoSummary]);
+  }, [isDemoMode, isOpen, fetchDemoSummary]);
 
   const numAmount = parseFloat(amount) || 0;
   const selectedOption = prediction?.options?.find(o => o.id === selectedOptionId);
