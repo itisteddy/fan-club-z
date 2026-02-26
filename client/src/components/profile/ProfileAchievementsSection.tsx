@@ -1,12 +1,40 @@
 import React from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
-import { Award, Crown, MessageCircle, Target, TrendingUp, Trophy, Users, X, Sparkles, Layers, ChevronRight } from 'lucide-react';
-import type { AchievementAward, AchievementBadge } from '@/hooks/useUserAchievements';
+import {
+  Award,
+  HelpCircle,
+  Crown,
+  Layers,
+  Lock,
+  MessageCircle,
+  Sparkles,
+  Target,
+  TrendingUp,
+  Trophy,
+  Users,
+  X,
+} from 'lucide-react';
+import type {
+  AchievementAward,
+  AchievementAwardDefinition,
+  AchievementBadgeDefinition,
+  AchievementBadge,
+} from '@/hooks/useUserAchievements';
 import { formatTimeAgo } from '@/lib/format';
 
-type DetailItem =
-  | ({ kind: 'award' } & AchievementAward)
-  | ({ kind: 'badge' } & AchievementBadge);
+type TitleTile = {
+  type: 'title';
+  definition: AchievementAwardDefinition;
+  activeAward: AchievementAward | null;
+};
+
+type BadgeTile = {
+  type: 'badge';
+  definition: AchievementBadgeDefinition;
+  earned: AchievementBadge | null;
+};
+
+type DetailItem = TitleTile | BadgeTile;
 
 function iconForKey(iconKey?: string | null) {
   switch (iconKey) {
@@ -31,34 +59,44 @@ function iconForKey(iconKey?: string | null) {
   }
 }
 
+function shortAwardTitle(title: string) {
+  return title
+    .replace(/^Top\s+/i, '')
+    .replace(/^10\s+/, '10 ');
+}
+
+function windowTag(window?: AchievementAward['window'] | null) {
+  if (window === '7d') return 'Week';
+  if (window === '30d') return 'Month';
+  if (window === 'all') return 'All';
+  return '';
+}
+
+function windowLabel(window?: AchievementAward['window'] | null) {
+  if (window === '7d') return 'This Week';
+  if (window === '30d') return 'This Month';
+  if (window === 'all') return 'All Time';
+  return 'Not ranked';
+}
+
 function formatScore(score: number) {
   if (!Number.isFinite(score)) return '0';
-  if (Math.abs(score) >= 1000) return new Intl.NumberFormat('en-US', { maximumFractionDigits: 1 }).format(score);
+  if (Math.abs(score) >= 1000) {
+    return new Intl.NumberFormat('en-US', { maximumFractionDigits: 1 }).format(score);
+  }
   return Number.isInteger(score) ? String(score) : score.toFixed(2);
 }
 
-function windowLabel(window: AchievementAward['window']) {
-  if (window === '7d') return 'This Week';
-  if (window === '30d') return 'This Month';
-  return 'All Time';
-}
-
-function windowShortLabel(window: AchievementAward['window']) {
-  if (window === '7d') return 'Week';
-  if (window === '30d') return 'Month';
-  return 'All Time';
-}
-
-function scoreLabel(metric?: string) {
+function metricLabel(metric?: string) {
   switch (metric) {
     case 'creator_earnings_amount':
       return 'Creator earnings';
     case 'payouts_amount':
-      return 'Total payouts';
+      return 'Payout total';
     case 'net_profit':
       return 'Net profit';
     case 'comments_count':
-      return 'Comments posted';
+      return 'Comments';
     case 'markets_participated_count':
       return 'Markets participated';
     case 'stakes_count':
@@ -68,80 +106,118 @@ function scoreLabel(metric?: string) {
   }
 }
 
-function badgeHowToEarn(badgeKey: string) {
+function badgeHowToEarnBullets(badgeKey: string): string[] {
   switch (badgeKey) {
     case 'FIRST_STAKE':
-      return 'Place your first stake on any open market.';
+      return ['Place a stake on any open market.', 'Confirm the stake successfully.'];
     case 'TEN_STAKES':
-      return 'Place 10 stakes across any markets over time.';
+      return ['Place at least 10 stake actions.', 'Stakes can be across different markets.'];
     case 'FIRST_COMMENT':
-      return 'Post your first comment on a market.';
+      return ['Post a comment on a market.', 'Comment must be successfully submitted.'];
     case 'FIRST_CREATOR_EARNING':
-      return 'Earn creator fees from a market you created.';
+      return ['Create a market that earns creator fees.', 'Creator fees must be credited to your creator earnings.'];
     default:
-      return 'Complete the activity described above.';
+      return ['Complete the achievement activity shown above.'];
   }
 }
 
 interface Props {
+  awardDefinitions?: AchievementAwardDefinition[];
   awards: AchievementAward[];
-  badges: AchievementBadge[];
+  badgeDefinitions?: AchievementBadgeDefinition[];
+  badgesEarned?: AchievementBadge[];
+  badges?: AchievementBadge[]; // back-compat
   loading?: boolean;
   error?: string | null;
   onRetry?: () => void;
 }
 
-const MAX_VISIBLE_AWARDS_PER_WINDOW = 3;
-
 export const ProfileAchievementsSection: React.FC<Props> = ({
+  awardDefinitions = [],
   awards,
-  badges,
+  badgeDefinitions = [],
+  badgesEarned,
+  badges = [],
   loading = false,
   error = null,
   onRetry,
 }) => {
   const [detail, setDetail] = React.useState<DetailItem | null>(null);
-  const [expandedWindows, setExpandedWindows] = React.useState<Record<'7d' | '30d' | 'all', boolean>>({
-    '7d': false,
-    '30d': false,
-    all: false,
-  });
+  const [showInfo, setShowInfo] = React.useState(false);
 
-  const groupedAwards = React.useMemo(() => {
-    return {
-      '7d': awards.filter(a => a.window === '7d'),
-      '30d': awards.filter(a => a.window === '30d'),
-      all: awards.filter(a => a.window === 'all'),
-    } as const;
+  const earnedBadges = badgesEarned && badgesEarned.length ? badgesEarned : badges;
+  const earnedBadgeMap = React.useMemo(
+    () => new Map(earnedBadges.map((b) => [b.badgeKey, b])),
+    [earnedBadges]
+  );
+
+  const bestAwardByKey = React.useMemo(() => {
+    const priority: Record<AchievementAward['window'], number> = { '7d': 0, '30d': 1, all: 2 };
+    const map = new Map<string, AchievementAward>();
+    for (const award of awards) {
+      const current = map.get(award.awardKey);
+      if (!current) {
+        map.set(award.awardKey, award);
+        continue;
+      }
+      const pDiff = (priority[award.window] ?? 99) - (priority[current.window] ?? 99);
+      if (pDiff < 0 || (pDiff === 0 && award.rank < current.rank)) {
+        map.set(award.awardKey, award);
+      }
+    }
+    return map;
   }, [awards]);
 
-  const hasAny = awards.length > 0 || badges.length > 0;
+  const titleTiles = React.useMemo(() => {
+    return awardDefinitions.map((def) => ({
+      type: 'title' as const,
+      definition: def,
+      activeAward: bestAwardByKey.get(def.key) || null,
+    }));
+  }, [awardDefinitions, bestAwardByKey]);
+
+  const badgeTiles = React.useMemo(() => {
+    return badgeDefinitions
+      .filter((def) => def.isKey !== false)
+      .map((def) => ({
+        type: 'badge' as const,
+        definition: def,
+        earned: earnedBadgeMap.get(def.key) || null,
+      }));
+  }, [badgeDefinitions, earnedBadgeMap]);
+
+  const hasDefinitions = titleTiles.length > 0 || badgeTiles.length > 0;
 
   return (
     <>
       <div className="bg-white rounded-2xl border border-black/[0.06] p-4">
-        <div className="mb-4">
+        <div className="flex items-center justify-between mb-3">
           <h3 className="text-sm font-semibold text-gray-900">Achievements</h3>
-          <p className="text-xs text-gray-500 mt-1">
-            Awards rotate by time window. Badges are earned once and kept forever.
-          </p>
+          <button
+            type="button"
+            onClick={() => setShowInfo(true)}
+            className="inline-flex items-center justify-center w-8 h-8 rounded-lg border border-black/[0.06] text-gray-500 hover:bg-gray-50"
+            aria-label="Achievements info"
+          >
+            <HelpCircle className="w-4 h-4" />
+          </button>
         </div>
 
         {loading ? (
           <div className="space-y-3">
-            <div className="rounded-xl border border-black/[0.06] p-3 space-y-2">
-              <div className="h-3 w-24 rounded bg-gray-100 animate-pulse" />
-              <div className="flex gap-2 flex-wrap">
-                {Array.from({ length: 3 }).map((_, i) => (
-                  <div key={i} className="h-8 w-28 rounded-full bg-gray-100 animate-pulse" />
+            <div className="rounded-xl border border-black/[0.06] p-3">
+              <div className="h-3 w-14 rounded bg-gray-100 animate-pulse mb-3" />
+              <div className="flex gap-2 overflow-hidden">
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <div key={i} className="h-20 min-w-[92px] rounded-xl bg-gray-100 animate-pulse" />
                 ))}
               </div>
             </div>
-            <div className="rounded-xl border border-black/[0.06] p-3 space-y-2">
-              <div className="h-3 w-20 rounded bg-gray-100 animate-pulse" />
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                {Array.from({ length: 2 }).map((_, i) => (
-                  <div key={i} className="h-14 rounded-xl bg-gray-100 animate-pulse" />
+            <div className="rounded-xl border border-black/[0.06] p-3">
+              <div className="h-3 w-16 rounded bg-gray-100 animate-pulse mb-3" />
+              <div className="grid grid-cols-3 gap-2">
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <div key={i} className="h-20 rounded-xl bg-gray-100 animate-pulse" />
                 ))}
               </div>
             </div>
@@ -159,118 +235,136 @@ export const ProfileAchievementsSection: React.FC<Props> = ({
               </button>
             )}
           </div>
-        ) : !hasAny ? (
-          <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50 p-4">
-            <p className="text-sm font-medium text-gray-900">No achievements yet.</p>
-            <p className="text-xs text-gray-500 mt-1">Earn titles by participating and creating. Badges unlock as you complete milestones.</p>
+        ) : !hasDefinitions ? (
+          <div className="rounded-xl border border-black/[0.06] bg-gray-50 p-3">
+            <p className="text-xs text-gray-600">Achievements will appear after setup completes.</p>
           </div>
         ) : (
-          <div className="space-y-4">
+          <div className="space-y-3">
             <section className="rounded-xl border border-black/[0.06] p-3">
-              <div className="flex items-center justify-between mb-2">
-                <h4 className="text-sm font-semibold text-gray-900">Awards (Titles)</h4>
-                <span className="text-[11px] text-gray-500">Rotates daily</span>
-              </div>
-              <p className="text-xs text-gray-500 mb-3">Top rankings across weekly, monthly, and all-time windows.</p>
-              <div className="space-y-3">
-                {(['7d', '30d', 'all'] as const).map((window) => {
-                  const items = groupedAwards[window];
-                  const isExpanded = expandedWindows[window];
-                  const visibleItems = isExpanded ? items : items.slice(0, MAX_VISIBLE_AWARDS_PER_WINDOW);
+              <div className="text-xs font-medium text-gray-700 mb-2">Titles</div>
+              <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
+                {titleTiles.map((tile) => {
+                  const Icon = iconForKey(tile.definition.iconKey);
+                  const active = tile.activeAward;
                   return (
-                    <div key={window} className="border-t border-gray-100 first:border-t-0 first:pt-0 pt-3">
-                      <div className="text-[11px] font-medium text-gray-500 mb-2">{windowLabel(window)}</div>
-                      {items.length === 0 ? (
-                        <div className="text-xs text-gray-400 px-1 py-1">No titles yet.</div>
-                      ) : (
-                        <>
-                          <div className="flex flex-wrap gap-2">
-                            {visibleItems.map((award) => {
-                            const Icon = iconForKey(award.iconKey);
-                            return (
-                              <button
-                                key={`${award.awardKey}-${award.window}`}
-                                onClick={() => setDetail({ ...award, kind: 'award' })}
-                                aria-label={`${award.title}, rank ${award.rank}, ${windowShortLabel(award.window)}. ${award.description}`}
-                                className="inline-flex min-h-[36px] items-center gap-1.5 rounded-full border border-black/[0.08] bg-white px-3 py-1.5 text-xs font-medium text-gray-900 hover:bg-gray-50 transition-colors"
-                              >
-                                <Icon className="w-3.5 h-3.5 text-gray-500" aria-hidden="true" />
-                                <span>{award.title} #{award.rank} · {windowShortLabel(award.window)}</span>
-                              </button>
-                            );
-                            })}
+                    <button
+                      key={tile.definition.key}
+                      type="button"
+                      onClick={() => setDetail(tile)}
+                      className={[
+                        'min-w-[94px] w-[94px] rounded-xl border px-2 py-2 text-left transition-colors',
+                        active
+                          ? 'bg-white border-black/[0.08] hover:bg-gray-50'
+                          : 'bg-gray-50 border-gray-200 hover:bg-gray-100',
+                      ].join(' ')}
+                      aria-label={
+                        active
+                          ? `${tile.definition.title}, rank ${active.rank}, ${windowLabel(active.window)}`
+                          : `${tile.definition.title}, not ranked currently`
+                      }
+                    >
+                      <div
+                        className={[
+                          'w-7 h-7 rounded-lg border flex items-center justify-center mb-2',
+                          active ? 'bg-white border-black/[0.06]' : 'bg-gray-100 border-gray-200',
+                        ].join(' ')}
+                      >
+                        <Icon className={['w-4 h-4', active ? 'text-gray-800' : 'text-gray-400'].join(' ')} />
+                      </div>
+                      <div className={['text-[11px] font-medium leading-tight truncate', active ? 'text-gray-900' : 'text-gray-500'].join(' ')}>
+                        {shortAwardTitle(tile.definition.title)}
+                      </div>
+                      {active ? (
+                        <div className="mt-1">
+                          <div className="text-xs font-semibold text-gray-900">#{active.rank}</div>
+                          <div className="inline-flex mt-1 rounded-full border border-black/[0.06] px-1.5 py-0.5 text-[10px] text-gray-600 bg-gray-50">
+                            {windowTag(active.window)}
                           </div>
-                          {items.length > MAX_VISIBLE_AWARDS_PER_WINDOW && (
-                            <button
-                              type="button"
-                              onClick={() => setExpandedWindows(prev => ({ ...prev, [window]: !prev[window] }))}
-                              className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-gray-700 hover:text-gray-900"
-                            >
-                              <span>{isExpanded ? 'Show less' : `View all (${items.length})`}</span>
-                              <ChevronRight className={`w-3.5 h-3.5 transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
-                            </button>
-                          )}
-                        </>
+                        </div>
+                      ) : (
+                        <div className="mt-1 text-[10px] text-gray-400">Not ranked</div>
                       )}
-                    </div>
+                    </button>
                   );
                 })}
               </div>
             </section>
 
             <section className="rounded-xl border border-black/[0.06] p-3">
-              <div className="flex items-center justify-between mb-2">
-                <h4 className="text-sm font-semibold text-gray-900">Badges (Permanent)</h4>
-                <span className="text-[11px] text-gray-500">Kept forever</span>
-              </div>
-              <p className="text-xs text-gray-500 mb-3">Milestones you earn once and keep on your profile.</p>
-              {badges.length === 0 ? (
-                <div className="rounded-lg border border-dashed border-gray-200 bg-gray-50 px-3 py-2">
-                  <p className="text-sm text-gray-700">No badges yet.</p>
-                  <p className="text-xs text-gray-500 mt-1">Start with your first stake or comment to unlock a badge.</p>
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  {badges.map((badge) => {
-                    const Icon = iconForKey(badge.iconKey);
-                    return (
-                      <button
-                        key={badge.badgeKey}
-                        onClick={() => setDetail({ ...badge, kind: 'badge' })}
-                        aria-label={`${badge.title}. ${badge.description}. ${badge.earnedAt ? `Earned ${formatTimeAgo(badge.earnedAt)}.` : ''}`}
-                        className="text-left rounded-xl border border-black/[0.06] bg-white hover:bg-gray-50 px-3 py-2 transition-colors min-h-[56px]"
-                      >
-                        <div className="flex items-start gap-2">
-                          <div className="w-8 h-8 rounded-lg bg-gray-50 border border-black/[0.06] flex items-center justify-center flex-shrink-0">
-                            <Icon className="w-4 h-4 text-gray-700" />
-                          </div>
-                          <div className="min-w-0">
-                            <div className="text-sm font-medium text-gray-900 truncate">{badge.title}</div>
-                            <div className="text-[11px] text-gray-500">Earned {badge.earnedAt ? formatTimeAgo(badge.earnedAt) : 'recently'}</div>
-                          </div>
+              <div className="text-xs font-medium text-gray-700 mb-2">Badges</div>
+              <div className="grid grid-cols-3 gap-2">
+                {badgeTiles.map((tile) => {
+                  const Icon = iconForKey(tile.definition.iconKey);
+                  const earned = Boolean(tile.earned);
+                  return (
+                    <button
+                      key={tile.definition.key}
+                      type="button"
+                      onClick={() => setDetail(tile)}
+                      className={[
+                        'relative rounded-xl border p-2 text-center min-h-[86px] transition-colors',
+                        earned
+                          ? 'bg-white border-black/[0.08] hover:bg-gray-50'
+                          : 'bg-gray-50 border-gray-200 hover:bg-gray-100',
+                      ].join(' ')}
+                      aria-label={`${tile.definition.title}. ${earned ? 'Earned.' : 'Locked.'}`}
+                    >
+                      {!earned && (
+                        <div className="absolute top-1.5 right-1.5 w-4 h-4 rounded-full bg-white border border-gray-200 flex items-center justify-center">
+                          <Lock className="w-2.5 h-2.5 text-gray-400" />
                         </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
+                      )}
+                      <div
+                        className={[
+                          'mx-auto w-9 h-9 rounded-xl border flex items-center justify-center',
+                          earned ? 'bg-white border-black/[0.06]' : 'bg-gray-100 border-gray-200',
+                        ].join(' ')}
+                      >
+                        <Icon className={['w-4.5 h-4.5', earned ? 'text-gray-800' : 'text-gray-400'].join(' ')} />
+                      </div>
+                      <div className={['mt-2 text-[10px] leading-tight line-clamp-2', earned ? 'text-gray-700' : 'text-gray-500'].join(' ')}>
+                        {tile.definition.title}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
             </section>
           </div>
         )}
       </div>
 
+      <Dialog.Root open={showInfo} onOpenChange={setShowInfo}>
+        <Dialog.Portal>
+          <Dialog.Overlay className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[12000]" />
+          <Dialog.Content className="fixed left-0 right-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] md:left-1/2 md:right-auto md:top-1/2 md:bottom-auto md:-translate-x-1/2 md:-translate-y-1/2 bg-white rounded-t-2xl md:rounded-2xl shadow-2xl z-[12001] w-full md:max-w-md border border-black/[0.06]">
+            <div className="sticky top-0 bg-white/95 backdrop-blur border-b border-gray-100 px-4 py-3 flex items-center justify-between">
+              <Dialog.Title className="text-sm font-semibold text-gray-900">Achievements</Dialog.Title>
+              <Dialog.Close className="p-1.5 rounded-lg hover:bg-gray-100" aria-label="Close achievements info">
+                <X className="w-4 h-4 text-gray-500" />
+              </Dialog.Close>
+            </div>
+            <div className="p-4 space-y-2 text-sm text-gray-700">
+              <p>Titles refresh daily and show rankings you currently hold.</p>
+              <p>Badges are permanent once earned.</p>
+            </div>
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
+
       <Dialog.Root open={Boolean(detail)} onOpenChange={(open) => !open && setDetail(null)}>
         <Dialog.Portal>
           <Dialog.Overlay className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[12000]" />
           {detail && (
-            <Dialog.Content
-              className="fixed left-0 right-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] md:left-1/2 md:right-auto md:top-1/2 md:bottom-auto md:-translate-x-1/2 md:-translate-y-1/2 bg-white rounded-t-2xl md:rounded-2xl shadow-2xl z-[12001] max-h-[calc(100vh-4rem-env(safe-area-inset-bottom))] md:max-h-[80vh] overflow-y-auto w-full md:max-w-md border border-black/[0.06]"
-            >
+            <Dialog.Content className="fixed left-0 right-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] md:left-1/2 md:right-auto md:top-1/2 md:bottom-auto md:-translate-x-1/2 md:-translate-y-1/2 bg-white rounded-t-2xl md:rounded-2xl shadow-2xl z-[12001] max-h-[calc(100vh-4rem-env(safe-area-inset-bottom))] md:max-h-[80vh] overflow-y-auto w-full md:max-w-md border border-black/[0.06]">
               <div className="sticky top-0 bg-white/95 backdrop-blur border-b border-gray-100 px-4 py-3 flex items-center justify-between">
                 <div className="min-w-0">
-                  <Dialog.Title className="text-sm font-semibold text-gray-900 truncate">{detail.title}</Dialog.Title>
+                  <Dialog.Title className="text-sm font-semibold text-gray-900 truncate">
+                    {detail.definition.title}
+                  </Dialog.Title>
                   <Dialog.Description className="text-xs text-gray-500">
-                    {detail.kind === 'award' ? 'Award (rotating title)' : 'Badge (permanent achievement)'}
+                    {detail.type === 'title' ? 'Title (rotating award)' : 'Badge (permanent)'}
                   </Dialog.Description>
                 </div>
                 <Dialog.Close className="p-1.5 rounded-lg hover:bg-gray-100" aria-label="Close achievement details">
@@ -279,40 +373,63 @@ export const ProfileAchievementsSection: React.FC<Props> = ({
               </div>
 
               <div className="p-4 space-y-4">
-                <p className="text-sm text-gray-700">{detail.description}</p>
+                <p className="text-sm text-gray-700">{detail.definition.description}</p>
 
-                {detail.kind === 'award' ? (
+                {detail.type === 'title' ? (
                   <>
                     <div className="rounded-xl border border-black/[0.06] divide-y divide-gray-100">
                       <div className="flex items-center justify-between px-3 py-2 text-sm">
+                        <span className="text-gray-500">Status</span>
+                        <span className={detail.activeAward ? 'font-medium text-gray-900' : 'text-gray-500'}>
+                          {detail.activeAward ? 'Active' : 'Not ranked'}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between px-3 py-2 text-sm">
                         <span className="text-gray-500">Window</span>
-                        <span className="font-medium text-gray-900">{windowLabel(detail.window)}</span>
+                        <span className="font-medium text-gray-900">
+                          {windowLabel(detail.activeAward?.window ?? null)}
+                        </span>
                       </div>
-                      <div className="flex items-center justify-between px-3 py-2 text-sm">
-                        <span className="text-gray-500">Rank</span>
-                        <span className="font-medium text-gray-900">#{detail.rank}</span>
-                      </div>
-                      <div className="flex items-center justify-between px-3 py-2 text-sm">
-                        <span className="text-gray-500">{scoreLabel(detail.metric)}</span>
-                        <span className="font-medium text-gray-900">{formatScore(detail.score)}</span>
-                      </div>
+                      {detail.activeAward && (
+                        <>
+                          <div className="flex items-center justify-between px-3 py-2 text-sm">
+                            <span className="text-gray-500">Rank</span>
+                            <span className="font-medium text-gray-900">#{detail.activeAward.rank}</span>
+                          </div>
+                          <div className="flex items-center justify-between px-3 py-2 text-sm">
+                            <span className="text-gray-500">{metricLabel(detail.activeAward.metric)}</span>
+                            <span className="font-medium text-gray-900">{formatScore(detail.activeAward.score)}</span>
+                          </div>
+                        </>
+                      )}
                     </div>
-                    <div className="rounded-xl bg-gray-50 border border-black/[0.04] px-3 py-2 text-xs text-gray-600 space-y-1">
-                      <p>Awards update daily.</p>
-                      <p>{detail.computedAt ? `Last updated ${formatTimeAgo(detail.computedAt)}.` : 'Computed from cached daily stats.'}</p>
+                    <div className="rounded-xl bg-gray-50 border border-black/[0.04] px-3 py-2 text-xs text-gray-600">
+                      Updates daily.
                     </div>
                   </>
                 ) : (
                   <>
                     <div className="rounded-xl border border-black/[0.06] divide-y divide-gray-100">
                       <div className="flex items-center justify-between px-3 py-2 text-sm">
-                        <span className="text-gray-500">Earned</span>
-                        <span className="font-medium text-gray-900">{detail.earnedAt ? formatTimeAgo(detail.earnedAt) : 'Recently'}</span>
+                        <span className="text-gray-500">Status</span>
+                        <span className={detail.earned ? 'font-medium text-gray-900' : 'text-gray-500'}>
+                          {detail.earned ? 'Earned' : 'Locked'}
+                        </span>
                       </div>
+                      {detail.earned && (
+                        <div className="flex items-center justify-between px-3 py-2 text-sm">
+                          <span className="text-gray-500">Earned</span>
+                          <span className="font-medium text-gray-900">{formatTimeAgo(detail.earned.earnedAt)}</span>
+                        </div>
+                      )}
                     </div>
                     <div className="rounded-xl bg-gray-50 border border-black/[0.04] px-3 py-2 text-xs text-gray-600 space-y-1">
-                      <p>Badges are permanent and stay on your profile once earned.</p>
-                      <p>How to earn: {badgeHowToEarn(detail.badgeKey)}</p>
+                      <p className="font-medium text-gray-700">How to earn</p>
+                      <ul className="space-y-1">
+                        {badgeHowToEarnBullets(detail.definition.key).slice(0, 2).map((line, idx) => (
+                          <li key={idx}>• {line}</li>
+                        ))}
+                      </ul>
                     </div>
                   </>
                 )}
@@ -324,3 +441,5 @@ export const ProfileAchievementsSection: React.FC<Props> = ({
     </>
   );
 };
+
+export default ProfileAchievementsSection;

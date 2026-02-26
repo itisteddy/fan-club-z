@@ -11,6 +11,7 @@ export type AwardDefinition = {
   direction: 'DESC';
   iconKey: string | null;
   isEnabled: boolean;
+  sortOrder?: number;
 };
 
 export type AwardMetric =
@@ -42,9 +43,42 @@ export type UserBadge = {
   metadata: Record<string, unknown>;
 };
 
+export type BadgeDefinition = {
+  key: string;
+  title: string;
+  description: string;
+  iconKey: string | null;
+  isEnabled: boolean;
+  sortOrder: number;
+  isKey: boolean;
+};
+
 export type AchievementsResponse = {
   userId: string;
+  awardDefinitions: Array<{
+    key: string;
+    title: string;
+    description: string;
+    iconKey: string | null;
+    metric: AwardMetric;
+    metricLabel: string;
+    sortOrder: number;
+  }>;
   awards: UserAwardCurrent[];
+  badgeDefinitions: Array<{
+    key: string;
+    title: string;
+    description: string;
+    iconKey: string | null;
+    sortOrder: number;
+    isKey: boolean;
+  }>;
+  badgesEarned: Array<{
+    badgeKey: string;
+    earnedAt: string;
+    metadata: Record<string, unknown>;
+  }>;
+  // Back-compat (legacy clients)
   badges: UserBadge[];
   version: string;
 };
@@ -65,6 +99,25 @@ function assertAwardMetric(metric: string): AwardMetric {
     throw new Error(`Unsupported award metric: ${metric}`);
   }
   return metric as AwardMetric;
+}
+
+function metricLabelFor(metric: AwardMetric): string {
+  switch (metric) {
+    case 'creator_earnings_amount':
+      return 'Creator earnings';
+    case 'payouts_amount':
+      return 'Payout total';
+    case 'net_profit':
+      return 'Net profit';
+    case 'comments_count':
+      return 'Comments';
+    case 'markets_participated_count':
+      return 'Markets participated';
+    case 'stakes_count':
+      return 'Stake actions';
+    default:
+      return 'Score';
+  }
 }
 
 export function parseDateOnly(input?: string | null): string | null {
@@ -246,12 +299,26 @@ export async function recomputeUserStatsDaily(params?: { startDay?: string; endD
 }
 
 async function loadAwardDefinitionsPg(client: any): Promise<AwardDefinition[]> {
-  const { rows } = await client.query(
-    `SELECT key, title, description, metric, direction, icon_key, is_enabled
-     FROM award_definitions
-     WHERE is_enabled = true
-     ORDER BY key ASC`
-  );
+  let rows: any[] = [];
+  try {
+    ({ rows } = await client.query(
+      `SELECT key, title, description, metric, direction, icon_key, is_enabled, COALESCE(sort_order, 999) AS sort_order
+       FROM award_definitions
+       WHERE is_enabled = true
+       ORDER BY COALESCE(sort_order, 999) ASC, key ASC`
+    ));
+  } catch (err: any) {
+    if (String(err?.message || '').includes('sort_order')) {
+      ({ rows } = await client.query(
+        `SELECT key, title, description, metric, direction, icon_key, is_enabled
+         FROM award_definitions
+         WHERE is_enabled = true
+         ORDER BY key ASC`
+      ));
+    } else {
+      throw err;
+    }
+  }
   return rows.map((r: any) => ({
     key: String(r.key),
     title: String(r.title),
@@ -260,7 +327,14 @@ async function loadAwardDefinitionsPg(client: any): Promise<AwardDefinition[]> {
     direction: 'DESC',
     iconKey: r.icon_key ? String(r.icon_key) : null,
     isEnabled: Boolean(r.is_enabled),
+    sortOrder: Number(r.sort_order ?? 999),
   }));
+}
+
+function isMissingColumnError(error: any, column: string): boolean {
+  const msg = String(error?.message || '');
+  const details = String(error?.details || '');
+  return error?.code === '42703' || msg.includes(column) || details.includes(column);
 }
 
 function startDayForWindow(window: AwardWindow): string | null {
@@ -390,26 +464,52 @@ export async function recomputeStatsAndAwards(params?: {
 
 export async function getUserAchievements(userId: string): Promise<AchievementsResponse> {
   const windowSortRank: Record<AwardWindow, number> = { '7d': 0, '30d': 1, all: 2 };
-  const [awardsRes, awardDefsRes, userBadgesRes, badgeDefsRes] = await Promise.all([
-    supabase
-      .from('user_awards_current')
-      .select('award_key, time_window, rank, score, computed_at')
-      .eq('user_id', userId)
-      .order('time_window', { ascending: true })
-      .order('rank', { ascending: true }),
-    supabase
+  const awardsResPromise = supabase
+    .from('user_awards_current')
+    .select('award_key, time_window, rank, score, computed_at')
+    .eq('user_id', userId)
+    .order('time_window', { ascending: true })
+    .order('rank', { ascending: true });
+
+  const awardDefsResPromise = (async () => {
+    const withSort = await supabase
+      .from('award_definitions')
+      .select('key, title, description, metric, icon_key, is_enabled, sort_order')
+      .eq('is_enabled', true);
+    if (!withSort.error) return withSort;
+    if (!isMissingColumnError(withSort.error, 'sort_order')) return withSort;
+    return supabase
       .from('award_definitions')
       .select('key, title, description, metric, icon_key, is_enabled')
-      .eq('is_enabled', true),
-    supabase
-      .from('user_badges')
-      .select('badge_key, earned_at, metadata')
-      .eq('user_id', userId)
-      .order('earned_at', { ascending: false }),
-    supabase
+      .eq('is_enabled', true);
+  })();
+
+  const userBadgesResPromise = supabase
+    .from('user_badges')
+    .select('badge_key, earned_at, metadata')
+    .eq('user_id', userId)
+    .order('earned_at', { ascending: false });
+
+  const badgeDefsResPromise = (async () => {
+    const withFields = await supabase
+      .from('badge_definitions')
+      .select('key, title, description, icon_key, is_enabled, sort_order, is_key')
+      .eq('is_enabled', true);
+    if (!withFields.error) return withFields;
+    if (!isMissingColumnError(withFields.error, 'sort_order') && !isMissingColumnError(withFields.error, 'is_key')) {
+      return withFields;
+    }
+    return supabase
       .from('badge_definitions')
       .select('key, title, description, icon_key, is_enabled')
-      .eq('is_enabled', true),
+      .eq('is_enabled', true);
+  })();
+
+  const [awardsRes, awardDefsRes, userBadgesRes, badgeDefsRes] = await Promise.all([
+    awardsResPromise,
+    awardDefsResPromise,
+    userBadgesResPromise,
+    badgeDefsResPromise,
   ]);
 
   if (awardsRes.error) throw awardsRes.error;
@@ -464,9 +564,44 @@ export async function getUserAchievements(userId: string): Promise<AchievementsR
     })
     .filter(Boolean) as UserBadge[];
 
+  const awardDefinitions = (awardDefsRes.data || [])
+    .map((d: any) => {
+      const metric = assertAwardMetric(String(d.metric));
+      return {
+        key: String(d.key),
+        title: String(d.title),
+        description: String(d.description),
+        iconKey: d.icon_key ? String(d.icon_key) : null,
+        metric,
+        metricLabel: metricLabelFor(metric),
+        sortOrder: Number(d.sort_order ?? 999),
+      };
+    })
+    .sort((a, b) => (a.sortOrder - b.sortOrder) || a.key.localeCompare(b.key));
+
+  const badgeDefinitions = (badgeDefsRes.data || [])
+    .map((d: any) => ({
+      key: String(d.key),
+      title: String(d.title),
+      description: String(d.description),
+      iconKey: d.icon_key ? String(d.icon_key) : null,
+      sortOrder: Number(d.sort_order ?? 999),
+      isKey: d.is_key == null ? true : Boolean(d.is_key),
+    }))
+    .sort((a, b) => (a.sortOrder - b.sortOrder) || a.key.localeCompare(b.key));
+
+  const badgesEarned = badges.map((b) => ({
+    badgeKey: b.badgeKey,
+    earnedAt: b.earnedAt,
+    metadata: b.metadata,
+  }));
+
   return {
     userId,
+    awardDefinitions,
     awards,
+    badgeDefinitions,
+    badgesEarned,
     badges,
     version: VERSION,
   };

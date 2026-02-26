@@ -1,41 +1,30 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Edit3, User, Activity, DollarSign, TrendingUp, Target, Trophy, Upload, X, Mail, XCircle, Trash2, Ban, UserCheck, Loader2 } from 'lucide-react';
-import { Capacitor } from '@capacitor/core';
+import React, { useState, useEffect } from 'react';
+import { Edit3, User, Activity, DollarSign, TrendingUp, Target, Trophy, Upload, X, Mail, XCircle } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { useAuthSession } from '../providers/AuthSessionProvider';
-import { isFeatureEnabled } from '@/config/featureFlags';
-import { getApiUrl } from '@/utils/environment';
 import { usePredictionStore } from '../store/predictionStore';
 import { openAuthGate } from '../auth/authGateAdapter';
 import UserAvatar from '../components/common/UserAvatar';
 import AppHeader from '../components/layout/AppHeader';
 import { formatLargeNumber, formatCurrency, formatPercentage, formatTimeAgo } from '@/lib/format';
-import { formatTxAmount, toneClass } from '@/lib/txFormat';
 import { useUserActivity, ActivityItem as FeedActivityItem } from '@/hooks/useActivityFeed';
 import { t } from '@/lib/lexicon';
 import { ReferralCard, ReferralShareModal } from '@/components/referral';
 import { OGBadge, AvatarWithBadge } from '@/components/badges/OGBadge';
 import { OGBadgeEnhanced } from '@/components/badges/OGBadgeEnhanced';
 import { ProfileBadgesSection } from '@/components/profile/ProfileBadgesSection';
-import { ProfileAchievementsSection } from '@/components/profile/ProfileAchievementsSection';
 import { ProfileReferralSection } from '@/components/profile/ProfileReferralSection';
+import { ProfileAchievementsSection } from '@/components/profile/ProfileAchievementsSection';
 import { useReferral } from '@/hooks/useReferral';
 import { useUserAchievements } from '@/hooks/useUserAchievements';
-import { useBlockedUsers } from '@/hooks/useBlockedUsers';
-import toast from 'react-hot-toast';
-import { ReportContentModal } from '@/components/ugc/ReportContentModal';
 
 interface ProfilePageV2Props {
   onNavigateBack?: () => void;
   userId?: string;
 }
 
-const CONFIRM_DELETE_PHRASE = 'DELETE';
-
 const ProfilePageV2: React.FC<ProfilePageV2Props> = ({ onNavigateBack, userId }) => {
-  const navigate = useNavigate();
-  const { user: sessionUser, session, signOut } = useAuthSession();
+  const { user: sessionUser } = useAuthSession();
   const { user: storeUser, isAuthenticated: storeAuth } = useAuthStore();
   const { 
     getUserPredictionEntries, 
@@ -46,26 +35,15 @@ const ProfilePageV2: React.FC<ProfilePageV2Props> = ({ onNavigateBack, userId })
   const [loading, setLoading] = useState(true);
   const [showActivityModal, setShowActivityModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
-  const [showReportModal, setShowReportModal] = useState(false);
 
   const [editFirstName, setEditFirstName] = useState('');
   const [editLastName, setEditLastName] = useState('');
   const [editBio, setEditBio] = useState('');
-  const [avatarUploading, setAvatarUploading] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const [showShareModal, setShowShareModal] = useState(false);
-
-  // Phase 4: Account deletion flow state
-  const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [deleteConfirmText, setDeleteConfirmText] = useState('');
-  const [deleteInProgress, setDeleteInProgress] = useState(false);
-  const [deleteError, setDeleteError] = useState<string | null>(null);
   
   // Referral hook
   const { isEnabled: referralsEnabled } = useReferral();
-  // Block list (UGC) - for viewing other users' profiles
-  const { isEnabled: blockListEnabled, isBlocked, blockUser, unblockUser } = useBlockedUsers();
-
+  
   // Determine user context - prioritize session user
   const user = sessionUser || storeUser;
   const authenticated = !!sessionUser || storeAuth;
@@ -126,7 +104,10 @@ const ProfilePageV2: React.FC<ProfilePageV2Props> = ({ onNavigateBack, userId })
     isLoading: achievementsLoading,
     error: achievementsError,
     refetch: refetchAchievements,
-  } = useUserAchievements(activityUserId || null, Boolean(activityUserId));
+  } = useUserAchievements(
+    activityUserId || null,
+    Boolean(activityUserId)
+  );
 
   const { items: activityItems, loading: loadingActivity } = useUserActivity(activityUserId, {
     limit: 50,
@@ -167,10 +148,7 @@ const ProfilePageV2: React.FC<ProfilePageV2Props> = ({ onNavigateBack, userId })
           icon: <Target className="w-4 h-4 text-blue-600" />, 
           title: item.predictionTitle ? `Staked on ${item.predictionTitle}` : 'Stake placed',
           subtitle: item.data?.option_label ? `Option: ${item.data.option_label}` : '',
-          amount: item.data?.amount ? (() => {
-            const tx = formatTxAmount({ amount: Number(item.data.amount), type: item.type, kind: item.type, compact: true });
-            return tx.display;
-          })() : null,
+          amount: item.data?.amount ? formatCurrency(Number(item.data.amount), { compact: true }) : null,
           badge: 'placed',
           badgeColor: 'text-blue-600'
         };
@@ -190,10 +168,7 @@ const ProfilePageV2: React.FC<ProfilePageV2Props> = ({ onNavigateBack, userId })
           icon: <DollarSign className="w-4 h-4 text-emerald-600" />,
           title: 'Escrow funds released',
           subtitle: item.data?.prediction_title ? item.data.prediction_title : '',
-          amount: item.data?.amount ? (() => {
-            const tx = formatTxAmount({ amount: Number(item.data.amount), type: item.type, kind: item.type, compact: true });
-            return tx.display;
-          })() : null,
+          amount: item.data?.amount ? formatCurrency(Number(item.data.amount), { compact: true }) : null,
           badge: 'wallet',
           badgeColor: 'text-emerald-600'
         };
@@ -203,10 +178,7 @@ const ProfilePageV2: React.FC<ProfilePageV2Props> = ({ onNavigateBack, userId })
           icon: <DollarSign className="w-4 h-4 text-emerald-700" />,
           title: 'Settlement payout received',
           subtitle: item.data?.prediction_title ? item.data.prediction_title : '',
-          amount: item.data?.amount ? (() => {
-            const tx = formatTxAmount({ amount: Number(item.data.amount), type: item.type, kind: item.type, compact: true });
-            return tx.display;
-          })() : null,
+          amount: item.data?.amount ? formatCurrency(Number(item.data.amount), { compact: true }) : null,
           badge: 'payout',
           badgeColor: 'text-emerald-700'
         };
@@ -216,10 +188,7 @@ const ProfilePageV2: React.FC<ProfilePageV2Props> = ({ onNavigateBack, userId })
           icon: <DollarSign className="w-4 h-4 text-slate-600" />,
           title: 'Platform fee credited',
           subtitle: item.data?.prediction_title ? item.data.prediction_title : '',
-          amount: item.data?.amount ? (() => {
-            const tx = formatTxAmount({ amount: Number(item.data.amount), type: item.type, kind: item.type, compact: true });
-            return tx.display;
-          })() : null,
+          amount: item.data?.amount ? formatCurrency(Number(item.data.amount), { compact: true }) : null,
           badge: 'platform',
           badgeColor: 'text-slate-600'
         };
@@ -229,10 +198,7 @@ const ProfilePageV2: React.FC<ProfilePageV2Props> = ({ onNavigateBack, userId })
           icon: <DollarSign className="w-4 h-4 text-amber-600" />,
           title: 'Creator earnings received',
           subtitle: item.data?.prediction_title ? item.data.prediction_title : '',
-          amount: item.data?.amount ? (() => {
-            const tx = formatTxAmount({ amount: Number(item.data.amount), type: item.type, kind: item.type, compact: true });
-            return tx.display;
-          })() : null,
+          amount: item.data?.amount ? formatCurrency(Number(item.data.amount), { compact: true }) : null,
           badge: 'creator',
           badgeColor: 'text-amber-600'
         };
@@ -242,53 +208,9 @@ const ProfilePageV2: React.FC<ProfilePageV2Props> = ({ onNavigateBack, userId })
           icon: <XCircle className="w-4 h-4 text-red-600" />,
           title: 'Lost prediction',
           subtitle: item.predictionTitle ?? item.data?.prediction_title ?? '',
-          amount: item.data?.amount ? (() => {
-            const tx = formatTxAmount({ amount: Number(item.data.amount), type: item.type, kind: item.type, compact: true });
-            return tx.display;
-          })() : null,
+          amount: item.data?.amount ? formatCurrency(Number(item.data.amount), { compact: true }) : null,
           badge: 'loss',
           badgeColor: 'text-red-600'
-        };
-      case 'wallet.bet_lock':
-        return {
-          iconBg: 'bg-blue-100',
-          icon: <Target className="w-4 h-4 text-blue-600" />,
-          title: item.data?.prediction_title ? `Staked on ${item.data.prediction_title}` : 'Stake placed',
-          subtitle: item.data?.option_label ? `Option: ${item.data.option_label}` : '',
-          amount: item.data?.amount ? (() => {
-            const tx = formatTxAmount({ amount: Number(item.data.amount), type: item.type, kind: item.type, compact: true });
-            return tx.display;
-          })() : null,
-          badge: 'placed',
-          badgeColor: 'text-blue-600'
-        };
-      case 'wallet.deposit':
-      case 'deposit':
-        return {
-          iconBg: 'bg-emerald-100',
-          icon: <DollarSign className="w-4 h-4 text-emerald-600" />,
-          title: 'Deposit',
-          subtitle: item.data?.description || item.data?.provider || '',
-          amount: item.data?.amount ? (() => {
-            const tx = formatTxAmount({ amount: Number(item.data.amount), type: 'deposit', kind: 'deposit', compact: true });
-            return tx.display;
-          })() : null,
-          badge: 'deposit',
-          badgeColor: 'text-emerald-600'
-        };
-      case 'wallet.withdraw':
-      case 'withdraw':
-        return {
-          iconBg: 'bg-orange-100',
-          icon: <DollarSign className="w-4 h-4 text-orange-600" />,
-          title: 'Withdrawal',
-          subtitle: item.data?.description || item.data?.provider || '',
-          amount: item.data?.amount ? (() => {
-            const tx = formatTxAmount({ amount: Number(item.data.amount), type: 'withdraw', kind: 'withdraw', compact: true });
-            return tx.display;
-          })() : null,
-          badge: 'withdrawal',
-          badgeColor: 'text-orange-600'
         };
       case 'wallet.other':
         return {
@@ -296,10 +218,7 @@ const ProfilePageV2: React.FC<ProfilePageV2Props> = ({ onNavigateBack, userId })
           icon: <Activity className="w-4 h-4 text-gray-500" />,
           title: 'Wallet activity',
           subtitle: item.data?.channel ?? '',
-          amount: item.data?.amount ? (() => {
-            const tx = formatTxAmount({ amount: Number(item.data.amount), type: item.type, kind: item.type, compact: true });
-            return tx.display;
-          })() : null,
+          amount: item.data?.amount ? formatCurrency(Number(item.data.amount), { compact: true }) : null,
           badge: 'wallet',
           badgeColor: 'text-gray-500'
         };
@@ -320,7 +239,7 @@ const ProfilePageV2: React.FC<ProfilePageV2Props> = ({ onNavigateBack, userId })
   if (!authenticated) {
     return (
       <div className="min-h-screen bg-gray-50 pb-[calc(5rem+env(safe-area-inset-bottom))]">
-        <AppHeader title="Profile" showNotifications />
+        <AppHeader title="Profile" />
         <div className="mx-auto w-full max-w-[720px] lg:max-w-[960px] px-4 py-4">
           {/* Same visual structure as authenticated, but with placeholders */}
           <div className="space-y-4">
@@ -389,7 +308,7 @@ const ProfilePageV2: React.FC<ProfilePageV2Props> = ({ onNavigateBack, userId })
 
   return (
     <div className="min-h-screen bg-gray-50 pb-[calc(5rem+env(safe-area-inset-bottom))]">
-      <AppHeader title="Profile" showNotifications />
+      <AppHeader title="Profile" />
       
       <div className="mx-auto w-full max-w-[720px] lg:max-w-[960px] px-4 py-4">
         <div className="space-y-4">
@@ -530,54 +449,15 @@ const ProfilePageV2: React.FC<ProfilePageV2Props> = ({ onNavigateBack, userId })
               )}
 
               <ProfileAchievementsSection
+                awardDefinitions={achievements?.awardDefinitions || []}
                 awards={achievements?.awards || []}
+                badgeDefinitions={achievements?.badgeDefinitions || []}
+                badgesEarned={achievements?.badgesEarned || []}
                 badges={achievements?.badges || []}
                 loading={achievementsLoading}
                 error={achievementsError instanceof Error ? achievementsError.message : null}
                 onRetry={() => { void refetchAchievements(); }}
               />
-
-              {/* Report + Block user (UGC) - only when viewing another user's profile */}
-              {!isOwnProfile && userId && (
-                <div className="mx-auto w-full max-w-[720px] lg:max-w-[960px] px-4 mt-4 space-y-3">
-                  <button
-                    type="button"
-                    onClick={() => setShowReportModal(true)}
-                    className="w-full text-sm px-4 py-3 rounded-2xl border border-red-200 bg-white text-red-700 hover:bg-red-50 flex items-center justify-center gap-2 shadow-sm"
-                  >
-                    Report profile
-                  </button>
-                  {blockListEnabled && (
-                    isBlocked(userId) ? (
-                      <button
-                        type="button"
-                        onClick={async () => {
-                          const result = await unblockUser(userId);
-                          if (result.ok) toast.success('User unblocked');
-                          else toast.error(result.message || 'Failed to unblock');
-                        }}
-                        className="w-full text-sm px-4 py-3 rounded-2xl border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 flex items-center justify-center gap-2 shadow-sm"
-                      >
-                        <UserCheck className="w-4 h-4" />
-                        Unblock user
-                      </button>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={async () => {
-                          const result = await blockUser(userId);
-                          if (result.ok) toast.success('User blocked. Their content will be hidden from you.');
-                          else toast.error(result.message || 'Failed to block');
-                        }}
-                        className="w-full text-sm px-4 py-3 rounded-2xl border border-amber-200 bg-white text-amber-700 hover:bg-amber-50 flex items-center justify-center gap-2 shadow-sm"
-                      >
-                        <Ban className="w-4 h-4" />
-                        Block user
-                      </button>
-                    )
-                  )}
-                </div>
-              )}
 
               {/* Referral Section - Show only on own profile when feature is enabled */}
               {isOwnProfile && referralsEnabled && (
@@ -639,16 +519,7 @@ const ProfilePageV2: React.FC<ProfilePageV2Props> = ({ onNavigateBack, userId })
                           
                           <div className="text-right flex-shrink-0">
                             {display.amount && (
-                              <div
-                                className={`text-sm font-semibold font-mono ${toneClass(
-                                  formatTxAmount({
-                                    amount: Number(item.data?.amount ?? 0),
-                                    type: item.type,
-                                    kind: item.type,
-                                    compact: true,
-                                  }).tone
-                                )}`}
-                              >
+                              <div className="text-sm font-semibold font-mono text-gray-700">
                                 {display.amount}
                               </div>
                             )}
@@ -703,24 +574,6 @@ const ProfilePageV2: React.FC<ProfilePageV2Props> = ({ onNavigateBack, userId })
           )}
       </div>
     </div>
-
-    {/* Delete account (Phase 4) — only when flag on and own profile */}
-    {authenticated && isOwnProfile && isFeatureEnabled('ACCOUNT_DELETION') && (
-      <div className="mx-auto w-full max-w-[720px] lg:max-w-[960px] px-4 mt-4">
-        <button
-          type="button"
-          onClick={() => {
-            setDeleteConfirmText('');
-            setDeleteError(null);
-            setShowDeleteModal(true);
-          }}
-          className="w-full text-sm px-4 py-3 rounded-2xl border border-red-200 bg-white text-red-600 hover:bg-red-50 flex items-center justify-center gap-2 shadow-sm"
-        >
-          <Trash2 className="w-4 h-4" />
-          Delete account
-        </button>
-      </div>
-    )}
 
     {/* Persistent Sign out CTA */}
     {authenticated && (
@@ -784,40 +637,24 @@ const ProfilePageV2: React.FC<ProfilePageV2Props> = ({ onNavigateBack, userId })
             </div>
             <div>
               <label className="block text-xs text-gray-600 mb-2">Profile photo</label>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept={Capacitor.isNativePlatform() ? 'image/png,image/jpeg,image/webp,image/heic' : 'image/*'}
-                className="hidden"
-                onChange={async (e) => {
-                  const file = e.target.files?.[0];
-                  if (!file) return;
-                  setAvatarUploading(true);
-                  try {
-                    await useAuthStore.getState().uploadAvatar(file);
-                    toast.success('Profile photo updated!');
-                  } catch (err) {
-                    console.error('Avatar upload failed', err);
-                    toast.error('Failed to upload photo. Please try again.');
-                  } finally {
-                    setAvatarUploading(false);
-                    // Reset input so same file can be re-selected
-                    if (fileInputRef.current) fileInputRef.current.value = '';
-                  }
-                }}
-              />
-              <button
-                type="button"
-                disabled={avatarUploading}
-                onClick={() => fileInputRef.current?.click()}
-                className="inline-flex items-center gap-2 px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50"
-              >
-                {avatarUploading ? (
-                  <><Loader2 className="w-4 h-4 text-gray-500 animate-spin" /> Uploading…</>
-                ) : (
-                  <><Upload className="w-4 h-4 text-gray-500" /> Choose from library</>
-                )}
-              </button>
+              <label className="inline-flex items-center gap-2 px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-700 hover:bg-gray-50 cursor-pointer">
+                <Upload className="w-4 h-4 text-gray-500" />
+                Upload image
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    try {
+                      await useAuthStore.getState().uploadAvatar(file);
+                    } catch (err) {
+                      console.error('Avatar upload failed', err);
+                    }
+                  }}
+                />
+              </label>
             </div>
           </div>
           <div className="px-4 py-3 border-t border-gray-100 flex items-center justify-end gap-2">
@@ -847,104 +684,6 @@ const ProfilePageV2: React.FC<ProfilePageV2Props> = ({ onNavigateBack, userId })
           </div>
         </div>
       </div>
-    )}
-
-    {/* Delete account confirmation (Phase 4) */}
-    {showDeleteModal && (
-      <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
-        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
-          <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
-            <h2 className="text-sm font-semibold text-gray-900">Delete account</h2>
-            <button
-              type="button"
-              onClick={() => !deleteInProgress && setShowDeleteModal(false)}
-              className="p-1.5 rounded-lg hover:bg-gray-100"
-              aria-label="Close"
-            >
-              <X className="w-4 h-4 text-gray-600" />
-            </button>
-          </div>
-          <div className="p-4 space-y-4">
-            <p className="text-sm text-gray-700">
-              This will permanently delete your account. Your profile (name, avatar, username) will be removed or anonymized. 
-              Prediction and bet history may be kept in anonymized form for platform integrity. This cannot be undone.
-            </p>
-            <div>
-              <label className="block text-xs text-gray-600 mb-1">
-                Type <strong>{CONFIRM_DELETE_PHRASE}</strong> to confirm
-              </label>
-              <input
-                value={deleteConfirmText}
-                onChange={(e) => setDeleteConfirmText(e.target.value)}
-                placeholder={CONFIRM_DELETE_PHRASE}
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
-                disabled={deleteInProgress}
-              />
-            </div>
-            {deleteError && (
-              <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
-                <p className="text-sm text-red-700 font-medium">{deleteError}</p>
-                <p className="text-xs text-red-500 mt-1">If this keeps happening, please contact support@fanclubz.app</p>
-              </div>
-            )}
-          </div>
-          <div className="px-4 py-3 border-t border-gray-100 flex items-center justify-end gap-2">
-            <button
-              type="button"
-              onClick={() => !deleteInProgress && setShowDeleteModal(false)}
-              className="px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-lg"
-              disabled={deleteInProgress}
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              disabled={deleteConfirmText !== CONFIRM_DELETE_PHRASE || deleteInProgress}
-              onClick={async () => {
-                if (deleteConfirmText !== CONFIRM_DELETE_PHRASE || !session?.access_token) return;
-                setDeleteInProgress(true);
-                setDeleteError(null);
-                try {
-                  const res = await fetch(`${getApiUrl()}/api/v2/users/me/delete`, {
-                    method: 'POST',
-                    headers: {
-                      'Content-Type': 'application/json',
-                      Authorization: `Bearer ${session.access_token}`,
-                    },
-                  });
-                  const data = await res.json().catch(() => ({}));
-                  if (!res.ok) {
-                    setDeleteError(data?.message || data?.error || 'Deletion failed. Try again or contact support.');
-                    setDeleteInProgress(false);
-                    return;
-                  }
-                  await signOut();
-                  setShowDeleteModal(false);
-                  navigate('/', { replace: true });
-                } catch (e: any) {
-                  setDeleteError(e?.message || 'Something went wrong. Try again or contact support.');
-                  setDeleteInProgress(false);
-                }
-              }}
-              className="px-3 py-2 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {deleteInProgress ? 'Deleting…' : 'Delete my account'}
-            </button>
-          </div>
-        </div>
-      </div>
-    )}
-
-    {!isOwnProfile && userId && (
-      <ReportContentModal
-        open={showReportModal}
-        targetType="user"
-        targetId={userId}
-        label="this profile"
-        accessToken={session?.access_token}
-        onClose={() => setShowReportModal(false)}
-        onSuccess={() => toast.success('Report submitted. Our team will review it.')}
-      />
     )}
 
     {showActivityModal && (
@@ -985,18 +724,7 @@ const ProfilePageV2: React.FC<ProfilePageV2Props> = ({ onNavigateBack, userId })
                     </div>
                     <div className="text-right flex-shrink-0 min-w-[80px]">
                       {display.amount && (
-                        <div
-                          className={`text-sm font-mono font-medium ${toneClass(
-                            formatTxAmount({
-                              amount: Number(item.data?.amount ?? 0),
-                              type: item.type,
-                              kind: item.type,
-                              compact: true,
-                            }).tone
-                          )}`}
-                        >
-                          {display.amount}
-                        </div>
+                        <div className="text-sm font-mono font-medium text-gray-700">{display.amount}</div>
                       )}
                       <div className={`text-xs font-medium ${display.badgeColor}`}>{display.badge}</div>
                     </div>
