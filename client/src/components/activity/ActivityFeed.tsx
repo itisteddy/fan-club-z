@@ -1,5 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
 import { 
   MessageCircle, 
   DollarSign, 
@@ -27,6 +28,19 @@ interface ActivityItemComponentProps {
  * Individual activity item component
  */
 function ActivityItemComponent({ item }: ActivityItemComponentProps) {
+  const navigate = useNavigate();
+  const actorHandle = String(item.actor?.username || '').trim();
+  const actorId = String((item.actor as any)?.id || '').trim();
+  const canOpenActorProfile = Boolean(actorHandle || actorId);
+  const openActorProfile = () => {
+    if (!canOpenActorProfile) return;
+    if (actorHandle) {
+      navigate(`/u/${encodeURIComponent(actorHandle)}`);
+      return;
+    }
+    navigate(`/profile/${encodeURIComponent(actorId)}`);
+  };
+
   const getActivityIcon = (type: string) => {
     if (type.startsWith('comment')) return MessageCircle;
     if (type.startsWith('entry')) return DollarSign;
@@ -114,7 +128,16 @@ function ActivityItemComponent({ item }: ActivityItemComponentProps) {
     <motion.div
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
-      className="flex items-start gap-3 p-3 hover:bg-gray-50 rounded-lg transition-colors"
+      className={`flex items-start gap-3 p-3 hover:bg-gray-50 rounded-lg transition-colors ${canOpenActorProfile ? 'cursor-pointer' : ''}`}
+      onClick={canOpenActorProfile ? openActorProfile : undefined}
+      role={canOpenActorProfile ? 'button' : undefined}
+      tabIndex={canOpenActorProfile ? 0 : undefined}
+      onKeyDown={canOpenActorProfile ? ((e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          openActorProfile();
+        }
+      }) : undefined}
     >
       {/* Avatar */}
       <div className="flex-shrink-0">

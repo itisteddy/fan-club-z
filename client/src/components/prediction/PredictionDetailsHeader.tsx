@@ -1,9 +1,9 @@
 import React from 'react';
 import { ArrowLeft, Share2, MoreHorizontal, Clock, Users } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
 import { prefersReducedMotion } from '../../utils/accessibility';
 import UnifiedHeader from '../layout/UnifiedHeader';
-import { getPredictionStatusUi } from '@/lib/predictionStatusUi';
 
 interface PredictionDetailsHeaderProps {
   title: string;
@@ -17,8 +17,6 @@ interface PredictionDetailsHeaderProps {
   participantCount: number;
   expiresAt: string;
   status: string;
-  settledAt?: string | null;
-  closedAt?: string | null;
   onBack: () => void;
   onShare: () => void;
   onMoreOptions?: () => void;
@@ -31,12 +29,23 @@ const PredictionDetailsHeader: React.FC<PredictionDetailsHeaderProps> = ({
   participantCount,
   expiresAt,
   status,
-  settledAt,
-  closedAt,
   onBack,
   onShare,
   onMoreOptions
 }) => {
+  const navigate = useNavigate();
+  const creatorHandle = String(creator?.username || '').trim();
+  const creatorId = String(creator?.id || '').trim();
+  const canOpenCreatorProfile = Boolean(creatorHandle || creatorId);
+  const openCreatorProfile = () => {
+    if (!canOpenCreatorProfile) return;
+    if (creatorHandle) {
+      navigate(`/u/${encodeURIComponent(creatorHandle)}`);
+      return;
+    }
+    navigate(`/profile/${encodeURIComponent(creatorId)}`);
+  };
+
   const getTimeRemaining = () => {
     const now = new Date();
     const expiry = new Date(expiresAt);
@@ -53,19 +62,12 @@ const PredictionDetailsHeader: React.FC<PredictionDetailsHeaderProps> = ({
     return `${minutes}m`;
   };
 
-  // Use canonical status UI helper
-  const statusUi = getPredictionStatusUi({
-    status,
-    settledAt,
-    closedAt,
-    closesAt: expiresAt,
-  });
-
   const getStatusColor = () => {
-    switch (statusUi.tone) {
-      case 'success': return 'bg-emerald-100 text-emerald-700 border-emerald-200';
-      case 'warning': return 'bg-amber-100 text-amber-700 border-amber-200';
-      case 'danger': return 'bg-red-100 text-red-700 border-red-200';
+    switch (status) {
+      case 'active': return 'bg-emerald-100 text-emerald-700 border-emerald-200';
+      case 'locked': return 'bg-amber-100 text-amber-700 border-amber-200';
+      case 'settled': return 'bg-blue-100 text-blue-700 border-blue-200';
+      case 'voided': return 'bg-gray-100 text-gray-700 border-gray-200';
       default: return 'bg-gray-100 text-gray-700 border-gray-200';
     }
   };
@@ -105,10 +107,7 @@ const PredictionDetailsHeader: React.FC<PredictionDetailsHeaderProps> = ({
         <div className="flex items-center justify-between mb-3">
           <div className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium border ${getStatusColor()}`}>
             <div className="w-2 h-2 bg-current rounded-full mr-2" />
-            {statusUi.label}
-            {statusUi.subtext && (
-              <span className="ml-2 text-xs opacity-75">{statusUi.subtext}</span>
-            )}
+            {status.charAt(0).toUpperCase() + status.slice(1)}
           </div>
           
           <div className="flex items-center space-x-4 text-sm text-gray-600">
@@ -125,7 +124,13 @@ const PredictionDetailsHeader: React.FC<PredictionDetailsHeaderProps> = ({
 
         {/* Creator & Volume */}
         <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-3">
+          <button
+            type="button"
+            onClick={openCreatorProfile}
+            disabled={!canOpenCreatorProfile}
+            className="flex items-center space-x-3 p-0 border-0 bg-transparent appearance-none text-left disabled:cursor-default"
+            aria-label={`Open profile for ${creator.full_name || creator.username}`}
+          >
             {creator.avatar_url ? (
               <img
                 src={creator.avatar_url}
@@ -147,7 +152,7 @@ const PredictionDetailsHeader: React.FC<PredictionDetailsHeaderProps> = ({
                 @{creator.username}
               </p>
             </div>
-          </div>
+          </button>
           
           <div className="text-right">
             <p className="text-sm text-gray-500">Total Volume</p>

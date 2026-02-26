@@ -497,7 +497,7 @@ const UnifiedLeaderboardPage: React.FC = () => {
                         <button
                           type="button"
                           onClick={() => openUserProfile(leaderUser)}
-                          className="rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
+                          className="rounded-full p-0 border-0 bg-transparent appearance-none leading-none focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
                           aria-label={`Open profile for ${leaderUser.full_name || leaderUser.username}`}
                         >
                           <UserAvatar 
@@ -514,7 +514,7 @@ const UnifiedLeaderboardPage: React.FC = () => {
                             <button
                               type="button"
                               onClick={() => openUserProfile(leaderUser)}
-                              className="font-semibold text-gray-900 truncate hover:text-emerald-700 text-left"
+                              className="font-semibold text-gray-900 truncate hover:text-emerald-700 text-left p-0 border-0 bg-transparent appearance-none leading-tight"
                             >
                               {leaderUser.full_name || leaderUser.username}
                             </button>
@@ -533,7 +533,7 @@ const UnifiedLeaderboardPage: React.FC = () => {
                           <button
                             type="button"
                             onClick={() => openUserProfile(leaderUser)}
-                            className="text-sm text-gray-600 truncate hover:text-gray-800 text-left"
+                            className="text-sm text-gray-600 truncate hover:text-gray-800 text-left p-0 border-0 bg-transparent appearance-none leading-tight"
                           >
                             @{leaderUser.username}
                           </button>

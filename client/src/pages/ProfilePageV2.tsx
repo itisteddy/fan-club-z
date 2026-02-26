@@ -611,6 +611,7 @@ const ProfilePageV2: React.FC<ProfilePageV2Props> = ({ onNavigateBack, userId })
                   ogBadge={ogBadge}
                   ogBadgeAssignedAt={ogBadgeAssignedAt}
                   ogBadgeMemberNumber={ogBadgeMemberNumber}
+                  showHeader={false}
                 />
               )}
 

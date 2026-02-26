@@ -191,8 +191,7 @@ export const ProfileAchievementsSection: React.FC<Props> = ({
   return (
     <>
       <div className="bg-white rounded-2xl border border-black/[0.06] p-4">
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="text-sm font-semibold text-gray-900">Achievements</h3>
+        <div className="flex items-center justify-end mb-3">
           <button
             type="button"
             onClick={() => setShowInfo(true)}
