@@ -709,7 +709,6 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
 
             {/* Quick Actions Card */}
             <Card>
-              <CardHeader title="Quick Actions" />
               <CardContent>
                 {isDemoMode ? (
                   <div className="grid grid-cols-1 gap-4">
