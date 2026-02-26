@@ -283,6 +283,7 @@ import transactionLogRouter from './routes/wallet/transactionLog';
 import { qaCryptoMock } from './routes/qaCryptoMock';
 import referralRoutes from './routes/referrals';
 import badgeRoutes from './routes/badges';
+import { meRouter } from './routes/me';
 import { authRouter } from './routes/auth';
 import { adminRouter } from './routes/admin';
 import notificationsRoutes from './routes/notifications';
@@ -304,6 +305,8 @@ import { initRealtime } from './services/realtime';
 
 // Use routes
 app.use('/api/v2/users', usersRoutes);
+app.use('/api/me', meRouter);
+app.use('/api/v2/me', meRouter);
 app.use('/api/v2/auth', authRouter);
 app.use('/api/v2/predictions', predictionsRoutes);
 app.use('/api/predictions', placeBetRouter);

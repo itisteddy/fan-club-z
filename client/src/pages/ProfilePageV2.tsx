@@ -18,8 +18,10 @@ import { ReferralCard, ReferralShareModal } from '@/components/referral';
 import { OGBadge, AvatarWithBadge } from '@/components/badges/OGBadge';
 import { OGBadgeEnhanced } from '@/components/badges/OGBadgeEnhanced';
 import { ProfileBadgesSection } from '@/components/profile/ProfileBadgesSection';
+import { ProfileAchievementsSection } from '@/components/profile/ProfileAchievementsSection';
 import { ProfileReferralSection } from '@/components/profile/ProfileReferralSection';
 import { useReferral } from '@/hooks/useReferral';
+import { useUserAchievements } from '@/hooks/useUserAchievements';
 import { useBlockedUsers } from '@/hooks/useBlockedUsers';
 import toast from 'react-hot-toast';
 import { ReportContentModal } from '@/components/ugc/ReportContentModal';
@@ -119,6 +121,12 @@ const ProfilePageV2: React.FC<ProfilePageV2Props> = ({ onNavigateBack, userId })
 
   // Calculate user stats
   const activityUserId = userId ?? user?.id ?? '';
+  const {
+    data: achievements,
+    isLoading: achievementsLoading,
+    error: achievementsError,
+    refetch: refetchAchievements,
+  } = useUserAchievements(activityUserId || null, Boolean(activityUserId));
 
   const { items: activityItems, loading: loadingActivity } = useUserActivity(activityUserId, {
     limit: 50,
@@ -520,6 +528,14 @@ const ProfilePageV2: React.FC<ProfilePageV2Props> = ({ onNavigateBack, userId })
                   ogBadgeMemberNumber={ogBadgeMemberNumber}
                 />
               )}
+
+              <ProfileAchievementsSection
+                awards={achievements?.awards || []}
+                badges={achievements?.badges || []}
+                loading={achievementsLoading}
+                error={achievementsError instanceof Error ? achievementsError.message : null}
+                onRetry={() => { void refetchAchievements(); }}
+              />
 
               {/* Report + Block user (UGC) - only when viewing another user's profile */}
               {!isOwnProfile && userId && (

@@ -1,0 +1,473 @@
+import { VERSION } from '@fanclubz/shared';
+import { supabase } from '../config/database';
+import { ensureDbPool } from '../utils/dbPool';
+
+export type AwardWindow = '7d' | '30d' | 'all';
+export type AwardDefinition = {
+  key: string;
+  title: string;
+  description: string;
+  metric: AwardMetric;
+  direction: 'DESC';
+  iconKey: string | null;
+  isEnabled: boolean;
+};
+
+export type AwardMetric =
+  | 'creator_earnings_amount'
+  | 'payouts_amount'
+  | 'net_profit'
+  | 'comments_count'
+  | 'stakes_count'
+  | 'markets_participated_count';
+
+export type UserAwardCurrent = {
+  awardKey: string;
+  title: string;
+  description: string;
+  iconKey: string | null;
+  metric: AwardMetric;
+  window: AwardWindow;
+  rank: number;
+  score: number;
+  computedAt: string;
+};
+
+export type UserBadge = {
+  badgeKey: string;
+  title: string;
+  description: string;
+  iconKey: string | null;
+  earnedAt: string;
+  metadata: Record<string, unknown>;
+};
+
+export type AchievementsResponse = {
+  userId: string;
+  awards: UserAwardCurrent[];
+  badges: UserBadge[];
+  version: string;
+};
+
+const AWARD_METRICS: AwardMetric[] = [
+  'creator_earnings_amount',
+  'payouts_amount',
+  'net_profit',
+  'comments_count',
+  'stakes_count',
+  'markets_participated_count',
+];
+
+const BADGE_KEYS = ['FIRST_STAKE', 'TEN_STAKES', 'FIRST_COMMENT', 'FIRST_CREATOR_EARNING'] as const;
+
+function assertAwardMetric(metric: string): AwardMetric {
+  if (!AWARD_METRICS.includes(metric as AwardMetric)) {
+    throw new Error(`Unsupported award metric: ${metric}`);
+  }
+  return metric as AwardMetric;
+}
+
+export function parseDateOnly(input?: string | null): string | null {
+  if (!input) return null;
+  const s = String(input).trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return null;
+  return s;
+}
+
+export function rankAwardScores(rows: Array<{ userId: string; score: number }>): Array<{ userId: string; score: number; rank: number }> {
+  const sorted = [...rows].sort((a, b) => {
+    if (b.score !== a.score) return b.score - a.score;
+    return a.userId.localeCompare(b.userId);
+  });
+  return sorted.map((row, idx) => ({ ...row, rank: idx + 1 }));
+}
+
+export function computeBadgeEligibility(rows: Array<{ userId: string; stakesCount: number; commentsCount: number; creatorEarningsAmount: number }>) {
+  const out: Array<{ userId: string; badgeKey: typeof BADGE_KEYS[number] }> = [];
+  for (const row of rows) {
+    if (row.stakesCount > 0) out.push({ userId: row.userId, badgeKey: 'FIRST_STAKE' });
+    if (row.stakesCount >= 10) out.push({ userId: row.userId, badgeKey: 'TEN_STAKES' });
+    if (row.commentsCount > 0) out.push({ userId: row.userId, badgeKey: 'FIRST_COMMENT' });
+    if (row.creatorEarningsAmount > 0) out.push({ userId: row.userId, badgeKey: 'FIRST_CREATOR_EARNING' });
+  }
+  return out;
+}
+
+function utcDayRange(day: string): { startIso: string; endIso: string } {
+  const start = new Date(`${day}T00:00:00.000Z`);
+  const end = new Date(start);
+  end.setUTCDate(end.getUTCDate() + 1);
+  return { startIso: start.toISOString(), endIso: end.toISOString() };
+}
+
+function listDaysInclusive(startDay: string, endDay: string): string[] {
+  const out: string[] = [];
+  const d = new Date(`${startDay}T00:00:00.000Z`);
+  const end = new Date(`${endDay}T00:00:00.000Z`);
+  while (d <= end) {
+    out.push(d.toISOString().slice(0, 10));
+    d.setUTCDate(d.getUTCDate() + 1);
+  }
+  return out;
+}
+
+async function requirePgPool() {
+  const pool = await ensureDbPool();
+  if (!pool) {
+    throw new Error('DATABASE_URL not configured: achievements recompute requires direct PostgreSQL access');
+  }
+  return pool;
+}
+
+export async function recomputeUserStatsDaily(params?: { startDay?: string; endDay?: string; daysBack?: number }) {
+  const today = new Date().toISOString().slice(0, 10);
+  const endDay = parseDateOnly(params?.endDay) || today;
+  const daysBack = Math.max(0, Math.min(params?.daysBack ?? 1, 365));
+  const startDay = parseDateOnly(params?.startDay) || (() => {
+    const d = new Date(`${endDay}T00:00:00.000Z`);
+    d.setUTCDate(d.getUTCDate() - daysBack);
+    return d.toISOString().slice(0, 10);
+  })();
+
+  const days = listDaysInclusive(startDay, endDay);
+  const pool = await requirePgPool();
+  const client = await pool.connect();
+  let processedDays = 0;
+  try {
+    await client.query('BEGIN');
+
+    for (const day of days) {
+      const { startIso, endIso } = utcDayRange(day);
+      await client.query(
+        `WITH stake_agg AS (
+           SELECT
+             user_id,
+             COUNT(*)::numeric AS stakes_count,
+             COUNT(DISTINCT prediction_id)::numeric AS markets_participated_count,
+             COALESCE(SUM(amount), 0)::numeric AS stake_amount
+           FROM position_stake_events
+           WHERE created_at >= $1::timestamptz AND created_at < $2::timestamptz
+           GROUP BY user_id
+         ),
+         payout_agg AS (
+           SELECT
+             user_id,
+             COALESCE(SUM(amount), 0)::numeric AS payouts_amount
+           FROM wallet_transactions
+           WHERE created_at >= $1::timestamptz
+             AND created_at < $2::timestamptz
+             AND COALESCE(direction, '') = 'credit'
+             AND COALESCE(status, 'completed') = 'completed'
+             AND (
+               COALESCE(type, '') = 'payout'
+               OR COALESCE(channel, '') IN ('payout', 'settlement_payout')
+             )
+           GROUP BY user_id
+         ),
+         creator_agg AS (
+           SELECT
+             user_id,
+             COALESCE(SUM(amount), 0)::numeric AS creator_earnings_amount
+           FROM wallet_transactions
+           WHERE created_at >= $1::timestamptz
+             AND created_at < $2::timestamptz
+             AND COALESCE(direction, 'credit') = 'credit'
+             AND COALESCE(status, 'completed') = 'completed'
+             AND (
+               COALESCE(to_account, '') = 'CREATOR_EARNINGS'
+               OR UPPER(COALESCE(type, '')) = 'CREATOR_EARNING_CREDIT'
+               OR COALESCE(channel, '') = 'creator_fee'
+             )
+             AND NOT (
+               COALESCE(from_account, '') = 'CREATOR_EARNINGS'
+               AND COALESCE(to_account, '') = 'STAKE'
+             )
+           GROUP BY user_id
+         ),
+         comment_agg AS (
+           SELECT
+             user_id,
+             COUNT(*)::numeric AS comments_count
+           FROM comments
+           WHERE created_at >= $1::timestamptz
+             AND created_at < $2::timestamptz
+             AND COALESCE(is_deleted, false) = false
+           GROUP BY user_id
+         ),
+         all_users AS (
+           SELECT user_id FROM stake_agg
+           UNION SELECT user_id FROM payout_agg
+           UNION SELECT user_id FROM creator_agg
+           UNION SELECT user_id FROM comment_agg
+         )
+         INSERT INTO user_stats_daily (
+           user_id, day, stakes_count, markets_participated_count, stake_amount,
+           payouts_amount, net_profit, creator_earnings_amount, comments_count, updated_at
+         )
+         SELECT
+           u.user_id,
+           $3::date AS day,
+           COALESCE(s.stakes_count, 0),
+           COALESCE(s.markets_participated_count, 0),
+           COALESCE(s.stake_amount, 0),
+           COALESCE(p.payouts_amount, 0),
+           COALESCE(p.payouts_amount, 0) - COALESCE(s.stake_amount, 0),
+           COALESCE(c.creator_earnings_amount, 0),
+           COALESCE(cm.comments_count, 0),
+           NOW()
+         FROM all_users u
+         LEFT JOIN stake_agg s ON s.user_id = u.user_id
+         LEFT JOIN payout_agg p ON p.user_id = u.user_id
+         LEFT JOIN creator_agg c ON c.user_id = u.user_id
+         LEFT JOIN comment_agg cm ON cm.user_id = u.user_id
+         ON CONFLICT (user_id, day)
+         DO UPDATE SET
+           stakes_count = EXCLUDED.stakes_count,
+           markets_participated_count = EXCLUDED.markets_participated_count,
+           stake_amount = EXCLUDED.stake_amount,
+           payouts_amount = EXCLUDED.payouts_amount,
+           net_profit = EXCLUDED.net_profit,
+           creator_earnings_amount = EXCLUDED.creator_earnings_amount,
+           comments_count = EXCLUDED.comments_count,
+           updated_at = NOW()`,
+        [startIso, endIso, day]
+      );
+      processedDays += 1;
+    }
+
+    await client.query('COMMIT');
+    return { startDay, endDay, processedDays };
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+async function loadAwardDefinitionsPg(client: any): Promise<AwardDefinition[]> {
+  const { rows } = await client.query(
+    `SELECT key, title, description, metric, direction, icon_key, is_enabled
+     FROM award_definitions
+     WHERE is_enabled = true
+     ORDER BY key ASC`
+  );
+  return rows.map((r: any) => ({
+    key: String(r.key),
+    title: String(r.title),
+    description: String(r.description),
+    metric: assertAwardMetric(String(r.metric)),
+    direction: 'DESC',
+    iconKey: r.icon_key ? String(r.icon_key) : null,
+    isEnabled: Boolean(r.is_enabled),
+  }));
+}
+
+function startDayForWindow(window: AwardWindow): string | null {
+  const today = new Date();
+  today.setUTCHours(0, 0, 0, 0);
+  if (window === 'all') return null;
+  const days = window === '7d' ? 6 : 29;
+  today.setUTCDate(today.getUTCDate() - days);
+  return today.toISOString().slice(0, 10);
+}
+
+export async function computeAwardsCurrent(params?: { windows?: AwardWindow[]; topN?: number }) {
+  const windows = (params?.windows?.length ? params.windows : ['7d', '30d', 'all']) as AwardWindow[];
+  const topN = Math.max(1, Math.min(params?.topN ?? 50, 500));
+  const pool = await requirePgPool();
+  const client = await pool.connect();
+
+  try {
+    await client.query('BEGIN');
+    const defs = await loadAwardDefinitionsPg(client);
+    const computedAt = new Date().toISOString();
+    let insertedRows = 0;
+
+    for (const def of defs) {
+      for (const window of windows) {
+        const minDay = startDayForWindow(window);
+        const metric = def.metric;
+        const { rows } = await client.query(
+          `SELECT user_id, COALESCE(SUM(${metric}), 0)::numeric AS score
+           FROM user_stats_daily
+           WHERE ($1::date IS NULL OR day >= $1::date)
+           GROUP BY user_id
+           HAVING COALESCE(SUM(${metric}), 0) > 0
+           ORDER BY score DESC, user_id ASC
+           LIMIT $2`,
+          [minDay, topN]
+        );
+
+        const ranked = rankAwardScores(
+          rows.map((r: any) => ({ userId: String(r.user_id), score: Number(r.score || 0) }))
+        );
+
+        await client.query('DELETE FROM user_awards_current WHERE award_key = $1 AND window = $2', [def.key, window]);
+
+        for (const row of ranked) {
+          await client.query(
+            `INSERT INTO user_awards_current (award_key, window, user_id, rank, score, computed_at)
+             VALUES ($1, $2, $3, $4, $5, $6)`,
+            [def.key, window, row.userId, row.rank, row.score, computedAt]
+          );
+          insertedRows += 1;
+        }
+      }
+    }
+
+    await client.query('COMMIT');
+    return { windows, topN, insertedRows, computedAt };
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+export async function evaluateAndAwardBadges() {
+  const pool = await requirePgPool();
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const { rows } = await client.query(
+      `SELECT
+         user_id,
+         COALESCE(SUM(stakes_count), 0)::numeric AS stakes_count,
+         COALESCE(SUM(comments_count), 0)::numeric AS comments_count,
+         COALESCE(SUM(creator_earnings_amount), 0)::numeric AS creator_earnings_amount
+       FROM user_stats_daily
+       GROUP BY user_id`
+    );
+
+    const eligible = computeBadgeEligibility(
+      rows.map((r: any) => ({
+        userId: String(r.user_id),
+        stakesCount: Number(r.stakes_count || 0),
+        commentsCount: Number(r.comments_count || 0),
+        creatorEarningsAmount: Number(r.creator_earnings_amount || 0),
+      }))
+    );
+
+    let inserted = 0;
+    for (const row of eligible) {
+      const result = await client.query(
+        `INSERT INTO user_badges (user_id, badge_key, earned_at, metadata)
+         VALUES ($1, $2, NOW(), $3::jsonb)
+         ON CONFLICT (user_id, badge_key) DO NOTHING`,
+        [row.userId, row.badgeKey, JSON.stringify({ source: 'user_stats_daily' })]
+      );
+      inserted += result.rowCount || 0;
+    }
+
+    await client.query('COMMIT');
+    return { inserted, evaluatedUsers: rows.length };
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+export async function recomputeStatsAndAwards(params?: {
+  startDay?: string;
+  endDay?: string;
+  daysBack?: number;
+  windows?: AwardWindow[];
+  topN?: number;
+}) {
+  const stats = await recomputeUserStatsDaily({
+    startDay: params?.startDay,
+    endDay: params?.endDay,
+    daysBack: params?.daysBack,
+  });
+  const awards = await computeAwardsCurrent({ windows: params?.windows, topN: params?.topN });
+  const badges = await evaluateAndAwardBadges();
+  return { stats, awards, badges };
+}
+
+export async function getUserAchievements(userId: string): Promise<AchievementsResponse> {
+  const windowSortRank: Record<AwardWindow, number> = { '7d': 0, '30d': 1, all: 2 };
+  const [awardsRes, awardDefsRes, userBadgesRes, badgeDefsRes] = await Promise.all([
+    supabase
+      .from('user_awards_current')
+      .select('award_key, window, rank, score, computed_at')
+      .eq('user_id', userId)
+      .order('window', { ascending: true })
+      .order('rank', { ascending: true }),
+    supabase
+      .from('award_definitions')
+      .select('key, title, description, metric, icon_key, is_enabled')
+      .eq('is_enabled', true),
+    supabase
+      .from('user_badges')
+      .select('badge_key, earned_at, metadata')
+      .eq('user_id', userId)
+      .order('earned_at', { ascending: false }),
+    supabase
+      .from('badge_definitions')
+      .select('key, title, description, icon_key, is_enabled')
+      .eq('is_enabled', true),
+  ]);
+
+  if (awardsRes.error) throw awardsRes.error;
+  if (awardDefsRes.error) throw awardDefsRes.error;
+  if (userBadgesRes.error) throw userBadgesRes.error;
+  if (badgeDefsRes.error) throw badgeDefsRes.error;
+
+  const awardDefByKey = new Map(
+    (awardDefsRes.data || []).map((d: any) => [String(d.key), d])
+  );
+  const badgeDefByKey = new Map(
+    (badgeDefsRes.data || []).map((d: any) => [String(d.key), d])
+  );
+
+  const awards: UserAwardCurrent[] = (awardsRes.data || [])
+    .map((row: any) => {
+      const def = awardDefByKey.get(String(row.award_key));
+      if (!def) return null;
+      return {
+        awardKey: String(row.award_key),
+        title: String(def.title),
+        description: String(def.description),
+        iconKey: def.icon_key ? String(def.icon_key) : null,
+        metric: assertAwardMetric(String(def.metric)),
+        window: row.window as AwardWindow,
+        rank: Number(row.rank || 0),
+        score: Number(row.score || 0),
+        computedAt: String(row.computed_at),
+      };
+    })
+    .filter(Boolean) as UserAwardCurrent[];
+
+  awards.sort((a, b) => {
+    const windowDiff = (windowSortRank[a.window] ?? 99) - (windowSortRank[b.window] ?? 99);
+    if (windowDiff !== 0) return windowDiff;
+    if (a.rank !== b.rank) return a.rank - b.rank;
+    return a.awardKey.localeCompare(b.awardKey);
+  });
+
+  const badges: UserBadge[] = (userBadgesRes.data || [])
+    .map((row: any) => {
+      const def = badgeDefByKey.get(String(row.badge_key));
+      if (!def) return null;
+      return {
+        badgeKey: String(row.badge_key),
+        title: String(def.title),
+        description: String(def.description),
+        iconKey: def.icon_key ? String(def.icon_key) : null,
+        earnedAt: String(row.earned_at),
+        metadata: (row.metadata || {}) as Record<string, unknown>,
+      };
+    })
+    .filter(Boolean) as UserBadge[];
+
+  return {
+    userId,
+    awards,
+    badges,
+    version: VERSION,
+  };
+}

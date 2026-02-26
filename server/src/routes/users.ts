@@ -5,6 +5,7 @@ import { VERSION } from '@fanclubz/shared';
 import { requireSupabaseAuth, requireSupabaseAuthAllowDeleted } from '../middleware/requireSupabaseAuth';
 import type { AuthenticatedRequest } from '../middleware/auth';
 import { assertContentAllowed } from '../services/contentFilter';
+import { getUserAchievements } from '../services/achievementsService';
 
 // [PERF] Helper to generate ETag from response data
 function generateETag(data: unknown): string {
@@ -39,6 +40,29 @@ function checkETag(req: express.Request, res: express.Response, data: unknown): 
 }
 
 const router = express.Router();
+
+// GET /api/v2/users/me/achievements - auth-only convenience alias
+router.get('/me/achievements', requireSupabaseAuth as any, async (req, res) => {
+  try {
+    const userId = String((req as AuthenticatedRequest).user?.id || '');
+    if (!userId) {
+      return res.status(401).json({
+        error: 'Unauthorized',
+        message: 'Authorization required',
+        version: VERSION,
+      });
+    }
+    const data = await getUserAchievements(userId);
+    return res.json({ data, message: 'Achievements fetched successfully', version: VERSION });
+  } catch (error: any) {
+    console.error('[Users] me achievements error:', error);
+    return res.status(500).json({
+      error: 'Internal server error',
+      message: error?.message || 'Failed to fetch achievements',
+      version: VERSION,
+    });
+  }
+});
 
 // GET /api/v2/users/leaderboard - Get leaderboard data (must be before /:id route)
 router.get('/leaderboard', async (req, res) => {
@@ -527,6 +551,29 @@ router.delete('/me/block/:userId', requireSupabaseAuth, async (req: Authenticate
     return res.status(200).json({ data: { unblockedUserId: userId }, message: 'User unblocked', version: VERSION });
   } catch (e: any) {
     return res.status(500).json({ error: 'Internal server error', message: e?.message, version: VERSION });
+  }
+});
+
+// GET /api/v2/users/:id - Get user profile by ID
+router.get('/:id/achievements', async (req, res) => {
+  try {
+    const userId = String(req.params.id || '').trim();
+    if (!userId) {
+      return res.status(400).json({
+        error: 'Bad request',
+        message: 'user id is required',
+        version: VERSION,
+      });
+    }
+    const data = await getUserAchievements(userId);
+    return res.json({ data, message: 'Achievements fetched successfully', version: VERSION });
+  } catch (error: any) {
+    console.error('[Users] achievements error:', error);
+    return res.status(500).json({
+      error: 'Internal server error',
+      message: error?.message || 'Failed to fetch achievements',
+      version: VERSION,
+    });
   }
 });
 
