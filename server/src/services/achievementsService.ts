@@ -200,9 +200,9 @@ function formatBadgeProgressLabel(metric: BadgeProgressMetric | null | undefined
   const safeCurrent = Math.max(0, current);
   const safeTarget = Math.max(0, target);
   if (metric === 'creator_earnings_amount') {
-    return `${safeCurrent.toFixed(2)} / ${safeTarget.toFixed(2)}`;
+    return `${safeCurrent.toFixed(2)}/${safeTarget.toFixed(2)}`;
   }
-  return `${Math.floor(safeCurrent)} / ${Math.floor(safeTarget)}`;
+  return `${Math.floor(safeCurrent)}/${Math.floor(safeTarget)}`;
 }
 
 function utcDayRange(day: string): { startIso: string; endIso: string } {
