@@ -8,6 +8,12 @@ import { reconcileWallet } from '../../services/walletReconciliation';
 import { emitPredictionUpdate, emitWalletUpdate } from '../../services/realtime';
 import { recomputePredictionState } from '../../services/predictionMath';
 import { enrichPredictionWithOddsV2 } from '../../utils/enrichPredictionOddsV2';
+import {
+  StakeQuoteError,
+  computeStakeQuoteFromDb,
+  insertPositionStakeEvent,
+} from '../../services/stakeQuote';
+import { beginPredictionStakeLock, PredictionStakeLockError } from '../../services/predictionStakeLock';
 import { requireSupabaseAuth } from '../../middleware/requireSupabaseAuth';
 import { isCryptoAllowedForClient } from '../../middleware/requireCryptoEnabled';
 import type { AuthenticatedRequest } from '../../middleware/auth';
@@ -47,6 +53,8 @@ function mapDbError(err: any): { status: number; code: string; message: string }
  */
 async function handlePlaceBet(req: any, res: any) {
   const reqId = requestId();
+  let mutationLock: Awaited<ReturnType<typeof beginPredictionStakeLock>> | null = null;
+  let mutationLockCommit = false;
   try {
     const predictionId = req.params.predictionId;
     const authReq = req as AuthenticatedRequest;
@@ -136,7 +144,7 @@ async function handlePlaceBet(req: any, res: any) {
     // Verify prediction exists and is open
     const { data: prediction, error: predError } = await supabase
       .from('predictions')
-      .select('id, title, status, entry_deadline, pool_total, participant_count')
+      .select('id, title, status, entry_deadline, pool_total, participant_count, odds_model, platform_fee_percentage, creator_fee_percentage')
       .eq('id', predictionId)
       .single();
 
@@ -163,7 +171,7 @@ async function handlePlaceBet(req: any, res: any) {
     // Verify option exists
     const { data: option, error: optError } = await supabase
       .from('prediction_options')
-      .select('id, prediction_id, label')
+      .select('id, prediction_id, label, total_staked, current_odds')
       .eq('id', optionId)
       .eq('prediction_id', predictionId)
       .single();
@@ -176,6 +184,42 @@ async function handlePlaceBet(req: any, res: any) {
         requestId: reqId,
         version: VERSION
       });
+    }
+
+    // Serialize same-market stake mutations in this app server to reduce race conditions on
+    // pooled totals / aggregated positions before a full DB transaction rewrite.
+    mutationLock = await beginPredictionStakeLock(predictionId);
+
+    let quoteUsed: any = null;
+    let quoteSameOutcomeEntry: any = null;
+    if (fundingMode === 'demo' || fundingMode === 'crypto') {
+      try {
+        const quoteResult = await computeStakeQuoteFromDb({
+          predictionId,
+          optionId,
+          amount: amountUSD,
+          userId,
+          mode: fundingMode === 'demo' ? 'DEMO' : 'REAL',
+        });
+        quoteUsed = quoteResult.quote;
+        quoteSameOutcomeEntry = quoteResult.sameOutcomeEntry;
+        if (quoteResult.otherOutcomeEntry) {
+          return res.status(409).json({
+            error: 'duplicate_entry',
+            message: 'You already have a position on another outcome for this prediction.',
+            version: VERSION,
+          });
+        }
+      } catch (quoteErr: any) {
+        if (quoteErr instanceof StakeQuoteError) {
+          return res.status(quoteErr.status).json({
+            error: quoteErr.code,
+            message: quoteErr.message,
+            version: VERSION,
+          });
+        }
+        throw quoteErr;
+      }
     }
 
     // DEMO wallet mode (DB-backed ledger). Crypto path remains unchanged below.
@@ -216,6 +260,7 @@ async function handlePlaceBet(req: any, res: any) {
         return res.status(200).json({
           ok: true,
           entryId: existingEntryId,
+          quoteUsed: quoteUsed ?? null,
           data: { prediction: enrichPredictionWithOddsV2(recomputed.prediction), entry: entryRow || null },
           message: 'Bet already placed (idempotent)',
           version: VERSION,
@@ -249,6 +294,7 @@ async function handlePlaceBet(req: any, res: any) {
             ok: true,
             entryId: entryId || null,
             consumedLockId: lockId,
+            quoteUsed: quoteUsed ?? null,
             data: { prediction: enrichPredictionWithOddsV2(recomputed.prediction), entry: entryRow || null },
             message: 'Bet already placed (idempotent)',
             version: VERSION,
@@ -310,41 +356,69 @@ async function handlePlaceBet(req: any, res: any) {
         return res.status(400).json({ error: 'INSUFFICIENT_FUNDS', message: 'Insufficient demo credits', version: VERSION });
       }
 
-      // Create prediction entry
-      const { data: entry, error: entryErr } = await supabase
-        .from('prediction_entries')
-        .insert({
-          prediction_id: predictionId,
-          option_id: optionId,
-          user_id: userId,
-          amount: amountUSD,
-          status: 'active',
-          potential_payout: amountUSD * 2.0,
-          escrow_lock_id: lockId,
-          provider: PROVIDER,
-        } as any)
-        .select('*')
-        .single();
-      if (entryErr || !entry?.id) {
-        const errCode = (entryErr as any)?.code;
-        const errMessage = (entryErr as any)?.message;
-        console.error('[FCZ-BET] demo entry create failed', { requestId: reqId, code: errCode, message: errMessage, full: entryErr });
-        const mapped = mapDbError(entryErr);
-        if (mapped) {
-          return res.status(mapped.status).json({
-            code: mapped.code,
-            message: mapped.message,
+      // Create or top-up aggregated prediction entry
+      let entry: any = null;
+      const isTopUp = Boolean(quoteSameOutcomeEntry?.id);
+      if (isTopUp) {
+        const nextAmount = Number(quoteSameOutcomeEntry.amount || 0) + amountUSD;
+        const { data: updatedEntry, error: updateErr } = await supabase
+          .from('prediction_entries')
+          .update({
+            amount: nextAmount,
+            potential_payout: quoteUsed?.after?.estPayout ?? nextAmount,
+            updated_at: new Date().toISOString(),
+          } as any)
+          .eq('id', quoteSameOutcomeEntry.id)
+          .select('*')
+          .single();
+        if (updateErr || !updatedEntry?.id) {
+          console.error('[FCZ-BET] demo entry top-up failed', { requestId: reqId, error: updateErr });
+          return res.status(500).json({
+            code: 'FCZ_DATABASE_ERROR',
+            error: 'entry_update_failed',
+            message: 'Failed to increase stake',
             requestId: reqId,
             version: VERSION,
           });
         }
-        return res.status(500).json({
-          code: 'FCZ_DATABASE_ERROR',
-          error: 'database_error',
-          message: 'Failed to create entry',
-          requestId: reqId,
-          version: VERSION,
-        });
+        entry = updatedEntry;
+      } else {
+        const { data: createdEntry, error: entryErr } = await supabase
+          .from('prediction_entries')
+          .insert({
+            prediction_id: predictionId,
+            option_id: optionId,
+            user_id: userId,
+            amount: amountUSD,
+            status: 'active',
+            potential_payout: quoteUsed?.after?.estPayout ?? amountUSD,
+            escrow_lock_id: lockId,
+            provider: PROVIDER,
+          } as any)
+          .select('*')
+          .single();
+        if (entryErr || !createdEntry?.id) {
+          const errCode = (entryErr as any)?.code;
+          const errMessage = (entryErr as any)?.message;
+          console.error('[FCZ-BET] demo entry create failed', { requestId: reqId, code: errCode, message: errMessage, full: entryErr });
+          const mapped = mapDbError(entryErr);
+          if (mapped) {
+            return res.status(mapped.status).json({
+              code: mapped.code,
+              message: mapped.message,
+              requestId: reqId,
+              version: VERSION,
+            });
+          }
+          return res.status(500).json({
+            code: 'FCZ_DATABASE_ERROR',
+            error: 'database_error',
+            message: 'Failed to create entry',
+            requestId: reqId,
+            version: VERSION,
+          });
+        }
+        entry = createdEntry;
       }
 
       // Mark lock as consumed
@@ -371,14 +445,31 @@ async function handlePlaceBet(req: any, res: any) {
         }
       });
 
+      await insertPositionStakeEvent({
+        userId,
+        predictionId,
+        optionId,
+        entryId: entry.id,
+        amount: amountUSD,
+        mode: 'DEMO',
+        quoteSnapshot: quoteUsed,
+        metadata: {
+          fundingMode: 'demo',
+          lockId,
+          requestId: reqId,
+        },
+      });
+
       const recomputed = await recomputePredictionState(predictionId);
       emitPredictionUpdate({ predictionId });
       emitWalletUpdate({ userId, reason: 'bet_placed' });
 
+      mutationLockCommit = true;
       return res.status(200).json({
         ok: true,
         entryId: entry.id,
         consumedLockId: lockId,
+        quoteUsed: quoteUsed ?? null,
         data: { prediction: enrichPredictionWithOddsV2(recomputed.prediction), entry },
         requestId: reqId,
         version: VERSION,
@@ -648,6 +739,7 @@ async function handlePlaceBet(req: any, res: any) {
       emitPredictionUpdate({ predictionId });
       emitWalletUpdate({ userId, reason: 'bet_placed' });
 
+      mutationLockCommit = true;
       return res.status(200).json({
         ok: true,
         entryId: entry.id,
@@ -828,6 +920,7 @@ async function handlePlaceBet(req: any, res: any) {
             ok: true,
             entryId: existingEntry.id,
             consumedLockId: existingLock.id,
+            quoteUsed: quoteUsed ?? null,
             data: {
               prediction: enrichPredictionWithOddsV2(recomputed.prediction),
               entry: entryFetchError ? null : entryRow,
@@ -916,6 +1009,7 @@ async function handlePlaceBet(req: any, res: any) {
                 ok: true,
                 entryId: entry.id,
                 consumedLockId: concurrentLock.id,
+                quoteUsed: quoteUsed ?? null,
                 data: {
                   prediction: enrichPredictionWithOddsV2(recomputed.prediction),
                   entry: entryFetchError ? null : entryRow,
@@ -958,7 +1052,7 @@ async function handlePlaceBet(req: any, res: any) {
         .from('prediction_entries')
         .update({
           amount: totalEntryAmount,
-          potential_payout: totalEntryAmount * 2.0,
+          potential_payout: quoteUsed?.after?.estPayout ?? totalEntryAmount,
           updated_at: new Date().toISOString()
         })
         .eq('id', existingEntry.id)
@@ -989,7 +1083,7 @@ async function handlePlaceBet(req: any, res: any) {
           user_id: userId,
           amount: amountUSD,
           status: 'active',
-          potential_payout: amountUSD * 2.0,
+          potential_payout: quoteUsed?.after?.estPayout ?? amountUSD,
           escrow_lock_id: lockId,
           provider: 'crypto-base-usdc'
         })
@@ -1089,6 +1183,21 @@ async function handlePlaceBet(req: any, res: any) {
       console.log('[FCZ-BET] ✅ Wallet transaction recorded:', walletTxData?.id);
     }
 
+    await insertPositionStakeEvent({
+      userId,
+      predictionId,
+      optionId,
+      entryId,
+      amount: amountUSD,
+      mode: 'REAL',
+      quoteSnapshot: quoteUsed,
+      metadata: {
+        fundingMode: 'crypto',
+        lockId,
+        requestId: reqId,
+      },
+    });
+
     // Emit event_log
     await supabase
       .from('event_log')
@@ -1122,10 +1231,12 @@ async function handlePlaceBet(req: any, res: any) {
     emitPredictionUpdate({ predictionId });
     emitWalletUpdate({ userId, reason: 'bet_placed' });
 
+    mutationLockCommit = true;
     return res.status(200).json({
       ok: true,
       entryId,
       consumedLockId: lockId,
+      quoteUsed: quoteUsed ?? null,
       data: {
         prediction: enrichPredictionWithOddsV2(recomputed.prediction),
         entry: latestEntryError ? null : latestEntry,
@@ -1134,6 +1245,15 @@ async function handlePlaceBet(req: any, res: any) {
       newEscrowAvailable: finalSnapshot.availableToStakeUSDC
     });
   } catch (error) {
+    if (error instanceof PredictionStakeLockError) {
+      return res.status(503).json({
+        code: 'FCZ_DATABASE_ERROR',
+        error: 'DB_LOCK_UNAVAILABLE',
+        message: error.message,
+        requestId: reqId,
+        version: VERSION,
+      });
+    }
     console.error('[FCZ-BET] Unhandled error:', error);
     return res.status(500).json({
       code: 'FCZ_DATABASE_ERROR',
@@ -1142,10 +1262,13 @@ async function handlePlaceBet(req: any, res: any) {
       requestId: reqId,
       version: VERSION
     });
+  } finally {
+    if (mutationLock) {
+      await mutationLock.release(mutationLockCommit);
+    }
   }
 }
 
 // Register both kebab-case and snake_case for backward compatibility
 placeBetRouter.post('/:predictionId/place-bet', requireSupabaseAuth, handlePlaceBet);
 placeBetRouter.post('/:predictionId/place_bet', requireSupabaseAuth, handlePlaceBet);
-

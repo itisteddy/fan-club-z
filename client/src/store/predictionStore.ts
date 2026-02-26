@@ -289,7 +289,7 @@ interface PredictionActions {
   fetchCreatedPredictions: (userId: string) => Promise<void>;
   fetchPredictionById: (id: string) => Promise<Prediction | null>;
   createPrediction: (predictionData: any) => Promise<Prediction>;
-  placePrediction: (predictionId: string, optionId: string, amount: number, userId?: string, walletAddress?: string | null) => Promise<void>;
+  placePrediction: (predictionId: string, optionId: string, amount: number, userId?: string, walletAddress?: string | null) => Promise<any>;
   placeFiatPrediction: (predictionId: string, optionId: string, amountNgn: number, userId: string) => Promise<void>;
   
   // User-specific data fetching

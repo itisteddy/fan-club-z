@@ -25,12 +25,19 @@ import { setCooldown } from '@/lib/cooldowns';
 import { usePaystackStatus, useFiatSummary } from '@/hooks/useFiatWallet';
 import { getPayoutPreview, getPreOddsMultiple } from '@fanclubz/shared';
 import { isCryptoEnabledForClient } from '@/lib/cryptoFeatureFlags';
+import { apiClient } from '@/lib/apiClient';
 
 interface PlacePredictionModalProps {
   prediction: Prediction | null;
   isOpen: boolean;
   onClose: () => void;
 }
+
+type StakeQuoteView = {
+  current: { userStake: number; oddsOrPrice: number; estPayout: number };
+  after: { userStake: number; oddsOrPrice: number; estPayout: number };
+  disclaimer?: string;
+};
 
 // Utility functions
 const formatCurrency = (amount: number, currency: 'USD' | 'NGN' = 'USD') => {
@@ -54,6 +61,9 @@ export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
   const [amount, setAmount] = useState<string>('');
   const [isLoading, setIsLoading] = useState(false);
   const [showDepositModal, setShowDepositModal] = useState(false);
+  const [stakeQuote, setStakeQuote] = useState<StakeQuoteView | null>(null);
+  const [quoteLoading, setQuoteLoading] = useState(false);
+  const [quoteError, setQuoteError] = useState<string | null>(null);
   
   const { user } = useAuthStore();
   const { placePrediction, placeFiatPrediction } = usePredictionStore();
@@ -186,6 +196,49 @@ export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
   const needsDeposit = isCryptoMode && numAmount > escrowAvailable;
   const insufficientBalance = numAmount > displayBalance;
 
+  useEffect(() => {
+    let cancelled = false;
+    let timer: number | null = null;
+
+    if (!isOpen || !prediction?.id || !selectedOptionId || !user?.id || !numAmount || numAmount <= 0 || isFiatMode) {
+      setStakeQuote(null);
+      setQuoteError(null);
+      setQuoteLoading(false);
+      return;
+    }
+
+    timer = window.setTimeout(async () => {
+      try {
+        setQuoteLoading(true);
+        setQuoteError(null);
+        const modeParam = isDemoMode ? 'demo' : 'real';
+        const resp = await apiClient.get(
+          `predictions/${encodeURIComponent(prediction.id)}/quote?outcomeId=${encodeURIComponent(selectedOptionId)}&amount=${encodeURIComponent(String(numAmount))}&mode=${modeParam}`
+        );
+        const quote = resp?.quote;
+        if (!cancelled && quote) {
+          setStakeQuote({
+            current: quote.current,
+            after: quote.after,
+            disclaimer: quote.disclaimer,
+          });
+        }
+      } catch (e: any) {
+        if (!cancelled) {
+          setStakeQuote(null);
+          setQuoteError(e?.message || 'Failed to load quote');
+        }
+      } finally {
+        if (!cancelled) setQuoteLoading(false);
+      }
+    }, 300);
+
+    return () => {
+      cancelled = true;
+      if (timer) window.clearTimeout(timer);
+    };
+  }, [isOpen, prediction?.id, selectedOptionId, user?.id, numAmount, isFiatMode, isDemoMode]);
+
   const ensureCryptoWalletReady = useCallback(() => {
     if (!isCryptoMode) return true;
     try {
@@ -278,19 +331,28 @@ export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
         );
         toast.success(`Prediction placed successfully! You staked ${formatCurrency(numAmount, 'NGN')} on ${selectedOption?.label}.`);
       } else {
-        await placePrediction(
+        const result = await placePrediction(
           prediction.id,
           selectedOptionId,
           numAmount,
           user.id,
           isCryptoMode ? (address ?? undefined) : undefined
         );
-        toast.success(`Prediction placed successfully! You staked ${formatCurrency(numAmount)} on ${selectedOption?.label}.`);
+        const submitQuote = result?.quoteUsed?.after;
+        if (submitQuote && typeof submitQuote.estPayout === 'number') {
+          toast.success(
+            `Prediction placed. Position: ${formatCurrency(Number(submitQuote.userStake || 0))} • Est payout: ${formatCurrency(Number(submitQuote.estPayout || 0))}`
+          );
+        } else {
+          toast.success(`Prediction placed successfully! You staked ${formatCurrency(numAmount)} on ${selectedOption?.label}.`);
+        }
       }
       
       onClose();
       setAmount('');
       setSelectedOptionId('');
+      setStakeQuote(null);
+      setQuoteError(null);
 
       // Invalidate queries & refresh balances
       invalidateAfterBet(queryClient, { userId: user.id, predictionId: prediction.id });
@@ -588,38 +650,86 @@ export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
                         </div>
                       </div>
 
-                      {/* Payout preview — pool-based (post-stake, fees included) */}
+                      {/* Payout preview — server quote for demo/crypto; local pool preview fallback */}
                       {numAmount > 0 && (
                         <Card className="bg-teal-50 border-teal-200">
                           <CardContent className="p-3 space-y-2">
                             <div className="text-sm font-medium text-gray-700">Payout preview</div>
-                            <div className="flex items-center justify-between">
-                              <div>
-                                <div className="text-xs text-gray-500">Stake</div>
-                                <div className="font-semibold text-gray-900">
-                                  {formatCurrency(numAmount, displayCurrency)}
+                            {(isDemoMode || isCryptoMode) && (
+                              <>
+                                <div className="flex items-center justify-between text-sm">
+                                  <span className="text-gray-500">Current position</span>
+                                  <span className="font-medium text-gray-900">
+                                    {quoteLoading
+                                      ? 'Loading...'
+                                      : stakeQuote
+                                        ? `${formatCurrency(Number(stakeQuote.current.userStake || 0))} • ${formatCurrency(Number(stakeQuote.current.estPayout || 0))} est`
+                                        : '—'}
+                                  </span>
                                 </div>
-                              </div>
-                              <div className="text-right">
-                                <div className="text-xs text-gray-500">Estimated return</div>
-                                <div className="font-semibold text-teal-600">
-                                  {poolPreview
-                                    ? formatCurrency(poolPreview.expectedReturn, displayCurrency)
-                                    : '—'}
+                                <div className="flex items-center justify-between text-sm">
+                                  <span className="text-gray-500">After this stake</span>
+                                  <span className="font-semibold text-teal-600">
+                                    {quoteLoading
+                                      ? 'Loading...'
+                                      : stakeQuote
+                                        ? `${formatCurrency(Number(stakeQuote.after.userStake || 0))} • ${formatCurrency(Number(stakeQuote.after.estPayout || 0))} est`
+                                        : '—'}
+                                  </span>
                                 </div>
-                              </div>
-                            </div>
-                            <div className="flex items-center justify-between text-sm">
-                              <span className="text-gray-500">Potential profit</span>
-                              <span className={cn(
-                                "font-semibold",
-                                potentialProfit >= 0 ? "text-teal-600" : "text-red-600"
-                              )}>
-                                {poolPreview
-                                  ? `${potentialProfit >= 0 ? '+' : ''}${formatCurrency(potentialProfit, displayCurrency)}`
-                                  : '—'}
-                              </span>
-                            </div>
+                                <div className="flex items-center justify-between text-sm">
+                                  <span className="text-gray-500">Estimated odds</span>
+                                  <span className="font-medium text-teal-600">
+                                    {quoteLoading
+                                      ? 'Loading...'
+                                      : stakeQuote
+                                        ? `${Number(stakeQuote.after.oddsOrPrice || 0).toFixed(2)}x`
+                                        : '—'}
+                                  </span>
+                                </div>
+                                {stakeQuote && (
+                                  <div className="text-xs text-gray-500">
+                                    Current odds: {Number(stakeQuote.current.oddsOrPrice || 0).toFixed(2)}x
+                                  </div>
+                                )}
+                                {quoteError && (
+                                  <div className="text-xs text-amber-700">
+                                    {quoteError}
+                                  </div>
+                                )}
+                              </>
+                            )}
+                            {(!isDemoMode && !isCryptoMode) && (
+                              <>
+                                <div className="flex items-center justify-between">
+                                  <div>
+                                    <div className="text-xs text-gray-500">Stake</div>
+                                    <div className="font-semibold text-gray-900">
+                                      {formatCurrency(numAmount, displayCurrency)}
+                                    </div>
+                                  </div>
+                                  <div className="text-right">
+                                    <div className="text-xs text-gray-500">Estimated return</div>
+                                    <div className="font-semibold text-teal-600">
+                                      {poolPreview
+                                        ? formatCurrency(poolPreview.expectedReturn, displayCurrency)
+                                        : '—'}
+                                    </div>
+                                  </div>
+                                </div>
+                                <div className="flex items-center justify-between text-sm">
+                                  <span className="text-gray-500">Potential profit</span>
+                                  <span className={cn(
+                                    "font-semibold",
+                                    potentialProfit >= 0 ? "text-teal-600" : "text-red-600"
+                                  )}>
+                                    {poolPreview
+                                      ? `${potentialProfit >= 0 ? '+' : ''}${formatCurrency(potentialProfit, displayCurrency)}`
+                                      : '—'}
+                                  </span>
+                                </div>
+                              </>
+                            )}
                             {poolPreview && (
                               <>
                                 <div className="flex items-center justify-between text-sm">
@@ -636,7 +746,7 @@ export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
                               </>
                             )}
                             <p className="text-xs text-gray-500 pt-1 border-t border-teal-100">
-                              Odds update as stake size changes. Final payout depends on the pool at close.
+                              {(stakeQuote?.disclaimer || 'Odds update as stake size changes. Final payout depends on the pool at close.')}
                             </p>
                             {feeBps > 0 && (
                               <p className="text-xs text-gray-500">

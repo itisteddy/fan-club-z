@@ -12,6 +12,13 @@ import { insertWalletTransaction } from '../db/walletTransactions';
 import { createNotification } from '../services/notifications';
 import { getSettlementResult } from '../services/settlementResults';
 import { assertContentAllowed } from '../services/contentFilter';
+import {
+  StakeQuoteError,
+  computeStakeQuoteFromDb,
+  insertPositionStakeEvent,
+  type StakeMode,
+} from '../services/stakeQuote';
+import { beginPredictionStakeLock, PredictionStakeLockError } from '../services/predictionStakeLock';
 import { requireSupabaseAuth } from '../middleware/requireSupabaseAuth';
 import { requireTermsAccepted } from '../middleware/requireTermsAccepted';
 import { isCryptoAllowedForClient } from '../middleware/requireCryptoEnabled';
@@ -339,6 +346,59 @@ router.get('/stats/platform', async (req, res) => {
       error: 'Internal server error',
       message: 'Failed to fetch platform stats',
       version: VERSION
+    });
+  }
+});
+
+// GET /api/v2/predictions/:id/quote?outcomeId=...&amount=...&mode=demo|real
+router.get('/:id/quote', requireSupabaseAuth as any, async (req, res) => {
+  try {
+    const authReq = req as AuthenticatedRequest;
+    const predictionId = req.params.id;
+    const outcomeId = String((req.query as any)?.outcomeId || '');
+    const userId = String(authReq.user?.id || '');
+    const amount = Number((req.query as any)?.amount || 0);
+    const modeRaw = String((req.query as any)?.mode || 'real').toUpperCase();
+    const mode: StakeMode = modeRaw === 'DEMO' ? 'DEMO' : 'REAL';
+
+    if (!outcomeId || !userId) {
+      return res.status(400).json({
+        error: 'invalid_query',
+        message: 'outcomeId is required',
+        version: VERSION,
+      });
+    }
+
+    const { quote, otherOutcomeEntry } = await computeStakeQuoteFromDb({
+      predictionId,
+      optionId: outcomeId,
+      amount,
+      userId,
+      mode,
+    });
+
+    if (otherOutcomeEntry) {
+      return res.status(409).json({
+        error: 'conflicting_position',
+        message: 'You already have a position on another outcome for this market.',
+        version: VERSION,
+      });
+    }
+
+    return res.json({ ok: true, quote, version: VERSION });
+  } catch (error: any) {
+    if (error instanceof StakeQuoteError) {
+      return res.status(error.status).json({
+        error: error.code,
+        message: error.message,
+        version: VERSION,
+      });
+    }
+    console.error('[PREDICTIONS] quote error:', error);
+    return res.status(500).json({
+      error: 'quote_failed',
+      message: 'Failed to compute quote',
+      version: VERSION,
     });
   }
 });
@@ -1339,6 +1399,8 @@ router.post('/', requireSupabaseAuth, requireTermsAccepted, async (req, res) => 
 
 // POST /api/v2/predictions/:id/entries - Create prediction entry (place bet)
 router.post('/:id/entries', async (req, res) => {
+  let mutationLock: Awaited<ReturnType<typeof beginPredictionStakeLock>> | null = null;
+  let mutationLockCommit = false;
   try {
     const predictionId = req.params.id;
     
@@ -1425,7 +1487,7 @@ router.post('/:id/entries', async (req, res) => {
     // Verify prediction exists and is open
     const { data: prediction, error: predError } = await supabase
       .from('predictions')
-      .select('id, status, entry_deadline')
+      .select('id, title, status, entry_deadline, pool_total, odds_model, platform_fee_percentage, creator_fee_percentage')
       .eq('id', predictionId)
       .single();
 
@@ -1464,31 +1526,43 @@ router.post('/:id/entries', async (req, res) => {
       });
     }
 
-    // CRITICAL FIX: Check if user already has an entry for this prediction
-    const { data: existingEntry, error: existingError } = await supabase
-      .from('prediction_entries')
-      .select('id, amount, option_id, created_at')
-      .eq('prediction_id', predictionId)
-      .eq('user_id', user_id)
-      .single();
+    // Serialize same-market stake mutations in this app server to reduce race conditions on
+    // pooled totals / aggregated positions before full SQL-transaction rewrite.
+    mutationLock = await beginPredictionStakeLock(predictionId);
 
-    if (existingEntry) {
-      console.error('❌ Duplicate entry detected:', { 
-        existingEntryId: existingEntry.id,
+    let quoteUsed;
+    let existingEntry: any = null;
+    try {
+      const quoteResult = await computeStakeQuoteFromDb({
+        predictionId,
+        optionId: option_id,
+        amount,
         userId: user_id,
-        predictionId 
+        mode: isCryptoMode ? 'REAL' : 'DEMO',
       });
-      return res.status(409).json({
-        error: 'duplicate_entry',
-        message: 'You have already placed a bet on this prediction. Each user can only bet once per prediction.',
-        existingEntry: {
-          id: existingEntry.id,
-          amount: existingEntry.amount,
-          optionId: existingEntry.option_id,
-          createdAt: existingEntry.created_at
-        },
-        version: VERSION
-      });
+      quoteUsed = quoteResult.quote;
+      existingEntry = quoteResult.sameOutcomeEntry;
+      if (quoteResult.otherOutcomeEntry) {
+        return res.status(409).json({
+          error: 'duplicate_entry',
+          message: 'You already have a position on another outcome for this prediction.',
+          existingEntry: {
+            id: quoteResult.otherOutcomeEntry.id,
+            amount: quoteResult.otherOutcomeEntry.amount,
+            optionId: quoteResult.otherOutcomeEntry.option_id,
+          },
+          version: VERSION
+        });
+      }
+    } catch (quoteErr: any) {
+      if (quoteErr instanceof StakeQuoteError) {
+        return res.status(quoteErr.status).json({
+          error: quoteErr.code,
+          message: quoteErr.message,
+          version: VERSION,
+        });
+      }
+      throw quoteErr;
     }
 
     // CRYPTO MODE: Load and validate escrow lock with explicit error codes
@@ -1577,76 +1651,126 @@ router.post('/:id/entries', async (req, res) => {
       console.log(`✅ [Crypto Mode] Lock validated: ${escrowLockId}, amount: ${lockAmount}`);
     }
 
-    // Create prediction entry in database
-    const entryData: any = {
-      prediction_id: predictionId,
-      option_id: option_id,
-      user_id: user_id,
-      amount: amount,
-      status: 'active',
-      potential_payout: amount * 2.0, // Simple calculation for now
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
-    };
+    let entry: any = null;
+    const isTopUp = Boolean(existingEntry?.id);
 
-    // Add crypto fields if in crypto mode
-    if (isCryptoMode && escrowLockId) {
-      entryData.escrow_lock_id = escrowLockId;
-      entryData.provider = 'crypto-base-usdc';
-    }
+    if (isTopUp) {
+      const nextAmount = Number(existingEntry.amount || 0) + amount;
+      const { data: updatedEntry, error: updateErr } = await supabase
+        .from('prediction_entries')
+        .update({
+          amount: nextAmount,
+          potential_payout: quoteUsed?.after?.estPayout ?? nextAmount,
+          updated_at: new Date().toISOString() as any,
+        })
+        .eq('id', existingEntry.id)
+        .select()
+        .single();
 
-    const { data: entry, error: entryError } = await supabase
-      .from('prediction_entries')
-      .insert(entryData)
-      .select()
-      .single();
-      
-    if (entryError) {
-      console.error('Error creating prediction entry:', entryError);
-      console.error('Entry error details:', JSON.stringify(entryError, null, 2));
-      
-      // CRITICAL: Release lock if entry creation fails in crypto mode
-      if (isCryptoMode && escrowLockId) {
-        console.log(`⚠️ Entry creation failed, releasing lock: ${escrowLockId}`);
-        const updateData: any = {};
-        if (lock && lock.status !== undefined) {
-          updateData.status = 'released';
-        } else {
-          updateData.state = 'released';
+      if (updateErr || !updatedEntry) {
+        console.error('Error updating prediction entry (top-up):', updateErr);
+        if (isCryptoMode && escrowLockId) {
+          const updateData: any = {};
+          if (lock && lock.status !== undefined) updateData.status = 'released';
+          else updateData.state = 'released';
+          updateData.released_at = new Date().toISOString();
+          await supabase.from('escrow_locks').update(updateData).eq('id', escrowLockId);
         }
-        updateData.released_at = new Date().toISOString();
-        
-        await supabase
-          .from('escrow_locks')
-          .update(updateData)
-          .eq('id', escrowLockId)
-          .then(({ error: releaseError }) => {
-            if (releaseError) {
-              console.error('❌ Failed to release lock after entry error:', releaseError);
-            } else {
-              console.log(`✅ Lock released after entry failure: ${escrowLockId}`);
-            }
-          });
-      }
-      
-      // Check if it's a unique constraint violation (lock already consumed)
-      if (entryError.code === '23505' || entryError.message?.includes('unique') || entryError.message?.includes('uniq_lock_consumption')) {
-        return res.status(409).json({
-          error: 'Conflict',
-          message: 'Escrow lock has already been consumed. Please refresh and try again.',
-          version: VERSION
+        return res.status(500).json({
+          error: 'entry_update_failed',
+          message: 'Failed to update prediction entry',
+          version: VERSION,
         });
       }
-      
-      return res.status(500).json({
-        error: 'Database error',
-        message: 'Failed to create prediction entry',
-        version: VERSION,
-        details: entryError.message
-      });
+
+      entry = updatedEntry;
+    } else {
+      // Create prediction entry in database
+      const entryData: any = {
+        prediction_id: predictionId,
+        option_id: option_id,
+        user_id: user_id,
+        amount: amount,
+        status: 'active',
+        potential_payout: quoteUsed?.after?.estPayout ?? amount,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+
+      // Add crypto fields if in crypto mode
+      if (isCryptoMode && escrowLockId) {
+        entryData.escrow_lock_id = escrowLockId;
+        entryData.provider = 'crypto-base-usdc';
+      }
+
+      const { data: createdEntry, error: entryError } = await supabase
+        .from('prediction_entries')
+        .insert(entryData)
+        .select()
+        .single();
+        
+      if (entryError) {
+        console.error('Error creating prediction entry:', entryError);
+        console.error('Entry error details:', JSON.stringify(entryError, null, 2));
+        
+        // CRITICAL: Release lock if entry creation fails in crypto mode
+        if (isCryptoMode && escrowLockId) {
+          console.log(`⚠️ Entry creation failed, releasing lock: ${escrowLockId}`);
+          const updateData: any = {};
+          if (lock && lock.status !== undefined) {
+            updateData.status = 'released';
+          } else {
+            updateData.state = 'released';
+          }
+          updateData.released_at = new Date().toISOString();
+          
+          await supabase
+            .from('escrow_locks')
+            .update(updateData)
+            .eq('id', escrowLockId)
+            .then(({ error: releaseError }) => {
+              if (releaseError) {
+                console.error('❌ Failed to release lock after entry error:', releaseError);
+              } else {
+                console.log(`✅ Lock released after entry failure: ${escrowLockId}`);
+              }
+            });
+        }
+        
+        if (entryError.code === '23505' || entryError.message?.includes('unique') || entryError.message?.includes('uniq_lock_consumption')) {
+          return res.status(409).json({
+            error: 'Conflict',
+            message: 'Escrow lock has already been consumed. Please refresh and try again.',
+            version: VERSION
+          });
+        }
+        
+        return res.status(500).json({
+          error: 'Database error',
+          message: 'Failed to create prediction entry',
+          version: VERSION,
+          details: entryError.message
+        });
+      }
+      entry = createdEntry;
     }
     
-    console.log('✅ Prediction entry created successfully:', entry.id);
+    console.log(`✅ Prediction entry ${isTopUp ? 'updated (top-up)' : 'created'} successfully:`, entry.id);
+
+    await insertPositionStakeEvent({
+      userId: user_id,
+      predictionId,
+      optionId: option_id,
+      amount,
+      mode: isCryptoMode ? 'REAL' : 'DEMO',
+      entryId: entry.id,
+      quoteSnapshot: quoteUsed,
+      metadata: {
+        isTopUp,
+        rail: isCryptoMode ? 'crypto' : 'demo',
+        escrowLockId: escrowLockId || null,
+      }
+    });
 
     // CRYPTO MODE: Mark lock as consumed and create wallet transaction
     if (isCryptoMode && escrowLockId && lock) {
@@ -1822,14 +1946,16 @@ router.post('/:id/entries', async (req, res) => {
       console.error('Error fetching full updated prediction:', fetchUpdatedError);
     }
 
+    mutationLockCommit = true;
     return res.status(201).json({
       ok: true,
       entryId: entry.id,
+      quoteUsed,
       data: {
         entry,
         prediction: fullPrediction || updatedPredictionRow || { id: predictionId, pool_total: poolTotal, participant_count: participantCount || 0 }
       },
-      message: 'Prediction entry created successfully',
+      message: isTopUp ? 'Prediction position increased successfully' : 'Prediction entry created successfully',
       version: VERSION
     });
     
@@ -1846,6 +1972,14 @@ router.post('/:id/entries', async (req, res) => {
       });
     }
     
+    if (error instanceof PredictionStakeLockError) {
+      return res.status(error.status).json({
+        error: error.code,
+        message: error.message,
+        version: VERSION,
+      });
+    }
+
     // Handle database unique constraint violations
     if (error && typeof error === 'object' && 'code' in error) {
       const dbError = error;
@@ -1864,6 +1998,14 @@ router.post('/:id/entries', async (req, res) => {
       version: VERSION,
       details: error instanceof Error ? error.message : 'Unknown error'
     });
+  } finally {
+    if (mutationLock) {
+      try {
+        await mutationLock.release(mutationLockCommit);
+      } catch (lockError) {
+        console.error('Failed to release prediction stake lock:', lockError);
+      }
+    }
   }
 });
 

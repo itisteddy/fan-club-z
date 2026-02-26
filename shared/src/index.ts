@@ -10,8 +10,6 @@ export * from './types/activity';
 export * from './types/social';
 export * from './types/auth';
 
-// Odds V2 — pool-based payout engine (cents, no clamp)
+// Odds / settlement math
 export * from './oddsV2';
-
-// Pool math — single source of truth for pool-based odds + payout preview (USD or same unit)
 export * from './poolMath';
