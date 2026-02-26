@@ -170,19 +170,49 @@ const ProfilePageV2: React.FC<ProfilePageV2Props> = ({ onNavigateBack, userId })
 
   // Fetch OG badge directly from users table for self-profile to guarantee it loads
   useEffect(() => {
-    if (!isOwnProfile || !user?.id) return;
+    if (!isOwnProfile) return;
     let cancelled = false;
-    apiClient.get(`/users/${encodeURIComponent(user.id)}/public-profile`)
-      .then((res: any) => {
-        if (cancelled) return;
-        const badge = res?.data?.user?.ogBadge || null;
-        const badgeAt = res?.data?.user?.ogBadgeAssignedAt || null;
+    const run = async () => {
+      try {
+        const unwrapProfile = (res: any) => {
+          if (res?.data?.user) return res.data;
+          if (res?.user) return res;
+          if (res?.data?.data?.user) return res.data.data;
+          return null;
+        };
+
+        let profilePayload: any = null;
+        const selfId = String((user as any)?.id || '').trim();
+        if (selfId) {
+          const res = await apiClient.get(`/users/${encodeURIComponent(selfId)}/public-profile`);
+          profilePayload = unwrapProfile(res);
+        }
+
+        // Fallback: resolve by current handle when auth user id is not hydrated yet.
+        if (!profilePayload && displayHandle) {
+          const resolved = await apiClient.get(`/users/resolve?handle=${encodeURIComponent(displayHandle)}`);
+          const resolvedUserId = String(resolved?.data?.userId || resolved?.userId || '').trim();
+          if (resolvedUserId) {
+            const res = await apiClient.get(`/users/${encodeURIComponent(resolvedUserId)}/public-profile`);
+            profilePayload = unwrapProfile(res);
+          }
+        }
+
+        if (cancelled || !profilePayload?.user) return;
+        const badge = profilePayload.user.ogBadge || null;
+        const badgeAt = profilePayload.user.ogBadgeAssignedAt || null;
+        const memberNumber = profilePayload.user.ogBadgeMemberNumber || null;
         setSelfOgBadge(badge);
         setSelfOgBadgeAssignedAt(badgeAt);
-      })
-      .catch(() => {});
+        setSelfOgBadgeMemberNumber(memberNumber);
+      } catch (error) {
+        // Non-fatal: profile still renders without OG badge if lookup fails.
+        console.warn('[ProfilePageV2] Failed to load self OG badge', error);
+      }
+    };
+    void run();
     return () => { cancelled = true; };
-  }, [isOwnProfile, user?.id]);
+  }, [isOwnProfile, user?.id, displayHandle]);
 
   useEffect(() => {
     let cancelled = false;

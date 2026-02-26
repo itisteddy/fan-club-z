@@ -251,7 +251,7 @@ const UnifiedLeaderboardPage: React.FC = () => {
       <motion.div 
         key={entry.userId}
         className={cn(
-          "bg-white rounded-xl px-3 py-2 border",
+          "bg-white rounded-xl px-3 py-1.5 border",
           isCurrentUser 
             ? 'bg-emerald-50 border-emerald-200' 
             : isTopThree
@@ -264,14 +264,14 @@ const UnifiedLeaderboardPage: React.FC = () => {
         role="listitem"
         aria-label={`${entry.fullName || entry.username}, rank ${rank}`}
       >
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 min-h-0">
           {/* Rank Badge */}
           <div className={cn(
-            "w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold border shrink-0",
+            "w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold border shrink-0",
             rankBadge.color
           )}>
             {isTopThree ? (
-              <RankIcon className="w-4 h-4" />
+              <RankIcon className="w-3.5 h-3.5" />
             ) : (
               <span>{rank}</span>
             )}
@@ -281,7 +281,7 @@ const UnifiedLeaderboardPage: React.FC = () => {
           <button
             type="button"
             onClick={() => openReferralProfile(entry)}
-            className="shrink-0 rounded-full"
+            className="shrink-0 rounded-full min-h-0 min-w-0 h-auto w-auto p-0 m-0 border-0 bg-transparent appearance-none"
             aria-label={`Open profile for ${entry.fullName || entry.username}`}
           >
             <UserAvatar 
@@ -289,6 +289,7 @@ const UnifiedLeaderboardPage: React.FC = () => {
               username={entry.username}
               avatarUrl={entry.avatarUrl}
               size="sm"
+              className="h-7 w-7 text-[10px]"
             />
           </button>
           
@@ -298,7 +299,7 @@ const UnifiedLeaderboardPage: React.FC = () => {
               <button
                 type="button"
                 onClick={() => openReferralProfile(entry)}
-                className="font-medium text-sm text-gray-900 truncate hover:text-emerald-700 cursor-pointer"
+                className="block min-h-0 min-w-0 h-auto w-auto p-0 m-0 border-0 bg-transparent appearance-none text-left font-medium text-sm leading-tight text-gray-900 truncate hover:text-emerald-700 cursor-pointer"
               >
                 {entry.fullName || entry.username}
               </button>
@@ -312,14 +313,14 @@ const UnifiedLeaderboardPage: React.FC = () => {
             <button
               type="button"
               onClick={() => openReferralProfile(entry)}
-              className="text-xs text-gray-500 truncate hover:text-gray-700 cursor-pointer"
+              className="block min-h-0 min-w-0 h-auto w-auto p-0 m-0 border-0 bg-transparent appearance-none text-left text-xs leading-tight text-gray-500 truncate hover:text-gray-700 cursor-pointer"
             >
               @{entry.username}
             </button>
           </div>
           
           {/* Referral Stats */}
-          <div className="text-base font-bold font-mono text-emerald-600 shrink-0">
+          <div className="text-[15px] leading-none font-bold font-mono text-emerald-600 shrink-0">
             {entry.activeReferrals}
           </div>
         </div>
@@ -474,7 +475,7 @@ const UnifiedLeaderboardPage: React.FC = () => {
                   <motion.div 
                     key={leaderUser.id}
                     className={cn(
-                      "bg-white rounded-xl px-3 py-2 border",
+                      "bg-white rounded-xl px-3 py-1.5 border",
                       isCurrentUser 
                         ? 'bg-emerald-50 border-emerald-200' 
                         : isTopThree
@@ -487,14 +488,14 @@ const UnifiedLeaderboardPage: React.FC = () => {
                     role="listitem"
                     aria-label={`${leaderUser.full_name || leaderUser.username}, rank ${leaderUser.rank}`}
                   >
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 min-h-0">
                       {/* Rank Badge */}
                       <div className={cn(
-                        "w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold border shrink-0",
+                        "w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold border shrink-0",
                         rankBadge.color
                       )}>
                         {isTopThree ? (
-                          <RankIcon className="w-4 h-4" />
+                          <RankIcon className="w-3.5 h-3.5" />
                         ) : (
                           <span>{leaderUser.rank}</span>
                         )}
@@ -504,7 +505,7 @@ const UnifiedLeaderboardPage: React.FC = () => {
                       <button
                         type="button"
                         onClick={() => openUserProfile(leaderUser)}
-                        className="shrink-0 rounded-full"
+                        className="shrink-0 rounded-full min-h-0 min-w-0 h-auto w-auto p-0 m-0 border-0 bg-transparent appearance-none"
                         aria-label={`Open profile for ${leaderUser.full_name || leaderUser.username}`}
                       >
                         <UserAvatar 
@@ -512,6 +513,7 @@ const UnifiedLeaderboardPage: React.FC = () => {
                           username={leaderUser.username}
                           avatarUrl={leaderUser.avatar_url}
                           size="sm"
+                          className="h-7 w-7 text-[10px]"
                         />
                       </button>
                       
@@ -521,7 +523,7 @@ const UnifiedLeaderboardPage: React.FC = () => {
                           <button
                             type="button"
                             onClick={() => openUserProfile(leaderUser)}
-                            className="font-medium text-sm text-gray-900 truncate hover:text-emerald-700 cursor-pointer"
+                            className="block min-h-0 min-w-0 h-auto w-auto p-0 m-0 border-0 bg-transparent appearance-none text-left font-medium text-sm leading-tight text-gray-900 truncate hover:text-emerald-700 cursor-pointer"
                           >
                             {leaderUser.full_name || leaderUser.username}
                           </button>
@@ -535,14 +537,14 @@ const UnifiedLeaderboardPage: React.FC = () => {
                         <button
                           type="button"
                           onClick={() => openUserProfile(leaderUser)}
-                          className="text-xs text-gray-500 truncate hover:text-gray-700 cursor-pointer"
+                          className="block min-h-0 min-w-0 h-auto w-auto p-0 m-0 border-0 bg-transparent appearance-none text-left text-xs leading-tight text-gray-500 truncate hover:text-gray-700 cursor-pointer"
                         >
                           @{leaderUser.username}
                         </button>
                       </div>
                       
                       {/* Stats */}
-                      <div className={cn("text-base font-bold font-mono shrink-0", statDisplay.color)}>
+                      <div className={cn("text-[15px] leading-none font-bold font-mono shrink-0", statDisplay.color)}>
                         {statDisplay.primary}
                       </div>
                     </div>
