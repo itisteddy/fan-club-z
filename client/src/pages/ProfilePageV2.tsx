@@ -79,6 +79,11 @@ const ProfilePageV2: React.FC<ProfilePageV2Props> = ({ onNavigateBack, userId })
   // Referral hook
   const { isEnabled: referralsEnabled } = useReferral();
   
+  // Self-profile OG badge fetched directly from users table to ensure it loads
+  const [selfOgBadge, setSelfOgBadge] = useState<'gold' | 'silver' | 'bronze' | null>(null);
+  const [selfOgBadgeAssignedAt, setSelfOgBadgeAssignedAt] = useState<string | null>(null);
+  const [selfOgBadgeMemberNumber, setSelfOgBadgeMemberNumber] = useState<number | null>(null);
+  
   // Determine user context - profile is self-mode only for /profile (no explicit target route).
   const explicitRouteUserId = (userId || routeUserId || '').trim();
   const explicitRouteHandle = (routeHandle || '').trim();
@@ -116,12 +121,13 @@ const ProfilePageV2: React.FC<ProfilePageV2Props> = ({ onNavigateBack, userId })
       userMetadata.username ??
       (displayEmail ? displayEmail.split('@')[0] : '')) || 'user';
   
-  // OG badge fields may be present on session metadata or the richer auth-store profile object.
-  // Prefer session values when available, then fall back to store profile fields so /profile and /u/:handle stay consistent.
+  // OG badge - for self-profile, prefer the directly-fetched selfOgBadge (most reliable)
+  // For public profiles, use the publicProfile payload
   const sessionMeta: any = (sessionUser as any)?.user_metadata || {};
   const storeMeta: any = (storeUser as any)?.user_metadata || {};
   const ogBadge = isOwnProfile
     ? (
+        selfOgBadge ||
         sessionMeta.og_badge ||
         (sessionUser as any)?.og_badge ||
         storeMeta.og_badge ||
@@ -131,6 +137,7 @@ const ProfilePageV2: React.FC<ProfilePageV2Props> = ({ onNavigateBack, userId })
     : (publicProfile?.user.ogBadge || null);
   const ogBadgeAssignedAt = isOwnProfile
     ? (
+        selfOgBadgeAssignedAt ||
         sessionMeta.og_badge_assigned_at ||
         (sessionUser as any)?.og_badge_assigned_at ||
         storeMeta.og_badge_assigned_at ||
@@ -140,6 +147,7 @@ const ProfilePageV2: React.FC<ProfilePageV2Props> = ({ onNavigateBack, userId })
     : (publicProfile?.user.ogBadgeAssignedAt || null);
   const ogBadgeMemberNumber = isOwnProfile
     ? (
+        selfOgBadgeMemberNumber ||
         sessionMeta.og_badge_member_number ||
         (sessionUser as any)?.og_badge_member_number ||
         storeMeta.og_badge_member_number ||
@@ -159,6 +167,22 @@ const ProfilePageV2: React.FC<ProfilePageV2Props> = ({ onNavigateBack, userId })
       setLoading(false);
     }
   }, [authenticated, user?.id, isPublicRoute]);
+
+  // Fetch OG badge directly from users table for self-profile to guarantee it loads
+  useEffect(() => {
+    if (!isOwnProfile || !user?.id) return;
+    let cancelled = false;
+    apiClient.get(`/users/${encodeURIComponent(user.id)}/public-profile`)
+      .then((res: any) => {
+        if (cancelled) return;
+        const badge = res?.data?.user?.ogBadge || null;
+        const badgeAt = res?.data?.user?.ogBadgeAssignedAt || null;
+        setSelfOgBadge(badge);
+        setSelfOgBadgeAssignedAt(badgeAt);
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [isOwnProfile, user?.id]);
 
   useEffect(() => {
     let cancelled = false;
