@@ -8,9 +8,14 @@ import { supabase } from '@/lib/supabase';
 import { shouldUseStoreSafeMode } from '@/config/platform';
 import { Capacitor } from '@capacitor/core';
 
+const UPDATE_SNOOZE_UNTIL_KEY = 'pwa-update-snooze-until';
+const UPDATE_SNOOZE_VERSION_KEY = 'pwa-update-snooze-version';
+const UPDATE_SNOOZE_MS = 12 * 60 * 60 * 1000; // 12 hours
+
 const PWAInstallManager: React.FC = () => {
   const [showIOSModal, setShowIOSModal] = useState(false);
   const [showUpdateNotification, setShowUpdateNotification] = useState(false);
+  const [pendingUpdateKey, setPendingUpdateKey] = useState<string | null>(null);
 
   // Phase 5: PWA install UX should only render for web builds
   // Never show in native builds or store-safe mode (fail-safe guard)
@@ -33,7 +38,29 @@ const PWAInstallManager: React.FC = () => {
     };
 
     // Listen for app updates
-    const handleUpdateAvailable = (event: any) => {
+    const handleUpdateAvailable = (event: Event) => {
+      const customEvent = event as CustomEvent<{ updateKey?: string }>;
+      const nextUpdateKey = customEvent.detail?.updateKey || null;
+
+      try {
+        const snoozeUntil = Number(localStorage.getItem(UPDATE_SNOOZE_UNTIL_KEY) || '0');
+        const snoozedVersion = localStorage.getItem(UPDATE_SNOOZE_VERSION_KEY);
+        const now = Date.now();
+
+        // Suppress repeat prompts for the same update during snooze window.
+        if (
+          nextUpdateKey &&
+          snoozeUntil > now &&
+          snoozedVersion &&
+          snoozedVersion === nextUpdateKey
+        ) {
+          return;
+        }
+      } catch {
+        // If localStorage is unavailable, fail open and still show prompt.
+      }
+
+      setPendingUpdateKey(nextUpdateKey);
       setShowUpdateNotification(true);
     };
 
@@ -120,10 +147,29 @@ const PWAInstallManager: React.FC = () => {
       });
     }
     
+    try {
+      localStorage.removeItem(UPDATE_SNOOZE_UNTIL_KEY);
+      localStorage.removeItem(UPDATE_SNOOZE_VERSION_KEY);
+    } catch {
+      // Ignore storage failures during reload flow.
+    }
+
     window.location.reload();
   };
 
   const dismissUpdate = () => {
+    try {
+      if (pendingUpdateKey) {
+        localStorage.setItem(UPDATE_SNOOZE_VERSION_KEY, pendingUpdateKey);
+        localStorage.setItem(
+          UPDATE_SNOOZE_UNTIL_KEY,
+          String(Date.now() + UPDATE_SNOOZE_MS),
+        );
+      }
+    } catch {
+      // Ignore storage failures; dismissal should still close the UI.
+    }
+
     setShowUpdateNotification(false);
     
     // Track update dismissal

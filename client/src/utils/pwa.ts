@@ -13,6 +13,9 @@ export class PWAManager {
   private static instance: PWAManager;
   private deferredPrompt: BeforeInstallPromptEvent | null = null;
   private isInstalled = false;
+  private hasNotifiedUpdateThisSession = false;
+  private lastUpdateNotifyAt = 0;
+  private lastUpdateKeyNotified: string | null = null;
 
   private constructor() {
     this.init();
@@ -84,6 +87,11 @@ export class PWAManager {
         
         // Force update check after registration
         await registration.update().catch(() => {});
+
+        // If a waiting worker already exists, notify once on load.
+        if (registration.waiting && navigator.serviceWorker.controller) {
+          this.showUpdateAvailable(registration);
+        }
         
         // Handle service worker updates
         registration.addEventListener('updatefound', () => {
@@ -92,7 +100,7 @@ export class PWAManager {
             newWorker.addEventListener('statechange', () => {
               if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
                 // New version available
-                this.showUpdateAvailable();
+                this.showUpdateAvailable(registration);
               }
             });
           }
@@ -183,10 +191,27 @@ export class PWAManager {
     return /Android/.test(navigator.userAgent);
   }
 
-  private showUpdateAvailable() {
+  private showUpdateAvailable(registration?: ServiceWorkerRegistration) {
+    const updateKey = registration?.waiting?.scriptURL
+      || registration?.installing?.scriptURL
+      || registration?.active?.scriptURL
+      || 'sw-update';
+
+    const now = Date.now();
+    const recentlyNotified = now - this.lastUpdateNotifyAt < 30_000;
+    const sameUpdate = this.lastUpdateKeyNotified === updateKey;
+    if ((this.hasNotifiedUpdateThisSession && sameUpdate) || (recentlyNotified && sameUpdate)) {
+      return;
+    }
+
+    this.hasNotifiedUpdateThisSession = true;
+    this.lastUpdateNotifyAt = now;
+    this.lastUpdateKeyNotified = updateKey;
+
     // Show update notification
     const updateEvent = new CustomEvent('pwa-update-available', {
       detail: {
+        updateKey,
         message: 'A new version of Fan Club Z is available. Refresh to update.',
         action: () => window.location.reload()
       }

@@ -14,6 +14,12 @@ const TopUpdateToast: React.FC<TopUpdateToastProps> = ({
 }) => {
   const [isAnimatingOut, setIsAnimatingOut] = useState(false);
 
+  useEffect(() => {
+    if (isVisible) {
+      setIsAnimatingOut(false);
+    }
+  }, [isVisible]);
+
   const handleDismiss = () => {
     setIsAnimatingOut(true);
     setTimeout(onDismiss, 300);
@@ -27,23 +33,19 @@ const TopUpdateToast: React.FC<TopUpdateToastProps> = ({
   if (!isVisible && !isAnimatingOut) return null;
 
   return (
-    <>
-      {/* Backdrop overlay for important notifications */}
-      <div className={`
-        fixed inset-0 bg-black/10 backdrop-blur-sm transition-opacity duration-300 update-notification
-        ${isVisible && !isAnimatingOut ? 'opacity-100' : 'opacity-0'}
-      `} style={{ zIndex: 10000 }} />
-      
-      {/* Toast notification - Properly centered with responsive width */}
-      <div className={`
-        fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 update-notification
-        w-[calc(100vw-32px)] max-w-sm max-h-[90vh] overflow-y-auto
+    <div
+      className={`
+        fixed inset-x-0 top-4 z-[10001] flex justify-center px-4 pointer-events-none update-notification
         transition-all duration-300 ease-out
-        ${isVisible && !isAnimatingOut 
-          ? 'opacity-100 scale-100' 
-          : 'opacity-0 scale-95'
-        }
-      `} style={{ zIndex: 10001 }}>
+        ${isVisible && !isAnimatingOut ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-2'}
+      `}
+      aria-live="polite"
+      aria-atomic="true"
+    >
+      {/* Non-blocking toast notification */}
+      <div className={`
+        pointer-events-auto w-full max-w-sm max-h-[90vh] overflow-y-auto
+      `}>
         <div className="bg-white rounded-2xl shadow-2xl border border-gray-200 overflow-hidden">
           {/* Header with icon and close */}
           <div className="bg-gradient-to-r from-purple-500 to-teal-600 p-4 text-white relative">
@@ -102,7 +104,7 @@ const TopUpdateToast: React.FC<TopUpdateToastProps> = ({
           </div>
         </div>
       </div>
-    </>
+    </div>
   );
 };
 
