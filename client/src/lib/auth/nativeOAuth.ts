@@ -14,6 +14,12 @@ import { setNativeAuthInFlight } from '@/lib/auth/nativeAuthState';
 let isProcessingCallback = false;
 let lastHandledUrl: string | null = null;
 
+export function resetNativeOAuthState() {
+  isProcessingCallback = false;
+  lastHandledUrl = null;
+  setNativeAuthInFlight(false);
+}
+
 export async function exchangeFromDeepLink(callbackUrl: string) {
   let u: URL;
   try {
@@ -96,17 +102,18 @@ export async function handleNativeAuthCallback(url: string): Promise<boolean> {
       let code: string | null = null;
       let state: string | null = null;
       let next: string | null = null;
+      let parsedUrl: URL | null = null;
 
       try {
         // Deep link format: fanclubz://auth/callback?code=xxx&state=yyy
-        const urlObj = new URL(url.replace('fanclubz://', 'https://'));
-        code = urlObj.searchParams.get('code');
-        state = urlObj.searchParams.get('state');
-        next = urlObj.searchParams.get('next');
+        parsedUrl = new URL(url.replace('fanclubz://', 'https://'));
+        code = parsedUrl.searchParams.get('code');
+        state = parsedUrl.searchParams.get('state');
+        next = parsedUrl.searchParams.get('next');
 
         // Some providers return values in the hash fragment
-        if (!code && urlObj.hash) {
-          const hashParams = new URLSearchParams(urlObj.hash.replace(/^#/, ''));
+        if (!code && parsedUrl.hash) {
+          const hashParams = new URLSearchParams(parsedUrl.hash.replace(/^#/, ''));
           code = hashParams.get('code');
           if (!state) {
             state = hashParams.get('state');
@@ -129,8 +136,12 @@ export async function handleNativeAuthCallback(url: string): Promise<boolean> {
       }
 
       // Handle email confirmation token_hash (Supabase sends this for email signup confirmation)
-      const tokenHash = urlObj.searchParams.get('token_hash');
-      const type = urlObj.searchParams.get('type');
+      if (!parsedUrl) {
+        isProcessingCallback = false;
+        return false;
+      }
+      const tokenHash = parsedUrl.searchParams.get('token_hash');
+      const type = parsedUrl.searchParams.get('type');
       if (tokenHash && type) {
         try {
           if (import.meta.env.DEV) {
