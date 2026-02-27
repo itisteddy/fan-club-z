@@ -34,15 +34,24 @@ const AuthCallback: React.FC = () => {
         // Parse URL params
         const searchParams = new URLSearchParams(window.location.search);
         const hash = window.location.hash || '';
+        const hashParams = new URLSearchParams(hash.replace(/^#/, ''));
         const code = searchParams.get('code');
         const errorParam = searchParams.get('error');
         const errorDescription = searchParams.get('error_description');
         const hasHashAccessToken = hash.includes('access_token=');
         const hasQueryAccessToken = Boolean(searchParams.get('access_token'));
+        const tokenHash = searchParams.get('token_hash') || hashParams.get('token_hash');
+        const otpType = searchParams.get('type') || hashParams.get('type');
         const isOAuthFlow = Boolean(code);
         const isMagicLinkFlow = hasHashAccessToken || hasQueryAccessToken;
+        const isOtpConfirmationFlow = Boolean(tokenHash && otpType);
 
-        console.log('[auth:cb] mounted', { hasCode: Boolean(code), hasError: Boolean(errorParam) });
+        console.log('[auth:cb] mounted', {
+          hasCode: Boolean(code),
+          hasError: Boolean(errorParam),
+          hasTokenHash: Boolean(tokenHash),
+          otpType: otpType || null,
+        });
 
         // Handle error case
         if (errorParam) {
@@ -55,7 +64,7 @@ const AuthCallback: React.FC = () => {
         }
 
         // If no code and no access_token, show error (e.g. stale link or wrong redirect)
-        if (!isOAuthFlow && !isMagicLinkFlow) {
+        if (!isOAuthFlow && !isMagicLinkFlow && !isOtpConfirmationFlow) {
           console.error('[auth:cb] No auth code or token in URL');
           setError('This sign-in link is invalid or has expired. Please request a new link from the sign-in screen.');
           return;
@@ -95,6 +104,23 @@ const AuthCallback: React.FC = () => {
             console.error('[auth:cb] Magic-link error:', urlException);
             throw urlException;
           }
+        }
+
+        // Email confirmation / signup verify flow (token_hash + type)
+        if (isOtpConfirmationFlow && tokenHash && otpType && !isOAuthFlow && !isMagicLinkFlow) {
+          console.log('[auth:cb] Processing token_hash confirmation flow');
+          const { data: verifyData, error: verifyError } = await supabase.auth.verifyOtp({
+            token_hash: tokenHash,
+            type: otpType as any,
+          });
+          if (verifyError) {
+            console.error('[auth:cb] verifyOtp error:', verifyError);
+            throw verifyError;
+          }
+          if (!verifyData?.session) {
+            throw new Error('Email confirmation succeeded but no session was created.');
+          }
+          window.history.replaceState({}, '', window.location.pathname);
         }
 
         // For OAuth flows: exchange code for session using CODE ONLY (PKCE)

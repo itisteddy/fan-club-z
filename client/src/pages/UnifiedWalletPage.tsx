@@ -244,6 +244,7 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
 
   const [showFiatDeposit, setShowFiatDeposit] = useState(false);
   const [showFiatWithdraw, setShowFiatWithdraw] = useState(false);
+  const [showDepositInfo, setShowDepositInfo] = useState(false);
   const [showCreatorTransfer, setShowCreatorTransfer] = useState(false);
   const [showCreatorHistory, setShowCreatorHistory] = useState(false);
   const [creatorTransferAmount, setCreatorTransferAmount] = useState('');
@@ -294,6 +295,15 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
   const handleDeposit = () => {
     if (isFiatMode) {
       setShowFiatDeposit(true);
+      return;
+    }
+    // App completeness: CTA must always produce visible feedback.
+    if (!effectiveCryptoEnabled) {
+      if (effectiveFiatEnabled) {
+        setShowFiatDeposit(true);
+      } else {
+        setShowDepositInfo(true);
+      }
       return;
     }
     if (!isConnected) {
@@ -996,6 +1006,28 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
                 })}
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {showDepositInfo && (
+        <div className="fixed inset-0 z-modal flex items-end md:items-center justify-center">
+          <button
+            className="absolute inset-0 bg-black/60"
+            onClick={() => setShowDepositInfo(false)}
+            aria-label="Close deposit info"
+          />
+          <div className="relative w-full max-w-md rounded-t-2xl md:rounded-2xl bg-white p-5 shadow-2xl mb-[calc(72px+env(safe-area-inset-bottom,0px))]">
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">Deposit unavailable here</h3>
+            <p className="text-sm text-gray-600 mb-4">
+              Deposits are unavailable in this app context right now. Use a supported funding mode or open Fan Club Z on web.
+            </p>
+            <button
+              onClick={() => setShowDepositInfo(false)}
+              className="w-full px-4 py-3 rounded-xl bg-emerald-600 text-white font-medium hover:bg-emerald-700"
+            >
+              Got it
+            </button>
           </div>
         </div>
       )}
