@@ -3,6 +3,8 @@ import { useSupabase } from './SupabaseProvider';
 import { User, Session, AuthChangeEvent } from '@supabase/supabase-js';
 import { captureReturnTo } from '../lib/returnTo';
 import { auth as authHelpers, buildAuthRedirectUrl } from '@/lib/supabase';
+import { resetNativeOAuthState } from '@/lib/auth/nativeOAuth';
+import { resetBrowserContextCache } from '@/lib/browserContext';
 
 interface AuthSessionContextType {
   user: User | null;
@@ -160,7 +162,9 @@ export const AuthSessionProvider: React.FC<AuthSessionProviderProps> = ({ childr
 
   const signOut = async () => {
     try {
-      const { error } = await supabase.auth.signOut();
+      resetNativeOAuthState();
+      resetBrowserContextCache();
+      const { error } = await authHelpers.signOut();
       return { error };
     } catch (error: any) {
       return { error: { message: error.message || 'An unexpected error occurred' } };

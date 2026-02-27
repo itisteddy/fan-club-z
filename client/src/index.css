@@ -29,7 +29,8 @@
 
 /* High z-index for app modals/sheets above tab bar */
 .z-modal {
-  z-index: 80; /* above tab bar but below any global toasts if needed */
+  z-index: 9200; /* keep wallet/connect sheets above app shell + nav layers */
+  pointer-events: auto;
 }
 
 /* Safe bottom padding utility */

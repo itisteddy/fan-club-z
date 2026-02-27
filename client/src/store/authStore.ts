@@ -1,11 +1,11 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { supabase, auth, clientDb } from '../lib/supabase';
-import { apiClient } from '@/lib/apiClient';
 import toast from 'react-hot-toast';
 import { showSuccess, showError } from './notificationStore';
 import { captureReturnTo } from '@/lib/returnTo';
-import { validateContent } from '@/lib/textFilter';
+import { resetNativeOAuthState } from '@/lib/auth/nativeOAuth';
+import { resetBrowserContextCache } from '@/lib/browserContext';
 
 interface User {
   id: string;
@@ -176,25 +176,8 @@ export const useAuthStore = create<AuthState>()(
           return;
         }
 
-        // If we have valid persisted data and it's recent, still refresh extended profile to get latest name/badge
+        // If we have valid persisted data and it's recent, use it
         if (state.isAuthenticated && state.user && state.token && (now - state.lastAuthCheck < 300000)) { // 5 minutes
-          // Refresh extended profile in background to get latest full_name/avatar/og_badge
-          fetchExtendedProfile(state.user.id).then(extended => {
-            const currentUser = get().user;
-            if (!extended || !currentUser) return;
-            const hasChanges =
-              extended.full_name !== currentUser.full_name ||
-              extended.og_badge !== currentUser.og_badge ||
-              extended.avatar_url !== currentUser.avatar_url ||
-              extended.username !== currentUser.username;
-            if (hasChanges) {
-              set({
-                user: { ...currentUser, ...extended },
-                lastAuthCheck: now,
-              });
-            }
-          }).catch(() => {});
-          
           set({ 
             loading: false, 
             initialized: true,
@@ -449,6 +432,8 @@ export const useAuthStore = create<AuthState>()(
         set({ loading: true });
         
         try {
+          resetNativeOAuthState();
+          resetBrowserContextCache();
           const { error } = await auth.signOut();
           
           if (error) {
@@ -488,29 +473,10 @@ export const useAuthStore = create<AuthState>()(
             throw new Error('No user logged in');
           }
 
-          const validation = validateContent([
-            { label: 'first name', value: profileData.firstName || currentUser.firstName },
-            { label: 'last name', value: profileData.lastName || currentUser.lastName },
-            { label: 'bio', value: profileData.bio !== undefined ? profileData.bio : currentUser.bio },
-          ]);
-          if (!validation.ok) {
-            throw new Error(`Objectionable content detected in ${validation.field}`);
-          }
-
-          // Compute the full name BEFORE updating auth
-          const newFirstName = profileData.firstName || currentUser.firstName;
-          const newLastName = profileData.lastName || currentUser.lastName;
-          const computedFullName = `${newFirstName} ${newLastName}`.trim();
-          
-          console.log('[authStore:updateProfile] Updating profile:', { newFirstName, newLastName, computedFullName });
-
           const { data, error } = await supabase.auth.updateUser({
             data: {
-              firstName: newFirstName,
-              lastName: newLastName,
-              first_name: newFirstName,
-              last_name: newLastName,
-              full_name: computedFullName,
+              firstName: profileData.firstName || currentUser.firstName,
+              lastName: profileData.lastName || currentUser.lastName,
               bio: profileData.bio !== undefined ? profileData.bio : currentUser.bio
             }
           });
@@ -520,49 +486,32 @@ export const useAuthStore = create<AuthState>()(
           }
 
           if (data?.user) {
-            console.log('[authStore:updateProfile] Auth user updated successfully');
-            
-            // Step 1: Mirror name changes into the public users table FIRST
-            // This ensures the users table has the correct name before we fetch it
-            let mirrorSuccess = false;
-            try {
-              console.log('[authStore:updateProfile] Mirroring to users table:', computedFullName);
-              const mirrorRes = await apiClient.patch(`/users/${data.user.id}/profile`, {
-                full_name: computedFullName,
-              });
-              console.log('[authStore:updateProfile] Mirror response:', mirrorRes);
-              mirrorSuccess = true;
-            } catch (mirrorError: any) {
-              console.warn('[authStore:updateProfile] Failed to mirror profile name to users table:', mirrorError?.message || mirrorError);
-            }
-
-            // Step 2: Fetch extended profile AFTER mirroring
-            // This ensures we get other fields (badges, etc.) from the users table
-            let extendedProfile = await fetchExtendedProfile(data.user.id);
-            console.log('[authStore:updateProfile] Extended profile fetched:', extendedProfile);
-            
-            // Step 3: ALWAYS override full_name with the computed value since user just updated it
-            // The PATCH might have failed, so we can't rely on the extended profile having the new name
-            extendedProfile = { ...extendedProfile, full_name: computedFullName };
-            console.log('[authStore:updateProfile] Overriding full_name to:', computedFullName);
-
-            // Step 4: Convert and set the user with ALL the latest data
+            // Fetch extended profile to preserve OG badge data
+            const extendedProfile = await fetchExtendedProfile(data.user.id);
             const updatedUser = convertSupabaseUser(data.user, extendedProfile);
-            
-            // Step 5: Ensure the full_name is definitely correct (belt and suspenders)
-            if (updatedUser) {
-              updatedUser.full_name = computedFullName;
-              updatedUser.firstName = newFirstName;
-              updatedUser.lastName = newLastName;
-            }
 
-            console.log('[authStore:updateProfile] Final user state:', {
-              id: updatedUser?.id,
-              firstName: updatedUser?.firstName,
-              lastName: updatedUser?.lastName,
-              full_name: updatedUser?.full_name,
-              username: updatedUser?.username,
-            });
+            // Mirror name changes into the public users table via backend API
+            // (uses service role key to bypass RLS)
+            try {
+              const fullName = `${updatedUser?.firstName || ''} ${updatedUser?.lastName || ''}`.trim();
+              if (fullName) {
+                const { getApiUrl } = await import('@/config');
+                const apiUrl = getApiUrl();
+                const response = await fetch(`${apiUrl}/api/v2/users/${data.user.id}/profile`, {
+                  method: 'PATCH',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ full_name: fullName }),
+                });
+                if (!response.ok) {
+                  const errData = await response.json().catch(() => ({}));
+                  console.warn('Failed to mirror profile name to users table:', errData);
+                } else {
+                  console.log('✅ Profile name mirrored to users table via API:', fullName);
+                }
+              }
+            } catch (mirrorError) {
+              console.warn('Failed to mirror profile name to users table:', mirrorError);
+            }
 
             set({ 
               user: updatedUser,
@@ -592,36 +541,32 @@ export const useAuthStore = create<AuthState>()(
         if (!state.user) throw new Error('No user logged in');
         const userId = state.user.id;
 
-        // Upload via backend (service-role) to avoid client-side Storage policy failures (400 Bad Request)
-        const { data: sessionData } = await supabase.auth.getSession();
-        const accessToken = sessionData?.session?.access_token || '';
-        if (!accessToken) throw new Error('Missing session token');
+        const ext = file.name.split('.').pop()?.toLowerCase() || 'jpg';
+        // Path must NOT include the bucket name; the SDK prefixes it.
+        const path = `${userId}/${Date.now()}.${ext}`;
 
-        const { getApiUrl } = await import('@/config');
-        const apiUrl = getApiUrl();
+        // 1) Upload to storage (public bucket configured: avatars)
+        const { data: uploadData, error: uploadError } = await supabase.storage
+          .from('avatars')
+          .upload(path, file, { cacheControl: '3600', upsert: true, contentType: file.type });
 
-        const form = new FormData();
-        form.append('file', file);
-
-        const uploadRes = await fetch(`${apiUrl}/api/v2/uploads/avatar`, {
-          method: 'POST',
-          headers: { Authorization: `Bearer ${accessToken}` },
-          body: form,
-        });
-
-        if (!uploadRes.ok) {
-          const errData = await uploadRes.json().catch(() => ({}));
-          const msg = String(errData?.message || 'Failed to upload image. Please try again.');
-          showError(msg);
-          throw new Error(msg);
+        if (uploadError) {
+          const raw = uploadError.message || '';
+          const lower = raw.toLowerCase();
+          
+          if (lower.includes('file size') || lower.includes('too large') || lower.includes('maximum allowed size')) {
+            showError('Image is too large. Please choose a file under 10 MB.');
+          } else if (lower.includes('mime') || lower.includes('content-type') || lower.includes('invalid file type')) {
+            showError('Invalid image type. Please upload a JPG, PNG, or GIF image.');
+          } else {
+            showError('Failed to upload image. Please try again.');
+          }
+          throw uploadError;
         }
 
-        const uploadJson = await uploadRes.json().catch(() => ({}));
-        const publicUrl = uploadJson?.data?.publicUrl as string | undefined;
-        if (!publicUrl) {
-          showError('Upload succeeded but URL was not returned. Please try again.');
-          throw new Error('Missing publicUrl from upload');
-        }
+        // 2) Get public URL
+        const { data: publicUrlData } = supabase.storage.from('avatars').getPublicUrl(uploadData.path);
+        const publicUrl = publicUrlData.publicUrl;
 
         // 3) Save to auth user metadata
         const { data: authUpdate, error: authErr } = await supabase.auth.updateUser({ data: { avatar_url: publicUrl } });
@@ -630,19 +575,8 @@ export const useAuthStore = create<AuthState>()(
           throw authErr;
         }
 
-        // 4) Mirror to public users table via backend API (avoids RLS/policy surprises)
-        try {
-          await fetch(`${apiUrl}/api/v2/users/${userId}/profile`, {
-            method: 'PATCH',
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${accessToken}`,
-            },
-            body: JSON.stringify({ avatar_url: publicUrl }),
-          });
-        } catch {
-          // Non-fatal: auth metadata already updated
-        }
+        // 4) Mirror to public users table for fast reads
+        await clientDb.users.updateProfile(userId, { avatar_url: publicUrl });
 
         // 5) Update local state - preserve OG badge data
         const extendedProfile = await fetchExtendedProfile(userId);

@@ -1,23 +1,18 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-import { Browser } from '@capacitor/browser';
 import { Capacitor } from '@capacitor/core';
+import { App as CapacitorApp } from '@capacitor/app';
+import { Browser } from '@capacitor/browser';
+import type { PluginListenerHandle } from '@capacitor/core';
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from '@/utils/environment';
 import { captureReturnTo } from '@/lib/returnTo';
-import { shouldUseIOSDeepLinks, isIOSRuntime } from '@/config/platform';
-import { BUILD_TARGET, isWebBuild } from '@/config/buildTarget';
-import { getWebOrigin } from '@/config/origin';
-import { getNativeRedirectTo, IOS_REDIRECT, isNativeAndroidRuntime, isNativeIOSRuntime } from '@/config/native';
-import { setNativeAuthInFlight } from '@/lib/auth/nativeAuthState';
 
 // Environment variables from centralized config
 const supabaseUrl = SUPABASE_URL;
 const supabaseAnonKey = SUPABASE_ANON_KEY;
 
-if (import.meta.env.DEV) {
-  console.log('🔧 Supabase Config Check:');
-  console.log('URL:', supabaseUrl ? '✅ Present' : '❌ Missing');
-  console.log('Anon Key:', supabaseAnonKey ? '✅ Present' : '❌ Missing');
-}
+console.log('🔧 Supabase Config Check:');
+console.log('URL:', supabaseUrl ? '✅ Present' : '❌ Missing');
+console.log('Anon Key:', supabaseAnonKey ? '✅ Present' : '❌ Missing');
 
 if (!supabaseUrl || !supabaseAnonKey) {
   const missingVars = [];
@@ -32,9 +27,36 @@ if (!supabaseUrl || !supabaseAnonKey) {
   );
 }
 
+const isNativePlatform = () => {
+  try {
+    if (typeof window !== 'undefined' && sessionStorage.getItem('fcz.native.runtime') === '1') {
+      return true;
+    }
+  } catch {}
+  if (typeof window === 'undefined') return false;
+  try {
+    if (Capacitor?.isNativePlatform?.()) {
+      try { sessionStorage.setItem('fcz.native.runtime', '1'); } catch {}
+      return true;
+    }
+    const platform = Capacitor?.getPlatform?.();
+    if (platform === 'android' || platform === 'ios') {
+      try { sessionStorage.setItem('fcz.native.runtime', '1'); } catch {}
+      return true;
+    }
+  } catch {
+    // ignore and fall through to build-target fallback
+  }
+  const buildTarget = import.meta.env.VITE_BUILD_TARGET;
+  const isNativeTarget = buildTarget === 'android' || buildTarget === 'ios';
+  if (isNativeTarget) {
+    try { sessionStorage.setItem('fcz.native.runtime', '1'); } catch {}
+  }
+  return isNativeTarget;
+};
+
 // Helper to get the proper redirect URL for any environment
-// CRITICAL: Deep links require BOTH build target AND native runtime
-// This fail-safe prevents iOS builds deployed to web from breaking production
+// Uses HTTPS redirects for all platforms (Web OAuth client supports both web and native)
 function getRedirectUrl(next?: string) {
   const appendNext = (base: string) => {
     if (!next) return base;
@@ -42,34 +64,77 @@ function getRedirectUrl(next?: string) {
     return `${base}${separator}next=${encodeURIComponent(next)}`;
   };
 
-  // Use platform utility with fail-safe guard
-  const useDeepLinks = shouldUseIOSDeepLinks();
+  // Check for explicit dev/local environment first
+  const isLocalDev = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
   
-  // Log for debugging (minimal, one-line assertion)
+  // In local development, always use current origin
+  if (isLocalDev) {
+    const currentOrigin = window.location.origin;
+    const fallback = `${currentOrigin}/auth/callback`;
+    if (import.meta.env.DEV) {
+      console.log('🔧 Auth redirect URL (local dev):', fallback);
+    }
+    return appendNext(fallback);
+  }
+  
+  // Check if we have a custom redirect URL override (highest priority)
+  if (import.meta.env.VITE_AUTH_REDIRECT_URL) {
+    if (import.meta.env.DEV) {
+      console.log('🔧 Auth redirect URL (override):', import.meta.env.VITE_AUTH_REDIRECT_URL);
+    }
+    return appendNext(import.meta.env.VITE_AUTH_REDIRECT_URL);
+  }
+  
+  // In production, always use the production URL (never localhost)
+  const prodUrl = 'https://app.fanclubz.app/auth/callback';
   if (import.meta.env.DEV) {
-    console.log('[auth] redirectTo', { BUILD_TARGET, isNativeRuntime: isIOSRuntime(), redirectUrl: useDeepLinks ? 'fanclubz://auth/callback' : `${getWebOrigin()}/auth/callback` });
+    console.log('🔧 Auth redirect URL (production):', prodUrl);
   }
-
-  // CRITICAL: Only use deep links when BOTH build target is iOS AND runtime is native iOS
-  if (useDeepLinks) {
-    const deepLinkUrl = 'fanclubz://auth/callback';
-    console.log('🔧 Auth redirect URL (iOS deep link):', deepLinkUrl);
-    return appendNext(deepLinkUrl);
-  }
-
-  // Web: use canonical web origin (window.location.origin when available)
-  // CRITICAL: When isNativeRuntime === false, redirect MUST be HTTPS callback
-  const webOrigin = getWebOrigin();
-  const webCallbackUrl = `${webOrigin}/auth/callback`;
-  
-  if (import.meta.env.DEV) {
-    console.log('[auth:web] starting oauth', { redirectTo: webCallbackUrl, next, origin: webOrigin });
-  }
-  
-  return appendNext(webCallbackUrl);
+  return appendNext(prodUrl);
 }
 
 export const buildAuthRedirectUrl = (next?: string) => getRedirectUrl(next);
+
+let nativeAuthListener: Promise<PluginListenerHandle> | null = null;
+
+const ensureNativeAuthListener = () => {
+  if (!isNativePlatform() || nativeAuthListener) return;
+
+  nativeAuthListener = CapacitorApp.addListener('appUrlOpen', async ({ url }) => {
+    try {
+      if (!url) {
+        return;
+      }
+
+      // Native deep-link callback handler (fanclubz://auth/callback?...).
+      // Use dynamic import to avoid circular init issues.
+      try {
+        const { handleNativeAuthCallback } = await import('@/lib/auth/nativeOAuth');
+        const handled = await handleNativeAuthCallback(url);
+        if (handled) {
+          await Browser.close().catch(() => undefined);
+          return;
+        }
+      } catch (nativeCallbackError) {
+        console.warn('Native OAuth callback handler failed:', nativeCallbackError);
+      }
+
+      // HTTPS callback fallback (universal links / localhost dev callbacks).
+      if (!url.includes('app.fanclubz.app/auth/callback') && !url.includes('localhost') && !url.includes('127.0.0.1')) {
+        return;
+      }
+
+      console.log('🔐 Native auth HTTPS callback received:', url);
+
+      await Browser.close().catch(() => undefined);
+
+      // Supabase will automatically handle the session from the URL
+      // The AuthCallback route component will process it
+    } catch (err) {
+      console.error('❌ Native auth listener exception:', err);
+    }
+  });
+};
 
 const getAuthStorage = () => {
   if (typeof window === 'undefined') return undefined;
@@ -81,14 +146,11 @@ const getAuthStorage = () => {
   }
 };
 
-// Phase 3: Session persistence hardening
-// detectSessionInUrl: false for native builds (we handle deep links manually)
-// detectSessionInUrl: true for web (standard redirect flow)
 const supabaseOptions: any = {
   auth: {
     autoRefreshToken: true,
     persistSession: true,
-    detectSessionInUrl: isWebBuild, // Phase 3: Only detect in URL for web
+    detectSessionInUrl: true,
     flowType: 'pkce',
   },
   db: {
@@ -194,45 +256,29 @@ export const auth = {
   },
 
       signInWithOAuth: async (provider: OAuthProvider, options?: { next?: string }) => {
-        // Use platform utility with fail-safe guard
-        const useIOSDeepLinks = shouldUseIOSDeepLinks();
-        const iosRuntime = isIOSRuntime();
-        // IMPORTANT: For iOS auth routing, trust runtime detection over BUILD_TARGET/env.
-        const isIOSNative = isNativeIOSRuntime();
-        const isAndroidNative = isNativeAndroidRuntime();
-        const isNativeMobile = isIOSNative || isAndroidNative;
+        const native = isNativePlatform();
+        if (native) {
+          ensureNativeAuthListener();
+        }
 
         try {
-          if (import.meta.env.DEV && iosRuntime) {
-            console.log('═══════════════════════════════════════');
-            console.log('[OAuth] 🔐 OAUTH SIGN IN STARTED');
-            console.log('[OAuth] Provider:', provider);
-            console.log('[OAuth] Next param:', options?.next);
-            console.log('═══════════════════════════════════════');
-          }
+          console.log('═══════════════════════════════════════');
+          console.log('🔐 OAUTH SIGN IN STARTED');
+          console.log('  Provider:', provider);
+          console.log('  Next param:', options?.next);
+          console.log('  Current hostname:', window.location.hostname);
+          console.log('  Current origin:', window.location.origin);
+          console.log('═══════════════════════════════════════');
           
-          // Redirect selection:
-          // - Native iOS/Android runtime: ALWAYS use deep link (runtime is authoritative)
-          // - Web: existing behavior (HTTPS /auth/callback)
-          const redirectUrl = isNativeMobile ? getNativeRedirectTo() : getRedirectUrl(options?.next);
-          
-          if (import.meta.env.DEV && iosRuntime) {
-            console.log('[OAuth] Final OAuth redirect URL:', redirectUrl);
-            console.log('[OAuth] Using deep links:', useIOSDeepLinks);
-            console.log('═══════════════════════════════════════');
-          }
+          const redirectUrl = getRedirectUrl(options?.next);
+          console.log('🔐 Final OAuth redirect URL:', redirectUrl);
+          console.log('═══════════════════════════════════════');
 
-          // Emit auth started event for overlay (native only)
-          if (Capacitor.isNativePlatform()) {
-            window.dispatchEvent(new CustomEvent('auth-in-progress', { detail: { started: true } }));
-          }
-
-          // Native: MUST open Supabase-provided OAuth URL (do not reconstruct)
-          const { data, error } = await supabase.auth.signInWithOAuth({
+          const { data, error} = await supabase.auth.signInWithOAuth({
             provider,
             options: {
               redirectTo: redirectUrl,
-              skipBrowserRedirect: isNativeMobile === true, // native opens data.url manually; web redirects normally
+              skipBrowserRedirect: native,
               queryParams: {
                 access_type: 'offline',
                 prompt: 'consent',
@@ -241,43 +287,34 @@ export const auth = {
           });
           
           if (error) {
-            console.error('[OAuth] Auth signInWithOAuth error:', error);
-            if (iosRuntime) {
-              window.dispatchEvent(new CustomEvent('auth-in-progress', { detail: { started: false, error: true } }));
-            }
-            return { data: null, error };
+            console.error('Auth signInWithOAuth error:', error);
+          } else if (native && data?.url) {
+            await Browser.open({
+              url: data.url,
+              presentationStyle: 'fullscreen',
+            });
           }
-
-          if (isNativeMobile && data?.url) {
-            if (import.meta.env.DEV) {
-              // Prove Supabase is using the deep link (no sensitive params)
-              const u = new URL(data.url);
-              console.log('[auth][native] authorize host:', u.host);
-              const redirectToParam = u.searchParams.get('redirect_to');
-              console.log('[auth][native] authorize redirect_to:', redirectToParam);
-              if (redirectToParam !== IOS_REDIRECT) {
-                throw new Error(`[auth][native] redirect_to mismatch: ${redirectToParam}`);
-              }
-            }
-            // Mark auth as in-flight so bootstrap can force-close any lingering sheet
-            setNativeAuthInFlight(true);
-            await Browser.open({ url: data.url, presentationStyle: 'fullscreen' });
-            return { data: null, error: null };
-          }
-
-          return { data, error: null };
+          
+          return { data, error };
         } catch (error: any) {
-          console.error('[OAuth] Auth signInWithOAuth exception:', error);
-          if (iosRuntime) {
-            window.dispatchEvent(new CustomEvent('auth-in-progress', { detail: { started: false, error: true } }));
-          }
+          console.error('Auth signInWithOAuth exception:', error);
           return { data: null, error: { message: error.message || 'An unexpected error occurred' } };
         }
       },
 
   signOut: async () => {
     try {
+      // Reset native OAuth callback guard flags before sign-out.
+      // If not reset, subsequent native login can be blocked as "already processing".
+      try {
+        const { resetNativeOAuthState } = await import('@/lib/auth/nativeOAuth');
+        resetNativeOAuthState();
+      } catch {}
+
       const { error } = await supabase.auth.signOut();
+      if (isNativePlatform()) {
+        await Browser.close().catch(() => undefined);
+      }
       
       if (error) {
         console.error('Auth signOut error:', error);
@@ -526,8 +563,9 @@ export const clientDb = {
   },
 };
 
-// Phase 3: Native auth listener is registered at bootstrap in main.tsx
-// No need to register here to prevent duplicates
+if (isNativePlatform()) {
+  ensureNativeAuthListener();
+}
 
 // Real-time subscriptions
 export const realtime = {

@@ -2,7 +2,8 @@ import { createConfig, http, createStorage } from 'wagmi';
 import { baseSepolia } from 'wagmi/chains';
 import { walletConnect, injected, coinbaseWallet } from 'wagmi/connectors';
 import { Capacitor } from '@capacitor/core';
-import { isCryptoEnabledForClient } from '@/lib/cryptoFeatureFlags';
+import { getWalletConnectProjectId, getWalletConnectProjectIdSource } from '@/lib/wallet/walletConfig';
+import { getPublicAppBaseUrl } from '@/lib/urls';
 
 /**
  * Clean up stale WalletConnect sessions from localStorage
@@ -113,8 +114,7 @@ export function isWalletConnectSessionError(error: unknown): boolean {
   return sessionPatterns.some(pattern => errorMsg.includes(pattern));
 }
 
-// Get project ID from environment (no fallback - require a real ID)
-const projectId = import.meta.env.VITE_WALLETCONNECT_PROJECT_ID as string | undefined;
+const projectId = getWalletConnectProjectId();
 
 type ConnectorReturn =
   | ReturnType<typeof injected>
@@ -130,47 +130,31 @@ const connectors: ConnectorReturn[] = [
   }),
 ];
 
-// Only add WalletConnect if:
-// 1. Project ID is valid
-// 2. Crypto wallet is enabled (env) AND client is allowed (web-only for testnet)
+// Only add WalletConnect if project ID is valid
 // Note: Domain must be whitelisted at https://cloud.reown.com
-const cryptoWalletEnabled =
-  isCryptoEnabledForClient() &&
-  (import.meta.env.VITE_ENABLE_CRYPTO_WALLET === '1' ||
-    import.meta.env.VITE_ENABLE_CRYPTO_WALLET === 'true' ||
-    import.meta.env.VITE_STORE_SAFE_MODE !== 'true');
-
-if (projectId && projectId.length >= 8 && cryptoWalletEnabled) {
+if (projectId && projectId.length >= 8) {
   try {
-    const metadataUrl = typeof window !== 'undefined'
-      ? (Capacitor?.isNativePlatform?.() ? 'https://app.fanclubz.app' : window.location.origin)
-      : 'https://app.fanclubz.app';
+    // Keep WalletConnect metadata stable across web/native builds.
+    // Using preview/localhost origins here causes flaky return/session behavior on mobile wallets.
+    const metadataUrl = getPublicAppBaseUrl();
 
     connectors.push(
       walletConnect({
         projectId,
-        // CRITICAL: Disable WC's built-in modal. We own the entire connect UI
-        // via ConnectWalletSheet + connectOrchestrator. Having showQrModal: true
-        // creates a dual-modal fight that causes:
-        //   - "modal doesn't appear" (WC modal steals focus)
-        //   - "requires multiple attempts" (two modals racing)
-        //   - "Open is disabled" (WC modal's CTA conflicts with our deep link)
+        // We render our own connection UI/state machine in ConnectWalletSheet.
+        // This avoids dead/stuck third-party modal states on mobile webviews.
         showQrModal: false,
         metadata: {
           name: 'Fan Club Z',
           description: 'Prediction Platform',
           url: metadataUrl,
-          icons: ['https://app.fanclubz.app/icons/icon-192.png'],
+          icons: [`${metadataUrl}/icons/icon-192.png`],
         },
       })
     );
   } catch (error) {
     console.warn('[Wagmi] Failed to initialize WalletConnect connector:', error);
     // Continue without WalletConnect - injected connector will still work
-  }
-} else if (projectId && projectId.length >= 8 && !cryptoWalletEnabled) {
-  if (import.meta.env.DEV) {
-    console.log('[Wagmi] WalletConnect disabled: crypto wallet not enabled (VITE_ENABLE_CRYPTO_WALLET or store-safe mode)');
   }
 }
 
@@ -182,6 +166,10 @@ if (import.meta.env.VITE_ENABLE_COINBASE_CONNECTOR === '1') {
   }) as ReturnType<typeof coinbaseWallet>;
 
   connectors.push(coinbaseConnector);
+}
+
+if (import.meta.env.DEV) {
+  console.log('[Wagmi] WalletConnect projectId source:', getWalletConnectProjectIdSource());
 }
 
 // Multiple RPC endpoints for fallback - used by onchainTransactionService

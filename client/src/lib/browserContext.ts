@@ -46,7 +46,84 @@ export interface BrowserContextInfo {
 
 // ─── Detection Helpers ───────────────────────────────────────────────────────
 
+import { Capacitor } from '@capacitor/core';
+
 const ua = () => (typeof navigator !== 'undefined' ? navigator.userAgent || '' : '');
+const NATIVE_RUNTIME_CACHE_KEY = 'fcz.native.runtime';
+
+/**
+ * Is this running inside the Capacitor native shell (our own app)?
+ * The native WebView has `; wv)` in the UA on Android, which would
+ * otherwise be misclassified as a social/generic in-app browser.
+ * Our own app's WebView is NOT an "in-app browser" — Google OAuth
+ * works fine via Capacitor's in-app browser plugin, and we want
+ * the full feature set.
+ *
+ * CRITICAL: On Android native, after logout + page transitions, the
+ * Capacitor JS bridge may not have fully initialized yet when this is
+ * called early in the render cycle. We use MULTIPLE detection signals:
+ * 1. Capacitor.isNativePlatform() — authoritative but may lag on cold start
+ * 2. Build target env var — static, always available (STRONGEST signal)
+ * 3. UA heuristic — Android WebView has `; wv)` in UA
+ * If ANY signal indicates native, we treat it as native.
+ *
+ * FIX (2026-02-11): After logout on Android native, the Capacitor bridge
+ * can lag, causing the app to be misclassified as an in-app browser.
+ * The build target env var is now treated as AUTHORITATIVE for Android
+ * since it's set at compile time and never changes — if the bundle was
+ * compiled for Android, it IS running in the Android native shell.
+ */
+function isNativeCapacitorApp(): boolean {
+  try {
+    if (typeof window !== 'undefined' && sessionStorage.getItem(NATIVE_RUNTIME_CACHE_KEY) === '1') {
+      return true;
+    }
+  } catch {}
+
+  try {
+    // Primary: Capacitor runtime detection
+    if (Capacitor.isNativePlatform() === true) {
+      try { sessionStorage.setItem(NATIVE_RUNTIME_CACHE_KEY, '1'); } catch {}
+      return true;
+    }
+    // Secondary: platform detection can be ready before isNativePlatform during bridge init.
+    const platform = Capacitor.getPlatform?.();
+    if (platform === 'android' || platform === 'ios') {
+      try { sessionStorage.setItem(NATIVE_RUNTIME_CACHE_KEY, '1'); } catch {}
+      return true;
+    }
+  } catch {}
+  
+  // Fallback: Build target env var (set at compile time, always available).
+  // CRITICAL FIX: For Android builds, the build target alone is AUTHORITATIVE.
+  // Unlike iOS (where an iOS build could theoretically be served on web),
+  // Android builds are ALWAYS loaded inside the Android WebView — they cannot
+  // be accessed from a regular browser. So if VITE_BUILD_TARGET === 'android',
+  // we ARE in the native app, period. No additional UA checks needed.
+  // This fixes the post-logout race condition where Capacitor.isNativePlatform()
+  // returns false briefly during re-initialization.
+  const buildTarget = import.meta.env.VITE_BUILD_TARGET;
+  if (buildTarget === 'android') {
+    try { sessionStorage.setItem(NATIVE_RUNTIME_CACHE_KEY, '1'); } catch {}
+    return true;
+  }
+  
+  if (buildTarget === 'ios') {
+    // For iOS, do a lightweight UA check as additional confirmation
+    const agent = ua();
+    if (/AppleWebKit/i.test(agent) && !/Safari\//i.test(agent)) {
+      try { sessionStorage.setItem(NATIVE_RUNTIME_CACHE_KEY, '1'); } catch {}
+      return true;
+    }
+    // Also accept if wv marker or FanClubZ marker is present
+    if (/; wv\)/.test(agent) || /FanClubZ/i.test(agent)) {
+      try { sessionStorage.setItem(NATIVE_RUNTIME_CACHE_KEY, '1'); } catch {}
+      return true;
+    }
+  }
+  
+  return false;
+}
 
 /** Check for injected Ethereum provider */
 export function hasInjectedEthereum(): boolean {
@@ -154,11 +231,25 @@ let _cached: BrowserContextInfo | null = null;
  * Detect the full browser context. Result is cached for the page lifetime
  * since UA and injected providers don't change mid-session.
  *
+ * IMPORTANT: On Capacitor native apps, the cache may be populated before
+ * Capacitor is fully ready. We re-check once if the initial detection
+ * classified our own native app as an in-app browser.
+ *
  * Call `resetBrowserContextCache()` in tests.
  */
 export function getBrowserContext(): BrowserContextInfo {
-  if (_cached) return _cached;
+  if (_cached) {
+    // Safety: If we cached as social_inapp but Capacitor is now reporting native,
+    // our initial detection ran before Capacitor was ready. Re-detect.
+    if (_cached.context !== 'system_browser' && isNativeCapacitorApp()) {
+      console.log('[BrowserContext] Re-detecting: was classified as', _cached.context, 'but Capacitor now reports native');
+      _cached = null; // fall through to re-detect
+    } else {
+      return _cached;
+    }
+  }
 
+  const isNativeApp = isNativeCapacitorApp();
   const wallet = detectWalletInApp();
   const social = detectSocialInApp();
   const genericWebView = isGenericWebView();
@@ -169,7 +260,17 @@ export function getBrowserContext(): BrowserContextInfo {
   let context: BrowserContext;
   let inAppName: InAppBrowserName | null = null;
 
-  if (wallet) {
+  // CRITICAL: If this is our own native Capacitor app, treat it as system browser.
+  // The native WebView has `; wv)` in UA on Android which would otherwise be
+  // misclassified as an in-app browser, blocking Google OAuth and other features.
+  // Our app handles OAuth via Capacitor's in-app browser plugin, which works correctly.
+  //
+  // ALSO: On Android native, even after page reload / state change, Capacitor.isNativePlatform()
+  // remains true for the lifetime of the WebView. This is safe.
+  if (isNativeApp) {
+    context = 'system_browser';
+    inAppName = null;
+  } else if (wallet) {
     context = 'wallet_inapp';
     inAppName = wallet;
   } else if (social) {
@@ -182,8 +283,8 @@ export function getBrowserContext(): BrowserContextInfo {
     context = 'system_browser';
   }
 
-  // Google OAuth: only works in system browsers.
-  // In-app browsers get 403 disallowed_useragent from Google's servers.
+  // Google OAuth: works in system browsers AND our native app (via Capacitor in-app browser).
+  // Only blocked in third-party in-app browsers (Instagram, MetaMask, etc.).
   const googleOAuthSupported = context === 'system_browser';
 
   _cached = {
@@ -213,10 +314,33 @@ export function getBrowserContext(): BrowserContextInfo {
 /** Shorthand helpers */
 export const isInAppBrowser = () => getBrowserContext().context !== 'system_browser';
 export const isWalletBrowser = () => getBrowserContext().context === 'wallet_inapp';
-export const isGoogleOAuthSupported = () => getBrowserContext().googleOAuthSupported;
+/**
+ * Check if Google OAuth can succeed in this context.
+ *
+ * CRITICAL FIX: On Capacitor native (iOS/Android), Google OAuth ALWAYS works
+ * because we open the OAuth page in Capacitor's in-app browser plugin
+ * (Browser.open), NOT the WebView itself. The browser plugin uses the system
+ * browser (Chrome Custom Tabs on Android, SFSafariViewController on iOS),
+ * which Google allows.
+ *
+ * This short-circuit prevents false negatives from the browser context cache
+ * being populated before Capacitor is fully ready — which would misclassify
+ * our own WebView (which has `; wv)` in the UA) as a third-party in-app browser.
+ */
+export const isGoogleOAuthSupported = (): boolean => {
+  // Native Capacitor apps ALWAYS support Google OAuth via Browser plugin.
+  // Use BOTH Capacitor runtime AND build target env as fallback.
+  // This prevents false negatives when Capacitor bridge hasn't initialized
+  // yet (e.g., after logout + page reload on Android native).
+  if (isNativeCapacitorApp()) return true;
+  // Additional fallback: if build target is native, always support OAuth
+  const buildTarget = import.meta.env.VITE_BUILD_TARGET;
+  if (buildTarget === 'android' || buildTarget === 'ios') return true;
+  return getBrowserContext().googleOAuthSupported;
+};
 export const getInAppBrowserName = () => getBrowserContext().inAppName;
 
-/** Reset cache (for tests) */
+/** Reset cache (for tests or after sign-out to prevent stale context) */
 export function resetBrowserContextCache() {
   _cached = null;
 }
