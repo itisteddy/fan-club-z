@@ -279,76 +279,28 @@ const ProfilePageV2: React.FC<ProfilePageV2Props> = ({ onNavigateBack, userId })
     let cancelled = false;
     const run = async () => {
       try {
-        const unwrapProfile = (res: any) => {
-          if (res?.data?.user) return res.data;
-          if (res?.user) return res;
-          if (res?.data?.data?.user) return res.data.data;
-          return null;
-        };
-
-        let profilePayload: any = null;
-        const unwrapLegacyProfile = (res: any) => {
-          if (res?.data?.id) return { user: {
-            id: res.data.id,
-            handle: res.data.username || '',
-            displayName: res.data.full_name || res.data.username || '',
-            avatarUrl: res.data.avatar_url || null,
-            ogBadge: res.data.og_badge || null,
-            ogBadgeAssignedAt: res.data.og_badge_assigned_at || null,
-            ogBadgeMemberNumber: res.data.og_badge_member_number || null,
-          } };
-          if (res?.id) return { user: {
-            id: res.id,
-            handle: res.username || '',
-            displayName: res.full_name || res.username || '',
-            avatarUrl: res.avatar_url || null,
-            ogBadge: res.og_badge || null,
-            ogBadgeAssignedAt: res.og_badge_assigned_at || null,
-            ogBadgeMemberNumber: res.og_badge_member_number || null,
-          } };
-          return null;
-        };
         const selfId = String((user as any)?.id || '').trim();
-        if (selfId) {
-          try {
-            const res = await apiClient.get(`/users/${encodeURIComponent(selfId)}/public-profile`);
-            profilePayload = unwrapProfile(res);
-          } catch {
-            const legacyRes = await apiClient.get(`/users/${encodeURIComponent(selfId)}`);
-            profilePayload = unwrapLegacyProfile(legacyRes);
-          }
-        }
+        if (!selfId) return;
 
-        // Fallback: resolve by current handle when auth user id is not hydrated yet.
-        if (!profilePayload && displayHandle) {
-          const resolved = await apiClient.get(`/users/resolve?handle=${encodeURIComponent(displayHandle)}`);
-          const resolvedUserId = String((resolved as any)?.data?.userId || (resolved as any)?.userId || '').trim();
-          if (resolvedUserId) {
-            try {
-              const res = await apiClient.get(`/users/${encodeURIComponent(resolvedUserId)}/public-profile`);
-              profilePayload = unwrapProfile(res);
-            } catch {
-              const legacyRes = await apiClient.get(`/users/${encodeURIComponent(resolvedUserId)}`);
-              profilePayload = unwrapLegacyProfile(legacyRes);
-            }
-          }
-        }
+        const { data, error } = await supabase
+          .from('users')
+          .select('og_badge, og_badge_assigned_at')
+          .eq('id', selfId)
+          .maybeSingle();
 
-        if (cancelled || !profilePayload?.user) return;
-        const badge = profilePayload.user.ogBadge || null;
-        const badgeAt = profilePayload.user.ogBadgeAssignedAt || null;
-        const memberNumber = profilePayload.user.ogBadgeMemberNumber || null;
-        setSelfOgBadge(badge);
-        setSelfOgBadgeAssignedAt(badgeAt);
-        setSelfOgBadgeMemberNumber(memberNumber);
+        if (error) throw error;
+        if (cancelled || !data) return;
+
+        setSelfOgBadge(data.og_badge || null);
+        setSelfOgBadgeAssignedAt(data.og_badge_assigned_at || null);
       } catch (error) {
         // Non-fatal: profile still renders without OG badge if lookup fails.
-        console.warn('[ProfilePageV2] Failed to load self OG badge', error);
+        console.warn('[ProfilePageV2] Failed to load self OG badge directly via Supabase', error);
       }
     };
     void run();
     return () => { cancelled = true; };
-  }, [isOwnProfile, user?.id, displayHandle]);
+  }, [isOwnProfile, (user as any)?.id]);
 
   useEffect(() => {
     let cancelled = false;

@@ -278,11 +278,13 @@ const UnifiedLeaderboardPage: React.FC = () => {
           </div>
           
           {/* User Avatar */}
-          <button
-            type="button"
+          <div
+            role="button"
+            tabIndex={0}
             onClick={() => openReferralProfile(entry)}
-            className="shrink-0 rounded-full min-h-0 min-w-0 h-auto w-auto p-0 m-0 border-0 bg-transparent appearance-none"
+            className="shrink-0 rounded-full min-h-0 min-w-0 h-auto w-auto p-0 m-0 border-0 bg-transparent appearance-none cursor-pointer"
             aria-label={`Open profile for ${entry.fullName || entry.username}`}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') openReferralProfile(entry); }}
           >
             <UserAvatar 
               email={entry.username}
@@ -291,18 +293,20 @@ const UnifiedLeaderboardPage: React.FC = () => {
               size="sm"
               className="h-7 w-7 text-[10px]"
             />
-          </button>
+          </div>
           
           {/* User Info */}
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-1 min-w-0">
-              <button
-                type="button"
+              <div
+                role="button"
+                tabIndex={0}
                 onClick={() => openReferralProfile(entry)}
                 className="block min-h-0 min-w-0 h-auto w-auto p-0 m-0 border-0 bg-transparent appearance-none text-left font-medium text-sm leading-tight text-gray-900 truncate hover:text-emerald-700 cursor-pointer"
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') openReferralProfile(entry); }}
               >
                 {entry.fullName || entry.username}
-              </button>
+              </div>
               <OGBadge tier={entry.ogBadge} size="sm" />
               {isCurrentUser && (
                 <span className="shrink-0 px-1.5 py-0.5 bg-emerald-100 text-emerald-700 text-[10px] font-medium rounded-full">
@@ -310,13 +314,15 @@ const UnifiedLeaderboardPage: React.FC = () => {
                 </span>
               )}
             </div>
-            <button
-              type="button"
+            <div
+              role="button"
+              tabIndex={0}
               onClick={() => openReferralProfile(entry)}
               className="block min-h-0 min-w-0 h-auto w-auto p-0 m-0 border-0 bg-transparent appearance-none text-left text-xs leading-tight text-gray-500 truncate hover:text-gray-700 cursor-pointer"
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') openReferralProfile(entry); }}
             >
               @{entry.username}
-            </button>
+            </div>
           </div>
           
           {/* Referral Stats */}
@@ -502,11 +508,13 @@ const UnifiedLeaderboardPage: React.FC = () => {
                       </div>
                       
                       {/* User Avatar */}
-                      <button
-                        type="button"
+                      <div
+                        role="button"
+                        tabIndex={0}
                         onClick={() => openUserProfile(leaderUser)}
-                        className="shrink-0 rounded-full min-h-0 min-w-0 h-auto w-auto p-0 m-0 border-0 bg-transparent appearance-none"
+                        className="shrink-0 rounded-full min-h-0 min-w-0 h-auto w-auto p-0 m-0 border-0 bg-transparent appearance-none cursor-pointer"
                         aria-label={`Open profile for ${leaderUser.full_name || leaderUser.username}`}
+                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') openUserProfile(leaderUser); }}
                       >
                         <UserAvatar 
                           email={leaderUser.username}
@@ -515,18 +523,20 @@ const UnifiedLeaderboardPage: React.FC = () => {
                           size="sm"
                           className="h-7 w-7 text-[10px]"
                         />
-                      </button>
+                      </div>
                       
                       {/* User Info */}
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-1 min-w-0">
-                          <button
-                            type="button"
+                          <div
+                            role="button"
+                            tabIndex={0}
                             onClick={() => openUserProfile(leaderUser)}
                             className="block min-h-0 min-w-0 h-auto w-auto p-0 m-0 border-0 bg-transparent appearance-none text-left font-medium text-sm leading-tight text-gray-900 truncate hover:text-emerald-700 cursor-pointer"
+                            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') openUserProfile(leaderUser); }}
                           >
                             {leaderUser.full_name || leaderUser.username}
-                          </button>
+                          </div>
                           <OGBadge tier={leaderUser.og_badge} size="sm" />
                           {isCurrentUser && (
                             <span className="shrink-0 px-1.5 py-0.5 bg-emerald-100 text-emerald-700 text-[10px] font-medium rounded-full">
@@ -534,13 +544,15 @@ const UnifiedLeaderboardPage: React.FC = () => {
                             </span>
                           )}
                         </div>
-                        <button
-                          type="button"
+                        <div
+                          role="button"
+                          tabIndex={0}
                           onClick={() => openUserProfile(leaderUser)}
                           className="block min-h-0 min-w-0 h-auto w-auto p-0 m-0 border-0 bg-transparent appearance-none text-left text-xs leading-tight text-gray-500 truncate hover:text-gray-700 cursor-pointer"
+                          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') openUserProfile(leaderUser); }}
                         >
                           @{leaderUser.username}
-                        </button>
+                        </div>
                       </div>
                       
                       {/* Stats */}
