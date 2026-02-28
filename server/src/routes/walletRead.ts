@@ -121,6 +121,14 @@ walletRead.get('/summary/:userId', async (req, res) => {
       };
     }
 
+    const accountAvailable = Math.max(0, (balanceAccounts.stakeBalance ?? 0) - (balanceAccounts.stakeReserved ?? 0));
+    const reconciledAvailable =
+      onchain?.availableToStakeUSDC ??
+      (Number.isFinite(available) && Number.isFinite(reserved) ? Math.max(0, total - reserved) : 0);
+    const mergedAvailable = Math.max(accountAvailable, reconciledAvailable);
+    const mergedReserved = Math.max(balanceAccounts.stakeReserved ?? 0, onchain?.reservedUSDC ?? reserved);
+    const mergedEscrow = Math.max(onchain?.escrowUSDC ?? total, mergedAvailable + mergedReserved);
+
     const summary = {
       user_id: userId,
       currency: 'USD',
@@ -140,14 +148,10 @@ walletRead.get('/summary/:userId', async (req, res) => {
       creatorEarnings: Number((balanceAccounts.creatorEarnings ?? 0).toFixed(2)),
       stakeBalance: Number((balanceAccounts.stakeBalance ?? available).toFixed(2)),
       legacyAvailableBalance: Number(available.toFixed(2)),
-      // Populate escrow metrics from on-chain snapshot when available
-      availableToStakeUSDC: Number(
-        (onchain?.availableToStakeUSDC ??
-          (Number.isFinite(available) && Number.isFinite(reserved) ? Math.max(0, total - reserved) : 0)
-        ).toFixed(2)
-      ),
-      reservedUSDC: Number((onchain?.reservedUSDC ?? reserved).toFixed(2)),
-      escrowUSDC: Number((onchain?.escrowUSDC ?? total).toFixed(2))
+      // Keep available/reserved/escrow consistent with both reconciled snapshot and internal stake accounts.
+      availableToStakeUSDC: Number(mergedAvailable.toFixed(2)),
+      reservedUSDC: Number(mergedReserved.toFixed(2)),
+      escrowUSDC: Number(mergedEscrow.toFixed(2))
     };
 
     console.log(`[walletRead] Summary for ${userId}:`, summary);
