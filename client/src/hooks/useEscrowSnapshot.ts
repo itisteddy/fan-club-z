@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useEffect } from 'react';
 import { QK } from '@/lib/queryKeys';
 import { getApiUrl } from '@/utils/environment';
+import { getAuthHeaders } from '@/lib/apiClient';
 
 export type EscrowSnapshot = {
   currency: 'USD';
@@ -41,8 +42,9 @@ export function useEscrowSnapshot(userId?: string, options: Options = {}) {
       const timeout = setTimeout(() => controller.abort(), 12_000);
       let r: Response;
       try {
+        const authHeaders = await getAuthHeaders();
         r = await fetch(`${apiBase}/api/wallet/summary?${params.toString()}`, {
-          headers: { Accept: 'application/json' },
+          headers: { Accept: 'application/json', ...authHeaders },
           signal: controller.signal,
         });
       } catch (e: any) {
@@ -76,5 +78,4 @@ export function useEscrowSnapshot(userId?: string, options: Options = {}) {
 
   return query;
 }
-
 

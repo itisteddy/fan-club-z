@@ -322,7 +322,7 @@ const ProfilePageV2: React.FC<ProfilePageV2Props> = ({ onNavigateBack, userId })
         // Fallback: resolve by current handle when auth user id is not hydrated yet.
         if (!profilePayload && displayHandle) {
           const resolved = await apiClient.get(`/users/resolve?handle=${encodeURIComponent(displayHandle)}`);
-          const resolvedUserId = String(resolved?.data?.userId || resolved?.userId || '').trim();
+          const resolvedUserId = String((resolved as any)?.data?.userId || (resolved as any)?.userId || '').trim();
           if (resolvedUserId) {
             try {
               const res = await apiClient.get(`/users/${encodeURIComponent(resolvedUserId)}/public-profile`);
@@ -365,13 +365,13 @@ const ProfilePageV2: React.FC<ProfilePageV2Props> = ({ onNavigateBack, userId })
         let targetUserId = explicitRouteUserId;
         if (!targetUserId && explicitRouteHandle) {
           const resolved = await apiClient.get(`/users/resolve?handle=${encodeURIComponent(explicitRouteHandle)}`);
-          targetUserId = String(resolved?.data?.userId || '');
+          targetUserId = String((resolved as any)?.data?.userId || (resolved as any)?.userId || '');
           if (!targetUserId) throw new Error('Profile not found');
         }
         const profileRes = await apiClient.get(`/users/${encodeURIComponent(targetUserId)}/public-profile`);
         if (cancelled) return;
         setResolvedPublicUserId(targetUserId);
-        setPublicProfile((profileRes?.data || null) as PublicProfilePayload | null);
+        setPublicProfile((((profileRes as any)?.data ?? profileRes) || null) as PublicProfilePayload | null);
       } catch (err: any) {
         if (cancelled) return;
         setPublicProfile(null);

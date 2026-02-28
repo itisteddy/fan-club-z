@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { QK } from '@/lib/queryKeys';
 import { getApiUrl } from '@/utils/environment';
+import { getAuthHeaders } from '@/lib/apiClient';
 
 export type WalletSummary = {
   currency: 'USD';
@@ -72,10 +73,12 @@ export function useWalletSummary(userId?: string, options: WalletSummaryOptions 
 
       let response: Response;
       try {
+        const authHeaders = await getAuthHeaders();
         response = await fetch(url, {
           headers: {
             Accept: 'application/json',
             'Cache-Control': 'no-cache',
+            ...authHeaders,
           },
           signal: controller.signal,
           cache: 'no-store',

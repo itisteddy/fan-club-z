@@ -3,6 +3,9 @@ import crypto from 'crypto';
 import { supabase } from '../config/database';
 import { VERSION } from '@fanclubz/shared';
 import { reconcileWallet } from '../services/walletReconciliation';
+import { requireSupabaseAuth } from '../middleware/requireSupabaseAuth';
+import type { AuthenticatedRequest } from '../middleware/auth';
+import { getWalletBalanceAccountsSummary } from '../services/walletBalanceAccounts';
 
 export const walletSummary = Router();
 
@@ -30,9 +33,16 @@ function generateETag(data: unknown): string {
  *   lastUpdated: string
  * }
  */
-walletSummary.get('/summary/:userId', async (req, res) => {
+walletSummary.get('/summary/:userId', requireSupabaseAuth, async (req: AuthenticatedRequest, res) => {
   // Support path param: /summary/:userId
   const userId = req.params.userId;
+  if (!req.user?.id || req.user.id !== userId) {
+    return res.status(403).json({
+      error: 'Forbidden',
+      message: 'You can only access your own wallet summary',
+      version: VERSION,
+    });
+  }
   const { walletAddress, refresh } = req.query as {
     walletAddress?: string;
     refresh?: string;
@@ -41,7 +51,7 @@ walletSummary.get('/summary/:userId', async (req, res) => {
   return handleSummaryRequest(req, res, userId, walletAddress, refresh);
 });
 
-walletSummary.get('/summary', async (req, res) => {
+walletSummary.get('/summary', requireSupabaseAuth, async (req: AuthenticatedRequest, res) => {
   // Support query param: /summary?userId=...
   const { userId, walletAddress, refresh } = req.query as {
     userId?: string;
@@ -54,6 +64,13 @@ walletSummary.get('/summary', async (req, res) => {
       error: 'Bad Request',
       message: 'userId query parameter is required',
       version: VERSION
+    });
+  }
+  if (!req.user?.id || req.user.id !== userId) {
+    return res.status(403).json({
+      error: 'Forbidden',
+      message: 'You can only access your own wallet summary',
+      version: VERSION,
     });
   }
 
@@ -70,24 +87,40 @@ async function handleSummaryRequest(
   try {
     console.log(`[FCZ-PAY] Fetching wallet summary for user: ${userId}`);
 
-    // ALWAYS read demo wallet from DB (this must work regardless of crypto state)
+    // ALWAYS read wallet rows from DB (this must work regardless of crypto state)
     let demoAvailable = 0;
     let demoReserved = 0;
     let demoUpdatedAt = new Date().toISOString();
+    let legacyCreatorEarnings = 0;
+    let legacyStakeBalance = 0;
     try {
       const { data: demoWallet } = await supabase
         .from('wallets')
-        .select('available_balance, reserved_balance, updated_at')
+        .select('available_balance, reserved_balance, updated_at, creator_earnings_balance, stake_balance')
         .eq('user_id', userId)
         .eq('currency', 'DEMO_USD')
         .maybeSingle();
       if (demoWallet) {
         demoAvailable = Number(demoWallet.available_balance ?? 0);
         demoReserved = Number(demoWallet.reserved_balance ?? 0);
+        legacyCreatorEarnings = Number(demoWallet.creator_earnings_balance ?? 0);
+        legacyStakeBalance = Number(demoWallet.stake_balance ?? demoAvailable);
         demoUpdatedAt = demoWallet.updated_at || demoUpdatedAt;
       }
     } catch (demoErr) {
       console.warn('[FCZ-PAY] Demo wallet fetch failed (non-fatal):', demoErr);
+    }
+
+    let balanceAccounts = {
+      demoCredits: demoAvailable,
+      creatorEarnings: legacyCreatorEarnings,
+      stakeBalance: legacyStakeBalance || demoAvailable,
+      stakeReserved: demoReserved,
+    };
+    try {
+      balanceAccounts = await getWalletBalanceAccountsSummary(userId);
+    } catch (balanceErr) {
+      console.warn('[FCZ-PAY] wallet balance accounts fetch failed, using legacy fallback:', balanceErr);
     }
 
     // Best-effort: read crypto/escrow balances via on-chain reconciliation
@@ -159,6 +192,14 @@ async function handleSummaryRequest(
       lastUpdated,
       updatedAt: lastUpdated,
       source: cryptoSource || 'db',
+      balances: {
+        demoCredits: Number((balanceAccounts.demoCredits ?? demoAvailable).toFixed(2)),
+        creatorEarnings: Number((balanceAccounts.creatorEarnings ?? legacyCreatorEarnings).toFixed(2)),
+        stakeBalance: Number((balanceAccounts.stakeBalance ?? legacyStakeBalance ?? demoAvailable).toFixed(2)),
+      },
+      demoCredits: Number((balanceAccounts.demoCredits ?? demoAvailable).toFixed(2)),
+      creatorEarnings: Number((balanceAccounts.creatorEarnings ?? legacyCreatorEarnings).toFixed(2)),
+      stakeBalance: Number((balanceAccounts.stakeBalance ?? legacyStakeBalance ?? demoAvailable).toFixed(2)),
     };
 
     console.log(`[FCZ-PAY] Wallet summary for ${userId}:`, {
@@ -187,6 +228,10 @@ async function handleSummaryRequest(
       escrowUSDC: 0, reservedUSDC: 0, availableToStakeUSDC: 0,
       totalDepositedUSDC: 0, totalWithdrawnUSDC: 0,
       available_total: 0, reserved_total: 0,
+      balances: { demoCredits: 0, creatorEarnings: 0, stakeBalance: 0 },
+      demoCredits: 0,
+      creatorEarnings: 0,
+      stakeBalance: 0,
       walletAddress: null,
       lastUpdated: new Date().toISOString(),
       updatedAt: new Date().toISOString(),

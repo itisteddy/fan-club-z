@@ -526,6 +526,13 @@ const WalletPageV2: React.FC<WalletPageV2Props> = ({ onNavigateBack }) => {
   const demoCreditsBalance = Number(summary?.demoCredits ?? summary?.balances?.demoCredits ?? 0);
   const creatorEarningsBalance = Number(summary?.creatorEarnings ?? summary?.balances?.creatorEarnings ?? 0);
   const stakeBalance = Number(summary?.stakeBalance ?? summary?.balances?.stakeBalance ?? summary?.available ?? 0);
+  const creatorEarningsBalanceLoaded = Boolean(summary) && !isLoadingBalance;
+  const creatorEarningsCompactText = creatorEarningsBalanceLoaded
+    ? formatCurrency(creatorEarningsBalance, { compact: true })
+    : '...';
+  const creatorEarningsText = creatorEarningsBalanceLoaded
+    ? formatCurrency(creatorEarningsBalance, { compact: false })
+    : '...';
   
   // Debug log - disabled to reduce console spam
   // Enable with VITE_DEBUG_WALLET=true in .env
@@ -846,7 +853,7 @@ const WalletPageV2: React.FC<WalletPageV2Props> = ({ onNavigateBack }) => {
                     <div className="text-xs text-gray-600 font-medium tracking-wide">Creator Earnings</div>
                   </div>
                   <div className="text-lg font-bold text-gray-900 font-mono truncate">
-                    {formatCurrency(creatorEarningsBalance, { compact: true })}
+                    {creatorEarningsCompactText}
                   </div>
                   <div className="text-xs text-gray-500 mt-1">
                     Move to balance to use for staking
@@ -891,7 +898,7 @@ const WalletPageV2: React.FC<WalletPageV2Props> = ({ onNavigateBack }) => {
                   </div>
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-gray-600">Creator Earnings</span>
-                    <span className="font-mono font-semibold text-amber-700">{formatCurrency(creatorEarningsBalance, { compact: false })}</span>
+                    <span className="font-mono font-semibold text-amber-700">{creatorEarningsText}</span>
                   </div>
                 </div>
               </div>
@@ -1310,7 +1317,7 @@ const WalletPageV2: React.FC<WalletPageV2Props> = ({ onNavigateBack }) => {
             </div>
             <div className="rounded-2xl border border-amber-100 bg-amber-50 p-3 mb-4">
               <p className="text-xs text-amber-700">Available creator earnings</p>
-              <p className="text-xl font-semibold text-amber-900 font-mono">{formatCurrency(creatorEarningsBalance, { compact: false })}</p>
+              <p className="text-xl font-semibold text-amber-900 font-mono">{creatorEarningsText}</p>
             </div>
             <div className="space-y-3">
               <label className="block">

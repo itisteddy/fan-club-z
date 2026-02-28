@@ -65,7 +65,7 @@ export function useUserAchievements(userId?: string | null, enabled = true) {
     gcTime: 5 * 60_000,
     queryFn: async (): Promise<UserAchievementsPayload> => {
       const res = await apiClient.get(`users/${encodeURIComponent(String(userId))}/achievements`);
-      const data = res?.data || {};
+      const data = (res as any)?.data ?? res ?? {};
       return {
         userId: String(data.userId || userId),
         awardDefinitions: Array.isArray(data.awardDefinitions) ? data.awardDefinitions.map((d: any) => ({

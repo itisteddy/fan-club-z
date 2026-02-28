@@ -276,39 +276,25 @@ let achievementsRefreshInFlight: Promise<void> | null = null;
 let achievementsRefreshLastRunAt = 0;
 const ACHIEVEMENTS_REFRESH_MIN_INTERVAL_MS = 2 * 60 * 1000;
 
-async function maybeRefreshAchievementsCaches(reason: string): Promise<boolean> {
+function maybeRefreshAchievementsCaches(reason: string): void {
   const now = Date.now();
-  if (achievementsRefreshInFlight) {
-    try {
-      await achievementsRefreshInFlight;
-    } catch {
-      // Non-fatal for reads.
-    }
-    return false;
-  }
-  if (now - achievementsRefreshLastRunAt < ACHIEVEMENTS_REFRESH_MIN_INTERVAL_MS) {
-    return false;
-  }
+  if (achievementsRefreshInFlight) return;
+  if (now - achievementsRefreshLastRunAt < ACHIEVEMENTS_REFRESH_MIN_INTERVAL_MS) return;
 
+  achievementsRefreshLastRunAt = now;
   achievementsRefreshInFlight = (async () => {
     try {
       await recomputeStatsAndAwards({ daysBack: 60, windows: ['7d', '30d', 'all'], topN: 50 });
-      achievementsRefreshLastRunAt = Date.now();
       if (process.env.NODE_ENV !== 'production') {
         console.log('[Achievements] auto-refresh completed', { reason });
       }
     } catch (error: any) {
       // Non-fatal for reads; keep endpoint available.
       console.warn('[Achievements] auto-refresh skipped/failed:', error?.message || error);
+    } finally {
+      achievementsRefreshInFlight = null;
     }
   })();
-
-  try {
-    await achievementsRefreshInFlight;
-    return true;
-  } finally {
-    achievementsRefreshInFlight = null;
-  }
 }
 
 async function fetchAchievementsQueries(userId: string): Promise<AchievementsQueryBundle> {
@@ -724,21 +710,8 @@ export async function recomputeStatsAndAwards(params?: {
 
 export async function getUserAchievements(userId: string): Promise<AchievementsResponse> {
   const windowSortRank: Record<AwardWindow, number> = { '7d': 0, '30d': 1, all: 2 };
-  const refreshed = await maybeRefreshAchievementsCaches(`getUserAchievements:${userId}`);
+  maybeRefreshAchievementsCaches(`getUserAchievements:${userId}`);
   let { awardsRes, awardDefsRes, userBadgesRes, badgeDefsRes, userProgressRes } = await fetchAchievementsQueries(userId);
-
-  const looksStale =
-    (!awardsRes.error && (awardsRes.data || []).length === 0) ||
-    (!userProgressRes.error && (userProgressRes.data || []).length === 0);
-
-  if (refreshed) {
-    ({ awardsRes, awardDefsRes, userBadgesRes, badgeDefsRes, userProgressRes } = await fetchAchievementsQueries(userId));
-  } else if (looksStale) {
-    const refreshedOnStale = await maybeRefreshAchievementsCaches(`getUserAchievementsStale:${userId}`);
-    if (refreshedOnStale) {
-      ({ awardsRes, awardDefsRes, userBadgesRes, badgeDefsRes, userProgressRes } = await fetchAchievementsQueries(userId));
-    }
-  }
 
   if (awardsRes.error) throw awardsRes.error;
   if (awardDefsRes.error) throw awardDefsRes.error;

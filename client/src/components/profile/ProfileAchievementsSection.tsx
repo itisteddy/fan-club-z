@@ -261,7 +261,7 @@ export const ProfileAchievementsSection: React.FC<Props> = ({
                       className={[
                         'min-w-[94px] w-[94px] rounded-xl border px-2 py-2 text-left transition-colors',
                         active
-                          ? 'bg-white border-black/[0.08] hover:bg-gray-50'
+                          ? 'bg-emerald-50/70 border-emerald-200 hover:bg-emerald-100/70'
                           : 'bg-gray-50 border-gray-200 hover:bg-gray-100',
                       ].join(' ')}
                       aria-label={
@@ -273,18 +273,18 @@ export const ProfileAchievementsSection: React.FC<Props> = ({
                       <div
                         className={[
                           'w-7 h-7 rounded-lg border flex items-center justify-center mb-2',
-                          active ? 'bg-white border-black/[0.06]' : 'bg-gray-100 border-gray-200',
+                          active ? 'bg-emerald-50 border-emerald-200' : 'bg-gray-100 border-gray-200',
                         ].join(' ')}
                       >
-                        <Icon className={['w-4 h-4', active ? 'text-gray-800' : 'text-gray-400'].join(' ')} />
+                        <Icon className={['w-4 h-4', active ? 'text-emerald-700' : 'text-gray-400'].join(' ')} />
                       </div>
-                      <div className={['text-[11px] font-medium leading-tight truncate', active ? 'text-gray-900' : 'text-gray-500'].join(' ')}>
+                      <div className={['text-[11px] font-medium leading-tight truncate', active ? 'text-emerald-900' : 'text-gray-500'].join(' ')}>
                         {shortAwardTitle(tile.definition.title)}
                       </div>
                       {active ? (
                         <div className="mt-1">
-                          <div className="text-xs font-semibold text-gray-900">#{active.rank}</div>
-                          <div className="inline-flex mt-1 rounded-full border border-black/[0.06] px-1.5 py-0.5 text-[10px] text-gray-600 bg-gray-50">
+                          <div className="text-xs font-semibold text-emerald-900">#{active.rank}</div>
+                          <div className="inline-flex mt-1 rounded-full border border-emerald-200 px-1.5 py-0.5 text-[10px] text-emerald-700 bg-emerald-100/60">
                             {windowTag(active.window)}
                           </div>
                         </div>
@@ -313,7 +313,7 @@ export const ProfileAchievementsSection: React.FC<Props> = ({
                       className={[
                         'relative rounded-xl border p-2 text-center min-h-[86px] transition-colors',
                         earned
-                          ? 'bg-white border-black/[0.08] hover:bg-gray-50'
+                          ? 'bg-emerald-50/70 border-emerald-200 hover:bg-emerald-100/70'
                           : 'bg-gray-50 border-gray-200 hover:bg-gray-100',
                       ].join(' ')}
                       aria-label={`${tile.definition.title}. ${earned ? 'Earned.' : `Locked. Progress ${progressLabel || ''}`}`}
@@ -326,12 +326,12 @@ export const ProfileAchievementsSection: React.FC<Props> = ({
                       <div
                         className={[
                           'mx-auto w-9 h-9 rounded-xl border flex items-center justify-center',
-                          earned ? 'bg-white border-black/[0.06]' : 'bg-gray-100 border-gray-200',
+                          earned ? 'bg-emerald-50 border-emerald-200' : 'bg-gray-100 border-gray-200',
                         ].join(' ')}
                       >
-                        <Icon className={['w-4.5 h-4.5', earned ? 'text-gray-800' : 'text-gray-400'].join(' ')} />
+                        <Icon className={['w-4.5 h-4.5', earned ? 'text-emerald-700' : 'text-gray-400'].join(' ')} />
                       </div>
-                      <div className={['mt-2 text-[10px] leading-tight line-clamp-2', earned ? 'text-gray-700' : 'text-gray-500'].join(' ')}>
+                      <div className={['mt-2 text-[10px] leading-tight line-clamp-2', earned ? 'text-emerald-900' : 'text-gray-500'].join(' ')}>
                         {tile.definition.title}
                       </div>
                       {!earned && progressLabel && (
