@@ -5,23 +5,54 @@ import { supabase } from '../config/database';
 import { createNotification } from '../services/notifications';
 import { getNgnUsdRate } from '../services/FxRateService';
 import { reconcileWallet } from '../services/walletReconciliation';
+import { logMoneyMutation } from '../utils/moneyMutationLogger';
+import { credit, WalletServiceError } from '../services/walletService';
+import config from '../config';
 
 export const demoWallet = Router();
 
 const CURRENCY = 'DEMO_USD';
 const PROVIDER = 'demo-wallet';
+const CLAIM_TIMEZONE = 'America/New_York';
+// Current baseline claim amount S for Phase 4 policy generation.
+// Previously hardcoded in this route as 50/day fallback.
+const DEFAULT_DAILY_CLAIM_AMOUNT = 50;
 
 // Fiat constants
 const FIAT_CURRENCY = 'NGN';
 const FIAT_PROVIDER = 'fiat-paystack';
 
 function todayKey(): string {
-  // YYYY-MM-DD in server local time is fine for "1/day" idempotency in dev
-  const d = new Date();
-  const yyyy = d.getFullYear();
-  const mm = String(d.getMonth() + 1).padStart(2, '0');
-  const dd = String(d.getDate()).padStart(2, '0');
-  return `${yyyy}-${mm}-${dd}`;
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: CLAIM_TIMEZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  });
+  return formatter.format(new Date());
+}
+
+async function resolveDailyClaimAmount(day: string): Promise<number> {
+  const fallback = Number(process.env.FCZ_DAILY_CLAIM_BASE_AMOUNT || DEFAULT_DAILY_CLAIM_AMOUNT);
+  const fallbackAmount = Number.isFinite(fallback) && fallback > 0 ? fallback : DEFAULT_DAILY_CLAIM_AMOUNT;
+
+  const { data, error } = await supabase
+    .from('daily_claim_policy')
+    .select('amount')
+    .lte('effective_date', day)
+    .order('effective_date', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    // Backward compatible during rollout before migration is applied.
+    if ((error as any).code === '42P01') return fallbackAmount;
+    throw error;
+  }
+
+  const amount = Number((data as any)?.amount);
+  if (!Number.isFinite(amount) || amount <= 0) return fallbackAmount;
+  return amount;
 }
 
 async function ensureDemoWalletRow(userId: string) {
@@ -80,14 +111,25 @@ const FaucetSchema = z.object({
 // POST /api/demo-wallet/faucet
 demoWallet.post('/faucet', async (req, res) => {
   try {
+    if (!config.features.dailyClaimEnabled) {
+      return res.status(503).json({
+        error: 'Unavailable',
+        message: 'Daily claim is currently disabled.',
+        claimEnabled: false,
+        version: VERSION,
+      });
+    }
+
     const parsed = FaucetSchema.safeParse(req.body);
     if (!parsed.success) {
       return res.status(400).json({ error: 'Bad Request', message: 'Invalid payload', details: parsed.error.issues, version: VERSION });
     }
 
     const { userId } = parsed.data;
-    const amount = Number(parsed.data.amount ?? 50);
     const day = todayKey();
+    const policyAmount = await resolveDailyClaimAmount(day);
+    const requestedAmount = parsed.data.amount;
+    const amount = Number(requestedAmount ?? policyAmount);
     const externalRef = `demo_faucet:${userId}:${day}`;
     await ensureDemoWalletRow(userId);
 
@@ -103,13 +145,13 @@ demoWallet.post('/faucet', async (req, res) => {
       currency: CURRENCY,
       status: 'completed',
       external_ref: externalRef,
-      description: 'Demo credits faucet',
+      description: 'Daily Zaurum claim',
       meta: { kind: 'demo_faucet', day },
     } as any);
 
     if (txErr && (txErr as any).code !== '23505') {
       console.error('[DEMO-WALLET] faucet tx insert error', txErr);
-      return res.status(500).json({ error: 'Internal', message: 'Failed to faucet demo credits', version: VERSION });
+      return res.status(500).json({ error: 'Internal', message: 'Failed to claim Zaurum', version: VERSION });
     }
 
     // Determine grantedAt for this faucet (new insert or existing)
@@ -134,56 +176,82 @@ demoWallet.post('/faucet', async (req, res) => {
 
     // Only credit if we inserted a new tx (no error)
     if (!txErr) {
-      // Compare-and-swap update to reduce race issues
-      const { data: w } = await supabase
-        .from('wallets')
-        .select('available_balance,reserved_balance,demo_credits_balance')
-        .eq('user_id', userId)
-        .eq('currency', CURRENCY)
-        .maybeSingle();
-      const prevAvail = Number((w as any)?.available_balance || 0);
-      const prevRes = Number((w as any)?.reserved_balance || 0);
-      const prevDemo = Number((w as any)?.demo_credits_balance ?? prevAvail);
-      const nextAvail = prevAvail + amount;
-      const nextDemo = prevDemo + amount;
+      try {
+        await credit({
+          to: { ownerType: 'user', ownerId: userId, bucket: 'PROMO_AVAILABLE' },
+          amount,
+          reference: {
+            type: 'DAILY_CLAIM',
+            referenceType: 'daily_claim',
+            referenceId: externalRef,
+            metadata: { day, source: 'demo_wallet_faucet' },
+          },
+        });
+      } catch (walletErr) {
+        if (!(walletErr instanceof WalletServiceError)) {
+          throw walletErr;
+        }
+        // Backward-compatible fallback before migration rollout.
+        const { data: w } = await supabase
+          .from('wallets')
+          .select('available_balance,reserved_balance,demo_credits_balance')
+          .eq('user_id', userId)
+          .eq('currency', CURRENCY)
+          .maybeSingle();
+        const prevAvail = Number((w as any)?.available_balance || 0);
+        const prevRes = Number((w as any)?.reserved_balance || 0);
+        const prevDemo = Number((w as any)?.demo_credits_balance ?? prevAvail);
+        const nextAvail = prevAvail + amount;
+        const nextDemo = prevDemo + amount;
 
-      const { error: updErr } = await supabase
-        .from('wallets')
-        .update({
-          available_balance: nextAvail,
-          reserved_balance: prevRes,
-          demo_credits_balance: nextDemo,
-          updated_at: new Date().toISOString()
-        } as any)
-        .eq('user_id', userId)
-        .eq('currency', CURRENCY)
-        .eq('available_balance', prevAvail)
-        .eq('reserved_balance', prevRes)
-        .eq('demo_credits_balance', prevDemo);
+        const { error: updErr } = await supabase
+          .from('wallets')
+          .update({
+            available_balance: nextAvail,
+            reserved_balance: prevRes,
+            demo_credits_balance: nextDemo,
+            updated_at: new Date().toISOString()
+          } as any)
+          .eq('user_id', userId)
+          .eq('currency', CURRENCY)
+          .eq('available_balance', prevAvail)
+          .eq('reserved_balance', prevRes)
+          .eq('demo_credits_balance', prevDemo);
 
-      if (updErr) {
-        console.warn('[DEMO-WALLET] faucet balance update warning (non-fatal):', updErr);
+        if (updErr) throw updErr;
       }
 
-      // Phase 4C: Create notification for demo credits grant
+      logMoneyMutation({
+        action: 'demo_faucet_credit',
+        source: 'demoWallet.faucet',
+        userId,
+        amount,
+        meta: {
+          externalRef,
+          alreadyGranted: false,
+        },
+      });
+
+      // Phase 4C: Create notification for Zaurum claim
       try {
         await createNotification({
           userId,
           type: 'demo_credit',
-          title: 'Demo credits added',
-          body: `You received $${amount.toFixed(2)} in demo credits. You can request again in 24 hours.`,
+          title: 'Daily Zaurum claimed',
+          body: `You received ◈${amount.toFixed(2)}. You can claim again in 24 hours.`,
           href: `/wallet`,
           metadata: {
             amount,
             grantedAt: grantedAtIso,
             nextEligibleAt: nextEligibleAtIso,
+            policyAmount,
           },
-          externalRef: `notif:demo_credit:${userId}:${String(grantedAtIso || grantedAt.toISOString()).split('T')[0]}`,
+          externalRef: `notif:zaurum_claim:${userId}:${String(grantedAtIso || grantedAt.toISOString()).split('T')[0]}`,
         }).catch((err) => {
-          console.warn(`[Notifications] Failed to create demo credit notification for ${userId}:`, err);
+          console.warn(`[Notifications] Failed to create Zaurum claim notification for ${userId}:`, err);
         });
       } catch (err) {
-        console.warn(`[Notifications] Error creating demo credit notification:`, err);
+        console.warn(`[Notifications] Error creating Zaurum claim notification:`, err);
       }
     }
 
@@ -194,11 +262,13 @@ demoWallet.post('/faucet', async (req, res) => {
       grantedAt: grantedAtIso,
       nextEligibleAt: nextEligibleAtIso,
       alreadyGranted,
+      amount,
+      claimEnabled: true,
       version: VERSION,
     });
   } catch (e) {
     console.error('[DEMO-WALLET] faucet outer error', e);
-    return res.status(500).json({ error: 'Internal', message: 'Failed to faucet demo credits', version: VERSION });
+    return res.status(500).json({ error: 'Internal', message: 'Failed to claim Zaurum', version: VERSION });
   }
 });
 

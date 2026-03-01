@@ -18,7 +18,7 @@ import {
 import { getApiUrl } from '@/utils/environment';
 import { useWeb3Recovery } from '@/providers/Web3Provider';
 import { useWalletConnectSession } from '@/hooks/useWalletConnectSession';
-import { policy as storeSafePolicy, getBlockedFeatureMessage } from '@/lib/storeSafePolicy';
+import { formatCurrency } from '@/lib/format';
 
 // USDC Contract Address - ensure proper checksumming
 function getChecksummedAddress(address: string | undefined): `0x${string}` {
@@ -39,18 +39,9 @@ const USDC_ADDRESS_RAW = import.meta.env.VITE_USDC_ADDRESS_BASE_SEPOLIA ||
                           '0x036CbD53842c5426634e7929541eC2318f3dCF7e';
 const USDC_ADDRESS = getChecksummedAddress(USDC_ADDRESS_RAW);
 
-const ESCROW_ADDR_ENV: `0x${string}` | undefined = (() => {
-  const primary = import.meta.env.VITE_BASE_ESCROW_ADDRESS;
-  const legacy = import.meta.env.VITE_ESCROW_ADDRESS_BASE_SEPOLIA;
-  if (primary && legacy && primary.trim().toLowerCase() !== legacy.trim().toLowerCase()) {
-    // Hard guard: refuse to silently choose between two different escrow addresses.
-    throw new Error(
-      `[FCZ-PAY] Escrow address mismatch. VITE_BASE_ESCROW_ADDRESS (${primary}) !== VITE_ESCROW_ADDRESS_BASE_SEPOLIA (${legacy}). Fix env to a single canonical escrow.`
-    );
-  }
-  const resolved = primary ?? legacy;
-  return resolved ? getChecksummedAddress(resolved) : undefined;
-})();
+const ESCROW_ADDR_ENV: `0x${string}` | undefined = import.meta.env.VITE_BASE_ESCROW_ADDRESS 
+  ? getChecksummedAddress(import.meta.env.VITE_BASE_ESCROW_ADDRESS)
+  : undefined;
 
 const ERC20_ABI = [
   {
@@ -93,7 +84,7 @@ function usdToUsdcUnits(n: number): bigint {
   return BigInt(Math.round(n * 1_000_000));
 }
 function clamp2dp(v: number) { return Math.max(0, Math.floor(v * 100) / 100); }
-function fmtUSD(n: number) { return `$${n.toLocaleString(undefined, { maximumFractionDigits: 2 })}`; }
+function fmtUSD(n: number) { return formatCurrency(n, { compact: false }); }
 
 type DepositStep = 'input' | 'approving' | 'depositing';
 
@@ -174,24 +165,6 @@ export default function DepositUSDCModal({
 
   if (!isModalOpen) return null;
 
-  // Phase 7B: Store-safe builds must not allow real-money/crypto deposits.
-  if (!storeSafePolicy.allowCryptoWalletConnect) {
-    return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={handleClose}>
-        <div className="bg-white rounded-lg p-6 max-w-md mx-4" onClick={(e) => e.stopPropagation()}>
-          <h2 className="text-lg font-semibold mb-2">Not available in demo mode</h2>
-          <p className="text-gray-600 mb-4">{getBlockedFeatureMessage('crypto-wallet')}</p>
-          <button
-            onClick={handleClose}
-            className="w-full px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300"
-          >
-            Close
-          </button>
-        </div>
-      </div>
-    );
-  }
-
   if (!escrowAddress) {
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={handleClose}>
@@ -231,8 +204,8 @@ export default function DepositUSDCModal({
 
     // Validate minimum deposit amount
     if (cleanAmount < MIN_DEPOSIT_USD) {
-      setError(`Minimum deposit is ${MIN_DEPOSIT_USD} USDC`);
-      toast.error(`Minimum deposit is ${MIN_DEPOSIT_USD} USDC`);
+      setError(`Minimum deposit is ${MIN_DEPOSIT_USD} Zaurum`);
+      toast.error(`Minimum deposit is ${MIN_DEPOSIT_USD} Zaurum`);
       return;
     }
 
@@ -257,7 +230,7 @@ export default function DepositUSDCModal({
       // Step 1: Approve if needed
       if (currentAllowance < units) {
         setStep('approving');
-        setStatusMessage('Approve USDC in your wallet...');
+        setStatusMessage('Approve Zaurum in your wallet...');
         
         console.log('[Deposit] Requesting approval:', {
           usdcAddress: USDC_ADDRESS,
@@ -318,7 +291,7 @@ export default function DepositUSDCModal({
         setStatusMessage('Confirming approval...');
         await new Promise(r => setTimeout(r, 4000));
 
-        toast.success('USDC approved!', { id: 'approve' });
+        toast.success('Zaurum approved!', { id: 'approve' });
       }
 
       if (cancelledRef.current) return;
@@ -414,7 +387,7 @@ export default function DepositUSDCModal({
       fetch(`${apiBase}/api/wallet/reconcile`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: currentUserId, walletAddress: address, txHash: depositTxHash, txType: 'deposit', amountUSD: cleanAmount }),
+        body: JSON.stringify({ userId: currentUserId, walletAddress: address, txHash: depositTxHash }),
       }).catch(() => {});
 
       toast.success(
@@ -514,7 +487,7 @@ export default function DepositUSDCModal({
             </div>
           )}
 
-          <label className="mb-1 block text-sm font-medium">Amount (USDC)</label>
+          <label className="mb-1 block text-sm font-medium">Amount (Zaurum)</label>
           <div className="mb-2 flex items-center gap-2">
             <div className="relative flex-1 min-w-0">
               <input
@@ -529,7 +502,7 @@ export default function DepositUSDCModal({
                 disabled={submitting}
                 className="w-full rounded-lg border border-gray-200 bg-white pl-3 pr-12 py-2 text-base outline-none ring-emerald-500 focus:ring-2 disabled:opacity-50 tabular-nums"
               />
-              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-500">USDC</span>
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-500">ZAU</span>
             </div>
             <button
               type="button"
@@ -548,11 +521,11 @@ export default function DepositUSDCModal({
             </div>
             {isBelowMinimum && (
               <div className="mt-2 text-amber-700 bg-amber-50 border border-amber-200 p-2 rounded-lg">
-                Minimum deposit is {MIN_DEPOSIT_USD} USDC
+                Minimum deposit is {MIN_DEPOSIT_USD} Zaurum
               </div>
             )}
             <div className="mt-2 text-slate-600 bg-slate-50 border border-slate-100 p-2 rounded-lg">
-              Deposits USDC into escrow on Base Sepolia. May require 2 transactions.
+              Deposits Zaurum into escrow on Base Sepolia. May require 2 transactions.
             </div>
           </div>
         </div>

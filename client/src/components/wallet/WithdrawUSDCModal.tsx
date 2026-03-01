@@ -23,7 +23,7 @@ import { useWeb3Recovery } from '@/providers/Web3Provider';
 import { computeWalletStatus } from '@/utils/walletStatus';
 import StatusCallout from '@/components/ui/StatusCallout';
 import { getApiUrl } from '@/utils/environment';
-import { policy as storeSafePolicy, getBlockedFeatureMessage } from '@/lib/storeSafePolicy';
+import { formatCurrency } from '@/lib/format';
 
 const ESCROW_ADDR_ENV = (import.meta.env.VITE_BASE_ESCROW_ADDRESS 
   ? getAddress(import.meta.env.VITE_BASE_ESCROW_ADDRESS) 
@@ -37,7 +37,7 @@ function usdToUsdcUnits(n: number): bigint {
   return BigInt(Math.round(n * 1_000_000));
 }
 function clamp2dp(v: number) { return Math.max(0, Math.floor(v * 100) / 100); }
-function fmtUSD(n: number) { return `$${n.toLocaleString(undefined, { maximumFractionDigits: 2 })}`; }
+function fmtUSD(n: number) { return formatCurrency(n, { compact: false }); }
 
 type WithdrawStep = 'input' | 'simulating' | 'withdrawing' | 'waiting';
 
@@ -115,24 +115,6 @@ export default function WithdrawUSDCModal({
   }, [submitting, onClose]);
 
   if (!isModalOpen) return null;
-
-  // Phase 7B: Store-safe builds must not allow real-money/crypto withdrawals.
-  if (!storeSafePolicy.allowWithdrawals) {
-    return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={handleClose}>
-        <div className="bg-white rounded-lg p-6 max-w-md mx-4" onClick={(e) => e.stopPropagation()}>
-          <h2 className="text-lg font-semibold mb-2">Not available in demo mode</h2>
-          <p className="text-gray-600 mb-4">{getBlockedFeatureMessage('withdrawals')}</p>
-          <button
-            onClick={handleClose}
-            className="w-full px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300"
-          >
-            Close
-          </button>
-        </div>
-      </div>
-    );
-  }
 
   const walletStatus = computeWalletStatus({
     isConnected,
@@ -466,8 +448,6 @@ export default function WithdrawUSDCModal({
               userId: currentUserId,
               walletAddress: address,
               txHash: txHash,
-              txType: 'withdraw',
-              amountUSD: cleanAmount,
             }),
           });
           console.log('[FCZ-PAY] Wallet reconciled with backend');
@@ -549,7 +529,7 @@ export default function WithdrawUSDCModal({
       case 'simulating':
         return { step: 1, total: 2, message: statusMessage || 'Validating withdrawal...' };
       case 'withdrawing':
-        return { step: 2, total: 2, message: statusMessage || 'Withdrawing USDC - confirm in wallet' };
+        return { step: 2, total: 2, message: statusMessage || 'Withdrawing Zaurum - confirm in wallet' };
       case 'waiting':
         return { step: 2, total: 2, message: statusMessage || 'Waiting for confirmation...' };
       default:
@@ -633,7 +613,7 @@ export default function WithdrawUSDCModal({
             </div>
           )}
 
-          <label className="mb-1 block text-sm font-medium">Amount (USDC)</label>
+          <label className="mb-1 block text-sm font-medium">Amount (Zaurum)</label>
           <div className="mb-2 flex items-center gap-2">
             <div className="relative flex-1 min-w-0">
               <input
@@ -648,7 +628,7 @@ export default function WithdrawUSDCModal({
                 disabled={submitting}
                 className="w-full rounded-lg border border-gray-200 bg-white pl-3 pr-12 py-2 text-base outline-none ring-emerald-500 focus:ring-2 disabled:opacity-50 tabular-nums"
               />
-              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-500 whitespace-nowrap">USDC</span>
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-500 whitespace-nowrap">ZAU</span>
             </div>
             <button
               type="button"

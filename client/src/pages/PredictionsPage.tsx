@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import { useAuthSession } from '../providers/AuthSessionProvider';
 import { usePredictionStore } from '../store/predictionStore';
@@ -27,29 +27,18 @@ import { useMerkleClaim } from '@/hooks/useMerkleClaim';
 import { useClaimableClaims } from '@/hooks/useClaimableClaims';
 import { formatCurrency } from '@/lib/format';
 import { t } from '@/lib/lexicon';
-import { buildPredictionCardVM } from '@/lib/predictionCardVM';
-import { saveScrollPosition, restoreScrollPosition } from '../utils/scroll';
 
 type TabKey = 'Active' | 'Created' | 'Completed';
-
-// Valid tabs for URL param validation
-const VALID_TABS: TabKey[] = ['Active', 'Created', 'Completed'];
 
 // Production BetsTab Component - Extracted from production bundle
 const PredictionsPage: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNavigateToDiscover }) => {
   const navigate = useNavigate();
-  const location = useLocation();
-  const [searchParams, setSearchParams] = useSearchParams();
-  const scrollRestoredRef = useRef(false);
-  
   const { 
     predictions, 
     getUserCreatedPredictions, 
     fetchUserCreatedPredictions, 
     fetchUserPredictionEntries, 
     getUserPredictionEntries, 
-    fetchCompletedPredictions,
-    completedPredictions,
     loading 
   } = usePredictionStore();
   const { user: storeUser, isAuthenticated: storeAuthenticated } = useAuthStore();
@@ -68,76 +57,10 @@ const PredictionsPage: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNa
     createdAt: sessionUser.created_at
   } : storeUser;
 
-  // Get tab from URL params, default to 'Active'
-  const getTabFromUrl = useCallback((): TabKey => {
-    const tabParam = searchParams.get('tab');
-    if (tabParam && VALID_TABS.includes(tabParam as TabKey)) {
-      return tabParam as TabKey;
-    }
-    return 'Active';
-  }, [searchParams]);
-
-  const [activeTab, setActiveTabState] = useState<TabKey>(getTabFromUrl);
+  const [activeTab, setActiveTab] = useState<TabKey>('Active');
   const [showManageModal, setShowManageModal] = useState(false);
   const [selectedPrediction, setSelectedPrediction] = useState(null);
   const [entriesHydrated, setEntriesHydrated] = useState(false);
-
-  // Update tab state when URL changes (e.g., on back navigation)
-  useEffect(() => {
-    const urlTab = getTabFromUrl();
-    if (urlTab !== activeTab) {
-      setActiveTabState(urlTab);
-    }
-  }, [searchParams, getTabFromUrl, activeTab]);
-
-  // Custom setActiveTab that also updates URL
-  const setActiveTab = useCallback((tab: TabKey) => {
-    setActiveTabState(tab);
-    // Update URL without adding to history stack if same tab
-    const newParams = new URLSearchParams(searchParams);
-    if (tab === 'Active') {
-      newParams.delete('tab'); // Default tab doesn't need URL param
-    } else {
-      newParams.set('tab', tab);
-    }
-    setSearchParams(newParams, { replace: true });
-  }, [searchParams, setSearchParams]);
-
-  // Restore scroll position after data loads (when coming back from details)
-  useEffect(() => {
-    // Only attempt restoration once data is loaded
-    if (!entriesHydrated || scrollRestoredRef.current) return;
-    
-    scrollRestoredRef.current = true;
-    const fullPath = `${location.pathname}${location.search}`;
-    
-    // Try sessionStorage first (our direct save), then fall back to scroll manager
-    const savedScroll = sessionStorage.getItem(`fcz-scroll:${fullPath}`);
-    const targetScroll = savedScroll ? parseInt(savedScroll, 10) : null;
-    
-    // Clear the saved position after reading
-    if (savedScroll) {
-      sessionStorage.removeItem(`fcz-scroll:${fullPath}`);
-    }
-    
-    // Multiple attempts with increasing delays to handle async rendering
-    const attempts = [100, 250, 500];
-    const timers: ReturnType<typeof setTimeout>[] = [];
-    
-    const doScroll = () => {
-      if (targetScroll && targetScroll > 0) {
-        window.scrollTo({ top: targetScroll, behavior: 'instant' });
-      } else {
-        restoreScrollPosition(fullPath);
-      }
-    };
-    
-    attempts.forEach((delay) => {
-      timers.push(setTimeout(doScroll, delay));
-    });
-    
-    return () => timers.forEach(clearTimeout);
-  }, [entriesHydrated, location.pathname, location.search]);
   const isEntryActive = useCallback((status: string) => {
     const normalized = (status || '').toLowerCase();
     return !(normalized === 'won' || normalized === 'lost' || normalized === 'refunded');
@@ -169,21 +92,10 @@ const PredictionsPage: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNa
     return Math.round((maxStaked / totalStaked) * 100);
   };
 
-  // Navigate to prediction details with scroll position preservation
-  const navigateToPrediction = useCallback((predictionId: string) => {
-    // Save scroll position with the current URL including tab param
-    const fullPath = `${location.pathname}${location.search}`;
-    
-    // Get current scroll position and save it to sessionStorage for reliable restoration
-    // This bypasses the scroll manager's 50px threshold
-    const scrollY = window.pageYOffset || document.documentElement.scrollTop || 0;
-    if (scrollY > 0) {
-      sessionStorage.setItem(`fcz-scroll:${fullPath}`, String(scrollY));
-    }
-    
-    saveScrollPosition(fullPath);
-    navigate(`/predictions/${predictionId}`);
-  }, [navigate, location.pathname, location.search]);
+  // Scroll to top on mount
+  useEffect(() => {
+    window.scrollTo({ behavior: 'instant' });
+  }, []);
 
   // Fetch user data
   useEffect(() => {
@@ -195,8 +107,7 @@ const PredictionsPage: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNa
         console.log('📊 BetsTab: Fetching data for user:', user.id);
         await Promise.all([
           fetchUserCreatedPredictions(user.id),
-          fetchUserPredictionEntries(user.id),
-          fetchCompletedPredictions(user.id)
+          fetchUserPredictionEntries(user.id)
         ]);
       } finally {
         if (!cancelled) {
@@ -208,9 +119,9 @@ const PredictionsPage: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNa
     return () => {
       cancelled = true;
     };
-  }, [user?.id, isAuthenticated, fetchUserCreatedPredictions, fetchUserPredictionEntries, fetchCompletedPredictions]);
+  }, [user?.id, isAuthenticated, fetchUserCreatedPredictions, fetchUserPredictionEntries]);
 
-  // Get counts for tabs (Completed count from API-backed list)
+  // Get counts for tabs
   const getCounts = () => {
     if (!isAuthenticated || !user) return { active: 0, created: 0, completed: 0 };
     
@@ -242,13 +153,22 @@ const PredictionsPage: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNa
       return needsManagement;
     });
     
-    // Completed count from backend (creator OR participant, not active)
-    const completedCount = completedPredictions.length;
+    // Count completed entries (settled or ended)
+    const completedEntries = userEntries.filter(entry => {
+      const prediction = (entry as any).prediction || predictions.find(p => p.id === entry.prediction_id);
+      if (!prediction) return false;
+      
+      const isSettled = entry.status === 'won' || entry.status === 'lost';
+      const predictionEnded = prediction.status === 'closed' || prediction.status === 'settled' || prediction.status === 'ended';
+      const pastDeadline = new Date(prediction.entry_deadline) <= new Date();
+      
+      return isSettled || predictionEnded || pastDeadline;
+    });
     
     return {
       active: activeEntries.length,
       created: activeCreated.length,
-      completed: completedCount
+      completed: completedEntries.length
     };
   };
 
@@ -347,63 +267,71 @@ const PredictionsPage: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNa
         };
       });
 
-    // Completed: from backend (creator OR participant, not active) — single source of truth
-    const completedList = (completedPredictions as any[]).map(item => {
-      const prediction = item;
-      const entry = item.myEntry;
-      const vm = buildPredictionCardVM({
-        prediction: {
-          id: prediction.id,
+    const completedPredictions = userEntries
+      .filter(entry => {
+        const prediction = (entry as any).prediction || predictions.find(p => p.id === entry.prediction_id);
+        if (!prediction) return false;
+        
+        // Include entries that are settled (won/lost) OR predictions that have ended
+        const isSettled = entry.status === 'won' || entry.status === 'lost';
+        const predictionEnded = prediction.status === 'closed' || prediction.status === 'settled' || prediction.status === 'ended';
+        const pastDeadline = new Date(prediction.entry_deadline) <= new Date();
+        
+        return isSettled || predictionEnded || pastDeadline;
+      })
+      .map(entry => {
+        const prediction = (entry as any).prediction || predictions.find(p => p.id === entry.prediction_id);
+        if (!prediction) {
+          console.warn('⚠️ No prediction found for completed entry:', entry.id);
+        return null;
+    }
+
+        const option = (entry as any).option || prediction.options?.find((o: PredictionOption) => o.id === entry.option_id);
+        const profit = (entry.actual_payout || 0) - entry.amount;
+        
+        // Determine display status and time with proper terminology
+        let displayStatus: 'active' | 'won' | 'lost' | 'refunded' = entry.status;
+        let timeLabel = "";
+        
+        if (prediction.status === 'settled' && (entry.status === 'won' || entry.status === 'lost')) {
+          timeLabel = `Settled on ${new Date(entry.updated_at).toLocaleDateString()}`;
+        } else if (prediction.status === 'closed') {
+          timeLabel = "Closed - Awaiting Settlement";
+        } else if (prediction.status === 'awaiting_settlement') {
+          timeLabel = "Awaiting Settlement";
+        } else if (prediction.status === 'disputed') {
+          timeLabel = "Settlement Disputed";
+        } else if (prediction.status === 'refunded') {
+          timeLabel = `Refunded on ${new Date(prediction.updated_at || prediction.created_at).toLocaleDateString()}`;
+        } else if (new Date(prediction.entry_deadline) <= new Date()) {
+          timeLabel = `Ended on ${new Date(prediction.entry_deadline).toLocaleDateString()}`;
+          // Keep the original status for ended predictions that haven't been settled
+          if (entry.status === 'active') {
+            displayStatus = 'active'; // Will show as "pending settlement" in UI
+          }
+        } else {
+          timeLabel = getTimeRemaining(prediction.entry_deadline, prediction.status);
+        }
+        
+        return {
+          id: entry.id,
           title: prediction.title,
           category: prediction.category,
-          status: prediction.status,
-          settled_at: prediction.settled_at || prediction.settledAt || null,
-          entry_deadline: prediction.entry_deadline,
-          participant_count: prediction.participant_count,
-          participants: prediction.participant_count,
-          options: prediction.options,
-          updated_at: prediction.updated_at,
-          created_at: prediction.created_at,
-        },
-        myEntry: entry ? {
-          id: entry.id,
-          option_id: entry.option_id,
-          amount: entry.amount,
-          actual_payout: entry.actual_payout ?? null,
-          status: entry.status,
-          provider: entry.provider,
-          option: entry.option,
-        } : undefined,
-      });
-      const statusLower = (prediction.status || '').toLowerCase();
-      const awaitingSettlement = statusLower === 'closed' || statusLower === 'awaiting_settlement';
-      return {
-        id: prediction.id,
-        predictionId: prediction.id,
-        entryId: entry?.id,
-        title: vm.title,
-        category: prediction.category,
-        position: vm.yourPositionLabel || 'Unknown',
-        stake: vm.staked,
-        actualReturn: vm.returned,
-        profit: vm.profitLoss,
-        status: entry?.status ?? '',
-        participants: vm.participantsCount || 0,
-        settledAt: vm.statusSubtext || vm.settledAtText || '',
-        predictionStatus: prediction.status,
-        entry_deadline: prediction.entry_deadline,
-        options: prediction.options,
-        vm,
-        isCreator: prediction.creator_id === user?.id,
-        awaitingSettlement,
-      };
-    });
-    const completedPredictionsMapped = completedList;
+          position: option?.label || 'Unknown',
+          stake: entry.amount,
+          actualReturn: entry.actual_payout || 0,
+          profit,
+          status: displayStatus,
+          participants: prediction.participant_count || 0,
+          settledAt: timeLabel
+        };
+      })
+      .filter(Boolean);
 
     return {
       Active: activePredictions as unknown as (Prediction | null)[],
       Created: createdPredictions as unknown as (Prediction | null)[],
-      Completed: completedPredictionsMapped as unknown as (Prediction | null)[]
+      Completed: completedPredictions as unknown as (Prediction | null)[]
     };
   };
 
@@ -414,7 +342,7 @@ const PredictionsPage: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNa
       console.error('Error getting user predictions:', error);
       return { Active: [], Created: [], Completed: [] };
     }
-  }, [user?.id, isAuthenticated, predictions, completedPredictions, activeTab]);
+  }, [user?.id, isAuthenticated, predictions, activeTab]);
 
   const userEntriesList = (isAuthenticated && user) ? getUserPredictionEntries(user.id) : [];
 
@@ -616,12 +544,7 @@ const PredictionsPage: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNa
   };
 
   const ActivePredictionCard = ({ prediction }: { prediction: any }) => (
-    <div
-      className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-4 hover:shadow-md transition-all duration-200 cursor-pointer"
-      onClick={() => navigateToPrediction(prediction.predictionId || prediction.id)}
-      role="button"
-      aria-label={`View prediction ${prediction.title}`}
-    >
+    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-4 hover:shadow-md transition-all duration-200">
       <div className="flex items-start justify-between mb-4">
         <div className="flex-1">
           <div className="flex items-center gap-2 mb-2">
@@ -644,11 +567,11 @@ const PredictionsPage: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNa
         <div className="grid grid-cols-3 gap-4 mt-3">
           <div>
             <p className="text-xs text-emerald-600 mb-1">Staked</p>
-            <p className="font-semibold text-emerald-900">${prediction.stake.toLocaleString()}</p>
+            <p className="font-semibold text-emerald-900">{formatCurrency(prediction.stake, { compact: false })}</p>
           </div>
           <div>
             <p className="text-xs text-emerald-600 mb-1">Potential</p>
-            <p className="font-semibold text-emerald-900">${prediction.potentialReturn.toLocaleString()}</p>
+            <p className="font-semibold text-emerald-900">{formatCurrency(prediction.potentialReturn, { compact: false })}</p>
           </div>
           <div>
             <p className="text-xs text-emerald-600 mb-1">{t('odds')}</p>
@@ -728,7 +651,10 @@ const PredictionsPage: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNa
   // Created prediction card
   const CreatedPredictionCard = ({ prediction }: { prediction: any }) => (
     <div
-      className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-4 hover:shadow-md transition-all duration-200"
+      className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-4 hover:shadow-md transition-all duration-200 cursor-pointer"
+      onClick={() => navigate(`/predictions/${prediction.id}`)}
+      role="button"
+      aria-label={`View prediction ${prediction.title}`}
     >
       <div className="flex items-start justify-between mb-4">
         <div className="flex-1">
@@ -748,7 +674,7 @@ const PredictionsPage: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNa
         <div className="grid grid-cols-3 gap-4">
           <div>
             <p className="text-xs text-blue-600 mb-1">Total Pool</p>
-            <p className="font-semibold text-blue-900">${prediction.totalPool.toLocaleString()}</p>
+            <p className="font-semibold text-blue-900">{formatCurrency(prediction.totalPool, { compact: false })}</p>
           </div>
           <div>
             <p className="text-xs text-blue-600 mb-1">Participants</p>
@@ -781,9 +707,7 @@ const PredictionsPage: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNa
           }
         </span>
         <button
-          onClick={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
+          onClick={() => {
             setSelectedPrediction(prediction);
             setShowManageModal(true);
           }}
@@ -802,44 +726,17 @@ const PredictionsPage: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNa
     const claimMap = new Map((claimables || []).map(c => [c.predictionId, c]));
     const { claim, isClaiming } = useMerkleClaim();
     const [archived, setArchived] = React.useState(false);
-    const predictionId = prediction.predictionId || prediction.id;
     const localClaimed = (() => {
       try {
         const addrLower = (address || '').toLowerCase();
-        return Boolean(localStorage.getItem(`fcz:claimed:${predictionId}:${addrLower}`));
+        return Boolean(localStorage.getItem(`fcz:claimed:${prediction.id}:${addrLower}`));
       } catch {
         return false;
       }
     })();
-    const claimData = claimMap.get(predictionId);
+    const claimData = claimMap.get(prediction.id);
     const hasClaim = !!address && !!claimData && !localClaimed;
-    
-    // Use VM for status determination (should already be set from getUserPredictions, but fallback if needed)
-    const vm = prediction.vm || buildPredictionCardVM({
-      prediction: {
-        id: prediction.id || prediction.predictionId,
-        title: prediction.title,
-        category: prediction.category,
-        status: prediction.predictionStatus || prediction.status || 'settled', // Use prediction status (not entry status)
-        settled_at: prediction.settledAt ? (typeof prediction.settledAt === 'string' ? prediction.settledAt : new Date(prediction.settledAt).toISOString()) : null,
-        entry_deadline: prediction.entry_deadline,
-        participant_count: prediction.participants,
-        options: prediction.options,
-      },
-      myEntry: {
-        amount: prediction.stake,
-        actual_payout: prediction.actualReturn,
-        status: prediction.status, // Entry status (won/lost) is in prediction.status for completed cards
-        option_id: prediction.option_id,
-        option: { label: prediction.position },
-      },
-    });
-    
-    const isSettled = vm.statusBadge.text === 'Complete';
-    const entryStatus = prediction.status;
-    const isWin = entryStatus === 'won';
-    const isLoss = entryStatus === 'lost';
-    const hasEntryOutcome = isWin || isLoss;
+    const isSettled = Boolean(prediction?.settledAt) || (String(prediction?.status || '').toLowerCase() === 'settled');
 
     const openSafely = async () => {
       // If status already indicates archived, do not fire a detail request at all
@@ -851,15 +748,15 @@ const PredictionsPage: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNa
       }
       try {
         // Lightweight HEAD preflight to avoid full payload
-        const r = await fetch(`${getApiUrl()}/api/v2/predictions/${predictionId}`, { method: 'HEAD' });
+        const r = await fetch(`${getApiUrl()}/api/v2/predictions/${prediction.id}`, { method: 'HEAD' });
         if (!r.ok) {
           setArchived(true);
           toast('This prediction has been archived', { icon: '🗄️' });
           return;
         }
-        navigateToPrediction(predictionId);
+        navigate(`/predictions/${prediction.id}`);
       } catch {
-        navigateToPrediction(predictionId);
+        navigate(`/predictions/${prediction.id}`);
       }
     };
 
@@ -874,51 +771,41 @@ const PredictionsPage: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNa
         <div className="flex-1">
           <div className="flex items-center gap-2 mb-2">
             <span className={`px-2 py-1 rounded-lg text-xs font-medium ${getCategoryColor(prediction.category)}`}>
-              {vm.categoryLabel || prediction.category.replace('_', ' ')}
+              {prediction.category.replace('_', ' ')}
             </span>
             {archived ? (
               <span className="px-2 py-1 rounded-lg text-xs font-medium border bg-gray-50 text-gray-700 border-gray-200">Archived</span>
-            ) : (
+            ) : isSettled ? (
               <span className={`px-2 py-1 rounded-lg text-xs font-medium border ${
-                vm.statusBadge.tone === 'success' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
-                vm.statusBadge.tone === 'danger' ? 'bg-red-50 text-red-700 border-red-200' :
-                vm.statusBadge.tone === 'warning' ? 'bg-yellow-50 text-yellow-700 border-yellow-200' :
-                'bg-gray-50 text-gray-700 border-gray-200'
+                prediction.status === 'won' 
+                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200' 
+                  : 'bg-red-50 text-red-700 border-red-200'
               }`}>
-                {vm.statusBadge.text}
+                {prediction.status === 'won' ? 'Won' : 'Lost'}
               </span>
-            )}
-            {vm.railLabel && (
-              <span className="px-1.5 py-0.5 rounded text-xs font-medium bg-slate-100 text-slate-600 border border-slate-200">
-                {vm.railLabel}
-              </span>
-            )}
-            {prediction.awaitingSettlement && (
-              <span className="px-2 py-1 rounded-lg text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200">
-                Awaiting settlement
+            ) : (
+              <span className="px-2 py-1 rounded-lg text-xs font-medium border bg-yellow-50 text-yellow-700 border-yellow-200">
+                Awaiting Settlement
               </span>
             )}
           </div>
           <h3 className="font-semibold text-gray-900 text-lg leading-tight">{prediction.title}</h3>
-          {prediction.isCreator && (
-            <p className="text-xs text-gray-500 mt-1 border-b border-gray-100 pb-2">Created by you</p>
-          )}
         </div>
       </div>
 
       <div className={`rounded-xl p-4 mb-4 ${
-        archived ? 'bg-gray-50' : (isSettled && hasEntryOutcome) ? (isWin ? 'bg-emerald-50' : 'bg-red-50') : 'bg-yellow-50'
+        archived ? 'bg-gray-50' : isSettled ? (prediction.status === 'won' ? 'bg-emerald-50' : 'bg-red-50') : 'bg-yellow-50'
       }`}>
         <div className="flex items-center justify-between mb-2">
           <span className={`text-sm font-medium ${
-            archived ? 'text-gray-700' : (isSettled && hasEntryOutcome) ? (isWin ? 'text-emerald-800' : 'text-red-800') : 'text-yellow-800'
+            archived ? 'text-gray-700' : isSettled ? (prediction.status === 'won' ? 'text-emerald-800' : 'text-red-800') : 'text-yellow-800'
           }`}>
-            {archived ? 'Archived' : vm.yourPositionLabel ? `Your Position: ${vm.yourPositionLabel}` : 'No position'}
+            {archived ? 'Archived' : isSettled ? `Your Position: ${prediction.position}` : 'Awaiting Settlement'}
           </span>
           <div className="flex items-center gap-3">
             {isSettled && (
-              <span className={`text-lg font-bold ${isWin ? 'text-emerald-700' : 'text-red-700'}`}>
-                {vm.profitLoss >= 0 ? '+' : '−'}${Math.abs(vm.profitLoss).toLocaleString()}
+              <span className={`text-lg font-bold ${prediction.status === 'won' ? 'text-emerald-700' : 'text-red-700'}`}>
+                {formatCurrency(prediction.profit, { compact: false, showSign: true })}
               </span>
             )}
             {hasClaim && claimData && (
@@ -930,7 +817,7 @@ const PredictionsPage: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNa
                   e.stopPropagation();
                   const units = BigInt(claimData.amountUnits);
                   const tx = await claim({
-                    predictionId,
+                    predictionId: prediction.id,
                     amountUnits: units,
                     proof: claimData.proof as `0x${string}`[],
                   });
@@ -948,36 +835,36 @@ const PredictionsPage: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNa
         <div className="grid grid-cols-3 gap-4 mt-3">
           <div>
             <p className={`text-xs mb-1 ${
-              archived ? 'text-gray-600' : (isSettled && hasEntryOutcome) ? (isWin ? 'text-emerald-600' : 'text-red-600') : 'text-yellow-600'
+              archived ? 'text-gray-600' : isSettled ? (prediction.status === 'won' ? 'text-emerald-600' : 'text-red-600') : 'text-yellow-600'
             }`}>Staked</p>
             <p className={`font-semibold ${
-              archived ? 'text-gray-900' : (isSettled && hasEntryOutcome) ? (isWin ? 'text-emerald-900' : 'text-red-900') : 'text-yellow-900'
+              archived ? 'text-gray-900' : isSettled ? (prediction.status === 'won' ? 'text-emerald-900' : 'text-red-900') : 'text-yellow-900'
             }`}>
-              ${vm.staked.toLocaleString()}
+              {formatCurrency(prediction.stake, { compact: false })}
             </p>
           </div>
           <div>
             <p className={`text-xs mb-1 ${
-              archived ? 'text-gray-600' : (isSettled && hasEntryOutcome) ? (isWin ? 'text-emerald-600' : 'text-red-600') : 'text-yellow-600'
+              archived ? 'text-gray-600' : isSettled ? (prediction.status === 'won' ? 'text-emerald-600' : 'text-red-600') : 'text-yellow-600'
             }`}>Returned</p>
             <p className={`font-semibold ${
-              archived ? 'text-gray-900' : (isSettled && hasEntryOutcome) ? (isWin ? 'text-emerald-900' : 'text-red-900') : 'text-yellow-900'
-            }`}>{isSettled ? `$${vm.returned.toLocaleString()}` : '—'}</p>
+              archived ? 'text-gray-900' : isSettled ? (prediction.status === 'won' ? 'text-emerald-900' : 'text-red-900') : 'text-yellow-900'
+            }`}>{isSettled ? formatCurrency(prediction.actualReturn, { compact: false }) : '—'}</p>
           </div>
           <div>
             <p className={`text-xs mb-1 ${
-              archived ? 'text-gray-600' : (isSettled && hasEntryOutcome) ? (isWin ? 'text-emerald-600' : 'text-red-600') : 'text-yellow-600'
+              archived ? 'text-gray-600' : isSettled ? (prediction.status === 'won' ? 'text-emerald-600' : 'text-red-600') : 'text-yellow-600'
             }`}>Profit/Loss</p>
             <p className={`font-semibold ${
-              archived ? 'text-gray-900' : (isSettled && hasEntryOutcome) ? (isWin ? 'text-emerald-900' : 'text-red-900') : 'text-yellow-900'
-            }`}>{isSettled ? `${vm.profitLoss >= 0 ? '+' : '−'}$${Math.abs(vm.profitLoss).toLocaleString()}` : 'Pending'}</p>
+              archived ? 'text-gray-900' : isSettled ? (prediction.status === 'won' ? 'text-emerald-900' : 'text-red-900') : 'text-yellow-900'
+            }`}>{isSettled ? `${prediction.profit >= 0 ? '+' : '−'}${formatCurrency(Math.abs(prediction.profit), { compact: false })}` : 'Pending'}</p>
           </div>
         </div>
       </div>
 
       <div className="flex items-center justify-between text-sm text-gray-500">
-        <span>{vm.participantsCount || prediction.participants || 0} participants</span>
-        <span>{archived ? 'Archived' : vm.statusSubtext || (vm.settledAtText ? `Settled ${vm.settledAtText}` : '') || ''}</span>
+        <span>{prediction.participants} participants</span>
+        <span>{archived ? 'Archived' : isSettled ? `Settled ${prediction.settledAt}` : 'Closed — awaiting settlement'}</span>
       </div>
       </div>
   );

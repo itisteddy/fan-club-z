@@ -45,14 +45,14 @@ export default function TermsPage() {
         </section>
 
         <section className="space-y-3">
-          <h2 className="text-lg font-semibold text-white">4) The FanClubZ experience (demo vs wallet-connected)</h2>
+          <h2 className="text-lg font-semibold text-white">4) The FanClubZ experience (Zaurum vs wallet-connected)</h2>
           <p>
-            FanClubZ supports a demo experience and may support wallet-connected functionality depending on the
+            FanClubZ supports a Zaurum experience and may support wallet-connected functionality depending on the
             platform/build and your choices.
           </p>
           <ul className="list-disc pl-5 space-y-1">
             <li>
-              <strong className="text-white">Demo credits have no cash value</strong> and are for entertainment and
+              <strong className="text-white">Zaurum has no cash value</strong> and is for entertainment and
               product exploration.
             </li>
             <li>
@@ -104,7 +104,7 @@ export default function TermsPage() {
               Predictions are informational/entertainment content. We do not guarantee any outcome, accuracy, or result.
             </li>
             <li>
-              Demo credits are not money and have no cash value. Any demo balance is for in-app experience only.
+              Zaurum is not money and has no cash value. Any Zaurum balance is for in-app experience only.
             </li>
             <li>
               If you connect a wallet, blockchain activity is public and transactions may be irreversible.
@@ -162,4 +162,3 @@ export default function TermsPage() {
     </LegalLayout>
   );
 }
-

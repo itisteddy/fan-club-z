@@ -20,7 +20,6 @@ import {
 import { formatTimeAgo, formatCurrency } from '@/lib/format';
 import type { ActivityKind } from '@fanclubz/shared';
 import toast from 'react-hot-toast';
-import { formatTxAmount, toneClass } from '@/lib/txFormat';
 
 export interface ActivityDisplayItem {
   id: string;
@@ -50,150 +49,117 @@ interface ActivityDisplay {
 function getActivityDisplay(item: ActivityDisplayItem): ActivityDisplay {
   switch (item.kind) {
     case 'deposit':
-      {
-        const tx = formatTxAmount({ amount: item.amountUSD, kind: 'deposit' });
-        return {
-          iconBg: 'bg-emerald-100',
-          icon: <Download className="w-4 h-4 text-emerald-600" />,
-          title: 'Deposited USDC',
-          subtitle: item.meta?.description,
-          amount: tx.display,
-          badge: 'deposit',
-          badgeColor: 'text-emerald-600',
-        };
-      }
+      return {
+        iconBg: 'bg-emerald-100',
+        icon: <Download className="w-4 h-4 text-emerald-600" />,
+        title: 'Deposited Zaurum',
+        subtitle: item.meta?.description,
+        amount: formatCurrency(item.amountUSD, { compact: true }),
+        badge: 'deposit',
+        badgeColor: 'text-emerald-600',
+      };
     case 'withdraw':
-      {
-        const tx = formatTxAmount({ amount: item.amountUSD, kind: 'withdraw' });
-        return {
-          iconBg: 'bg-orange-100',
-          icon: <ArrowUpRight className="w-4 h-4 text-orange-600" />,
-          title: 'Withdrew USDC',
-          subtitle: item.meta?.description,
-          amount: tx.display,
-          badge: 'withdraw',
-          badgeColor: 'text-orange-600',
-        };
-      }
+      return {
+        iconBg: 'bg-orange-100',
+        icon: <ArrowUpRight className="w-4 h-4 text-orange-600" />,
+        title: 'Withdrew Zaurum',
+        subtitle: item.meta?.description,
+        amount: formatCurrency(item.amountUSD, { compact: true }),
+        badge: 'withdraw',
+        badgeColor: 'text-orange-600',
+      };
     case 'lock':
-      {
-        const tx = formatTxAmount({ amount: item.amountUSD, kind: 'lock' });
-        return {
-          iconBg: 'bg-amber-100',
-          icon: <Lock className="w-4 h-4 text-amber-600" />,
-          title: 'Funds locked',
-          subtitle: item.meta?.predictionTitle,
-          amount: tx.display,
-          badge: 'locked',
-          badgeColor: 'text-amber-600',
-        };
-      }
+      return {
+        iconBg: 'bg-amber-100',
+        icon: <Lock className="w-4 h-4 text-amber-600" />,
+        title: 'Funds locked',
+        subtitle: item.meta?.predictionTitle,
+        amount: formatCurrency(item.amountUSD, { compact: true }),
+        badge: 'locked',
+        badgeColor: 'text-amber-600',
+      };
     case 'unlock':
     case 'release':
-      {
-        const tx = formatTxAmount({ amount: item.amountUSD, kind: 'release' });
-        return {
-          iconBg: 'bg-blue-100',
-          icon: <Unlock className="w-4 h-4 text-blue-600" />,
-          title: 'Funds released',
-          subtitle: item.meta?.predictionTitle,
-          amount: tx.display,
-          badge: 'released',
-          badgeColor: 'text-blue-600',
-        };
-      }
+      return {
+        iconBg: 'bg-blue-100',
+        icon: <Unlock className="w-4 h-4 text-blue-600" />,
+        title: 'Funds released',
+        subtitle: item.meta?.predictionTitle,
+        amount: formatCurrency(item.amountUSD, { compact: true }),
+        badge: 'released',
+        badgeColor: 'text-blue-600',
+      };
     case 'entry':
     case 'bet_placed':
-      {
-        const tx = formatTxAmount({ amount: item.amountUSD, kind: 'bet_placed' });
-        return {
-          iconBg: 'bg-purple-100',
-          icon: <Target className="w-4 h-4 text-purple-600" />,
-          title: item.meta?.predictionTitle ? `Staked on "${item.meta.predictionTitle}"` : 'Stake placed',
-          subtitle: item.meta?.optionLabel ? `Option: ${item.meta.optionLabel}` : undefined,
-          amount: tx.display,
-          badge: 'placed',
-          badgeColor: 'text-purple-600',
-        };
-      }
+      return {
+        iconBg: 'bg-purple-100',
+        icon: <Target className="w-4 h-4 text-purple-600" />,
+        title: item.meta?.predictionTitle ? `Staked on "${item.meta.predictionTitle}"` : 'Stake placed',
+        subtitle: item.meta?.optionLabel ? `Option: ${item.meta.optionLabel}` : undefined,
+        amount: formatCurrency(item.amountUSD, { compact: true }),
+        badge: 'placed',
+        badgeColor: 'text-purple-600',
+      };
     case 'win':
-      {
-        const tx = formatTxAmount({ amount: item.amountUSD, kind: 'win' });
-        return {
-          iconBg: 'bg-emerald-100',
-          icon: <Trophy className="w-4 h-4 text-emerald-600" />,
-          title: 'Won prediction',
-          subtitle: item.meta?.predictionTitle,
-          amount: tx.display,
-          badge: 'won',
-          badgeColor: 'text-emerald-600',
-        };
-      }
+      return {
+        iconBg: 'bg-emerald-100',
+        icon: <Trophy className="w-4 h-4 text-emerald-600" />,
+        title: 'Won prediction',
+        subtitle: item.meta?.predictionTitle,
+        amount: `+${formatCurrency(item.amountUSD, { compact: true })}`,
+        badge: 'won',
+        badgeColor: 'text-emerald-600',
+      };
     case 'loss':
-      {
-        const tx = formatTxAmount({ amount: item.amountUSD, kind: 'loss' });
-        return {
-          iconBg: 'bg-red-100',
-          icon: <XCircle className="w-4 h-4 text-red-500" />,
-          title: 'Lost prediction',
-          subtitle: item.meta?.predictionTitle,
-          amount: tx.display,
-          badge: 'lost',
-          badgeColor: 'text-red-500',
-        };
-      }
+      return {
+        iconBg: 'bg-red-100',
+        icon: <XCircle className="w-4 h-4 text-red-500" />,
+        title: 'Lost prediction',
+        subtitle: item.meta?.predictionTitle,
+        amount: `-${formatCurrency(item.amountUSD, { compact: true })}`,
+        badge: 'lost',
+        badgeColor: 'text-red-500',
+      };
     case 'claim':
-      {
-        const tx = formatTxAmount({ amount: item.amountUSD, kind: 'claim' });
-        return {
-          iconBg: 'bg-emerald-100',
-          icon: <Gift className="w-4 h-4 text-emerald-600" />,
-          title: 'Claimed winnings',
-          subtitle: item.meta?.predictionTitle,
-          amount: tx.display,
-          badge: 'claimed',
-          badgeColor: 'text-emerald-600',
-        };
-      }
+      return {
+        iconBg: 'bg-emerald-100',
+        icon: <Gift className="w-4 h-4 text-emerald-600" />,
+        title: 'Claimed winnings',
+        subtitle: item.meta?.predictionTitle,
+        amount: `+${formatCurrency(item.amountUSD, { compact: true })}`,
+        badge: 'claimed',
+        badgeColor: 'text-emerald-600',
+      };
     case 'payout':
-      {
-        const tx = formatTxAmount({ amount: item.amountUSD, kind: 'payout' });
-        return {
-          iconBg: 'bg-emerald-100',
-          icon: <DollarSign className="w-4 h-4 text-emerald-600" />,
-          title: 'Payout received',
-          subtitle: item.meta?.predictionTitle,
-          amount: tx.display,
-          badge: 'payout',
-          badgeColor: 'text-emerald-600',
-        };
-      }
+      return {
+        iconBg: 'bg-emerald-100',
+        icon: <DollarSign className="w-4 h-4 text-emerald-600" />,
+        title: 'Payout received',
+        subtitle: item.meta?.predictionTitle,
+        amount: `+${formatCurrency(item.amountUSD, { compact: true })}`,
+        badge: 'payout',
+        badgeColor: 'text-emerald-600',
+      };
     case 'creator_fee':
-      {
-        const tx = formatTxAmount({ amount: item.amountUSD, kind: 'creator_fee' });
-        return {
-          iconBg: 'bg-amber-100',
-          icon: <PiggyBank className="w-4 h-4 text-amber-600" />,
-          title: 'Creator fee received',
-          subtitle: item.meta?.predictionTitle,
-          amount: tx.display,
-          badge: 'creator',
-          badgeColor: 'text-amber-600',
-        };
-      }
+      return {
+        iconBg: 'bg-amber-100',
+        icon: <PiggyBank className="w-4 h-4 text-amber-600" />,
+        title: 'Creator fee received',
+        subtitle: item.meta?.predictionTitle,
+        amount: `+${formatCurrency(item.amountUSD, { compact: true })}`,
+        badge: 'creator',
+        badgeColor: 'text-amber-600',
+      };
     case 'platform_fee':
-      {
-        const tx = formatTxAmount({ amount: item.amountUSD, kind: 'platform_fee' });
-        return {
-          iconBg: 'bg-slate-100',
-          icon: <DollarSign className="w-4 h-4 text-slate-600" />,
-          title: 'Platform fee',
-          subtitle: item.meta?.predictionTitle,
-          amount: tx.display,
-          badge: 'platform',
-          badgeColor: 'text-slate-600',
-        };
-      }
+      return {
+        iconBg: 'bg-slate-100',
+        icon: <DollarSign className="w-4 h-4 text-slate-600" />,
+        title: 'Platform fee',
+        subtitle: item.meta?.predictionTitle,
+        amount: formatCurrency(item.amountUSD, { compact: true }),
+        badge: 'platform',
+        badgeColor: 'text-slate-600',
+      };
     case 'settlement':
       return {
         iconBg: 'bg-indigo-100',
@@ -205,18 +171,15 @@ function getActivityDisplay(item: ActivityDisplayItem): ActivityDisplay {
         badgeColor: 'text-indigo-600',
       };
     case 'bet_refund':
-      {
-        const tx = formatTxAmount({ amount: item.amountUSD, kind: 'bet_refund' });
-        return {
-          iconBg: 'bg-blue-100',
-          icon: <Unlock className="w-4 h-4 text-blue-600" />,
-          title: 'Bet refunded',
-          subtitle: item.meta?.predictionTitle,
-          amount: tx.display,
-          badge: 'refund',
-          badgeColor: 'text-blue-600',
-        };
-      }
+      return {
+        iconBg: 'bg-blue-100',
+        icon: <Unlock className="w-4 h-4 text-blue-600" />,
+        title: 'Bet refunded',
+        subtitle: item.meta?.predictionTitle,
+        amount: `+${formatCurrency(item.amountUSD, { compact: true })}`,
+        badge: 'refund',
+        badgeColor: 'text-blue-600',
+      };
     default:
       return {
         iconBg: 'bg-gray-100',
@@ -315,7 +278,7 @@ export function RecentActivityCard({
                     {display.amount && (
                       <div className={`text-sm font-semibold font-mono ${
                         display.amount.startsWith('+') ? 'text-emerald-600' :
-                        display.amount.startsWith('–') || display.amount.startsWith('-') ? 'text-red-500' :
+                        display.amount.startsWith('-') ? 'text-red-500' :
                         'text-gray-700'
                       }`}>
                         {display.amount}
@@ -398,10 +361,10 @@ function ActivityDetailModal({ item, onClose }: ActivityDetailModalProps) {
           <p className="text-xs text-gray-500 mb-1">Amount</p>
           <p className={`text-2xl font-semibold ${
             display.amount?.startsWith('+') ? 'text-emerald-600' :
-            display.amount?.startsWith('–') || display.amount?.startsWith('-') ? 'text-red-500' :
+            display.amount?.startsWith('-') ? 'text-red-500' :
             'text-gray-900'
           }`}>
-            {display.amount || '$0.00'}
+            {display.amount || formatCurrency(0, { compact: false })}
           </p>
           <div className="flex items-center gap-2 text-xs text-gray-500 mt-3">
             <Clock className="w-3.5 h-3.5" />
