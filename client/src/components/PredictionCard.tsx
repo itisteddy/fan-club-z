@@ -7,11 +7,10 @@ import { useUnifiedCommentStore } from '../store/unifiedCommentStore';
 import CommentModal from './modals/CommentModal';
 import ErrorBoundary from './ErrorBoundary';
 import toast from 'react-hot-toast';
-import { formatCurrencyShort, formatNumberCompact } from '@/lib/format';
+import { formatNumberCompact } from '@/lib/format';
 import { formatTimeRemaining } from '@/lib/utils';
 import ImageThumb from './ui/ImageThumb';
-import { getPredictionStatusUi } from '@/lib/predictionStatusUi';
-import { getCategoryLabel } from '@/lib/categoryUi';
+import { ZaurumMark } from '@/components/currency/ZaurumMark';
 import { buildPredictionCanonicalPath, buildPredictionCanonicalUrl } from '@/lib/predictionUrls';
 
 interface PredictionCardProps {
@@ -90,22 +89,45 @@ const PredictionCardContent: React.FC<PredictionCardProps> = ({
   }));
 
   const statusBadge = (() => {
-    const statusUi = getPredictionStatusUi({
-      status: prediction.status,
-      settledAt: prediction.settledAt || prediction.settled_at,
-      closesAt: entryDeadline,
-    });
-    
-    const classNameMap = {
-      success: 'bg-emerald-50 text-emerald-600 border border-emerald-100',
-      warning: 'bg-amber-50 text-amber-700 border border-amber-100',
-      danger: 'bg-red-50 text-red-600 border border-red-100',
-      default: 'bg-gray-50 text-gray-700 border border-gray-100',
-    };
-    
+    if (normalizedStatus === 'settled') {
+      return {
+        label: 'Settled',
+        className: 'bg-emerald-50 text-emerald-600 border border-emerald-100',
+      };
+    }
+    if (normalizedStatus === 'awaiting_settlement') {
+      return {
+        label: 'Awaiting settlement',
+        className: 'bg-amber-50 text-amber-700 border border-amber-100',
+      };
+    }
+    if (normalizedStatus === 'closed' || normalizedStatus === 'ended') {
+      return {
+        label: 'Closed',
+        className: 'bg-gray-100 text-gray-700 border border-gray-200',
+      };
+    }
+    if (normalizedStatus === 'cancelled' || normalizedStatus === 'canceled') {
+      return {
+        label: 'Cancelled',
+        className: 'bg-gray-100 text-gray-600 border border-gray-200',
+      };
+    }
+    if (!entryDeadline || !timeRemaining) {
+      return {
+        label: 'No deadline',
+        className: 'bg-slate-100 text-slate-600 border border-slate-200',
+      };
+    }
+    if (timeRemaining === 'Ended') {
+      return {
+        label: 'Closed',
+        className: 'bg-red-50 text-red-600 border border-red-100',
+      };
+    }
     return {
-      label: statusUi.label,
-      className: classNameMap[statusUi.tone],
+      label: `Ends in ${timeRemaining}`,
+      className: 'bg-slate-100 text-slate-600 border border-slate-200',
     };
   })();
 
@@ -137,35 +159,34 @@ const PredictionCardContent: React.FC<PredictionCardProps> = ({
   const handleShare = async (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    const shareUrl = buildPredictionCanonicalUrl(prediction.id, prediction.title || prediction.question);
+    
     try {
       const shareData = {
         title: prediction.question || prediction.title,
         text: `Check out this prediction: ${prediction.question || prediction.title}`,
-        url: shareUrl,
+        url: buildPredictionCanonicalUrl(prediction.id, prediction.question || prediction.title)
       };
 
       if (navigator.share && navigator.canShare && navigator.canShare(shareData)) {
         await navigator.share(shareData);
       } else if (navigator.clipboard) {
-        await navigator.clipboard.writeText(shareUrl);
-        toast.success('Link copied');
+        await navigator.clipboard.writeText(shareData.url);
+        toast.success('Link copied to clipboard!');
       } else {
+        // Fallback for older browsers
         const textArea = document.createElement('textarea');
-        textArea.value = shareUrl;
+        textArea.value = shareData.url;
         document.body.appendChild(textArea);
         textArea.select();
         document.execCommand('copy');
         document.body.removeChild(textArea);
-        toast.success('Link copied');
+        toast.success('Link copied to clipboard!');
       }
+      
       if (customOnShare) customOnShare();
     } catch (error) {
       console.error('Error sharing:', error);
-      toast.error("Couldn't copy link");
-      try {
-        window.prompt('Copy this link:', shareUrl);
-      } catch {}
+      toast.error('Failed to share');
     }
   };
 
@@ -178,19 +199,16 @@ const PredictionCardContent: React.FC<PredictionCardProps> = ({
         <div className="grid grid-cols-[1fr,auto] gap-4">
           {/* LEFT: content */}
           <Link
-            to={buildPredictionCanonicalPath(prediction.id, prediction.title || prediction.question)}
+            to={buildPredictionCanonicalPath(prediction.id, prediction.question || prediction.title)}
             state={{ from: fromPath }}
             className="min-w-0"
           >
             <div className="flex items-start gap-2 text-xs text-slate-500">
-              {(() => {
-                const categoryLabel = getCategoryLabel(prediction);
-                return categoryLabel ? (
-                  <span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 font-medium">
-                    {categoryLabel}
-                  </span>
-                ) : null;
-              })()}
+              {prediction.category && (
+                <span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5">
+                  {prediction.category}
+                </span>
+              )}
               <span
                 className={`inline-flex items-center rounded-full px-2 py-0.5 ${statusBadge.className}`}
               >
@@ -203,7 +221,10 @@ const PredictionCardContent: React.FC<PredictionCardProps> = ({
           </h3>
           
             <div className="mt-2 flex flex-wrap items-center gap-3 text-sm text-slate-600">
-              <span>{formatCurrencyShort(totalPool)}</span>
+              <span className="inline-flex items-center gap-1">
+                <ZaurumMark size="xs" />
+                <span>{formatNumberCompact(totalPool)}</span>
+              </span>
               <span>•</span>
               <span>{formatNumberCompact(participantCount)} {participantCount === 1 ? 'player' : 'players'}</span>
             </div>

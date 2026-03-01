@@ -2,9 +2,9 @@ import { useEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useMedia } from '../../hooks/useMedia';
 import { formatNumberShort, formatDurationShort } from '@/lib/format';
-import CreatorByline from './CreatorByline';
-import { getCategoryLabel } from '@/lib/categoryUi';
+import { ZaurumMark } from '@/components/currency/ZaurumMark';
 import { buildPredictionCanonicalPath } from '@/lib/predictionUrls';
+import CreatorByline from './CreatorByline';
 
 type PredictionCardProps = {
   prediction: {
@@ -16,7 +16,6 @@ type PredictionCardProps = {
     players?: number;      // participants
     options?: Array<{ label?: string; title?: string; text?: string; odds?: number }>;
     description?: string | null;
-    image_url?: string | null;
     creator?: {
       id?: string;
       username?: string | null;
@@ -51,7 +50,6 @@ export default function PredictionCardV3({ prediction }: PredictionCardProps) {
     title: prediction.title,
     description: prediction.description ?? '',
     category: prediction.category,
-    image_url: prediction.image_url ?? undefined,
     options: prediction.options?.map((option) => ({
       label: option?.label ?? option?.title ?? option?.text ?? '',
     })),
@@ -83,83 +81,81 @@ export default function PredictionCardV3({ prediction }: PredictionCardProps) {
     : null;
 
   return (
-    <>
-      <Link
-        to={buildPredictionCanonicalPath(prediction.id, prediction.title)}
-        state={{ from: fromPath }}
-        className="block rounded-2xl border border-black/5 bg-white hover:shadow-sm focus-visible:ring-2 focus-visible:ring-indigo-500 transition"
-      >
-        <div className="flex items-stretch gap-3 p-3">
-          {/* Left: text */}
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2 text-xs text-gray-500">
-              {(() => {
-                const categoryLabel = getCategoryLabel(prediction);
-                return categoryLabel ? (
-                  <span className="rounded-full bg-gray-100 px-2 py-0.5 font-medium">{categoryLabel}</span>
-                ) : null;
-              })()}
-              {endsIn && <span className="rounded-full bg-gray-100 px-2 py-0.5">ends in {endsIn}</span>}
-            </div>
-
-            <h3 className="mt-1 line-clamp-2 text-[15px] font-semibold text-gray-900">
-              {prediction.title}
-            </h3>
-
-            {prediction.creator && (
-              <CreatorByline creator={prediction.creator} className="mt-1.5 text-xs" />
+    <Link
+      to={buildPredictionCanonicalPath(prediction.id, prediction.title)}
+      state={{ from: fromPath }}
+      className="block rounded-2xl border border-black/5 bg-white hover:shadow-sm focus-visible:ring-2 focus-visible:ring-indigo-500 transition"
+    >
+      <div className="flex items-stretch gap-3 p-3">
+        {/* Left: text */}
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2 text-xs text-gray-500">
+            {prediction.category && (
+              <span className="rounded-full bg-gray-100 px-2 py-0.5">{prediction.category}</span>
             )}
-
-            <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-gray-500">
-              {typeof prediction.pool === 'number' && (
-                <span>${formatNumberShort(prediction.pool)} pool</span>
-              )}
-              {typeof prediction.players === 'number' && <span>{prediction.players} players</span>}
-              {prediction.options?.length ? (
-                <div className="flex items-center gap-1">
-                  {prediction.options.slice(0, 2).map((o, index) => {
-                    const optionLabel = o.label ?? o.title ?? o.text ?? `Option ${index + 1}`;
-                    return (
-                      <span
-                        key={`${optionLabel}-${index}`}
-                        className="rounded-md border border-gray-200 px-1.5 py-0.5 text-[11px] font-medium text-gray-700"
-                      >
-                        {optionLabel}
-                        {o.odds ? (
-                          <span className="ml-1 text-gray-500">{o.odds.toFixed(2)}x</span>
-                        ) : null}
-                      </span>
-                    );
-                  })}
-                </div>
-              ) : null}
-            </div>
-          </div>
-
-          {/* Right: thumbnail (fixed 16:9) */}
-          <div className="relative w-[96px] aspect-video shrink-0 overflow-hidden rounded-xl bg-gray-100">
-            {media.url ? (
-              <>
-                {!imageLoaded && (
-                  <div className="absolute inset-0 animate-pulse bg-gray-200" />
-                )}
-                <img
-                  src={media.url}
-                  alt={media.alt || prediction.title}
-                  className="h-full w-full object-cover object-center block transition-opacity duration-300"
-                  loading="lazy"
-                  onLoad={() => setImageLoaded(true)}
-                  onError={() => setImageLoaded(false)}
-                  style={{ opacity: imageLoaded ? 1 : 0, transition: 'opacity 200ms ease' }}
-                />
-              </>
-            ) : (
-              <div className="absolute inset-0 bg-gradient-to-br from-gray-200 via-gray-100 to-gray-300" />
-            )}
-          </div>
+            {endsIn && <span className="rounded-full bg-gray-100 px-2 py-0.5">ends in {endsIn}</span>}
         </div>
+
+          <h3 className="mt-1 line-clamp-2 text-[15px] font-semibold text-gray-900">
+            {prediction.title}
+        </h3>
+
+          {prediction.creator && (
+            <CreatorByline creator={prediction.creator} className="mt-1.5 text-xs" />
+          )}
+
+          <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-gray-500">
+            {typeof prediction.pool === 'number' && (
+              <span className="inline-flex items-center gap-1">
+                <ZaurumMark className="h-3.5 w-3.5" />
+                {formatNumberShort(prediction.pool)} pool
+              </span>
+            )}
+            {typeof prediction.players === 'number' && <span>{prediction.players} players</span>}
+            {prediction.options?.length ? (
+              <div className="flex items-center gap-1">
+                {prediction.options.slice(0, 2).map((o, index) => {
+                  const optionLabel = o.label ?? o.title ?? o.text ?? `Option ${index + 1}`;
+                  return (
+                    <span
+                    key={`${optionLabel}-${index}`}
+                    className="rounded-md border border-gray-200 px-1.5 py-0.5 text-[11px] font-medium text-gray-700"
+                  >
+                    {optionLabel}
+                    {o.odds ? (
+                      <span className="ml-1 text-gray-500">{o.odds.toFixed(2)}x</span>
+                    ) : null}
+                    </span>
+                  );
+                })}
+          </div>
+            ) : null}
+        </div>
+      </div>
+
+        {/* Right: thumbnail (fixed) */}
+        <div className="relative h-[72px] w-[96px] shrink-0 overflow-hidden rounded-xl bg-gray-100">
+          {media.url ? (
+            <>
+              {!imageLoaded && (
+                <div className="absolute inset-0 animate-pulse bg-gray-200" />
+              )}
+              <img
+                src={media.url}
+                alt={media.alt || prediction.title}
+                className="h-full w-full object-cover transition-opacity duration-300"
+                loading="lazy"
+                onLoad={() => setImageLoaded(true)}
+                onError={() => setImageLoaded(false)}
+                style={{ opacity: imageLoaded ? 1 : 0, transition: 'opacity 200ms ease' }}
+              />
+            </>
+          ) : (
+            <div className="absolute inset-0 bg-gradient-to-br from-gray-200 via-gray-100 to-gray-300" />
+          )}
+        </div>
+      </div>
     </Link>
-    </>
   );
 }
 

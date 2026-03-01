@@ -4,32 +4,26 @@ import { cn } from '@/utils/cn';
 interface ZaurumMarkProps {
   className?: string;
   title?: string;
+  size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl';
 }
 
-export function ZaurumMark({ className, title = 'Zaurum' }: ZaurumMarkProps) {
+const SIZE_CLASS: Record<NonNullable<ZaurumMarkProps['size']>, string> = {
+  xs: 'h-3.5 w-3.5',
+  sm: 'h-4 w-4',
+  md: 'h-5 w-5',
+  lg: 'h-6 w-6',
+  xl: 'h-7 w-7',
+};
+
+export function ZaurumMark({ className, title = 'Zaurum', size = 'md' }: ZaurumMarkProps) {
   return (
-    <svg
-      viewBox="0 0 24 24"
+    <span
       role="img"
       aria-label={title}
-      className={cn('inline-block h-4 w-4 text-amber-500', className)}
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-    >
-      <path
-        d="M4 10.5L7.5 5h9L20 10.5l-3 7H7l-3-7Z"
-        fill="currentColor"
-        opacity="0.2"
-      />
-      <path
-        d="M4 10.5L7.5 5h9L20 10.5l-3 7H7l-3-7Z"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinejoin="round"
-      />
-      <path d="M7.5 5 12 10.5 16.5 5" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
-      <path d="M4 10.5h16" stroke="currentColor" strokeWidth="1.5" />
-    </svg>
+      title={title}
+      className={cn('inline-block align-middle shrink-0 select-none bg-center bg-no-repeat bg-contain drop-shadow-[0_0_1px_rgba(245,158,11,0.55)]', SIZE_CLASS[size], className)}
+      style={{ backgroundImage: 'url(/assets/zaurum-mark.png)' }}
+    />
   );
 }
 

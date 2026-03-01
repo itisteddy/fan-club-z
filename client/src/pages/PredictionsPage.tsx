@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import { useAuthSession } from '../providers/AuthSessionProvider';
 import { usePredictionStore } from '../store/predictionStore';
@@ -20,19 +20,21 @@ import ManagePredictionModal from '../components/modals/ManagePredictionModal';
 import { cn } from '../utils/cn';
 import { AppHeader } from '../components/layout/AppHeader';
 import { formatTimeRemaining } from '@/lib/utils';
-import { getApiUrl } from '@/utils/environment';
 import toast from 'react-hot-toast';
 import { useAccount } from 'wagmi';
 import { useMerkleClaim } from '@/hooks/useMerkleClaim';
 import { useClaimableClaims } from '@/hooks/useClaimableClaims';
-import { formatCurrency } from '@/lib/format';
+import { ZaurumAmount } from '@/components/currency/ZaurumAmount';
 import { t } from '@/lib/lexicon';
+import { buildPredictionCanonicalPath } from '@/lib/predictionUrls';
 
 type TabKey = 'Active' | 'Created' | 'Completed';
 
 // Production BetsTab Component - Extracted from production bundle
 const PredictionsPage: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNavigateToDiscover }) => {
   const navigate = useNavigate();
+  const location = useLocation();
+  const fromPath = `${location.pathname}${location.search}${location.hash}`;
   const { 
     predictions, 
     getUserCreatedPredictions, 
@@ -65,6 +67,21 @@ const PredictionsPage: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNa
     const normalized = (status || '').toLowerCase();
     return !(normalized === 'won' || normalized === 'lost' || normalized === 'refunded');
   }, []);
+
+  const isUuid = useCallback((value: unknown): value is string => {
+    if (typeof value !== 'string') return false;
+    return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
+  }, []);
+
+  const resolvePredictionRouteId = useCallback((candidate: any): string | null => {
+    const options = [
+      candidate?.id,
+      candidate?.predictionId,
+      candidate?.prediction_id,
+    ];
+    const match = options.find(isUuid);
+    return match || null;
+  }, [isUuid]);
 
   // Helper function to get time remaining with proper status context
   const getTimeRemaining = (deadline: string | null | undefined, predictionStatus?: string) => {
@@ -214,7 +231,9 @@ const PredictionsPage: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNa
         const timeRemaining = getTimeRemaining(prediction.entry_deadline, prediction.status);
         
         return {
-          id: entry.id,
+          id: prediction.id,
+          predictionId: prediction.id,
+          entryId: entry.id,
           title: prediction.title,
           category: prediction.category,
           position: option?.label || 'Unknown',
@@ -252,6 +271,7 @@ const PredictionsPage: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNa
         
         return {
           id: prediction.id,
+          predictionId: prediction.id,
           title: prediction.title,
           category: prediction.category,
           totalPool: prediction.pool_total || 0,
@@ -314,7 +334,9 @@ const PredictionsPage: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNa
         }
         
         return {
-          id: entry.id,
+          id: prediction.id,
+          predictionId: entry.prediction_id || prediction.id,
+          entryId: entry.id,
           title: prediction.title,
           category: prediction.category,
           position: option?.label || 'Unknown',
@@ -567,11 +589,11 @@ const PredictionsPage: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNa
         <div className="grid grid-cols-3 gap-4 mt-3">
           <div>
             <p className="text-xs text-emerald-600 mb-1">Staked</p>
-            <p className="font-semibold text-emerald-900">{formatCurrency(prediction.stake, { compact: false })}</p>
+            <p className="font-semibold text-emerald-900"><ZaurumAmount value={prediction.stake} markSize="xs" /></p>
           </div>
           <div>
             <p className="text-xs text-emerald-600 mb-1">Potential</p>
-            <p className="font-semibold text-emerald-900">{formatCurrency(prediction.potentialReturn, { compact: false })}</p>
+            <p className="font-semibold text-emerald-900"><ZaurumAmount value={prediction.potentialReturn} markSize="xs" /></p>
           </div>
           <div>
             <p className="text-xs text-emerald-600 mb-1">{t('odds')}</p>
@@ -652,7 +674,13 @@ const PredictionsPage: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNa
   const CreatedPredictionCard = ({ prediction }: { prediction: any }) => (
     <div
       className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-4 hover:shadow-md transition-all duration-200 cursor-pointer"
-      onClick={() => navigate(`/predictions/${prediction.id}`)}
+      onClick={(e) => {
+        const target = e.target as HTMLElement | null;
+        if (target?.closest('[data-no-card-nav="true"],button,a,input,textarea,select,label')) return;
+        const targetPredictionId = resolvePredictionRouteId(prediction);
+        if (!targetPredictionId) return;
+        navigate(buildPredictionCanonicalPath(targetPredictionId, prediction?.title), { state: { from: fromPath } });
+      }}
       role="button"
       aria-label={`View prediction ${prediction.title}`}
     >
@@ -674,7 +702,7 @@ const PredictionsPage: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNa
         <div className="grid grid-cols-3 gap-4">
           <div>
             <p className="text-xs text-blue-600 mb-1">Total Pool</p>
-            <p className="font-semibold text-blue-900">{formatCurrency(prediction.totalPool, { compact: false })}</p>
+            <p className="font-semibold text-blue-900"><ZaurumAmount value={prediction.totalPool} markSize="xs" /></p>
           </div>
           <div>
             <p className="text-xs text-blue-600 mb-1">Participants</p>
@@ -707,10 +735,20 @@ const PredictionsPage: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNa
           }
         </span>
         <button
-          onClick={() => {
+          data-no-card-nav="true"
+          type="button"
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            (e.nativeEvent as Event).stopImmediatePropagation?.();
             setSelectedPrediction(prediction);
             setShowManageModal(true);
           }}
+          onClickCapture={(e) => e.stopPropagation()}
+          onMouseDown={(e) => e.stopPropagation()}
+          onPointerDown={(e) => e.stopPropagation()}
+          onTouchStart={(e) => e.stopPropagation()}
+          onTouchEnd={(e) => e.stopPropagation()}
           className="bg-blue-600 text-white px-4 py-2 rounded-lg font-medium text-sm flex items-center gap-1 hover:bg-blue-700 transition-colors"
         >
           Manage <Settings className="w-4 h-4" />
@@ -724,46 +762,30 @@ const PredictionsPage: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNa
     const { address } = useAccount();
     const { data: claimables } = useClaimableClaims(address || undefined, 100);
     const claimMap = new Map((claimables || []).map(c => [c.predictionId, c]));
+    const canonicalPredictionId = resolvePredictionRouteId(prediction);
     const { claim, isClaiming } = useMerkleClaim();
-    const [archived, setArchived] = React.useState(false);
     const localClaimed = (() => {
       try {
         const addrLower = (address || '').toLowerCase();
-        return Boolean(localStorage.getItem(`fcz:claimed:${prediction.id}:${addrLower}`));
+        return Boolean(localStorage.getItem(`fcz:claimed:${canonicalPredictionId}:${addrLower}`));
       } catch {
         return false;
       }
     })();
-    const claimData = claimMap.get(prediction.id);
+    const claimData = canonicalPredictionId ? claimMap.get(canonicalPredictionId) : undefined;
     const hasClaim = !!address && !!claimData && !localClaimed;
     const isSettled = Boolean(prediction?.settledAt) || (String(prediction?.status || '').toLowerCase() === 'settled');
 
-    const openSafely = async () => {
-      // If status already indicates archived, do not fire a detail request at all
-      const statusLower = String(prediction?.status || '').toLowerCase();
-      if (statusLower === 'archived' || archived) {
-        setArchived(true);
-        toast('This prediction has been archived', { icon: '🗄️' });
-        return;
-      }
-      try {
-        // Lightweight HEAD preflight to avoid full payload
-        const r = await fetch(`${getApiUrl()}/api/v2/predictions/${prediction.id}`, { method: 'HEAD' });
-        if (!r.ok) {
-          setArchived(true);
-          toast('This prediction has been archived', { icon: '🗄️' });
-          return;
-        }
-        navigate(`/predictions/${prediction.id}`);
-      } catch {
-        navigate(`/predictions/${prediction.id}`);
-      }
+    const openSafely = () => {
+      const targetPredictionId = canonicalPredictionId;
+      if (!targetPredictionId) return;
+      navigate(buildPredictionCanonicalPath(targetPredictionId, prediction?.title), { state: { from: fromPath } });
     };
 
     return (
     <div
-      className={`bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-4 transition-all duration-200 ${archived ? 'opacity-60 cursor-not-allowed' : 'hover:shadow-md cursor-pointer'}`}
-      onClick={() => { if (!archived) void openSafely(); }}
+      className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-4 transition-all duration-200 hover:shadow-md cursor-pointer"
+      onClick={openSafely}
       role="button"
       aria-label={`View prediction ${prediction.title}`}
     >
@@ -773,9 +795,7 @@ const PredictionsPage: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNa
             <span className={`px-2 py-1 rounded-lg text-xs font-medium ${getCategoryColor(prediction.category)}`}>
               {prediction.category.replace('_', ' ')}
             </span>
-            {archived ? (
-              <span className="px-2 py-1 rounded-lg text-xs font-medium border bg-gray-50 text-gray-700 border-gray-200">Archived</span>
-            ) : isSettled ? (
+            {isSettled ? (
               <span className={`px-2 py-1 rounded-lg text-xs font-medium border ${
                 prediction.status === 'won' 
                   ? 'bg-emerald-50 text-emerald-700 border-emerald-200' 
@@ -794,18 +814,21 @@ const PredictionsPage: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNa
       </div>
 
       <div className={`rounded-xl p-4 mb-4 ${
-        archived ? 'bg-gray-50' : isSettled ? (prediction.status === 'won' ? 'bg-emerald-50' : 'bg-red-50') : 'bg-yellow-50'
+        isSettled ? (prediction.status === 'won' ? 'bg-emerald-50' : 'bg-red-50') : 'bg-yellow-50'
       }`}>
         <div className="flex items-center justify-between mb-2">
           <span className={`text-sm font-medium ${
-            archived ? 'text-gray-700' : isSettled ? (prediction.status === 'won' ? 'text-emerald-800' : 'text-red-800') : 'text-yellow-800'
+            isSettled ? (prediction.status === 'won' ? 'text-emerald-800' : 'text-red-800') : 'text-yellow-800'
           }`}>
-            {archived ? 'Archived' : isSettled ? `Your Position: ${prediction.position}` : 'Awaiting Settlement'}
+            {isSettled ? `Your Position: ${prediction.position}` : 'Awaiting Settlement'}
           </span>
           <div className="flex items-center gap-3">
             {isSettled && (
               <span className={`text-lg font-bold ${prediction.status === 'won' ? 'text-emerald-700' : 'text-red-700'}`}>
-                {formatCurrency(prediction.profit, { compact: false, showSign: true })}
+                <span className="inline-flex items-center gap-1">
+                  <span>{prediction.profit > 0 ? '+' : prediction.profit < 0 ? '-' : ''}</span>
+                  <ZaurumAmount value={Math.abs(prediction.profit)} markSize="xs" />
+                </span>
               </span>
             )}
             {hasClaim && claimData && (
@@ -814,10 +837,11 @@ const PredictionsPage: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNa
                 className="h-8 px-3 rounded-lg bg-emerald-600 text-white text-xs font-semibold hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed"
                 disabled={isClaiming}
                 onClick={async (e) => {
+                  e.preventDefault();
                   e.stopPropagation();
                   const units = BigInt(claimData.amountUnits);
                   const tx = await claim({
-                    predictionId: prediction.id,
+                    predictionId: canonicalPredictionId,
                     amountUnits: units,
                     proof: claimData.proof as `0x${string}`[],
                   });
@@ -827,7 +851,12 @@ const PredictionsPage: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNa
                   }
                 }}
               >
-                {isClaiming ? 'Claiming…' : `Claim ${formatCurrency(claimData.amountUSD, { compact: true })}`}
+                {isClaiming ? 'Claiming…' : (
+                  <span className="inline-flex items-center gap-1">
+                    <span>Claim</span>
+                    <ZaurumAmount value={claimData.amountUSD} compact markSize="xs" />
+                  </span>
+                )}
               </button>
             )}
           </div>
@@ -835,36 +864,41 @@ const PredictionsPage: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNa
         <div className="grid grid-cols-3 gap-4 mt-3">
           <div>
             <p className={`text-xs mb-1 ${
-              archived ? 'text-gray-600' : isSettled ? (prediction.status === 'won' ? 'text-emerald-600' : 'text-red-600') : 'text-yellow-600'
+              isSettled ? (prediction.status === 'won' ? 'text-emerald-600' : 'text-red-600') : 'text-yellow-600'
             }`}>Staked</p>
             <p className={`font-semibold ${
-              archived ? 'text-gray-900' : isSettled ? (prediction.status === 'won' ? 'text-emerald-900' : 'text-red-900') : 'text-yellow-900'
+              isSettled ? (prediction.status === 'won' ? 'text-emerald-900' : 'text-red-900') : 'text-yellow-900'
             }`}>
-              {formatCurrency(prediction.stake, { compact: false })}
+              <ZaurumAmount value={prediction.stake} markSize="xs" />
             </p>
           </div>
           <div>
             <p className={`text-xs mb-1 ${
-              archived ? 'text-gray-600' : isSettled ? (prediction.status === 'won' ? 'text-emerald-600' : 'text-red-600') : 'text-yellow-600'
+              isSettled ? (prediction.status === 'won' ? 'text-emerald-600' : 'text-red-600') : 'text-yellow-600'
             }`}>Returned</p>
             <p className={`font-semibold ${
-              archived ? 'text-gray-900' : isSettled ? (prediction.status === 'won' ? 'text-emerald-900' : 'text-red-900') : 'text-yellow-900'
-            }`}>{isSettled ? formatCurrency(prediction.actualReturn, { compact: false }) : '—'}</p>
+              isSettled ? (prediction.status === 'won' ? 'text-emerald-900' : 'text-red-900') : 'text-yellow-900'
+            }`}>{isSettled ? <ZaurumAmount value={prediction.actualReturn} markSize="xs" /> : '—'}</p>
           </div>
           <div>
             <p className={`text-xs mb-1 ${
-              archived ? 'text-gray-600' : isSettled ? (prediction.status === 'won' ? 'text-emerald-600' : 'text-red-600') : 'text-yellow-600'
+              isSettled ? (prediction.status === 'won' ? 'text-emerald-600' : 'text-red-600') : 'text-yellow-600'
             }`}>Profit/Loss</p>
             <p className={`font-semibold ${
-              archived ? 'text-gray-900' : isSettled ? (prediction.status === 'won' ? 'text-emerald-900' : 'text-red-900') : 'text-yellow-900'
-            }`}>{isSettled ? `${prediction.profit >= 0 ? '+' : '−'}${formatCurrency(Math.abs(prediction.profit), { compact: false })}` : 'Pending'}</p>
+              isSettled ? (prediction.status === 'won' ? 'text-emerald-900' : 'text-red-900') : 'text-yellow-900'
+            }`}>{isSettled ? (
+              <span className="inline-flex items-center gap-1">
+                <span>{prediction.profit >= 0 ? '+' : '−'}</span>
+                <ZaurumAmount value={Math.abs(prediction.profit)} markSize="xs" />
+              </span>
+            ) : 'Pending'}</p>
           </div>
         </div>
       </div>
 
       <div className="flex items-center justify-between text-sm text-gray-500">
         <span>{prediction.participants} participants</span>
-        <span>{archived ? 'Archived' : isSettled ? `Settled ${prediction.settledAt}` : 'Closed — awaiting settlement'}</span>
+        <span>{isSettled ? `Settled ${prediction.settledAt}` : 'Closed — awaiting settlement'}</span>
       </div>
       </div>
   );
@@ -955,10 +989,10 @@ const PredictionsPage: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNa
                 )
               )}
               {activeTab === 'Completed' && currentPredictions.map((prediction: Prediction | null, index: number) => 
-                !prediction || typeof prediction.id === 'undefined' ? (
+                !prediction || (typeof (prediction as any).id === 'undefined' && typeof (prediction as any).predictionId === 'undefined') ? (
                   console.warn('Invalid prediction object:', prediction), null
                 ) : (
-                  <CompletedPredictionCard key={`completed-${prediction.id}-${index}`} prediction={prediction} />
+                  <CompletedPredictionCard key={`completed-${(prediction as any).id || (prediction as any).predictionId}-${index}`} prediction={prediction} />
                 )
               )}
             </div>
@@ -977,7 +1011,9 @@ const PredictionsPage: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNa
             setSelectedPrediction(null);
           }}
           prediction={{
-            id: (selectedPrediction as any).id,
+            id:
+              resolvePredictionRouteId(selectedPrediction) ||
+              String((selectedPrediction as any).id || ''),
             title: (selectedPrediction as any).title,
             category: (selectedPrediction as any).category,
             totalPool:

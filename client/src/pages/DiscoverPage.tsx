@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo, useEffect, useRef, useLayoutEffect } from 'react';
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import { usePredictionStore, Prediction } from '../store/predictionStore';
 import { toast } from 'react-hot-toast';
 import PredictionCard from '../components/PredictionCard';
@@ -9,127 +9,46 @@ import { useAuthStore } from '../store/authStore';
 import PredictionCardSkeleton from '../components/PredictionCardSkeleton';
 import { PlacePredictionModal } from '../components/predictions/PlacePredictionModal';
 import { useInfiniteScroll } from '../hooks/useInfiniteScroll';
-import { useBlockedUsers } from '@/hooks/useBlockedUsers';
 import Logo from '../components/common/Logo';
 import AppHeader from '../components/layout/AppHeader';
-import { formatUSDCompact, formatNumberShort } from '@/lib/format';
 import { useNavigate } from 'react-router-dom';
-import { useCategories, Category } from '../hooks/useCategories';
-import { buildPredictionCanonicalUrl } from '@/lib/predictionUrls';
-import { isReported } from '@/lib/reportedContent';
-// Local scroll restoration helpers (scoped to Discover to avoid cross-module init issues)
-const scrollMemory = new Map<string, number>();
-const scrollStoragePrefix = 'fcz_scroll_';
-const scrollTtlMs = 10 * 60 * 1000;
-
-function makeKey(route: string, params?: Record<string, string | null | undefined>): string {
-  if (!params || Object.keys(params).length === 0) return route;
-  const search = new URLSearchParams();
-  for (const [k, v] of Object.entries(params)) {
-    if (v != null && v !== '') search.set(k, v);
-  }
-  const q = search.toString();
-  return q ? `${route}?${q}` : route;
-}
-
-function saveScroll(key: string, y: number): void {
-  if (typeof window === 'undefined') return;
-  if (y < 0) return;
-  scrollMemory.set(key, y);
-  try {
-    sessionStorage.setItem(scrollStoragePrefix + key, JSON.stringify({ y, t: Date.now() }));
-  } catch {
-    // ignore
-  }
-}
-
-function getScroll(key: string): number | null {
-  let y: number | null = scrollMemory.get(key) ?? null;
-  try {
-    const raw = sessionStorage.getItem(scrollStoragePrefix + key);
-    if (raw) {
-      const { y: storedY, t } = JSON.parse(raw) as { y: number; t: number };
-      if (Date.now() - t < scrollTtlMs) {
-        if (y == null) y = storedY;
-        scrollMemory.set(key, storedY);
-      } else {
-        sessionStorage.removeItem(scrollStoragePrefix + key);
-        scrollMemory.delete(key);
-        return null;
-      }
-    }
-  } catch {
-    // ignore
-  }
-  return y;
-}
+import { buildPredictionCanonicalPath, buildPredictionCanonicalUrl } from '@/lib/predictionUrls';
 
 interface DiscoverPageProps {
   onNavigateToProfile?: () => void;
   onNavigateToPrediction?: (predictionId: string) => void;
 }
 
-// Enhanced Category Filter Component - uses API categories
+// Enhanced Category Filter Component
 const CategoryFilters = React.memo(function CategoryFilters({ 
-  selectedCategoryId, 
-  onSelect,
-  categories,
-  isLoading
+  selectedCategory, 
+  onSelect 
 }: {
-  selectedCategoryId: string | null;
-  onSelect: (categoryId: string | null) => void;
-  categories: Category[];
-  isLoading: boolean;
+  selectedCategory: string;
+  onSelect: (category: string) => void;
 }) {
-  const stripRef = useRef<HTMLDivElement>(null);
-  const chipRefs = useRef(new Map<string, HTMLButtonElement | null>());
-
-  const setChipRef = useCallback(
-    (key: string) => (el: HTMLButtonElement | null) => {
-      chipRefs.current.set(key, el);
-    },
-    []
-  );
-
-  // Keep selected chip visible: scroll to center it in view
-  useLayoutEffect(() => {
-    const key = selectedCategoryId ?? 'all';
-    const chip = chipRefs.current.get(key);
-    if (!chip) return;
-    chip.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
-  }, [selectedCategoryId, categories.length]);
-
-  if (isLoading) {
-    return (
-      <div className="category-filters bg-white border-b border-gray-100 px-4 py-3">
-        <div className="flex gap-2">
-          {[1, 2, 3, 4, 5, 6].map((i) => (
-            <div key={i} className="h-7 w-20 bg-gray-200 rounded-full animate-pulse" />
-          ))}
-        </div>
-      </div>
-    );
-  }
+  const categories = [
+    { id: 'all', label: 'All' },
+    { id: 'sports', label: 'Sports' },
+    { id: 'pop_culture', label: 'Pop Culture' },
+    { id: 'custom', label: 'Custom' },
+    { id: 'politics', label: 'Politics' },
+    { id: 'tech', label: 'Tech' },
+    { id: 'finance', label: 'Finance' }
+  ];
 
   return (
-    <>
-      <div
-        className="category-filters bg-white border-b border-gray-100 px-4 py-3"
-        data-tour="category-filters"
-        data-tour-id="category-filters"
-      >
-        <div
-          ref={stripRef}
-          className="overflow-x-auto overflow-y-hidden scrollbar-hide"
-        >
-          <div className="flex gap-2 flex-nowrap w-max">
-            {/* "All" chip */}
+    <div
+      className="category-filters bg-white border-b border-gray-100 px-4 py-3"
+      data-tour="category-filters"
+      data-tour-id="category-filters"
+    >
+      <div className="overflow-x-auto overflow-y-hidden scrollbar-hide">
+        <div className="flex gap-2">
+          {categories.map((category) => (
             <button
-              ref={setChipRef('all')}
-              onClick={() => {
-                onSelect(null);
-              }}
-              aria-pressed={selectedCategoryId === null}
+              key={category.id}
+              onClick={() => onSelect(category.id)}
               style={{
                 height: '28px',
                 minHeight: '28px',
@@ -146,71 +65,27 @@ const CategoryFilters = React.memo(function CategoryFilters({
                 whiteSpace: 'nowrap',
                 flexShrink: 0,
                 transition: 'all 0.2s',
-                backgroundColor: selectedCategoryId === null ? '#7B2FF7' : '#f1f5f9',
-                color: selectedCategoryId === null ? '#ffffff' : '#475569',
+                backgroundColor: selectedCategory === category.id ? '#7B2FF7' : '#f1f5f9',
+                color: selectedCategory === category.id ? '#ffffff' : '#475569',
               }}
               onMouseEnter={(e) => {
-                if (selectedCategoryId !== null) {
+                if (selectedCategory !== category.id) {
                   e.currentTarget.style.backgroundColor = '#e2e8f0';
                 }
               }}
               onMouseLeave={(e) => {
-                if (selectedCategoryId !== null) {
+                if (selectedCategory !== category.id) {
                   e.currentTarget.style.backgroundColor = '#f1f5f9';
                 }
               }}
               data-tour="category-chips-item"
             >
-              All
+              {category.label}
             </button>
-
-            {/* All categories as chips */}
-            {categories.map((category) => (
-              <button
-                key={category.id}
-                ref={setChipRef(category.id)}
-                onClick={() => {
-                  onSelect(category.id);
-                }}
-                aria-pressed={selectedCategoryId === category.id}
-                style={{
-                  height: '28px',
-                  minHeight: '28px',
-                  padding: '0 12px',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: '13px',
-                  fontWeight: 500,
-                  lineHeight: 1,
-                  borderRadius: '14px',
-                  border: 'none',
-                  cursor: 'pointer',
-                  whiteSpace: 'nowrap',
-                  flexShrink: 0,
-                  transition: 'all 0.2s',
-                  backgroundColor: selectedCategoryId === category.id ? '#7B2FF7' : '#f1f5f9',
-                  color: selectedCategoryId === category.id ? '#ffffff' : '#475569',
-                }}
-                onMouseEnter={(e) => {
-                  if (selectedCategoryId !== category.id) {
-                    e.currentTarget.style.backgroundColor = '#e2e8f0';
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  if (selectedCategoryId !== category.id) {
-                    e.currentTarget.style.backgroundColor = '#f1f5f9';
-                  }
-                }}
-                data-tour="category-chips-item"
-              >
-                {category.label}
-              </button>
-            ))}
-          </div>
+          ))}
         </div>
       </div>
-    </>
+    </div>
   );
 });
 
@@ -257,7 +132,6 @@ DiscoverHeaderContent.displayName = 'DiscoverHeaderContent';
 const DiscoverPage = React.memo(function DiscoverPage({ onNavigateToProfile, onNavigateToPrediction }: DiscoverPageProps) {
   const { user } = useAuthStore();
   const navigate = useNavigate();
-  const { categories, isLoading: categoriesLoading } = useCategories();
   const { 
     predictions, 
     loading, 
@@ -268,66 +142,9 @@ const DiscoverPage = React.memo(function DiscoverPage({ onNavigateToProfile, onN
     loadMorePredictions,
     setFilters 
   } = usePredictionStore();
-  const { isBlocked, isEnabled: blockListEnabled } = useBlockedUsers();
-
+  
   const [selectedPrediction, setSelectedPrediction] = useState<Prediction | null>(null);
   const [isPredictionModalOpen, setIsPredictionModalOpen] = useState(false);
-  // Initialize selectedCategoryId from store to persist selection across navigation
-  const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(() => {
-    // If filter is 'all' or undefined, show "All" chip selected (null)
-    const storedCategory = filters.category;
-    if (!storedCategory || storedCategory === 'all') return null;
-    return storedCategory;
-  });
-  const [scrollRestored, setScrollRestored] = useState(false);
-  const [hasSavedScroll, setHasSavedScroll] = useState(false);
-
-  const lastScrollYRef = useRef(0);
-  const savedScrollYRef = useRef<number | null>(null);
-
-  const discoverKey = useMemo(
-    () => makeKey('discover', { category: filters.category || 'all', search: filters.search || '' }),
-    [filters.category, filters.search]
-  );
-
-  // Read saved position on mount (same key as we use when saving)
-  useLayoutEffect(() => {
-    const saved = getScroll(discoverKey);
-    if (saved != null && saved > 0) {
-      savedScrollYRef.current = saved;
-      setHasSavedScroll(true);
-    } else {
-      setScrollRestored(true);
-    }
-  }, [discoverKey]);
-
-  // Track scroll position; on unmount save so we can restore when returning
-  useEffect(() => {
-    const onScroll = () => {
-      lastScrollYRef.current = window.scrollY ?? window.pageYOffset ?? document.documentElement.scrollTop ?? 0;
-    };
-    window.addEventListener('scroll', onScroll, { passive: true });
-    onScroll();
-    return () => {
-      window.removeEventListener('scroll', onScroll);
-      saveScroll(discoverKey, lastScrollYRef.current);
-    };
-  }, [discoverKey]);
-
-  // Restore scroll when content is ready (avoid flash-to-top)
-  useLayoutEffect(() => {
-    if (!hasSavedScroll || scrollRestored) return;
-    const y = savedScrollYRef.current;
-    if (y == null) return;
-    // IMPORTANT: do not reference displayPredictions here; it is declared later in the module
-    // and referencing it in hook deps can trigger TDZ ReferenceError in production bundles.
-    const contentReady = (Array.isArray(predictions) && predictions.length > 0) || !loading;
-    if (!contentReady) return;
-    window.scrollTo({ top: y, left: 0, behavior: 'auto' });
-    if (document.documentElement) document.documentElement.scrollTop = y;
-    if (document.scrollingElement) document.scrollingElement.scrollTop = y;
-    setScrollRestored(true);
-  }, [hasSavedScroll, scrollRestored, predictions?.length, loading]);
 
   const [platformStats, setPlatformStats] = useState({
     totalVolume: '0',
@@ -386,15 +203,17 @@ const DiscoverPage = React.memo(function DiscoverPage({ onNavigateToProfile, onN
     totalUsers: platformStats.totalUsers
   }), [platformStats]);
 
-  // Backend now handles filtering; client-side: exclude predictions from blocked users (UGC)
+  // Backend now handles filtering - no additional filtering needed
   const displayPredictions = useMemo(() => {
     if (!Array.isArray(predictions)) {
+      // Silently return empty array - excessive logging removed
       return [];
     }
 
     const now = Date.now();
-    let activePredictions = predictions.filter((prediction) => {
+    const activePredictions = predictions.filter((prediction) => {
       if (!prediction || !prediction.id || !prediction.title) {
+        // Silently filter invalid predictions - excessive logging removed
         return false;
       }
 
@@ -405,18 +224,9 @@ const DiscoverPage = React.memo(function DiscoverPage({ onNavigateToProfile, onN
       return isOpen && !isExpired;
     });
 
-    if (blockListEnabled) {
-      activePredictions = activePredictions.filter((prediction) => {
-        const creatorId = (prediction as any).creator_id ?? (prediction as any).creator?.id;
-        return !creatorId || !isBlocked(creatorId);
-      });
-    }
-
-    // Hide content the current user reported (instant UX hide)
-    activePredictions = activePredictions.filter((prediction) => !isReported('prediction', prediction.id));
-
+    // Excessive logging removed - only log errors if needed
     return activePredictions;
-  }, [predictions, blockListEnabled, isBlocked]);
+  }, [predictions]);
 
   // Event handlers
   const handlePredict = useCallback((prediction: Prediction) => {
@@ -428,7 +238,7 @@ const DiscoverPage = React.memo(function DiscoverPage({ onNavigateToProfile, onN
     if (onNavigateToPrediction) {
       onNavigateToPrediction(predictionId);
     } else {
-      window.location.href = `/prediction/${predictionId}`;
+      window.location.href = buildPredictionCanonicalPath(predictionId);
     }
   }, [onNavigateToPrediction]);
 
@@ -441,8 +251,9 @@ const DiscoverPage = React.memo(function DiscoverPage({ onNavigateToProfile, onN
   }, [handleNavigateToPrediction]);
 
   const handleShare = useCallback((prediction: Prediction) => {
-    const shareUrl = buildPredictionCanonicalUrl(prediction.id, prediction.title);
     const shareText = `Check out this prediction: ${prediction.title}`;
+    const shareUrl = buildPredictionCanonicalUrl(prediction.id, prediction.title);
+    
     if (navigator.share) {
       navigator.share({
         title: prediction.title,
@@ -451,13 +262,8 @@ const DiscoverPage = React.memo(function DiscoverPage({ onNavigateToProfile, onN
       }).catch(console.error);
     } else {
       navigator.clipboard.writeText(`${shareText}\n${shareUrl}`)
-        .then(() => toast.success('Link copied'))
-        .catch(() => {
-          toast.error("Couldn't copy link");
-          try {
-            window.prompt('Copy this link:', shareUrl);
-          } catch {}
-        });
+        .then(() => toast.success('Link copied to clipboard!'))
+        .catch(() => toast.error('Failed to copy link'));
     }
   }, []);
 
@@ -466,26 +272,10 @@ const DiscoverPage = React.memo(function DiscoverPage({ onNavigateToProfile, onN
     setFilters({ search: query });
   }, [setFilters]);
 
-  const handleCategorySelect = useCallback((categoryId: string | null) => {
-    console.log('📂 Category changed:', categoryId);
-    // Preserve scroll position before switching categories
-    const currentY = window.scrollY ?? window.pageYOffset ?? document.documentElement.scrollTop ?? 0;
-    lastScrollYRef.current = currentY;
-    saveScroll(discoverKey, currentY);
-
-    const nextCategory = categoryId || 'all';
-    const nextKey = makeKey('discover', { category: nextCategory, search: filters.search || '' });
-    // Keep scroll position across category switches
-    saveScroll(nextKey, currentY);
-
-    setSelectedCategoryId(categoryId);
-    // Send categoryId (UUID) to server - server handles both UUID and slug
-    if (categoryId) {
-      setFilters({ category: categoryId }); // Send UUID, server will handle it
-    } else {
-      setFilters({ category: 'all' });
-    }
-  }, [discoverKey, filters.search, setFilters]);
+  const handleCategorySelect = useCallback((category: string) => {
+    console.log('📂 Category changed:', category);
+    setFilters({ category });
+  }, [setFilters]);
 
   const handleModalClose = useCallback(() => {
     setIsPredictionModalOpen(false);
@@ -496,8 +286,8 @@ const DiscoverPage = React.memo(function DiscoverPage({ onNavigateToProfile, onN
   if (loading && (!predictions || predictions.length === 0)) {
     return (
       <div className="min-h-screen bg-gray-50">
-        {/* Header skeleton - safe-area so notch doesn't overlap */}
-        <div className="bg-white border-b border-gray-100 safe-area-pt">
+        {/* Header skeleton */}
+        <div className="bg-white border-b border-gray-100">
           <div className="h-11" />
           <div className="px-4 pb-4">
             <div className="flex items-center justify-between mb-4">
@@ -555,15 +345,12 @@ const DiscoverPage = React.memo(function DiscoverPage({ onNavigateToProfile, onN
     );
   }
 
-  const isRestoringScroll = hasSavedScroll && !scrollRestored;
-
   return (
     <div 
       className="discover-page content-with-bottom-nav"
-      style={{ opacity: isRestoringScroll ? 0.01 : 1, transition: 'opacity 0.05s ease-out' }}
     >
       {/* Unified Header - Minimal (no logo, no descriptive text) */}
-      <AppHeader title="Discover" showNotifications />
+      <AppHeader title="Discover" />
       
       {/* Header Content */}
       <DiscoverHeaderContent 
@@ -575,10 +362,8 @@ const DiscoverPage = React.memo(function DiscoverPage({ onNavigateToProfile, onN
       {/* Category filters with explicit positioning */}
       <div className="category-filters-wrapper" style={{ position: 'relative', zIndex: 45 }}>
         <CategoryFilters 
-          selectedCategoryId={selectedCategoryId}
-          onSelect={handleCategorySelect}
-          categories={categories}
-          isLoading={categoriesLoading}
+          selectedCategory={filters.category} 
+          onSelect={handleCategorySelect} 
         />
       </div>
 
@@ -610,8 +395,7 @@ const DiscoverPage = React.memo(function DiscoverPage({ onNavigateToProfile, onN
                           label: opt.label,
                           odds: opt.current_odds
                         })),
-                        description: prediction.description,
-                        image_url: prediction.image_url
+                        description: prediction.description
                       }}
                     />
                   );
