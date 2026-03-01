@@ -35,6 +35,7 @@ export const UGC_MODERATION = envFlag((envClient as any).VITE_FCZ_UGC_MODERATION
 export const DISPUTES = envFlag((envClient as any).VITE_FCZ_DISPUTES);
 export const ODDS_V2 = envFlag((envClient as any).VITE_FCZ_ODDS_V2);
 export const WALLET_CONNECT_V2 = envFlag((envClient as any).VITE_FCZ_WALLET_CONNECT_V2);
+export const FCZ_WALLET_MODE = (((envClient as any).VITE_FCZ_WALLET_MODE || "dual") as string).toLowerCase() === "zaurum_only" ? "zaurum_only" : "dual";
 
 // Debug and Development
 export const DEBUG_ENABLED = envClient.VITE_DEBUG === 'true';
