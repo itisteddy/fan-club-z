@@ -328,7 +328,7 @@ const WalletPageV2: React.FC<WalletPageV2Props> = ({ onNavigateBack }) => {
 
   const handleDeposit = useCallback(() => {
     if (isZaurumOnly) {
-      toast('Crypto deposit is disabled in Zaurum-only mode.');
+      toast('Deposit is disabled in Zaurum-only mode.');
       return;
     }
     if (!ensureWalletReady()) return;
@@ -337,7 +337,7 @@ const WalletPageV2: React.FC<WalletPageV2Props> = ({ onNavigateBack }) => {
 
   const handleWithdraw = useCallback(() => {
     if (isZaurumOnly) {
-      toast('Crypto withdrawal is disabled in Zaurum-only mode.');
+      toast('Withdrawal is disabled in Zaurum-only mode.');
       return;
     }
     if (!ensureWalletReady()) return;

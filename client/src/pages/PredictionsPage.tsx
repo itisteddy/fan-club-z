@@ -79,8 +79,13 @@ const PredictionsPage: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNa
       candidate?.predictionId,
       candidate?.prediction_id,
     ];
-    const match = options.find(isUuid);
-    return match || null;
+    for (const value of options) {
+      if (typeof value !== 'string') continue;
+      const clean = value.trim();
+      if (!clean) continue;
+      if (isUuid(clean) || clean.length >= 8) return clean;
+    }
+    return null;
   }, [isUuid]);
 
   // Helper function to get time remaining with proper status context

@@ -17,12 +17,17 @@ const SIZE_CLASS: Record<NonNullable<ZaurumMarkProps['size']>, string> = {
 
 export function ZaurumMark({ className, title = 'Zaurum', size = 'md' }: ZaurumMarkProps) {
   return (
-    <span
-      role="img"
-      aria-label={title}
+    <img
+      src="/assets/zaurum-mark.png"
+      alt={title}
       title={title}
-      className={cn('inline-block align-middle shrink-0 select-none bg-center bg-no-repeat bg-contain drop-shadow-[0_0_1px_rgba(245,158,11,0.55)]', SIZE_CLASS[size], className)}
-      style={{ backgroundImage: 'url(/assets/zaurum-mark.png)' }}
+      className={cn(
+        'inline-block align-middle shrink-0 select-none object-contain drop-shadow-[0_0_1px_rgba(245,158,11,0.55)]',
+        SIZE_CLASS[size],
+        className
+      )}
+      loading="eager"
+      decoding="async"
     />
   );
 }
