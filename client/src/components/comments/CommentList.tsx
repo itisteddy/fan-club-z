@@ -5,7 +5,6 @@ import CommentSkeleton from './CommentSkeleton';
 import { RefreshCw } from 'lucide-react';
 import { showToast } from '../../utils/toasts';
 import { qaLog } from '../../utils/devQa';
-import { useBlockedUsers } from '@/hooks/useBlockedUsers';
 
 interface CommentListProps {
   items: Comment[];
@@ -23,18 +22,11 @@ const CommentList: React.FC<CommentListProps> = ({
   predictionId,
 }) => {
   const loadMoreRef = useRef<HTMLDivElement>(null);
-  const { isBlocked, isEnabled: blockListEnabled } = useBlockedUsers();
   const { 
     editComment, 
     deleteComment, 
     setHighlighted 
   } = useCommentsForPrediction(predictionId);
-
-  // Hide comments from blocked users (UGC moderation)
-  const visibleItems = useMemo(() => {
-    if (!blockListEnabled) return items;
-    return items.filter((c) => !isBlocked(c.user?.id));
-  }, [items, blockListEnabled, isBlocked]);
 
   // Get highlighted comment ID from store
   const highlightedId = useMemo(() => {
@@ -156,7 +148,7 @@ const CommentList: React.FC<CommentListProps> = ({
       aria-label="Comments list"
     >
       <div className="comments-list-inner" role="list">
-        {visibleItems.map((comment) => (
+        {items.map((comment) => (
           <CommentItem
             key={comment.id}
             comment={comment}
@@ -184,7 +176,7 @@ const CommentList: React.FC<CommentListProps> = ({
       )}
 
       {/* Manual load more button (fallback) */}
-      {hasMore && status !== 'paginating' && status !== 'loading' && visibleItems.length >= 10 && (
+      {hasMore && status !== 'paginating' && status !== 'loading' && items.length >= 10 && (
         <div className="p-4">
           <button
             onClick={onLoadMore}

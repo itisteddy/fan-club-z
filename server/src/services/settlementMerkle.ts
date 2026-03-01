@@ -1,6 +1,5 @@
 import { supabase } from '../config/database';
 import { keccak256, encodePacked, getAddress } from 'viem';
-import { computePoolV2SettlementTotals } from './settlementOddsV2';
 
 type WinnerPayout = {
   user_id: string;
@@ -152,40 +151,10 @@ export async function computeMerkleSettlement(args: {
     ? Number(prediction.creator_fee_percentage)
     : 1.0;
 
-  const oddsModel = (prediction as any).odds_model ?? 'legacy';
-  let platformFeeUSD: number;
-  let creatorFeeUSD: number;
-  let payoutPoolUSD: number;
-
-  if (oddsModel === 'pool_v2') {
-    const winningCents = Math.round(totalWinningStake * 100);
-    const losingCents = Math.round(totalLosingStake * 100);
-    const platformFeeBps = Math.round(platformFeePct * 100);
-    const creatorFeeBps = Math.round(creatorFeePct * 100);
-    const totals = computePoolV2SettlementTotals({
-      winningPoolCents: winningCents,
-      losingPoolCents: losingCents,
-      platformFeeBps,
-      creatorFeeBps,
-    });
-    if (totals) {
-      platformFeeUSD = totals.platformFeeCents / 100;
-      creatorFeeUSD = totals.creatorFeeCents / 100;
-      payoutPoolUSD = totals.distributableCents / 100;
-    } else {
-      platformFeeUSD = Math.max(Math.round(((totalLosingStake * platformFeePct) / 100) * 100) / 100, 0);
-      creatorFeeUSD = Math.max(Math.round(((totalLosingStake * creatorFeePct) / 100) * 100) / 100, 0);
-      const prizePoolUSD = Math.max(totalLosingStake - platformFeeUSD - creatorFeeUSD, 0);
-      payoutPoolUSD = totalWinningStake + prizePoolUSD;
-    }
-  } else {
-    platformFeeUSD = Math.max(Math.round(((totalLosingStake * platformFeePct) / 100) * 100) / 100, 0);
-    creatorFeeUSD = Math.max(Math.round(((totalLosingStake * creatorFeePct) / 100) * 100) / 100, 0);
-    const prizePoolUSD = Math.max(totalLosingStake - platformFeeUSD - creatorFeeUSD, 0);
-    payoutPoolUSD = totalWinningStake + prizePoolUSD;
-  }
-
-  const prizePoolUSD = payoutPoolUSD - totalWinningStake;
+  const platformFeeUSD = Math.max(Math.round(((totalLosingStake * platformFeePct) / 100) * 100) / 100, 0);
+  const creatorFeeUSD = Math.max(Math.round(((totalLosingStake * creatorFeePct) / 100) * 100) / 100, 0);
+  const prizePoolUSD = Math.max(totalLosingStake - platformFeeUSD - creatorFeeUSD, 0);
+  const payoutPoolUSD = totalWinningStake + prizePoolUSD;
   const payoutPoolUnits = usdToUnits(payoutPoolUSD);
 
   const predictionIdHex = toBytes32FromUuid(predictionId);

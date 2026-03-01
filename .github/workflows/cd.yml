@@ -35,7 +35,11 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
-        run: npm cache clean --force && npm install --legacy-peer-deps
+        run: |
+          npm ci
+          npm --prefix server ci
+          npm --prefix client ci
+          npm --prefix shared ci
 
       - name: Type check
         run: npm run typecheck
@@ -75,9 +79,9 @@ jobs:
           path: server/dist
           retention-days: 30
 
-  # Deploy to Vercel (Main App - fan-club-z)
+  # Deploy to Vercel (Frontend)
   deploy-frontend:
-    name: Deploy Main App (Vercel fan-club-z)
+    name: Deploy Frontend (Vercel)
     runs-on: ubuntu-latest
     needs: build-and-test
     if: github.ref == 'refs/heads/main'
@@ -91,34 +95,12 @@ jobs:
           name: client-build
           path: client/dist
 
-      - name: Deploy to Vercel (main app)
+      - name: Deploy to Vercel
         uses: amondnet/vercel-action@v25
         with:
           vercel-token: ${{ secrets.VERCEL_TOKEN }}
           vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
           vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
-          vercel-args: '--prod'
-          working-directory: ./client
-
-  # Deploy to Vercel (Landing Page - landing-page)
-  # Runs only when VERCEL_LANDING_PROJECT_ID is set. Same repo/source; landing-page project must have VITE_BUILD_TARGET=landing in Vercel env.
-  deploy-landing:
-    name: Deploy Landing Page (Vercel landing-page)
-    runs-on: ubuntu-latest
-    needs: build-and-test
-    env:
-      LANDING_PROJECT_ID: ${{ secrets.VERCEL_LANDING_PROJECT_ID }}
-    if: github.ref == 'refs/heads/main' && env.LANDING_PROJECT_ID != ''
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Deploy to Vercel (landing page)
-        uses: amondnet/vercel-action@v25
-        with:
-          vercel-token: ${{ secrets.VERCEL_TOKEN }}
-          vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
-          vercel-project-id: ${{ secrets.VERCEL_LANDING_PROJECT_ID }}
           vercel-args: '--prod'
           working-directory: ./client
 
@@ -185,7 +167,9 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
-        run: npm cache clean --force && npm install --legacy-peer-deps
+        run: |
+          npm ci
+          npm --prefix server ci
 
       - name: Run ledger check
         run: npm run ledger:check

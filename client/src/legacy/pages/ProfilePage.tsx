@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Edit3, User, Activity, DollarSign, X } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { Edit3, User, Activity, DollarSign } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 import { usePredictionStore, PredictionEntry, Prediction } from '../../store/predictionStore';
 import { openAuthGate } from '../../auth/authGateAdapter';
@@ -8,8 +7,6 @@ import UserAvatar from '../../components/common/UserAvatar';
 import AppHeader from '../../components/layout/AppHeader';
 import { SignOutButton } from '../../components/profile/SignOutButton';
 import { formatCurrency, formatInt, formatPercent } from '@/lib/format';
-import { apiClient } from '@/lib/apiClient';
-import toast from 'react-hot-toast';
 
 interface ProfilePageProps {
   onNavigateBack?: () => void;
@@ -17,12 +14,9 @@ interface ProfilePageProps {
 }
 
 const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigateBack, userId }) => {
-  const navigate = useNavigate();
   const { user, isAuthenticated } = useAuthStore();
   const { getUserPredictionEntries, getUserCreatedPredictions } = usePredictionStore();
   const [loading, setLoading] = useState(!isAuthenticated);
-  const [showDeleteAccountModal, setShowDeleteAccountModal] = useState(false);
-  const [deletingAccount, setDeletingAccount] = useState(false);
   
   // Determine if viewing own profile
   const isOwnProfile = !userId || userId === user?.id;
@@ -48,23 +42,6 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigateBack, userId }) => 
   const recentActivity = [...userEntries, ...userCreated]
     .sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime())
     .slice(0, 5);
-
-  const handleDeleteAccount = async () => {
-    if (deletingAccount) return;
-    try {
-      setDeletingAccount(true);
-      await apiClient.post('/users/me/delete', {});
-      toast.success('Account deleted.');
-      await useAuthStore.getState().logout();
-      navigate('/', { replace: true });
-    } catch (error) {
-      console.error('[LegacyProfile] Delete account failed:', error);
-      toast.error((error as Error)?.message || 'Account deletion failed. Please try again.');
-    } finally {
-      setDeletingAccount(false);
-      setShowDeleteAccountModal(false);
-    }
-  };
 
   // Handle authentication required
   if (!isAuthenticated) {
@@ -229,63 +206,12 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigateBack, userId }) => 
               {isOwnProfile && (
                 <div className="mt-4">
                   <SignOutButton />
-                  <button
-                    type="button"
-                    onClick={() => setShowDeleteAccountModal(true)}
-                    className="mt-2 w-full text-sm px-4 py-3 rounded-2xl border border-red-200 bg-white text-red-700 hover:bg-red-50 flex items-center justify-center shadow-sm"
-                  >
-                    Delete account
-                  </button>
                 </div>
               )}
             </>
           )}
         </div>
       </div>
-
-      {showDeleteAccountModal && (
-        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
-            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
-              <h2 className="text-sm font-semibold text-gray-900">Delete account</h2>
-              <button
-                type="button"
-                onClick={() => setShowDeleteAccountModal(false)}
-                className="p-1.5 rounded-lg hover:bg-gray-100"
-                aria-label="Close"
-              >
-                <X className="w-4 h-4 text-gray-600" />
-              </button>
-            </div>
-            <div className="p-4 space-y-3">
-              <p className="text-sm text-gray-700">
-                This will disable your account and sign you out immediately.
-              </p>
-              <p className="text-xs text-gray-500">
-                You can restore access later by signing in again and completing restore.
-              </p>
-            </div>
-            <div className="px-4 py-3 border-t border-gray-100 flex items-center justify-end gap-2">
-              <button
-                type="button"
-                disabled={deletingAccount}
-                onClick={() => setShowDeleteAccountModal(false)}
-                className="px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-lg disabled:opacity-50"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                disabled={deletingAccount}
-                onClick={() => void handleDeleteAccount()}
-                className="px-3 py-2 bg-red-600 text-white rounded-lg text-sm hover:bg-red-700 disabled:opacity-60"
-              >
-                {deletingAccount ? 'Deleting…' : 'Delete account'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

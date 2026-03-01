@@ -2,16 +2,14 @@
   "buildCommand": "cd .. && npm install && cd client && npm run build",
   "outputDirectory": "dist",
   "installCommand": "cd .. && npm install && cd client && npm install",
-  "headers": [
-    {
-      "source": "/.well-known/apple-app-site-association",
-      "headers": [{ "key": "Content-Type", "value": "application/json" }]
-    }
-  ],
   "rewrites": [
-    { "source": "/.well-known/apple-app-site-association", "destination": "/.well-known/apple-app-site-association" },
-    { "source": "/.well-known/assetlinks.json", "destination": "/.well-known/assetlinks.json" },
-    { "source": "/media/search", "destination": "/api/media-search" },
-    { "source": "/(.*)", "destination": "/index.html" }
+    {
+      "source": "/media/search",
+      "destination": "/api/media-search"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
   ]
 }

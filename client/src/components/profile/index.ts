@@ -6,4 +6,4 @@
 
 export { ProfileBadgesSection, ProfileBadgesCompact } from './ProfileBadgesSection';
 export { ProfileReferralSection } from './ProfileReferralSection';
-export { SignOutButton } from './SignOutButton';
+export { default as SignOutButton } from './SignOutButton';

@@ -75,7 +75,7 @@ export const OGBadgeEnhanced: React.FC<OGBadgeEnhancedProps> = ({
   className,
   size = 'md',
   showTooltip = true,
-  animate: _animate = true,
+  animate = true,
 }) => {
   const [isHovered, setIsHovered] = useState(false);
   
@@ -100,16 +100,20 @@ export const OGBadgeEnhanced: React.FC<OGBadgeEnhancedProps> = ({
     : null;
 
   return (
-    <div
+    <div 
       className={cn('relative inline-flex items-center', className)}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
-      <span
+      <motion.span
         className={cn(
           'inline-flex items-center justify-center rounded-full',
+          animate && 'transition-shadow duration-200',
+          isHovered && animate && `shadow-lg ${config.glowColor}`
         )}
         style={{ width: sizeSettings.container, height: sizeSettings.container }}
+        whileHover={animate ? { scale: 1.1 } : undefined}
+        whileTap={animate ? { scale: 0.95 } : undefined}
         aria-label={config.label}
         title={!showTooltip ? config.label : undefined}
       >
@@ -121,7 +125,7 @@ export const OGBadgeEnhanced: React.FC<OGBadgeEnhancedProps> = ({
           className="flex-shrink-0"
           loading="lazy"
         />
-      </span>
+      </motion.span>
 
       {/* Enhanced Tooltip */}
       {showTooltip && (
@@ -263,7 +267,9 @@ export const OGBadgeLarge: React.FC<OGBadgeLargeProps> = ({
     : null;
 
   return (
-    <div
+    <motion.div
+      initial={{ opacity: 0, scale: 0.9 }}
+      animate={{ opacity: 1, scale: 1 }}
       className={cn(
         'inline-flex items-center gap-3 px-4 py-3 rounded-2xl',
         'border-2 shadow-lg',
@@ -273,14 +279,17 @@ export const OGBadgeLarge: React.FC<OGBadgeLargeProps> = ({
         className
       )}
     >
-      <div>
+      <motion.div
+        whileHover={{ rotate: [0, -5, 5, 0] }}
+        transition={{ duration: 0.4 }}
+      >
         <img 
           src={config.src} 
           alt={config.label}
           width={40} 
           height={40}
         />
-      </div>
+      </motion.div>
       
       <div>
         <div className="flex items-center gap-2">
@@ -306,7 +315,7 @@ export const OGBadgeLarge: React.FC<OGBadgeLargeProps> = ({
           <p className="text-xs text-gray-400 mt-0.5">Since {formattedDate}</p>
         )}
       </div>
-    </div>
+    </motion.div>
   );
 };
 

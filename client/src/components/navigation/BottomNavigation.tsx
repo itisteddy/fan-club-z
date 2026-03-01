@@ -70,8 +70,7 @@ export const BottomNavigation: React.FC = () => {
       className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-sm border-t border-gray-100 z-50 shadow-sm h-16"
       style={{ 
         paddingBottom: 'env(safe-area-inset-bottom)',
-        ['--bottom-nav-h' as any]: '64px',
-        ['--app-bottom-nav-offset' as any]: '64px'
+        ['--bottom-nav-h' as any]: '64px'
       } as React.CSSProperties}
       initial={{ y: 100 }}
       animate={{ y: 0 }}

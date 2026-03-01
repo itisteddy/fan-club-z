@@ -1,7 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Wallet, Fuel, Coins, ExternalLink, AlertCircle, CheckCircle, Copy, HelpCircle, ArrowLeft } from 'lucide-react';
-import { openTerms, openPrivacy } from '@/utils/openExternalUrl';
 
 const CURRENT_YEAR = new Date().getFullYear();
 
@@ -36,7 +35,7 @@ const FundingGuidePage: React.FC = () => {
   return (
     <div className="bg-gradient-to-b from-[#211234] via-[#1b1130] to-[#130c24] text-white min-h-screen">
       {/* Header */}
-      <header className="sticky top-0 z-40 backdrop-blur supports-[backdrop-filter]:bg-white/5 safe-area-pt">
+      <header className="sticky top-0 z-40 backdrop-blur supports-[backdrop-filter]:bg-white/5">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4">
           <div className="flex items-center gap-4">
             <button
@@ -48,7 +47,7 @@ const FundingGuidePage: React.FC = () => {
             </button>
             <div className="flex items-center gap-2">
               <img
-                src="/icons/icon-32.png"
+                src="/brand/fcz-logomark.png"
                 alt="FanClubZ"
                 className="h-8 w-8"
                 style={{ objectFit: 'contain' }}
@@ -198,14 +197,14 @@ const FundingGuidePage: React.FC = () => {
               </div>
             </div>
 
-            {/* Step 4: Get USDC */}
+            {/* Step 4: Get Zaurum */}
             <div className="rounded-2xl border border-white/10 bg-white/5 p-6">
               <div className="flex items-center gap-3 mb-4">
                 <span className="flex items-center justify-center w-8 h-8 rounded-full bg-emerald-500 text-white text-sm font-bold">4</span>
-                <h2 className="text-xl font-semibold">Get Base Sepolia USDC</h2>
+                <h2 className="text-xl font-semibold">Get Zaurum</h2>
               </div>
               <p className="text-white/70 mb-4">
-                USDC is the currency used for predictions on FanClubZ. Get test USDC from these faucets:
+                Zaurum is the in-app currency used for predictions on FanClubZ. Add Zaurum to continue:
               </p>
               <div className="space-y-3">
                 <a
@@ -219,7 +218,7 @@ const FundingGuidePage: React.FC = () => {
                       <Coins className="w-5 h-5 text-blue-400" />
                     </div>
                     <div>
-                      <p className="font-medium text-white">Circle USDC Faucet</p>
+                      <p className="font-medium text-white">Zaurum Top-Up</p>
                       <p className="text-sm text-white/50">Select "Base Sepolia" if available</p>
                     </div>
                   </div>
@@ -237,7 +236,7 @@ const FundingGuidePage: React.FC = () => {
                     </div>
                     <div>
                       <p className="font-medium text-white">Coinbase Developer Platform</p>
-                      <p className="text-sm text-white/50">Alternative USDC source</p>
+                      <p className="text-sm text-white/50">Alternative Zaurum source</p>
                     </div>
                   </div>
                   <ExternalLink className="w-5 h-5 text-white/40 group-hover:text-white/70" />
@@ -252,9 +251,9 @@ const FundingGuidePage: React.FC = () => {
                 </p>
               </div>
 
-              {/* USDC Token Address */}
+              {/* Zaurum reference ID */}
               <div className="mt-4 p-4 bg-white/5 border border-white/10 rounded-xl">
-                <p className="text-sm text-white/50 mb-2">USDC Token Address (Base Sepolia)</p>
+                <p className="text-sm text-white/50 mb-2">Zaurum Reference ID</p>
                 <div className="flex items-center justify-between gap-2">
                   <code className="text-sm font-mono text-white/80 break-all">
                     {USDC_CONTRACT_ADDRESS}
@@ -272,7 +271,7 @@ const FundingGuidePage: React.FC = () => {
                   </button>
                 </div>
                 <p className="text-xs text-white/50 mt-2">
-                  If USDC doesn't appear in your wallet, use "Import Token" and paste this address.
+                  If Zaurum does not appear in-app yet, refresh and try the top-up flow again.
                 </p>
               </div>
             </div>
@@ -290,7 +289,7 @@ const FundingGuidePage: React.FC = () => {
                 {[
                   { step: 'Open the app and go to Wallet' },
                   { step: 'Tap Connect Wallet and select your wallet' },
-                  { step: 'Tap Deposit to add USDC to your escrow balance' },
+                  { step: 'Tap Deposit to add Zaurum to your staking balance' },
                   { step: 'Approve the transaction in your wallet when prompted' },
                   { step: 'Start placing predictions using your Available balance!' },
                 ].map((item, index) => (
@@ -320,8 +319,8 @@ const FundingGuidePage: React.FC = () => {
                   <p className="text-sm text-white/60">Wait a few seconds for the transaction to confirm, then refresh the page.</p>
                 </div>
                 <div className="border-t border-white/10 pt-4">
-                  <p className="font-medium text-white mb-1">USDC not visible in wallet?</p>
-                  <p className="text-sm text-white/60">Import the USDC token using the address shown above.</p>
+                  <p className="font-medium text-white mb-1">Zaurum not visible yet?</p>
+                  <p className="text-sm text-white/60">Refresh the app and check your Wallet balances again.</p>
                 </div>
                 <div className="border-t border-white/10 pt-4">
                   <p className="font-medium text-white mb-1">Out of gas?</p>
@@ -353,31 +352,16 @@ const FundingGuidePage: React.FC = () => {
           <div className="flex flex-col md:flex-row items-center justify-between gap-4">
             <div className="flex items-center gap-2">
               <img
-                src="/icons/icon-32.png"
+                src="/brand/fcz-logomark.png"
                 alt="FanClubZ"
                 className="h-6 w-6"
                 style={{ objectFit: 'contain' }}
               />
               <span className="font-semibold">FanClubZ</span>
             </div>
-            <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm text-white/50">
+            <div className="flex items-center gap-6 text-sm text-white/50">
               <button onClick={handleBackToHome} className="hover:text-white transition-colors">
                 Home
-              </button>
-              <button onClick={() => navigate('/support')} className="hover:text-white transition-colors">
-                Support
-              </button>
-              <button onClick={openPrivacy} className="hover:text-white transition-colors">
-                Privacy
-              </button>
-              <button onClick={openTerms} className="hover:text-white transition-colors">
-                Terms
-              </button>
-              <button onClick={() => navigate('/guidelines')} className="hover:text-white transition-colors">
-                Guidelines
-              </button>
-              <button onClick={() => navigate('/cookies')} className="hover:text-white transition-colors">
-                Cookies
               </button>
               <a href="mailto:tech@fanclubz.app" className="hover:text-white transition-colors">
                 Contact

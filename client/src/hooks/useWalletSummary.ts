@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { QK } from '@/lib/queryKeys';
 import { getApiUrl } from '@/utils/environment';
-import { getAuthHeaders } from '@/lib/apiClient';
+import { getAuthHeaders, getFczClientHeader } from '@/lib/apiClient';
 
 export type WalletSummary = {
   currency: 'USD';
@@ -49,10 +49,10 @@ export function useWalletSummary(userId?: string, options: WalletSummaryOptions 
     enabled: Boolean(userId) && enabled,
     refetchInterval: refetchIntervalMs,
     // PERFORMANCE FIX: Better caching settings
-    staleTime: 15_000, // Data fresh for 15 seconds (matches server Cache-Control max-age)
+    staleTime: 5_000, // Keep wallet balances fresh
     gcTime: 60_000, // Keep in cache for 1 minute
-    refetchOnWindowFocus: true,  // Refresh when user switches back to app (critical on mobile)
-    refetchOnMount: 'always' as const, // Always fetch when component mounts (prevents stale mobile data)
+    refetchOnWindowFocus: false,
+    refetchOnMount: 'always',
     retry: 2,
     queryFn: async (): Promise<WalletSummary> => {
       if (!userId) {
@@ -64,33 +64,16 @@ export function useWalletSummary(userId?: string, options: WalletSummaryOptions 
         params.set('walletAddress', walletAddr);
       }
 
+      const authHeaders = await getAuthHeaders();
       const apiBase = getApiUrl();
-      // CRITICAL: Add a timeout so a stalled network request can't leave the wallet in a
-      // permanent "Loading..." state (some users reported infinite loading).
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 12_000);
-      const url = `${apiBase}/api/wallet/summary/${userId}${params.size ? `?${params.toString()}` : ''}`;
-
-      let response: Response;
-      try {
-        const authHeaders = await getAuthHeaders();
-        response = await fetch(url, {
-          headers: {
-            Accept: 'application/json',
-            'Cache-Control': 'no-cache',
-            ...authHeaders,
-          },
-          signal: controller.signal,
-          cache: 'no-store',
-        });
-      } catch (e: any) {
-        if (e?.name === 'AbortError') {
-          throw new Error('Wallet summary request timed out. Please try again.');
-        }
-        throw e;
-      } finally {
-        clearTimeout(timeout);
-      }
+      const response = await fetch(`${apiBase}/api/wallet/summary/${userId}${params.size ? `?${params.toString()}` : ''}`, {
+        headers: {
+          'Accept': 'application/json',
+          ...authHeaders,
+          'X-FCZ-Client': getFczClientHeader(),
+        },
+        credentials: 'include',
+      });
 
       if (!response.ok) {
         const errorBody = await response.json().catch(() => ({}));

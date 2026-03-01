@@ -12,6 +12,7 @@ import {
   transferCreatorEarningsToStake,
   WalletBalanceError,
 } from '../services/walletBalanceAccounts';
+import { config } from '../config';
 
 // [PERF] Helper to generate ETag from response data
 function generateETag(data: unknown): string {
@@ -30,7 +31,7 @@ const TransferCreatorEarningsSchema = z.object({
  * Get wallet summary (available, reserved, total)
  * Uses v_wallet_summary view for fast reads
  */
-walletRead.get('/summary/:userId', async (req, res) => {
+walletRead.get('/summary/:userId', requireSupabaseAuth, async (req: AuthenticatedRequest, res) => {
   try {
     const { userId } = req.params;
     const rawWalletAddr = (req.query?.walletAddress as string | undefined)?.toLowerCase?.() || undefined;
@@ -40,6 +41,20 @@ walletRead.get('/summary/:userId', async (req, res) => {
         error: 'Bad Request',
         message: 'userId is required',
         version: VERSION
+      });
+    }
+    if (!req.user?.id) {
+      return res.status(401).json({
+        error: 'Unauthorized',
+        message: 'Authorization required',
+        version: VERSION,
+      });
+    }
+    if (req.user.id !== userId) {
+      return res.status(403).json({
+        error: 'Forbidden',
+        message: 'You can only access your own wallet summary',
+        version: VERSION,
       });
     }
 
@@ -57,32 +72,37 @@ walletRead.get('/summary/:userId', async (req, res) => {
       console.error('[walletRead] Error fetching wallet:', walletError);
     }
 
-    // Fetch most recent linked wallet address (if any)
-    const { data: addressRow } = await supabase
-      .from('crypto_addresses')
-      .select('address')
-      .eq('user_id', userId)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
+    const isZaurumOnly = config.features.walletMode === 'zaurum_only';
+    let preferredAddress: string | null = null;
+    if (!isZaurumOnly) {
+      // Fetch most recent linked wallet address (if any)
+      const { data: addressRow } = await supabase
+        .from('crypto_addresses')
+        .select('address')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      // Determine preferred wallet address: prefer caller-provided value if present
+      preferredAddress = rawWalletAddr || addressRow?.address || null;
+    }
 
-    // Determine preferred wallet address: prefer caller-provided value if present
-    const preferredAddress = rawWalletAddr || addressRow?.address || null;
-
-    // Also fetch on-chain escrow snapshot to power available/reserved/escrow in UI
+    // Also fetch on-chain escrow snapshot to power available/reserved/escrow in UI (dual mode only)
     let onchain: Awaited<ReturnType<typeof reconcileWallet>> | null = null;
-    try {
-      onchain = await reconcileWallet({
-        userId,
-        walletAddress: preferredAddress ?? undefined
-      });
-    } catch (reconErr) {
-      console.warn('[walletRead] On-chain reconcile failed; falling back to cached DB balances', reconErr);
+    if (!isZaurumOnly) {
+      try {
+        onchain = await reconcileWallet({
+          userId,
+          walletAddress: preferredAddress ?? undefined
+        });
+      } catch (reconErr) {
+        console.warn('[walletRead] On-chain reconcile failed; falling back to cached DB balances', reconErr);
+      }
     }
 
     // Persist association of wallet address to user for future calls (best-effort)
     try {
-      if (rawWalletAddr) {
+      if (!isZaurumOnly && rawWalletAddr) {
         await supabase
           .from('crypto_addresses')
           .upsert(
@@ -149,7 +169,7 @@ walletRead.get('/summary/:userId', async (req, res) => {
       stakeBalance: Number((balanceAccounts.stakeBalance ?? available).toFixed(2)),
       legacyAvailableBalance: Number(available.toFixed(2)),
       // Keep available/reserved/escrow consistent with both reconciled snapshot and internal stake accounts.
-      availableToStakeUSDC: Number(mergedAvailable.toFixed(2)),
+      availableToStakeUSDC: Number((isZaurumOnly ? accountAvailable : mergedAvailable).toFixed(2)),
       reservedUSDC: Number(mergedReserved.toFixed(2)),
       escrowUSDC: Number(mergedEscrow.toFixed(2))
     };
@@ -171,32 +191,12 @@ walletRead.get('/summary/:userId', async (req, res) => {
 
     return res.json(summary);
   } catch (error) {
-    console.error('[walletRead] Unhandled error (degraded to 200):', error);
-    try {
-      // Best-effort degraded response
-      const { userId } = req.params;
-      return res.json({
-        user_id: userId,
-        currency: 'USD',
-        available: 0,
-        reserved: 0,
-        total: 0,
-        totalDeposited: 0,
-        totalWithdrawn: 0,
-        updatedAt: new Date().toISOString(),
-        walletAddress: null,
-        balances: { demoCredits: 0, creatorEarnings: 0, stakeBalance: 0 },
-        demoCredits: 0,
-        creatorEarnings: 0,
-        stakeBalance: 0,
-        availableToStakeUSDC: 0,
-        reservedUSDC: 0,
-        escrowUSDC: 0,
-        version: VERSION,
-      });
-    } catch {
-      return res.status(200).json({});
-    }
+    console.error('[walletRead] Unhandled error in wallet summary:', error);
+    return res.status(500).json({
+      error: 'Internal Server Error',
+      message: 'Failed to load wallet summary',
+      version: VERSION,
+    });
   }
 });
 

@@ -17,9 +17,10 @@ import {
   DollarSign,
   AlertTriangle,
 } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { useAuthStore } from '../../store/authStore';
 import { useAuthSession } from '../../providers/AuthSessionProvider';
-import { adminGet } from '@/lib/adminApi';
+import { adminGet, adminPatch } from '@/lib/adminApi';
 
 interface UserDetail {
   id: string;
@@ -69,6 +70,7 @@ export const UserDetailPage: React.FC = () => {
   const [timeline, setTimeline] = useState<TimelineItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [timelineLoading, setTimelineLoading] = useState(true);
+  const [roleActionLoading, setRoleActionLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<'timeline' | 'wallets' | 'bets' | 'settlements'>('timeline');
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [timelineFilter, setTimelineFilter] = useState<'all' | 'wallet' | 'bets' | 'settlements' | 'admin'>('all');
@@ -112,6 +114,37 @@ export const UserDetailPage: React.FC = () => {
   useEffect(() => {
     fetchTimeline();
   }, [fetchTimeline]);
+
+  const handleToggleAdminRole = useCallback(async () => {
+    if (!user) return;
+    const nextIsAdmin = !user.isAdmin;
+    const actionLabel = nextIsAdmin ? 'grant admin access to' : 'remove admin access from';
+    const confirmed = window.confirm(`Are you sure you want to ${actionLabel} ${user.fullName || user.username || 'this user'}?`);
+    if (!confirmed) return;
+
+    const adminKey = typeof window !== 'undefined' ? localStorage.getItem('fcz_admin_key') : null;
+    if (!actorId && !adminKey) {
+      toast.error('Admin access required. Please ensure you are logged in or have an admin key set.');
+      return;
+    }
+
+    setRoleActionLoading(true);
+    try {
+      const reason = window.prompt('Optional reason for audit log (leave blank to skip):', '') || '';
+      const res = await adminPatch<any>(`/api/v2/admin/users/${user.id}/role`, actorId || '', {
+        isAdmin: nextIsAdmin,
+        reason: reason.trim() || undefined,
+      });
+      toast.success(res?.message || (nextIsAdmin ? 'Admin access granted' : 'Admin access removed'));
+      await fetchUser();
+      await fetchTimeline();
+    } catch (e: any) {
+      console.error('[UserDetail] Role update error:', e);
+      toast.error(e?.message || 'Failed to update admin role');
+    } finally {
+      setRoleActionLoading(false);
+    }
+  }, [user, actorId, fetchUser, fetchTimeline]);
 
   const getTypeIcon = (type: string) => {
     switch (type) {
@@ -165,6 +198,8 @@ export const UserDetailPage: React.FC = () => {
       </div>
     );
   }
+
+  const isSelf = !!actorId && actorId === user.id;
 
   return (
     <div className="space-y-6">
@@ -235,9 +270,27 @@ export const UserDetailPage: React.FC = () => {
             >
               View as user
             </button>
+            <button
+              onClick={handleToggleAdminRole}
+              disabled={roleActionLoading || (isSelf && user.isAdmin)}
+              className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                user.isAdmin
+                  ? 'bg-amber-600 text-white hover:bg-amber-700'
+                  : 'bg-blue-600 text-white hover:bg-blue-700'
+              }`}
+              title={isSelf && user.isAdmin ? 'Self-demotion is disabled' : undefined}
+            >
+              {roleActionLoading ? 'Saving…' : user.isAdmin ? 'Remove admin' : 'Make admin'}
+            </button>
           </div>
         </div>
       </div>
+
+      {isSelf && user.isAdmin && (
+        <p className="text-xs text-amber-400 -mt-3">
+          Self-demotion is disabled to avoid locking out the admin portal.
+        </p>
+      )}
 
       {/* Stats Grid */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -374,4 +427,3 @@ export const UserDetailPage: React.FC = () => {
 };
 
 export default UserDetailPage;
-

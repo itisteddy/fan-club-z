@@ -36,28 +36,6 @@ export class SocialService {
     this.supabase = createClient(config.supabase.url, config.supabase.serviceRoleKey);
   }
 
-  private looksLikeMissingColumn(error: any, column: string): boolean {
-    const msg = String(error?.message || error?.details || error?.hint || '');
-    const code = String(error?.code || '');
-    // Postgres: undefined_column = 42703
-    if (code === '42703') return true;
-    return msg.toLowerCase().includes('does not exist') && msg.toLowerCase().includes(column.toLowerCase());
-  }
-
-  /**
-   * Some environments do not have soft-delete columns on comments (no migration).
-   * This helper retries a query without the is_deleted filter when the column is missing.
-   */
-  private async runWithIsDeletedFallback<T>(
-    build: (includeIsDeleted: boolean) => Promise<{ data: T; error: any; count?: number | null }>
-  ): Promise<{ data: T; error: any; count?: number | null }> {
-    const first = await build(true);
-    if (first?.error && this.looksLikeMissingColumn(first.error, 'is_deleted')) {
-      return await build(false);
-    }
-    return first;
-  }
-
   // ============================================================================
   // CLUBS METHODS
   // ============================================================================
@@ -442,29 +420,77 @@ export class SocialService {
       
       logger.info(`Fetching comments for prediction ${predictionId}, page ${page}, limit ${limit}`);
 
-      // Skip RPC (may not exist in production) and go straight to manual query
-      // which has full defensive fallbacks for missing columns/tables.
-      return await this.getPredictionCommentsManual(predictionId, pagination, userId);
+      // Use the custom function for efficient nested comment retrieval
+      const { data, error } = await this.supabase
+        .rpc('get_prediction_comments', {
+          pred_id: predictionId,
+          page_limit: limit,
+          page_offset: (page - 1) * limit
+        });
+
+      if (error) {
+        logger.error('Error fetching prediction comments with RPC:', error);
+        
+        // Fallback to manual query if RPC fails
+        return await this.getPredictionCommentsManual(predictionId, pagination, userId);
+      }
+
+      // Get total count for pagination
+      const { count } = await this.supabase
+        .from('comments')
+        .select('*', { count: 'exact', head: true })
+        .eq('prediction_id', predictionId)
+        .is('parent_comment_id', null);
+
+      const total = count || 0;
+      const totalPages = Math.ceil(total / limit);
+
+      // Transform data to match expected format
+      const transformedData = (data || []).map((comment: any) => ({
+        id: comment.id,
+        prediction_id: comment.prediction_id,
+        user_id: comment.user_id,
+        parent_comment_id: comment.parent_comment_id,
+        content: comment.content,
+        likes_count: comment.likes_count || 0,
+        replies_count: comment.replies_count || 0,
+        is_edited: comment.is_edited || false,
+        created_at: comment.created_at,
+        updated_at: comment.updated_at,
+        user: {
+          id: comment.user_id,
+          username: comment.username,
+          full_name: comment.full_name,
+          avatar_url: comment.avatar_url,
+          is_verified: comment.is_verified || false,
+        },
+        is_liked_by_user: comment.is_liked_by_user || false,
+        is_owned_by_user: comment.is_owned_by_user || false,
+        is_liked: comment.is_liked_by_user || false,
+        is_own: comment.is_owned_by_user || false,
+        replies: Array.isArray(comment.replies) ? comment.replies : [],
+      }));
+
+      logger.info(`Successfully fetched ${transformedData.length} comments`);
+
+      return {
+        data: transformedData,
+        pagination: {
+          page,
+          limit,
+          total,
+          totalPages,
+          hasNext: page < totalPages,
+          hasPrev: page > 1,
+        },
+      };
     } catch (error) {
       logger.error('Error in getPredictionComments:', error);
       throw error;
     }
   }
 
-  /**
-   * Helper: run a comments query, retrying without is_verified join if column is missing.
-   */
-  private async runWithUserJoinFallback<T>(
-    build: (userSelect: string) => Promise<{ data: T; error: any; count?: number | null }>
-  ): Promise<{ data: T; error: any; count?: number | null }> {
-    const first = await build('id, username, full_name, avatar_url, is_verified');
-    if (first?.error && this.looksLikeMissingColumn(first.error, 'is_verified')) {
-      return await build('id, username, full_name, avatar_url');
-    }
-    return first;
-  }
-
-  // Fallback manual method — fully defensive against missing columns/tables
+  // Fallback manual method
   private async getPredictionCommentsManual(
     predictionId: string, 
     pagination: PaginationQuery,
@@ -474,25 +500,18 @@ export class SocialService {
       const { page, limit } = pagination;
       const offset = (page - 1) * limit;
 
-      // Get top-level comments with user info (defensive: handle missing is_deleted AND is_verified)
-      let topResult = await this.runWithIsDeletedFallback<any[]>(async (includeIsDeleted) => {
-        const inner = await this.runWithUserJoinFallback(async (userSelect) => {
-          let q = this.supabase
-            .from('comments')
-            .select(`*, user:users(${userSelect})`, { count: 'exact' })
-            .eq('prediction_id', predictionId)
-            .is('parent_comment_id', null)
-            .order('created_at', { ascending: false })
-            .range(offset, offset + limit - 1);
-          if (includeIsDeleted) q = q.eq('is_deleted', false);
-          return await q;
-        });
-        return inner;
-      });
-
-      const topLevelComments = topResult.data;
-      const topError = topResult.error;
-      const count = topResult.count;
+      // Get top-level comments with user info
+      const { data: topLevelComments, error: topError, count } = await this.supabase
+        .from('comments')
+        .select(`
+          *,
+          user:users(id, username, full_name, avatar_url, is_verified)
+        `, { count: 'exact' })
+        .eq('prediction_id', predictionId)
+        .is('parent_comment_id', null)
+        .eq('is_deleted', false)
+        .order('created_at', { ascending: false })
+        .range(offset, offset + limit - 1);
 
       if (topError) {
         logger.error('Error fetching top-level comments:', topError);
@@ -516,56 +535,45 @@ export class SocialService {
       }
 
       // Get replies for all top-level comments
-      const commentIds = topLevelComments.map((c: any) => c.id);
-      let repliesData: any[] = [];
-      try {
-        const repliesResult = await this.runWithIsDeletedFallback<any[]>(async (includeIsDeleted) => {
-          const inner = await this.runWithUserJoinFallback(async (userSelect) => {
-            let q = this.supabase
-              .from('comments')
-              .select(`*, user:users(${userSelect})`)
-              .in('parent_comment_id', commentIds)
-              .order('created_at', { ascending: true });
-            if (includeIsDeleted) q = q.eq('is_deleted', false);
-            return await q;
-          });
-          return inner;
-        });
-        if (!repliesResult.error && repliesResult.data) {
-          repliesData = repliesResult.data;
-        }
-      } catch (e) {
-        logger.warn('Error fetching replies (non-fatal):', e);
+      const commentIds = topLevelComments.map(c => c.id);
+      const { data: replies, error: repliesError } = await this.supabase
+        .from('comments')
+        .select(`
+          *,
+          user:users(id, username, full_name, avatar_url, is_verified)
+        `)
+        .in('parent_comment_id', commentIds)
+        .eq('is_deleted', false)
+        .order('created_at', { ascending: true });
+
+      if (repliesError) {
+        logger.error('Error fetching replies:', repliesError);
       }
 
-      // Get like status for current user if provided (defensive: comment_likes table may not exist)
+      // Get like status for current user if provided
       let userLikes: any[] = [];
       if (userId) {
-        try {
-          const allIds = [...commentIds, ...repliesData.map((r: any) => r.id)];
-          const { data: likes, error: likesError } = await this.supabase
-            .from('comment_likes')
-            .select('comment_id')
-            .eq('user_id', userId)
-            .in('comment_id', allIds);
+        const { data: likes, error: likesError } = await this.supabase
+          .from('comment_likes')
+          .select('comment_id')
+          .eq('user_id', userId)
+          .in('comment_id', [
+            ...commentIds,
+            ...(replies || []).map(r => r.id)
+          ]);
 
-          if (!likesError && likes) {
-            userLikes = likes;
-          } else if (likesError) {
-            logger.warn('comment_likes query failed (table may not exist):', likesError.message);
-          }
-        } catch (e) {
-          logger.warn('comment_likes lookup failed (non-fatal):', e);
+        if (!likesError && likes) {
+          userLikes = likes;
         }
       }
 
-      const likedCommentIds = new Set(userLikes.map((l: any) => l.comment_id));
+      const likedCommentIds = new Set(userLikes.map(l => l.comment_id));
 
       // Combine comments with replies
-      const commentsWithReplies = topLevelComments.map((comment: any) => {
-        const commentReplies = repliesData
-          .filter((reply: any) => reply.parent_comment_id === comment.id)
-          .map((reply: any) => ({
+      const commentsWithReplies = topLevelComments.map(comment => {
+        const commentReplies = (replies || [])
+          .filter(reply => reply.parent_comment_id === comment.id)
+          .map(reply => ({
             ...reply,
             is_liked_by_user: likedCommentIds.has(reply.id),
             is_owned_by_user: reply.user_id === userId,
@@ -619,37 +627,22 @@ export class SocialService {
         throw new Error('Prediction not found');
       }
 
-      // If replying to a comment, verify parent exists (defensive: skip if table has issues)
+      // If replying to a comment, verify parent exists
       if (commentData.parent_comment_id) {
-        try {
-          const { data: parentComment, error: parentError } =
-            await this.runWithIsDeletedFallback<any>(async (includeIsDeleted) => {
-              let q = this.supabase
-                .from('comments')
-                .select('id')
-                .eq('id', commentData.parent_comment_id)
-                .single();
-              if (includeIsDeleted) q = q.eq('is_deleted', false);
-              return await q;
-            });
+        const { data: parentComment, error: parentError } = await this.supabase
+          .from('comments')
+          .select('id')
+          .eq('id', commentData.parent_comment_id)
+          .eq('is_deleted', false)
+          .single();
 
-          if (parentError || !parentComment) {
-            throw new Error('Parent comment not found');
-          }
-        } catch (parentCheckError: any) {
-          // If parent check fails for non-critical reasons, log and continue
-          // This allows replies even if is_deleted check fails
-          const msg = String(parentCheckError?.message || '').toLowerCase();
-          if (!msg.includes('not found')) {
-            logger.warn('Parent comment check failed (non-fatal):', parentCheckError?.message);
-          } else {
-            throw parentCheckError;
-          }
+        if (parentError || !parentComment) {
+          throw new Error('Parent comment not found');
         }
       }
 
-      // Insert the comment - try with full select first, fallback to minimal
-      let insertResult = await this.supabase
+      // Insert the comment
+      const { data, error } = await this.supabase
         .from('comments')
         .insert({
           prediction_id: commentData.prediction_id,
@@ -663,30 +656,11 @@ export class SocialService {
         `)
         .single();
 
-      // If the insert failed due to is_verified column missing on users, retry with minimal select
-      if (insertResult.error && this.looksLikeMissingColumn(insertResult.error, 'is_verified')) {
-        logger.warn('Retrying comment insert without is_verified column');
-        insertResult = await this.supabase
-          .from('comments')
-          .insert({
-            prediction_id: commentData.prediction_id,
-            user_id: userId,
-            parent_comment_id: commentData.parent_comment_id || null,
-            content: commentData.content.trim(),
-          })
-          .select(`
-            *,
-            user:users(id, username, full_name, avatar_url)
-          `)
-          .single();
-      }
-
-      if (insertResult.error) {
-        logger.error('Error creating comment:', insertResult.error);
+      if (error) {
+        logger.error('Error creating comment:', error);
         throw new Error('Failed to create comment');
       }
 
-      const data = insertResult.data;
       const enhancedComment: EnhancedComment = {
         ...data,
         is_liked_by_user: false,
@@ -710,26 +684,21 @@ export class SocialService {
 
   async updateComment(commentId: string, userId: string, content: string): Promise<EnhancedComment> {
     try {
-      const { data, error } = await this.runWithIsDeletedFallback<any>(async (includeIsDeleted) => {
-        let q = this.supabase
-          .from('comments')
-          .update({
-            content: content.trim(),
-            is_edited: true,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', commentId)
-          .eq('user_id', userId)
-          .select(
-            `
+      const { data, error } = await this.supabase
+        .from('comments')
+        .update({
+          content: content.trim(),
+          is_edited: true,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', commentId)
+        .eq('user_id', userId)
+        .eq('is_deleted', false)
+        .select(`
           *,
           user:users(id, username, full_name, avatar_url, is_verified)
-        `
-          )
-          .single();
-        if (includeIsDeleted) q = q.eq('is_deleted', false);
-        return await q;
-      });
+        `)
+        .single();
 
       if (error) {
         logger.error('Error updating comment:', error);
@@ -757,7 +726,7 @@ export class SocialService {
   async deleteComment(commentId: string, userId: string): Promise<void> {
     try {
       // Soft delete by marking as deleted instead of removing
-      const soft = await this.supabase
+      const { error } = await this.supabase
         .from('comments')
         .update({
           is_deleted: true,
@@ -767,23 +736,8 @@ export class SocialService {
         .eq('id', commentId)
         .eq('user_id', userId);
 
-      if (soft?.error && this.looksLikeMissingColumn(soft.error, 'is_deleted')) {
-        // No soft-delete columns in this DB: hard delete instead.
-        const hard = await this.supabase
-          .from('comments')
-          .delete()
-          .eq('id', commentId)
-          .eq('user_id', userId);
-        if (hard?.error) {
-          logger.error('Error hard deleting comment:', hard.error);
-          throw new Error('Failed to delete comment');
-        }
-        logger.info(`Comment hard deleted successfully: ${commentId}`);
-        return;
-      }
-
-      if (soft?.error) {
-        logger.error('Error deleting comment:', soft.error);
+      if (error) {
+        logger.error('Error deleting comment:', error);
         throw new Error('Failed to delete comment');
       }
 
@@ -988,19 +942,16 @@ export class SocialService {
 
       // Get recent comments and reactions
       const [commentsResult, reactionsResult] = await Promise.all([
-        this.runWithIsDeletedFallback<any[]>(async (includeIsDeleted) => {
-          let q = this.supabase
-            .from('comments')
-            .select(`
+        this.supabase
+          .from('comments')
+          .select(`
             *,
             prediction:predictions(id, title, creator_id)
           `)
-            .eq('user_id', userId)
-            .order('created_at', { ascending: false })
-            .limit(limit);
-          if (includeIsDeleted) q = q.eq('is_deleted', false);
-          return await q;
-        }),
+          .eq('user_id', userId)
+          .eq('is_deleted', false)
+          .order('created_at', { ascending: false })
+          .limit(limit),
 
         this.supabase
           .from('reactions')
@@ -1013,9 +964,9 @@ export class SocialService {
           .limit(limit),
       ]);
 
-      if ((commentsResult as any).error || reactionsResult.error) {
+      if (commentsResult.error || reactionsResult.error) {
         logger.error('Error fetching user activity:', {
-          commentsError: (commentsResult as any).error,
+          commentsError: commentsResult.error,
           reactionsError: reactionsResult.error,
         });
         throw new Error('Failed to fetch user activity');
@@ -1023,7 +974,7 @@ export class SocialService {
 
       // Combine and sort activities
       const activities = [
-        ...(((commentsResult as any).data || []) as any[]).map(comment => ({
+        ...(commentsResult.data || []).map(comment => ({
           ...comment,
           activity_type: 'comment',
         })),

@@ -12,30 +12,18 @@ export const SUPABASE_URL = envClient.VITE_SUPABASE_URL;
 export const SUPABASE_ANON_KEY = envClient.VITE_SUPABASE_ANON_KEY;
 export const FRONTEND_URL = envClient.VITE_FRONTEND_URL;
 
-function envFlag(value: unknown): boolean {
-  if (typeof value !== 'string') return false;
-  const v = value.trim().toLowerCase();
-  return v === '1' || v === 'true' || v === 'yes' || v === 'on';
-}
-
 // Feature Flags
-export const FCZ_UNIFIED_HEADER = envFlag(envClient.VITE_FCZ_UNIFIED_HEADER);
-export const FCZ_DISCOVER_V2 = envFlag(envClient.VITE_FCZ_DISCOVER_V2);
-export const FCZ_PREDICTION_DETAILS_V2 = envFlag(envClient.VITE_FCZ_PREDICTION_DETAILS_V2);
-export const FCZ_SHARED_CARDS = envFlag(envClient.VITE_FCZ_SHARED_CARDS);
-export const FCZ_AUTH_GATE = envFlag(envClient.VITE_FCZ_AUTH_GATE);
-export const FCZ_COMMENTS_V2 = envFlag(envClient.VITE_FCZ_COMMENTS_V2);
-export const FCZ_UNIFIED_CARDS = envFlag(envClient.VITE_FCZ_UNIFIED_CARDS);
-export const FCZ_COMMENTS_SORT = envFlag(envClient.VITE_FCZ_COMMENTS_SORT);
-
-// Compliance / phased rollout (default OFF unless env set to '1')
-export const SIGN_IN_APPLE = envFlag((envClient as any).VITE_FCZ_SIGN_IN_APPLE);
-export const ACCOUNT_DELETION = envFlag((envClient as any).VITE_FCZ_ACCOUNT_DELETION);
-export const UGC_MODERATION = envFlag((envClient as any).VITE_FCZ_UGC_MODERATION);
-export const DISPUTES = envFlag((envClient as any).VITE_FCZ_DISPUTES);
-export const ODDS_V2 = envFlag((envClient as any).VITE_FCZ_ODDS_V2);
-export const WALLET_CONNECT_V2 = envFlag((envClient as any).VITE_FCZ_WALLET_CONNECT_V2);
-export const FCZ_WALLET_MODE = (((envClient as any).VITE_FCZ_WALLET_MODE || "dual") as string).toLowerCase() === "zaurum_only" ? "zaurum_only" : "dual";
+export const FCZ_UNIFIED_HEADER = envClient.VITE_FCZ_UNIFIED_HEADER === '1';
+export const FCZ_DISCOVER_V2 = envClient.VITE_FCZ_DISCOVER_V2 === '1';
+export const FCZ_PREDICTION_DETAILS_V2 = envClient.VITE_FCZ_PREDICTION_DETAILS_V2 === '1';
+export const FCZ_SHARED_CARDS = envClient.VITE_FCZ_SHARED_CARDS === '1';
+export const FCZ_AUTH_GATE = envClient.VITE_FCZ_AUTH_GATE === '1';
+export const FCZ_COMMENTS_V2 = envClient.VITE_FCZ_COMMENTS_V2 === '1';
+export const FCZ_UNIFIED_CARDS = envClient.VITE_FCZ_UNIFIED_CARDS === '1';
+export const FCZ_COMMENTS_SORT = envClient.VITE_FCZ_COMMENTS_SORT === '1';
+// Default to zaurum_only when unset/invalid so production never falls back to legacy crypto UI by accident.
+export const FCZ_WALLET_MODE = envClient.VITE_FCZ_WALLET_MODE === 'dual' ? 'dual' : 'zaurum_only';
+export const FCZ_ENABLE_DAILY_CLAIM = envClient.VITE_FCZ_ENABLE_DAILY_CLAIM !== 'false';
 
 // Debug and Development
 export const DEBUG_ENABLED = envClient.VITE_DEBUG === 'true';
@@ -57,8 +45,6 @@ export interface EnvironmentConfig {
   isDevelopment: boolean;
   isProduction: boolean;
 }
-
-let didLogNativeEnv = false;
 
 export function getEnvironmentConfig(): EnvironmentConfig {
   const hostname = window.location.hostname;
@@ -113,33 +99,7 @@ export function getEnvironmentConfig(): EnvironmentConfig {
     return config;
   }
 
-  // Environment variable override (useful for pointing native shells at a dev/staging API)
-  // NOTE: This must run before the native-shell forced-production branch.
-  if (API_BASE) {
-    let normalizedApiBase = API_BASE;
-    if (runningInNativeApp) {
-      // Android WebView/network-security can reject cleartext "localhost".
-      // Use loopback IP so adb reverse routing stays deterministic.
-      normalizedApiBase = normalizedApiBase.replace(/^http:\/\/localhost(?=[:/]|$)/i, 'http://127.0.0.1');
-    }
-    // In native shells, a relative API base like "/api" points to the Capacitor local origin
-    // (http://localhost/...), which is not a backend. Ignore it and fall through.
-    if (runningInNativeApp && normalizedApiBase.trim().startsWith('/')) {
-      if (DEBUG_ENABLED) console.log('📱 Native shell detected: ignoring relative VITE_API_BASE:', API_BASE);
-    } else {
-    const config: EnvironmentConfig = {
-      apiUrl: normalizedApiBase,
-      socketUrl: normalizedApiBase,
-      environment: isProd ? 'production' : 'development',
-      isDevelopment: !isProd,
-      isProduction: isProd
-    };
-    if (DEBUG_ENABLED) console.log('🔧 Using VITE_API_BASE:', config);
-    return config;
-    }
-  }
-
-  // Capacitor / native shell builds always target production API (unless overridden above)
+  // Capacitor / native shell builds always target production API
   if (runningInNativeApp && !isDev) {
     const config: EnvironmentConfig = {
       apiUrl: productionApi,
@@ -152,20 +112,6 @@ export function getEnvironmentConfig(): EnvironmentConfig {
     return config;
   }
   
-  // Native dev shells must use loopback so adb reverse is deterministic.
-  if (runningInNativeApp && (isDev || mode === 'development')) {
-    const devNativeApi = 'http://127.0.0.1:3001';
-    const config: EnvironmentConfig = {
-      apiUrl: devNativeApi,
-      socketUrl: devNativeApi,
-      environment: 'development',
-      isDevelopment: true,
-      isProduction: false,
-    };
-    if (DEBUG_ENABLED) console.log('📱 Native dev shell detected -> forcing loopback API:', config);
-    return config;
-  }
-
   // Check if local development server is running (regardless of hostname)
   // Prefer the current hostname for LAN access so other devices can reach the API
   if (isDev || mode === 'development') {
@@ -180,6 +126,19 @@ export function getEnvironmentConfig(): EnvironmentConfig {
       isProduction: false
     };
     if (DEBUG_ENABLED) console.log('🏠 Development mode detected (dynamic host for LAN):', config);
+    return config;
+  }
+  
+  // Check environment variable override
+  if (API_BASE) {
+    const config: EnvironmentConfig = {
+      apiUrl: API_BASE,
+      socketUrl: API_BASE,
+      environment: isProd ? 'production' : 'development',
+      isDevelopment: !isProd,
+      isProduction: isProd
+    };
+    if (DEBUG_ENABLED) console.log('🔧 Using VITE_API_BASE:', config);
     return config;
   }
   
@@ -209,13 +168,7 @@ export function getEnvironmentConfig(): EnvironmentConfig {
 }
 
 export function getApiUrl(): string {
-  const config = getEnvironmentConfig();
-  // Always log the chosen API base once in native shells to make device debugging deterministic.
-  if (!didLogNativeEnv && typeof window !== 'undefined' && Boolean(Capacitor?.isNativePlatform?.())) {
-    didLogNativeEnv = true;
-    console.log('[env] native apiUrl:', config.apiUrl);
-  }
-  return config.apiUrl;
+  return getEnvironmentConfig().apiUrl;
 }
 
 export function getSocketUrl(): string {

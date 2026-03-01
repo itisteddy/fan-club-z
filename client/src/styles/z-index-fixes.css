@@ -117,16 +117,6 @@ Z-Index Hierarchy (from lowest to highest):
   z-index: 10200 !important;
 }
 
-/* iOS safe-area: ensure toast container is never under notch/Dynamic Island */
-#_rht_toaster,
-.__react-hot-toast {
-  top: var(--top-overlay-offset) !important;
-  left: 0 !important;
-  right: 0 !important;
-  padding-left: max(12px, var(--safe-left)) !important;
-  padding-right: max(12px, var(--safe-right)) !important;
-}
-
 /* Auth callback and loading screens */
 .auth-callback-screen,
 .loading-screen {

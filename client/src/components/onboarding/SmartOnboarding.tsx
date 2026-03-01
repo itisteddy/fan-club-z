@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useAccount, useConnect } from 'wagmi';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Check, Wallet, DollarSign, ArrowRight, Loader2, ExternalLink } from 'lucide-react';
+import { Check, Wallet, ArrowRight, Loader2, ExternalLink } from 'lucide-react';
 import { useUnifiedBalance } from '../../hooks/useUnifiedBalance';
 import DepositUSDCModal from '../wallet/DepositUSDCModal';
 import { useAuthSession } from '../../providers/AuthSessionProvider';
 import toast from 'react-hot-toast';
-import { formatCurrency } from '@/lib/format';
+import { ZaurumMark } from '@/components/currency/ZaurumMark';
 
 type OnboardingStep = 'connect' | 'fund-wallet' | 'deposit' | 'ready';
 
@@ -25,15 +25,15 @@ const STEPS: Record<OnboardingStep, StepConfig> = {
     icon: <Wallet className="w-6 h-6" />
   },
   'fund-wallet': {
-    title: 'Fund Your Wallet',
-    description: 'Add Zaurum to start making predictions.',
+    title: 'Get Zaurum',
+    description: 'You need Zaurum to make predictions. Add Zaurum to continue.',
     action: 'Get Zaurum',
-    icon: <DollarSign className="w-6 h-6" />
+    icon: <ZaurumMark className="w-6 h-6 text-current" />
   },
   deposit: {
-    title: 'Deposit to Platform',
-    description: 'Move balance to the platform to start staking',
-    action: 'Deposit',
+    title: 'Add Zaurum to Platform',
+    description: 'Move Zaurum to your in-app balance to start staking',
+    action: 'Add Zaurum',
     icon: <ArrowRight className="w-6 h-6" />
   },
   ready: {
@@ -101,7 +101,7 @@ export const SmartOnboarding: React.FC<SmartOnboardingProps> = ({
         case 'fund-wallet':
           // Open faucet in new tab
           window.open('https://faucet.circle.com/', '_blank');
-          toast('Get Zaurum from the faucet, then refresh this page', { icon: 'ℹ️' });
+          toast('Get Zaurum, then refresh this page', { icon: 'ℹ️' });
           break;
           
         case 'deposit':
@@ -213,7 +213,7 @@ export const SmartOnboarding: React.FC<SmartOnboardingProps> = ({
                 <p>Make sure to:</p>
                 <ul className="mt-2 space-y-1 text-left max-w-xs mx-auto">
                   <li>• Select <strong>Base Sepolia</strong> network</li>
-                  <li>• Request at least <strong>◈10</strong></li>
+                  <li>• Add at least <strong>10 Zaurum</strong></li>
                   <li>• Wait for transaction confirmation</li>
                 </ul>
               </div>
@@ -223,7 +223,7 @@ export const SmartOnboarding: React.FC<SmartOnboardingProps> = ({
               <div className="bg-white/10 rounded-lg p-3 mb-4">
                 <p className="text-sm text-purple-100 mb-1">Wallet Balance:</p>
                 <p className="text-2xl font-bold text-white">
-                  {formatCurrency(walletUSDC, { compact: false })}
+                  {walletUSDC.toFixed(2)} Zaurum
                 </p>
               </div>
             )}
@@ -232,7 +232,7 @@ export const SmartOnboarding: React.FC<SmartOnboardingProps> = ({
               <div className="bg-white/10 rounded-lg p-3 mb-4">
                 <p className="text-sm text-purple-100 mb-1">Available to Bet:</p>
                 <p className="text-2xl font-bold text-white">
-                  {formatCurrency(escrowAvailable, { compact: false })}
+                  {escrowAvailable.toFixed(2)} Zaurum
                 </p>
               </div>
             )}

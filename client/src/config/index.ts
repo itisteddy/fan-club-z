@@ -4,7 +4,7 @@
 import pkg from '../../package.json';
 const VERSION: string = (pkg as any).version || '0.0.0';
 import { getEnvironmentConfig } from '@/utils/environment';
-import { FRONTEND_URL, isDev, isProd } from '@/utils/environment';
+import { FCZ_WALLET_MODE, FRONTEND_URL, isDev, isProd } from '@/utils/environment';
 
 export const APP_CONFIG = {
   version: VERSION,
@@ -27,6 +27,7 @@ export const APP_CONFIG = {
     socialEngagement: true,
     walletIntegration: true,
     settlementSystem: true,
+    walletMode: FCZ_WALLET_MODE,
   },
   
   limits: {
@@ -63,7 +64,7 @@ export const isDevelopment = () => isDev;
 export const isProduction = () => isProd;
 
 // API helpers
-export const getApiUrl = () => getEnvironmentConfig().apiUrl;
+export const getApiUrl = () => APP_CONFIG.api.url;
 export const getFrontendUrl = () => APP_CONFIG.frontend.url;
 
 // Version helpers

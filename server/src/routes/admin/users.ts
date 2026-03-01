@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { supabase } from '../../config/database';
 import { VERSION } from '@fanclubz/shared';
-import { logAdminAction } from './audit';
+import { getFallbackAdminActorId, logAdminAction } from './audit';
 
 export const usersRouter = Router();
 
@@ -183,6 +183,151 @@ usersRouter.get('/:userId', async (req, res) => {
     return res.status(500).json({
       error: 'Internal Server Error',
       message: 'Failed to get user details',
+      version: VERSION,
+    });
+  }
+});
+
+const UpdateAdminRoleSchema = z.object({
+  isAdmin: z.boolean(),
+  actorId: z.string().uuid().optional(),
+  reason: z.string().max(1000).optional(),
+});
+
+/**
+ * PATCH /api/v2/admin/users/:userId/role
+ * Promote/demote admin privileges for a user.
+ */
+usersRouter.patch('/:userId/role', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const parsed = UpdateAdminRoleSchema.safeParse(req.body || {});
+
+    if (!parsed.success) {
+      return res.status(400).json({
+        error: 'Bad Request',
+        message: 'Invalid payload',
+        details: parsed.error.issues,
+        version: VERSION,
+      });
+    }
+
+    const actorId = parsed.data.actorId || getFallbackAdminActorId();
+    const desiredIsAdmin = parsed.data.isAdmin;
+    const reason = parsed.data.reason?.trim() || undefined;
+
+    const { data: userRow, error: userError } = await supabase
+      .from('users')
+      .select('id, username, full_name, email, is_admin')
+      .eq('id', userId)
+      .maybeSingle();
+
+    if (userError || !userRow) {
+      return res.status(404).json({
+        error: 'Not Found',
+        message: 'User not found',
+        version: VERSION,
+      });
+    }
+
+    const currentIsAdmin = Boolean((userRow as any).is_admin);
+    if (currentIsAdmin === desiredIsAdmin) {
+      return res.json({
+        success: true,
+        unchanged: true,
+        message: desiredIsAdmin ? 'User is already an admin' : 'User is not an admin',
+        user: {
+          id: userRow.id,
+          username: (userRow as any).username || null,
+          fullName: (userRow as any).full_name || null,
+          email: (userRow as any).email || null,
+          isAdmin: currentIsAdmin,
+        },
+        version: VERSION,
+      });
+    }
+
+    if (actorId && actorId === userId && desiredIsAdmin === false) {
+      return res.status(400).json({
+        error: 'Bad Request',
+        message: 'You cannot remove your own admin access',
+        version: VERSION,
+      });
+    }
+
+    if (currentIsAdmin && desiredIsAdmin === false) {
+      const { count: adminCount, error: countError } = await supabase
+        .from('users')
+        .select('id', { count: 'exact', head: true })
+        .eq('is_admin', true as any);
+
+      if (countError) {
+        console.error('[Admin/Users] Failed to count admins before demotion:', countError);
+        return res.status(500).json({
+          error: 'Internal Server Error',
+          message: 'Failed to verify admin safety checks',
+          version: VERSION,
+        });
+      }
+
+      if ((adminCount || 0) <= 1) {
+        return res.status(400).json({
+          error: 'Bad Request',
+          message: 'Cannot remove the last admin',
+          version: VERSION,
+        });
+      }
+    }
+
+    const { data: updatedUser, error: updateError } = await supabase
+      .from('users')
+      .update({ is_admin: desiredIsAdmin } as any)
+      .eq('id', userId)
+      .select('id, username, full_name, email, is_admin')
+      .maybeSingle();
+
+    if (updateError || !updatedUser) {
+      console.error('[Admin/Users] Role update error:', updateError);
+      return res.status(500).json({
+        error: 'Internal Server Error',
+        message: 'Failed to update user admin role',
+        version: VERSION,
+      });
+    }
+
+    if (actorId) {
+      await logAdminAction({
+        actorId,
+        action: desiredIsAdmin ? 'user_admin_grant' : 'user_admin_revoke',
+        targetType: 'user',
+        targetId: userId,
+        reason,
+        meta: {
+          previousIsAdmin: currentIsAdmin,
+          isAdmin: Boolean((updatedUser as any).is_admin),
+          username: (updatedUser as any).username || null,
+          email: (updatedUser as any).email || null,
+        },
+      });
+    }
+
+    return res.json({
+      success: true,
+      message: desiredIsAdmin ? 'Admin access granted' : 'Admin access removed',
+      user: {
+        id: updatedUser.id,
+        username: (updatedUser as any).username || null,
+        fullName: (updatedUser as any).full_name || null,
+        email: (updatedUser as any).email || null,
+        isAdmin: Boolean((updatedUser as any).is_admin),
+      },
+      version: VERSION,
+    });
+  } catch (error) {
+    console.error('[Admin/Users] Role update error:', error);
+    return res.status(500).json({
+      error: 'Internal Server Error',
+      message: 'Failed to update user admin role',
       version: VERSION,
     });
   }
@@ -597,4 +742,3 @@ usersRouter.get('/:userId/timeline', async (req, res) => {
     });
   }
 });
-

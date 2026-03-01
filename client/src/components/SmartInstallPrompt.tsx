@@ -1,8 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Download, X, Sparkles, Zap, Bell } from 'lucide-react';
-import { getPWAManager } from '../utils/pwa';
-import { shouldUseStoreSafeMode } from '@/config/platform';
-import { Capacitor } from '@capacitor/core';
+import { pwaManager } from '../utils/pwa';
 
 interface InstallPromptCardProps {
   onInstall: () => void;
@@ -114,13 +112,6 @@ const SmartInstallPrompt: React.FC = () => {
   const [showPrompt, setShowPrompt] = useState(false);
   const [userEngagement, setUserEngagement] = useState(0);
 
-  // Phase 5: Never show in native builds
-  const storeSafe = shouldUseStoreSafeMode();
-  const isNative = Capacitor.isNativePlatform();
-  if (isNative || storeSafe) {
-    return null;
-  }
-
   useEffect(() => {
     // Track user engagement
     let engagementScore = 0;
@@ -149,7 +140,6 @@ const SmartInstallPrompt: React.FC = () => {
 
   const checkAndShowPrompt = () => {
     // Don't show if already installed or recently dismissed
-    const pwaManager = getPWAManager();
     if (pwaManager.isAppInstalled()) return;
     
     const dismissed = localStorage.getItem('install-prompt-dismissed');
@@ -171,7 +161,6 @@ const SmartInstallPrompt: React.FC = () => {
   };
 
   const handleInstall = async () => {
-    const pwaManager = getPWAManager();
     const isIOS = pwaManager.isIOSDevice();
     
     if (isIOS) {

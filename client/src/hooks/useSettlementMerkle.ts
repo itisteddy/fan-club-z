@@ -6,7 +6,6 @@ import { BaseError, type Hash } from 'viem';
 import { getAddress } from 'viem';
 import toast from 'react-hot-toast';
 import { getApiUrl } from '@/utils/environment';
-import { getFczClientHeader } from '@/lib/apiClient';
 import { ESCROW_MERKLE_ABI } from '@/chain/escrowMerkleAbi';
 import { useWalletConnectSession } from '@/hooks/useWalletConnectSession';
 import { useWeb3Recovery } from '@/providers/Web3Provider';
@@ -31,11 +30,9 @@ export type MerklePrepareResponse = {
     predictionId: string;
     title: string;
     winningOptionId: string;
-    // Present for crypto-rail settlements (winners claim on-chain).
-    // Omitted for demo-only settlements (already finalized off-chain).
-    merkleRoot?: `0x${string}`;
-    platformFeeUnits?: string;
-    creatorFeeUnits?: string;
+    merkleRoot: `0x${string}`;
+    platformFeeUnits: string;
+    creatorFeeUnits: string;
     leaves: Array<{
       user_id: string;
       address: `0x${string}`;
@@ -98,27 +95,59 @@ export function useSettlementMerkle() {
       userId: string;
       escrowAddress?: `0x${string}`;
       platformTreasury?: `0x${string}`;
-    }): Promise<{ txHash?: `0x${string}`; root?: `0x${string}`; queuedFinalize?: boolean } | null> => {
+    }): Promise<{ txHash: `0x${string}`; root: `0x${string}` } | null> => {
       setIsSubmitting(true);
       setError(null);
+
+      if (!address || !isConnected) {
+        toast.error('Connect the creator wallet to settle this prediction.');
+        setIsSubmitting(false);
+        return null;
+      }
+
+      try {
+        ensureWalletReady({
+          address,
+          chainId,
+          expectedChainId: baseSepolia.id,
+          isConnected,
+          sessionHealthy,
+        });
+      } catch (err) {
+        const parsed = parseOnchainError(err);
+        toast.error(parsed.message);
+        setError(parsed.message);
+        setIsSubmitting(false);
+        return null;
+      }
       
       let txHash: Hash | null = null;
-      let preparedRoot: `0x${string}` | null = null;
       
       try {
+        if (!isConnected || !address) {
+          toast.error('Connect wallet as the creator');
+          return null;
+        }
+        if (chainId !== baseSepolia.id) {
+          await switchChainAsync({ chainId: baseSepolia.id });
+        }
+
         // NOTE: We trust the backend to verify creator identity via userId
-        // The connected wallet MAY sign the on-chain settlement transaction (optional).
+        // The connected wallet will sign the on-chain settlement transaction
         // The backend /api/v2/settlement/manual/merkle endpoint validates:
         // 1. The userId matches the prediction creator
         // 2. The prediction exists and can be settled
-        console.log('[FCZ-SETTLE] Preparing settlement on server for prediction:', args.predictionId);
+        // We use the connected wallet for the on-chain tx, which is fine because:
+        // - The creator pays gas for settlement
+        // - The merkle root determines payouts, not the signer
+        console.log('[FCZ-SETTLE] Using connected wallet for settlement:', address);
 
         // Prepare merkle distribution on the server
         console.log('[FCZ-SETTLE] Preparing merkle settlement for prediction:', args.predictionId);
         
         const prepare = await fetch(`${getApiUrl()}/api/v2/settlement/manual/merkle`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'X-FCZ-Client': getFczClientHeader() },
+          headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
           credentials: 'include',
           body: JSON.stringify({
             predictionId: args.predictionId,
@@ -133,19 +162,7 @@ export function useSettlementMerkle() {
           throw new Error(err?.message || 'Failed to prepare merkle settlement');
         }
         
-        const data = await prepare.json();
-
-        // Idempotent: server returned already settled (same contract as POST /manual)
-        if ((data as any)?.ok === true && (data as any)?.alreadySettled === true) {
-          toast.success('Prediction settled', { id: 'settle' });
-          return { queuedFinalize: false };
-        }
-
-        // Demo-only settlement: server already completed off-chain; no on-chain action required.
-        if (!(data as MerklePrepareResponse)?.data?.merkleRoot) {
-          toast.success('Prediction settled', { id: 'settle' });
-          return { queuedFinalize: false };
-        }
+        const data: MerklePrepareResponse = await prepare.json();
 
         const escrowAddress =
           args.escrowAddress ||
@@ -161,62 +178,13 @@ export function useSettlementMerkle() {
 
         const predictionIdHex = toBytes32FromUuid(args.predictionId);
         const root = data.data.merkleRoot as `0x${string}`;
-        preparedRoot = root;
-        const d = (data as MerklePrepareResponse).data;
-        const creatorFee = BigInt(d.creatorFeeUnits || '0');
-        const platformFee = BigInt(d.platformFeeUnits || '0');
+        const creatorFee = BigInt(data.data.creatorFeeUnits);
+        const platformFee = BigInt(data.data.platformFeeUnits);
         
         // Calculate total fee amount for logging (used for wallet_transactions)
         const totalFeeUSD =
-          (d.summary?.platformFeeUSD ?? 0) +
-          (d.summary?.creatorFeeUSD ?? 0);
-
-        // If wallet isn't connected/healthy, queue finalization for the admin relayer.
-        // This avoids WalletConnect timeouts and prevents unsafe off-chain fallback for crypto rail.
-        const canUseWallet = Boolean(address && isConnected && sessionHealthy);
-        if (!canUseWallet) {
-          try {
-            await fetch(`${getApiUrl()}/api/v2/settlement/${args.predictionId}/request-finalize`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'X-FCZ-Client': getFczClientHeader() },
-              credentials: 'include',
-              body: JSON.stringify({ userId: args.userId }),
-            });
-          } catch {}
-
-          toast.success('Settlement prepared. Finalization queued for relayer.', { id: 'settle' });
-          return { root, queuedFinalize: true };
-        }
-
-        // Ensure correct chain (auto-switch to Base Sepolia)
-        if (chainId !== baseSepolia.id) {
-          await switchChainAsync({ chainId: baseSepolia.id });
-        }
-
-        // Double-check wallet readiness (session health, connection, chain)
-        try {
-          ensureWalletReady({
-            address,
-            chainId: baseSepolia.id,
-            expectedChainId: baseSepolia.id,
-            isConnected,
-            sessionHealthy,
-          });
-        } catch (err) {
-          const parsed = parseOnchainError(err);
-          toast.error(parsed.message, { id: 'settle' });
-          setError(parsed.message);
-          // Queue finalize rather than failing the settlement flow.
-          try {
-            await fetch(`${getApiUrl()}/api/v2/settlement/${args.predictionId}/request-finalize`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'X-FCZ-Client': getFczClientHeader() },
-              credentials: 'include',
-              body: JSON.stringify({ userId: args.userId }),
-            });
-          } catch {}
-          return { root, queuedFinalize: true };
-        }
+          (data.data.summary?.platformFeeUSD ?? 0) +
+          (data.data.summary?.creatorFeeUSD ?? 0);
 
         console.log('[FCZ-SETTLE] Submitting settlement root on-chain:', {
           predictionId: args.predictionId,
@@ -224,10 +192,6 @@ export function useSettlementMerkle() {
           creatorFee: creatorFee.toString(),
           platformFee: platformFee.toString(),
         });
-
-        if (!address) {
-          throw new Error('Connect wallet to submit settlement on-chain');
-        }
 
         toast.loading('Submitting settlement root on-chain...', { id: 'settle' });
         
@@ -298,7 +262,7 @@ export function useSettlementMerkle() {
         try {
           await fetch(`${getApiUrl()}/api/v2/settlement/manual/merkle/posted`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'X-FCZ-Client': getFczClientHeader() },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ predictionId: args.predictionId, txHash, root }),
           });
         } catch {}
@@ -315,20 +279,6 @@ export function useSettlementMerkle() {
         
         // Check for session errors
         const wasSessionError = await handleSessionErrorRecovery(e);
-
-        // If we already prepared a crypto settlement root, queue finalize for relayer so users aren't blocked.
-        if (wasSessionError && preparedRoot) {
-          try {
-            await fetch(`${getApiUrl()}/api/v2/settlement/${args.predictionId}/request-finalize`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'X-FCZ-Client': getFczClientHeader() },
-              credentials: 'include',
-              body: JSON.stringify({ userId: args.userId }),
-            });
-          } catch {}
-          toast.success('Wallet session expired. Finalization queued for relayer.', { id: 'settle' });
-          return { root: preparedRoot, queuedFinalize: true };
-        }
         
         // Log failure if we had a tx hash
         if (txHash && !wasSessionError) {

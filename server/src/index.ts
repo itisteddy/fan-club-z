@@ -31,17 +31,9 @@ import { config } from './config';
 import { supabase } from './config/database';
 import { db } from './config/database';
 import { VERSION } from '@fanclubz/shared';
-import { checkMaintenanceMode } from './middleware/maintenance';
-import { clientIdMiddleware } from './middleware/clientId';
-import { requireCryptoEnabled } from './middleware/requireCryptoEnabled';
 
 const app = express();
 const PORT = config.server.port || 3001;
-const HOST =
-  process.env.HOST ||
-  (String(process.env.NODE_ENV || config.server.nodeEnv || '').toLowerCase() === 'production'
-    ? undefined
-    : '0.0.0.0');
 
 console.log(`🚀 Fan Club Z Server v${VERSION} - CORS FIXED - WITH SETTLEMENT`);
 console.log('📡 Starting server with enhanced CORS support and settlement functionality...');
@@ -66,100 +58,41 @@ app.use(helmet({
   crossOriginEmbedderPolicy: false, // Required for some wallet integrations
 }));
 
-// CORS configuration: Single source of truth for all CORS logic
-// Phase 1: Use cors() middleware properly to eliminate preflight 500s
-const allowedOrigins = [
-  'https://fanclubz.app',
-  'https://app.fanclubz.app',
-  // Admin portal
-  'https://web.fanclubz.app',
-  // Auth domain (Supabase auth hosted) may be used during OAuth flows
-  'https://auth.fanclubz.app',
-  // Capacitor native shells (iOS/Android WebView origins)
-  // iOS uses capacitor://app.fanclubz.app (appId-based) or capacitor://localhost
-  // These must be allowed for native app API calls to work
-  'capacitor://localhost',
-  'capacitor://app.fanclubz.app',
-  'ionic://localhost',
-  // Local development origins
-  'http://localhost',
-  'http://localhost:5173',
-  'http://localhost:5174', // Vite default dev port
-  'http://localhost:3000',
-];
-
-// Avoid turning "origin not allowed" into a 500 again.
-// We log blocked origins (deduped) and simply omit CORS headers for them.
-const warnedBlockedOrigins = new Set<string>();
-
-// Single CORS options object used for both normal requests and preflight
-const corsOptions: cors.CorsOptions = {
-  origin: (origin, callback) => {
-    // Log all origins for debugging native app issues
-    console.log(`[CORS] Request origin: ${origin || '(no origin)'}`);
-    
-    // Allow requests with no origin (like mobile apps, Postman, curl, server-to-server)
-    if (!origin) {
-      return callback(null, true);
-    }
-    
-    // Check exact match first
-    if (allowedOrigins.includes(origin)) {
-      console.log(`[CORS] ✅ Allowed origin: ${origin}`);
-      callback(null, true);
-      return;
-    }
-    
-    // Allow any capacitor:// or ionic:// origin for native builds
-    // This ensures iOS/Android Capacitor apps can make API calls
-    if (origin.startsWith('capacitor://') || origin.startsWith('ionic://')) {
-      console.log(`[CORS] ✅ Allowed Capacitor origin: ${origin}`);
-      callback(null, true);
-      return;
-    }
-    
-    if (!warnedBlockedOrigins.has(origin)) {
-      warnedBlockedOrigins.add(origin);
-      console.warn(
-        `[CORS] ❌ Blocked origin (no CORS headers will be set): ${origin}. ` +
-          `If this is a real frontend surface, add it to allowedOrigins in server/src/index.ts and server/src/services/realtime.ts.`
-      );
-    }
-    // CRITICAL: do NOT throw here; throwing becomes a 500 and looks like "server broken"
-    // Instead, fail closed by omitting CORS headers (browser will block the response).
-    callback(null, false);
-  },
+// Enhanced CORS middleware - Allow all origins for now to fix immediate issue
+app.use(cors({
+  origin: true, // Allow all origins temporarily
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'Origin', 'X-Requested-With', 'Cache-Control', 'If-None-Match', 'X-Admin-Key', 'apikey', 'x-client-info', 'X-FCZ-Client'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'Origin', 'X-Requested-With', 'Cache-Control', 'If-None-Match'],
   exposedHeaders: ['Content-Range', 'X-Content-Range', 'ETag']
-};
-
-// CRITICAL: Register CORS middleware BEFORE any routes or auth middleware
-// This ensures OPTIONS preflight requests are handled correctly and never hit auth guards
-app.use(cors(corsOptions));
-app.options('*', cors(corsOptions));
-
-// Paystack webhooks require raw body for signature verification.
-// We capture the raw buffer ONLY for that route via express.json verify hook.
-app.use(express.json({
-  verify: (req: any, _res, buf) => {
-    try {
-      const url = String(req?.originalUrl || '');
-      if (url.includes('/api/v2/fiat/paystack/webhook')) {
-        req.rawBody = buf;
-      }
-    } catch {
-      // ignore
-    }
-  },
 }));
 
-// Maintenance mode check (must be before routes)
-app.use(checkMaintenanceMode);
+// Explicit OPTIONS preflight handler (some hosts require this)
+app.options('*', (req, res) => {
+  res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, Accept, Origin, X-Requested-With, Cache-Control, If-None-Match');
+  res.sendStatus(200);
+});
 
-// Client identification (X-FCZ-Client) for crypto testnet gating and logging
-app.use(clientIdMiddleware);
+// Additional CORS headers middleware
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, Accept, Origin, X-Requested-With, Cache-Control, If-None-Match');
+  
+  // Handle preflight requests
+  if (req.method === 'OPTIONS') {
+    res.status(200).end();
+    return;
+  }
+  
+  next();
+});
+
+app.use(express.json());
 
 // [PERF] Static assets with immutable cache headers (1 year)
 // Note: In production, these are typically served by CDN/Vercel, but this helps for direct server access
@@ -220,21 +153,8 @@ app.get('/', (req, res) => {
   });
 });
 
-// Database seeding endpoint (for development/testing) - ADMIN ONLY
-app.post('/api/v2/admin/seed-database', async (req, res): Promise<void> => {
-  // Admin authorization check
-  const ADMIN_API_KEY = process.env.ADMIN_API_KEY;
-  const apiKey = req.headers['x-admin-key'] as string | undefined;
-  
-  if (!ADMIN_API_KEY || !apiKey || apiKey !== ADMIN_API_KEY) {
-    res.status(401).json({
-      error: 'Unauthorized',
-      message: 'Admin access required',
-      version: VERSION
-    });
-    return;
-  }
-  
+// Database seeding endpoint (for development/testing)
+app.post('/api/v2/admin/seed-database', async (req, res) => {
   try {
     // Import and run seeding function
     const { seedDatabase } = await import('./scripts/seedDatabase');
@@ -263,7 +183,6 @@ import predictionsRoutes from './routes/predictions';
 import predictionEntriesRoutes from './routes/prediction-entries';
 import betsRoutes from './routes/bets';
 import socialRoutes from './routes/social';
-import { moderationRouter } from './routes/moderation';
 import settlementRoutes from './routes/settlement';
 import activityRoutes from './routes/activity';
 import imagesRoutes from './api/images/router';
@@ -274,7 +193,6 @@ import { walletActivity } from './routes/walletActivity';
 import { walletReconcile } from './routes/walletReconcile';
 import walletMaintenance from './routes/walletMaintenance';
 import { placeBetRouter } from './routes/predictions/placeBet';
-import { demoWallet } from './routes/demoWallet';
 import { chainActivity } from './routes/chain/activity';
 import { healthPayments } from './routes/healthPayments';
 import { healthBase } from './routes/healthBase';
@@ -284,65 +202,44 @@ import { qaCryptoMock } from './routes/qaCryptoMock';
 import referralRoutes from './routes/referrals';
 import badgeRoutes from './routes/badges';
 import { meRouter } from './routes/me';
-import { authRouter } from './routes/auth';
 import { adminRouter } from './routes/admin';
-import notificationsRoutes from './routes/notifications';
-import { remindersRouter } from './routes/notificationsReminders';
-import categoriesRoutes from './routes/categories';
-import { contentReportsRouter } from './routes/contentReports';
-import { uploadsRouter } from './routes/uploads';
-import { fiatPaystackRouter } from './routes/fiatPaystack';
-import { fiatWithdrawalsRouter } from './routes/fiatWithdrawals';
-import { fxRouter } from './routes/fx';
-import { seedCategories } from './services/categoriesSeed';
 import { startBaseDepositWatcher } from './chain/base/depositWatcher';
 import { resolveAndValidateAddresses } from './chain/base/addressRegistry';
 import { validatePaymentsEnv } from './utils/envValidation';
-import { ensureAvatarsBucket, ensurePredictionImagesBucket } from './startup/storage';
+import { ensureAvatarsBucket } from './startup/storage';
 import { startReconciliationJob } from './cron/reconcileEscrow';
 import { startLockExpirationJob } from './cron/expireLocks';
 import { initRealtime } from './services/realtime';
+import { requireWalletModeDual, isZaurumOnlyMode } from './middleware/requireWalletModeDual';
 
 // Use routes
 app.use('/api/v2/users', usersRoutes);
+app.use('/api/v2/admin', adminRouter);
 app.use('/api/me', meRouter);
 app.use('/api/v2/me', meRouter);
-app.use('/api/v2/auth', authRouter);
 app.use('/api/v2/predictions', predictionsRoutes);
-app.use('/api/predictions', placeBetRouter);
-app.use('/api/v1/predictions', placeBetRouter); // Back-compat for older clients (snake_case route supported inside)
+app.use('/api/predictions', requireWalletModeDual, placeBetRouter);
+app.use('/api/v1/predictions', requireWalletModeDual, placeBetRouter); // Back-compat for older clients (snake_case route supported inside)
 app.use('/api/v2/prediction-entries', predictionEntriesRoutes);
 app.use('/api/v2/bets', betsRoutes);
 app.use('/api/v2/social', socialRoutes);
-app.use('/api/v2/moderation', moderationRouter);
 app.use('/api/v2/settlement', settlementRoutes);
 app.use('/api/v2/activity', activityRoutes);
-app.use('/api/v2/notifications', notificationsRoutes);
-app.use('/api/v2/notifications/reminders', remindersRouter);
-app.use('/api/v2/categories', categoriesRoutes);
-app.use('/api/v2/content', contentReportsRouter);
-app.use('/api/v2/uploads', uploadsRouter);
 app.use('/api/images', imagesRoutes);
-app.use('/api/escrow', requireCryptoEnabled('testnet'), escrowRoutes);
-// walletSummary must come BEFORE walletRead to avoid route conflicts
-// Both handle /summary/:userId, but walletSummary returns reconciled on-chain data
-app.use('/api/wallet', walletSummary);
+app.use('/api/escrow', requireWalletModeDual, escrowRoutes);
 app.use('/api/wallet', walletRead);
+app.use('/api/wallet', walletSummary);
 app.use('/api/wallet', walletActivity);
 app.use('/api/wallet', walletReconcile);
 app.use('/api/wallet', walletMaintenance);
 app.use('/api/wallet', transactionLogRouter);
-app.use('/api/demo-wallet', demoWallet);
-app.use('/api/v2/fiat/paystack', fiatPaystackRouter);
-app.use('/api/v2/fiat/withdrawals', fiatWithdrawalsRouter);
-app.use('/api/v2/fx', fxRouter);
-app.use('/api/chain', chainActivity);
+app.use('/api/chain', requireWalletModeDual, chainActivity);
 app.use(healthPayments);
 app.use(healthBase);
 app.use(healthApp);
 
 // QA Mock routes (guarded by flag)
-if (process.env.BASE_DEPOSITS_MOCK === '1') {
+if (process.env.BASE_DEPOSITS_MOCK === '1' && !isZaurumOnlyMode()) {
   app.use(qaCryptoMock());
 }
 
@@ -351,9 +248,6 @@ app.use(referralRoutes);
 
 // Badge routes (feature-flagged internally)
 app.use(badgeRoutes);
-
-// Admin dashboard API
-app.use('/api/v2/admin', adminRouter);
 
 // Debug logging for route registration
 console.log('✅ Routes registered:');
@@ -364,11 +258,9 @@ console.log('  - /api/v2/bets (NEW: idempotent bet placement)');
 console.log('  - /api/v2/social (comments system)');
 console.log('  - /api/v2/settlement (manual/auto settlement)');
 console.log('  - /api/v2/activity (activity feed)');
-console.log('  - /api/v2/categories (prediction categories)');
 console.log('  - /api/images (auto-generated images)');
 console.log('  - /api/escrow (escrow lock/unlock)');
 console.log('  - /api/wallet (wallet summary & activity)');
-console.log('  - /api/demo-wallet (demo credits ledger)');
 console.log('  - /api/health/payments (payment system health)');
 console.log('  - /api/health/base (Base chain health)');
 console.log('  - /r/:code (Referral link handler)');
@@ -420,22 +312,16 @@ export { generateETag, setCacheHeaders, checkConditionalGet };
 // Start server (HTTP + Socket.io)
 const httpServer = http.createServer(app);
 initRealtime(httpServer);
-httpServer.listen(PORT, HOST as any, async () => {
+httpServer.listen(PORT, async () => {
   console.log(`🚀 Fan Club Z Server started successfully!`);
   console.log(`📡 Environment: ${config.server.nodeEnv || 'production'}`);
-  console.log(`🌐 Server running on ${HOST || '0.0.0.0'}:${PORT}`);
+  console.log(`🌐 Server running on port ${PORT}`);
   console.log(`📊 Version: ${VERSION}`);
   console.log(`🔗 API URL: ${config.api.url || `https://fan-club-z.onrender.com`}`);
   console.log(`🎯 Frontend URL: ${config.frontend.url || 'https://app.fanclubz.app'}`);
-  console.log(`✅ CORS enabled (restricted to whitelisted origins)`);
+  console.log(`✅ CORS enabled for all origins (development mode)`);
   console.log(`🔨 Settlement system enabled`);
   ensureAvatarsBucket();
-  ensurePredictionImagesBucket();
-
-  // Seed categories on startup (idempotent)
-  seedCategories().catch((err) => {
-    console.error('⚠️ Categories seeding failed (non-fatal):', err);
-  });
   
   // Validate payment environment variables
   try {
@@ -448,7 +334,7 @@ httpServer.listen(PORT, HOST as any, async () => {
   }
   
   // Start Base deposit watcher if enabled
-  if (process.env.PAYMENTS_ENABLE === '1' && process.env.ENABLE_BASE_DEPOSITS === '1') {
+  if (!isZaurumOnlyMode() && process.env.PAYMENTS_ENABLE === '1' && process.env.ENABLE_BASE_DEPOSITS === '1') {
     (async () => {
       try {
         // Resolve and validate addresses from registry
@@ -484,11 +370,15 @@ httpServer.listen(PORT, HOST as any, async () => {
         // Don't exit in production - let the server continue
       }
     })();
+  } else if (isZaurumOnlyMode()) {
+    console.log('[FCZ-PAY] Zaurum-only mode: Base deposit watcher disabled');
   }
 
   // Start reconciliation job if payments enabled
-  if (process.env.PAYMENTS_ENABLE === '1') {
+  if (!isZaurumOnlyMode() && process.env.PAYMENTS_ENABLE === '1') {
     startReconciliationJob();
+  } else if (isZaurumOnlyMode()) {
+    console.log('[FCZ-PAY] Zaurum-only mode: escrow reconciliation job disabled');
   }
   
   // Start lock expiration job (always run, not just when payments enabled)

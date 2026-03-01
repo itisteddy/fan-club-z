@@ -25,7 +25,11 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
-        run: npm cache clean --force && npm install --legacy-peer-deps
+        run: |
+          npm ci
+          npm --prefix server ci
+          npm --prefix client ci
+          npm --prefix shared ci
 
       - name: Verify environment variables (dry-run)
         run: npm run verify-env
@@ -53,7 +57,11 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
-        run: npm cache clean --force && npm install --legacy-peer-deps
+        run: |
+          npm ci
+          npm --prefix server ci
+          npm --prefix client ci
+          npm --prefix shared ci
 
       - name: Type check
         run: npm run typecheck
@@ -74,7 +82,11 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
-        run: npm cache clean --force && npm install --legacy-peer-deps
+        run: |
+          npm ci
+          npm --prefix server ci
+          npm --prefix client ci
+          npm --prefix shared ci
 
       - name: Lint
         run: npm run lint
@@ -95,7 +107,11 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
-        run: npm cache clean --force && npm install --legacy-peer-deps
+        run: |
+          npm ci
+          npm --prefix server ci
+          npm --prefix client ci
+          npm --prefix shared ci
 
       - name: Build client
         run: npm run build:client
@@ -145,7 +161,11 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
-        run: npm cache clean --force && npm install --legacy-peer-deps
+        run: |
+          npm ci
+          npm --prefix server ci
+          npm --prefix client ci
+          npm --prefix shared ci
 
       - name: Run unit tests
         run: npm run test:unit
@@ -180,7 +200,11 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
-        run: npm cache clean --force && npm install --legacy-peer-deps
+        run: |
+          npm ci
+          npm --prefix server ci
+          npm --prefix client ci
+          npm --prefix shared ci
 
       - name: Run API tests
         run: npm run test:api
@@ -207,7 +231,11 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
-        run: npm cache clean --force && npm install --legacy-peer-deps
+        run: |
+          npm ci
+          npm --prefix server ci
+          npm --prefix client ci
+          npm --prefix shared ci
 
       - name: Run smoke tests
         run: npm run test:smoke
@@ -229,7 +257,9 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
-        run: npm cache clean --force && npm install --legacy-peer-deps
+        run: |
+          npm ci
+          npm --prefix server ci
 
       - name: Run ledger check
         run: npm run ledger:check

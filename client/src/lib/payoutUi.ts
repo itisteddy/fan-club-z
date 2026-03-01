@@ -2,7 +2,6 @@
  * Payout UI resolver - Phase 6B
  * Resolves canonical payout fields from server (preferred) or fallback to existing fields
  */
-import { formatCurrency } from '@/lib/format';
 
 export type PayoutUi = {
   staked: number;
@@ -61,7 +60,13 @@ export function resolveMyPayout(pred: any): PayoutUi {
  * Format payout amount using existing money formatter
  */
 export function formatPayoutAmount(amount: number, options?: { compact?: boolean }): string {
-  return formatCurrency(amount, { compact: options?.compact ?? false });
+  if (options?.compact) {
+    // Use compact formatting if available
+    if (amount >= 1000) {
+      return `$${(amount / 1000).toFixed(1)}k`;
+    }
+  }
+  return `$${amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 /**

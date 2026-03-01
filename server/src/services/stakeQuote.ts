@@ -1,4 +1,6 @@
-import { getPostOddsMultiple } from '@fanclubz/shared';
+// Import canonical pool pricing directly from shared source so tests/build use the same function
+// even if package barrel exports lag behind in local/dev environments.
+import { getPostOddsMultiple } from '../../../shared/src/poolMath';
 import { supabase } from '../config/database';
 
 export type StakeMode = 'DEMO' | 'REAL';

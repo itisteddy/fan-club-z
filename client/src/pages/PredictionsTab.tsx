@@ -76,23 +76,18 @@ const PredictionsTab: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNav
     
     const activePredictions = userEntries
       .filter(entry => {
-        // Use entry.prediction (from API) first, fallback to open feed
-        const prediction = (entry as any).prediction || predictions.find(p => p.id === entry.prediction_id);
-        if (!prediction) {
-          // Edge case: prediction missing - treat as active if entry.status is active
-          return entry.status === 'active';
-        }
-        return prediction.status === 'open' && 
+        const prediction = predictions.find(p => p.id === entry.prediction_id);
+        return prediction && 
+               prediction.status === 'open' && 
                new Date(prediction.entry_deadline) > new Date() &&
                entry.status === 'active';
       })
       .map(entry => {
-        const prediction = (entry as any).prediction || predictions.find(p => p.id === entry.prediction_id);
-        const option = (entry as any).option || prediction?.options?.find((o: any) => o.id === entry.option_id);
+        const prediction = predictions.find(p => p.id === entry.prediction_id);
+        const option = prediction?.options?.find(o => o.id === entry.option_id);
         
         return {
           id: entry.id,
-          predictionId: entry.prediction_id,
           title: prediction?.title || 'Unknown Prediction',
           category: prediction?.category || 'custom',
           position: option?.label || 'Unknown',
@@ -120,28 +115,20 @@ const PredictionsTab: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNav
 
     const completedPredictions = userEntries
       .filter(entry => {
-        // Use entry.prediction (from API) first, fallback to open feed
-        const prediction = (entry as any).prediction || predictions.find(p => p.id === entry.prediction_id);
-        if (!prediction) {
-          // Edge case: prediction missing - treat as completed if entry.status is won/lost, else keep visible
-          return entry.status === 'won' || entry.status === 'lost' || entry.status !== 'active';
-        }
-        return (
+        const prediction = predictions.find(p => p.id === entry.prediction_id);
+        return prediction && (
           entry.status === 'won' || 
           entry.status === 'lost' ||
           prediction.status === 'settled' ||
-          prediction.status === 'closed' ||
-          prediction.status === 'awaiting_settlement' ||
           new Date(prediction.entry_deadline) <= new Date()
         );
       })
       .map(entry => {
-        const prediction = (entry as any).prediction || predictions.find(p => p.id === entry.prediction_id);
-        const option = (entry as any).option || prediction?.options?.find((o: any) => o.id === entry.option_id);
+        const prediction = predictions.find(p => p.id === entry.prediction_id);
+        const option = prediction?.options?.find(o => o.id === entry.option_id);
         
         return {
           id: entry.id,
-          predictionId: entry.prediction_id,
           title: prediction?.title || 'Unknown Prediction',
           category: prediction?.category || 'custom',
           position: option?.label || 'Unknown',
@@ -198,19 +185,8 @@ const PredictionsTab: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNav
   }
 
   const renderPredictionCard = (prediction: any) => {
-    const isNavigable = activeTab !== 'created';
-    const handleCardClick = () => {
-      // Navigate to prediction details - use predictionId for entry-based items, id for created items
-      const predictionIdToOpen = prediction.predictionId || prediction.id;
-      navigate(`/predictions/${predictionIdToOpen}`);
-    };
-
     return (
-      <div 
-        key={prediction.id} 
-        className={`bg-white rounded-2xl border border-gray-200 p-6 hover:shadow-md transition-shadow ${isNavigable ? 'cursor-pointer' : ''}`}
-        onClick={isNavigable ? handleCardClick : undefined}
-      >
+      <div key={prediction.id} className="bg-white rounded-2xl border border-gray-200 p-6 hover:shadow-md transition-shadow">
         <div className="flex items-start justify-between mb-4">
           <div className="flex-1">
             <div className="flex items-center gap-2 mb-2">
@@ -302,8 +278,7 @@ const PredictionsTab: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNav
           <span>{prediction.participants} participants</span>
           {activeTab === 'created' ? (
             <button
-              onClick={(e) => {
-                e.stopPropagation();
+              onClick={() => {
                 setSelectedPrediction(prediction);
                 setShowManageModal(true);
               }}

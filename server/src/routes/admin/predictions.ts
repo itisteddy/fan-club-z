@@ -542,34 +542,14 @@ async function setOutcomeHandler(req: ExpressRequest, res: ExpressResponse): Pro
     }
 
     // Verify option belongs to prediction before any write
-    // Some deployments don't have prediction_options.text yet; mirror the detail-route fallback
-    let opt: any = null;
-    let optErr: any = null;
-    const optFirst = await supabase
+    const { data: opt, error: optErr } = await supabase
       .from('prediction_options')
       .select('id, prediction_id, label, text')
       .eq('id', optionId)
       .maybeSingle();
-    if (optFirst.error && isSchemaMismatch(optFirst.error)) {
-      const optFallback = await supabase
-        .from('prediction_options')
-        .select('id, prediction_id, label')
-        .eq('id', optionId)
-        .maybeSingle();
-      opt = optFallback.data;
-      optErr = optFallback.error;
-    } else {
-      opt = optFirst.data;
-      optErr = optFirst.error;
-    }
 
     if (optErr || !opt || String((opt as any).prediction_id) !== predictionId) {
-      console.warn('[Admin/Settlement] Business rule: option does not belong to prediction', {
-        requestId,
-        predictionId,
-        optionId,
-        optionLookupError: optErr ? String(optErr.message || optErr) : null,
-      });
+      console.warn('[Admin/Settlement] Business rule: option does not belong to prediction', { requestId, predictionId, optionId });
       return res.status(400).json({
         error: 'Bad Request',
         message: 'Option does not belong to prediction',
@@ -1114,6 +1094,144 @@ async function setOutcomeHandler(req: ExpressRequest, res: ExpressResponse): Pro
 
 predictionsRouter.post('/:predictionId/outcome', setOutcomeHandler);
 predictionsRouter.post('/:predictionId/settle', setOutcomeHandler);
+
+const CloseSchema = z.object({
+  actorId: z.string().uuid().optional(),
+  reason: z.string().max(1000).optional(),
+});
+
+/**
+ * POST /api/v2/admin/predictions/:predictionId/close
+ * Close a prediction early (stop new bets) without settling it.
+ */
+predictionsRouter.post('/:predictionId/close', async (req, res) => {
+  try {
+    const { predictionId } = req.params;
+    const parsed = CloseSchema.safeParse(req.body || {});
+
+    if (!parsed.success) {
+      return res.status(400).json({
+        error: 'Bad Request',
+        message: 'Invalid payload',
+        details: parsed.error.issues,
+        version: VERSION,
+      });
+    }
+
+    const actorId = parsed.data.actorId || getFallbackAdminActorId();
+    const reason = parsed.data.reason?.trim() || undefined;
+
+    const { data: prediction, error: predError } = await supabase
+      .from('predictions')
+      .select('id, title, status, closed_at, settled_at, resolution_date')
+      .eq('id', predictionId)
+      .maybeSingle();
+
+    if (predError || !prediction) {
+      return res.status(404).json({
+        error: 'Not Found',
+        message: 'Prediction not found',
+        version: VERSION,
+      });
+    }
+
+    const status = String((prediction as any).status || '').toLowerCase();
+    if (status === 'voided' || status === 'cancelled' || status === 'settled') {
+      return res.status(400).json({
+        error: 'Bad Request',
+        message: `Cannot close prediction in ${status} state`,
+        version: VERSION,
+      });
+    }
+
+    if (status === 'closed' || status === 'awaiting_settlement' || status === 'ended') {
+      return res.json({
+        success: true,
+        alreadyClosed: true,
+        message: 'Prediction is already closed',
+        prediction: {
+          id: prediction.id,
+          status: (prediction as any).status,
+          closedAt: (prediction as any).closed_at || null,
+          settledAt: (prediction as any).settled_at || (prediction as any).resolution_date || null,
+        },
+        version: VERSION,
+      });
+    }
+
+    const nowIso = new Date().toISOString();
+    let updateError: any = null;
+
+    const firstUpdate = await supabase
+      .from('predictions')
+      .update({
+        status: 'closed',
+        closed_at: nowIso,
+        updated_at: nowIso,
+      } as any)
+      .eq('id', predictionId);
+    updateError = firstUpdate.error;
+
+    if (updateError && isSchemaMismatch(updateError)) {
+      const fallbackUpdate = await supabase
+        .from('predictions')
+        .update({
+          status: 'closed',
+          updated_at: nowIso,
+        } as any)
+        .eq('id', predictionId);
+      updateError = fallbackUpdate.error;
+    }
+
+    if (updateError) {
+      console.error('[Admin/Predictions] Close error:', updateError);
+      return res.status(500).json({
+        error: 'Internal Server Error',
+        message: 'Failed to close prediction',
+        version: VERSION,
+      });
+    }
+
+    if (actorId) {
+      await logAdminAction({
+        actorId,
+        action: 'prediction_close',
+        targetType: 'prediction',
+        targetId: predictionId,
+        reason,
+        meta: {
+          title: (prediction as any).title || null,
+          previousStatus: (prediction as any).status || null,
+          closedAt: nowIso,
+        },
+      });
+    }
+
+    try {
+      emitPredictionUpdate({ predictionId, reason: 'closed' });
+    } catch (emitErr) {
+      console.warn('[Admin/Predictions] Failed to emit realtime prediction close event:', emitErr);
+    }
+
+    return res.json({
+      success: true,
+      message: 'Prediction closed',
+      prediction: {
+        id: predictionId,
+        status: 'closed',
+        closedAt: nowIso,
+      },
+      version: VERSION,
+    });
+  } catch (error) {
+    console.error('[Admin/Predictions] Close endpoint error:', error);
+    return res.status(500).json({
+      error: 'Internal Server Error',
+      message: 'Failed to close prediction',
+      version: VERSION,
+    });
+  }
+});
 
 const VoidSchema = z.object({
   reason: z.string().min(5, 'Reason must be at least 5 characters'),

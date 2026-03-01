@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Edit3, User, Activity, DollarSign } from 'lucide-react';
+import { Edit3, User, Activity } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { usePredictionStore } from '../store/predictionStore';
 import { openAuthGate } from '../auth/authGateAdapter';
@@ -12,6 +12,7 @@ import EmptyState from '../components/ui/empty/EmptyState';
 import AuthRequiredState from '../components/ui/empty/AuthRequiredState';
 import { SkeletonStatRow, SkeletonCard } from '../components/ui/skeleton/Skeleton';
 import { truncateText } from '@/lib/format';
+import { ZaurumMark } from '@/components/currency/ZaurumMark';
 
 interface ProfilePageProps {
   onNavigateBack?: () => void;
@@ -109,7 +110,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigateBack, userId }) => 
                 label="Balance" 
                 value={balance}
                 variant="balance"
-                icon={<DollarSign className="w-4 h-4" />}
+                icon={<ZaurumMark className="w-4 h-4" />}
               />
             </StatRow>
 

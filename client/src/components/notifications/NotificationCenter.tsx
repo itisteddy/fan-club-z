@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Bell, X, Settings, Check, Eye, MessageCircle, Trophy, DollarSign } from 'lucide-react';
+import { Bell, X, Settings, Check, Eye, MessageCircle, Trophy } from 'lucide-react';
 import { useNotificationStore } from '../../store/notificationStore';
 import { formatDistanceToNow } from 'date-fns';
+import { ZaurumMark } from '@/components/currency/ZaurumMark';
 
 interface NotificationCenterProps {
   isOpen: boolean;
@@ -31,7 +32,7 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
       case 'comment':
         return <MessageCircle className="w-5 h-5 text-blue-600" />;
       case 'payout':
-        return <DollarSign className="w-5 h-5 text-teal-600" />;
+        return <ZaurumMark className="w-5 h-5" />;
       case 'market_close':
         return <Eye className="w-5 h-5 text-amber-600" />;
       default:

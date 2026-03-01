@@ -27,7 +27,7 @@ export interface UseAutoImageResult {
   fallback: boolean;
 }
 
-const getImagesApiBase = () => `${getApiUrl()}/api`;
+const API_BASE = `${getApiUrl()}/api`;
 
 export function useAutoImage({
   prediction,
@@ -82,7 +82,7 @@ export function useAutoImage({
           take: '1'
         });
 
-        const response = await fetch(`${getImagesApiBase()}/images?${params}`);
+        const response = await fetch(`${API_BASE}/images?${params}`);
         
         if (!response.ok) {
           throw new Error(`HTTP ${response.status}: ${response.statusText}`);

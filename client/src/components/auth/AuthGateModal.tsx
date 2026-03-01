@@ -1,27 +1,34 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { X, Mail, Chrome } from 'lucide-react';
+import { Capacitor } from '@capacitor/core';
 import { FocusTrap, AriaUtils, KeyboardNavigation } from '../../utils/accessibility';
 import { useAuthGate, resolveAuthGate } from '../../auth/authGateAdapter';
 import { useAuthSession } from '../../providers/AuthSessionProvider';
 import { useNetworkStatus } from '../../providers/NetworkStatusProvider';
 import { INTENT_MAP, FALLBACK_INTENT } from '../../auth/authIntents';
-import { isFeatureEnabled } from '../../config/featureFlags';
-import { isGoogleOAuthSupported } from '@/lib/browserContext';
-import InAppBrowserGate from './InAppBrowserGate';
 import EmailInputModal from './EmailInputModal';
 
 const AuthGateModal: React.FC = () => {
   const { isOpen, pendingIntent, intentMeta } = useAuthGate();
-  const { signInWithGoogle, signInWithApple, signInWithEmailLink, user } = useAuthSession();
-  const showAppleSignIn = isFeatureEnabled('SIGN_IN_APPLE');
+  const { signInWithGoogle, signInWithEmailLink, user } = useAuthSession();
   const { isOnline } = useNetworkStatus();
   const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
-  const [showBrowserGate, setShowBrowserGate] = useState(false);
   
   const modalRef = useRef<HTMLDivElement>(null);
   const firstButtonRef = useRef<HTMLButtonElement>(null);
   const focusTrapRef = useRef<FocusTrap | null>(null);
   const [modalId] = useState(() => AriaUtils.generateId('auth-modal'));
+  const isNativeApp = (() => {
+    try {
+      if (Capacitor.isNativePlatform()) return true;
+      const platform = Capacitor.getPlatform();
+      if (platform === 'android' || platform === 'ios') return true;
+    } catch {
+      // ignore and fall through
+    }
+    const buildTarget = import.meta.env.VITE_BUILD_TARGET;
+    return buildTarget === 'android' || buildTarget === 'ios';
+  })();
 
   // Compute displayMeta with fallback as per spec - ALWAYS render when isOpen is true
   const displayMeta = 
@@ -80,15 +87,8 @@ const AuthGateModal: React.FC = () => {
     resolveAuthGate({ status: 'cancel' });
   };
 
-  // Handle Google sign in — with in-app browser gate
+  // Handle Google sign in
   const handleGoogleSignIn = async () => {
-    // Gate: block Google OAuth in in-app browsers (403 disallowed_useragent)
-    if (!isGoogleOAuthSupported()) {
-      console.log('[FCZ-QA] Google OAuth blocked: in-app browser detected');
-      setShowBrowserGate(true);
-      return;
-    }
-
     if (import.meta.env.DEV && import.meta.env.VITE_DEBUG_LOGS === 'true') {
       console.log('[FCZ-QA] Google sign in attempt');
     }
@@ -108,35 +108,6 @@ const AuthGateModal: React.FC = () => {
       resolveAuthGate({ 
         status: 'error', 
         reason: error instanceof Error ? error.message : 'Unknown error' 
-      });
-    }
-  };
-
-  // Handle Apple sign in — also gated (Apple OAuth has similar in-app restrictions)
-  const handleAppleSignIn = async () => {
-    if (!isGoogleOAuthSupported()) {
-      console.log('[FCZ-QA] Apple OAuth blocked: in-app browser detected');
-      setShowBrowserGate(true);
-      return;
-    }
-
-    if (import.meta.env.DEV && import.meta.env.VITE_DEBUG_LOGS === 'true') {
-      console.log('[FCZ-QA] Apple sign in attempt');
-    }
-    try {
-      const { error } = await signInWithApple();
-      if (error) {
-        console.error('Apple sign in error:', error);
-        resolveAuthGate({
-          status: 'error',
-          reason: error.message || 'Sign in with Apple failed',
-        });
-      }
-    } catch (error) {
-      console.error('Apple sign in exception:', error);
-      resolveAuthGate({
-        status: 'error',
-        reason: error instanceof Error ? error.message : 'Unknown error',
       });
     }
   };
@@ -220,43 +191,32 @@ const AuthGateModal: React.FC = () => {
         {/* Content */}
         <div className="p-6">
           <div className="space-y-4">
-            {/* Sign in with Apple - first when enabled (Apple HIG: equal or higher prominence) */}
-            {showAppleSignIn && (
+            {/* Primary CTA: native app prefers email for reliable in-app testing; web keeps Google primary */}
+            {isNativeApp ? (
               <button
-                type="button"
                 ref={firstButtonRef}
-                onClick={handleAppleSignIn}
+                onClick={handleEmailLinkSignIn}
                 disabled={isOffline}
-                className="w-full flex items-center justify-center gap-3 bg-black hover:bg-gray-800 disabled:bg-gray-300 text-white py-4 px-6 rounded-xl font-semibold transition-colors disabled:cursor-not-allowed shadow-lg min-h-[44px]"
-                data-qa="auth-gate-apple"
-                title="Sign in with Apple to FanClubZ"
-                aria-label="Sign in with Apple"
+                className="w-full flex items-center justify-center gap-3 bg-emerald-500 hover:bg-emerald-600 disabled:bg-gray-300 text-white py-4 px-6 rounded-xl font-semibold transition-colors disabled:cursor-not-allowed shadow-lg relative group"
+                data-qa="auth-gate-email-primary"
+                title="Sign in with email link"
               >
-                {/* Apple logo glyph (U+F8FF). Renders correctly on iOS/macOS system fonts. */}
-                <span
-                  aria-hidden
-                  className="text-[18px] leading-none"
-                  style={{ fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif' }}
-                >
-                  {'\uF8FF'}
-                </span>
-                Sign in with Apple
+                <Mail className="w-5 h-5" />
+                Continue with Email
+              </button>
+            ) : (
+              <button
+                ref={firstButtonRef}
+                onClick={handleGoogleSignIn}
+                disabled={isOffline}
+                className="w-full flex items-center justify-center gap-3 bg-emerald-500 hover:bg-emerald-600 disabled:bg-gray-300 text-white py-4 px-6 rounded-xl font-semibold transition-colors disabled:cursor-not-allowed shadow-lg relative group"
+                data-qa="auth-gate-google"
+                title="You'll sign in with Google to FanClubZ"
+              >
+                <Chrome className="w-5 h-5" />
+                {displayMeta.primaryCta}
               </button>
             )}
-
-            {/* Primary CTA - Google (first when Apple is off) */}
-            <button
-              type="button"
-              ref={!showAppleSignIn ? firstButtonRef : undefined}
-              onClick={handleGoogleSignIn}
-              disabled={isOffline}
-              className="w-full flex items-center justify-center gap-3 bg-emerald-500 hover:bg-emerald-600 disabled:bg-gray-300 text-white py-4 px-6 rounded-xl font-semibold transition-colors disabled:cursor-not-allowed shadow-lg relative group min-h-[44px]"
-              data-qa="auth-gate-google"
-              title="You'll sign in with Google to FanClubZ"
-            >
-              <Chrome className="w-5 h-5" />
-              {displayMeta.primaryCta}
-            </button>
             
             {/* Divider */}
             <div className="relative">
@@ -268,17 +228,36 @@ const AuthGateModal: React.FC = () => {
               </div>
             </div>
             
-            {/* Secondary CTA - Email */}
-            <button
-              type="button"
-              onClick={handleEmailLinkSignIn}
-              disabled={isOffline}
-              className="w-full flex items-center justify-center gap-3 bg-white border-2 border-gray-200 hover:bg-gray-50 hover:border-gray-300 disabled:bg-gray-100 disabled:border-gray-200 text-gray-700 py-4 px-6 rounded-xl font-semibold transition-colors disabled:cursor-not-allowed min-h-[44px]"
-              data-qa="auth-gate-email"
-            >
-              <Mail className="w-5 h-5" />
-              {displayMeta.secondaryCta}
-            </button>
+            {/* Secondary CTA swaps on native so Google is still available but not the default path */}
+            {isNativeApp ? (
+              <button
+                onClick={handleGoogleSignIn}
+                disabled={isOffline}
+                className="w-full flex items-center justify-center gap-3 bg-white border-2 border-gray-200 hover:bg-gray-50 hover:border-gray-300 disabled:bg-gray-100 disabled:border-gray-200 text-gray-700 py-4 px-6 rounded-xl font-semibold transition-colors disabled:cursor-not-allowed"
+                data-qa="auth-gate-google-secondary"
+              >
+                <Chrome className="w-5 h-5" />
+                Continue with Google (may open browser)
+              </button>
+            ) : (
+              <button
+                onClick={handleEmailLinkSignIn}
+                disabled={isOffline}
+                className="w-full flex items-center justify-center gap-3 bg-white border-2 border-gray-200 hover:bg-gray-50 hover:border-gray-300 disabled:bg-gray-100 disabled:border-gray-200 text-gray-700 py-4 px-6 rounded-xl font-semibold transition-colors disabled:cursor-not-allowed"
+                data-qa="auth-gate-email"
+              >
+                <Mail className="w-5 h-5" />
+                {displayMeta.secondaryCta}
+              </button>
+            )}
+
+            {isNativeApp && (
+              <div className="text-center -mt-1">
+                <p className="text-xs text-gray-500">
+                  For in-app testing on Android/iOS, email sign-in is the most reliable option.
+                </p>
+              </div>
+            )}
 
             {/* Offline message */}
             {isOffline && (
@@ -298,12 +277,6 @@ const AuthGateModal: React.FC = () => {
            </p>
          </div>
        </div>
-
-       {/* In-App Browser Gate (blocks Google/Apple OAuth in MetaMask, Instagram, etc.) */}
-       <InAppBrowserGate
-         open={showBrowserGate}
-         onClose={() => setShowBrowserGate(false)}
-       />
 
        {/* Email Input Modal */}
        <EmailInputModal

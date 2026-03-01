@@ -22,8 +22,7 @@ Runs on pushes to `main` branch and version tags.
 
 **Jobs:**
 - **Build & Test**: Full build and test before deployment
-- **Deploy Main App**: Deploys client to Vercel project `fan-club-z` (main app → app.fanclubz.app)
-- **Deploy Landing Page**: Deploys client to Vercel project `landing-page` (landing → fanclubz.app); requires `VERCEL_LANDING_PROJECT_ID`; project must have `VITE_BUILD_TARGET=landing` in Vercel env
+- **Deploy Frontend**: Deploys client to Vercel
 - **Deploy Backend**: Triggers Render deployment (or uploads artifacts)
 - **Health Check**: Verifies deployments are healthy
 - **Post-Deploy Ledger Check**: Runs ledger sanity check after deployment
@@ -55,8 +54,7 @@ Configure these secrets in GitHub repository settings:
 ### Required for Deployment:
 - `VERCEL_TOKEN` - Vercel API token
 - `VERCEL_ORG_ID` - Vercel organization ID
-- `VERCEL_PROJECT_ID` - Vercel project ID (main app, fan-club-z)
-- `VERCEL_LANDING_PROJECT_ID` - Vercel project ID for landing page (landing-page); if set, main branch deploys to both app and landing
+- `VERCEL_PROJECT_ID` - Vercel project ID
 
 ### Optional (for full builds):
 - `VITE_CHAIN_ID` - Chain ID (default: 84532)
@@ -75,13 +73,6 @@ Build artifacts are uploaded and retained:
 
 Node modules are cached using GitHub Actions cache for faster builds.
 
-## Install strategy
-
-All workflows use the same install approach as the documented Render build fix to avoid npm cache/lockfile failures:
-
-- **Command:** `npm cache clean --force && npm install --legacy-peer-deps`
-- **Rationale:** `npm ci` can fail with cache ENOENT or lockfile mismatches; `npm install --legacy-peer-deps` is the proven fix (see `docs/RENDER_BUILD_FIX.md`). Using it in CI keeps behavior consistent with Render and avoids repeated Install & Verify failures.
-
 ## Environment Variables
 
 Some workflows use dummy values for builds when secrets aren't available. Production deployments require all secrets to be configured.
@@ -90,10 +81,9 @@ Some workflows use dummy values for builds when secrets aren't available. Produc
 
 ### Build Failures
 1. Check Node.js version compatibility (>=20.0.0)
-2. If **Install & Verify** fails (e.g. ENOENT, lockfile errors): workflows already use `npm cache clean --force && npm install --legacy-peer-deps` per `docs/RENDER_BUILD_FIX.md`. If it still fails, re-run the job or clear the GitHub Actions cache for the repo.
-3. Verify all dependencies install correctly
-4. Check for TypeScript errors
-5. Review linting errors
+2. Verify all dependencies install correctly
+3. Check for TypeScript errors
+4. Review linting errors
 
 ### Deployment Failures
 1. Verify all required secrets are set

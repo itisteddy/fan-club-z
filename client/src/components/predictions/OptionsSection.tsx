@@ -1,6 +1,5 @@
 import React from 'react';
 import { TrendingUp } from 'lucide-react';
-import { getPreOddsMultiple } from '@fanclubz/shared';
 
 export interface PredictionOption {
   id: string;
@@ -10,8 +9,6 @@ export interface PredictionOption {
   total_staked?: number;
   totalStaked?: number;
   percentage?: number;
-  /** Odds V2: reference multiple from pool engine */
-  referenceMultiple?: number;
 }
 
 interface OptionsSectionProps {
@@ -19,40 +16,26 @@ interface OptionsSectionProps {
   selectedId?: string;
   onSelect: (id: string) => void;
   disabled?: boolean;
-  winningOptionId?: string;
-  showWinningIndicator?: boolean;
-  /** Total pool (sum of option pools) for current odds = T/Wi. When provided, option list shows current odds only. */
-  totalPool?: number;
 }
 
 /**
- * Compact options list without excessive padding.
- * Shows current odds only (pre-stake): T/Wi when totalPool is provided.
+ * Compact options list without excessive padding
+ * Shows options with odds in a tight, scannable format
  */
-export function OptionsSection({
-  options,
-  selectedId,
-  onSelect,
-  disabled = false,
-  winningOptionId,
-  showWinningIndicator = false,
-  totalPool,
+export function OptionsSection({ 
+  options, 
+  selectedId, 
+  onSelect, 
+  disabled = false 
 }: OptionsSectionProps) {
   return (
     <section className="rounded-2xl bg-white border shadow-sm overflow-hidden">
       <ul className="divide-y divide-gray-100">
         {options.map((option) => {
-          const optStaked = option.total_staked ?? option.totalStaked ?? 0;
-          const currentOdds =
-            typeof totalPool === 'number' && totalPool > 0
-              ? getPreOddsMultiple(totalPool, optStaked)
-              : null;
-          const odds =
-            currentOdds ?? option.current_odds ?? option.odds ?? option.referenceMultiple ?? 1.0;
+          const odds = option.current_odds ?? option.odds ?? 1.0;
           const isSelected = selectedId === option.id;
           const percentage = option.percentage ?? 0;
-          const isWinning = showWinningIndicator && winningOptionId && option.id === winningOptionId;
-
+          
           return (
             <li key={option.id}>
               <button
@@ -61,20 +44,11 @@ export function OptionsSection({
                 className={`w-full flex items-center justify-between px-4 py-3 text-left transition-colors ${
                   isSelected
                     ? 'bg-emerald-50 border-l-2 border-l-emerald-600'
-                    : isWinning
-                      ? 'bg-emerald-50/40 hover:bg-emerald-50/60'
-                      : 'hover:bg-gray-50'
+                    : 'hover:bg-gray-50'
                 } disabled:opacity-50 disabled:cursor-not-allowed`}
               >
                 <div className="flex-1">
-                  <div className="flex items-center gap-2">
-                    <span className="font-medium text-gray-900">{option.label}</span>
-                    {isWinning && (
-                      <span className="inline-flex items-center rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-800">
-                        Winner
-                      </span>
-                    )}
-                  </div>
+                  <span className="font-medium text-gray-900">{option.label}</span>
                   {percentage > 0 && (
                     <div className="flex items-center gap-1 mt-1 text-xs text-gray-500">
                       <TrendingUp className="h-3 w-3" />
@@ -82,8 +56,8 @@ export function OptionsSection({
                     </div>
                   )}
                 </div>
-                <span className="text-emerald-600 font-semibold ml-3" title="Current odds (before your stake)">
-                  {typeof odds === 'number' && Number.isFinite(odds) ? `${odds.toFixed(2)}x` : '—'}
+                <span className="text-emerald-600 font-semibold ml-3">
+                  {odds.toFixed(2)}x
                 </span>
               </button>
             </li>

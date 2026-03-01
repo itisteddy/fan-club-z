@@ -5,4 +5,5 @@ export const env = EnvSchema.parse({
   VITE_API_BASE: import.meta.env.VITE_API_BASE,
   VITE_IMAGES_FEATURE_FLAG: import.meta.env.VITE_IMAGES_FEATURE_FLAG,
   VITE_IMAGES_PROVIDER: import.meta.env.VITE_IMAGES_PROVIDER,
+  VITE_FCZ_WALLET_MODE: import.meta.env.VITE_FCZ_WALLET_MODE,
 });

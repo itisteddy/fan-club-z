@@ -8,6 +8,9 @@ import request from 'supertest';
 import express from 'express';
 
 const TEST_ADMIN_KEY = 'test-admin-key-settle-integration';
+process.env.VITE_SUPABASE_URL ||= 'https://example.supabase.co';
+process.env.VITE_SUPABASE_ANON_KEY ||= 'test-anon-key';
+process.env.SUPABASE_SERVICE_ROLE_KEY ||= 'test-service-role-key';
 process.env.ADMIN_API_KEY = TEST_ADMIN_KEY;
 
 import { adminRouter } from '../routes/admin';

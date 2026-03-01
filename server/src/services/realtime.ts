@@ -6,63 +6,32 @@ let io: SocketIOServer | null = null;
 export function initRealtime(server: HttpServer) {
   if (io) return io;
   
-  // Match exact CORS origins from server/src/index.ts
-  // Phase 1: Socket.IO must use the same origin allowlist as REST API
-  const allowedOrigins = [
-    'https://fanclubz.app',
+  // Get allowed origins from environment or use defaults
+  const allowedOrigins = process.env.CORS_ORIGINS?.split(',') || [
     'https://app.fanclubz.app',
-    // Admin portal
-    'https://web.fanclubz.app',
-    'https://auth.fanclubz.app',
-    // Capacitor native shells (iOS/Android WebView origins)
-    // These must be allowed for native app Socket.IO connections to work
-    'capacitor://localhost',
-    'capacitor://app.fanclubz.app',
-    'ionic://localhost',
-    'http://localhost',
-    'http://localhost:5173',
-    'http://localhost:5174', // Vite default dev port
-    'http://localhost:3000',
+    'https://fanclubz.app',
+    'https://www.fanclubz.app',
+    'https://dev.fanclubz.app',
   ];
-  const warnedBlockedOrigins = new Set<string>();
   
   io = new SocketIOServer(server, {
     cors: {
       origin: (origin, callback) => {
-        // Log for debugging
-        if (origin) {
-          console.log(`[RT-CORS] Request origin: ${origin}`);
-        }
-        
-        // Allow requests with no origin (mobile apps, Postman, curl, server-to-server)
+        // Allow requests with no origin (mobile apps, Postman, etc.)
         if (!origin) {
           return callback(null, true);
         }
-        
-        // Check exact match first
-        if (allowedOrigins.includes(origin)) {
-          console.log(`[RT-CORS] ✅ Allowed origin: ${origin}`);
+        // Check if origin is allowed
+        if (allowedOrigins.includes(origin) || origin.includes('.vercel.app') || origin.includes('.onrender.com')) {
           callback(null, true);
-          return;
+        } else {
+          // In production, be strict; in dev, allow all
+          if (process.env.NODE_ENV === 'production') {
+            callback(new Error(`Origin ${origin} not allowed by CORS`));
+          } else {
+            callback(null, true);
+          }
         }
-        
-        // Allow any capacitor:// or ionic:// origin for native builds
-        // This ensures iOS/Android Capacitor apps can connect via Socket.IO
-        if (origin.startsWith('capacitor://') || origin.startsWith('ionic://')) {
-          console.log(`[RT-CORS] ✅ Allowed Capacitor origin: ${origin}`);
-          callback(null, true);
-          return;
-        }
-        
-        if (!warnedBlockedOrigins.has(origin)) {
-          warnedBlockedOrigins.add(origin);
-          console.warn(
-            `[RT-CORS] ❌ Blocked origin (Socket.IO CORS will not allow): ${origin}. ` +
-              `If this is a real frontend surface, add it to allowedOrigins in server/src/index.ts and server/src/services/realtime.ts.`
-          );
-        }
-        // Do not throw; fail closed without crashing the server.
-        callback(null, false);
       },
       credentials: true,
       methods: ['GET', 'POST'],

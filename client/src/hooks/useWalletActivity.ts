@@ -5,13 +5,6 @@ import { normalizeWalletTransaction } from '@fanclubz/shared';
 import { getApiUrl } from '@/utils/environment';
 
 export type WalletActivityItem = ActivityItem;
-export type WalletActivityResponse = { items: WalletActivityItem[] };
-
-function fetchWithTimeout(input: string, init?: RequestInit, timeoutMs = 12_000) {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), timeoutMs);
-  return fetch(input, { ...(init || {}), signal: controller.signal }).finally(() => clearTimeout(timeout));
-}
 
 /**
  * Hook to fetch wallet activity/transaction history
@@ -22,7 +15,7 @@ function fetchWithTimeout(input: string, init?: RequestInit, timeoutMs = 12_000)
  * - Disabled refetchOnWindowFocus to reduce API calls
  */
 export function useWalletActivity(userId?: string, limit = 20) {
-  const query = useQuery<WalletActivityResponse>({
+  const query = useQuery({
     queryKey: QK.walletActivity(userId ?? 'anon', limit),
     enabled: !!userId,
     queryFn: async () => {
@@ -34,17 +27,7 @@ export function useWalletActivity(userId?: string, limit = 20) {
       });
       
       const apiBase = getApiUrl();
-      let r: Response;
-      try {
-        r = await fetchWithTimeout(`${apiBase}/api/wallet/activity?${params.toString()}`, {
-          headers: { Accept: 'application/json' },
-        });
-      } catch (e: any) {
-        if (e?.name === 'AbortError') {
-          throw new Error('Wallet activity request timed out. Please try again.');
-        }
-        throw e;
-      }
+      const r = await fetch(`${apiBase}/api/wallet/activity?${params.toString()}`);
       if (!r.ok) {
         const error = await r.json().catch(() => ({ message: r.statusText }));
         throw new Error(error.message || 'Failed to load transactions');
@@ -78,7 +61,7 @@ export function useWalletActivity(userId?: string, limit = 20) {
 
 // Infinite query version for pagination
 export function useWalletActivityInfinite(userId?: string, limit = 20) {
-  return useInfiniteQuery<WalletActivityResponse, Error, WalletActivityResponse, any, string | undefined>({
+  return useInfiniteQuery({
     queryKey: [...QK.walletActivity(userId ?? 'anon', limit), 'infinite'],
     enabled: !!userId,
     queryFn: async ({ pageParam }) => {
@@ -94,17 +77,7 @@ export function useWalletActivityInfinite(userId?: string, limit = 20) {
       }
       
       const apiBase = getApiUrl();
-      let r: Response;
-      try {
-        r = await fetchWithTimeout(`${apiBase}/api/wallet/activity?${params.toString()}`, {
-          headers: { Accept: 'application/json' },
-        });
-      } catch (e: any) {
-        if (e?.name === 'AbortError') {
-          throw new Error('Wallet activity request timed out. Please try again.');
-        }
-        throw e;
-      }
+      const r = await fetch(`${apiBase}/api/wallet/activity?${params.toString()}`);
       if (!r.ok) {
         const error = await r.json().catch(() => ({ message: r.statusText }));
         throw new Error(error.message || 'Failed to load transactions');

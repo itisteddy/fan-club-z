@@ -2,26 +2,26 @@ import React, { useState, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import BottomNavigation from './BottomNavigation';
 import { NotificationCenter } from './notifications/NotificationCenter';
+import { NotificationBell } from './notifications/NotificationComponents';
 import { ToastContainer } from './notifications/ToastNotification';
 import { useNotificationStore } from '../store/notificationStore';
 
 interface MainLayoutProps {
   children: React.ReactNode;
   hideNavigation?: boolean;
+  showNotificationBell?: boolean;
 }
 
-/**
- * Legacy MainLayout component - kept for backward compatibility
- * Note: NotificationBell is now rendered via AppHeader (only on Discover/Profile pages)
- */
 const MainLayout: React.FC<MainLayoutProps> = ({ 
   children, 
-  hideNavigation = false
+  hideNavigation = false, 
+  showNotificationBell = true 
 }) => {
   const [isNotificationCenterOpen, setIsNotificationCenterOpen] = useState(false);
   const { toasts, removeToast } = useNotificationStore();
 
   // [PERF] Memoize callbacks to prevent child re-renders
+  const openNotificationCenter = useCallback(() => setIsNotificationCenterOpen(true), []);
   const closeNotificationCenter = useCallback(() => setIsNotificationCenterOpen(false), []);
 
   return (
@@ -33,7 +33,16 @@ const MainLayout: React.FC<MainLayoutProps> = ({
         <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-blue-400/10 rounded-full blur-3xl" />
       </div>
 
-      {/* Main content - NotificationBell removed, now in AppHeader */}
+      {/* Notification Bell - Top Right */}
+      {showNotificationBell && (
+        <div className="fixed top-4 right-4 z-[9000]">
+          <NotificationBell
+            onClick={openNotificationCenter}
+          />
+        </div>
+      )}
+
+      {/* Main content */}
       <motion.main
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}

@@ -1,8 +1,3 @@
-/**
- * @deprecated — DEAD CODE. All comment functionality uses unifiedCommentStore.ts
- * and the features/comments/ components. Do NOT import from this file.
- * Kept only for reference; safe to delete.
- */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '../lib/api';
 import { useAuthStore } from '../store/authStore';

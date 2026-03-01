@@ -4,14 +4,10 @@ import { z } from 'zod';
 import { config } from '../config';
 import { supabase } from '../config/database';
 import { VERSION } from '@fanclubz/shared';
-import { enrichPredictionWithOddsV2 } from '../utils/enrichPredictionOddsV2';
 import { recomputePredictionState } from '../services/predictionMath';
 import { emitPredictionUpdate } from '../services/realtime';
-import { logAdminAction } from './admin/audit';
-import { insertWalletTransaction } from '../db/walletTransactions';
-import { createNotification } from '../services/notifications';
-import { getSettlementResult } from '../services/settlementResults';
-import { assertContentAllowed } from '../services/contentFilter';
+import { requireSupabaseAuth } from '../middleware/requireSupabaseAuth';
+import type { AuthenticatedRequest } from '../middleware/auth';
 import {
   StakeQuoteError,
   computeStakeQuoteFromDb,
@@ -19,178 +15,7 @@ import {
   type StakeMode,
 } from '../services/stakeQuote';
 import { beginPredictionStakeLock, PredictionStakeLockError } from '../services/predictionStakeLock';
-import { requireSupabaseAuth } from '../middleware/requireSupabaseAuth';
-import { requireTermsAccepted } from '../middleware/requireTermsAccepted';
-import { isCryptoAllowedForClient } from '../middleware/requireCryptoEnabled';
-import type { AuthenticatedRequest } from '../middleware/auth';
-
-/**
- * Helper to enrich prediction with category info (backward compatible)
- * Returns category as both object and string for compatibility
- */
-async function enrichPredictionWithCategory(prediction: any): Promise<any> {
-  if (!prediction) return prediction;
-
-  // If category_id exists, fetch category info
-  if (prediction.category_id) {
-    const { data: category } = await supabase
-      .from('categories')
-      .select('id, slug, label, icon')
-      .eq('id', prediction.category_id)
-      .eq('is_enabled', true)
-      .maybeSingle();
-
-    if (category) {
-      return {
-        ...prediction,
-        category: category.slug, // Keep backward compatibility
-        categoryObj: {
-          id: category.id,
-          slug: category.slug,
-          label: category.label,
-          icon: category.icon,
-        },
-        categoryId: category.id,
-        categoryLabel: category.label,
-      };
-    }
-  }
-
-  // Fallback: if category is a string (legacy), keep it as-is
-  if (prediction.category && typeof prediction.category === 'string') {
-    return {
-      ...prediction,
-      category: prediction.category,
-      categoryObj: null,
-      categoryId: null,
-      categoryLabel: prediction.category,
-    };
-  }
-
-  return prediction;
-}
-
-/**
- * Helper to enrich multiple predictions with category info
- */
-async function enrichPredictionsWithCategory(predictions: any[]): Promise<any[]> {
-  if (!Array.isArray(predictions) || predictions.length === 0) return predictions;
-
-  // Batch fetch all category_ids
-  const categoryIds = predictions
-    .map((p) => p.category_id)
-    .filter((id): id is string => Boolean(id));
-
-  if (categoryIds.length === 0) {
-    // No category_ids, return as-is with backward compatibility
-    return predictions.map((p) => ({
-      ...p,
-      category: p.category || 'custom',
-      categoryObj: null,
-      categoryId: null,
-      categoryLabel: p.category || 'Custom',
-    }));
-  }
-
-  const { data: categories } = await supabase
-    .from('categories')
-    .select('id, slug, label, icon')
-    .in('id', categoryIds)
-    .eq('is_enabled', true);
-
-  const categoryMap = new Map(
-    (categories || []).map((cat) => [cat.id, cat])
-  );
-
-  return predictions.map((pred) => {
-    if (pred.category_id && categoryMap.has(pred.category_id)) {
-      const cat = categoryMap.get(pred.category_id)!;
-      return {
-        ...pred,
-        category: cat.slug, // Backward compatibility
-        categoryObj: {
-          id: cat.id,
-          slug: cat.slug,
-          label: cat.label,
-          icon: cat.icon,
-        },
-        categoryId: cat.id,
-        categoryLabel: cat.label,
-      };
-    }
-
-    // Fallback for legacy predictions
-    return {
-      ...pred,
-      category: pred.category || 'custom',
-      categoryObj: null,
-      categoryId: null,
-      categoryLabel: pred.category || 'Custom',
-    };
-  });
-}
-
-const MAX_PREDICTION_OPTIONS = 50;
-const MAX_OPTION_LABEL_LENGTH = 80;
-
-function normalizeOptionLabel(label: string): string {
-  return String(label || '').trim().replace(/\s+/g, ' ');
-}
-
-function normalizeOptionInput(options: any[]): Array<{ id?: string; label: string; currentOdds?: any }> {
-  const list = Array.isArray(options) ? options : [];
-  return list.map((opt: any) => {
-    if (typeof opt === 'string') {
-      return { label: normalizeOptionLabel(opt) };
-    }
-    const label = normalizeOptionLabel(opt?.label ?? opt?.text ?? '');
-    const id = typeof opt?.id === 'string' ? opt.id : undefined;
-    const currentOdds = opt?.currentOdds;
-    return { ...(id ? { id } : {}), label, currentOdds };
-  });
-}
-
-function validatePredictionOptions(options: any[]): {
-  normalizedOptions: Array<{ id?: string; label: string; currentOdds?: any }>;
-  errors: string[];
-  isValid: boolean;
-} {
-  const normalizedOptions = normalizeOptionInput(options);
-  const errors: string[] = [];
-
-  if (normalizedOptions.length < 2) {
-    errors.push('Must have at least 2 options');
-  }
-
-  if (normalizedOptions.length > MAX_PREDICTION_OPTIONS) {
-    errors.push(`Max ${MAX_PREDICTION_OPTIONS} options allowed`);
-  }
-
-  const seen = new Set<string>();
-  normalizedOptions.forEach((opt, index) => {
-    const label = opt.label;
-    if (!label) {
-      errors.push(`Option ${index + 1} cannot be empty`);
-      return;
-    }
-    if (label.length > MAX_OPTION_LABEL_LENGTH) {
-      errors.push(`Option ${index + 1} exceeds ${MAX_OPTION_LABEL_LENGTH} characters`);
-      return;
-    }
-    const key = label.toLowerCase();
-    if (seen.has(key)) {
-      errors.push(`Duplicate option: ${label}`);
-    } else {
-      seen.add(key);
-    }
-  });
-
-  return {
-    normalizedOptions,
-    errors,
-    isValid: errors.length === 0,
-  };
-}
+import { transfer, WalletServiceError } from '../services/walletService';
 
 // [PERF] Helper to generate ETag from response data
 function generateETag(data: unknown): string {
@@ -215,64 +40,6 @@ function checkETag(req: express.Request, res: express.Response, data: unknown): 
 }
 
 const router = express.Router();
-
-async function resolveAuthenticatedUserId(req: express.Request): Promise<string | null> {
-  try {
-    const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) return null;
-    const token = authHeader.slice('Bearer '.length).trim();
-    if (!token) return null;
-
-    const { data, error } = await supabase.auth.getUser(token);
-    if (error || !data?.user?.id) {
-      return null;
-    }
-    return data.user.id;
-  } catch {
-    return null;
-  }
-}
-
-async function getViewerHiddenPredictionIds(viewerId: string): Promise<string[]> {
-  try {
-    const { data, error } = await supabase
-      .from('content_hides')
-      .select('target_id')
-      .eq('user_id', viewerId)
-      .eq('target_type', 'prediction');
-    if (error || !data) return [];
-    return (data as any[]).map((r) => r.target_id).filter(Boolean);
-  } catch {
-    return [];
-  }
-}
-
-async function getViewerBlockedUserIds(viewerId: string): Promise<string[]> {
-  try {
-    const { data, error } = await supabase
-      .from('user_blocks')
-      .select('blocked_user_id')
-      .eq('blocker_id', viewerId);
-    if (error || !data) return [];
-    return (data as any[]).map((r) => r.blocked_user_id).filter(Boolean);
-  } catch {
-    return [];
-  }
-}
-
-async function filterPredictionsForViewer(predictions: any[], viewerId: string | null): Promise<any[]> {
-  if (!viewerId || !predictions.length) return predictions;
-  const [hiddenPredictionIds, blockedUserIds] = await Promise.all([
-    getViewerHiddenPredictionIds(viewerId),
-    getViewerBlockedUserIds(viewerId),
-  ]);
-
-  return predictions.filter((p) => {
-    if (hiddenPredictionIds.length > 0 && hiddenPredictionIds.includes(p.id)) return false;
-    if (blockedUserIds.length > 0 && blockedUserIds.includes(p.creator_id)) return false;
-    return true;
-  });
-}
 
 // Local slugify helper (must match client)
 function slugify(input: string): string {
@@ -360,6 +127,13 @@ router.get('/:id/quote', requireSupabaseAuth as any, async (req, res) => {
     const amount = Number((req.query as any)?.amount || 0);
     const modeRaw = String((req.query as any)?.mode || 'real').toUpperCase();
     const mode: StakeMode = modeRaw === 'DEMO' ? 'DEMO' : 'REAL';
+    if (config.features.walletMode === 'zaurum_only' && mode === 'REAL') {
+      return res.status(410).json({
+        error: 'crypto_disabled_zaurum_only',
+        message: 'Real/crypto quote mode is disabled in zaurum-only mode.',
+        version: VERSION,
+      });
+    }
 
     if (!outcomeId || !userId) {
       return res.status(400).json({
@@ -496,9 +270,6 @@ router.get('/', async (req, res) => {
     console.log(`📊 Pagination: page=${page}, limit=${limit}, offset=${offset}`);
     console.log(`🔍 Filters: category=${category}, search=${search}`);
     
-    // Resolve user once for blocklist filtering + settlement results
-    const userId = await resolveAuthenticatedUserId(req);
-
     // Build query with filters - only show active, open predictions
     let query = supabase
       .from('predictions')
@@ -511,53 +282,14 @@ router.get('/', async (req, res) => {
       .gt('entry_deadline', new Date().toISOString()) // Only show predictions with future deadlines
       .order('created_at', { ascending: false });
     
-    // Apply category filter (support both categoryId and legacy category slug)
+    // Apply category filter
     if (category && category !== 'all') {
-      // Try to resolve categoryId from slug if it looks like a UUID, use as-is
-      // Otherwise, treat as legacy category slug
-      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-      if (uuidRegex.test(category)) {
-        query = query.eq('category_id', category);
-      } else {
-        // Legacy: filter by category string OR by category_id via slug lookup
-        const { data: catBySlug } = await supabase
-          .from('categories')
-          .select('id')
-          .eq('slug', category)
-          .eq('is_enabled', true)
-          .maybeSingle();
-        
-        if (catBySlug) {
-          query = query.eq('category_id', catBySlug.id);
-        } else {
-          // Fallback to legacy category string match
-          query = query.eq('category', category);
-        }
-      }
+      query = query.eq('category', category);
     }
     
     // Apply search filter
     if (search && search.trim()) {
       query = query.or(`title.ilike.%${search}%,description.ilike.%${search}%`);
-    }
-
-    // Exclude blocked users' predictions (UGC block list) — defensive: if user_blocks table doesn't exist, skip silently
-    if (userId) {
-      try {
-        const { data: blocked, error: blockedErr } = await supabase
-          .from('user_blocks')
-          .select('blocked_user_id')
-          .eq('blocker_id', userId);
-        if (!blockedErr) {
-          const blockedIds = (blocked || []).map((b: any) => b.blocked_user_id).filter(Boolean);
-          if (blockedIds.length > 0) {
-            const blockedList = blockedIds.map((id: string) => `'${id}'`).join(',');
-            query = query.not('creator_id', 'in', `(${blockedList})`);
-          }
-        }
-      } catch {
-        // user_blocks table may not exist yet — skip block filtering
-      }
     }
     
     // Apply pagination
@@ -581,57 +313,9 @@ router.get('/', async (req, res) => {
 
     console.log(`✅ Successfully fetched ${predictions?.length || 0} predictions (${count} total)`);
 
-    // Enrich predictions with category info
-    let enrichedPredictions = await enrichPredictionsWithCategory(predictions || []);
-
-    // UGC moderation: if hidden_at exists (migration applied) hide moderated predictions.
-    // Defensive: if column doesn't exist yet, it won't be present on rows, so this is a no-op.
-    enrichedPredictions = (enrichedPredictions || []).filter((p: any) => !p?.hidden_at && !p?.removed_at);
-    enrichedPredictions = await filterPredictionsForViewer(enrichedPredictions, userId);
-
-    // Phase 6A: Add canonical settlement fields if user is authenticated (batch fetch)
-    if (userId && enrichedPredictions.length > 0) {
-      try {
-        // Batch fetch settlement results for all predictions
-        const predictionIds = enrichedPredictions.map((p: any) => p.id);
-        const { data: allResults } = await supabase
-          .from('prediction_settlement_results')
-          .select('*')
-          .eq('user_id', userId)
-          .in('prediction_id', predictionIds);
-
-        const resultsByPrediction = new Map<string, any>();
-        (allResults || []).forEach((r: any) => {
-          const predId = r.prediction_id;
-          // Prefer demo over crypto if both exist
-          const existing = resultsByPrediction.get(predId);
-          if (!existing || r.provider === 'demo-wallet') {
-            resultsByPrediction.set(predId, {
-              myStakeTotal: Number(r.stake_total || 0),
-              myReturnedTotal: Number(r.returned_total || 0),
-              myNet: Number(r.net || 0),
-              myStatus: r.status,
-              myClaimStatus: r.claim_status,
-            });
-          }
-        });
-
-        // Attach canonical fields to each prediction
-        enrichedPredictions.forEach((pred: any) => {
-          const result = resultsByPrediction.get(pred.id);
-          if (result) {
-            Object.assign(pred, result);
-          }
-        });
-      } catch (err) {
-        console.error('[predictions] Failed to batch fetch settlement results:', err);
-        // Non-fatal: continue without canonical fields
-      }
-    }
-
     // [PERF] Prepare response and check ETag for conditional GET
     const response = {
-      data: enrichedPredictions,
+      data: predictions || [],
       message: 'Predictions fetched successfully',
       version: VERSION,
       pagination: {
@@ -641,7 +325,7 @@ router.get('/', async (req, res) => {
         totalPages,
         hasNext,
         hasPrev,
-        currentCount: enrichedPredictions.length
+        currentCount: predictions?.length || 0
       }
     };
     
@@ -767,8 +451,7 @@ router.get('/stats/platform', async (req, res) => {
 router.get('/trending', async (req, res) => {
   try {
     console.log('🔥 Trending predictions endpoint called - origin:', req.headers.origin);
-    const viewerId = await resolveAuthenticatedUserId(req);
-
+    
     // For now, return the same as regular predictions but ordered by activity
     const { data: predictions, error } = await supabase
       .from('predictions')
@@ -793,13 +476,8 @@ router.get('/trending', async (req, res) => {
 
     console.log(`✅ Successfully fetched ${predictions?.length || 0} trending predictions`);
 
-    // Enrich with category info
-    let enrichedPredictions = await enrichPredictionsWithCategory(predictions || []);
-    enrichedPredictions = (enrichedPredictions || []).filter((p: any) => !p?.hidden_at && !p?.removed_at);
-    enrichedPredictions = await filterPredictionsForViewer(enrichedPredictions, viewerId);
-
     return res.json({
-      data: enrichedPredictions,
+      data: predictions || [],
       message: 'Trending predictions endpoint - working',
       version: VERSION
     });
@@ -809,134 +487,6 @@ router.get('/trending', async (req, res) => {
       error: 'Internal server error',
       message: 'Failed to fetch trending predictions',
       version: VERSION
-    });
-  }
-});
-
-// Statuses that count as "completed" (not active) for the Completed tab
-const COMPLETED_STATUSES = ['closed', 'awaiting_settlement', 'settled', 'disputed', 'cancelled', 'refunded', 'ended'] as const;
-
-// GET /api/v2/predictions/completed/:userId - Completed predictions for user (creator OR participant)
-router.get('/completed/:userId', requireSupabaseAuth, async (req, res) => {
-  const { userId } = req.params;
-  try {
-    console.log(`📊 Completed predictions endpoint for user: ${userId}`);
-
-    // Security: self-only (prevents leaking a user's completed history)
-    const actorId = (req as AuthenticatedRequest).user?.id;
-    if (!actorId) {
-      return res.status(401).json({ error: 'unauthorized', message: 'Authorization required', version: VERSION });
-    }
-    if (actorId !== userId) {
-      return res.status(403).json({ error: 'forbidden', message: 'You can only view your own completed predictions', version: VERSION });
-    }
-
-    // 1) Creator-owned completed predictions
-    const { data: creatorPredictions, error: creatorError } = await supabase
-      .from('predictions')
-      .select(`
-        *,
-        creator:users!creator_id(id, username, full_name, avatar_url, is_verified),
-        options:prediction_options!prediction_options_prediction_id_fkey(*)
-      `)
-      .eq('creator_id', userId)
-      .in('status', [...COMPLETED_STATUSES])
-      .order('settled_at', { ascending: false, nullsFirst: false })
-      .order('updated_at', { ascending: false })
-      .limit(100);
-
-    if (creatorError) {
-      console.error('Error fetching creator completed predictions:', creatorError);
-      return res.status(500).json({
-        error: 'Database error',
-        message: 'Failed to fetch completed predictions',
-        version: VERSION,
-        details: creatorError.message,
-      });
-    }
-
-    // 2) Participant completed: prediction IDs from entries
-    const { data: entries, error: entriesError } = await supabase
-      .from('prediction_entries')
-      .select('prediction_id')
-      .eq('user_id', userId);
-
-    if (entriesError) {
-      console.error('Error fetching user entries for completed:', entriesError);
-      return res.status(500).json({
-        error: 'Database error',
-        message: 'Failed to fetch completed predictions',
-        version: VERSION,
-        details: entriesError.message,
-      });
-    }
-
-    const participantPredictionIds = [...new Set((entries || []).map((e: any) => e.prediction_id))];
-    let participantPredictions: any[] = [];
-    if (participantPredictionIds.length > 0) {
-      const { data: partPreds, error: partError } = await supabase
-        .from('predictions')
-        .select(`
-          *,
-          creator:users!creator_id(id, username, full_name, avatar_url, is_verified),
-          options:prediction_options!prediction_options_prediction_id_fkey(*)
-        `)
-        .in('id', participantPredictionIds)
-        .in('status', [...COMPLETED_STATUSES]);
-
-      if (!partError) participantPredictions = partPreds || [];
-    }
-
-    // 3) Merge by id, no duplicates, stable order: settled_at desc nulls last, then updated_at desc
-    const byId = new Map<string, any>();
-    for (const p of creatorPredictions || []) byId.set(p.id, p);
-    for (const p of participantPredictions) {
-      if (!byId.has(p.id)) byId.set(p.id, p);
-    }
-    const merged = Array.from(byId.values()).sort((a, b) => {
-      const aTime = a.settled_at ? new Date(a.settled_at).getTime() : 0;
-      const bTime = b.settled_at ? new Date(b.settled_at).getTime() : 0;
-      if (bTime !== aTime) return bTime - aTime;
-      return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
-    }).slice(0, 50);
-
-    // 4) Batch fetch user's entries for these predictions
-    const predictionIds = merged.map((p: any) => p.id);
-    const { data: userEntries } = await supabase
-      .from('prediction_entries')
-      .select(`
-        id, prediction_id, option_id, amount, actual_payout, status, provider,
-        option:prediction_options(id, label)
-      `)
-      .eq('user_id', userId)
-      .in('prediction_id', predictionIds);
-
-    const entryByPredictionId = new Map<string, any>();
-    for (const e of userEntries || []) {
-      entryByPredictionId.set(e.prediction_id, e);
-    }
-
-    const withMyEntry = merged.map((p: any) => ({
-      ...p,
-      myEntry: entryByPredictionId.get(p.id) || undefined,
-    }));
-
-    let enrichedPredictions = await enrichPredictionsWithCategory(withMyEntry);
-    enrichedPredictions = (enrichedPredictions || []).filter((p: any) => !p?.hidden_at && !p?.removed_at);
-    enrichedPredictions = await filterPredictionsForViewer(enrichedPredictions, userId);
-
-    return res.json({
-      data: enrichedPredictions,
-      message: `Completed predictions for user ${userId}`,
-      version: VERSION,
-    });
-  } catch (error) {
-    console.error('Error fetching completed predictions:', error);
-    return res.status(500).json({
-      error: 'Internal server error',
-      message: 'Failed to fetch completed predictions',
-      version: VERSION,
-      details: process.env.NODE_ENV === 'development' ? (error as Error).message : undefined,
     });
   }
 });
@@ -966,88 +516,9 @@ router.get('/:id', async (req, res) => {
         details: error.message
       });
     }
-    // If the hidden_at column exists and is set, treat as not found (moderation)
-    if (prediction && typeof (prediction as any).hidden_at !== 'undefined' && (prediction as any).hidden_at) {
-      return res.status(404).json({
-        error: 'Not found',
-        message: `Prediction ${id} not found`,
-        version: VERSION,
-      });
-    }
-    if (prediction && typeof (prediction as any).removed_at !== 'undefined' && (prediction as any).removed_at) {
-      return res.status(404).json({
-        error: 'Not found',
-        message: `Prediction ${id} not found`,
-        version: VERSION,
-      });
-    }
-
-    // Viewer-specific hides/blocks
-    const viewerId = await resolveAuthenticatedUserId(req);
-    if (viewerId) {
-      const [hiddenPredictionIds, blockedUserIds] = await Promise.all([
-        getViewerHiddenPredictionIds(viewerId),
-        getViewerBlockedUserIds(viewerId),
-      ]);
-      if (hiddenPredictionIds.includes(id)) {
-        return res.status(404).json({
-          error: 'Not found',
-          message: `Prediction ${id} not found`,
-          version: VERSION,
-        });
-      }
-      if (blockedUserIds.includes((prediction as any).creator_id)) {
-        return res.status(404).json({
-          error: 'Not found',
-          message: `Prediction ${id} not found`,
-          version: VERSION,
-        });
-      }
-    }
-
-    // Count entries for client (needed for edit UI)
-    const { count: entriesCount } = await supabase
-      .from('prediction_entries')
-      .select('id', { count: 'exact', head: true })
-      .eq('prediction_id', id);
-
-    // Enrich with category info
-    let enrichedPrediction = await enrichPredictionWithCategory(prediction);
-    // Odds V2: add pools (cents), fee bps, reference odds
-    enrichedPrediction = enrichPredictionWithOddsV2(enrichedPrediction);
-
-    // Phase 6A: Add canonical settlement fields if user is authenticated
-    let canonicalFields: any = {};
-    if (viewerId) {
-      try {
-        // Try demo first, then crypto
-        const demoResult = await getSettlementResult(id, viewerId, 'demo-wallet');
-        const cryptoResult = await getSettlementResult(id, viewerId, 'crypto-base-usdc');
-        
-        // Prefer demo if exists, otherwise use crypto
-        const result = demoResult || cryptoResult;
-        if (result) {
-          canonicalFields = {
-            myStakeTotal: result.stakeTotal,
-            myReturnedTotal: result.returnedTotal,
-            myNet: result.net,
-            myStatus: result.status,
-            myClaimStatus: result.claimStatus,
-          };
-        }
-      } catch (err) {
-        console.error('[predictions] Failed to fetch settlement result:', err);
-        // Non-fatal: continue without canonical fields
-      }
-    }
 
     return res.json({
-      data: {
-        ...enrichedPrediction,
-        entriesCount: entriesCount || 0,
-        hasEntries: (entriesCount || 0) > 0,
-        ...canonicalFields,
-      },
+      data: prediction,
       message: 'Prediction fetched successfully',
       version: VERSION
     });
@@ -1105,12 +576,8 @@ router.get('/created/:userId', async (req, res) => {
       });
     }
 
-    // Enrich with category info
-    let enrichedPredictions = await enrichPredictionsWithCategory(predictions || []);
-    enrichedPredictions = (enrichedPredictions || []).filter((p: any) => !p?.hidden_at && !p?.removed_at);
-
     return res.json({
-      data: enrichedPredictions,
+      data: predictions || [],
       message: `Created predictions for user ${userId}`,
       version: VERSION
     });
@@ -1132,25 +599,14 @@ router.get('/created/:userId', async (req, res) => {
 });
 
 // POST /api/v2/predictions - Create new prediction
-router.post('/', requireSupabaseAuth, requireTermsAccepted, async (req, res) => {
+router.post('/', async (req, res) => {
   try {
     console.log('🎯 Creating new prediction:', req.body);
-
-    const authReq = req as AuthenticatedRequest;
-    const currentUserId = authReq.user?.id;
-    if (!currentUserId) {
-      return res.status(401).json({
-        error: 'Unauthorized',
-        message: 'Authentication required',
-        version: VERSION,
-      });
-    }
     
     const {
       title,
       description,
-      category, // Legacy: category slug string
-      categoryId, // New: category UUID
+      category,
       type,
       options,
       entryDeadline,
@@ -1162,105 +618,24 @@ router.post('/', requireSupabaseAuth, requireTermsAccepted, async (req, res) => 
     } = req.body;
 
     // Validate required fields
-    if (!title || !type || !options || !entryDeadline) {
+    if (!title || !category || !type || !options || !entryDeadline) {
       return res.status(400).json({
         error: 'Validation error',
         message: 'Missing required fields',
         version: VERSION,
-        details: 'Title, type, options, and entryDeadline are required'
+        details: 'Title, category, type, options, and entryDeadline are required'
       });
     }
 
-    const { normalizedOptions, errors: optionErrors, isValid: optionsValid } = validatePredictionOptions(options);
-    if (!optionsValid) {
-      return res.status(400).json({
-        code: 'VALIDATION_ERROR',
-        field: 'options',
-        message: 'Invalid prediction options',
-        details: optionErrors,
-        version: VERSION,
-      });
-    }
-
-    // Phase 5: Basic content filtering (title/description/options)
-    try {
-      const optionLabels = normalizedOptions.map((o) => o.label);
-      assertContentAllowed([
-        { label: 'title', value: title },
-        { label: 'description', value: description },
-        ...optionLabels.map((v: string, idx: number) => ({ label: `option_${idx + 1}`, value: v })),
-      ]);
-    } catch (e: any) {
-      if (e?.code === 'CONTENT_NOT_ALLOWED') {
-        return res.status(400).json({
-          error: 'content_not_allowed',
-          message: 'Your content contains disallowed language. Please revise and try again.',
-          field: e?.field,
-          version: VERSION,
-        });
-      }
-      throw e;
-    }
-
-    // Resolve categoryId (prefer categoryId, fallback to category slug, default to "general")
-    let resolvedCategoryId: string | null = null;
-    let resolvedCategorySlug: string = 'general';
-
-    if (categoryId) {
-      // Validate categoryId exists and is enabled
-      const { data: cat } = await supabase
-        .from('categories')
-        .select('id, slug')
-        .eq('id', categoryId)
-        .eq('is_enabled', true)
-        .maybeSingle();
-
-      if (cat) {
-        resolvedCategoryId = cat.id;
-        resolvedCategorySlug = cat.slug;
-      } else {
-        return res.status(400).json({
-          error: 'Validation error',
-          message: 'Invalid or disabled category',
-          version: VERSION,
-        });
-      }
-    } else if (category) {
-      // Legacy: resolve category slug to categoryId
-      const { data: cat } = await supabase
-        .from('categories')
-        .select('id, slug')
-        .eq('slug', category)
-        .eq('is_enabled', true)
-        .maybeSingle();
-
-      if (cat) {
-        resolvedCategoryId = cat.id;
-        resolvedCategorySlug = cat.slug;
-      } else {
-        // Fallback: use category as slug (backward compatibility)
-        resolvedCategorySlug = category;
-      }
-    } else {
-      // Default to "general" category
-      const { data: generalCat } = await supabase
-        .from('categories')
-        .select('id, slug')
-        .eq('slug', 'general')
-        .eq('is_enabled', true)
-        .maybeSingle();
-
-      if (generalCat) {
-        resolvedCategoryId = generalCat.id;
-        resolvedCategorySlug = 'general';
-      }
-    }
-
-    // Phase 5: Creator is the authenticated user (from JWT)
-    const requestedUserId = currentUserId;
-    console.log('🔍 Debug - Creator userId (from auth):', requestedUserId);
+    // Get current user ID from request body (passed from frontend)
+    // In production, this would come from JWT token
+    console.log('🔍 Debug - Request body creatorId:', req.body.creatorId);
+    console.log('🔍 Debug - Full request body:', JSON.stringify(req.body, null, 2));
     
-    // Ensure user exists in public.users (create if missing for referential integrity)
+    const requestedUserId = req.body.creatorId || '325343a7-0a32-4565-8059-7c0d9d3fed1b';
+    console.log('🔍 Debug - Requested userId:', requestedUserId);
+    
+    // Verify user exists in database
     const { data: userExists, error: userError } = await supabase
       .from('users')
       .select('id')
@@ -1268,25 +643,24 @@ router.post('/', requireSupabaseAuth, requireTermsAccepted, async (req, res) => 
       .single();
     
     if (userError || !userExists) {
-      console.log('🔍 Debug - User not in users table, upserting:', requestedUserId);
-      await supabase
+      console.log('🔍 Debug - User not found, creating user:', requestedUserId);
+      // Create user if doesn't exist
+      const { error: createUserError } = await supabase
         .from('users')
-        .upsert(
-          { id: requestedUserId, username: null, full_name: null, email: null, updated_at: new Date().toISOString() },
-          { onConflict: 'id' }
-        );
-    }
-    
-    console.log('🔍 Debug - Final currentUserId:', currentUserId);
-
-    // Optional cover image: validate URL if provided
-    let finalImageUrl: string | null = null;
-    if (imageUrl != null && typeof imageUrl === 'string' && imageUrl.trim() !== '') {
-      const url = imageUrl.trim();
-      if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('/')) {
-        finalImageUrl = url;
+        .insert({
+          id: requestedUserId,
+          username: 'itisteddy',
+          full_name: 'Fan Club Z User',
+          email: 'user@fanclubz.app'
+        });
+      
+      if (createUserError && !createUserError.message.includes('duplicate')) {
+        console.error('Error creating user:', createUserError);
       }
     }
+    
+    const currentUserId = requestedUserId;
+    console.log('🔍 Debug - Final currentUserId:', currentUserId);
 
     // Create prediction in database (bypass RLS with service role)
     const { data: prediction, error: predictionError } = await supabase
@@ -1295,8 +669,7 @@ router.post('/', requireSupabaseAuth, requireTermsAccepted, async (req, res) => 
         creator_id: currentUserId,
         title: title.trim(),
         description: description?.trim() || null,
-        category: resolvedCategorySlug, // Keep legacy field for backward compatibility
-        category_id: resolvedCategoryId, // New field
+        category,
         type,
         status: 'open',
         stake_min: stakeMin || 1,
@@ -1307,12 +680,11 @@ router.post('/', requireSupabaseAuth, requireTermsAccepted, async (req, res) => 
         is_private: isPrivate || false,
         creator_fee_percentage: 1.0,
         platform_fee_percentage: 2.5,
-        odds_model: process.env.FLAG_ODDS_V2 === '1' ? 'pool_v2' : 'legacy',
-        tags: [resolvedCategorySlug],
+        tags: [category],
         participant_count: 0,
         likes_count: 0,
         comments_count: 0,
-        image_url: finalImageUrl // Optional: creator upload URL or null (random image later)
+        image_url: imageUrl || null // Store stable image URL
       })
       .select()
       .single();
@@ -1329,10 +701,10 @@ router.post('/', requireSupabaseAuth, requireTermsAccepted, async (req, res) => 
 
     // Create prediction options (and return inserted rows)
     let insertedOptions: any[] = [];
-    if (normalizedOptions && normalizedOptions.length > 0) {
-      const optionData = normalizedOptions.map((option: any, index: number) => ({
+    if (options && options.length > 0) {
+      const optionData = options.map((option: any, index: number) => ({
         prediction_id: prediction.id,
-        label: option.label || `Option ${index + 1}`,
+        label: String(option.label || '').trim(),
         total_staked: 0,
         current_odds: Number(option.currentOdds) || 2.0,
       }));
@@ -1401,13 +773,18 @@ router.post('/', requireSupabaseAuth, requireTermsAccepted, async (req, res) => 
 router.post('/:id/entries', async (req, res) => {
   let mutationLock: Awaited<ReturnType<typeof beginPredictionStakeLock>> | null = null;
   let mutationLockCommit = false;
+  let demoStakeLocked = false;
+  let demoStakeLockReferenceId: string | null = null;
+  let demoStakeUserId: string | null = null;
+  let demoStakeAmount = 0;
   try {
     const predictionId = req.params.id;
     
     // Check if crypto mode is enabled
-    const isCryptoMode = process.env.VITE_FCZ_BASE_BETS === '1' || 
+    const isCryptoMode = config.features.walletMode !== 'zaurum_only' && (
+                         process.env.VITE_FCZ_BASE_BETS === '1' || 
                          process.env.ENABLE_BASE_BETS === '1' ||
-                         process.env.FCZ_ENABLE_BASE_BETS === '1';
+                         process.env.FCZ_ENABLE_BASE_BETS === '1');
     
     console.log('🔧 Crypto mode check:', { isCryptoMode, body: req.body });
     
@@ -1454,6 +831,8 @@ router.post('/:id/entries', async (req, res) => {
     
     const { option_id, stakeUSD, user_id, escrowLockId } = validatedBody;
     const amount = Number(stakeUSD);
+    demoStakeUserId = user_id;
+    demoStakeAmount = amount;
     
     console.log(`🎲 Creating prediction entry for prediction ${predictionId}:`, { 
       option_id, 
@@ -1464,17 +843,7 @@ router.post('/:id/entries', async (req, res) => {
     });
     console.log('📦 Full request body:', JSON.stringify(req.body, null, 2));
     
-    // In crypto mode, require escrowLockId and allow only web client
-    if (isCryptoMode && escrowLockId) {
-      if (!isCryptoAllowedForClient(req)) {
-        console.log('[CRYPTO-GATE] Rejected prediction entry: client not allowed for crypto', { client: (req as any).client });
-        return res.status(403).json({
-          error: 'crypto_disabled_for_client',
-          message: 'Crypto is not available for this client',
-          version: VERSION
-        });
-      }
-    }
+    // In crypto mode, require escrowLockId
     if (isCryptoMode && !escrowLockId) {
       console.error('❌ Crypto mode requires escrowLockId:', { isCryptoMode, escrowLockId });
       return res.status(400).json({
@@ -1563,6 +932,37 @@ router.post('/:id/entries', async (req, res) => {
         });
       }
       throw quoteErr;
+    }
+
+    if (!isCryptoMode) {
+      demoStakeLockReferenceId = `stake_lock:${predictionId}:${option_id}:${user_id}:${Date.now()}`;
+      try {
+        await transfer({
+          from: { ownerType: 'user', ownerId: user_id, bucket: 'PROMO_AVAILABLE' },
+          to: { ownerType: 'user', ownerId: user_id, bucket: 'PROMO_LOCKED' },
+          amount,
+          reference: {
+            type: 'STAKE_LOCK',
+            referenceType: 'prediction_entry',
+            referenceId: demoStakeLockReferenceId,
+            metadata: {
+              predictionId,
+              optionId: option_id,
+              isTopUp: Boolean(existingEntry?.id),
+            },
+          },
+        });
+        demoStakeLocked = true;
+      } catch (walletErr) {
+        if (walletErr instanceof WalletServiceError && walletErr.code === 'INSUFFICIENT_FUNDS') {
+          return res.status(400).json({
+            error: 'insufficient_demo_credits',
+            message: 'Insufficient demo credits.',
+            version: VERSION,
+          });
+        }
+        throw walletErr;
+      }
     }
 
     // CRYPTO MODE: Load and validate escrow lock with explicit error codes
@@ -1669,6 +1069,25 @@ router.post('/:id/entries', async (req, res) => {
 
       if (updateErr || !updatedEntry) {
         console.error('Error updating prediction entry (top-up):', updateErr);
+        if (!isCryptoMode && demoStakeLocked && demoStakeLockReferenceId && demoStakeUserId) {
+          try {
+            await transfer({
+              from: { ownerType: 'user', ownerId: demoStakeUserId, bucket: 'PROMO_LOCKED' },
+              to: { ownerType: 'user', ownerId: demoStakeUserId, bucket: 'PROMO_AVAILABLE' },
+              amount: demoStakeAmount,
+              reference: {
+                type: 'STAKE_UNLOCK',
+                referenceType: 'prediction_entry_rollback',
+                referenceId: `${demoStakeLockReferenceId}:rollback`,
+                metadata: { reason: 'topup_update_failed' },
+              },
+            });
+          } catch (rollbackErr) {
+            console.error('[ZAU] Failed to rollback demo stake lock after top-up failure:', rollbackErr);
+          } finally {
+            demoStakeLocked = false;
+          }
+        }
         if (isCryptoMode && escrowLockId) {
           const updateData: any = {};
           if (lock && lock.status !== undefined) updateData.status = 'released';
@@ -1708,10 +1127,29 @@ router.post('/:id/entries', async (req, res) => {
         .insert(entryData)
         .select()
         .single();
-        
+
       if (entryError) {
         console.error('Error creating prediction entry:', entryError);
         console.error('Entry error details:', JSON.stringify(entryError, null, 2));
+        if (!isCryptoMode && demoStakeLocked && demoStakeLockReferenceId && demoStakeUserId) {
+          try {
+            await transfer({
+              from: { ownerType: 'user', ownerId: demoStakeUserId, bucket: 'PROMO_LOCKED' },
+              to: { ownerType: 'user', ownerId: demoStakeUserId, bucket: 'PROMO_AVAILABLE' },
+              amount: demoStakeAmount,
+              reference: {
+                type: 'STAKE_UNLOCK',
+                referenceType: 'prediction_entry_rollback',
+                referenceId: `${demoStakeLockReferenceId}:rollback`,
+                metadata: { reason: 'entry_create_failed' },
+              },
+            });
+          } catch (rollbackErr) {
+            console.error('[ZAU] Failed to rollback demo stake lock after entry failure:', rollbackErr);
+          } finally {
+            demoStakeLocked = false;
+          }
+        }
         
         // CRITICAL: Release lock if entry creation fails in crypto mode
         if (isCryptoMode && escrowLockId) {
@@ -1961,6 +1399,23 @@ router.post('/:id/entries', async (req, res) => {
     
   } catch (error: any) {
     console.error('❌ Unhandled error in prediction entry creation:', error);
+    if (demoStakeLocked && demoStakeLockReferenceId && demoStakeUserId && demoStakeAmount > 0) {
+      try {
+        await transfer({
+          from: { ownerType: 'user', ownerId: demoStakeUserId, bucket: 'PROMO_LOCKED' },
+          to: { ownerType: 'user', ownerId: demoStakeUserId, bucket: 'PROMO_AVAILABLE' },
+          amount: demoStakeAmount,
+          reference: {
+            type: 'STAKE_UNLOCK',
+            referenceType: 'prediction_entry_rollback',
+            referenceId: `${demoStakeLockReferenceId}:rollback-catch`,
+            metadata: { reason: 'route_error' },
+          },
+        });
+      } catch (rollbackErr) {
+        console.error('[ZAU] Failed to rollback demo stake lock after unhandled error:', rollbackErr);
+      }
+    }
     
     // Handle Zod validation errors (if somehow missed earlier)
     if (error instanceof z.ZodError) {
@@ -1971,7 +1426,7 @@ router.post('/:id/entries', async (req, res) => {
         version: VERSION
       });
     }
-    
+
     if (error instanceof PredictionStakeLockError) {
       return res.status(error.status).json({
         error: error.code,
@@ -1979,7 +1434,7 @@ router.post('/:id/entries', async (req, res) => {
         version: VERSION,
       });
     }
-
+    
     // Handle database unique constraint violations
     if (error && typeof error === 'object' && 'code' in error) {
       const dbError = error;
@@ -2010,31 +1465,11 @@ router.post('/:id/entries', async (req, res) => {
 });
 
 // PUT /api/v2/predictions/:id - Update prediction
-router.put('/:id', requireSupabaseAuth, requireTermsAccepted, async (req, res) => {
+router.put('/:id', async (req, res) => {
   try {
     const { id } = req.params;
     const updates = req.body;
     console.log(`🔄 Updating prediction ${id}:`, updates);
-
-    const authReq = req as AuthenticatedRequest;
-    const actorId = authReq.user?.id;
-    if (!actorId) {
-      return res.status(401).json({ error: 'unauthorized', message: 'Authorization required', version: VERSION });
-    }
-
-    const { data: existing, error: existingErr } = await supabase
-      .from('predictions')
-      .select('id, creator_id')
-      .eq('id', id)
-      .maybeSingle();
-
-    if (existingErr || !existing) {
-      return res.status(404).json({ error: 'Not found', message: 'Prediction not found', version: VERSION });
-    }
-
-    if (String((existing as any).creator_id) !== actorId) {
-      return res.status(403).json({ error: 'forbidden', message: 'Only the creator can update this prediction', version: VERSION });
-    }
     
     // Validate allowed fields
     const allowedFields = ['title', 'description', 'is_private', 'entry_deadline', 'image_url'];
@@ -2055,24 +1490,6 @@ router.put('/:id', requireSupabaseAuth, requireTermsAccepted, async (req, res) =
     
     // Add updated timestamp
     filteredUpdates.updated_at = new Date().toISOString();
-
-    // Phase 5: Basic content filtering on updated fields
-    try {
-      assertContentAllowed([
-        { label: 'title', value: filteredUpdates.title },
-        { label: 'description', value: filteredUpdates.description },
-      ]);
-    } catch (e: any) {
-      if (e?.code === 'CONTENT_NOT_ALLOWED') {
-        return res.status(400).json({
-          error: 'content_not_allowed',
-          message: 'Your content contains disallowed language. Please revise and try again.',
-          field: e?.field,
-          version: VERSION,
-        });
-      }
-      throw e;
-    }
     
     const { data: updated, error } = await supabase
       .from('predictions')
@@ -2108,457 +1525,7 @@ router.put('/:id', requireSupabaseAuth, requireTermsAccepted, async (req, res) =
   }
 });
 
-// PATCH /api/v2/predictions/:id - Edit prediction with safe rules
-router.patch('/:id', requireSupabaseAuth, requireTermsAccepted, async (req, res) => {
-  try {
-    const { id: predictionId } = req.params;
-    if (!predictionId) {
-      return res.status(400).json({
-        error: 'Bad Request',
-        message: 'Missing prediction id',
-        version: VERSION,
-      });
-    }
-    const { title, description, options, closesAt, categoryId, editReason } = req.body;
-
-    const authReq = req as AuthenticatedRequest;
-    const userId = authReq.user?.id;
-    if (!userId) {
-      return res.status(401).json({
-        error: 'Unauthorized',
-        message: 'Authentication required',
-        version: VERSION,
-      });
-    }
-
-    console.log(`✏️ Edit prediction ${predictionId} requested by user ${userId}`);
-
-    // Phase 5: Basic content filtering on proposed edits
-    try {
-      const optionLabels = Array.isArray(options)
-        ? options.map((o: any) => (typeof o === 'string' ? o : (o?.label ?? o?.text ?? '')))
-        : [];
-      assertContentAllowed([
-        { label: 'title', value: title },
-        { label: 'description', value: description },
-        ...optionLabels.map((v: string, idx: number) => ({ label: `option_${idx + 1}`, value: v })),
-      ]);
-    } catch (e: any) {
-      if (e?.code === 'CONTENT_NOT_ALLOWED') {
-        return res.status(400).json({
-          error: 'content_not_allowed',
-          message: 'Your content contains disallowed language. Please revise and try again.',
-          field: e?.field,
-          version: VERSION,
-        });
-      }
-      throw e;
-    }
-
-    // Load prediction with creator info
-    const { data: prediction, error: predError } = await supabase
-      .from('predictions')
-      .select('id, creator_id, status, entry_deadline, title, description, category')
-      .eq('id', predictionId)
-      .single();
-
-    if (predError || !prediction) {
-      return res.status(404).json({
-        error: 'Not found',
-        message: 'Prediction not found',
-        version: VERSION,
-      });
-    }
-
-    // Verify creator
-    if (prediction.creator_id !== userId) {
-      return res.status(403).json({
-        error: 'Forbidden',
-        message: 'Only the creator can edit this prediction',
-        version: VERSION,
-      });
-    }
-
-    // Cannot edit if already settled/complete/voided/cancelled
-    const immutableStatuses = ['settled', 'complete', 'voided', 'cancelled'];
-    if (immutableStatuses.includes(prediction.status)) {
-      return res.status(400).json({
-        error: 'invalid_state',
-        message: `Cannot edit prediction with status: ${prediction.status}`,
-        version: VERSION,
-      });
-    }
-
-    // Count entries for this prediction
-    const { count: entriesCount, error: countError } = await supabase
-      .from('prediction_entries')
-      .select('id', { count: 'exact', head: true })
-      .eq('prediction_id', predictionId);
-
-    if (countError) {
-      console.error('[PREDICTIONS] Error counting entries:', countError);
-      return res.status(500).json({
-        error: 'Database error',
-        message: 'Failed to count prediction entries',
-        version: VERSION,
-      });
-    }
-
-    const hasEntries = (entriesCount || 0) > 0;
-    const changedFields: string[] = [];
-    const updates: any = {};
-
-    // Apply safe edit rules
-    if (hasEntries) {
-      // If entries exist: ONLY allow extending closesAt (and optionally description)
-      if (title !== undefined) {
-        return res.status(400).json({
-          error: 'edit_blocked',
-          message: 'Cannot change title after participants have staked',
-          version: VERSION,
-        });
-      }
-
-      if (options !== undefined) {
-        return res.status(400).json({
-          error: 'edit_blocked',
-          message: 'Cannot change options after participants have staked',
-          version: VERSION,
-        });
-      }
-
-      if (categoryId !== undefined) {
-        return res.status(400).json({
-          error: 'edit_blocked',
-          message: 'Cannot change category after participants have staked',
-          version: VERSION,
-        });
-      }
-
-      // Allow description edit (optional per spec)
-      if (description !== undefined) {
-        updates.description = description?.trim() || null;
-        changedFields.push('description');
-      }
-
-      // Allow extending closesAt only
-      if (closesAt !== undefined) {
-        const newDeadline = new Date(closesAt);
-        const oldDeadline = new Date(prediction.entry_deadline);
-        
-        if (isNaN(newDeadline.getTime())) {
-          return res.status(400).json({
-            error: 'invalid_date',
-            message: 'Invalid closesAt date format',
-            version: VERSION,
-          });
-        }
-
-        if (newDeadline.getTime() <= oldDeadline.getTime()) {
-          return res.status(400).json({
-            error: 'invalid_extension',
-            message: 'Can only extend close time forward when entries exist',
-            version: VERSION,
-          });
-        }
-
-        updates.entry_deadline = newDeadline.toISOString();
-        changedFields.push('entry_deadline');
-      }
-    } else {
-      // No entries: allow full edit
-      if (title !== undefined) {
-        updates.title = title?.trim() || null;
-        changedFields.push('title');
-      }
-
-      if (description !== undefined) {
-        updates.description = description?.trim() || null;
-        changedFields.push('description');
-      }
-
-      if (categoryId !== undefined) {
-        // Validate categoryId exists and is enabled
-        const { data: cat } = await supabase
-          .from('categories')
-          .select('id, slug')
-          .eq('id', categoryId)
-          .eq('is_enabled', true)
-          .maybeSingle();
-
-        if (!cat) {
-          return res.status(400).json({
-            error: 'Validation error',
-            message: 'Invalid or disabled category',
-            version: VERSION,
-          });
-        }
-
-        updates.category = cat.slug; // Keep legacy field
-        updates.category_id = cat.id; // New field
-        changedFields.push('category', 'category_id');
-      }
-
-      if (closesAt !== undefined) {
-        const newDeadline = new Date(closesAt);
-        if (isNaN(newDeadline.getTime())) {
-          return res.status(400).json({
-            error: 'invalid_date',
-            message: 'Invalid closesAt date format',
-            version: VERSION,
-          });
-        }
-        updates.entry_deadline = newDeadline.toISOString();
-        changedFields.push('entry_deadline');
-      }
-
-      // Handle options update (only if no entries)
-      if (options !== undefined && Array.isArray(options)) {
-        const { normalizedOptions, errors: optionErrors, isValid } = validatePredictionOptions(options);
-        if (!isValid) {
-          return res.status(400).json({
-            code: 'VALIDATION_ERROR',
-            field: 'options',
-            message: 'Invalid prediction options',
-            details: optionErrors,
-            version: VERSION,
-          });
-        }
-
-        // Maintain existing option IDs when provided:
-        // - update labels for existing option IDs
-        // - delete options removed by the creator
-        // - insert new options without an id
-        const { data: existingOptions, error: existingError } = await supabase
-          .from('prediction_options')
-          .select('id')
-          .eq('prediction_id', predictionId);
-
-        if (existingError) {
-          console.error('[PREDICTIONS] Error loading existing options:', existingError);
-          return res.status(500).json({
-            error: 'Database error',
-            message: 'Failed to load existing options',
-            version: VERSION,
-          });
-        }
-
-        const existingIds = new Set((existingOptions || []).map((o: any) => o.id));
-        const incomingIds = new Set(
-          (normalizedOptions || [])
-            .map((o: any) => o?.id)
-            .filter((id: any) => typeof id === 'string' && id.length > 0)
-        );
-
-        // Update labels for existing options with ids
-        for (const opt of normalizedOptions) {
-          const id = opt?.id;
-          if (typeof id === 'string' && existingIds.has(id)) {
-            const label = String(opt?.label || '').trim();
-            const { error: updErr } = await supabase
-              .from('prediction_options')
-              .update({ label, updated_at: new Date().toISOString() as any })
-              .eq('id', id)
-              .eq('prediction_id', predictionId);
-
-            if (updErr) {
-              console.error('[PREDICTIONS] Error updating option label:', updErr);
-              return res.status(500).json({
-                error: 'Database error',
-                message: 'Failed to update options',
-                version: VERSION,
-              });
-            }
-          }
-        }
-
-        // Delete options removed by the creator (only within this prediction)
-        const idsToDelete = (existingOptions || [])
-          .map((o: any) => o.id)
-          .filter((id: any) => typeof id === 'string' && !incomingIds.has(id));
-
-        if (idsToDelete.length > 0) {
-          const { error: delErr } = await supabase
-            .from('prediction_options')
-            .delete()
-            .in('id', idsToDelete)
-            .eq('prediction_id', predictionId);
-
-          if (delErr) {
-            console.error('[PREDICTIONS] Error deleting removed options:', delErr);
-            return res.status(500).json({
-              error: 'Database error',
-              message: 'Failed to update options',
-              version: VERSION,
-            });
-          }
-        }
-
-        // Insert new options without ids
-        const newOptions = (normalizedOptions || []).filter((o: any) => !o?.id);
-        if (newOptions.length > 0) {
-          const insertPayload = newOptions.map((option: any) => ({
-            prediction_id: predictionId,
-            label: String(option.label || '').trim(),
-            total_staked: 0,
-            current_odds: Number(option.currentOdds) || 2.0,
-          }));
-
-          const { error: insertError } = await supabase
-            .from('prediction_options')
-            .insert(insertPayload);
-
-          if (insertError) {
-            console.error('[PREDICTIONS] Error inserting new options:', insertError);
-            return res.status(500).json({
-              error: 'Database error',
-              message: 'Failed to update options',
-              version: VERSION,
-            });
-          }
-        }
-
-        changedFields.push('options');
-      }
-    }
-
-    // If no changes, return early
-    if (changedFields.length === 0) {
-      return res.json({
-        data: prediction,
-        message: 'No changes to apply',
-        version: VERSION,
-      });
-    }
-
-    // Update prediction
-    updates.updated_at = new Date().toISOString();
-    const { data: updated, error: updateError } = await supabase
-      .from('predictions')
-      .update(updates)
-      .eq('id', predictionId)
-      .select(`
-        *,
-        creator:users!creator_id(id, username, full_name, avatar_url, is_verified),
-        options:prediction_options!prediction_options_prediction_id_fkey(*)
-      `)
-      .single();
-
-    if (updateError) {
-      console.error('[PREDICTIONS] Error updating prediction:', updateError);
-      return res.status(500).json({
-        error: 'Database error',
-        message: 'Failed to update prediction',
-        version: VERSION,
-      });
-    }
-
-    // Audit log
-    await logAdminAction({
-      actorId: userId,
-      action: 'creator_edit_prediction',
-      targetType: 'prediction',
-      targetId: predictionId,
-      reason: editReason || null,
-      meta: {
-        changedFields,
-        hasEntries,
-        entriesCount: entriesCount || 0,
-      },
-    }).catch((e) => console.error('[PREDICTIONS] Audit log failed:', e));
-
-    // Recompute state if needed
-    await recomputePredictionState(predictionId).catch((e) =>
-      console.error('[PREDICTIONS] Recompute failed:', e)
-    );
-
-    // Emit realtime update
-    emitPredictionUpdate({ predictionId, reason: 'edited' });
-
-    // Enrich with category info
-    const enrichedPrediction = await enrichPredictionWithCategory(updated);
-
-    console.log(`✅ Prediction ${predictionId} edited by ${userId}:`, changedFields);
-
-    return res.json({
-      data: enrichedPrediction,
-      message: 'Prediction updated successfully',
-      changedFields,
-      version: VERSION,
-    });
-  } catch (error) {
-    console.error('[PREDICTIONS] Error editing prediction:', error);
-    return res.status(500).json({
-      error: 'Internal server error',
-      message: 'Failed to edit prediction',
-      version: VERSION,
-    });
-  }
-});
-
-// PATCH /api/v2/predictions/:id/cover-image - Creator-only: set or update cover image URL
-router.patch('/:id/cover-image', requireSupabaseAuth, async (req, res) => {
-  try {
-    const { id } = req.params;
-    const authReq = req as AuthenticatedRequest;
-    const userId = authReq.user?.id;
-    if (!userId) {
-      return res.status(401).json({ error: 'Unauthorized', message: 'Authentication required', version: VERSION });
-    }
-
-    const { coverImageUrl } = req.body;
-    if (!coverImageUrl || typeof coverImageUrl !== 'string' || coverImageUrl.trim() === '') {
-      return res.status(400).json({
-        error: 'Bad Request',
-        message: 'coverImageUrl is required',
-        version: VERSION
-      });
-    }
-    const url = coverImageUrl.trim();
-    if (!url.startsWith('http://') && !url.startsWith('https://') && !url.startsWith('/')) {
-      return res.status(400).json({
-        error: 'Bad Request',
-        message: 'coverImageUrl must be a valid URL or path',
-        version: VERSION
-      });
-    }
-
-    const { data: existing, error: fetchErr } = await supabase
-      .from('predictions')
-      .select('id, creator_id, image_url')
-      .eq('id', id)
-      .single();
-
-    if (fetchErr || !existing) {
-      return res.status(404).json({ error: 'Not Found', message: 'Prediction not found', version: VERSION });
-    }
-    if (String((existing as any).creator_id) !== String(userId)) {
-      return res.status(403).json({ error: 'Forbidden', message: 'Only the creator can update the cover image', version: VERSION });
-    }
-
-    const { error } = await supabase
-      .from('predictions')
-      .update({ image_url: url, updated_at: new Date().toISOString() })
-      .eq('id', id);
-
-    if (error) {
-      console.error('[PREDICTIONS] Error updating cover image:', error);
-      return res.status(500).json({ error: 'Database error', message: 'Failed to update cover image', version: VERSION });
-    }
-
-    return res.json({
-      ok: true,
-      predictionId: id,
-      coverImageUrl: url,
-      version: VERSION
-    });
-  } catch (error) {
-    console.error('[PREDICTIONS] Cover image update error:', error);
-    return res.status(500).json({ error: 'Internal server error', message: 'Failed to update cover image', version: VERSION });
-  }
-});
-
-// PATCH /api/v2/predictions/:id/image - Set stable image URL (only if not already set; used by random-image flow)
+// PATCH /api/v2/predictions/:id/image - Set stable image URL (only if not already set)
 router.patch('/:id/image', async (req, res) => {
   try {
     const { id } = req.params;
@@ -2707,13 +1674,8 @@ router.get('/user/:id', async (req, res) => {
       });
     }
 
-    let enrichedPredictions = await enrichPredictionsWithCategory(predictions || []);
-    enrichedPredictions = (enrichedPredictions || []).filter((p: any) => !p?.hidden_at && !p?.removed_at);
-    const viewerId = await resolveAuthenticatedUserId(req);
-    enrichedPredictions = await filterPredictionsForViewer(enrichedPredictions, viewerId);
-
     return res.json({
-      data: enrichedPredictions || [],
+      data: predictions || [],
       message: 'User predictions fetched successfully (alias)',
       version: VERSION,
     });
@@ -2722,83 +1684,6 @@ router.get('/user/:id', async (req, res) => {
     return res.status(500).json({
       error: 'Internal server error',
       message: 'Failed to fetch user predictions',
-      version: VERSION,
-    });
-  }
-});
-
-// POST /api/v2/predictions/:id/cancel - Cancel prediction with refunds
-router.post('/:id/cancel', async (req, res) => {
-  try {
-    const { id: predictionId } = req.params;
-    const { reason } = req.body;
-
-    const tokenUserId = await resolveAuthenticatedUserId(req);
-    const userId = tokenUserId || req.body.userId || req.body.creatorId;
-
-    // Require auth in production
-    if (process.env.NODE_ENV === 'production' && !tokenUserId) {
-      return res.status(401).json({
-        error: 'Unauthorized',
-        message: 'Authentication required',
-        version: VERSION,
-      });
-    }
-
-    if (!userId) {
-      return res.status(401).json({
-        error: 'Unauthorized',
-        message: 'User ID required',
-        version: VERSION,
-      });
-    }
-
-    console.log(`🚫 Cancel prediction ${predictionId} requested by user ${userId}`);
-
-    // Cancel + refund in a single DB transaction (idempotent)
-    const { data: cancelResult, error: cancelError } = await supabase.rpc('cancel_prediction_with_refunds', {
-      p_prediction_id: String(predictionId),
-      p_actor_id: userId,
-      p_reason: typeof reason === 'string' ? reason.trim() : null,
-    });
-
-    if (cancelError) {
-      console.error('[PREDICTIONS] cancel_prediction_with_refunds error:', cancelError);
-      const code = (cancelError as any)?.code;
-      const message = (cancelError as any)?.message || 'Failed to cancel prediction';
-
-      if (code === 'P0002') {
-        return res.status(404).json({ error: 'not_found', message: 'Prediction not found', version: VERSION });
-      }
-      if (code === '42501') {
-        return res.status(403).json({ error: 'forbidden', message: 'Only the creator can cancel this prediction', version: VERSION });
-      }
-      if (code === 'P0001') {
-        return res.status(409).json({ error: 'invalid_state', message, version: VERSION });
-      }
-      return res.status(500).json({ error: 'internal_error', message, version: VERSION });
-    }
-
-    // Fetch updated prediction for UI refresh
-    const { data: updatedPrediction } = await supabase
-      .from('predictions')
-      .select('id,status,cancelled_at,cancel_reason,updated_at')
-      .eq('id', predictionId)
-      .maybeSingle();
-
-    return res.json({
-      data: {
-        prediction: updatedPrediction ?? { id: predictionId, status: 'cancelled' },
-        result: cancelResult,
-      },
-      message: (cancelResult as any)?.alreadyCancelled ? 'Prediction already cancelled' : 'Prediction cancelled',
-      version: VERSION,
-    });
-  } catch (error) {
-    console.error('[PREDICTIONS] Error cancelling prediction:', error);
-    return res.status(500).json({
-      error: 'Internal server error',
-      message: 'Failed to cancel prediction',
       version: VERSION,
     });
   }

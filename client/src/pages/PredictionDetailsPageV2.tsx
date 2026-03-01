@@ -1,25 +1,18 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
-import { Share2, BarChart3, Users, Calendar, DollarSign, ArrowLeft, Clock, User, Banknote, Flag } from 'lucide-react';
+import { Share2, BarChart3, Users, Calendar, ArrowLeft, Clock, User } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { QK } from '@/lib/queryKeys';
 import { useAccount } from 'wagmi';
 
 import { usePredictionStore } from '../store/predictionStore';
 import { useAuthStore } from '../store/authStore';
-import { useUnifiedCommentStore } from '../store/unifiedCommentStore';
 // DISABLED: useWalletStore reads from wallets table (demo/mock data)
 // import { useWalletStore } from '../stores/walletStore';
 import { openAuthGate } from '../auth/authGateAdapter';
 import { useAuthSession } from '../providers/AuthSessionProvider';
 import { useUnifiedBalance } from '../hooks/useUnifiedBalance';
-import { useFundingModeStore } from '../store/fundingModeStore';
-import { isCryptoEnabledForClient } from '@/lib/cryptoFeatureFlags';
-import { getApiUrl } from '../config';
-import DepositUSDCModal from '../components/wallet/DepositUSDCModal';
-import { usePaystackStatus, useFiatSummary } from '@/hooks/useFiatWallet';
-import { Runtime } from '@/config/runtime';
 // TODO: Implement accessibility utils
 const prefersReducedMotion = () => false;
 const AriaUtils = { announce: (message: string) => console.log('Announce:', message) };
@@ -40,26 +33,17 @@ import SignInCallout from '../components/auth/SignInCallout';
 import { TitleAndMeta } from '../components/predictions/TitleAndMeta';
 import { OptionsSection } from '../components/predictions/OptionsSection';
 import { StickyBetBar } from '../components/predictions/StickyBetBar';
-import SettlementValidationModal from '../components/modals/SettlementValidationModal';
-import { EditPredictionSheet } from '../components/prediction/EditPredictionSheet';
-import { CancelPredictionSheet } from '../components/prediction/CancelPredictionSheet';
-import { getCategoryLabel } from '@/lib/categoryUi';
-import { isFeatureEnabled } from '@/config/featureFlags';
-import { getPayoutPreview, getPreOddsMultiple } from '@fanclubz/shared';
-import { ReportContentModal } from '@/components/ugc/ReportContentModal';
-import { buildPredictionCanonicalPath, buildPredictionCanonicalUrl } from '@/lib/predictionUrls';
-import { normalizeCommentTargetId } from '@/lib/commentDeepLink';
-import { suppressScrollToTop, unsuppressScrollToTop } from '@/utils/scroll';
 // TODO: Re-enable share functionality after testing
 // import { useShareResult } from '../components/share/useShareResult';
 
 import toast from 'react-hot-toast';
-import { formatCurrency } from '@/lib/format';
+import { formatZaurumNumber } from '@/lib/format';
 import { t } from '@/lib/lexicon';
+import { ZaurumMark } from '@/components/currency/ZaurumMark';
+import { ZaurumAmount } from '@/components/currency/ZaurumAmount';
 import { useMerkleProof } from '@/hooks/useMerkleProof';
 import { useMerkleClaim } from '@/hooks/useMerkleClaim';
 import { usePredictionActivity } from '@/hooks/useActivityFeed';
-import { ZaurumMark } from '@/components/currency/ZaurumMark';
 
 const showSuccessToast = (message: string) => toast.success(message);
 const showErrorToast = (message: string) => toast.error(message);
@@ -68,18 +52,18 @@ interface PredictionDetailsPageProps {
   predictionId?: string;
 }
 
-type DetailsLocationState = { from?: string; focusCommentId?: string } | null;
+type DetailsLocationState = { from?: string } | null;
 
 const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
   predictionId: propPredictionId
 }) => {
   const navigate = useNavigate();
   const location = useLocation();
-  const params = useParams<{ id?: string; predictionId?: string; slug?: string; commentId?: string }>();
+  const params = useParams<{ id?: string; predictionId?: string }>();
   const locationState = (location.state as DetailsLocationState) ?? null;
   const preservedStateRef = useRef<DetailsLocationState>(locationState);
   const returnToRef = useRef<string | null>(locationState?.from ?? null);
-  const { user: sessionUser, session } = useAuthSession();
+  const { user: sessionUser } = useAuthSession();
   const reduceMotion = prefersReducedMotion();
   const { isAuthenticated: storeAuth, user: storeUser } = useAuthStore();
   
@@ -91,123 +75,15 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
 
   // Get prediction ID from multiple sources (URL params, props)
   const predictionId = propPredictionId || params.id || params.predictionId || '';
-  const routeCommentId = params.commentId || null;
-  const commentStatus = useUnifiedCommentStore((s) => (
-    predictionId ? (s.byPrediction[predictionId]?.status || 'idle') : 'idle'
-  ));
-  const fetchComments = useUnifiedCommentStore((s) => s.fetchComments);
-  const liveCommentItems = useUnifiedCommentStore((s) => (
-    predictionId ? (s.byPrediction[predictionId]?.items || []) : []
-  ));
-  const liveCommentCount = useMemo(() => {
-    let count = 0;
-    for (const item of liveCommentItems) {
-      if (item.sendStatus !== 'failed' && !item.isDeleted && !item.deleted_at) count += 1;
-      for (const reply of item.replies || []) {
-        if (reply.sendStatus !== 'failed' && !reply.isDeleted && !reply.deleted_at) count += 1;
-      }
-    }
-    return count;
-  }, [liveCommentItems]);
-  // Only treat the store as authoritative for *counts* when we have actual items
-  // or a completed load state. Error states with an empty list should not override
-  // the server-provided prediction.comments_count (prevents tab badge flicker).
-  const hasLoadedLiveComments =
-    liveCommentItems.length > 0 || commentStatus === 'loaded' || commentStatus === 'paginating';
 
   // Local state
   const [selectedOptionId, setSelectedOptionId] = useState<string | null>(null);
   const [stakeAmount, setStakeAmount] = useState<string>('');
   const [isPlacingBet, setIsPlacingBet] = useState(false);
-  // Check URL for tab/query on mount
-  const searchParams = new URLSearchParams(location.search);
-  const queryCommentId = normalizeCommentTargetId(
-    searchParams.get('commentId') || searchParams.get('comment') || searchParams.get('replyId')
-  );
-  const stateCommentId = normalizeCommentTargetId(locationState?.focusCommentId || null);
-  const deepLinkCommentId = normalizeCommentTargetId(routeCommentId) || queryCommentId || stateCommentId;
-
-  // CRITICAL: Suppress scroll-to-top at the PAGE level, immediately on mount.
-  // CommentsSection won't mount until the prediction loads, so its own suppress
-  // effect fires too late — after URL canonicalization already triggered scrollToTop.
-  // This runs on mount before any route-change or canonicalization effects.
-  useEffect(() => {
-    if (!deepLinkCommentId) return;
-    suppressScrollToTop(10000); // auto-unsuppress after 10s safety net
-    return () => { unsuppressScrollToTop(); };
-  }, [deepLinkCommentId]);
-
-  useEffect(() => {
-    if (!deepLinkCommentId) return;
-    console.log('[DEEPLINK][PredictionDetails] target resolved', {
-      pathname: location.pathname,
-      search: location.search,
-      routeCommentId,
-      queryCommentId,
-      stateCommentId,
-      deepLinkCommentId,
-    });
-  }, [deepLinkCommentId, location.pathname, location.search, routeCommentId, queryCommentId, stateCommentId]);
-  const initialTab = deepLinkCommentId ? 'comments' : (searchParams.get('tab') || 'overview');
-  const [activeTab, setActiveTab] = useState(initialTab);
-  
-  // Update tab when query param or deep-link changes
-  useEffect(() => {
-    const currentSearchParams = new URLSearchParams(location.search);
-    const tabFromUrl = currentSearchParams.get('tab');
-    const commentFromUrl = normalizeCommentTargetId(
-      currentSearchParams.get('commentId') || currentSearchParams.get('comment') || currentSearchParams.get('replyId')
-    );
-    const routeTarget = normalizeCommentTargetId(routeCommentId);
-    const nextTab = (routeTarget || commentFromUrl)
-      ? 'comments'
-      : (tabFromUrl && ['overview', 'comments', 'activity'].includes(tabFromUrl) ? tabFromUrl : 'overview');
-    setActiveTab(nextTab);
-  }, [location.search, routeCommentId]);
-
-  const handleTabChange = useCallback((tab: string) => {
-    setActiveTab(tab);
-    const nextParams = new URLSearchParams(location.search);
-    if (tab === 'comments') nextParams.set('tab', 'comments');
-    else if (tab === 'activity') nextParams.set('tab', 'activity');
-    else nextParams.delete('tab');
-
-    if (tab !== 'comments') {
-      nextParams.delete('commentId');
-      nextParams.delete('comment');
-      nextParams.delete('replyId');
-    }
-
-    const slug = params.slug;
-    const basePath = slug ? `/p/${predictionId}/${slug}` : `/p/${predictionId}`;
-    if (location.pathname.includes('/comments/') && tab !== 'comments') {
-      navigate(`${basePath}${nextParams.toString() ? `?${nextParams.toString()}` : ''}`, { replace: true });
-      return;
-    }
-    navigate(`${location.pathname}${nextParams.toString() ? `?${nextParams.toString()}` : ''}`, { replace: true });
-  }, [location.pathname, location.search, navigate, params.slug, predictionId]);
+  const [activeTab, setActiveTab] = useState('overview');
   const [shareUrl, setShareUrl] = useState('');
-  const [showDepositModal, setShowDepositModal] = useState(false);
   const [justPlaced, setJustPlaced] = useState<{ amount: number; optionLabel: string } | null>(null);
-  const [settlementModalOpen, setSettlementModalOpen] = useState(false);
-  const [editSheetOpen, setEditSheetOpen] = useState(false);
-  const [cancelSheetOpen, setCancelSheetOpen] = useState(false);
-  const [showReportModal, setShowReportModal] = useState(false);
-  const [showDisputeOutcomeModal, setShowDisputeOutcomeModal] = useState(false);
-  const [disputeOutcomeReason, setDisputeOutcomeReason] = useState('');
-  const [disputeOutcomeSubmitting, setDisputeOutcomeSubmitting] = useState(false);
-  const [isLoadingPrediction, setIsLoadingPrediction] = useState(true);
-  const [notFound, setNotFound] = useState(false);
-  const [loadError, setLoadError] = useState(false);
-
-  useEffect(() => {
-    if (!predictionId) return;
-    // If we already have items or a loaded/paginating state, don't spam refetch.
-    if (hasLoadedLiveComments) return;
-    // If we previously errored and have no items, allow a fresh attempt.
-    fetchComments(predictionId).catch(() => {});
-  }, [fetchComments, predictionId, hasLoadedLiveComments]);
-
+  
   // TODO: Re-enable share functionality after testing
   // const { SharePreview, share: shareResult } = useShareResult();
 
@@ -250,127 +126,17 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
   // Server snapshot for database locks (if still needed)
   // Available to stake = on-chain available balance
   const availableToStake = escrowAvailableUSD;
-
-  // Funding mode (crypto vs demo) — demo is UI-gated by env via fundingModeStore
-  const { mode, setMode, isDemoEnabled, isFiatEnabled, setFiatEnabled } = useFundingModeStore();
-  const capabilities = Runtime.capabilities;
-  const showDemo = isDemoEnabled && capabilities.allowDemo;
-  // Gate fiat/crypto modes by capabilities
-  const effectiveFiatEnabled = isFiatEnabled && capabilities.allowFiat;
-  const effectiveCryptoEnabled = capabilities.allowCrypto && isCryptoEnabledForClient();
-  const { data: paystackStatus } = usePaystackStatus();
-  const { data: fiatData, isLoading: loadingFiat } = useFiatSummary(currentUser?.id);
-  useEffect(() => {
-    if (paystackStatus?.enabled !== undefined) {
-      setFiatEnabled(paystackStatus.enabled);
-    }
-  }, [paystackStatus?.enabled, setFiatEnabled]);
-  const isDemoMode = showDemo && mode === 'demo';
-  const isFiatMode = effectiveFiatEnabled && mode === 'fiat';
-  const isCryptoMode = effectiveCryptoEnabled && !isDemoMode && !isFiatMode;
-
-  // Demo wallet summary (DB-backed)
-  const [demoSummary, setDemoSummary] = useState<null | { currency: string; available: number; reserved: number; total: number; lastUpdated: string }>(null);
-  const [demoLoading, setDemoLoading] = useState(false);
-
-  const fetchDemoSummary = useCallback(async () => {
-    if (!currentUser?.id) return;
-    try {
-      setDemoLoading(true);
-      const resp = await fetch(`${getApiUrl()}/api/demo-wallet/summary?userId=${currentUser.id}`);
-      const json = await resp.json().catch(() => null);
-      if (!resp.ok) throw new Error(json?.message || 'Failed to load demo wallet');
-      setDemoSummary(json?.summary ?? null);
-    } catch (e: any) {
-      console.error('[DEMO] summary error', e);
-      setDemoSummary(null);
-    } finally {
-      setDemoLoading(false);
-    }
-  }, [currentUser?.id]);
-
-  const faucetDemo = useCallback(async () => {
-    if (!currentUser?.id) return;
-    try {
-      setDemoLoading(true);
-      const resp = await fetch(`${getApiUrl()}/api/demo-wallet/faucet`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: currentUser.id }),
-      });
-      const json = await resp.json().catch(() => null);
-      if (!resp.ok) throw new Error(json?.message || 'Failed to claim Zaurum');
-      setDemoSummary(json?.summary ?? null);
-      // Persist cooldown timestamp for consistent UX across the app
-      if (json?.nextEligibleAt) {
-        try {
-          localStorage.setItem(
-            `fcz_demo_credits_next_at:${currentUser.id}`,
-            String(Date.parse(String(json.nextEligibleAt)))
-          );
-        } catch {}
-      }
-      if (json?.alreadyGranted && json?.nextEligibleAt) {
-        const nextMs = Date.parse(String(json.nextEligibleAt));
-        const remaining = Math.max(0, nextMs - Date.now());
-        showErrorToast(`Not yet available. Next request in ${Math.ceil(remaining / 60000)} min.`);
-      }
-    } catch (e: any) {
-      console.error('[DEMO] faucet error', e);
-      showErrorToast(e?.message || 'Failed to get Zaurum');
-    } finally {
-      setDemoLoading(false);
-    }
-  }, [currentUser?.id]);
-
-  useEffect(() => {
-    if (isAuthenticated && isDemoMode) {
-      void fetchDemoSummary();
-    }
-  }, [isAuthenticated, isDemoMode, fetchDemoSummary]);
   
   // Get prediction from store
   const prediction = useMemo(() => {
     if (!predictionId) return null;
     return predictions.find(p => p.id === predictionId) || null;
   }, [predictions, predictionId]);
-  const tabCommentCount = hasLoadedLiveComments
-    ? liveCommentCount
-    : (prediction?.comments_count || 0);
-
-  // Normalize browser URL to canonical SEO path (/p/:id/:slug?) once we know the title.
-  // - Legacy routes (/prediction/:id, /predictions/:id) should replace() to canonical.
-  // - If slug is missing/outdated, replace() to corrected slug.
-  useEffect(() => {
-    if (!predictionId || !prediction) return;
-    const title = (prediction as any)?.title || (prediction as any)?.question || '';
-    const canonicalPath = buildPredictionCanonicalPath(predictionId, title || undefined);
-    const stripTrailing = (p: string) => (p.replace(/\/+$/, '') || '/');
-    const currentPath = stripTrailing(location.pathname || '/');
-    const isCommentDeepLink = currentPath.includes('/comments/');
-    const targetPath = stripTrailing(
-      isCommentDeepLink && params.commentId
-        ? `${canonicalPath}/comments/${encodeURIComponent(params.commentId)}`
-        : canonicalPath
-    );
-    if (currentPath !== targetPath) {
-      navigate(`${targetPath}${location.search || ''}${location.hash || ''}`, { replace: true });
-    }
-  }, [predictionId, prediction, location.pathname, location.search, location.hash, navigate, params.commentId]);
-
-  // Check if current user is creator
-  const isCreator = useMemo(() => {
-    return !!(currentUser?.id && prediction?.creator_id && currentUser.id === prediction.creator_id);
-  }, [currentUser?.id, prediction?.creator_id]);
   const isClosedOrSettled = useMemo(() => {
     if (!prediction) return false;
     const status = (prediction.status || '').toLowerCase();
     return isSettled || status === 'closed' || status === 'settled' || status === 'cancelled';
   }, [prediction, isSettled]);
-  const isSettledStatus = (prediction?.status || '').toString().toLowerCase() === 'settled';
-  const ugcModerationEnabled = isFeatureEnabled('UGC_MODERATION');
-  const disputesEnabled = isFeatureEnabled('DISPUTES');
-  const oddsV2Enabled = isFeatureEnabled('ODDS_V2');
 
   const mediaMetadata = useMemo(() => {
     if (!prediction) return undefined;
@@ -409,7 +175,6 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
       description: prediction.description ?? prediction.question ?? '',
       question: prediction.question ?? undefined,
       category: prediction.category,
-      image_url: prediction.image_url ?? undefined,
       options: prediction.options?.map(option => ({
         label: option?.label ?? option?.title ?? option?.text ?? '',
       })),
@@ -445,12 +210,8 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
     }
   }, [media, prediction]);
 
-  const demoAvailable = Number(demoSummary?.available ?? 0);
-  const fiatAvailable = Number(fiatData?.summary?.availableNgn ?? 0);
-  const displayAvailable = isFiatMode ? fiatAvailable : (isDemoMode ? demoAvailable : availableToStake);
-
-  // User balance - source depends on funding mode
-  const userBalance = isAuthenticated ? displayAvailable : 0;
+  // User balance - use database-adjusted available balance (accounts for pending locks)
+const userBalance = isAuthenticated ? availableToStake : 0;
 
   // Log balance for debugging
   useEffect(() => {
@@ -474,27 +235,11 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
     }
 
     try {
-      setIsLoadingPrediction(true);
-      setNotFound(false);
-      setLoadError(false);
       console.log('🔍 Loading prediction:', predictionId);
-      const url = `${getApiUrl()}/api/v2/predictions/${predictionId}`;
-      const probe = await fetch(url, { method: 'GET' });
-      if (probe.status === 404) {
-        setNotFound(true);
-        return;
-      }
-      if (!probe.ok) {
-        setLoadError(true);
-        return;
-      }
       await fetchPredictionById(predictionId);
     } catch (error) {
       console.error('❌ Error loading prediction:', error);
       showErrorToast('Failed to load prediction details');
-      setLoadError(true);
-    } finally {
-      setIsLoadingPrediction(false);
     }
   }, [predictionId, fetchPredictionById, navigate]);
 
@@ -506,12 +251,20 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
   // Activity feed for count badge
   const { items: activityItems, refresh: refreshActivity } = usePredictionActivity(predictionId, { limit: 25, autoLoad: true });
 
-  // Set share URL from canonical builder (always /p/:id or /p/:id/:slug); set <link rel="canonical"> to same URL
+  // Set share URL (canonical slug) and gently rewrite URL to SEO path
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const title = prediction?.title || prediction?.question || '';
-    const canonical = buildPredictionCanonicalUrl(predictionId, title || undefined);
+    const slug = title
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9\s-]/g, '')
+      .replace(/\s+/g, '-')
+      .replace(/-+/g, '-')
+      .slice(0, 80);
+    const canonical = `${window.location.origin}/predictions/${slug}`;
     setShareUrl(canonical);
+    // Inject/replace canonical link
     try {
       let link = document.querySelector('link[rel="canonical"]') as HTMLLinkElement | null;
       if (!link) {
@@ -521,7 +274,17 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
       }
       link.setAttribute('href', canonical);
     } catch {}
-  }, [prediction?.title, prediction?.question, predictionId]);
+    // If the current URL isn't already the canonical slug path, replace it (no reload)
+    try {
+      const targetPath = `/predictions/${slug}`;
+      if (window.location.pathname !== targetPath) {
+        navigate(targetPath, { 
+          replace: true,
+          state: preservedStateRef.current ?? locationState ?? undefined
+        });
+      }
+    } catch {}
+  }, [prediction?.title, predictionId, navigate, locationState]);
 
   // Handle navigation
   const handleBack = () => {
@@ -556,17 +319,13 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
   };
 
   const handleCopyLink = async () => {
-    const url = shareUrl || buildPredictionCanonicalUrl(predictionId, prediction?.title);
     try {
-      await navigator.clipboard.writeText(url);
-      showSuccessToast('Link copied');
-      AriaUtils.announce('Link copied');
+      await navigator.clipboard.writeText(shareUrl);
+      showSuccessToast('Link copied to clipboard!');
+      AriaUtils.announce('Link copied to clipboard');
     } catch (error) {
       console.error('Failed to copy link:', error);
-      showErrorToast("Couldn't copy link");
-      try {
-        window.prompt('Copy this link:', url);
-      } catch {}
+      showErrorToast('Failed to copy link');
     }
   };
 
@@ -597,26 +356,10 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
 
     // Check if stake amount exceeds available balance
     const amount = parseFloat(stakeAmount);
-    const BASE_BETS_ENABLED = import.meta.env.VITE_FCZ_BASE_BETS === '1';
-    
-    // Funding source:
-    // - crypto: on-chain availableToStake
-    // - demo: demo ledger available
-    // - fiat: fiat ledger available (NGN)
-    const maxAvailable = isFiatMode ? fiatAvailable : (isDemoMode ? demoAvailable : availableToStake);
-    
+    const maxAvailable = userBalance;
+
     if (amount > maxAvailable) {
-      // Open deposit modal instead of placing bet (crypto mode)
-      if (isCryptoMode) {
-        setShowDepositModal(true);
-        return;
-      }
-      if (isFiatMode) {
-        showErrorToast(`Insufficient fiat balance. Available: ₦${maxAvailable.toFixed(0)}`);
-        navigate('/wallet');
-        return;
-      }
-      showErrorToast(`Insufficient balance. Available: ${formatCurrency(maxAvailable, { compact: false })}`);
+      showErrorToast(`Insufficient balance. Available: ${formatZaurumNumber(maxAvailable, { compact: false })} Zaurum`);
       return;
     }
 
@@ -640,8 +383,8 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
         walletAddress
       );
 
-      showSuccessToast(`Stake placed: ${isFiatMode ? `₦${Number(stakeAmount).toLocaleString()}` : formatCurrency(Number(stakeAmount || 0), { compact: false })} | lock consumed`);
-      AriaUtils.announce(`Prediction placed successfully for ${stakeAmount} ${isFiatMode ? 'naira' : 'zaurum'}`);
+      showSuccessToast(`Stake placed: ${formatZaurumNumber(stakeAmount, { compact: false })} Zaurum | lock consumed`);
+      AriaUtils.announce(`Prediction placed successfully for ${stakeAmount} Zaurum`);
       
       // IMPORTANT: Keep user on prediction details page - do not navigate away
       // Inline confirmation chip (keep user on overview)
@@ -664,9 +407,6 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
           queryClient.invalidateQueries({ queryKey: QK.prediction(predictionId) }),
           queryClient.invalidateQueries({ queryKey: QK.predictionEntries(predictionId) }),
         ]);
-      if (isDemoMode) {
-        await fetchDemoSummary();
-      }
       }
       
       // Also invalidate contract reads
@@ -715,7 +455,7 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
 
   // Handle comment navigation
   const handleComment = () => {
-    handleTabChange('comments');
+    setActiveTab('comments');
     // Scroll to comments after tab change
     setTimeout(() => {
       const commentsSection = document.querySelector('[data-qa="comments-section"]');
@@ -725,69 +465,14 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
     }, 100);
   };
 
-  const handleDisputeOutcomeSubmit = useCallback(async () => {
-    if (!predictionId || !currentUser?.id || !disputeOutcomeReason.trim()) return;
-    setDisputeOutcomeSubmitting(true);
-    try {
-      const token = session?.access_token || (typeof window !== 'undefined' ? localStorage.getItem('token') : null);
-      const res = await fetch(`${getApiUrl()}/api/v2/settlement/${predictionId}/dispute`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-        body: JSON.stringify({ userId: currentUser.id, reason: disputeOutcomeReason.trim(), evidence: [] }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        toast.error((data as any)?.message || 'Failed to submit dispute');
-        return;
-      }
-      toast.success('Dispute submitted. We will review and follow up.');
-      setShowDisputeOutcomeModal(false);
-      setDisputeOutcomeReason('');
-    } catch (e) {
-      toast.error((e as Error)?.message || 'Failed to submit dispute');
-    } finally {
-      setDisputeOutcomeSubmitting(false);
-    }
-  }, [predictionId, currentUser?.id, disputeOutcomeReason, session?.access_token]);
-
-  // ---------------- Pool-based payout preview (keep hooks above early returns) ----------------
-  const sumOptionPools = (prediction?.options ?? []).reduce(
-    (sum: number, o: any) => sum + (Number((o as any).total_staked) || 0),
-    0
-  );
-  const totalPool =
-    (prediction?.options?.length ?? 0) > 0
-      ? sumOptionPools
-      : (typeof prediction?.pool_total === 'number' ? prediction.pool_total : 0);
-  const poolTotal = totalPool;
-  const selectedOption = prediction && selectedOptionId ? prediction.options?.find((o: any) => o.id === selectedOptionId) : null;
-  const numStake = parseFloat(stakeAmount || '0') || 0;
-  const platformFeeBps = typeof (prediction as any)?.platformFeeBps === 'number' ? (prediction as any).platformFeeBps : 250;
-  const creatorFeeBps = typeof (prediction as any)?.creatorFeeBps === 'number' ? (prediction as any).creatorFeeBps : 100;
-  const feeBps = platformFeeBps + creatorFeeBps;
-  const optionPoolUSD = selectedOption ? (Number((selectedOption as any).total_staked) || 0) : 0;
-
-  const poolPreview = useMemo(() => {
-    if (!selectedOption || numStake <= 0) return null;
-    return getPayoutPreview({
-      totalPool,
-      optionPool: optionPoolUSD,
-      stake: numStake,
-      feeBps,
-    });
-  }, [selectedOption, totalPool, optionPoolUSD, numStake, feeBps]);
-
-  const expectedReturn = poolPreview ? poolPreview.expectedReturn : 0;
-  const potentialProfit = poolPreview ? poolPreview.profit : 0;
-
   // Loading state
-  if (isLoadingPrediction && !prediction) {
+  if (loading && !prediction) {
     return (
       <div className="min-h-screen bg-gray-50">
         {/* Consistent Header with AppHeader styling */}
-        <header className="w-full z-20 bg-white/80 backdrop-blur supports-[backdrop-filter]:bg-white/60 sticky top-0 safe-area-pt">
+        <header className="w-full z-20 bg-white/80 backdrop-blur supports-[backdrop-filter]:bg-white/60 sticky top-0">
           <div className="safe-px mx-auto max-w-screen-md">
-            <div className="h-12 flex items-center justify-between gap-2 pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))]">
+            <div className="h-12 flex items-center justify-between gap-2 px-4">
               <div className="min-w-[40px] flex items-center">
                 <button
                   onClick={handleBack}
@@ -815,13 +500,13 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
   }
 
   // Error state
-  if (loadError && !prediction) {
+  if (error && !prediction) {
     return (
       <div className="min-h-screen bg-gray-50">
         {/* Consistent Header with AppHeader styling */}
-        <header className="w-full z-20 bg-white/80 backdrop-blur supports-[backdrop-filter]:bg-white/60 sticky top-0 safe-area-pt">
+        <header className="w-full z-20 bg-white/80 backdrop-blur supports-[backdrop-filter]:bg-white/60 sticky top-0">
           <div className="safe-px mx-auto max-w-screen-md">
-            <div className="h-12 flex items-center justify-between gap-2 pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))]">
+            <div className="h-12 flex items-center justify-between gap-2 px-4">
               <div className="min-w-[40px] flex items-center">
                 <button
                   onClick={handleBack}
@@ -849,14 +534,14 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
     );
   }
 
-  // Not found state (only after confirmed 404)
-  if (notFound) {
+  // Not found state
+  if (!prediction && !loading) {
     return (
       <div className="min-h-screen bg-gray-50">
         {/* Consistent Header with AppHeader styling */}
-        <header className="w-full z-20 bg-white/80 backdrop-blur supports-[backdrop-filter]:bg-white/60 sticky top-0 safe-area-pt">
+        <header className="w-full z-20 bg-white/80 backdrop-blur supports-[backdrop-filter]:bg-white/60 sticky top-0">
           <div className="safe-px mx-auto max-w-screen-md">
-            <div className="h-12 flex items-center justify-between gap-2 pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))]">
+            <div className="h-12 flex items-center justify-between gap-2 px-4">
               <div className="min-w-[40px] flex items-center">
                 <button
                   onClick={handleBack}
@@ -889,18 +574,17 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
     );
   }
 
-  // From here on, prediction should exist (keeps TS happy).
   if (!prediction) return null;
 
-  const participantCount = prediction?.participant_count ?? 0;
-  const totalVolume = totalPool;
+  const participantCount = prediction.participant_count || 0;
+  const totalVolume = prediction.pool_total || 0;
 
   return (
     <>
-      {/* Header - Consistent with AppHeader styling; safe-area so notch/Dynamic Island doesn't block back/share */}
-      <header className="w-full z-20 bg-white/80 backdrop-blur supports-[backdrop-filter]:bg-white/60 sticky top-0 safe-area-pt">
+      {/* Header - Consistent with AppHeader styling */}
+      <header className="w-full z-20 bg-white/80 backdrop-blur supports-[backdrop-filter]:bg-white/60 sticky top-0">
         <div className="safe-px mx-auto max-w-screen-md">
-          <div className="h-12 flex items-center justify-between gap-2 pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))]">
+          <div className="h-12 flex items-center justify-between gap-2 px-4">
             <div className="min-w-[40px] flex items-center">
               <button
                 onClick={handleBack}
@@ -921,15 +605,6 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
               >
                 <Share2 className="w-5 h-5" />
               </button>
-              {ugcModerationEnabled && !isCreator && (
-                <button
-                  onClick={() => setShowReportModal(true)}
-                  className="p-2 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100"
-                  aria-label="Report prediction"
-                >
-                  <Flag className="w-5 h-5" />
-                </button>
-              )}
             </div>
           </div>
         </div>
@@ -963,26 +638,13 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
       {/* Main content with proper bottom padding to avoid overlap with fixed elements */}
       <main className="px-4 pb-[calc(var(--bottom-nav-h,64px)+72px+env(safe-area-inset-bottom))] pt-4 space-y-4 bg-gray-50">
         {/* Title and Creator */}
-        <div className="space-y-2">
-          <TitleAndMeta title={prediction.title} creator={prediction.creator} />
-          {/* Category chip */}
-          {(() => {
-            const categoryLabel = getCategoryLabel(prediction);
-            return categoryLabel ? (
-              <div className="flex items-center gap-2">
-                <span className="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-700">
-                  {categoryLabel}
-                </span>
-              </div>
-            ) : null;
-          })()}
-        </div>
+        <TitleAndMeta title={prediction.title} creator={prediction.creator} />
 
         {/* Tabs */}
           <PredictionDetailsTabs
             activeTab={activeTab}
-            onTabChange={handleTabChange}
-            commentCount={tabCommentCount}
+            onTabChange={setActiveTab}
+            commentCount={prediction.comments_count || 0}
             activityCount={activityItems.length}
           >
           <AnimatePresence mode="wait">
@@ -1002,11 +664,13 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
                     <div className="grid grid-cols-2 gap-4">
                       <div className="flex items-center space-x-3">
                         <div className="p-2 bg-emerald-100 rounded-lg">
-                          <DollarSign className="w-5 h-5 text-emerald-600" />
+                          <ZaurumMark className="w-5 h-5" />
                         </div>
                         <div>
                           <p className="text-sm text-gray-500">Total Volume</p>
-                          <p className="font-semibold text-gray-900">{formatCurrency(totalVolume, { compact: true })}</p>
+                          <p className="font-semibold text-gray-900">
+                            <ZaurumAmount value={totalVolume} compact markSize="xs" />
+                          </p>
                         </div>
                       </div>
                       <div className="flex items-center space-x-3">
@@ -1019,36 +683,6 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
                         </div>
                       </div>
                     </div>
-                    {isAuthenticated && predictionId && String(prediction.status || '').toLowerCase() !== 'open' && (
-                      <div className="mt-3">
-                        <button
-                          type="button"
-                          onClick={() => setSettlementModalOpen(true)}
-                          className="w-full px-4 py-2 rounded-xl border border-gray-200 bg-white text-gray-900 font-semibold hover:bg-gray-50 transition-colors"
-                        >
-                          Review Settlement
-                        </button>
-                      </div>
-                    )}
-                    {/* Creator actions */}
-                    {isCreator && !isClosedOrSettled && (
-                      <div className="mt-3 space-y-2">
-                        <button
-                          type="button"
-                          onClick={() => setEditSheetOpen(true)}
-                          className="w-full px-4 py-2 rounded-xl border border-gray-200 bg-white text-gray-900 font-semibold hover:bg-gray-50 transition-colors"
-                        >
-                          Edit
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setCancelSheetOpen(true)}
-                          className="w-full px-4 py-2 rounded-xl border border-red-200 bg-white text-red-600 font-semibold hover:bg-red-50 transition-colors"
-                        >
-                          Cancel prediction
-                        </button>
-                      </div>
-                    )}
                   </div>
 
                   {/* Closed/Settled callout */}
@@ -1060,55 +694,6 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
                       </div>
                     </div>
                   )}
-
-                  {/* Resolution section (Phase 9: winning option, timestamp, optional source/reasoning) */}
-                  {isSettled && (() => {
-                    const winningId = (prediction as any).winning_option_id || (prediction as any).winningOptionId;
-                    const winningOption = winningId ? prediction.options?.find((o: any) => o.id === winningId) : null;
-                    const settledAt = (prediction as any).settledAt ?? (prediction as any).settled_at ?? (prediction as any).resolution_date;
-                    const resolutionReason = (prediction as any).resolution_reason ?? (prediction as any).resolutionReason;
-                    const sourceUrl = (prediction as any).resolution_source_url ?? (prediction as any).source_url;
-                    if (!winningOption && !settledAt && !resolutionReason && !sourceUrl) return null;
-                    return (
-                      <div className="bg-white rounded-2xl p-4 shadow-sm border border-emerald-100">
-                        <h3 className="text-base font-semibold text-gray-900 mb-3">Resolution</h3>
-                        <div className="space-y-2 text-sm">
-                          {winningOption && (
-                            <div>
-                              <span className="text-gray-500">Winning outcome</span>
-                              <p className="font-medium text-gray-900 mt-0.5">{winningOption.label}</p>
-                            </div>
-                          )}
-                          {settledAt && (
-                            <div>
-                              <span className="text-gray-500">Settled</span>
-                              <p className="font-medium text-gray-900 mt-0.5">
-                                {new Date(settledAt).toLocaleDateString(undefined, { dateStyle: 'medium' })} at {new Date(settledAt).toLocaleTimeString(undefined, { timeStyle: 'short' })}
-                              </p>
-                            </div>
-                          )}
-                          {resolutionReason && (
-                            <div>
-                              <span className="text-gray-500">Reasoning</span>
-                              <p className="text-gray-700 mt-0.5">{resolutionReason}</p>
-                            </div>
-                          )}
-                          {sourceUrl && (
-                            <div>
-                              <a
-                                href={sourceUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-emerald-600 hover:text-emerald-700 font-medium underline"
-                              >
-                                Source
-                              </a>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })()}
 
                   {/* Description */}
                   {prediction.description && (
@@ -1151,7 +736,12 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
                             });
                           }}
                         >
-                          {isClaiming ? 'Claiming…' : `Claim ${formatCurrency(merkle.amountUSD, { compact: false })}`}
+                          {isClaiming ? 'Claiming…' : (
+                            <span className="inline-flex items-center gap-1">
+                              <span>Claim</span>
+                              <ZaurumAmount value={merkle.amountUSD} markSize="xs" />
+                            </span>
+                          )}
                         </button>
                       </div>
                     </div>
@@ -1171,7 +761,7 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
                   </div>
 
                   {/* Options Section - Only on Overview tab */}
-                  {(!isAuthenticated && String((prediction as any).status || '').toLowerCase() !== 'settled') ? (
+                  {!isAuthenticated ? (
                     <SignInCallout
                       onSignIn={() =>
                         openAuthGate({
@@ -1185,17 +775,18 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
                       options={prediction.options || []}
                       selectedId={selectedOptionId || undefined}
                       onSelect={handleOptionSelect}
-                      disabled={isPlacingBet || !isAuthenticated || String((prediction as any).status || '').toLowerCase() !== 'open'}
-                      winningOptionId={(prediction as any).winning_option_id || (prediction as any).winningOptionId}
-                      showWinningIndicator={String((prediction as any).status || '').toLowerCase() === 'settled'}
-                      totalPool={totalPool}
+                      disabled={isPlacingBet}
                     />
                   )}
 
                   {justPlaced && (
                     <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 flex items-center justify-between">
                       <div className="text-sm text-emerald-800 font-medium">
-                        You staked {isFiatMode ? `₦${justPlaced.amount.toFixed(0)}` : formatCurrency(justPlaced.amount, { compact: false })} on “{justPlaced.optionLabel}”.
+                        <span className="inline-flex items-center gap-1">
+                          <span>You staked</span>
+                          <ZaurumAmount value={justPlaced.amount} markSize="xs" />
+                          <span>on “{justPlaced.optionLabel}”.</span>
+                        </span>
                       </div>
                       <button
                         type="button"
@@ -1210,57 +801,14 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
                   {/* Stake Input - Only shows after option selection */}
                   {isAuthenticated && selectedOptionId && (
                     <div className="bg-white rounded-2xl p-4 shadow-sm border space-y-3">
-                      {/* Funding mode toggle (Demo/Fiat gated by feature flags + store-safe mode) */}
-                      {(showDemo || effectiveFiatEnabled || effectiveCryptoEnabled) && (
-                        <div className="inline-flex rounded-lg bg-gray-100 p-1 flex-wrap gap-1">
-                          {effectiveCryptoEnabled && (
-                            <button
-                              onClick={() => setMode('crypto')}
-                              className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
-                                isCryptoMode ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'
-                              }`}
-                              type="button"
-                            >
-                              Crypto
-                            </button>
-                          )}
-                          {showDemo && (
-                            <button
-                              onClick={() => setMode('demo')}
-                              className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
-                                isDemoMode ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'
-                              }`}
-                              type="button"
-                            >
-                              Zaurum
-                            </button>
-                          )}
-                          {effectiveFiatEnabled && (
-                            <button
-                              onClick={() => setMode('fiat')}
-                              className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
-                                isFiatMode ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'
-                              }`}
-                              type="button"
-                            >
-                              Fiat (NGN)
-                            </button>
-                          )}
-                        </div>
-                      )}
-
                       <div>
                         <label htmlFor="stake-input" className="block text-sm font-medium text-gray-900 mb-2">
-                          Stake Amount ({isFiatMode ? 'NGN' : 'ZAU'})
+                          Stake Amount (Zaurum)
                         </label>
                         <div className="relative">
-                          {isFiatMode ? (
-                            <Banknote className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400 pointer-events-none" />
-                          ) : (
-                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">
-                              <ZaurumMark className="h-5 w-5 text-amber-500" />
-                            </span>
-                          )}
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
+                            <ZaurumMark className="h-5 w-5" />
+                          </span>
                           <input
                             id="stake-input"
                             type="number"
@@ -1272,89 +820,33 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
                             className="w-full rounded-xl border bg-background pl-10 pr-4 py-3 text-lg font-semibold transition-colors border-border focus:border-primary focus:ring-primary/20 focus:outline-none focus:ring-2 disabled:opacity-50"
                           />
                         </div>
-                        <p className="text-xs text-gray-500 mt-1">Your stake moves the odds in this pool.</p>
                       </div>
                       
                       <div className="flex items-center justify-between text-sm">
                         <span className="text-gray-600">
-                          Available: {(isFiatMode ? loadingFiat : (isDemoMode ? demoLoading : isLoadingBalance)) ? 'Loading…' : formatCurrency(userBalance, { compact: true, currency: isFiatMode ? 'NGN' : 'USD' })}
+                          <span className="inline-flex items-center gap-1">
+                            <span>Available:</span>
+                            {isLoadingBalance ? 'Loading…' : <ZaurumAmount value={userBalance} compact markSize="xs" />}
+                          </span>
                         </span>
-                        {stakeAmount && !(isFiatMode ? loadingFiat : (isDemoMode ? demoLoading : isLoadingBalance)) && parseFloat(stakeAmount) > userBalance && (
+                        {stakeAmount && !isLoadingBalance && parseFloat(stakeAmount) > userBalance && (
                           <span className="text-red-600 font-medium">Insufficient balance</span>
                         )}
                       </div>
-
-                      {isDemoMode && (
-                        <div className="pt-1">
-                          <button
-                            type="button"
-                            onClick={faucetDemo}
-                            disabled={demoLoading}
-                            className="w-full rounded-xl border bg-gray-50 px-4 py-2.5 text-sm font-semibold hover:bg-gray-100 transition-colors disabled:opacity-50"
-                          >
-                            Get Zaurum
-                          </button>
-                        </div>
-                      )}
                       
                       {/* Quick Amount Buttons */}
                       <div className="grid grid-cols-3 gap-2">
-                        {(isFiatMode ? [500, 1000, 2500, 5000, 10000, 25000] : [10, 25, 50, 100, 250, 500]).map((amount) => (
+                        {[10, 25, 50, 100, 250, 500].map((amount) => (
                           <button
                             key={amount}
                             onClick={() => setStakeAmount(amount.toString())}
                             disabled={isPlacingBet || amount > userBalance}
                             className="rounded-lg border bg-gray-50 px-3 py-2 text-sm font-medium hover:bg-gray-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                           >
-                            {isFiatMode ? `₦${amount.toLocaleString()}` : formatCurrency(amount, { compact: false })}
+                            <ZaurumAmount value={amount} markSize="xs" />
                           </button>
                         ))}
                       </div>
-
-                      {/* Payout preview — pool-based (post-stake, fees included) */}
-                      {selectedOptionId && numStake > 0 && (
-                        <div className="mt-4 p-4 rounded-xl bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200/80">
-                          <h4 className="text-sm font-semibold text-gray-900 mb-3">Payout preview</h4>
-                          <div className="grid grid-cols-2 gap-3 text-sm">
-                            <div>
-                              <p className="text-gray-600">Stake</p>
-                              <p className="font-semibold text-gray-900">
-                                {formatCurrency(numStake, { compact: false, currency: isFiatMode ? 'NGN' : 'USD' })}
-                              </p>
-                            </div>
-                            <div>
-                              <p className="text-gray-600">Estimated return</p>
-                              <p className="font-semibold text-emerald-700">
-                                {poolPreview
-                                  ? formatCurrency(poolPreview.expectedReturn, { compact: false, currency: isFiatMode ? 'NGN' : 'USD' })
-                                  : formatCurrency(expectedReturn, { compact: false, currency: isFiatMode ? 'NGN' : 'USD' })}
-                              </p>
-                            </div>
-                          </div>
-                          <div className="mt-3 pt-3 border-t border-emerald-200/60">
-                            <p className="text-gray-600 text-sm">Potential profit</p>
-                            <p className={`font-semibold ${potentialProfit >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
-                              {formatCurrency(potentialProfit, { compact: false, currency: isFiatMode ? 'NGN' : 'USD', showSign: true })}
-                            </p>
-                            {poolPreview && (
-                              <>
-                                <p className="text-xs text-gray-500 mt-0.5">
-                                  Estimated odds (with your stake): {poolPreview.multiplePost != null ? `${poolPreview.multiplePost.toFixed(2)}x` : '—'}
-                                </p>
-                                {poolPreview.multiplePre != null && (
-                                  <p className="text-xs text-gray-500">Current odds: {poolPreview.multiplePre.toFixed(2)}x</p>
-                                )}
-                                <p className="text-xs text-gray-400 mt-0.5">
-                                  Odds update as stake size changes. Final payout depends on the pool at close.
-                                </p>
-                                {feeBps > 0 && (
-                                  <p className="text-xs text-gray-400">Fees included: {(feeBps / 100).toFixed(1)}%</p>
-                                )}
-                              </>
-                            )}
-                          </div>
-                        </div>
-                      )}
                     </div>
                   )}
                 </motion.div>
@@ -1368,11 +860,7 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
                   exit={reduceMotion ? {} : { opacity: 0, x: 20 }}
                   data-qa="comments-section"
                 >
-                  <CommentsSection
-                    predictionId={predictionId}
-                    predictionTitle={prediction?.title}
-                    deepLinkCommentId={deepLinkCommentId || undefined}
-                  />
+                  <CommentsSection predictionId={predictionId} />
                 </motion.div>
               )}
 
@@ -1395,30 +883,17 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
       {activeTab === 'overview' && !isClosedOrSettled && (
         (() => {
           const amt = parseFloat(stakeAmount || '0');
-          const availableNow = isFiatMode ? fiatAvailable : (isDemoMode ? demoAvailable : availableToStake);
-          const need = Math.max(0, amt - availableNow);
+          const need = Math.max(0, amt - availableToStake);
           const computedLabel = !amt || amt <= 0
             ? t('betVerb')
             : (need > 0
-                ? (isDemoMode
-                    ? `Get Zaurum (need ${formatCurrency(need, { compact: false })})`
-                    : (isFiatMode ? `Deposit NGN (need ₦${need.toFixed(0)})` : `Add funds (need ${formatCurrency(need, { compact: false })})`))
-                : `${t('betVerb')}: ${isFiatMode ? `₦${amt.toFixed(0)}` : formatCurrency(amt, { compact: false })}`);
+                ? `Add funds (need ${formatZaurumNumber(need, { compact: false })} Zaurum)`
+                : `${t('betVerb')}: ${formatZaurumNumber(amt, { compact: false })} Zaurum`);
           const canBet = !!stakeAmount && amt > 0;
           return (
             <StickyBetBar
               canBet={canBet}
-              onPlace={async () => {
-                if (isDemoMode && need > 0) {
-                  await faucetDemo();
-                  return;
-                }
-                if (isFiatMode && need > 0) {
-                  navigate('/wallet');
-                  return;
-                }
-                await handlePlaceBet();
-              }}
+              onPlace={handlePlaceBet}
               loading={isPlacingBet}
               label={computedLabel}
             />
@@ -1426,63 +901,6 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
         })()
       )}
       
-      {/* Deposit Modal */}
-      {showDepositModal && currentUser?.id && (
-        <DepositUSDCModal
-          open={showDepositModal}
-          onClose={() => setShowDepositModal(false)}
-          onSuccess={() => setShowDepositModal(false)}
-          availableUSDC={walletUSDC}
-          userId={currentUser.id}
-        />
-      )}
-
-      <SettlementValidationModal
-        isOpen={settlementModalOpen}
-        onClose={() => setSettlementModalOpen(false)}
-        predictionId={predictionId}
-        predictionTitle={prediction?.title ?? 'Prediction'}
-        onValidated={() => {
-          queryClient.invalidateQueries({ queryKey: QK.prediction(predictionId) });
-          queryClient.invalidateQueries({ queryKey: QK.predictionEntries(predictionId) });
-        }}
-      />
-
-      {prediction && (
-        <>
-          <EditPredictionSheet
-            open={editSheetOpen}
-            onOpenChange={setEditSheetOpen}
-            prediction={prediction}
-            onSaved={(updated) => {
-              queryClient.invalidateQueries({ queryKey: QK.prediction(predictionId) });
-              fetchPredictionById(predictionId);
-            }}
-            userId={currentUser?.id}
-          />
-          <CancelPredictionSheet
-            open={cancelSheetOpen}
-            onOpenChange={setCancelSheetOpen}
-            prediction={prediction}
-            onCancelled={(updated) => {
-              queryClient.invalidateQueries({ queryKey: QK.prediction(predictionId) });
-              fetchPredictionById(predictionId);
-            }}
-            userId={currentUser?.id}
-          />
-          {ugcModerationEnabled && (
-            <ReportContentModal
-              open={showReportModal}
-              targetType="prediction"
-              targetId={predictionId}
-              label="this prediction"
-              accessToken={session?.access_token}
-              onClose={() => setShowReportModal(false)}
-              onSuccess={() => toast.success('Report submitted. Our team will review it.')}
-            />
-          )}
-        </>
-      )}
     </>
   );
 };

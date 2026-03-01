@@ -1,5 +1,13 @@
 import { ensureDbPool } from '../utils/dbPool';
 import { supabase } from '../config/database';
+import { logMoneyMutation } from '../utils/moneyMutationLogger';
+import {
+  credit,
+  debit,
+  getBalances,
+  transfer,
+  WalletServiceError,
+} from './walletService';
 
 const USD_CURRENCY = 'USD';
 const DEMO_CURRENCY = 'DEMO_USD';
@@ -31,6 +39,26 @@ function toNumber(value: unknown): number {
   return Number.isFinite(n) ? n : 0;
 }
 
+async function readZauBalancesFromClient(client: any, userId: string) {
+  const rows = await client.query(
+    `SELECT bucket, balance
+     FROM wallet_accounts
+     WHERE owner_type = 'user' AND owner_id = $1 AND currency = 'ZAU'`,
+    [userId]
+  );
+  let promoAvailable = 0;
+  let promoLocked = 0;
+  let creatorEarnings = 0;
+  for (const row of rows.rows || []) {
+    const bucket = String(row.bucket || '');
+    const balance = round8(toNumber(row.balance));
+    if (bucket === 'PROMO_AVAILABLE') promoAvailable = balance;
+    if (bucket === 'PROMO_LOCKED') promoLocked = balance;
+    if (bucket === 'CREATOR_EARNINGS') creatorEarnings = balance;
+  }
+  return { promoAvailable, promoLocked, creatorEarnings };
+}
+
 async function ensureWalletRowPg(client: any, userId: string, currency: string) {
   await client.query(
     `INSERT INTO wallets (user_id, currency, available_balance, reserved_balance, demo_credits_balance, creator_earnings_balance, stake_balance, updated_at)
@@ -41,6 +69,18 @@ async function ensureWalletRowPg(client: any, userId: string, currency: string) 
 }
 
 export async function getWalletBalanceAccountsSummary(userId: string): Promise<BalanceAccountsSummary> {
+  try {
+    const balances = await getBalances(userId);
+    return {
+      demoCredits: round8(balances.PROMO_AVAILABLE),
+      creatorEarnings: round8(balances.CREATOR_EARNINGS),
+      stakeBalance: round8(balances.PROMO_AVAILABLE),
+      stakeReserved: round8(balances.PROMO_LOCKED),
+    };
+  } catch {
+    // Fallback to legacy wallet table if ledger table isn't available yet.
+  }
+
   const { data: wallets, error } = await supabase
     .from('wallets')
     .select('currency, available_balance, reserved_balance, demo_credits_balance, creator_earnings_balance, stake_balance')
@@ -133,41 +173,75 @@ export async function creditCreatorEarnings(args: {
       };
     }
 
-    const locked = await client.query(
-      `SELECT available_balance, creator_earnings_balance, stake_balance, reserved_balance
-       FROM wallets
-       WHERE user_id = $1 AND currency = $2
-       FOR UPDATE`,
-      [args.userId, USD_CURRENCY]
-    );
-    const row = locked.rows[0];
-    if (!row) {
-      throw new WalletBalanceError('WALLET_NOT_FOUND', 'Wallet not found', 404);
-    }
+    const before = await readZauBalancesFromClient(client, args.userId).catch(() => ({
+      promoAvailable: 0,
+      promoLocked: 0,
+      creatorEarnings: 0,
+    }));
 
-    const nextCreatorEarnings = round8(toNumber(row.creator_earnings_balance) + amount);
-
-    await client.query(
-      `UPDATE wallets
-       SET creator_earnings_balance = $3,
-           stake_balance = COALESCE(stake_balance, available_balance, 0),
-           updated_at = NOW()
-       WHERE user_id = $1 AND currency = $2`,
-      [args.userId, USD_CURRENCY, nextCreatorEarnings]
+    await credit(
+      {
+        to: { ownerType: 'user', ownerId: args.userId, bucket: 'CREATOR_EARNINGS' },
+        amount,
+        reference: {
+          type: 'CREATOR_EARNING_CREDIT',
+          referenceType: args.referenceType || 'settlement',
+          referenceId: args.externalRef,
+          metadata: {
+            provider: args.provider,
+            predictionId: args.predictionId ?? null,
+            referenceId: args.referenceId ?? null,
+            ...(args.metadata || {}),
+          },
+        },
+      },
+      { client }
     );
+
+    const after = await readZauBalancesFromClient(client, args.userId).catch(() => ({
+      promoAvailable: before.promoAvailable,
+      promoLocked: before.promoLocked,
+      creatorEarnings: before.creatorEarnings + amount,
+    }));
 
     await client.query('COMMIT');
+
+    logMoneyMutation({
+      action: 'creator_earnings_credit',
+      source: 'walletBalanceAccounts.creditCreatorEarnings',
+      userId: args.userId,
+      predictionId: args.predictionId ?? null,
+      amount,
+      before: {
+        creatorEarnings: round8(before.creatorEarnings),
+        promoAvailable: round8(before.promoAvailable),
+        promoLocked: round8(before.promoLocked),
+      },
+      after: {
+        creatorEarnings: round8(after.creatorEarnings),
+        promoAvailable: round8(after.promoAvailable),
+        promoLocked: round8(after.promoLocked),
+      },
+      meta: {
+        provider: args.provider,
+        externalRef: args.externalRef,
+        referenceType: args.referenceType ?? 'settlement',
+      },
+    });
 
     return {
       applied: true,
       balances: {
-        creatorEarnings: nextCreatorEarnings,
-        stakeBalance: round8(toNumber(row.stake_balance ?? row.available_balance)),
-        stakeReserved: round8(toNumber(row.reserved_balance)),
+        creatorEarnings: round8(after.creatorEarnings),
+        stakeBalance: round8(after.promoAvailable),
+        stakeReserved: round8(after.promoLocked),
       },
     };
   } catch (error) {
     await client.query('ROLLBACK');
+    if (error instanceof WalletServiceError) {
+      throw new WalletBalanceError(error.code, error.message, error.status);
+    }
     throw error;
   } finally {
     client.release();
@@ -190,23 +264,13 @@ export async function transferCreatorEarningsToStake(args: { userId: string; amo
     await client.query('BEGIN');
     await ensureWalletRowPg(client, args.userId, USD_CURRENCY);
 
-    const locked = await client.query(
-      `SELECT available_balance, reserved_balance, creator_earnings_balance, stake_balance
-       FROM wallets
-       WHERE user_id = $1 AND currency = $2
-       FOR UPDATE`,
-      [args.userId, USD_CURRENCY]
-    );
-    const row = locked.rows[0];
-    if (!row) {
-      throw new WalletBalanceError('WALLET_NOT_FOUND', 'Wallet not found', 404);
-    }
+    const before = await readZauBalancesFromClient(client, args.userId).catch(() => ({
+      promoAvailable: 0,
+      promoLocked: 0,
+      creatorEarnings: 0,
+    }));
 
-    const creatorEarnings = round8(toNumber(row.creator_earnings_balance));
-    const currentStakeBalance = round8(toNumber(row.stake_balance ?? row.available_balance));
-    const currentAvailable = round8(toNumber(row.available_balance));
-
-    if (creatorEarnings < amount) {
+    if (before.creatorEarnings < amount) {
       throw new WalletBalanceError(
         'INSUFFICIENT_CREATOR_EARNINGS',
         'Insufficient creator earnings balance for transfer',
@@ -214,19 +278,26 @@ export async function transferCreatorEarningsToStake(args: { userId: string; amo
       );
     }
 
-    const nextCreatorEarnings = round8(creatorEarnings - amount);
-    const nextStakeBalance = round8(currentStakeBalance + amount);
-    const nextAvailable = round8(currentAvailable + amount);
-
-    await client.query(
-      `UPDATE wallets
-       SET creator_earnings_balance = $3,
-           stake_balance = $4,
-           available_balance = $5,
-           updated_at = NOW()
-       WHERE user_id = $1 AND currency = $2`,
-      [args.userId, USD_CURRENCY, nextCreatorEarnings, nextStakeBalance, nextAvailable]
+    await transfer(
+      {
+        from: { ownerType: 'user', ownerId: args.userId, bucket: 'CREATOR_EARNINGS' },
+        to: { ownerType: 'user', ownerId: args.userId, bucket: 'PROMO_AVAILABLE' },
+        amount,
+        reference: {
+          type: 'CREATOR_EARNING_MOVE',
+          referenceType: 'wallet_transfer',
+          referenceId: `creator_move:${args.userId}:${Date.now()}`,
+          metadata: { source: 'walletRead.transferCreatorEarnings' },
+        },
+      },
+      { client }
     );
+
+    const after = await readZauBalancesFromClient(client, args.userId).catch(() => ({
+      promoAvailable: before.promoAvailable + amount,
+      promoLocked: before.promoLocked,
+      creatorEarnings: before.creatorEarnings - amount,
+    }));
 
     const externalRef = `creator_earnings_transfer:${args.userId}:${Date.now()}`;
     const txInsert = await client.query(
@@ -240,9 +311,9 @@ export async function transferCreatorEarningsToStake(args: { userId: string; amo
        RETURNING id, created_at`,
       [
         args.userId,
-        amount,
-        USD_CURRENCY,
-        externalRef,
+      amount,
+      USD_CURRENCY,
+      externalRef,
         'Move creator earnings to stake balance',
         JSON.stringify({ kind: 'creator_earnings_transfer' }),
         JSON.stringify({ kind: 'creator_earnings_transfer' }),
@@ -252,16 +323,39 @@ export async function transferCreatorEarningsToStake(args: { userId: string; amo
 
     await client.query('COMMIT');
 
+    logMoneyMutation({
+      action: 'creator_earnings_transfer_to_stake',
+      source: 'walletBalanceAccounts.transferCreatorEarningsToStake',
+      userId: args.userId,
+      amount,
+      before: {
+        creatorEarnings: round8(before.creatorEarnings),
+        stakeBalance: round8(before.promoAvailable),
+        stakeReserved: round8(before.promoLocked),
+      },
+      after: {
+        creatorEarnings: round8(after.creatorEarnings),
+        stakeBalance: round8(after.promoAvailable),
+        stakeReserved: round8(after.promoLocked),
+      },
+      meta: {
+        externalRef,
+      },
+    });
+
     return {
       transactionId: txInsert.rows[0]?.id || null,
       balances: {
-        creatorEarnings: nextCreatorEarnings,
-        stakeBalance: nextStakeBalance,
-        stakeReserved: round8(toNumber(row.reserved_balance)),
+        creatorEarnings: round8(after.creatorEarnings),
+        stakeBalance: round8(after.promoAvailable),
+        stakeReserved: round8(after.promoLocked),
       },
     };
   } catch (error) {
     await client.query('ROLLBACK');
+    if (error instanceof WalletServiceError) {
+      throw new WalletBalanceError(error.code, error.message, error.status);
+    }
     throw error;
   } finally {
     client.release();
@@ -305,4 +399,3 @@ export async function listCreatorEarningsHistory(userId: string, limit = 20) {
     };
   });
 }
-

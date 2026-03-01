@@ -23,7 +23,11 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
-        run: npm cache clean --force && npm install --legacy-peer-deps
+        run: |
+          npm ci
+          npm --prefix server ci
+          npm --prefix client ci
+          npm --prefix shared ci
 
       - name: Type check
         run: npm run typecheck

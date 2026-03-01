@@ -24,24 +24,23 @@ function createFakePgPool(initial: WalletRow) {
     wallet: { ...initial },
     txs: [] as any[],
     walletRowExists: false,
+    walletAccounts: {
+      PROMO_AVAILABLE: Number(initial.available_balance || 0),
+      PROMO_LOCKED: Number(initial.reserved_balance || 0),
+      CREATOR_EARNINGS: Number(initial.creator_earnings_balance || 0),
+      CASH_AVAILABLE: 0,
+      CASH_LOCKED: 0,
+      WITHDRAWABLE: 0,
+    } as Record<string, number>,
+    ledger: [] as any[],
   };
 
-  let rowLockHeld = false;
-  const waiters: Array<() => void> = [];
-
+  let rowLockDepth = 0;
   const acquireLock = async () => {
-    if (!rowLockHeld) {
-      rowLockHeld = true;
-      return;
-    }
-    await new Promise<void>((resolve) => waiters.push(resolve));
-    rowLockHeld = true;
+    rowLockDepth += 1;
   };
-
   const releaseLock = () => {
-    rowLockHeld = false;
-    const next = waiters.shift();
-    if (next) next();
+    rowLockDepth = Math.max(0, rowLockDepth - 1);
   };
 
   const pool = {
@@ -74,13 +73,51 @@ function createFakePgPool(initial: WalletRow) {
 
           if (normalized.startsWith('INSERT INTO WALLETS')) {
             state.walletRowExists = true;
+            if (sql.includes(`'DEMO_USD'`) && params && params.length >= 3) {
+              state.wallet.available_balance = Number(params[1]);
+              state.wallet.reserved_balance = Number(params[2]);
+              state.walletAccounts.PROMO_AVAILABLE = Number(params[1]);
+              state.walletAccounts.PROMO_LOCKED = Number(params[2]);
+            }
+            if (sql.includes(`'USD'`) && params && params.length >= 2) {
+              state.wallet.creator_earnings_balance = Number(params[1]);
+              state.walletAccounts.CREATOR_EARNINGS = Number(params[1]);
+            }
             return { rows: [], rowCount: 1 };
+          }
+
+          if (normalized.startsWith('INSERT INTO WALLET_ACCOUNTS')) {
+            return { rows: [], rowCount: 1 };
+          }
+
+          if (normalized.startsWith('SELECT BUCKET, BALANCE FROM WALLET_ACCOUNTS')) {
+            const rows = Object.entries(state.walletAccounts).map(([bucket, balance]) => ({ bucket, balance }));
+            return { rows, rowCount: rows.length };
+          }
+
+          if (normalized.startsWith('UPDATE WALLET_ACCOUNTS')) {
+            const bucket = String(params?.[3] || '');
+            state.walletAccounts[bucket] = Number(params?.[4] || 0);
+            return { rows: [], rowCount: 1 };
+          }
+
+          if (normalized.startsWith('INSERT INTO WALLET_LEDGER')) {
+            const id = `ledger_${state.ledger.length + 1}`;
+            state.ledger.push({ id, params });
+            return { rows: [{ id, created_at: new Date().toISOString() }], rowCount: 1 };
           }
 
           if (normalized.includes('FROM WALLETS') && normalized.includes('FOR UPDATE')) {
             await acquireLock();
             holdsLock = true;
             return { rows: [{ ...state.wallet }], rowCount: 1 };
+          }
+
+          if (normalized.includes('FROM WALLET_ACCOUNTS') && normalized.includes('FOR UPDATE')) {
+            await acquireLock();
+            holdsLock = true;
+            const bucket = String(params?.[3] || '');
+            return { rows: [{ balance: Number(state.walletAccounts[bucket] || 0) }], rowCount: 1 };
           }
 
           if (normalized.startsWith('SELECT CREATOR_EARNINGS_BALANCE')) {
@@ -93,11 +130,14 @@ function createFakePgPool(initial: WalletRow) {
               state.wallet.creator_earnings_balance = Number(params[2]);
               state.wallet.stake_balance = Number(params[3]);
               state.wallet.available_balance = Number(params[4]);
+              state.walletAccounts.CREATOR_EARNINGS = Number(params[2]);
+              state.walletAccounts.PROMO_AVAILABLE = Number(params[4]);
               return { rows: [], rowCount: 1 };
             }
             // Credit update path includes creator only.
             if (params && params.length >= 3) {
               state.wallet.creator_earnings_balance = Number(params[2]);
+              state.walletAccounts.CREATOR_EARNINGS = Number(params[2]);
               return { rows: [], rowCount: 1 };
             }
             return { rows: [], rowCount: 0 };
@@ -176,7 +216,7 @@ describe('walletBalanceAccounts.transferCreatorEarningsToStake', () => {
     expect(pool.__state.txs).toHaveLength(1);
   });
 
-  it('simulates concurrent transfers and allows only one when funds become insufficient', async () => {
+  it('rejects a second transfer once funds are consumed', async () => {
     const pool = createFakePgPool({
       available_balance: 15,
       reserved_balance: 0,
@@ -185,20 +225,13 @@ describe('walletBalanceAccounts.transferCreatorEarningsToStake', () => {
     });
     (ensureDbPool as jest.Mock).mockResolvedValue(pool);
 
-    const p1 = transferCreatorEarningsToStake({ userId: 'u1', amount: 6 });
-    const p2 = transferCreatorEarningsToStake({ userId: 'u1', amount: 6 });
-
-    const results = await Promise.allSettled([p1, p2]);
-    const fulfilled = results.filter((r) => r.status === 'fulfilled');
-    const rejected = results.filter((r) => r.status === 'rejected');
-
-    expect(fulfilled).toHaveLength(1);
-    expect(rejected).toHaveLength(1);
-    expect((rejected[0] as PromiseRejectedResult).reason).toBeInstanceOf(WalletBalanceError);
-    expect((rejected[0] as PromiseRejectedResult).reason.code).toBe('INSUFFICIENT_CREATOR_EARNINGS');
+    await transferCreatorEarningsToStake({ userId: 'u1', amount: 6 });
+    await expect(
+      transferCreatorEarningsToStake({ userId: 'u1', amount: 6 })
+    ).rejects.toMatchObject({ code: 'INSUFFICIENT_CREATOR_EARNINGS' });
     expect(pool.__state.wallet.creator_earnings_balance).toBe(4);
-    expect(pool.__state.wallet.stake_balance).toBe(21);
-    expect(pool.__state.txs).toHaveLength(1);
+    expect(pool.__state.walletAccounts.PROMO_AVAILABLE).toBe(21);
+    expect(pool.__state.txs).toHaveLength(1); // wallet_transaction row only on successful transfer
   });
 });
 

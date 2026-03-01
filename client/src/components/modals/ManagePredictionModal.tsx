@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Users, Clock, DollarSign, BarChart3, Settings, Trash2, Eye, Share2, Edit3, CheckCircle, Loader2, Gavel, AlertTriangle, Image as ImageIcon } from 'lucide-react';
+import { X, Users, Clock, BarChart3, Settings, Trash2, Eye, Share2, Edit3, CheckCircle, Loader2, Gavel, AlertTriangle } from 'lucide-react';
 import { usePredictionStore, ActivityItem, Participant } from '../../store/predictionStore';
 import { useToast } from '../../hooks/use-toast';
 import { useAuthStore } from '../../store/authStore';
@@ -11,10 +11,9 @@ import SettlementModal from './SettlementModal';
 import DisputeResolutionModal from './DisputeResolutionModal';
 import EditModal from './EditModal';
 import { formatTimeRemaining } from '@/lib/utils';
-import { buildPredictionCanonicalUrl } from '@/lib/predictionUrls';
-import { uploadPredictionCoverImage, COVER_IMAGE_ACCEPT } from '@/lib/predictionCoverImage';
-import { useAuthSession } from '@/providers/AuthSessionProvider';
-import CoverCropModal from '@/components/modals/CoverCropModal';
+import { formatZaurumNumber } from '@/lib/format';
+import { ZaurumMark } from '@/components/currency/ZaurumMark';
+import { ZaurumAmount } from '@/components/currency/ZaurumAmount';
 
 interface ManagePredictionModalProps {
   isOpen: boolean;
@@ -34,7 +33,6 @@ interface ManagePredictionModalProps {
     creator_fee_percentage?: number;
     entry_deadline?: string;
     options?: any[];
-    image_url?: string | null;
   };
 }
 
@@ -60,11 +58,6 @@ const ManagePredictionModal: React.FC<ManagePredictionModalProps> = ({
   const [showDisputeResolution, setShowDisputeResolution] = useState(false);
   const [editTitle, setEditTitle] = useState('');
   const [predictionData, setPredictionData] = useState(prediction);
-  const [isChangingCover, setIsChangingCover] = useState(false);
-  const coverFileInputRef = useRef<HTMLInputElement>(null);
-  const [cropModalOpen, setCropModalOpen] = useState(false);
-  const [pendingCropSrc, setPendingCropSrc] = useState<string | null>(null);
-  const [pendingCropFile, setPendingCropFile] = useState<File | null>(null);
 
   // Update predictionData when prediction prop changes
   useEffect(() => {
@@ -84,13 +77,12 @@ const ManagePredictionModal: React.FC<ManagePredictionModalProps> = ({
   } = usePredictionStore();
   
   const { user } = useAuthStore();
-  const { session } = useAuthSession();
 
   // Helper function to determine if prediction can be settled
   const canSettle = (pred: any) => {
-    if (pred.status === 'settled' || (pred.settled_at != null)) return false;
     // Can settle if prediction is closed, ended, or if it's past the deadline
     if (pred.status === 'closed' || pred.status === 'ended') return true;
+    
     // Check if deadline has passed for open predictions
     const deadline = pred.entry_deadline;
     if (deadline) {
@@ -98,10 +90,9 @@ const ManagePredictionModal: React.FC<ManagePredictionModalProps> = ({
       if (isPastDeadline) return true;
     }
     if (typeof pred.timeRemaining === 'string' && pred.timeRemaining.toLowerCase().includes('ended')) return true;
+    
     return false;
   };
-
-  const isAlreadySettled = (pred: any) => pred?.status === 'settled' || pred?.settled_at != null;
 
   const tabs = [
     { id: 'overview', label: 'Overview', icon: BarChart3 },
@@ -167,8 +158,7 @@ const ManagePredictionModal: React.FC<ManagePredictionModalProps> = ({
               participant_count: retryPrediction.participant_count || retryPrediction.participantCount,
               creator_fee_percentage: retryPrediction.creator_fee_percentage,
               entry_deadline: retryPrediction.entry_deadline || retryPrediction.entryDeadline,
-              options: retryPrediction.options,
-              image_url: (retryPrediction as any).image_url ?? undefined
+              options: retryPrediction.options
             });
           }
         }, 1000);
@@ -298,34 +288,40 @@ const ManagePredictionModal: React.FC<ManagePredictionModalProps> = ({
   };
 
   const handleSharePrediction = async () => {
-    const shareUrl = buildPredictionCanonicalUrl(String(prediction.id), prediction.title);
-    const shareText = `Check out this prediction: ${prediction.title}`;
     try {
+      const predictionUrl = `${window.location.origin}/predictions/${prediction.id}`;
+      const shareText = `Check out this prediction: ${prediction.title}`;
+      
+      // Try native sharing first (mobile devices)
       if (navigator.share) {
         try {
           await navigator.share({
             title: prediction.title,
             text: shareText,
-            url: shareUrl,
+            url: predictionUrl,
           });
           return;
         } catch (shareError) {
+          // User cancelled or sharing failed, fall back to clipboard
           console.log('Native sharing cancelled or failed:', shareError);
         }
       }
-      if (navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(`${shareText}\n${shareUrl}`);
-        toast.success('Link copied');
+      
+      // Fallback to clipboard
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(`${shareText}\n${predictionUrl}`);
+        toast.success('Link copied to clipboard!');
       } else {
+        // Fallback for older browsers
         const textArea = document.createElement('textarea');
-        textArea.value = `${shareText}\n${shareUrl}`;
+        textArea.value = `${shareText}\n${predictionUrl}`;
         document.body.appendChild(textArea);
         textArea.select();
         try {
           document.execCommand('copy');
-          toast.success('Link copied');
+          toast.success('Link copied to clipboard!');
         } catch (execError) {
-          toast.error("Couldn't copy link");
+          toast.error('Failed to copy link. Please copy manually.');
           console.error('execCommand failed:', execError);
         } finally {
           document.body.removeChild(textArea);
@@ -333,7 +329,7 @@ const ManagePredictionModal: React.FC<ManagePredictionModalProps> = ({
       }
     } catch (error) {
       console.error('Error sharing prediction:', error);
-      toast.error("Couldn't copy link");
+      toast.error('Failed to share prediction');
     }
   };
 
@@ -381,33 +377,6 @@ const ManagePredictionModal: React.FC<ManagePredictionModalProps> = ({
     }
   };
 
-  const handleChangeCoverImage = useCallback(async (file: File) => {
-    if (!user?.id) return;
-    setIsChangingCover(true);
-    try {
-      const skipOptimize = (file.name || '').toLowerCase().startsWith('cover.');
-      const result = await uploadPredictionCoverImage(String(prediction.id), file, { upsert: true, skipOptimize });
-      const token = session?.access_token || localStorage.getItem('token');
-      const res = await fetch(`${getApiUrl()}/api/v2/predictions/${prediction.id}/cover-image`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-        credentials: 'include',
-        body: JSON.stringify({ coverImageUrl: result.coverImageUrl }),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error((err as any)?.message || 'Failed to update cover image');
-      }
-      setPredictionData((prev) => ({ ...prev, image_url: result.coverImageUrl }));
-      await refreshAllData();
-      toast.success('Cover image updated');
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Couldn't update cover image");
-    } finally {
-      setIsChangingCover(false);
-    }
-  }, [user?.id, prediction.id, refreshAllData]);
-
   const OverviewTab = () => {
     const totalPool = prediction.pool_total || prediction.totalPool || 0;
     const participantCount = prediction.participant_count || prediction.participants || 0;
@@ -420,10 +389,10 @@ const ManagePredictionModal: React.FC<ManagePredictionModalProps> = ({
         <div className="grid grid-cols-2 gap-4">
           <div className="bg-gray-50 rounded-lg p-4">
             <div className="flex items-center gap-2 mb-2">
-              <DollarSign className="w-4 h-4 text-emerald-600" />
+              <ZaurumMark className="w-4 h-4" />
               <span className="text-sm font-medium text-gray-700">Total Pool</span>
             </div>
-            <p className="text-2xl font-bold text-gray-900">${totalPool.toLocaleString()}</p>
+            <p className="text-2xl font-bold text-gray-900"><ZaurumAmount value={totalPool} compact={false} markSize="sm" /></p>
           </div>
           
           <div className="bg-gray-50 rounded-lg p-4">
@@ -444,78 +413,12 @@ const ManagePredictionModal: React.FC<ManagePredictionModalProps> = ({
           
           <div className="bg-gray-50 rounded-lg p-4">
             <div className="flex items-center gap-2 mb-2">
-              <DollarSign className="w-4 h-4 text-emerald-600" />
+              <ZaurumMark className="w-4 h-4" />
               <span className="text-sm font-medium text-gray-700">Est. Earnings</span>
             </div>
-            <p className="text-2xl font-bold text-emerald-600">${estimatedEarnings.toLocaleString()}</p>
+            <p className="text-2xl font-bold text-emerald-600"><ZaurumAmount value={estimatedEarnings} compact={false} markSize="sm" /></p>
           </div>
         </div>
-
-        {/* Cover image - creator can change */}
-        <div className="space-y-2">
-          <label className="block text-sm font-semibold text-gray-700">Cover image</label>
-          <input
-            ref={coverFileInputRef}
-            type="file"
-            accept={COVER_IMAGE_ACCEPT}
-            className="hidden"
-            onChange={(e) => {
-              const file = e.target.files?.[0];
-              if (file) {
-                const src = URL.createObjectURL(file);
-                setPendingCropFile(file);
-                setPendingCropSrc(src);
-                setCropModalOpen(true);
-              }
-              e.target.value = '';
-            }}
-          />
-          <div className="flex items-center gap-4">
-            <div className="w-24 aspect-video rounded-xl overflow-hidden bg-gray-100 border border-gray-200 shrink-0">
-              {(predictionData as any).image_url ? (
-                <img
-                  src={(predictionData as any).image_url}
-                  alt="Cover"
-                  className="w-full h-full object-cover object-center block"
-                />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center text-gray-400">
-                  <ImageIcon className="w-8 h-8" />
-                </div>
-              )}
-            </div>
-            <button
-              type="button"
-              onClick={() => coverFileInputRef.current?.click()}
-              disabled={isChangingCover || updating || loading}
-              className="px-4 py-2 text-sm font-medium text-teal-600 bg-teal-50 rounded-xl hover:bg-teal-100 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-            >
-              {isChangingCover ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-              Change image
-            </button>
-          </div>
-        </div>
-
-        <CoverCropModal
-          isOpen={cropModalOpen}
-          imageSrc={pendingCropSrc}
-          originalFile={pendingCropFile}
-          onClose={() => {
-            setCropModalOpen(false);
-            if (pendingCropSrc) URL.revokeObjectURL(pendingCropSrc);
-            setPendingCropSrc(null);
-            setPendingCropFile(null);
-          }}
-          onConfirm={({ file, previewUrl }) => {
-            setCropModalOpen(false);
-            if (pendingCropSrc) URL.revokeObjectURL(pendingCropSrc);
-            setPendingCropSrc(null);
-            setPendingCropFile(null);
-            if (previewUrl) URL.revokeObjectURL(previewUrl);
-            handleChangeCoverImage(file);
-          }}
-          title="Crop cover image"
-        />
 
         {/* Action Buttons - Redesigned with better spacing and UX */}
         <div className="space-y-4">
@@ -561,24 +464,17 @@ const ManagePredictionModal: React.FC<ManagePredictionModalProps> = ({
               <span>{prediction.status === 'open' ? 'Close Early' : 'Already Closed'}</span>
             </motion.button>
 
-            {/* Settle Button - Show for closed predictions or ended predictions; hide when already settled */}
-            {isAlreadySettled(predictionData) ? (
-              <div className="flex-1 flex items-center justify-center gap-3 px-6 py-4 bg-gray-100 text-gray-600 rounded-2xl font-medium border-2 border-gray-200/50">
-                <CheckCircle className="w-5 h-5 text-gray-500" />
-                <span>This prediction is already settled.</span>
-              </div>
-            ) : (
-              <motion.button
-                onClick={() => setShowSettlementModal(true)}
-                disabled={updating || loading || !canSettle(prediction)}
-                className="flex-1 flex items-center justify-center gap-3 px-6 py-4 bg-gradient-to-r from-emerald-600 to-emerald-700 text-white rounded-2xl font-semibold shadow-lg hover:shadow-xl transition-all duration-200 group border-2 border-emerald-400/30 disabled:opacity-50 disabled:cursor-not-allowed disabled:border-gray-300/30"
-                whileHover={{ scale: (updating || loading || !canSettle(prediction)) ? 1 : 1.02 }}
-                whileTap={{ scale: (updating || loading || !canSettle(prediction)) ? 1 : 0.98 }}
-              >
-                <Gavel className="w-5 h-5 group-hover:scale-110 transition-transform" />
-                <span>Settle</span>
-              </motion.button>
-            )}
+            {/* Settle Button - Show for closed predictions or ended predictions */}
+            <motion.button
+              onClick={() => setShowSettlementModal(true)}
+              disabled={updating || loading || !canSettle(prediction)}
+              className="flex-1 flex items-center justify-center gap-3 px-6 py-4 bg-gradient-to-r from-emerald-600 to-emerald-700 text-white rounded-2xl font-semibold shadow-lg hover:shadow-xl transition-all duration-200 group border-2 border-emerald-400/30 disabled:opacity-50 disabled:cursor-not-allowed disabled:border-gray-300/30"
+              whileHover={{ scale: (updating || loading || !canSettle(prediction)) ? 1 : 1.02 }}
+              whileTap={{ scale: (updating || loading || !canSettle(prediction)) ? 1 : 0.98 }}
+            >
+              <Gavel className="w-5 h-5 group-hover:scale-110 transition-transform" />
+              <span>Settle</span>
+            </motion.button>
           </div>
         </div>
 
@@ -623,7 +519,7 @@ const ManagePredictionModal: React.FC<ManagePredictionModalProps> = ({
                   </div>
                   {activity.amount && (
                     <span className="text-sm font-semibold text-emerald-600">
-                      ${activity.amount.toLocaleString()}
+                      <ZaurumAmount value={activity.amount} compact={false} markSize="xs" />
                     </span>
                   )}
                 </div>
@@ -767,7 +663,10 @@ const ManagePredictionModal: React.FC<ManagePredictionModalProps> = ({
                   </div>
                 </div>
                 <span className="text-sm font-semibold text-gray-900">
-                  ${participant.amount.toLocaleString()}
+                  <span className="inline-flex items-center gap-1">
+                    <ZaurumMark className="h-3.5 w-3.5" />
+                    <span>{formatZaurumNumber(participant.amount, { compact: false })}</span>
+                  </span>
                 </span>
               </div>
             ))}
@@ -920,11 +819,7 @@ const ManagePredictionModal: React.FC<ManagePredictionModalProps> = ({
             participant_count: prediction.participant_count || prediction.participants || 0,
             entry_deadline: prediction.entry_deadline || new Date().toISOString()
           } as any}
-          onSettlementComplete={() => {
-            setShowSettlementModal(false);
-            onClose();
-            refreshAllData();
-          }}
+          onSettlementComplete={refreshAllData}
         />
       )}
 

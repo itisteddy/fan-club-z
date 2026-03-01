@@ -217,7 +217,6 @@ class ScrollManager {
 
   // Enhanced scroll to top with debouncing
   scrollToTop(options: { behavior?: 'smooth' | 'instant'; delay?: number } = {}): void {
-    if (this.scrollToTopSuppressed) return;
     const { behavior = 'smooth', delay = 0 } = options;
     
     // Clear any existing timeout to prevent multiple rapid calls
@@ -296,32 +295,6 @@ class ScrollManager {
   markAsBackNavigation(): void {
     this.isBackNavigation = true;
   }
-
-  // Suppress scroll-to-top (used by deep-link scroll to prevent interference)
-  private scrollToTopSuppressed: boolean = false;
-  private suppressTimer: number | null = null;
-
-  suppressScrollToTop(durationMs: number = 5000): void {
-    this.scrollToTopSuppressed = true;
-    if (this.suppressTimer) clearTimeout(this.suppressTimer);
-    // Auto-unsuppress after duration as safety net
-    this.suppressTimer = window.setTimeout(() => {
-      this.scrollToTopSuppressed = false;
-      this.suppressTimer = null;
-    }, durationMs);
-  }
-
-  unsuppressScrollToTop(): void {
-    this.scrollToTopSuppressed = false;
-    if (this.suppressTimer) {
-      clearTimeout(this.suppressTimer);
-      this.suppressTimer = null;
-    }
-  }
-
-  isScrollToTopSuppressed(): boolean {
-    return this.scrollToTopSuppressed;
-  }
   
   // Handle React Router navigation change
   handleRouterNavigation(fromRoute: string, toRoute: string): void {
@@ -353,8 +326,6 @@ class ScrollManager {
       setTimeout(() => {
         this.restoreScrollPosition(toRoute);
       }, 150);
-    } else if (this.scrollToTopSuppressed) {
-      // Deep-link scroll in progress — skip scroll-to-top
     } else {
       // Forward navigation - AGGRESSIVELY scroll to top
       // Immediately scroll
@@ -414,14 +385,6 @@ export const markNavigationAsIntentional = () => {
 
 export const handleRouterNavigation = (fromRoute: string, toRoute: string) => {
   scrollManager.handleRouterNavigation(fromRoute, toRoute);
-};
-
-export const suppressScrollToTop = (durationMs?: number) => {
-  scrollManager.suppressScrollToTop(durationMs);
-};
-
-export const unsuppressScrollToTop = () => {
-  scrollManager.unsuppressScrollToTop();
 };
 
 export const clearScrollTimeout = () => {

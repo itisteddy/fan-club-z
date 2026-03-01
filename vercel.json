@@ -2,21 +2,10 @@
   "buildCommand": "npm --prefix client install && npm --prefix client run build",
   "outputDirectory": "client/dist",
   "installCommand": "npm --prefix client install",
-  "headers": [
-    {
-      "source": "/.well-known/apple-app-site-association",
-      "headers": [{ "key": "Content-Type", "value": "application/json" }]
-    },
-    {
-      "source": "/.well-known/assetlinks.json",
-      "headers": [{ "key": "Content-Type", "value": "application/json" }]
-    }
-  ],
   "rewrites": [
-    { "source": "/.well-known/apple-app-site-association", "destination": "/.well-known/apple-app-site-association" },
-    { "source": "/.well-known/assetlinks.json", "destination": "/.well-known/assetlinks.json" },
-    { "source": "/p/:id/:slug", "destination": "/api/share/prediction?id=:id&slug=:slug" },
-    { "source": "/p/:id", "destination": "/api/share/prediction?id=:id" },
-    { "source": "/(.*)", "destination": "/index.html" }
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
   ]
 }

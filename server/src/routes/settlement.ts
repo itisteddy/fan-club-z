@@ -10,25 +10,12 @@ import { getEscrowAddress } from '../services/escrowContract';
 import { encodePacked, getAddress, keccak256 } from 'viem';
 import { calculatePayouts, type Entry as PayoutEntry } from '../services/payoutCalculator';
 import { computePoolV2SettlementTotals, allocatePoolV2PayoutsToEntries } from '../services/settlementOddsV2';
-import { createNotification } from '../services/notifications';
-import { upsertSettlementResult, computeSettlementAggregates } from '../services/settlementResults';
-import { isCryptoAllowedForClient, isCryptoEnabledOnServer } from '../middleware/requireCryptoEnabled';
+import { upsertSettlementResult } from '../services/settlementResults';
 import { creditCreatorEarnings } from '../services/walletBalanceAccounts';
+import { logMoneyMutation } from '../utils/moneyMutationLogger';
+import { credit, debit, transfer, PLATFORM_TREASURY_OWNER_ID, WalletServiceError } from '../services/walletService';
 
 const router = express.Router();
-
-function cryptoGate(req: express.Request, res: express.Response): boolean {
-  if (!isCryptoAllowedForClient(req)) {
-    console.log('[CRYPTO-GATE] Rejected settlement: client not allowed', { client: (req as any).client });
-    res.status(403).json({
-      error: 'crypto_disabled_for_client',
-      message: 'Crypto is not available for this client',
-      version: VERSION
-    });
-    return true;
-  }
-  return false;
-}
 
 // Minimal ABI for settlement root read
 const ESCROW_MERKLE_READ_ABI = [
@@ -55,6 +42,7 @@ function toBytes32FromUuid(uuid: string): `0x${string}` {
   const hex = uuid.replace(/-/g, '').toLowerCase().padEnd(64, '0');
   return `0x${hex}` as const;
 }
+
 
 // ---- Demo wallet helpers (DB-backed ledger) ----
 const DEMO_CURRENCY = 'DEMO_USD';
@@ -109,39 +97,118 @@ async function ensureDemoWalletRow(userId: string) {
 }
 
 async function applyDemoDelta(userId: string, args: { availableDelta: number; reservedDelta: number }) {
-  await ensureDemoWalletRow(userId);
-  // CAS-style update to reduce races: fetch -> compute -> update with equality guards
-  const { data: w, error: wErr } = await supabase
-    .from('wallets')
-    .select('available_balance,reserved_balance,demo_credits_balance')
-    .eq('user_id', userId)
-    .eq('currency', DEMO_CURRENCY)
-    .maybeSingle();
-  if (wErr) throw wErr;
-  const prevAvail = Number((w as any)?.available_balance || 0);
-  const prevRes = Number((w as any)?.reserved_balance || 0);
-  const prevDemo = Number((w as any)?.demo_credits_balance ?? prevAvail);
-  const nextAvail = prevAvail + args.availableDelta;
-  const nextRes = prevRes + args.reservedDelta;
-  const nextDemo = prevDemo + args.availableDelta;
-  if (nextDemo < 0 || nextAvail < 0 || nextRes < 0) {
-    throw new Error('Demo wallet balance would become negative');
+  const deltaAvailable = round2(args.availableDelta);
+  const deltaReserved = round2(args.reservedDelta);
+
+  try {
+    if (deltaReserved > 0) {
+      await transfer({
+        from: { ownerType: 'user', ownerId: userId, bucket: 'PROMO_AVAILABLE' },
+        to: { ownerType: 'user', ownerId: userId, bucket: 'PROMO_LOCKED' },
+        amount: deltaReserved,
+        reference: {
+          type: 'STAKE_LOCK',
+          referenceType: 'settlement_delta',
+          referenceId: `settlement_delta:${userId}:${Date.now()}:lock`,
+          metadata: { availableDelta: deltaAvailable, reservedDelta: deltaReserved },
+        },
+      });
+    }
+
+    if (deltaReserved < 0) {
+      const unlockedTotal = Math.abs(deltaReserved);
+      const transferUnlock = deltaAvailable > 0 ? Math.min(unlockedTotal, deltaAvailable) : 0;
+      const consumedLoss = round2(unlockedTotal - transferUnlock);
+
+      if (transferUnlock > 0) {
+        await transfer({
+          from: { ownerType: 'user', ownerId: userId, bucket: 'PROMO_LOCKED' },
+          to: { ownerType: 'user', ownerId: userId, bucket: 'PROMO_AVAILABLE' },
+          amount: transferUnlock,
+          reference: {
+            type: 'STAKE_UNLOCK',
+            referenceType: 'settlement_delta',
+            referenceId: `settlement_delta:${userId}:${Date.now()}:unlock-transfer`,
+            metadata: { availableDelta: deltaAvailable, reservedDelta: deltaReserved },
+          },
+        });
+      }
+
+      if (consumedLoss > 0) {
+        await debit({
+          from: { ownerType: 'user', ownerId: userId, bucket: 'PROMO_LOCKED' },
+          amount: consumedLoss,
+          reference: {
+            type: 'ADJUSTMENT',
+            referenceType: 'settlement_delta',
+            referenceId: `settlement_delta:${userId}:${Date.now()}:unlock-consume`,
+            metadata: {
+              availableDelta: deltaAvailable,
+              reservedDelta: deltaReserved,
+              reason: 'settlement_loss',
+            },
+          },
+        });
+      }
+
+      const payoutRemainder = round2(deltaAvailable - transferUnlock);
+      if (payoutRemainder > 0) {
+        await credit({
+          to: { ownerType: 'user', ownerId: userId, bucket: 'PROMO_AVAILABLE' },
+          amount: payoutRemainder,
+          reference: {
+            type: 'PAYOUT',
+            referenceType: 'settlement_delta',
+            referenceId: `settlement_delta:${userId}:${Date.now()}:payout`,
+            metadata: { availableDelta: deltaAvailable, reservedDelta: deltaReserved },
+          },
+        });
+      }
+      return;
+    }
+
+    if (deltaAvailable > 0) {
+      await credit({
+        to: { ownerType: 'user', ownerId: userId, bucket: 'PROMO_AVAILABLE' },
+        amount: deltaAvailable,
+        reference: {
+          type: 'PAYOUT',
+          referenceType: 'settlement_delta',
+          referenceId: `settlement_delta:${userId}:${Date.now()}:payout`,
+          metadata: { availableDelta: deltaAvailable, reservedDelta: deltaReserved },
+        },
+      });
+    }
+
+    if (deltaAvailable < 0) {
+      await debit({
+        from: { ownerType: 'user', ownerId: userId, bucket: 'PROMO_AVAILABLE' },
+        amount: Math.abs(deltaAvailable),
+        reference: {
+          type: 'ADJUSTMENT',
+          referenceType: 'settlement_delta',
+          referenceId: `settlement_delta:${userId}:${Date.now()}:debit`,
+          metadata: { availableDelta: deltaAvailable, reservedDelta: deltaReserved },
+        },
+      });
+    }
+  } catch (err) {
+    if (err instanceof WalletServiceError) {
+      throw new Error(`ZAU wallet mutation failed (${err.code}): ${err.message}`);
+    }
+    throw err;
   }
 
-  const { error: updErr } = await supabase
-    .from('wallets')
-    .update({
-      available_balance: nextAvail,
-      reserved_balance: nextRes,
-      demo_credits_balance: nextDemo,
-      updated_at: new Date().toISOString()
-    } as any)
-    .eq('user_id', userId)
-    .eq('currency', DEMO_CURRENCY)
-    .eq('available_balance', prevAvail)
-    .eq('reserved_balance', prevRes)
-    .eq('demo_credits_balance', prevDemo);
-  if (updErr) throw updErr;
+  logMoneyMutation({
+    action: 'demo_wallet_delta',
+    source: 'settlement.applyDemoDelta',
+    userId,
+    amount: deltaAvailable + deltaReserved,
+    meta: {
+      availableDelta: deltaAvailable,
+      reservedDelta: deltaReserved,
+    },
+  });
 }
 
 function round2(n: number): number {
@@ -675,7 +742,19 @@ export async function settleDemoRail(args: {
         meta: { kind: 'platform_fee', provider: DEMO_PROVIDER, prediction_id: predictionId },
       } as any);
       if (inserted) {
-          await applyDemoDelta(treasuryUserId, { availableDelta: demoResult.platformFee, reservedDelta: 0 });
+          await credit({
+            to: { ownerType: 'system', ownerId: PLATFORM_TREASURY_OWNER_ID, bucket: 'CASH_AVAILABLE' },
+            amount: demoResult.platformFee,
+            reference: {
+              type: 'PLATFORM_FEE',
+              referenceType: 'settlement',
+              referenceId: `demo_platform_fee:${predictionId}`,
+              metadata: {
+                predictionId,
+                legacyTreasuryUserId: treasuryUserId,
+              },
+            },
+          });
         try {
             emitWalletUpdate({ userId: treasuryUserId, reason: 'platform_fee_collected', amountDelta: demoResult.platformFee });
         } catch {}
@@ -692,235 +771,6 @@ export async function settleDemoRail(args: {
   };
 }
 
-// ============================================================
-// FIAT RAIL SETTLEMENT - Phase 7B
-// ============================================================
-const FIAT_PROVIDER = 'fiat-paystack';
-const FIAT_CURRENCY = 'NGN';
-
-/**
- * Settle fiat (NGN) entries - similar to demo but for Paystack deposits
- * Handles winner payouts, loser debits, and fee distribution
- */
-export async function settleFiatRail(args: {
-  predictionId: string;
-  predictionTitle: string;
-  winningOptionId: string;
-  creatorId: string;
-  platformFeePercent: number;
-  creatorFeePercent: number;
-}): Promise<{
-  fiatEntriesCount: number;
-  fiatPlatformFee: number;
-  fiatCreatorFee: number;
-  fiatPayoutPool: number;
-}> {
-  const { predictionId, winningOptionId, predictionTitle, creatorId } = args;
-
-  const { data: entries, error: entriesErr } = await supabase
-    .from('prediction_entries')
-    .select('id,user_id,amount,option_id,provider')
-    .eq('prediction_id', predictionId)
-    .eq('provider', FIAT_PROVIDER);
-
-  if (entriesErr) {
-    console.warn('[SETTLEMENT] Failed to load fiat entries:', entriesErr);
-    return { fiatEntriesCount: 0, fiatPlatformFee: 0, fiatCreatorFee: 0, fiatPayoutPool: 0 };
-  }
-
-  const fiatEntries = (entries || []) as any[];
-  if (fiatEntries.length === 0) {
-    return { fiatEntriesCount: 0, fiatPlatformFee: 0, fiatCreatorFee: 0, fiatPayoutPool: 0 };
-  }
-
-  // Map entries to payout calculator format (amounts stored in NGN, we work in kobo internally)
-  const payoutEntries: PayoutEntry[] = fiatEntries.map((e: any) => ({
-    userId: e.user_id,
-    optionId: e.option_id,
-    amount: Number(e.amount || 0) * 100, // Convert NGN to kobo for calculation
-    provider: e.provider,
-  }));
-
-  const feeConfig = {
-    platformFeeBps: args.platformFeePercent * 100,
-    creatorFeeBps: args.creatorFeePercent * 100,
-  };
-
-  // Calculate payouts
-  const fiatResult = calculatePayouts({
-    entries: payoutEntries,
-    winningOptionId,
-    feeConfig,
-    rail: 'fiat',
-    providerMatch: (p) => p === FIAT_PROVIDER,
-  });
-
-  const winners = fiatEntries.filter((e: any) => e.option_id === winningOptionId);
-  const losers = fiatEntries.filter((e: any) => e.option_id !== winningOptionId);
-
-  // Track stakes per user
-  const userStakes = new Map<string, number>();
-  for (const entry of fiatEntries) {
-    const stake = Number(entry.amount || 0) * 100; // kobo
-    userStakes.set(entry.user_id, (userStakes.get(entry.user_id) || 0) + stake);
-  }
-
-  // Helper to insert fiat transaction (idempotent)
-  async function upsertFiatTx(payload: any): Promise<boolean> {
-    const { error } = await supabase.from('wallet_transactions').insert(payload);
-    if (error && (error as any).code === '23505') return false; // Already exists
-    if (error) {
-      console.warn('[SETTLEMENT] fiat tx insert error:', error);
-      return false;
-    }
-    return true;
-  }
-
-  // Apply payouts to winners
-  for (const [userId, payoutAmountKobo] of Object.entries(fiatResult.payoutsByUserId)) {
-    const userWinningEntries = winners.filter((e: any) => e.user_id === userId);
-    const userTotalStakeKobo = userStakes.get(userId) || 0;
-
-    for (const entry of userWinningEntries) {
-      const stakeNgn = Number(entry.amount || 0);
-      const stakeKobo = stakeNgn * 100;
-      const share = fiatResult.winnersStakeTotal > 0 ? stakeKobo / fiatResult.winnersStakeTotal : 0;
-      const entryPayoutKobo = Math.round(fiatResult.distributablePot * share);
-
-      await supabase
-        .from('prediction_entries')
-        .update({ status: 'won', actual_payout: entryPayoutKobo / 100, updated_at: new Date().toISOString() } as any)
-        .eq('id', entry.id);
-
-      // Record payout transaction
-      const inserted = await upsertFiatTx({
-        user_id: userId,
-        direction: 'credit',
-        // wallet_transactions.type/channel have CHECK constraints; use allowed values
-        type: 'payout',
-        channel: 'payout',
-        provider: FIAT_PROVIDER,
-        amount: entryPayoutKobo,
-        currency: FIAT_CURRENCY,
-        status: 'completed',
-        external_ref: `fiat_payout:${predictionId}:${entry.id}`,
-        prediction_id: predictionId,
-        entry_id: entry.id,
-        description: `Fiat payout for "${predictionTitle}"`,
-        meta: { kind: 'payout', currency: 'NGN', provider: FIAT_PROVIDER, prediction_id: predictionId, entry_id: entry.id, amountKobo: entryPayoutKobo, amountNgn: entryPayoutKobo / 100 },
-      });
-      if (inserted) {
-        try {
-          emitWalletUpdate({ userId, reason: 'payout', amountDelta: entryPayoutKobo / 100 });
-        } catch {}
-      }
-    }
-
-    // Persist canonical settlement result for winner
-    try {
-      await upsertSettlementResult({
-        predictionId,
-        userId,
-        provider: FIAT_PROVIDER,
-        stakeTotal: userTotalStakeKobo / 100, // Store in NGN
-        returnedTotal: (payoutAmountKobo as number) / 100,
-        net: ((payoutAmountKobo as number) - userTotalStakeKobo) / 100,
-        status: 'win',
-        claimStatus: 'not_applicable',
-      });
-    } catch (err) {
-      console.error('[SETTLEMENT] Failed to persist fiat winner result:', err);
-    }
-  }
-
-  // Record losses
-  const loserStakesByUser = new Map<string, number>();
-  for (const l of losers) {
-    const stakeKobo = Number(l.amount || 0) * 100;
-    const current = loserStakesByUser.get(l.user_id) || 0;
-    loserStakesByUser.set(l.user_id, current + stakeKobo);
-
-    await supabase
-      .from('prediction_entries')
-      .update({ status: 'lost', actual_payout: 0, updated_at: new Date().toISOString() } as any)
-      .eq('id', l.id);
-  }
-
-  // Persist canonical settlement results for losers
-  for (const [userId, totalStakeKobo] of loserStakesByUser.entries()) {
-    try {
-      await upsertSettlementResult({
-        predictionId,
-        userId,
-        provider: FIAT_PROVIDER,
-        stakeTotal: totalStakeKobo / 100,
-        returnedTotal: 0,
-        net: -totalStakeKobo / 100,
-        status: 'loss',
-        claimStatus: 'not_applicable',
-      });
-    } catch (err) {
-      console.error('[SETTLEMENT] Failed to persist fiat loser result:', err);
-    }
-  }
-
-  // Fiat creator/platform fees
-  if (fiatResult.totalPot > 0 && (fiatResult.platformFee > 0 || fiatResult.creatorFee > 0)) {
-    if (fiatResult.creatorFee > 0) {
-      await upsertFiatTx({
-        user_id: creatorId,
-        direction: 'credit',
-        type: 'creator_fee',
-        channel: 'creator_fee',
-        provider: FIAT_PROVIDER,
-        amount: fiatResult.creatorFee,
-        currency: FIAT_CURRENCY,
-        status: 'completed',
-        external_ref: `fiat_creator_fee:${predictionId}`,
-        prediction_id: predictionId,
-        description: `Fiat creator fee for "${predictionTitle}"`,
-        meta: { kind: 'creator_fee', currency: 'NGN', provider: FIAT_PROVIDER, prediction_id: predictionId, amountKobo: fiatResult.creatorFee, amountNgn: fiatResult.creatorFee / 100 },
-      });
-    }
-
-    // Platform fee goes to treasury (or platform account)
-    const treasuryUserId = process.env.PLATFORM_TREASURY_USER_ID || process.env.TREASURY_USER_ID;
-    if (fiatResult.platformFee > 0 && treasuryUserId) {
-      await upsertFiatTx({
-        user_id: treasuryUserId,
-        direction: 'credit',
-        type: 'platform_fee',
-        channel: 'platform_fee',
-        provider: FIAT_PROVIDER,
-        amount: fiatResult.platformFee,
-        currency: FIAT_CURRENCY,
-        status: 'completed',
-        external_ref: `fiat_platform_fee:${predictionId}`,
-        prediction_id: predictionId,
-        description: `Fiat platform fee for "${predictionTitle}"`,
-        meta: { kind: 'platform_fee', currency: 'NGN', provider: FIAT_PROVIDER, prediction_id: predictionId, amountKobo: fiatResult.platformFee, amountNgn: fiatResult.platformFee / 100 },
-      });
-    }
-  }
-
-  console.log('[SETTLEMENT] Fiat rail settled:', {
-    predictionId,
-    entries: fiatEntries.length,
-    winners: winners.length,
-    losers: losers.length,
-    platformFee: fiatResult.platformFee / 100,
-    creatorFee: fiatResult.creatorFee / 100,
-    payoutPool: fiatResult.distributablePot / 100,
-  });
-
-  return {
-    fiatEntriesCount: fiatEntries.length,
-    fiatPlatformFee: fiatResult.platformFee / 100, // Return in NGN
-    fiatCreatorFee: fiatResult.creatorFee / 100,
-    fiatPayoutPool: fiatResult.distributablePot / 100,
-  };
-}
-
 async function ensureOnchainPosted(predictionId: string): Promise<`0x${string}` | null> {
   try {
     const client = makePublicClient();
@@ -933,26 +783,8 @@ async function ensureOnchainPosted(predictionId: string): Promise<`0x${string}` 
       args: [idBytes],
     })) as `0x${string}`;
     if (root && /^0x0{64}$/i.test(root) === false) {
-      // Phase 4A: Mark DB as finalized if not already (explicit state machine)
-      const { data: existing } = await supabase
-        .from('bet_settlements')
-        .select('meta')
-        .eq('bet_id', predictionId)
-        .maybeSingle();
-      const existingMeta = (existing?.meta as any) || {};
-      const existingStateMachine = existingMeta.stateMachine || {};
-      
-      await supabase.from('bet_settlements').update({ 
-        status: 'onchain_finalized', 
-        meta: {
-          ...existingMeta,
-          merkle_root: root,
-          stateMachine: {
-            ...existingStateMachine,
-            onchain_finalized: true,
-          }
-        } 
-      } as any).eq('bet_id', predictionId);
+      // Mark DB as posted if not already
+      await supabase.from('bet_settlements').update({ status: 'onchain_posted', meta: { merkle_root: root } } as any).eq('bet_id', predictionId);
       return root;
     }
     return null;
@@ -1126,6 +958,16 @@ router.post('/manual', async (req, res) => {
     const { predictionId, winningOptionId, proofUrl, reason } = req.body;
     const userId = req.body.userId; // In production, this would come from JWT auth
     
+    console.log('');
+    console.log('🔨🔨🔨 [SETTLEMENT] ========================================');
+    console.log('🔨 [SETTLEMENT] Manual settlement endpoint called');
+    console.log('🔨 [SETTLEMENT] Request body:', JSON.stringify(req.body, null, 2));
+    console.log('🔨 [SETTLEMENT] Prediction ID:', predictionId);
+    console.log('🔨 [SETTLEMENT] Winning Option ID:', winningOptionId);
+    console.log('🔨 [SETTLEMENT] User ID:', userId);
+    console.log('🔨🔨🔨 [SETTLEMENT] ========================================');
+    console.log('');
+    
     // Validate required fields
     if (!predictionId || !winningOptionId || !userId) {
       return res.status(400).json({
@@ -1176,56 +1018,6 @@ router.post('/manual', async (req, res) => {
       });
     }
 
-    // Idempotency: conditional update — only set settled where settled_at IS NULL (SETTLED is terminal)
-    const { data: updatedRow } = await supabase
-      .from('predictions')
-      .update({
-        status: 'settled',
-        settled_at: new Date().toISOString(),
-        winning_option_id: winningOptionId,
-        resolution_reason: reason ?? null,
-        resolution_source_url: proofUrl ?? null,
-      })
-      .eq('id', predictionId)
-      .is('settled_at', null)
-      .select('id')
-      .maybeSingle();
-
-    if (!updatedRow) {
-      // Already settled: return 200 with settlement data (no duplicate payout)
-      const { data: pred } = await supabase
-        .from('predictions')
-        .select('settled_at, winning_option_id, resolution_reason, resolution_source_url, creator_id')
-        .eq('id', predictionId)
-        .maybeSingle();
-      const { data: bs } = await supabase
-      .from('bet_settlements')
-        .select('winning_option_id, settlement_time')
-      .eq('bet_id', predictionId)
-      .maybeSingle();
-      const winningOptionIdFinal = (pred?.winning_option_id ?? bs?.winning_option_id) || winningOptionId;
-      if (winningOptionIdFinal !== winningOptionId) {
-      return res.status(409).json({
-        error: 'Conflict',
-        message: 'Settlement already exists with a different winning option',
-          version: VERSION,
-        });
-      }
-      const settledAt = pred?.settled_at ?? bs?.settlement_time ?? null;
-      console.log('settlePrediction: already settled', { predictionId });
-      return res.status(200).json(
-        buildSettlementContract({
-          predictionId,
-          alreadySettled: true,
-          winningOptionId: winningOptionIdFinal,
-          settledAt,
-          settledByUserId: (pred as any)?.creator_id ?? null,
-          reason: (pred as any)?.resolution_reason ?? null,
-          sourceUrl: (pred as any)?.resolution_source_url ?? null,
-        })
-      );
-    }
-
     // Get all prediction entries for this prediction
     const { data: allEntries, error: entriesError } = await supabase
       .from('prediction_entries')
@@ -1241,135 +1033,89 @@ router.post('/manual', async (req, res) => {
       });
     }
 
-    // Split entries by provider for per-rail settlement
-    const demoEntries = (allEntries || []).filter((e: any) => e?.provider === DEMO_PROVIDER);
-    const fiatEntries = (allEntries || []).filter((e: any) => e?.provider === FIAT_PROVIDER);
-    const cryptoEntries = (allEntries || []).filter((e: any) => 
-      e?.provider !== DEMO_PROVIDER && e?.provider !== FIAT_PROVIDER
-    );
-    const hasDemoRail = demoEntries.length > 0;
-    const hasFiatRail = fiatEntries.length > 0;
-    const hasCryptoRail = cryptoEntries.length > 0;
-
+    // Calculate settlement amounts
+    const totalPool = Number(prediction.pool_total || 0);
     const platformFeePercent = Number.isFinite(prediction.platform_fee_percentage) ? Number(prediction.platform_fee_percentage) : 2.5;
     const creatorFeePercent = Number.isFinite(prediction.creator_fee_percentage) ? Number(prediction.creator_fee_percentage) : 1.0;
     
-    // Phase 3A: Settle demo rail first (off-chain, idempotent)
-    // IMPORTANT: Always call settleDemoRail if demo entries exist, even in hybrid mode
-    // This ensures demo fees are always computed and credited with idempotent external_ref keys
-    let demoSummary = { demoEntriesCount: 0, demoPlatformFee: 0, demoCreatorFee: 0, demoPayoutPool: 0 };
-    if (hasDemoRail) {
-      demoSummary = await settleDemoRail({
-        predictionId,
-        predictionTitle: prediction.title,
-        winningOptionId,
-        creatorId: prediction.creator_id,
-        platformFeePercent,
-        creatorFeePercent,
-      });
-      
-      // Log demo settlement application (using payout calculator results)
-      const demoWinnersCount = demoEntries.filter((e: any) => e.option_id === winningOptionId).length;
-      console.log('[settlement] demo applied', {
-        predictionId,
-        demoPot: demoSummary.demoPayoutPool + demoSummary.demoPlatformFee + demoSummary.demoCreatorFee,
-        platformFee: demoSummary.demoPlatformFee,
-        creatorFee: demoSummary.demoCreatorFee,
-        winners: demoWinnersCount,
-      });
-    }
+    // Calculate total stakes for winners and losers
+    const winners = allEntries.filter(entry => entry.option_id === winningOptionId);
+    const losers = allEntries.filter(entry => entry.option_id !== winningOptionId);
+    const totalWinningStake = winners.reduce((sum, entry) => sum + (entry.amount || 0), 0);
+    const totalLosingStake = losers.reduce((sum, entry) => sum + (entry.amount || 0), 0);
 
-    // Phase 7B: Settle fiat rail (NGN via Paystack, off-chain, idempotent)
-    let fiatSummary = { fiatEntriesCount: 0, fiatPlatformFee: 0, fiatCreatorFee: 0, fiatPayoutPool: 0 };
-    if (hasFiatRail) {
-      fiatSummary = await settleFiatRail({
-        predictionId,
-        predictionTitle: prediction.title,
-        winningOptionId,
-        creatorId: prediction.creator_id,
-        platformFeePercent,
-        creatorFeePercent,
-      });
-      
-      const fiatWinnersCount = fiatEntries.filter((e: any) => e.option_id === winningOptionId).length;
-      console.log('[settlement] fiat applied', {
-        predictionId,
-        fiatPot: fiatSummary.fiatPayoutPool + fiatSummary.fiatPlatformFee + fiatSummary.fiatCreatorFee,
-        platformFee: fiatSummary.fiatPlatformFee,
-        creatorFee: fiatSummary.fiatCreatorFee,
-        winners: fiatWinnersCount,
-      });
-    }
+    // Fees are charged on the LOSING stakes only (the house take)
+    // This ensures winners always get back at least their original stake
+    const rawPlatformFee = (totalLosingStake * platformFeePercent) / 100;
+    const rawCreatorFee = (totalLosingStake * creatorFeePercent) / 100;
 
-    // Calculate crypto rail settlement amounts (if any)
-    const cryptoWinners = cryptoEntries.filter((e: any) => e.option_id === winningOptionId);
-    const cryptoLosers = cryptoEntries.filter((e: any) => e.option_id !== winningOptionId);
-    const totalCryptoWinningStake = cryptoWinners.reduce((sum, entry) => sum + (entry.amount || 0), 0);
-    const totalCryptoLosingStake = cryptoLosers.reduce((sum, entry) => sum + (entry.amount || 0), 0);
-
-    // Fees are charged on LOSING stakes only (per rail)
-    const rawCryptoPlatformFee = (totalCryptoLosingStake * platformFeePercent) / 100;
-    const rawCryptoCreatorFee = (totalCryptoLosingStake * creatorFeePercent) / 100;
-
-    const cryptoPlatformFee = Math.max(Math.round(rawCryptoPlatformFee * 100) / 100, 0);
-    const cryptoCreatorFee = Math.max(Math.round(rawCryptoCreatorFee * 100) / 100, 0);
+    const platformFee = Math.max(Math.round(rawPlatformFee * 100) / 100, 0);
+    const creatorFee = Math.max(Math.round(rawCreatorFee * 100) / 100, 0);
     
-    // Crypto payout pool = winners get their stakes back + share of (losing stakes - fees)
-    const cryptoPrizePool = Math.max(totalCryptoLosingStake - cryptoPlatformFee - cryptoCreatorFee, 0);
-    const cryptoPayoutPool = totalCryptoWinningStake + cryptoPrizePool;
-
-    // Combined totals for response (demo + crypto)
-    const totalPlatformFee = demoSummary.demoPlatformFee + cryptoPlatformFee;
-    const totalCreatorFee = demoSummary.demoCreatorFee + cryptoCreatorFee;
-    const totalPayoutPool = demoSummary.demoPayoutPool + cryptoPayoutPool;
+    // Payout pool = winners get their stakes back + share of (losing stakes - fees)
+    const prizePool = Math.max(totalLosingStake - platformFee - creatorFee, 0);
+    const payoutPool = totalWinningStake + prizePool;
 
     console.log('💰 Settlement calculation:', {
-      demo: demoSummary,
-      crypto: {
-        totalWinningStake: totalCryptoWinningStake,
-        totalLosingStake: totalCryptoLosingStake,
-        platformFee: cryptoPlatformFee,
-        creatorFee: cryptoCreatorFee,
-        payoutPool: cryptoPayoutPool,
-      },
-      combined: {
-        platformFee: totalPlatformFee,
-        creatorFee: totalCreatorFee,
-        payoutPool: totalPayoutPool,
-      },
+      totalPool,
+      totalWinningStake,
+      totalLosingStake,
+      platformFee,
+      creatorFee,
+      prizePool,
+      payoutPool,
       totalEntries: allEntries?.length || 0
     });
 
-    // If no participants, create settlement record only (prediction already updated above)
+    // If no participants, return fees to creator (no payouts)
     if (!allEntries || allEntries.length === 0) {
       console.log('📭 No participants - settling with creator fee only');
-      const settledAt = new Date().toISOString();
-      await supabase
+      
+      // Update prediction status to settled
+      const { error: updatePredictionError } = await supabase
+        .from('predictions')
+        .update({ 
+          status: 'settled', 
+          settled_at: new Date().toISOString(),
+          winning_option_id: winningOptionId
+        })
+        .eq('id', predictionId);
+
+      if (updatePredictionError) {
+        console.error('Error updating prediction status:', updatePredictionError);
+      }
+
+      // Create settlement record
+      const { data: settlement, error: settlementError } = await supabase
         .from('bet_settlements')
-        .upsert({
+        .insert({
           bet_id: predictionId,
           winning_option_id: winningOptionId,
           total_payout: 0,
           platform_fee_collected: 0,
           creator_payout_amount: 0,
-          settlement_time: settledAt,
-        } as any, { onConflict: 'bet_id' });
-      console.log('settlePrediction: settled', { predictionId });
-      return res.status(200).json(
-        buildSettlementContract({
-          predictionId,
-          alreadySettled: false,
-          winningOptionId,
-          settledAt,
-          settledByUserId: userId,
-          reason: reason ?? null,
-          sourceUrl: proofUrl ?? null,
+          settlement_time: new Date().toISOString()
         })
-      );
+        .select()
+        .single();
+
+      return res.json({
+        success: true,
+        data: {
+          settlement,
+          totalPayout: 0,
+          platformFee: 0,
+          creatorFee: 0,
+          winnersCount: 0,
+          participantsCount: 0
+        },
+        message: 'Prediction settled successfully (no participants)',
+        version: VERSION
+      });
     }
 
-    // Process crypto winners/losers (demo already handled by settleDemoRail)
-    const winnersCount = cryptoWinners.length + (demoSummary.demoEntriesCount > 0 ? demoEntries.filter((e: any) => e.option_id === winningOptionId).length : 0);
+    // Winners and losers already calculated above
+    const winnersCount = winners.length;
 
     // Map escrow locks to the outcome of the associated entry so we can avoid refunding losers
     const lockOutcomeById = new Map<
@@ -1391,46 +1137,30 @@ router.post('/manual', async (req, res) => {
 
     console.log('🏆 Winners calculation:', {
       winnersCount,
-      cryptoWinners: cryptoWinners.length,
-      demoWinners: demoSummary.demoEntriesCount > 0 ? demoEntries.filter((e: any) => e.option_id === winningOptionId).length : 0,
-      cryptoPayoutPool,
-      demoPayoutPool: demoSummary.demoPayoutPool
+      totalWinningStake,
+      payoutPool
     });
 
     // Begin transaction for settlement
     const settlementResults = [];
 
-    // Process crypto winners only (demo winners already handled by settleDemoRail)
+    // Process each winner's payout
     console.log('');
     console.log(`🏆🏆🏆 [SETTLEMENT] ========================================`);
-    console.log(`🏆 [SETTLEMENT] Processing crypto winners`);
-    console.log(`🏆 [SETTLEMENT] Crypto winners: ${cryptoWinners.length}`);
-    console.log(`🏆 [SETTLEMENT] Demo winners already processed: ${demoSummary.demoEntriesCount > 0 ? demoEntries.filter((e: any) => e.option_id === winningOptionId).length : 0}`);
+    console.log(`🏆 [SETTLEMENT] Starting winner processing loop`);
+    console.log(`🏆 [SETTLEMENT] Total winners: ${winners.length}`);
+    console.log(`🏆 [SETTLEMENT] Winners array:`, JSON.stringify(winners, null, 2));
     console.log(`🏆🏆🏆 [SETTLEMENT] ========================================`);
     console.log('');
-
-    // Phase 6A: Track crypto user stakes and payouts for canonical results (by provider)
-    const cryptoUserStakes = new Map<string, Map<string, number>>(); // userId -> provider -> stake
-    const cryptoUserPayouts = new Map<string, Map<string, number>>(); // userId -> provider -> payout
-    for (const entry of cryptoEntries) {
-      const provider = entry.provider || 'crypto-base-usdc'; // Fallback to default
-      if (!cryptoUserStakes.has(entry.user_id)) {
-        cryptoUserStakes.set(entry.user_id, new Map());
-        cryptoUserPayouts.set(entry.user_id, new Map());
-      }
-      const userStakes = cryptoUserStakes.get(entry.user_id)!;
-      const current = userStakes.get(provider) || 0;
-      userStakes.set(provider, current + Number(entry.amount || 0));
-    }
     
-    for (const winner of cryptoWinners) {
+    for (const winner of winners) {
       console.log('');
       console.log(`🔄 [SETTLEMENT] Processing winner ${winner.id}...`);
       console.log('');
       
       const winnerStake = winner.amount || 0;
-      const winnerShare = totalCryptoWinningStake > 0 ? winnerStake / totalCryptoWinningStake : 0;
-      const payout = Math.floor(cryptoPayoutPool * winnerShare * 100) / 100; // Round to 2 decimals
+      const winnerShare = totalWinningStake > 0 ? winnerStake / totalWinningStake : 0;
+      const payout = Math.floor(payoutPool * winnerShare * 100) / 100; // Round to 2 decimals
       
       console.log(`📊 [SETTLEMENT] Winner calculation: stake=$${winnerStake}, share=${winnerShare}, payout=$${payout}`);
       
@@ -1453,9 +1183,8 @@ router.post('/manual', async (req, res) => {
       
       console.log(`✅ [SETTLEMENT] Entry updated successfully`);
 
-      // Credit crypto winner's wallet with payout (demo winners already handled by settleDemoRail)
+      // Credit winner's wallet with payout
       try {
-
         console.log('');
         console.log(`💰💰💰 [SETTLEMENT] ========================================`);
         console.log(`💰 [SETTLEMENT] Processing winner payout`);
@@ -1466,9 +1195,23 @@ router.post('/manual', async (req, res) => {
         console.log(`💰💰💰 [SETTLEMENT] ========================================`);
         console.log('');
         
-        // Update wallet balance
-        console.log(`💰 [SETTLEMENT] Step 1: Calling db.wallets.directUpdateBalance...`);
-        const balanceResult = await db.wallets.directUpdateBalance(winner.user_id, 'USD', payout, 0);
+        // Update wallet balance through ZAU ledger (mirrored to legacy wallets table).
+        console.log(`💰 [SETTLEMENT] Step 1: Crediting winner via WalletService...`);
+        await credit({
+          to: { ownerType: 'user', ownerId: winner.user_id, bucket: 'PROMO_AVAILABLE' },
+          amount: payout,
+          reference: {
+            type: 'PAYOUT',
+            referenceType: 'settlement_manual',
+            referenceId: `settlement_manual:${predictionId}:winner:${winner.id}`,
+            metadata: {
+              predictionId,
+              entryId: winner.id,
+              winningOptionId,
+            },
+          },
+        });
+        const balanceResult = { ok: true };
         console.log(`💰 [SETTLEMENT] Step 1 COMPLETE - Balance update result:`, JSON.stringify(balanceResult, null, 2));
         
         // Create wallet transaction record
@@ -1482,8 +1225,6 @@ router.post('/manual', async (req, res) => {
           amount: payout,
           currency: 'USD' as const,
           status: 'completed' as const,
-          // Idempotency: prevent duplicate win payouts if settlement is retried
-          external_ref: `settlement:${predictionId}:payout:${winner.id}`,
           prediction_id: predictionId,
           entry_id: winner.id,
           description: `Prediction win payout for "${prediction.title}"`,
@@ -1505,15 +1246,6 @@ router.post('/manual', async (req, res) => {
         console.log(`✅✅✅ [SETTLEMENT] Successfully credited ${payout} USD to winner ${winner.user_id}`);
         console.log('');
         
-        // Phase 6A: Track user payout for canonical results (by provider)
-        const provider = winner.provider || 'crypto-base-usdc';
-        if (!cryptoUserPayouts.has(winner.user_id)) {
-          cryptoUserPayouts.set(winner.user_id, new Map());
-        }
-        const userPayouts = cryptoUserPayouts.get(winner.user_id)!;
-        const currentPayout = userPayouts.get(provider) || 0;
-        userPayouts.set(provider, currentPayout + payout);
-        
         settlementResults.push({
           userId: winner.user_id,
           entryId: winner.id,
@@ -1533,41 +1265,8 @@ router.post('/manual', async (req, res) => {
       }
     }
 
-    // Phase 6A: Persist canonical results for crypto winners (per provider)
-    for (const [userId, userPayouts] of cryptoUserPayouts.entries()) {
-      const userStakes = cryptoUserStakes.get(userId) || new Map();
-      for (const [provider, totalPayout] of userPayouts.entries()) {
-        const totalStake = userStakes.get(provider) || 0;
-        try {
-          await upsertSettlementResult({
-            predictionId,
-            userId,
-            provider,
-            stakeTotal: totalStake,
-            returnedTotal: totalPayout,
-            net: totalPayout - totalStake,
-            status: 'win',
-            claimStatus: 'not_applicable', // Crypto is credited directly, not claimable
-          });
-        } catch (err) {
-          console.error('[SETTLEMENT] Failed to persist crypto winner result:', err);
-          // Non-fatal: continue settlement
-        }
-      }
-    }
-
-    // Update crypto losing entries (demo losers already handled by settleDemoRail)
-    const cryptoLoserStakesByUser = new Map<string, Map<string, number>>(); // userId -> provider -> stake
-    for (const loser of cryptoLosers) {
-      const stake = Number(loser.amount || 0);
-      const provider = loser.provider || 'crypto-base-usdc';
-      if (!cryptoLoserStakesByUser.has(loser.user_id)) {
-        cryptoLoserStakesByUser.set(loser.user_id, new Map());
-      }
-      const userStakes = cryptoLoserStakesByUser.get(loser.user_id)!;
-      const current = userStakes.get(provider) || 0;
-      userStakes.set(provider, current + stake);
-
+    // Update losing entries (losers already calculated above)
+    for (const loser of losers) {
       const { error: updateLoserError } = await supabase
         .from('prediction_entries')
         .update({
@@ -1581,7 +1280,7 @@ router.post('/manual', async (req, res) => {
         console.error('Error updating loser entry:', updateLoserError);
       }
 
-      // Record crypto loss activity (demo losses already handled by settleDemoRail)
+      // Record a loss activity transaction for the loser (for UI transparency)
       try {
         const lossAmount = Number(loser.amount || 0);
         await supabase
@@ -1595,8 +1294,6 @@ router.post('/manual', async (req, res) => {
             amount: lossAmount,
             currency: 'USD',
             status: 'completed',
-            // Idempotency: prevent duplicate loss rows if settlement is retried
-            external_ref: `settlement:${predictionId}:loss:${loser.id}`,
             prediction_id: predictionId,
             entry_id: loser.id,
             description: `Loss recorded for "${prediction.title}"`,
@@ -1607,60 +1304,34 @@ router.post('/manual', async (req, res) => {
               prediction_title: prediction.title,
               winning_option_id: winningOptionId
             }
-          } as any)
-          .then(({ error }) => {
-            if (error && (error as any).code !== '23505') {
-              console.warn('[SETTLEMENT] loss tx insert error (non-fatal):', error);
-            }
           });
       } catch (lossTxErr) {
         console.warn('[SETTLEMENT] Failed to record loss transaction:', lossTxErr);
       }
     }
 
-    // Phase 6A: Persist canonical results for crypto losers (per provider)
-    for (const [userId, userStakes] of cryptoLoserStakesByUser.entries()) {
-      for (const [provider, totalStake] of userStakes.entries()) {
-        try {
-          await upsertSettlementResult({
-            predictionId,
-            userId,
-            provider,
-            stakeTotal: totalStake,
-            returnedTotal: 0,
-            net: -totalStake,
-            status: 'loss',
-            claimStatus: 'not_applicable',
-          });
-        } catch (err) {
-          console.error('[SETTLEMENT] Failed to persist crypto loser result:', err);
-          // Non-fatal: continue settlement
-        }
-      }
-    }
-
-    // Credit creator and platform fees (demo fees already handled by settleDemoRail, only process crypto fees here)
+    // Credit creator and platform fees
     const feeCurrency = config.platform?.feeCurrency || 'USD';
     let treasuryUserId: string | null = null;
-    if (cryptoPlatformFee > 0) {
+    if (platformFee > 0) {
       treasuryUserId = await resolveTreasuryUserId();
     }
-    if (cryptoCreatorFee > 0) {
+    if (creatorFee > 0) {
       try {
         console.log('');
         console.log(`🎨🎨🎨 [SETTLEMENT] ========================================`);
-        console.log(`🎨 [SETTLEMENT] Processing creator fee (crypto rail)`);
+        console.log(`🎨 [SETTLEMENT] Processing creator fee`);
         console.log(`🎨 [SETTLEMENT] Creator ID: ${prediction.creator_id}`);
-        console.log(`🎨 [SETTLEMENT] Fee amount: $${cryptoCreatorFee}`);
+        console.log(`🎨 [SETTLEMENT] Fee amount: $${creatorFee}`);
         console.log(`🎨🎨🎨 [SETTLEMENT] ========================================`);
         console.log('');
         
         console.log(`🎨 [SETTLEMENT] Step 1: Crediting creator earnings balance + ledger...`);
         const creatorTxResult = await creditCreatorEarnings({
           userId: prediction.creator_id,
-          amount: cryptoCreatorFee,
+          amount: creatorFee,
           provider: 'crypto-base-usdc',
-          externalRef: `settlement:${predictionId}:creator_fee:crypto`,
+          externalRef: `settlement:${predictionId}:creator_fee`,
           predictionId,
           currency: feeCurrency,
           description: `Creator earnings for "${prediction.title}"`,
@@ -1671,17 +1342,16 @@ router.post('/manual', async (req, res) => {
             winning_option_id: winningOptionId,
             reason: 'creator_fee',
             settlement_type: 'manual',
-            rail: 'crypto',
             prediction_title: prediction.title,
           },
         });
         console.log(`🎨 [SETTLEMENT] Step 1 COMPLETE - Result:`, JSON.stringify(creatorTxResult, null, 2));
         console.log('');
-        console.log(`✅ [SETTLEMENT] Creator fee (crypto) credited successfully`);
+        console.log(`✅ [SETTLEMENT] Creator fee credited successfully`);
         console.log('');
         
         try {
-          emitWalletUpdate({ userId: prediction.creator_id, reason: 'creator_fee_paid', amountDelta: cryptoCreatorFee });
+          emitWalletUpdate({ userId: prediction.creator_id, reason: 'creator_fee_paid', amountDelta: creatorFee });
         } catch (emitErr) {
           console.warn('⚠️ Failed to emit creator wallet update:', emitErr);
         }
@@ -1694,19 +1364,31 @@ router.post('/manual', async (req, res) => {
       }
     }
 
-    if (cryptoPlatformFee > 0) {
+    if (platformFee > 0) {
       if (treasuryUserId) {
         try {
           console.log('');
           console.log(`🏦🏦🏦 [SETTLEMENT] ========================================`);
-          console.log(`🏦 [SETTLEMENT] Processing platform fee (crypto rail)`);
+          console.log(`🏦 [SETTLEMENT] Processing platform fee`);
           console.log(`🏦 [SETTLEMENT] Treasury user ID: ${treasuryUserId}`);
-          console.log(`🏦 [SETTLEMENT] Fee amount: $${cryptoPlatformFee}`);
+          console.log(`🏦 [SETTLEMENT] Fee amount: $${platformFee}`);
           console.log(`🏦🏦🏦 [SETTLEMENT] ========================================`);
           console.log('');
           
-          console.log(`🏦 [SETTLEMENT] Step 1: Updating treasury wallet balance...`);
-          await db.wallets.directUpdateBalance(treasuryUserId, feeCurrency, cryptoPlatformFee, 0);
+          console.log(`🏦 [SETTLEMENT] Step 1: Crediting treasury via WalletService...`);
+          await credit({
+            to: { ownerType: 'system', ownerId: PLATFORM_TREASURY_OWNER_ID, bucket: 'CASH_AVAILABLE' },
+            amount: platformFee,
+            reference: {
+              type: 'PLATFORM_FEE',
+              referenceType: 'settlement_manual',
+              referenceId: `settlement_manual:${predictionId}:platform_fee`,
+              metadata: {
+                predictionId,
+                winningOptionId,
+              },
+            },
+          });
           console.log(`🏦 [SETTLEMENT] Step 1 COMPLETE`);
           
           console.log(`🏦 [SETTLEMENT] Step 2: Creating platform fee transaction...`);
@@ -1716,27 +1398,26 @@ router.post('/manual', async (req, res) => {
             type: 'deposit',
             channel: 'platform_fee',
             provider: 'crypto-base-usdc',
-            amount: cryptoPlatformFee,
+            amount: platformFee,
             currency: feeCurrency,
             status: 'completed',
-            external_ref: `settlement:${predictionId}:platform_fee:crypto`,
-            description: `Platform fee (crypto rail) collected for "${prediction.title}"`,
+            external_ref: `settlement:${predictionId}:platform_fee`,
+            description: `Platform fee collected for "${prediction.title}"`,
             meta: {
               prediction_id: predictionId,
               winning_option_id: winningOptionId,
               reason: 'platform_fee',
               settlement_type: 'manual',
-              rail: 'crypto',
               prediction_title: prediction.title
             }
           });
           console.log(`🏦 [SETTLEMENT] Step 2 COMPLETE - Transaction:`, JSON.stringify(platformTxResult, null, 2));
           console.log('');
-          console.log(`✅ [SETTLEMENT] Platform fee (crypto) credited successfully`);
+          console.log(`✅ [SETTLEMENT] Platform fee credited successfully`);
           console.log('');
           
           try {
-            emitWalletUpdate({ userId: treasuryUserId, reason: 'platform_fee_collected', amountDelta: cryptoPlatformFee });
+            emitWalletUpdate({ userId: treasuryUserId, reason: 'platform_fee_collected', amountDelta: platformFee });
           } catch (emitErr) {
             console.warn('⚠️ Failed to emit platform wallet update:', emitErr);
           }
@@ -1751,44 +1432,23 @@ router.post('/manual', async (req, res) => {
         console.warn('');
         console.warn('⚠️⚠️⚠️ [SETTLEMENT] ========================================');
         console.warn('⚠️ [SETTLEMENT] PLATFORM_TREASURY_USER_ID is not configured or could not be resolved');
-        console.warn('⚠️ [SETTLEMENT] Platform fee (crypto) of $' + cryptoPlatformFee + ' was NOT credited to any wallet');
+        console.warn('⚠️ [SETTLEMENT] Platform fee of $' + platformFee + ' was NOT credited to any wallet');
         console.warn('⚠️⚠️⚠️ [SETTLEMENT] ========================================');
         console.warn('');
       }
     }
 
-    // Phase 4A: Create/update settlement record with explicit state machine
-    // State: offchain_settled (outcome decided, payouts computed)
-    // Next states: demo_paid (if demo rail) or onchain_finalized (if crypto rail)
-    const settlementStatus = hasDemoRail && !hasCryptoRail 
-      ? 'demo_paid'  // Demo-only: payouts already applied by settleDemoRail
-      : 'offchain_settled';  // Hybrid or crypto-only: outcome decided, crypto finalize pending
-
+    // Create settlement record
     const { data: settlement, error: settlementError } = await supabase
       .from('bet_settlements')
-      .upsert({
+      .insert({
         bet_id: predictionId,
         winning_option_id: winningOptionId,
-        total_payout: totalPayoutPool,
-        platform_fee_collected: totalPlatformFee,
-        creator_payout_amount: totalCreatorFee,
-        settlement_time: new Date().toISOString(),
-        status: settlementStatus,
-        meta: {
-          demo: demoSummary,
-          crypto: {
-            platformFee: cryptoPlatformFee,
-            creatorFee: cryptoCreatorFee,
-            payoutPool: cryptoPayoutPool,
-            needsFinalize: hasCryptoRail,
-          },
-          stateMachine: {
-            offchain_settled: true,
-            demo_paid: hasDemoRail && !hasCryptoRail,
-            onchain_finalized: false, // Will be updated by finalize step
-          }
-        }
-      } as any, { onConflict: 'bet_id' } as any)
+        total_payout: payoutPool,
+        platform_fee_collected: platformFee,
+        creator_payout_amount: creatorFee,
+        settlement_time: new Date().toISOString()
+      })
       .select()
       .single();
 
@@ -1857,16 +1517,28 @@ router.post('/manual', async (req, res) => {
       }
     }
 
-    // Prediction already updated to settled at start (conditional update); no duplicate write
+    // Update prediction status to settled
+    const { error: updatePredictionError } = await supabase
+      .from('predictions')
+      .update({ 
+        status: 'settled', 
+        settled_at: new Date().toISOString(),
+        winning_option_id: winningOptionId
+      })
+      .eq('id', predictionId);
 
-    // Record creator payout if there's a crypto fee (demo fees already recorded by settleDemoRail)
-    if (cryptoCreatorFee > 0) {
+    if (updatePredictionError) {
+      console.error('Error updating prediction status:', updatePredictionError);
+    }
+
+    // Record creator payout if there's a fee
+    if (creatorFee > 0) {
       const { error: payoutError } = await supabase
         .from('creator_payouts')
         .insert({
           creator_id: prediction.creator_id,
           bet_id: predictionId,
-          amount: cryptoCreatorFee,
+          amount: creatorFee,
           currency: feeCurrency,
           status: 'processed',
           processed_at: new Date().toISOString()
@@ -1890,131 +1562,43 @@ router.post('/manual', async (req, res) => {
       console.warn('⚠️ Failed to emit settlement payout updates:', emitError);
     }
 
-    // Phase 4C: Create in-app notifications for participants
-    console.log('🔔 Creating notifications for participants...');
+    // Notify each participant individually (no bulk responses)
+    console.log('🔔 Sending individual notifications to participants...');
     for (const entry of allEntries) {
       try {
-        const isWinner = entry.option_id === winningOptionId;
-        const payout = isWinner ? Number(entry.actual_payout || 0) : 0;
-        const isDemo = entry.provider === DEMO_PROVIDER;
-        const isCrypto = !isDemo;
+        const outcome = entry.option_id === winningOptionId ? 'won' : 'lost';
+        const payout = entry.option_id === winningOptionId ? entry.actual_payout : 0;
         
-        // A) Win/Loss notification
-        const winLossType = isWinner ? 'win' : 'loss';
-        const winLossTitle = isWinner ? 'You won!' : 'Result settled';
-        const winLossBody = isWinner
-          ? `You won $${payout.toFixed(2)} on "${prediction.title}"`
-          : `The prediction "${prediction.title}" has been settled.`;
+        console.log(`📧 Notifying participant ${entry.user_id}: ${outcome} (payout: $${payout})`);
         
-        await createNotification({
-          userId: entry.user_id,
-          type: winLossType,
-          title: winLossTitle,
-          body: winLossBody,
-          href: `/predictions/${predictionId}`,
-          metadata: {
-            predictionId,
-            predictionTitle: prediction.title,
-            winningOptionId,
-            entryId: entry.id,
-            payout: isWinner ? payout : 0,
-          },
-          externalRef: `notif:${winLossType}:${predictionId}:${entry.user_id}`,
-        }).catch((err) => {
-          console.warn(`[Notifications] Failed to create ${winLossType} notification for ${entry.user_id}:`, err);
-        });
-        
-        // B) Demo payout credited notification (for demo winners)
-        if (isWinner && isDemo && payout > 0) {
-          await createNotification({
-            userId: entry.user_id,
-            type: 'payout',
-            title: 'Payout credited',
-            body: `Your demo wallet was credited $${payout.toFixed(2)} for "${prediction.title}".`,
-            href: `/wallet`,
-            metadata: {
-              predictionId,
-              predictionTitle: prediction.title,
-              entryId: entry.id,
-              payout,
-              rail: 'demo',
-            },
-            externalRef: `notif:payout_demo:${predictionId}:${entry.user_id}`,
-          }).catch((err) => {
-            console.warn(`[Notifications] Failed to create demo payout notification for ${entry.user_id}:`, err);
-          });
-        }
-        
-        // C) Crypto claim available notification (for crypto winners - only if claimable)
-        // Note: Claim availability is determined by onchain finalization status
-        // For now, we'll create the notification; it can be filtered client-side if needed
-        if (isWinner && isCrypto && payout > 0) {
-          // Check if settlement is finalized (claimable) by querying the actual settlement status
-          const { data: currentSettlement } = await supabase
-            .from('bet_settlements')
-            .select('status')
-            .eq('bet_id', predictionId)
-            .maybeSingle();
-          
-          const isFinalized = currentSettlement?.status === 'onchain_finalized' || currentSettlement?.status === 'onchain_posted';
-          if (isFinalized) {
-            await createNotification({
-              userId: entry.user_id,
-              type: 'claim',
-              title: 'Claim available',
-              body: `Your payout of $${payout.toFixed(2)} is ready to claim for "${prediction.title}".`,
-              href: `/predictions/${predictionId}`,
-              metadata: {
-                predictionId,
-                predictionTitle: prediction.title,
-                entryId: entry.id,
-                payout,
-                rail: 'crypto',
-              },
-              externalRef: `notif:claim:${predictionId}:${entry.user_id}`,
-            }).catch((err) => {
-              console.warn(`[Notifications] Failed to create claim notification for ${entry.user_id}:`, err);
-            });
-          }
-        }
+        // In a real app, you would send individual push notifications, emails, or in-app notifications here
+        // For now, we'll log each individual notification
+        // TODO: Implement actual individual notification system (push notifications, email, etc.)
         
       } catch (notificationError) {
         console.error(`❌ Failed to notify participant ${entry.user_id}:`, notificationError);
         // Continue with other notifications even if one fails
       }
     }
-    console.log('✅ Participant notifications created');
+    console.log('✅ Individual participant notifications sent');
 
-    // Phase 6A: Compute canonical aggregates
-    let aggregates: any = {};
-    try {
-      aggregates = await computeSettlementAggregates(predictionId, allEntries || []);
-      // Override with actual fee values from settlement
-      if (aggregates.demo) {
-        aggregates.demo.platformFee = demoSummary.demoPlatformFee;
-        aggregates.demo.creatorFee = demoSummary.demoCreatorFee;
-      }
-      if (aggregates.crypto) {
-        aggregates.crypto.platformFee = cryptoPlatformFee;
-        aggregates.crypto.creatorFee = cryptoCreatorFee;
-      }
-    } catch (err) {
-      console.error('[SETTLEMENT] Failed to compute aggregates:', err);
-      // Non-fatal: continue without aggregates
-    }
+    return res.json({
+      success: true,
+      data: {
+        settlement,
+        totalPayout: payoutPool,
+        platformFee,
+        creatorFee,
+        winnersCount,
+        participantsCount: allEntries.length,
+        results: settlementResults,
+        prediction: recomputed.prediction,
+        updatedOptions: recomputed.options
+      },
+      message: 'Prediction settled successfully',
+      version: VERSION
+    });
 
-    const settledAt = settlement?.settlement_time ?? new Date().toISOString();
-    return res.status(200).json(
-      buildSettlementContract({
-        predictionId,
-        alreadySettled: false,
-        winningOptionId,
-        settledAt,
-        settledByUserId: userId,
-        reason: reason ?? null,
-        sourceUrl: proofUrl ?? null,
-      })
-    );
   } catch (error) {
     console.error('Error in manual settlement:', error);
     return res.status(500).json({
@@ -2028,7 +1612,6 @@ router.post('/manual', async (req, res) => {
 
 // DEBUG/OPS: Inspect computed leaves for a prediction (only after on-chain post)
 router.get('/:predictionId/leaves', async (req, res) => {
-  if (cryptoGate(req, res)) return;
   try {
     const { predictionId } = req.params as { predictionId: string };
     const { address } = req.query as { address?: string };
@@ -2041,12 +1624,10 @@ router.get('/:predictionId/leaves', async (req, res) => {
       .select('winning_option_id,status,meta')
       .eq('bet_id', predictionId)
       .maybeSingle();
-    // Phase 4A: Accept both old and new statuses for backward compatibility
-    const isFinalized = s?.status === 'onchain_finalized' || s?.status === 'onchain_posted';
-    if (!s || !isFinalized || !s.winning_option_id) {
-      return res.status(409).json({ error: 'not_ready', message: 'Settlement not finalized on-chain', version: VERSION });
+    if (!s || s.status !== 'onchain_posted' || !s.winning_option_id) {
+      return res.status(409).json({ error: 'not_ready', message: 'Not onchain_posted', version: VERSION });
     }
-    const settlement = await computeMerkleSettlementCryptoOnly({ predictionId, winningOptionId: s.winning_option_id });
+    const settlement = await computeMerkleSettlement({ predictionId, winningOptionId: s.winning_option_id });
     const leaves = settlement.leaves.map((l) => ({
       address: l.address,
       amountUnits: l.amountUnits.toString(),
@@ -2064,7 +1645,6 @@ router.get('/:predictionId/leaves', async (req, res) => {
 // GET /api/v2/settlement/:predictionId/merkle-proof?address=0x...
 // Returns the leaf/proof and claim amount for a given wallet address
 router.get('/:predictionId/merkle-proof', async (req, res) => {
-  if (cryptoGate(req, res)) return;
   try {
     const { predictionId } = req.params as { predictionId: string };
     const { address } = req.query as { address?: string };
@@ -2095,15 +1675,13 @@ router.get('/:predictionId/merkle-proof', async (req, res) => {
       winningOptionId = pred?.winning_option_id ?? null;
     }
 
-    // Phase 4C: Gate by on-chain finalized status (explicit state machine)
-    // Accept both old and new statuses for backward compatibility
-    const isFinalized = settlementRow?.status === 'onchain_finalized' || settlementRow?.status === 'onchain_posted';
-    if (!isFinalized) {
+    // Gate by on-chain posted status to avoid user-facing reverted claims
+    if (settlementRow && settlementRow.status !== 'onchain_posted') {
       const onchain = await ensureOnchainPosted(predictionId);
       if (!onchain) {
         return res.status(409).json({
           error: 'not_ready',
-          message: 'Settlement not finalized on-chain yet',
+          message: 'Settlement root not posted on-chain yet',
           version: VERSION
         });
       }
@@ -2117,48 +1695,17 @@ router.get('/:predictionId/merkle-proof', async (req, res) => {
       });
     }
 
-    // Phase 4C: Compute merkle settlement (crypto-only entries)
-    // Merkle tree only includes crypto entries, so if address not found, they either:
-    // 1. Only have demo entries (already paid instantly, no claim needed)
-    // 2. Lost or didn't participate with crypto
-    const settlement = await computeMerkleSettlementCryptoOnly({ predictionId, winningOptionId });
-    const normalized = String(address).toLowerCase();
-    const leaf = settlement.leaves.find((l) => l.address.toLowerCase() === normalized);
+  const settlement = await computeMerkleSettlement({ predictionId, winningOptionId });
+  const normalized = String(address).toLowerCase();
+  const leaf = settlement.leaves.find((l) => l.address.toLowerCase() === normalized);
 
-    if (!leaf) {
-      // Phase 4C: Provide helpful message if user might have demo entries
-      // Check if address has any entries (demo or crypto) to provide better error
-      const { data: walletAddr } = await supabase
-        .from('wallet_addresses')
-        .select('user_id')
-        .eq('address', normalized)
-        .eq('chain_id', 84532)
-        .maybeSingle();
-      
-      if (walletAddr?.user_id) {
-        const { data: userEntries } = await supabase
-          .from('prediction_entries')
-          .select('provider')
-          .eq('prediction_id', predictionId)
-          .eq('user_id', walletAddr.user_id)
-          .limit(1);
-        
-        const hasDemoEntry = userEntries?.some((e: any) => e.provider === DEMO_PROVIDER);
-        if (hasDemoEntry) {
-          return res.status(404).json({
-            error: 'not_found',
-            message: 'Demo entries are paid instantly. No on-chain claim needed.',
-            version: VERSION
-          });
-        }
-      }
-      
-      return res.status(404).json({
-        error: 'not_found',
-        message: 'Address is not eligible or no claimable amount',
-        version: VERSION
-      });
-    }
+  if (!leaf) {
+    return res.status(404).json({
+      error: 'not_found',
+      message: 'Address is not eligible or no claimable amount',
+      version: VERSION
+    });
+  }
 
   const amountUnits = leaf.amountUnits ?? 0n;
   const amountUSD = Number(amountUnits) / 1_000_000;
@@ -2198,7 +1745,6 @@ router.get('/:predictionId/merkle-proof', async (req, res) => {
 // Returns claimable settlements for a given wallet address
 // Optimized to avoid slow on-chain calls where possible
 router.get('/claimable', async (req, res) => {
-  if (cryptoGate(req, res)) return;
   const startTime = Date.now();
   try {
     const { address, limit: limitStr } = req.query as { address?: string; limit?: string };
@@ -2210,23 +1756,21 @@ router.get('/claimable', async (req, res) => {
 
     console.log(`[SETTLEMENT] Fetching claimable for ${normalized.slice(0, 10)}...`);
 
-    // Phase 4A: Include both on-chain finalized settlements AND off-chain settlements
+    // CRITICAL FIX: Include both on-chain posted settlements AND off-chain settlements
     // Off-chain settlements can be converted to on-chain claims if Merkle root is posted
-    // First, fetch on-chain finalized settlements (ready to claim)
-    // Accept both old ('onchain_posted') and new ('onchain_finalized') statuses for backward compatibility
+    // First, fetch on-chain posted settlements (ready to claim)
     const { data: onchainSettled, error: onchainError } = await supabase
       .from('bet_settlements')
       .select('bet_id, winning_option_id, status, meta')
-      .in('status', ['onchain_finalized', 'onchain_posted'])  // Phase 4A: Support both old and new statuses
+      .eq('status', 'onchain_posted')
       .order('created_at', { ascending: false })
       .limit(limit * 2);
     
-    // Also fetch off-chain settled/completed settlements (may need Merkle root posted)
-    // Phase 4A: Include new state machine statuses
+    // Also fetch off-chain completed settlements (may need Merkle root posted)
     const { data: offchainSettled, error: offchainError } = await supabase
       .from('bet_settlements')
       .select('bet_id, winning_option_id, status, meta')
-      .in('status', ['offchain_settled', 'demo_paid', 'completed', 'computed'])  // Phase 4A: Include new statuses
+      .in('status', ['completed', 'computed'])
       .order('created_at', { ascending: false })
       .limit(limit * 2);
     
@@ -2253,8 +1797,8 @@ router.get('/claimable', async (req, res) => {
         // Check if root already exists on-chain (might have been posted retroactively)
         const existingRoot = await ensureOnchainPosted(s.bet_id);
         if (existingRoot) {
-          // Root exists on-chain, treat as onchain_finalized (Phase 4A: use new status)
-          settledMap.set(s.bet_id, { ...s, status: 'onchain_finalized', meta: { ...s.meta, merkle_root: existingRoot } });
+          // Root exists on-chain, treat as onchain_posted
+          settledMap.set(s.bet_id, { ...s, status: 'onchain_posted', meta: { ...s.meta, merkle_root: existingRoot } });
         } else {
           // Root not posted yet - do NOT include for claimable list
           // Winners are already credited off-chain; on-chain claim would revert.
@@ -2269,7 +1813,7 @@ router.get('/claimable', async (req, res) => {
           settledMap.set(p.id, {
             bet_id: p.id,
             winning_option_id: p.winning_option_id,
-            status: 'onchain_finalized',  // Phase 4A: use new status
+            status: 'onchain_posted',
             meta: { merkle_root: existingRoot }
           });
         }
@@ -2341,7 +1885,7 @@ router.get('/claimable', async (req, res) => {
         if (!winningOptionId) continue;
 
         // Compute merkle settlement (uses cached data, no on-chain calls)
-        const settlement = await computeMerkleSettlementCryptoOnly({ predictionId: p.id, winningOptionId });
+        const settlement = await computeMerkleSettlement({ predictionId: p.id, winningOptionId });
         const leaf = settlement.leaves.find((l) => l.address.toLowerCase() === normalized);
         if (!leaf || (leaf.amountUnits ?? 0n) === 0n) continue;
 
@@ -2402,17 +1946,7 @@ router.get('/claimable', async (req, res) => {
     return res.status(500).json({ error: 'internal', message: 'Failed to compute claimable', version: VERSION });
   }
 });
-// POST /api/v2/settlement/manual/merkle - Creator-led Merkle settlement
-//
-// Settlement architecture (hybrid rails):
-//   1. Demo rail: always settled via DB ledger, regardless of client or crypto state.
-//   2. Crypto rail: if crypto entries exist AND CRYPTO_MODE != 'off' on server,
-//      compute + persist Merkle proof (root, leaves, proofs). Mark as pending_onchain.
-//      The on-chain posting (tx) is a separate step done by the creator wallet or relayer.
-//   3. Crypto rail skipped ONLY if: no crypto entries, OR CRYPTO_MODE=off on server.
-//      Client identity (mobile/web/admin) is NEVER a reason to skip crypto settlement.
-//
-// No crypto gate on this endpoint. Client gating is UI-only.
+// POST /api/v2/settlement/manual/merkle - Creator-led Merkle settlement (on-chain flow)
 router.post('/manual/merkle', async (req, res) => {
   try {
     const { predictionId, winningOptionId, userId, reason } = req.body as {
@@ -2430,10 +1964,10 @@ router.post('/manual/merkle', async (req, res) => {
       });
     }
 
-    // Verify user is creator and load settled_at for idempotency
+    // Verify user is creator
     const { data: prediction, error: predictionError } = await supabase
       .from('predictions')
-      .select('id, creator_id, title, status, settled_at, winning_option_id, resolution_reason, resolution_source_url, platform_fee_percentage, creator_fee_percentage')
+      .select('id, creator_id, title, status, platform_fee_percentage, creator_fee_percentage')
       .eq('id', predictionId)
       .single();
     if (predictionError || !prediction) {
@@ -2451,178 +1985,8 @@ router.post('/manual/merkle', async (req, res) => {
       });
     }
 
-    // Idempotency: if already settled, return 200 with contract (no duplicate payout)
-    const statusLower = String((prediction as any).status || '').toLowerCase();
-    if (statusLower === 'settled' || (prediction as any).settled_at) {
-      const { data: bs } = await supabase
-        .from('bet_settlements')
-        .select('winning_option_id, settlement_time')
-        .eq('bet_id', predictionId)
-        .maybeSingle();
-      const existingWinning = (prediction as any).winning_option_id ?? bs?.winning_option_id;
-      if (existingWinning && existingWinning !== winningOptionId) {
-        return res.status(409).json({
-          error: 'Conflict',
-          message: 'Settlement already exists with a different winning option',
-          version: VERSION,
-        });
-      }
-      const winningOptionIdFinal = existingWinning || winningOptionId;
-      const settledAt = (prediction as any).settled_at ?? bs?.settlement_time ?? null;
-      console.log('settlePrediction: already settled', { predictionId });
-      return res.status(200).json(
-        buildSettlementContract({
-          predictionId,
-          alreadySettled: true,
-          winningOptionId: winningOptionIdFinal,
-          settledAt,
-          settledByUserId: (prediction as any).creator_id ?? null,
-          reason: (prediction as any).resolution_reason ?? null,
-          sourceUrl: (prediction as any).resolution_source_url ?? null,
-        })
-      );
-    }
-
-    // Load entries once to decide if we have any crypto rail participants
-    const { data: allEntries, error: entriesErr } = await supabase
-      .from('prediction_entries')
-      .select('id,user_id,amount,option_id,provider')
-      .eq('prediction_id', predictionId);
-
-    if (entriesErr) {
-      console.error('[SETTLEMENT] Failed to load entries:', entriesErr);
-      return res.status(500).json({ error: 'database_error', message: 'Failed to load entries', version: VERSION });
-    }
-
-    const demoSummary = await settleDemoRail({
-      predictionId,
-      predictionTitle: prediction.title,
-      winningOptionId,
-      creatorId: prediction.creator_id,
-      platformFeePercent: Number.isFinite((prediction as any).platform_fee_percentage) ? Number((prediction as any).platform_fee_percentage) : 2.5,
-      creatorFeePercent: Number.isFinite((prediction as any).creator_fee_percentage) ? Number((prediction as any).creator_fee_percentage) : 1.0,
-    });
-
-    const cryptoEntries = (allEntries || []).filter((e: any) => e?.provider !== DEMO_PROVIDER);
-    const hasCryptoRail = cryptoEntries.length > 0;
-
-    // Demo-only prediction: settle off-chain and do NOT require on-chain root
-    if (!hasCryptoRail) {
-      await supabase
-        .from('bet_settlements')
-        .upsert(
-          {
-            bet_id: predictionId,
-            winning_option_id: winningOptionId,
-            total_payout: demoSummary.demoPayoutPool,
-            platform_fee_collected: demoSummary.demoPlatformFee,
-            creator_payout_amount: demoSummary.demoCreatorFee,
-            settlement_time: new Date().toISOString(),
-            status: 'completed',
-            meta: { rail: 'demo' },
-          } as any,
-          { onConflict: 'bet_id' } as any
-        );
-
-      try {
-        await supabase
-          .from('predictions')
-          .update({
-            status: 'settled',
-            settled_at: new Date().toISOString(),
-            winning_option_id: winningOptionId,
-            updated_at: new Date().toISOString(),
-          } as any)
-          .eq('id', predictionId);
-      } catch {}
-
-      emitSettlementComplete({ predictionId });
-      emitPredictionUpdate({ predictionId });
-
-      return res.json({
-        success: true,
-        data: {
-          predictionId,
-          title: prediction.title,
-          winningOptionId,
-          demo: demoSummary,
-          summary: {
-            platformFeeUSD: demoSummary.demoPlatformFee,
-            creatorFeeUSD: demoSummary.demoCreatorFee,
-            payoutPoolUSD: demoSummary.demoPayoutPool,
-            winnersCount: 0,
-          },
-        },
-        message: 'Demo settlement completed off-chain (no on-chain action required).',
-        version: VERSION,
-      });
-    }
-
-    // Crypto entries exist. Check if server-level crypto is enabled.
-    // NOTE: We intentionally do NOT check client identity here.
-    // Settlement = "finalize outcome + publish proof". The calling client
-    // (mobile, web, admin) is irrelevant. Claims happen later.
-    if (!isCryptoEnabledOnServer()) {
-      console.log('[SETTLEMENT] Crypto entries exist but CRYPTO_MODE=off on server — skipping crypto rail');
-      // Mark prediction as settled (demo done, crypto skipped due to env)
-      try {
-        await supabase
-          .from('predictions')
-          .update({
-            status: 'settled',
-            settled_at: new Date().toISOString(),
-            winning_option_id: winningOptionId,
-            resolution_reason: reason || null,
-            updated_at: new Date().toISOString(),
-          } as any)
-          .eq('id', predictionId);
-      } catch {}
-
-      await supabase
-        .from('bet_settlements')
-        .upsert(
-          {
-            bet_id: predictionId,
-            winning_option_id: winningOptionId,
-            total_payout: demoSummary.demoPayoutPool,
-            platform_fee_collected: demoSummary.demoPlatformFee,
-            creator_payout_amount: demoSummary.demoCreatorFee,
-            settlement_time: new Date().toISOString(),
-            status: 'completed',
-            meta: { rail: 'demo', crypto_skipped: true, crypto_skip_reason: 'env_disabled' },
-          } as any,
-          { onConflict: 'bet_id' } as any
-        );
-
-      emitSettlementComplete({ predictionId });
-      emitPredictionUpdate({ predictionId });
-
-      return res.json({
-        success: true,
-        data: {
-          predictionId,
-          title: prediction.title,
-          winningOptionId,
-          demo: demoSummary,
-          crypto: { settled: false, skippedReason: 'env_disabled', entriesCount: cryptoEntries.length },
-          summary: {
-            platformFeeUSD: demoSummary.demoPlatformFee,
-            creatorFeeUSD: demoSummary.demoCreatorFee,
-            payoutPoolUSD: demoSummary.demoPayoutPool,
-            winnersCount: 0,
-          },
-        },
-        message: 'Demo settlement completed. Crypto settlement skipped (CRYPTO_MODE=off on server). Crypto entries will be settled when crypto is re-enabled.',
-        version: VERSION,
-      });
-    }
-
-    // Server crypto is enabled + crypto entries exist → compute + persist Merkle proof.
-    // This runs regardless of which client called the endpoint (mobile, web, admin).
-    console.log(`[SETTLEMENT] Computing Merkle settlement for ${cryptoEntries.length} crypto entries`);
-
-    // Compute distribution and Merkle structure (CRYPTO rail only; winners claim later)
-    const settlement = await computeMerkleSettlementCryptoOnly({ predictionId, winningOptionId });
+    // Compute distribution and Merkle structure (fees charged on losing stake only)
+    const settlement = await computeMerkleSettlement({ predictionId, winningOptionId });
 
     // Record a pending settlement record (for audit; on-chain confirmation happens via watcher)
     await supabase
@@ -2653,7 +2017,6 @@ router.post('/manual/merkle', async (req, res) => {
           status: 'settled',
           settled_at: new Date().toISOString(),
           winning_option_id: winningOptionId,
-          resolution_reason: reason || null,
           updated_at: new Date().toISOString()
         })
         .eq('id', predictionId);
@@ -2661,9 +2024,15 @@ router.post('/manual/merkle', async (req, res) => {
       console.warn('[SETTLEMENT] Failed to mark prediction settled (will still proceed):', e);
     }
 
-    // 2) Update entries to won/lost and set computed payouts (CRYPTO rail only)
+    // 2) Update entries to won/lost and set computed payouts
     try {
-      if (Array.isArray(cryptoEntries) && cryptoEntries.length > 0) {
+      const { data: allEntries, error: entriesErr } = await supabase
+        .from('prediction_entries')
+        .select('id,user_id,amount,option_id')
+        .eq('prediction_id', predictionId);
+      if (entriesErr) {
+        console.error('[SETTLEMENT] Failed to load entries for distribution:', entriesErr);
+      } else if (Array.isArray(allEntries) && allEntries.length > 0) {
         // Index winner payout by user
         const payoutByUser = new Map<string, number>();
         for (const w of settlement.winners) {
@@ -2673,7 +2042,7 @@ router.post('/manual/merkle', async (req, res) => {
         // Group winning entries by user to pro-rate user payout across their winning entries
         const winningEntriesByUser = new Map<string, Array<{ id: string; amount: number }>>();
         const losers: Array<{ id: string; user_id: string; amount: number }> = [];
-        for (const e of cryptoEntries as any[]) {
+        for (const e of allEntries) {
           const isWinnerEntry = e.option_id === winningOptionId;
           if (isWinnerEntry) {
             const arr = winningEntriesByUser.get(e.user_id) || [];
@@ -2722,18 +2091,11 @@ router.post('/manual/merkle', async (req, res) => {
                 amount: userPayout,
                 currency: 'USD',
                 status: 'pending',
-                // Idempotency: one pending payout marker per user per prediction
-                external_ref: `settlement:${predictionId}:payout_pending:${user}`,
                 prediction_id: predictionId,
                 description: 'Win recorded - claim on-chain to receive funds',
                 meta: {
                   reason: 'win_pending_claim',
                   merkle_root: settlement.root,
-                }
-              } as any)
-              .then(({ error }) => {
-                if (error && (error as any).code !== '23505') {
-                  console.warn('[SETTLEMENT] pending payout tx insert error (non-fatal):', error);
                 }
               });
           } catch (payoutActivityErr) {
@@ -2764,17 +2126,10 @@ router.post('/manual/merkle', async (req, res) => {
                 amount: l.amount,
                 currency: 'USD',
                 status: 'completed',
-                // Idempotency: prevent duplicate loss rows if settlement is retried
-                external_ref: `settlement:${predictionId}:loss:${l.id}`,
                 prediction_id: predictionId,
                 entry_id: l.id,
                 description: 'Loss recorded at settlement',
                 meta: { reason: 'settled_loss' }
-              } as any)
-              .then(({ error }) => {
-                if (error && (error as any).code !== '23505') {
-                  console.warn('[SETTLEMENT] merkle loss tx insert error (non-fatal):', error);
-                }
               });
           } catch (lossTxErr) {
             console.warn('[SETTLEMENT] Failed to record loss activity:', lossTxErr);
@@ -2843,14 +2198,73 @@ router.post('/manual/merkle', async (req, res) => {
 
 // POST /api/v2/settlement/manual/merkle/posted - record on-chain posting (tx + root)
 router.post('/manual/merkle/posted', async (req, res) => {
-  if (cryptoGate(req, res)) return;
   try {
     const { predictionId, txHash, root } = req.body as { predictionId?: string; txHash?: string; root?: string };
     if (!predictionId || !txHash) {
       return res.status(400).json({ error: 'bad_request', message: 'predictionId and txHash are required', version: VERSION });
     }
 
-    await recordOnchainPosted({ predictionId, txHash, root: root || null });
+    await supabase
+      .from('bet_settlements')
+      .update({
+        status: 'onchain_posted',
+        meta: {
+          tx_hash: txHash,
+          merkle_root: root || null,
+          updated_at: new Date().toISOString(),
+        }
+      } as any)
+      .eq('bet_id', predictionId);
+
+    // Create on-chain fee activity rows for creator and platform (if available)
+    try {
+      const { data: pred } = await supabase
+        .from('predictions')
+        .select('id,title,creator_id,winning_option_id,platform_fee_percentage,creator_fee_percentage')
+        .eq('id', predictionId)
+        .maybeSingle();
+      if (pred?.winning_option_id) {
+        const settlement = await computeMerkleSettlement({ predictionId, winningOptionId: pred.winning_option_id });
+        const currency = 'USD';
+        // Creator fee
+        if (settlement.creatorFeeUSD > 0 && pred.creator_id) {
+          await creditCreatorEarnings({
+            userId: pred.creator_id,
+            amount: settlement.creatorFeeUSD,
+            provider: 'onchain-escrow',
+            externalRef: `onchain_settlement:${predictionId}:creator_fee:${txHash}`,
+            predictionId,
+            currency,
+            description: `Creator earnings (on-chain settlement) for "${pred.title}"`,
+            referenceType: 'settlement',
+            referenceId: predictionId,
+            metadata: { merkle_root: settlement.root, tx_hash: txHash, rail: 'crypto' },
+          });
+        }
+        // Platform fee
+        if (settlement.platformFeeUSD > 0) {
+          const treasuryUserId = await resolveTreasuryUserId();
+          if (treasuryUserId) {
+            await supabase.from('wallet_transactions').insert({
+              user_id: treasuryUserId,
+              direction: 'credit',
+              type: 'deposit',
+              channel: 'platform_fee',
+              provider: 'onchain-escrow',
+              amount: settlement.platformFeeUSD,
+              currency,
+              status: 'completed',
+              prediction_id: predictionId,
+              description: `Platform fee (on-chain) for "${pred.title}"`,
+              tx_hash: txHash,
+              meta: { merkle_root: settlement.root }
+            });
+          }
+        }
+      }
+    } catch (postErr) {
+      console.warn('[SETTLEMENT] Failed to record on-chain fee activity:', postErr);
+    }
 
     return res.json({ success: true, version: VERSION });
   } catch (err: any) {
@@ -3119,34 +2533,23 @@ router.get('/:predictionId/status', async (req, res) => {
       .eq('bet_id', predictionId)
       .single();
 
-    // Check if prediction has crypto entries (non-demo providers)
-    const hasCryptoEntries = (prediction.entries || []).some(
-      (entry: any) => entry.provider && entry.provider !== DEMO_PROVIDER && entry.provider !== 'demo-wallet'
-    );
-
     const response = {
       prediction: {
         id: prediction.id,
         title: prediction.title,
         status: prediction.status,
-        pool_total: prediction.pool_total,
-        creator_id: prediction.creator_id,
-        resolution_reason: (prediction as any).resolution_reason ?? null,
-        resolution_source_url: (prediction as any).resolution_source_url ?? null,
-        hasCryptoEntries,
+        pool_total: prediction.pool_total
       },
       userEntry: {
         id: userEntry.id,
         option_id: userEntry.option_id,
         amount: userEntry.amount,
         status: userEntry.status,
-        actual_payout: userEntry.actual_payout,
-        provider: (userEntry as any).provider || null,
+        actual_payout: userEntry.actual_payout
       },
       settlement: settlement || null,
       canValidate: prediction.status === 'closed' || prediction.status === 'awaiting_settlement',
-      needsSettlement: !settlement && (prediction.status === 'closed' || prediction.status === 'awaiting_settlement'),
-      hasCryptoEntries,
+      needsSettlement: !settlement && (prediction.status === 'closed' || prediction.status === 'awaiting_settlement')
     };
 
     return res.json({
@@ -3170,33 +2573,17 @@ router.get('/:predictionId/status', async (req, res) => {
 router.post('/:predictionId/validate', async (req, res) => {
   try {
     const { predictionId } = req.params;
-    const { userId, action, reason, proofUrl } = req.body as { 
-      userId?: string; 
-      action?: string; 
-      reason?: string;
-      proofUrl?: string;
-    };
+    const { userId, action, reason } = req.body; // action: 'accept' | 'dispute'
     
     console.log(`✅ Settlement validation for prediction ${predictionId}: ${action} by user ${userId}`);
     
     // Validate required fields
     if (!userId || !action || !['accept', 'dispute'].includes(action)) {
       return res.status(400).json({
-        code: 'BAD_REQUEST',
+        error: 'Validation error',
         message: 'userId and valid action (accept/dispute) are required',
         version: VERSION
       });
-    }
-    
-    // Validate dispute has reason with minimum length
-    if (action === 'dispute') {
-      if (!reason || reason.trim().length < 20) {
-        return res.status(400).json({
-          code: 'BAD_REQUEST',
-          message: 'Dispute reason must be at least 20 characters',
-          version: VERSION
-        });
-      }
     }
 
     // Check if user is a participant
@@ -3209,7 +2596,7 @@ router.post('/:predictionId/validate', async (req, res) => {
 
     if (entryError || !userEntry) {
       return res.status(403).json({
-        code: 'FORBIDDEN',
+        error: 'Unauthorized',
         message: 'You are not a participant in this prediction',
         version: VERSION
       });
@@ -3222,11 +2609,8 @@ router.post('/:predictionId/validate', async (req, res) => {
         prediction_id: predictionId,
         user_id: userId,
         action: action,
-        reason: reason?.trim() || null,
-        proof_url: proofUrl?.trim() || null,
-        status: action === 'dispute' ? 'pending' : null,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
+        reason: reason || null,
+        created_at: new Date().toISOString()
       }, {
         onConflict: 'prediction_id,user_id'
       })
@@ -3236,31 +2620,22 @@ router.post('/:predictionId/validate', async (req, res) => {
     if (validationError) {
       console.error('Error recording validation:', validationError);
       return res.status(500).json({
-        code: 'INTERNAL',
+        error: 'Database error',
         message: 'Failed to record validation',
         version: VERSION
       });
     }
 
-    // If this is a dispute, update prediction status to indicate pending dispute
-    // Don't block settlement, but mark that there's a dispute to review
+    // If this is a dispute, we might want to halt settlement
     if (action === 'dispute') {
-      // Only update if not already finalized
-      const { data: prediction } = await supabase
+      // Mark prediction as disputed
+      await supabase
         .from('predictions')
-        .select('status')
-        .eq('id', predictionId)
-        .single();
-      
-      if (prediction && !['finalized'].includes(prediction.status)) {
-        await supabase
-          .from('predictions')
-          .update({ 
-            has_pending_dispute: true,
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', predictionId);
-      }
+        .update({ 
+          status: 'disputed',
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', predictionId);
     }
 
     return res.json({
@@ -3277,153 +2652,6 @@ router.post('/:predictionId/validate', async (req, res) => {
       message: 'Failed to validate settlement',
       version: VERSION
     });
-  }
-});
-
-// POST /api/v2/settlement/:predictionId/request-finalize
-// Request finalization of a settled prediction (queue for admin to finalize on-chain).
-// Authorization: Admin always allowed. Creator allowed only if config.settlement.allowCreatorFinalizationRequest is true.
-router.post('/:predictionId/request-finalize', async (req, res) => {
-  try {
-    const { predictionId } = req.params;
-    const { userId } = req.body as { userId?: string };
-    if (!userId) {
-      return res.status(400).json({ code: 'BAD_REQUEST', message: 'userId is required', version: VERSION });
-    }
-
-    const isAdmin = isAdminRequest(req);
-
-    const { data: prediction, error: predErr } = await supabase
-      .from('predictions')
-      .select('id,creator_id,status')
-      .eq('id', predictionId)
-      .maybeSingle();
-    if (predErr || !prediction) {
-      return res.status(404).json({ code: 'NOT_FOUND', message: 'Prediction not found', version: VERSION });
-    }
-
-    // Authorization check: admin always allowed, creator only if flag enabled
-    const isCreator = prediction.creator_id === userId;
-    const creatorAllowed = config.settlement.allowCreatorFinalizationRequest && isCreator;
-    
-    if (!isAdmin && !creatorAllowed) {
-      return res.status(403).json({ 
-        code: 'FORBIDDEN', 
-        message: isCreator 
-          ? 'Creator finalization requests are not enabled. Contact admin.' 
-          : 'Not authorized to request finalization',
-        version: VERSION 
-      });
-    }
-
-    // State validation: prediction must be settled
-    const validStatuses = ['settled', 'closed'];
-    if (!validStatuses.includes(prediction.status)) {
-      return res.status(409).json({ 
-        code: 'INVALID_STATE', 
-        message: `Prediction must be settled before finalization. Current status: ${prediction.status}`,
-        version: VERSION 
-      });
-    }
-
-    // If there's already an active or completed job, return it (idempotent)
-    const { data: existingJob } = await supabase
-      .from('settlement_finalize_jobs')
-      .select('id,prediction_id,requested_by,status,tx_hash,error,created_at,updated_at')
-      .eq('prediction_id', predictionId)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
-    if (existingJob) {
-      const jobStatus = (existingJob as any).status;
-      // If already finalized, return success
-      if (jobStatus === 'finalized') {
-        return res.json({ success: true, status: 'finalized', job: existingJob, version: VERSION });
-      }
-      // If queued or running, return current state
-      if (jobStatus === 'queued' || jobStatus === 'running') {
-        return res.json({ success: true, status: jobStatus, job: existingJob, version: VERSION });
-      }
-      // If failed, allow re-queue
-    }
-
-    const { data: created, error: createErr } = await supabase
-      .from('settlement_finalize_jobs')
-      .insert({
-        prediction_id: predictionId,
-        requested_by: userId,
-        status: 'queued',
-      } as any)
-      .select('id,prediction_id,requested_by,status,tx_hash,error,created_at,updated_at')
-      .single();
-
-    if (createErr) {
-      return res.status(500).json({ code: 'INTERNAL', message: 'Failed to create finalize job', version: VERSION });
-    }
-
-    return res.json({ success: true, status: 'queued', job: created, version: VERSION });
-  } catch (e: any) {
-    console.error('[SETTLEMENT] request-finalize failed:', e);
-    return res.status(500).json({ code: 'INTERNAL', message: 'Failed to request finalization', version: VERSION });
-  }
-});
-
-// GET /api/v2/settlement/:predictionId/finalize/status?userId=...
-// Creator OR participant OR admin can view the finalize job status.
-router.get('/:predictionId/finalize/status', async (req, res) => {
-  try {
-    const { predictionId } = req.params;
-    const userId = req.query.userId as string | undefined;
-    if (!userId) {
-      return res.status(400).json({ error: 'bad_request', message: 'userId is required', version: VERSION });
-    }
-
-    const admin = isAdminRequest(req);
-
-    const { data: prediction, error: predErr } = await supabase
-      .from('predictions')
-      .select('id,creator_id')
-      .eq('id', predictionId)
-      .maybeSingle();
-    if (predErr || !prediction) {
-      return res.status(404).json({ error: 'not_found', message: 'Prediction not found', version: VERSION });
-    }
-
-    if (!admin) {
-      const isCreator = prediction.creator_id === userId;
-      if (!isCreator) {
-        const { data: entry } = await supabase
-          .from('prediction_entries')
-          .select('id')
-          .eq('prediction_id', predictionId)
-          .eq('user_id', userId)
-          .limit(1)
-          .maybeSingle();
-        if (!entry) {
-          return res.status(403).json({ error: 'forbidden', message: 'Not authorized to view finalization status', version: VERSION });
-        }
-      }
-    }
-
-    const { data: job } = await supabase
-      .from('settlement_finalize_jobs')
-      .select('id,prediction_id,requested_by,status,tx_hash,error,created_at,updated_at')
-      .eq('prediction_id', predictionId)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
-    return res.json({
-      success: true,
-      data: job
-        ? { status: (job as any).status, txHash: (job as any).tx_hash || null, error: (job as any).error || null, job }
-        : { status: null, txHash: null, error: null, job: null },
-      version: VERSION,
-    });
-  } catch (e: any) {
-    console.error('[SETTLEMENT] finalize status failed:', e);
-    return res.status(500).json({ error: 'internal', message: 'Failed to load finalization status', version: VERSION });
   }
 });
 
@@ -3530,139 +2758,6 @@ router.get('/missing-onchain', async (req, res) => {
   }
 });
 
-// GET /api/v2/settlement/:predictionId/history?userId=...
-// Returns settlement validation history for creator/participants only
-router.get('/:predictionId/history', async (req, res) => {
-  try {
-    const { predictionId } = req.params;
-    const { userId } = req.query as { userId?: string };
-
-    if (!userId) {
-      return res.status(400).json({
-        error: 'bad_request',
-        message: 'userId is required',
-        version: VERSION
-      });
-    }
-
-    // Allow if creator OR participant
-    const { data: prediction, error: predictionErr } = await supabase
-      .from('predictions')
-      .select('creator_id')
-      .eq('id', predictionId)
-      .maybeSingle();
-
-    if (predictionErr || !prediction) {
-      return res.status(404).json({
-        error: 'Not found',
-        message: 'Prediction not found',
-        version: VERSION
-      });
-    }
-
-    const isCreator = prediction.creator_id === userId;
-    if (!isCreator) {
-      const { data: entry, error: entryErr } = await supabase
-        .from('prediction_entries')
-        .select('id')
-        .eq('prediction_id', predictionId)
-        .eq('user_id', userId)
-        .limit(1)
-        .maybeSingle();
-
-      if (entryErr) {
-        console.error('Error checking participant access:', entryErr);
-        return res.status(500).json({
-          error: 'Database error',
-          message: 'Failed to verify access',
-          version: VERSION
-        });
-      }
-
-      if (!entry?.id) {
-        return res.status(403).json({
-          error: 'Forbidden',
-          message: 'Only the prediction creator or participants can view settlement history',
-          version: VERSION
-        });
-      }
-    }
-
-    // Fetch validations without user join (user_id references auth.users, not public.users)
-    const { data: validations, error: validationsError } = await supabase
-      .from('settlement_validations')
-      .select('id, user_id, action, reason, created_at, status')
-      .eq('prediction_id', predictionId)
-      .order('created_at', { ascending: false });
-
-    if (validationsError) {
-      console.error('Error fetching settlement history:', validationsError);
-      // Handle table doesn't exist gracefully
-      if (validationsError.message?.includes('does not exist') || validationsError.code === '42P01') {
-        return res.json({
-          success: true,
-          data: {
-            items: [],
-            summary: { accepts: 0, disputes: 0, pendingDisputes: 0, lastActionAt: null }
-          },
-          version: VERSION
-        });
-      }
-      return res.status(500).json({
-        error: 'Database error',
-        message: 'Failed to fetch settlement history',
-        version: VERSION
-      });
-    }
-
-    // Fetch user data separately (FK references auth.users, we need public.users data)
-    let usersMap: Record<string, { username?: string; full_name?: string }> = {};
-    if (validations && validations.length > 0) {
-      const userIds = [...new Set(validations.map((v: any) => v.user_id).filter(Boolean))];
-      if (userIds.length > 0) {
-        const { data: users } = await supabase
-          .from('users')
-          .select('id, username, full_name')
-          .in('id', userIds);
-        if (users) {
-          usersMap = Object.fromEntries(users.map((u: any) => [u.id, { username: u.username, full_name: u.full_name }]));
-        }
-      }
-    }
-
-    // Merge user data into items
-    const items = (validations || []).map((v: any) => ({
-      ...v,
-      user: usersMap[v.user_id] || null
-    }));
-    const accepts = items.filter((v: any) => v.action === 'accept').length;
-    const disputes = items.filter((v: any) => v.action === 'dispute').length;
-    const pendingDisputes = items.filter((v: any) => v.action === 'dispute' && v.status === 'pending').length;
-    const lastActionAt = items.length > 0 ? (items[0] as any).created_at : null;
-
-    return res.json({
-      success: true,
-      data: {
-        items,
-        summary: {
-          accepts,
-          disputes,
-          pendingDisputes,
-          lastActionAt
-        }
-      },
-      version: VERSION
-    });
-  } catch (error) {
-    console.error('Error fetching settlement history:', error);
-    return res.status(500).json({
-      error: 'Internal server error',
-      message: 'Failed to fetch settlement history',
-      version: VERSION
-    });
-  }
-});
-
 // GET /api/v2/settlement/:predictionId/disputes - Get all disputes for a prediction
 router.get('/:predictionId/disputes', async (req, res) => {
   try {
@@ -3670,24 +2765,24 @@ router.get('/:predictionId/disputes', async (req, res) => {
     
     console.log('📋 Fetching disputes for prediction:', predictionId);
     
-    // Get all disputes for this prediction (without user join - FK references auth.users)
-    const { data: rawDisputes, error: disputesError } = await supabase
+    // Get all disputes for this prediction
+    const { data: disputes, error: disputesError } = await supabase
       .from('settlement_validations')
-      .select('id, user_id, action, reason, proof_url, created_at, status, resolution_reason, resolved_at, resolved_by')
+      .select(`
+        id,
+        user_id,
+        action,
+        reason,
+        created_at,
+        status,
+        user:users(username, full_name)
+      `)
       .eq('prediction_id', predictionId)
       .eq('action', 'dispute')
       .order('created_at', { ascending: false });
 
     if (disputesError) {
       console.error('Error fetching disputes:', disputesError);
-      // Handle table doesn't exist gracefully
-      if (disputesError.message?.includes('does not exist') || disputesError.code === '42P01') {
-        return res.json({
-          success: true,
-          data: { disputes: [], totalDisputes: 0, pendingDisputes: 0 },
-          version: VERSION
-        });
-      }
       return res.status(500).json({
         error: 'Database error',
         message: 'Failed to fetch disputes',
@@ -3695,29 +2790,8 @@ router.get('/:predictionId/disputes', async (req, res) => {
       });
     }
 
-    // Fetch user data separately
-    let usersMap: Record<string, { username?: string; full_name?: string }> = {};
-    if (rawDisputes && rawDisputes.length > 0) {
-      const userIds = [...new Set(rawDisputes.map((d: any) => d.user_id).filter(Boolean))];
-      if (userIds.length > 0) {
-        const { data: users } = await supabase
-          .from('users')
-          .select('id, username, full_name')
-          .in('id', userIds);
-        if (users) {
-          usersMap = Object.fromEntries(users.map((u: any) => [u.id, { username: u.username, full_name: u.full_name }]));
-        }
-      }
-    }
-
-    // Merge user data into disputes
-    const disputes = (rawDisputes || []).map((d: any) => ({
-      ...d,
-      user: usersMap[d.user_id] || null
-    }));
-
-    const totalDisputes = disputes.length;
-    const pendingDisputes = disputes.filter((d: any) => d.status === 'pending').length;
+    const totalDisputes = disputes?.length || 0;
+    const pendingDisputes = disputes?.filter(d => d.status === 'pending').length || 0;
 
     console.log(`✅ Found ${totalDisputes} disputes (${pendingDisputes} pending)`);
 
@@ -3736,140 +2810,6 @@ router.get('/:predictionId/disputes', async (req, res) => {
     return res.status(500).json({
       error: 'Internal server error',
       message: 'Failed to fetch disputes',
-      version: VERSION
-    });
-  }
-});
-
-// POST /api/v2/settlement/:predictionId/dispute - Create a dispute for a settled prediction
-router.post('/:predictionId/dispute', async (req, res) => {
-  try {
-    const { predictionId } = req.params;
-    const { userId, reason, evidenceUrl, evidence } = req.body;
-
-    if (!userId || !reason) {
-      return res.status(400).json({
-        error: 'Validation error',
-        message: 'userId and reason are required',
-        version: VERSION
-      });
-    }
-
-    // Verify user has an entry in this prediction
-    const { data: entry, error: entryError } = await supabase
-      .from('prediction_entries')
-      .select('id')
-      .eq('prediction_id', predictionId)
-      .eq('user_id', userId)
-      .limit(1)
-      .maybeSingle();
-
-    if (entryError || !entry) {
-      return res.status(403).json({
-        error: 'Forbidden',
-        message: 'You must have participated in this prediction to dispute',
-        version: VERSION
-      });
-    }
-
-    // Check if prediction is settled
-    const { data: prediction, error: predictionError } = await supabase
-      .from('predictions')
-      .select('status')
-      .eq('id', predictionId)
-      .maybeSingle();
-
-    if (predictionError || prediction?.status !== 'settled') {
-      return res.status(400).json({
-        error: 'Bad Request',
-        message: 'Can only dispute settled predictions',
-        version: VERSION
-      });
-    }
-
-    // Check for existing open disputes from this user
-    const { data: existingDispute } = await supabase
-      .from('disputes')
-      .select('id')
-      .eq('prediction_id', predictionId)
-      .eq('user_id', userId)
-      .eq('status', 'open')
-      .maybeSingle();
-
-    if (existingDispute) {
-      return res.status(400).json({
-        error: 'Bad Request',
-        message: 'You already have an open dispute for this prediction',
-        version: VERSION
-      });
-    }
-
-    // Get prediction details for notifications
-    const { data: predictionDetails } = await supabase
-      .from('predictions')
-      .select('id, title, creator_id')
-      .eq('id', predictionId)
-      .maybeSingle();
-
-    // Create dispute
-    const { data: dispute, error: disputeError } = await supabase
-      .from('disputes')
-      .insert({
-        prediction_id: predictionId,
-        user_id: userId,
-        reason,
-        evidence_url: evidenceUrl || null,
-        evidence: evidence || [],
-        status: 'open'
-      })
-      .select()
-      .single();
-
-    if (disputeError) {
-      console.error('Dispute creation error:', disputeError);
-      return res.status(500).json({
-        error: 'Internal Server Error',
-        message: 'Failed to create dispute',
-        version: VERSION
-      });
-    }
-
-    // Phase 4C: Notify prediction creator about dispute
-    if (predictionDetails?.creator_id && predictionDetails.creator_id !== userId) {
-      try {
-        await createNotification({
-          userId: predictionDetails.creator_id,
-          type: 'dispute',
-          title: 'Dispute opened',
-          body: `A dispute has been opened for "${predictionDetails.title}".`,
-          href: `/predictions/${predictionId}`,
-          metadata: {
-            predictionId,
-            predictionTitle: predictionDetails.title,
-            disputeId: dispute.id,
-            fromUserId: userId,
-          },
-          externalRef: `notif:dispute:${dispute.id}:opened:${predictionDetails.creator_id}`,
-        }).catch((err) => {
-          console.warn(`[Notifications] Failed to notify creator about dispute:`, err);
-        });
-      } catch (err) {
-        console.warn(`[Notifications] Error creating dispute notification for creator:`, err);
-      }
-    }
-
-    return res.status(201).json({
-      success: true,
-      data: { dispute },
-      message: 'Dispute created successfully',
-      version: VERSION
-    });
-
-  } catch (error: any) {
-    console.error('Error creating dispute:', error);
-    return res.status(500).json({
-      error: 'Internal Server Error',
-      message: error?.message || 'Failed to create dispute',
       version: VERSION
     });
   }

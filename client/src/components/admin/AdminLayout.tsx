@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { NavLink, useNavigate } from 'react-router-dom';
+import { NavLink, useLocation } from 'react-router-dom';
 import { useAuthSession } from '../../providers/AuthSessionProvider';
 import { FRONTEND_URL } from '@/utils/environment';
 import { adminGet } from '@/lib/adminApi';
@@ -12,7 +12,7 @@ import {
   Flag,
   ScrollText,
   Settings,
-  LogOut,
+  Tag,
   ChevronLeft,
 } from 'lucide-react';
 
@@ -26,19 +26,47 @@ const navItems = [
   { path: '/admin/wallets', label: 'Wallets', icon: Wallet },
   { path: '/admin/predictions', label: 'Predictions', icon: Target },
   { path: '/admin/settlements', label: 'Settlements', icon: Gavel },
+  { path: '/admin/categories', label: 'Categories', icon: Tag },
   { path: '/admin/moderation', label: 'Moderation', icon: Flag },
   { path: '/admin/audit', label: 'Audit Log', icon: ScrollText },
   { path: '/admin/config', label: 'Config', icon: Settings },
 ];
 
+const ADMIN_CANONICAL_ORIGIN = 'https://fanclubz.app';
+
+function getCanonicalAdminRedirect(currentUrl: URL): string | null {
+  const host = currentUrl.hostname.toLowerCase();
+  const isProdAlias =
+    host === 'app.fanclubz.app' || host === 'www.fanclubz.app';
+  if (!isProdAlias) return null;
+  if (!currentUrl.pathname.startsWith('/admin')) return null;
+  return `${ADMIN_CANONICAL_ORIGIN}${currentUrl.pathname}${currentUrl.search}${currentUrl.hash}`;
+}
+
 export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
   const { user } = useAuthSession();
-  const navigate = useNavigate();
+  const location = useLocation();
   const appUrl = FRONTEND_URL || 'https://app.fanclubz.app';
   const [openReportsCount, setOpenReportsCount] = useState<number>(0);
+  const [redirectingToCanonical, setRedirectingToCanonical] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      const current = new URL(window.location.href);
+      const redirectUrl = getCanonicalAdminRedirect(current);
+      if (!redirectUrl) return;
+      if (redirectUrl === window.location.href) return;
+      setRedirectingToCanonical(true);
+      window.location.replace(redirectUrl);
+    } catch (e) {
+      console.warn('[AdminLayout] canonical admin redirect check failed', e);
+    }
+  }, [location.pathname, location.search, location.hash]);
 
   useEffect(() => {
     let mounted = true;
+    if (redirectingToCanonical) return;
     const actorId = user?.id;
     if (!actorId) return;
 
@@ -63,6 +91,14 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
       clearInterval(timer);
     };
   }, [user?.id]);
+
+  if (redirectingToCanonical) {
+    return (
+      <div className="min-h-screen bg-slate-900 flex items-center justify-center">
+        <p className="text-slate-300">Redirecting to admin…</p>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-900 flex">

@@ -830,8 +830,7 @@ const BetsTab: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNavigateTo
                             odds: opt.current_odds
                           })),
                           description: prediction.description,
-                          creator: prediction.creator || (prediction as any).creator_profile,
-                          image_url: prediction.image_url
+                          creator: prediction.creator || (prediction as any).creator_profile
                         }}
                       />
                     ) : (

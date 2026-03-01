@@ -38,66 +38,6 @@
   padding-bottom: max(16px, env(safe-area-inset-bottom));
 }
 
-/* Safe Area CSS Variables and Shell */
-:root {
-  /* Safe area insets as CSS variables for easier use */
-  --safe-top: env(safe-area-inset-top, 0px);
-  --safe-bottom: env(safe-area-inset-bottom, 0px);
-  --safe-left: env(safe-area-inset-left, 0px);
-  --safe-right: env(safe-area-inset-right, 0px);
-
-  /* Unified safe-top for native insets (Android injects this; iOS falls back to env()) */
-  --app-safe-top: var(--safe-top);
-
-  /* tweakable spacing for “top overlays” so they never touch the notch */
-  --top-overlay-offset: calc(var(--safe-top) + 10px);
-
-  /* Back-compat aliases */
-  --sat: var(--safe-top);
-  --sab: var(--safe-bottom);
-  --sal: var(--safe-left);
-  --sar: var(--safe-right);
-
-  /* Mobile-safe control typography (prevents iOS Safari input focus zoom). */
-  --fc-form-control-font-size-touch: 16px;
-  --fc-form-control-font-size-desktop: var(--text-body-size);
-  --fc-form-control-line-height: 1.4;
-}
-
-/* Safe area shell - wraps entire app to provide safe area context */
-.safe-area-shell {
-  /* Foundation wrapper only. Do NOT apply padding here to avoid double-padding headers. */
-  min-height: 100vh;
-  min-height: 100dvh;
-}
-
-/* Fixed top element with safe area offset */
-.safe-area-fixed-top {
-  position: fixed;
-  top: var(--sat);
-  left: var(--sal);
-  right: var(--sar);
-  z-index: 40;
-}
-
-/* Safe-area helpers used by headers/bottom tabs */
-.safe-area-pt {
-  padding-top: env(safe-area-inset-top, 0px);
-}
-
-.safe-area-pb {
-  padding-bottom: env(safe-area-inset-bottom, 0px);
-}
-
-/* Safe “top area” utilities */
-.safe-top {
-  padding-top: var(--safe-top);
-}
-
-.safe-top-overlay {
-  margin-top: var(--top-overlay-offset);
-}
-
 /* Force CSS reset and base styles - Performance optimized */
 @layer base {
   * {
@@ -173,26 +113,6 @@
     max-width: 100%;
   }
 
-  /* Keep focused controls visible in sheets/modals with sticky headers. */
-  input,
-  textarea,
-  select {
-    scroll-margin-top: calc(var(--safe-top) + 72px);
-  }
-
-  /*
-   * Mobile UX: iOS Safari auto-zooms on focus when computed input font-size is < 16px.
-   * Enforce 16px for text-entry controls on touch/coarse-pointer devices.
-   */
-  @media (hover: none) and (pointer: coarse), (any-hover: none) and (any-pointer: coarse) {
-    input:not([type='button']):not([type='submit']):not([type='reset']):not([type='checkbox']):not([type='radio']):not([type='range']):not([type='color']):not([type='file']):not([type='image']):not([type='hidden']),
-    textarea,
-    select {
-      font-size: var(--fc-form-control-font-size-touch) !important;
-      line-height: var(--fc-form-control-line-height);
-    }
-  }
-
   /* Button reset with improved touch targets */
   button {
     cursor: pointer;
@@ -244,18 +164,6 @@
 
   ::-webkit-scrollbar-thumb:hover {
     background: #94a3b8;
-  }
-}
-
-/* Shared form-control class for reusable UI components. */
-.fc-form-control {
-  font-size: var(--fc-form-control-font-size-touch);
-  line-height: var(--fc-form-control-line-height);
-}
-
-@media (hover: hover) and (pointer: fine) {
-  .fc-form-control {
-    font-size: var(--fc-form-control-font-size-desktop);
   }
 }
 
@@ -412,23 +320,19 @@
 @layer utilities {
   /* Safe area padding for mobile devices */
   .safe-top {
-    padding-top: var(--safe-top);
+    padding-top: env(safe-area-inset-top, 0);
   }
 
   .safe-bottom {
-    padding-bottom: var(--safe-bottom);
+    padding-bottom: env(safe-area-inset-bottom, 0);
   }
 
   .safe-left {
-    padding-left: var(--safe-left);
+    padding-left: env(safe-area-inset-left, 0);
   }
 
   .safe-right {
-    padding-right: var(--safe-right);
-  }
-
-  .safe-top-overlay {
-    margin-top: var(--top-overlay-offset);
+    padding-right: env(safe-area-inset-right, 0);
   }
 
   /* Hide scrollbar but keep functionality */

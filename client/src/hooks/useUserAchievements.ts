@@ -61,8 +61,10 @@ export function useUserAchievements(userId?: string | null, enabled = true) {
   return useQuery({
     queryKey: ['user-achievements', userId || 'none'],
     enabled: enabled && !!userId,
-    staleTime: 60_000,
+    staleTime: 15_000,
     gcTime: 5 * 60_000,
+    refetchOnMount: 'always',
+    placeholderData: (previousData) => previousData,
     queryFn: async (): Promise<UserAchievementsPayload> => {
       const res = await apiClient.get(`users/${encodeURIComponent(String(userId))}/achievements`);
       const data = (res as any)?.data ?? res ?? {};

@@ -1,5 +1,3 @@
-import type { CategorySlug } from '@/constants/categories';
-
 /**
  * Domain types for client app
  * Core business entities with snake_case backend DTOs and camelCase frontend models
@@ -44,7 +42,7 @@ export interface Prediction {
   title: string;
   description?: string;
   question?: string; // Alternate description field
-  category: CategorySlug | string;
+  category: 'sports' | 'pop_culture' | 'custom' | 'esports' | 'celebrity_gossip' | 'politics';
   status: PredictionStatus;
   type?: string;
   creator_id: string;

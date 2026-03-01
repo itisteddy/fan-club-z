@@ -1,12 +1,13 @@
 import React, { useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Bell, Loader2, Trophy, DollarSign, MessageCircle, AlertCircle, Clock, ArrowLeft, CheckCheck } from 'lucide-react';
+import { Bell, Loader2, Trophy, MessageCircle, AlertCircle, Clock, ArrowLeft, CheckCheck } from 'lucide-react';
 import { useNotifications, Notification } from '../hooks/useNotifications';
 import { formatDistanceToNow } from 'date-fns';
 import Page from '../components/ui/layout/Page';
 import EmptyState from '../components/ui/empty/EmptyState';
 import { cn } from '../utils/cn';
 import { normalizeCommentTargetId } from '@/lib/commentDeepLink';
+import { ZaurumMark } from '@/components/currency/ZaurumMark';
 
 /**
  * Notifications page - displays list of notifications with mark read functionality
@@ -113,17 +114,17 @@ export const NotificationsPage: React.FC = () => {
         return <AlertCircle className="w-5 h-5 text-amber-500" />;
       case 'payout':
       case 'claim':
-        return <DollarSign className="w-5 h-5 text-teal-500" />;
+        return <ZaurumMark className="w-5 h-5" />;
       case 'comment':
         return <MessageCircle className="w-5 h-5 text-blue-500" />;
       case 'reminder':
         return <Clock className="w-5 h-5 text-purple-500" />;
       case 'refund':
-        return <DollarSign className="w-5 h-5 text-slate-500" />;
+        return <ZaurumMark className="w-5 h-5" />;
       case 'dispute':
         return <AlertCircle className="w-5 h-5 text-red-500" />;
       case 'demo_credit':
-        return <DollarSign className="w-5 h-5 text-indigo-500" />;
+        return <ZaurumMark className="w-5 h-5" />;
       default:
         return <Bell className="w-5 h-5 text-gray-500" />;
     }

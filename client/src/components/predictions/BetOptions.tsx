@@ -1,6 +1,6 @@
 import React from 'react';
 import { TrendingUp } from 'lucide-react';
-import { formatCurrency } from '@/lib/format';
+import { ZaurumAmount } from '@/components/currency/ZaurumAmount';
 import { ZaurumMark } from '@/components/currency/ZaurumMark';
 
 export type BetOption = {
@@ -83,11 +83,11 @@ export default function BetOptions({
       {selected && (
         <div className="space-y-2 animate-in fade-in slide-in-from-top-2 duration-300">
           <label htmlFor="stake-input" className="text-sm font-medium text-foreground">
-            Stake Amount (ZAU)
+            Stake Amount (Zaurum)
           </label>
           <div className="relative">
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 size-5 text-muted-foreground pointer-events-none">
-              <ZaurumMark className="size-5" />
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none">
+              <ZaurumMark className="size-4" />
             </span>
             <input
               id="stake-input"
@@ -109,8 +109,8 @@ export default function BetOptions({
           
           {/* Balance & Error Messages */}
           <div className="flex items-center justify-between text-sm">
-            <span className="text-muted-foreground">
-              Available: {formatCurrency(balance, { compact: false })}
+            <span className="text-muted-foreground flex items-center gap-1">
+              Available: <ZaurumAmount value={balance} compact={false} markSize="xs" />
             </span>
             {insufficientBalance && (
               <span id="stake-error" className="text-destructive font-medium" role="alert">
@@ -128,7 +128,7 @@ export default function BetOptions({
                 disabled={disabled || amount > balance}
                 className="rounded-lg border border-border bg-muted/40 px-3 py-2 text-sm font-medium hover:bg-muted hover:border-muted-foreground/30 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
               >
-                {formatCurrency(amount, { compact: false })}
+                <ZaurumAmount value={amount} compact={true} markSize="xs" />
               </button>
             ))}
           </div>

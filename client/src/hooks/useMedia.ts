@@ -1,7 +1,6 @@
 import type { PredictionMediaInput } from '@/lib/media';
 import { useStableImage } from '@/features/images/StableImageProvider';
 import type { Prediction } from '@/features/images/useAutoImage';
-import { resolvePredictionCoverUrl } from '@/lib/resolvePredictionCoverUrl';
 
 export type MediaItem = {
   id: string;
@@ -24,7 +23,7 @@ export function useMedia(
     category: undefined,
   };
 
-  // Map the semantic media input into the stable image prediction shape (include image_url so DB cover is used first)
+  // Map the semantic media input into the stable image prediction shape
   const stablePrediction: Prediction = {
     id: safePrediction.id,
     title: safePrediction.title || safePrediction.question || 'Prediction',
@@ -33,10 +32,7 @@ export function useMedia(
       safePrediction.description ??
       safePrediction.question ??
       '',
-    image_url: (safePrediction as { image_url?: string | null }).image_url ?? undefined,
   };
-  // Ensure we also pick up camelCase fields from different DTOs (highest priority).
-  stablePrediction.image_url = resolvePredictionCoverUrl(safePrediction);
 
   // Use the stable image pipeline backed by /api/images + IndexedDB cache.
   // This guarantees:

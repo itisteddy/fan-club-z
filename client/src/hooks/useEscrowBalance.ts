@@ -5,15 +5,9 @@ import { useEffect } from 'react';
 
 // Escrow Contract Address - MUST come from env, never hardcoded
 function resolveEscrowAddress(): `0x${string}` {
-  const primary = import.meta.env.VITE_BASE_ESCROW_ADDRESS;
-  const legacy = import.meta.env.VITE_ESCROW_ADDRESS_BASE_SEPOLIA;
-  if (primary && legacy && primary.trim().toLowerCase() !== legacy.trim().toLowerCase()) {
-    // Hard guard: refuse to silently choose between two different escrow addresses.
-    throw new Error(
-      `[FCZ-PAY] Escrow address mismatch. VITE_BASE_ESCROW_ADDRESS (${primary}) !== VITE_ESCROW_ADDRESS_BASE_SEPOLIA (${legacy}). Fix env to a single canonical escrow.`
-    );
-  }
-  const raw = primary ?? legacy;
+  const raw =
+    import.meta.env.VITE_BASE_ESCROW_ADDRESS ??
+    import.meta.env.VITE_ESCROW_ADDRESS_BASE_SEPOLIA;
 
   if (!raw) {
     // Fail fast and surface configuration issue in console

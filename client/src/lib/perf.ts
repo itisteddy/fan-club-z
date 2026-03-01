@@ -72,9 +72,7 @@ export function measure(
       const entries = performance.getEntriesByName(startMark, 'mark');
       if (entries.length === 0) return null;
       
-      const lastMark = entries[entries.length - 1] as PerformanceEntry | undefined;
-      if (!lastMark) return null;
-      const startTime = lastMark.startTime;
+      const startTime = entries[entries.length - 1].startTime;
       const duration = performance.now() - startTime;
       
       if (import.meta.env.DEV) {
@@ -89,9 +87,7 @@ export function measure(
     const entries = performance.getEntriesByName(name, 'measure');
     
     if (entries.length > 0) {
-      const lastMeasure = entries[entries.length - 1] as PerformanceMeasure | undefined;
-      if (!lastMeasure) return null;
-      const duration = lastMeasure.duration;
+      const duration = entries[entries.length - 1].duration;
       
       if (import.meta.env.DEV) {
         const emoji = duration < 100 ? '✅' : duration < 500 ? '⚠️' : '❌';

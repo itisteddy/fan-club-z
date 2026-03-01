@@ -1,8 +1,5 @@
 // PWA utility functions for service worker registration and management
-import { Capacitor } from '@capacitor/core';
 import { VAPID_PUBLIC_KEY, getApiUrl } from '@/utils/environment';
-import { BUILD_TARGET, isWebBuild } from '@/config/buildTarget';
-import { IS_NATIVE, STORE_SAFE_MODE } from '@/config/runtime';
 
 export interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
@@ -15,7 +12,6 @@ export class PWAManager {
   private isInstalled = false;
   private hasNotifiedUpdateThisSession = false;
   private lastUpdateNotifyAt = 0;
-  private lastUpdateKeyNotified: string | null = null;
 
   private constructor() {
     this.init();
@@ -29,28 +25,6 @@ export class PWAManager {
   }
 
   private init() {
-    // Phase 5: Service worker should NEVER register in iOS/native builds
-    // Service workers are web-only and cause issues in native WebViews:
-    // - Stale auth state
-    // - Caching conflicts
-    // - "Web-like" glitches
-    // Gate by BUILD_TARGET, IS_NATIVE, and STORE_SAFE_MODE
-    if (!isWebBuild || IS_NATIVE || STORE_SAFE_MODE) {
-      console.log('[PWA] Skipping service worker registration (BUILD_TARGET=' + BUILD_TARGET + ', IS_NATIVE=' + IS_NATIVE + ', STORE_SAFE_MODE=' + STORE_SAFE_MODE + ')');
-      if ('serviceWorker' in navigator) {
-        // Proactively unregister any existing SW in native builds
-        navigator.serviceWorker.getRegistrations().then((registrations) => {
-          registrations.forEach((registration) => {
-            console.log('[PWA] Unregistering existing service worker:', registration.scope);
-            registration.unregister();
-          });
-        }).catch((err) => {
-          console.warn('[PWA] Failed to unregister service workers:', err);
-        });
-      }
-      return;
-    }
-
     // In development, do NOT register or use the PWA service worker.
     // It interferes with localhost testing by caching old bundles (including landing builds).
     if (import.meta.env.DEV) {
@@ -69,7 +43,7 @@ export class PWAManager {
       return;
     }
 
-    // Register service worker (production web only)
+    // Register service worker (production only)
     this.registerServiceWorker();
 
     // Check if app is already installed
@@ -84,11 +58,8 @@ export class PWAManager {
       try {
         const registration = await navigator.serviceWorker.register('/sw.js');
         console.log('Service Worker registered successfully:', registration);
-        
-        // Force update check after registration
-        await registration.update().catch(() => {});
 
-        // If a waiting worker already exists, notify once on load.
+        // If there is already a waiting worker from a previous deploy, notify once.
         if (registration.waiting && navigator.serviceWorker.controller) {
           this.showUpdateAvailable(registration);
         }
@@ -105,23 +76,6 @@ export class PWAManager {
             });
           }
         });
-        
-        // Check for cache version mismatch and force refresh
-        const CACHE_VERSION = '2026-01-25-01';
-        const lastVersion = localStorage.getItem('pwa-cache-version');
-        if (lastVersion && lastVersion !== CACHE_VERSION) {
-          console.log('[PWA] Cache version mismatch detected, clearing caches');
-          // Unregister SW and clear caches
-          registration.unregister().then(() => {
-            caches.keys().then((keys) => {
-              keys.forEach((key) => caches.delete(key));
-              localStorage.setItem('pwa-cache-version', CACHE_VERSION);
-              window.location.reload();
-            });
-          });
-        } else if (!lastVersion) {
-          localStorage.setItem('pwa-cache-version', CACHE_VERSION);
-        }
       } catch (error) {
         console.error('Service Worker registration failed:', error);
       }
@@ -192,21 +146,17 @@ export class PWAManager {
   }
 
   private showUpdateAvailable(registration?: ServiceWorkerRegistration) {
-    const updateKey = registration?.waiting?.scriptURL
-      || registration?.installing?.scriptURL
-      || registration?.active?.scriptURL
-      || 'sw-update';
-
     const now = Date.now();
-    const recentlyNotified = now - this.lastUpdateNotifyAt < 30_000;
-    const sameUpdate = this.lastUpdateKeyNotified === updateKey;
-    if ((this.hasNotifiedUpdateThisSession && sameUpdate) || (recentlyNotified && sameUpdate)) {
+    if (this.hasNotifiedUpdateThisSession || now - this.lastUpdateNotifyAt < 10000) {
       return;
     }
-
     this.hasNotifiedUpdateThisSession = true;
     this.lastUpdateNotifyAt = now;
-    this.lastUpdateKeyNotified = updateKey;
+
+    const worker = registration?.waiting || registration?.installing || registration?.active || null;
+    const updateKey = worker?.scriptURL
+      ? `${registration?.scope || ''}|${worker.scriptURL}`
+      : `sw-update-${now}`;
 
     // Show update notification
     const updateEvent = new CustomEvent('pwa-update-available', {
@@ -308,17 +258,5 @@ export class PWAManager {
   }
 }
 
-// Lazy getter: PWA manager only initializes when actually needed
-// This prevents SW/PWA code from executing in native builds
-let _pwaManager: PWAManager | null = null;
-
-export function getPWAManager(): PWAManager {
-  // CRITICAL: Never initialize PWA manager in native builds
-  if (!isWebBuild || IS_NATIVE || STORE_SAFE_MODE) {
-    throw new Error('PWA manager should not be accessed in native builds');
-  }
-  if (!_pwaManager) {
-    _pwaManager = PWAManager.getInstance();
-  }
-  return _pwaManager;
-}
+// Initialize PWA manager
+export const pwaManager = PWAManager.getInstance();

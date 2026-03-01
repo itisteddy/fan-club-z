@@ -2,7 +2,6 @@ import { useQuery } from '@tanstack/react-query';
 import { useEffect } from 'react';
 import { QK } from '@/lib/queryKeys';
 import { getApiUrl } from '@/utils/environment';
-import { getAuthHeaders } from '@/lib/apiClient';
 
 export type EscrowSnapshot = {
   currency: 'USD';
@@ -37,24 +36,7 @@ export function useEscrowSnapshot(userId?: string, options: Options = {}) {
       if (options.forceRefresh) params.set('refresh', '1');
 
       const apiBase = getApiUrl();
-      // Prevent infinite loading if the network request stalls
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 12_000);
-      let r: Response;
-      try {
-        const authHeaders = await getAuthHeaders();
-        r = await fetch(`${apiBase}/api/wallet/summary?${params.toString()}`, {
-          headers: { Accept: 'application/json', ...authHeaders },
-          signal: controller.signal,
-        });
-      } catch (e: any) {
-        if (e?.name === 'AbortError') {
-          throw new Error('Wallet summary request timed out. Please try again.');
-        }
-        throw e;
-      } finally {
-        clearTimeout(timeout);
-      }
+      const r = await fetch(`${apiBase}/api/wallet/summary?${params.toString()}`);
       if (!r.ok) {
         const error = await r.json().catch(() => ({ message: r.statusText }));
         throw new Error(error.message || 'Failed to load escrow snapshot');
@@ -78,4 +60,5 @@ export function useEscrowSnapshot(userId?: string, options: Options = {}) {
 
   return query;
 }
+
 

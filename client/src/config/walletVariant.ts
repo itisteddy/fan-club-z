@@ -15,7 +15,9 @@ export type WalletVariant = {
  * - Decide by runtime detection (native + platform), not by BUILD_TARGET.
  */
 export function resolveWalletVariant(): WalletVariant {
-  const isNative = Capacitor.isNativePlatform() === true;
+  const isNative = Capacitor.isNativePlatform() === true ||
+    import.meta.env.VITE_BUILD_TARGET === 'android' ||
+    import.meta.env.VITE_BUILD_TARGET === 'ios';
 
   // Parity rule:
   // - Native mobile must support Demo and default to Demo (server can still override the chosen mode).

@@ -89,7 +89,6 @@ export function getTxDeltaTone(args: {
  */
 export function formatTxAmount(args: {
   amount: number;
-  currencySymbol?: string;
   currency?: string;
   direction?: 'credit' | 'debit';
   type?: string;

@@ -10,7 +10,6 @@ import { SupabaseProvider } from './providers/SupabaseProvider';
 import { AuthSessionProvider } from './providers/AuthSessionProvider';
 import { RealtimeProvider } from './providers/RealtimeProvider';
 import AuthGateModal from './components/auth/AuthGateModal';
-import { TermsAcceptanceGate } from './components/ugc/TermsAcceptanceGate';
 import { Toaster } from 'react-hot-toast';
 import { scrollToTop, saveScrollPosition, markNavigationAsIntentional, handleRouterNavigation } from './utils/scroll';
 import NotificationContainer from './components/ui/NotificationContainer';
@@ -21,9 +20,6 @@ import MobileShell from './components/layout/MobileShell';
 import { NetworkStatusProvider } from './providers/NetworkStatusProvider';
 import PageLoadingSpinner from './components/ui/PageLoadingSpinner';
 import { OAuthDiagnostic } from './components/diagnostics/OAuthDiagnostic';
-import { AuthInProgressOverlay } from './components/AuthInProgressOverlay';
-import { useFundingModeStore } from './store/fundingModeStore';
-import { getServerWalletMode, setServerWalletMode } from '@/lib/walletModeSettings';
 
 // Lazy-loaded pages for code splitting
 const LazyDiscoverPage = lazy(() => import('./pages/DiscoverPage'));
@@ -35,26 +31,9 @@ const LazyPredictionDetailsPageV2 = lazy(() => import('./pages/PredictionDetails
 const LazyProfilePageV2 = lazy(() => import('./pages/ProfilePageV2'));
 const LazyDownloadPage = lazy(() => import('./legacy/pages/DownloadPage'));
 const LazyWalletPageV2 = lazy(() => import('./pages/WalletPageV2'));
-const LazyUnifiedWalletPage = lazy(() => import('./pages/UnifiedWalletPage'));
 const LazyUnifiedLeaderboardPage = lazy(() => import('./pages/UnifiedLeaderboardPage'));
 const LazyAuthCallback = lazy(() => import('./pages/auth/AuthCallback'));
 const LazyReferralRedirectPage = lazy(() => import('./pages/ReferralRedirectPage'));
-const LazyNotificationsPage = lazy(() => import('./pages/NotificationsPage'));
-
-// Admin pages (lazy loaded)
-const LazyAdminHomePage = lazy(() => import('./pages/admin/AdminHomePage'));
-const LazyAuditLogPage = lazy(() => import('./pages/admin/AuditLogPage'));
-const LazyUsersPage = lazy(() => import('./pages/admin/UsersPage'));
-const LazyUserDetailPage = lazy(() => import('./pages/admin/UserDetailPage'));
-const LazyWalletsPage = lazy(() => import('./pages/admin/WalletsPage'));
-const LazyUserWalletPage = lazy(() => import('./pages/admin/UserWalletPage'));
-const LazyAdminPredictionsPage = lazy(() => import('./pages/admin/PredictionsPage'));
-const LazyPredictionDetailPage = lazy(() => import('./pages/admin/PredictionDetailPage'));
-const LazyModerationPage = lazy(() => import('./pages/admin/ModerationPage'));
-const LazyConfigPage = lazy(() => import('./pages/admin/ConfigPage'));
-const LazySettlementsPage = lazy(() => import('./pages/admin/SettlementsPage'));
-const LazySettlementDetailPage = lazy(() => import('./pages/admin/SettlementDetailPage'));
-const LazySupportPage = lazy(() => import('./pages/admin/SupportPage'));
 
 
 // Import all page components
@@ -66,9 +45,6 @@ import AuthRequiredState from './components/ui/empty/AuthRequiredState';
 import { Sparkles } from 'lucide-react';
 import { captureReturnTo } from './lib/returnTo';
 import { useReferralCapture, useReferralAttribution } from './hooks/useReferral';
-import { AdminGuard } from './components/admin/AdminGuard';
-import { AdminLayout } from './components/admin/AdminLayout';
-import { MaintenanceOverlay } from './components/MaintenanceOverlay';
 
 // Simple Loading Component
 const LoadingSpinner: React.FC<{ message?: string }> = ({ message = "Loading..." }) => (
@@ -210,17 +186,10 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = memo(({ children }) 
     void run();
   }, [navigate, location.pathname, requestCreateAccess]);
 
-  // Only show the floating action button on the actual Discover tab route.
-  // On detail/flow routes (e.g. /predictions/:id), this FAB can overlap modals/cards.
-  const showFAB = (() => {
-    const p = normalizePath(location.pathname);
-    return p === '/' || p === '/discover';
-  })();
+  const showFAB = getCurrentTab() === 'discover';
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col" data-scroll-container>
-      <MaintenanceOverlay />
-
       {/* Main Content */}
       <main className="flex-1 pb-[calc(5rem+env(safe-area-inset-bottom))]">
         <Suspense fallback={<LoadingSpinner message="Loading page..." />}>
@@ -245,15 +214,7 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = memo(({ children }) 
       {/* Toast Notifications */}
       <Toaster
         position="top-center"
-        // iOS safe-area: ensure toasts never sit under Dynamic Island/notch
-        containerStyle={{
-          zIndex: 2147483647,
-          top: 'calc(var(--app-safe-top, 0px) + 10px)',
-          left: 0,
-          right: 0,
-          paddingLeft: 'max(12px, var(--safe-left))',
-          paddingRight: 'max(12px, var(--safe-right))',
-        }}
+        containerStyle={{ zIndex: 2147483647 }}
         toastOptions={{
           duration: 4000,
           style: {
@@ -273,9 +234,6 @@ MainLayout.displayName = 'MainLayout';
 const BootstrapEffects: React.FC = () => {
   const { user: sessionUser, session, initialized: sessionInitialized } = useAuthSession();
   const { initializeAuth, isAuthenticated: storeAuthenticated, initialized: storeInitialized, user: storeUser } = useAuthStore();
-  const { mode, setMode } = useFundingModeStore();
-  const walletModeBootstrappedRef = useRef(false);
-  const lastPushedWalletModeRef = useRef<typeof mode | null>(null);
   
   // Initialize referral tracking
   useReferralCapture();
@@ -331,57 +289,6 @@ const BootstrapEffects: React.FC = () => {
     // Restore any pending auth state from session storage
     restorePendingAuth();
   }, []);
-
-  // Parity: server-authoritative wallet mode (defaults to demo).
-  useEffect(() => {
-    let cancelled = false;
-    walletModeBootstrappedRef.current = false;
-    lastPushedWalletModeRef.current = null;
-
-    if (!sessionInitialized || !sessionUser?.id) return;
-
-    (async () => {
-      const serverMode = await getServerWalletMode(sessionUser.id);
-      if (cancelled) return;
-
-      // If the server has a setting, it is authoritative.
-      if (serverMode && serverMode !== mode) {
-        setMode(serverMode);
-      }
-
-      walletModeBootstrappedRef.current = true;
-      lastPushedWalletModeRef.current = serverMode ?? mode;
-
-      if (import.meta.env.DEV) {
-        console.log('[wallet-mode] bootstrap', {
-          userId: sessionUser.id,
-          server: serverMode ?? null,
-          effective: serverMode ?? mode,
-        });
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-    // Intentionally exclude `mode` to avoid re-bootstrap loops.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sessionInitialized, sessionUser?.id, setMode]);
-
-  // Persist user choice back to the server (best-effort).
-  useEffect(() => {
-    if (!sessionInitialized || !sessionUser?.id) return;
-    if (!walletModeBootstrappedRef.current) return;
-    if (lastPushedWalletModeRef.current === mode) return;
-
-    void (async () => {
-      await setServerWalletMode(sessionUser.id, mode);
-      lastPushedWalletModeRef.current = mode;
-      if (import.meta.env.DEV) {
-        console.log('[wallet-mode] persisted', { userId: sessionUser.id, mode });
-      }
-    })();
-  }, [mode, sessionInitialized, sessionUser?.id]);
   
   return null;
 };
@@ -585,8 +492,6 @@ const PredictionDetailsRouteWrapper: React.FC = () => {
   const navigate = useNavigate();
   const [resolvedId, setResolvedId] = React.useState<string | null>(null);
   const [checking, setChecking] = React.useState<boolean>(true);
-  const [resolveError, setResolveError] = React.useState<boolean>(false);
-  const [resolveNotFound, setResolveNotFound] = React.useState<boolean>(false);
   
   const handleNavigateBack = useCallback(() => {
     // Use browser back to restore previous scroll position automatically
@@ -611,34 +516,22 @@ const PredictionDetailsRouteWrapper: React.FC = () => {
       const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
       if (uuidRegex.test(id)) {
         setResolvedId(id);
-        setResolveError(false);
-        setResolveNotFound(false);
         setChecking(false);
         return;
       }
       // Treat as SEO slug - resolve to full ID
       try {
-        setResolveError(false);
-        setResolveNotFound(false);
         const apiBase = (await import('./config')).getApiUrl();
         const r = await fetch(`${apiBase}/api/v2/predictions/resolve/slug/${encodeURIComponent(id)}`, { method: 'GET' });
-        if (r.status === 404) {
-          setResolveNotFound(true);
-          return;
-        }
-        if (!r.ok) {
-          setResolveError(true);
-          return;
-        }
-        const j = await r.json().catch(() => ({}));
-        if ((j as any)?.id) {
+        if (!r.ok) throw new Error(`resolve failed ${r.status}`);
+        const j = await r.json();
+        if (j?.id) {
           setResolvedId(j.id);
         } else {
-          setResolveNotFound(true);
+          console.warn('Slug resolve returned no id for', id);
         }
       } catch (e) {
         console.warn('Slug resolve errored', e);
-        setResolveError(true);
       } finally {
         setChecking(false);
       }
@@ -667,8 +560,8 @@ const PredictionDetailsRouteWrapper: React.FC = () => {
     return <LoadingSpinner message="Loading prediction..." />;
   }
 
-  // If we confirmed not-found (404), show not-found state.
-  if (resolveNotFound) {
+  // If we couldn't resolve, show not-found state
+  if (!resolvedId) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
@@ -683,29 +576,6 @@ const PredictionDetailsRouteWrapper: React.FC = () => {
         </div>
       </div>
     );
-  }
-
-  // If we failed to resolve due to a network/server issue, do NOT show NotFound.
-  if (resolveError) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <h2 className="text-xl font-semibold text-gray-900 mb-2">Loading prediction…</h2>
-          <p className="text-gray-600 mb-4">We couldn’t load this prediction right now. Please try again.</p>
-          <button
-            onClick={() => window.location.reload()}
-            className="px-4 py-2 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600"
-          >
-            Try Again
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  // Prevent "Prediction Not Found" flash: never render details page until we have a resolved UUID.
-  if (!resolvedId) {
-    return <LoadingSpinner message="Loading prediction..." />;
   }
 
   return <LazyPredictionDetailsPageV2 predictionId={resolvedId} />;
@@ -774,193 +644,42 @@ const AppContent: React.FC = () => {
   return (
           <OnboardingProvider>
           <MobileShell>
+            <MainLayout>
           <Suspense fallback={<PageLoadingSpinner />}>
             <Routes>
-              {/* Admin Routes - OUTSIDE MainLayout (no bottom nav, like landing page) */}
-              <Route
-                path="/admin"
-                element={
-                  <AdminGuard>
-                    <AdminLayout>
-                      <LazyAdminHomePage />
-                    </AdminLayout>
-                  </AdminGuard>
-                }
-              />
-              <Route
-                path="/admin/audit"
-                element={
-                  <AdminGuard>
-                    <AdminLayout>
-                      <LazyAuditLogPage />
-                    </AdminLayout>
-                  </AdminGuard>
-                }
-              />
-              <Route
-                path="/admin/users"
-                element={
-                  <AdminGuard>
-                    <AdminLayout>
-                      <LazyUsersPage />
-                    </AdminLayout>
-                  </AdminGuard>
-                }
-              />
-              <Route
-                path="/admin/users/:userId"
-                element={
-                  <AdminGuard>
-                    <AdminLayout>
-                      <LazyUserDetailPage />
-                    </AdminLayout>
-                  </AdminGuard>
-                }
-              />
-              <Route
-                path="/admin/wallets"
-                element={
-                  <AdminGuard>
-                    <AdminLayout>
-                      <LazyWalletsPage />
-                    </AdminLayout>
-                  </AdminGuard>
-                }
-              />
-              <Route
-                path="/admin/wallets/:userId"
-                element={
-                  <AdminGuard>
-                    <AdminLayout>
-                      <LazyUserWalletPage />
-                    </AdminLayout>
-                  </AdminGuard>
-                }
-              />
-              <Route
-                path="/admin/predictions"
-                element={
-                  <AdminGuard>
-                    <AdminLayout>
-                      <LazyAdminPredictionsPage />
-                    </AdminLayout>
-                  </AdminGuard>
-                }
-              />
-              <Route
-                path="/admin/predictions/:predictionId"
-                element={
-                  <AdminGuard>
-                    <AdminLayout>
-                      <LazyPredictionDetailPage />
-                    </AdminLayout>
-                  </AdminGuard>
-                }
-              />
-              <Route
-                path="/admin/moderation"
-                element={
-                  <AdminGuard>
-                    <AdminLayout>
-                      <LazyModerationPage />
-                    </AdminLayout>
-                  </AdminGuard>
-                }
-              />
-              <Route
-                path="/admin/config"
-                element={
-                  <AdminGuard>
-                    <AdminLayout>
-                      <LazyConfigPage />
-                    </AdminLayout>
-                  </AdminGuard>
-                }
-              />
-              <Route
-                path="/admin/settlements"
-                element={
-                  <AdminGuard>
-                    <AdminLayout>
-                      <LazySettlementsPage />
-                    </AdminLayout>
-                  </AdminGuard>
-                }
-              />
-              <Route
-                path="/admin/settlements/:predictionId"
-                element={
-                  <AdminGuard>
-                    <AdminLayout>
-                      <LazySettlementDetailPage />
-                    </AdminLayout>
-                  </AdminGuard>
-                }
-              />
-              <Route
-                path="/admin/support"
-                element={
-                  <AdminGuard>
-                    <AdminLayout>
-                      <LazySupportPage />
-                    </AdminLayout>
-                  </AdminGuard>
-                }
-              />
-              <Route
-                path="/admin/*"
-                element={
-                  <AdminGuard>
-                    <AdminLayout>
-                      <div className="text-center py-12">
-                        <p className="text-slate-400">Page coming soon</p>
-                      </div>
-                    </AdminLayout>
-                  </AdminGuard>
-                }
-              />
-
-              {/* Main App Routes - INSIDE MainLayout (with bottom nav) */}
-              <Route path="*" element={
-                <MainLayout>
-                  <Routes>
-                    <Route path="/" element={<DiscoverPageWrapper />} />
-                    <Route path="/discover" element={<DiscoverPageWrapper />} />
-                    <Route path="/auth/callback" element={<LazyAuthCallback />} />
-                    <Route path="/r/:code" element={<LazyReferralRedirectPage />} />
-                    <Route path="/predictions" element={<PredictionsPageWrapper />} />
-                    <Route path="/predictions/:id" element={<PredictionDetailsRouteWrapper />} />
-                    <Route path="/p/:id/comments/:commentId" element={<PredictionDetailsRouteWrapper />} />
-                    <Route path="/p/:id/:slug/comments/:commentId" element={<PredictionDetailsRouteWrapper />} />
-                    <Route path="/p/:id/:slug?" element={<PredictionDetailsRouteWrapper />} />
-                    <Route path="/bets" element={<PredictionsPageWrapper />} />
-                    <Route path="/leaderboard" element={<LeaderboardPageWrapper />} />
-                    <Route path="/create" element={<CreatePredictionPageWrapper />} />
-                    <Route path="/profile" element={
-                      <PageWrapper title="Profile"><LazyProfilePageV2 /></PageWrapper>
-                    } />
-                    <Route path="/profile/:userId" element={
-                      <PageWrapper title="Profile"><LazyProfilePageV2 /></PageWrapper>
-                    } />
-                    {/* Public profile route uses handle for shareable deep links; /profile/:userId kept as fallback/back-compat. */}
-                    <Route path="/u/:handle" element={
-                      <PageWrapper title="Profile"><LazyProfilePageV2 /></PageWrapper>
-                    } />
-                    <Route path="/wallet" element={
-                      <PageWrapper title="Wallet"><LazyUnifiedWalletPage /></PageWrapper>
-                    } />
-                    <Route path="/notifications" element={
-                      <PageWrapper title="Notifications"><LazyNotificationsPage /></PageWrapper>
-                    } />
-                    <Route path="/rankings" element={<LeaderboardPageWrapper />} />
-                    <Route path="/prediction/:id" element={<PredictionDetailsRouteWrapper />} />
-                    <Route path="/download" element={<LazyDownloadPage />} />
-                    <Route path="*" element={<DiscoverPageWrapper />} />
-                  </Routes>
-                </MainLayout>
+              <Route path="/" element={<DiscoverPageWrapper />} />
+              <Route path="/discover" element={<DiscoverPageWrapper />} />
+              <Route path="/auth/callback" element={<LazyAuthCallback />} />
+              <Route path="/r/:code" element={<LazyReferralRedirectPage />} />
+              <Route path="/predictions" element={<PredictionsPageWrapper />} />
+              <Route path="/predictions/:id" element={<PredictionDetailsRouteWrapper />} />
+              <Route path="/p/:id" element={<PredictionDetailsRouteWrapper />} />
+              <Route path="/p/:id/:slug" element={<PredictionDetailsRouteWrapper />} />
+              <Route path="/bets" element={<PredictionsPageWrapper />} />
+              <Route path="/leaderboard" element={<LeaderboardPageWrapper />} />
+              <Route path="/create" element={<CreatePredictionPageWrapper />} />
+              <Route path="/profile" element={
+                <PageWrapper title="Profile"><LazyProfilePageV2 /></PageWrapper>
               } />
+              <Route path="/profile/:userId" element={
+                <PageWrapper title="Profile"><LazyProfilePageV2 /></PageWrapper>
+              } />
+              {/* Public profile route uses handle for shareable deep links; /profile/:userId kept as fallback/back-compat. */}
+              <Route path="/u/:handle" element={
+                <PageWrapper title="Profile"><LazyProfilePageV2 /></PageWrapper>
+              } />
+              <Route path="/wallet" element={
+                <PageWrapper title="Wallet"><LazyWalletPageV2 /></PageWrapper>
+              } />
+              <Route path="/rankings" element={<LeaderboardPageWrapper />} />
+              <Route path="/prediction/:id" element={<PredictionDetailsRouteWrapper />} />
+              <Route path="/download" element={<LazyDownloadPage />} />
+
+                {/* Fallback */}
+              <Route path="*" element={<DiscoverPageWrapper />} />
             </Routes>
           </Suspense>
+            </MainLayout>
           </MobileShell>
           
           {/* Auth Gate Modal */}
@@ -975,98 +694,18 @@ const AppContent: React.FC = () => {
 
 // Root App Component with proper provider nesting
 function App() {
-  // Router-based navigation for native OAuth success (no full reload)
-  const NativeOAuthSuccessListener: React.FC = () => {
-    const navigate = useNavigate();
-
-    React.useEffect(() => {
-      const navigateTo = (returnTo?: string) => {
-        if (!returnTo) return;
-        navigate(returnTo, { replace: true });
-      };
-
-      // Handle stored returnTo (covers case where event fired before React mounted)
-      try {
-        const stored = sessionStorage.getItem('native_oauth_return_to');
-        if (stored) {
-          sessionStorage.removeItem('native_oauth_return_to');
-          navigateTo(stored);
-        }
-      } catch {
-        // ignore
-      }
-
-      const handler = (event: Event) => {
-        const e = event as CustomEvent;
-        navigateTo(e.detail?.returnTo);
-      };
-
-      window.addEventListener('native-oauth-success', handler as EventListener);
-      return () => window.removeEventListener('native-oauth-success', handler as EventListener);
-    }, [navigate]);
-
-    return null;
-  };
-
-  const [authInProgress, setAuthInProgress] = React.useState(false);
-  const [authError, setAuthError] = React.useState(false);
-
-  React.useEffect(() => {
-    const handleAuthProgress = (event: CustomEvent) => {
-      const { started, completed, error, cancelled } = event.detail || {};
-      if (started) {
-        setAuthInProgress(true);
-        setAuthError(false);
-      } else if (completed) {
-        setAuthInProgress(false);
-        setAuthError(false);
-      } else if (error || cancelled) {
-        // Keep overlay visible in an "error" state so user can retry
-        setAuthInProgress(false);
-        setAuthError(true);
-      }
-    };
-
-    window.addEventListener('auth-in-progress', handleAuthProgress as EventListener);
-    return () => {
-      window.removeEventListener('auth-in-progress', handleAuthProgress as EventListener);
-    };
-  }, []);
-
-  const handleRetry = () => {
-    setAuthInProgress(false);
-    setAuthError(false);
-    // User can retry by clicking sign-in again
-  };
-
-  const handleCancel = () => {
-    setAuthInProgress(false);
-    setAuthError(false);
-  };
-
   return (
-    <div className="safe-area-shell">
-      <NetworkStatusProvider>
-        <OAuthDiagnostic />
-        <SupabaseProvider>
-          <AuthSessionProvider>
-            <RealtimeProvider>
-              <NativeOAuthSuccessListener />
-              <TermsAcceptanceGate>
-                <AppContent />
-              </TermsAcceptanceGate>
-              <ConnectWalletSheet />
-              <AuthInProgressOverlay
-                isVisible={authInProgress || authError}
-                status={authError ? 'error' : 'in_progress'}
-                onRetry={authError ? handleRetry : undefined}
-                onCancel={handleCancel}
-              />
-            </RealtimeProvider>
-          </AuthSessionProvider>
-        </SupabaseProvider>
-      </NetworkStatusProvider>
-    </div>
+    <NetworkStatusProvider>
+      <OAuthDiagnostic />
+      <SupabaseProvider>
+        <AuthSessionProvider>
+          <RealtimeProvider>
+            <AppContent />
+            <ConnectWalletSheet />
+          </RealtimeProvider>
+        </AuthSessionProvider>
+      </SupabaseProvider>
+    </NetworkStatusProvider>
   );
 }
 

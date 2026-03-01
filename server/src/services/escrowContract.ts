@@ -45,8 +45,6 @@ export async function getEscrowAddress(): Promise<Address> {
     return cachedEscrowAddress;
   }
 
-  // Canonical source of truth in production: explicit env vars.
-  // This prevents accidental DB registry edits from silently redirecting funds.
   const explicit = process.env.ESCROW_CONTRACT_ADDRESS || process.env.BASE_ESCROW_ADDRESS;
   if (explicit) {
     cachedEscrowAddress = getAddress(explicit) as Address;

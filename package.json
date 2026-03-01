@@ -9,7 +9,7 @@
     "shared"
   ],
   "scripts": {
-    "preinstall": "npm --prefix server install --legacy-peer-deps",
+    "preinstall": "npm --prefix server install",
     "build": "npm --prefix client run build && npm --prefix server run build",
     "build:client": "npm --prefix client run build",
     "build:server": "npm --prefix server run build",

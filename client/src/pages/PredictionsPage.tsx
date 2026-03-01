@@ -745,16 +745,10 @@ const PredictionsPage: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNa
           onClick={(e) => {
             e.preventDefault();
             e.stopPropagation();
-            (e.nativeEvent as Event).stopImmediatePropagation?.();
             setSelectedPrediction(prediction);
             setShowManageModal(true);
           }}
-          onClickCapture={(e) => e.stopPropagation()}
-          onMouseDown={(e) => e.stopPropagation()}
-          onPointerDown={(e) => e.stopPropagation()}
-          onTouchStart={(e) => e.stopPropagation()}
-          onTouchEnd={(e) => e.stopPropagation()}
-          className="bg-blue-600 text-white px-4 py-2 rounded-lg font-medium text-sm flex items-center gap-1 hover:bg-blue-700 transition-colors"
+          className="bg-blue-600 text-white px-4 py-2 rounded-lg font-medium text-sm flex items-center gap-1 hover:bg-blue-700 transition-colors z-10 relative"
         >
           Manage <Settings className="w-4 h-4" />
         </button>

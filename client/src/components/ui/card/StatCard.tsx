@@ -1,6 +1,7 @@
 import React from 'react';
 import { cn } from '../../../utils/cn';
-import { formatUSDCompact, formatNumberShort, formatPercent, formatLargeNumber, formatPercentage, formatCurrency } from '@/lib/format';
+import { formatNumberShort, formatLargeNumber, formatPercentage } from '@/lib/format';
+import { ZaurumAmount } from '@/components/currency/ZaurumAmount';
 
 interface StatCardProps {
   label: string;
@@ -13,8 +14,6 @@ interface StatCardProps {
   compact?: boolean;
   className?: string;
   subtitle?: string;
-  /** Phase 7D: currency for variant=currency (default USD) */
-  currency?: string;
 }
 
 export function StatCard({ 
@@ -28,9 +27,8 @@ export function StatCard({
   compact = false,
   className,
   subtitle,
-  currency = 'USD',
 }: StatCardProps) {
-  const formatValue = (val: string | number | undefined) => {
+  const formatValue = (val: string | number | undefined): React.ReactNode => {
     if (loading || val === undefined || val === null) {
       return '—';
     }
@@ -43,14 +41,14 @@ export function StatCard({
     
     switch (variant) {
       case 'currency':
-        return currency !== 'USD' ? formatCurrency(numValue, { compact, currency }) : formatUSDCompact(numValue);
+        return <ZaurumAmount value={numValue} compact />;
       case 'percentage':
         return formatPercentage(numValue);
       case 'balance': {
         const amount = typeof numValue === 'number' ? numValue : Number(numValue || 0);
-        const formatted = formatCurrency(Math.abs(amount), { compact });
+        const formatted = <ZaurumAmount value={Math.abs(amount)} compact={compact} />;
         const sign = amount > 0 ? '+' : amount < 0 ? '-' : '';
-        return `${sign}${formatted}`;
+        return <>{sign}{formatted}</>;
       }
       case 'count':
         return formatNumberShort(numValue);

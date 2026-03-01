@@ -13,7 +13,6 @@ export const envClient = {
   // Additional environment variables that may be needed
   VITE_SUPABASE_URL: import.meta.env.VITE_SUPABASE_URL,
   VITE_SUPABASE_ANON_KEY: import.meta.env.VITE_SUPABASE_ANON_KEY,
-  VITE_PUBLIC_APP_URL: import.meta.env.VITE_PUBLIC_APP_URL,
   VITE_FRONTEND_URL: import.meta.env.VITE_FRONTEND_URL,
   VITE_FCZ_UNIFIED_HEADER: import.meta.env.VITE_FCZ_UNIFIED_HEADER,
   VITE_FCZ_DISCOVER_V2: import.meta.env.VITE_FCZ_DISCOVER_V2,
@@ -23,13 +22,8 @@ export const envClient = {
   VITE_FCZ_COMMENTS_V2: import.meta.env.VITE_FCZ_COMMENTS_V2,
   VITE_FCZ_UNIFIED_CARDS: import.meta.env.VITE_FCZ_UNIFIED_CARDS,
   VITE_FCZ_COMMENTS_SORT: import.meta.env.VITE_FCZ_COMMENTS_SORT,
-  // Compliance / phased rollout flags (default OFF)
-  VITE_FCZ_SIGN_IN_APPLE: import.meta.env.VITE_FCZ_SIGN_IN_APPLE,
-  VITE_FCZ_ACCOUNT_DELETION: import.meta.env.VITE_FCZ_ACCOUNT_DELETION,
-  VITE_FCZ_UGC_MODERATION: import.meta.env.VITE_FCZ_UGC_MODERATION,
-  VITE_FCZ_DISPUTES: import.meta.env.VITE_FCZ_DISPUTES,
-  VITE_FCZ_ODDS_V2: import.meta.env.VITE_FCZ_ODDS_V2,
-  VITE_FCZ_WALLET_CONNECT_V2: import.meta.env.VITE_FCZ_WALLET_CONNECT_V2,
+  VITE_FCZ_WALLET_MODE: import.meta.env.VITE_FCZ_WALLET_MODE,
+  VITE_FCZ_ENABLE_DAILY_CLAIM: import.meta.env.VITE_FCZ_ENABLE_DAILY_CLAIM,
   VITE_DEBUG: import.meta.env.VITE_DEBUG,
   VITE_VAPID_PUBLIC_KEY: import.meta.env.VITE_VAPID_PUBLIC_KEY,
   VITE_ESCROW_CONTRACT_ADDRESS: import.meta.env.VITE_ESCROW_CONTRACT_ADDRESS,

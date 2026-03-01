@@ -29,12 +29,12 @@ UPDATE public.badge_definitions
 SET
   title = CASE key
     WHEN 'FIRST_COMMENT' THEN '100 Comments'
-    WHEN 'FIRST_CREATOR_EARNING' THEN '10 Creator Earnings'
+    WHEN 'FIRST_CREATOR_EARNING' THEN 'First $10 Creator Earnings'
     ELSE title
   END,
   description = CASE key
     WHEN 'FIRST_COMMENT' THEN 'Posted 100 comments on Fan Club Z.'
-    WHEN 'FIRST_CREATOR_EARNING' THEN 'Earned at least 10 in creator fees.'
+    WHEN 'FIRST_CREATOR_EARNING' THEN 'Earn your first $10 in creator fees.'
     ELSE description
   END,
   progress_metric = CASE key
@@ -52,4 +52,3 @@ SET
     ELSE goal_value
   END
 WHERE key IN ('FIRST_STAKE', 'TEN_STAKES', 'FIRST_COMMENT', 'FIRST_CREATOR_EARNING');
-

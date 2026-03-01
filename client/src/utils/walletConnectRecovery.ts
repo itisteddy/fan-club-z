@@ -40,17 +40,11 @@ export function useWalletConnectRecovery() {
       let cleared = 0;
       
       keys.forEach(key => {
-        // CRITICAL: NEVER remove 'wagmi.store' — it holds connection state.
-        // Only remove WalletConnect-specific session/pairing data.
-        if (key === 'wagmi.store') return;
         if (
           key.startsWith('wc@2:') ||
-          key.startsWith('wc@1:') ||
-          key.startsWith('walletconnect') ||
-          key.startsWith('WALLETCONNECT') ||
-          key.includes('wc_session') ||
-          key.includes('@walletconnect') ||
-          key.startsWith('wc_')
+          key.startsWith('wagmi.') ||
+          key.includes('walletconnect') ||
+          key.includes('WALLETCONNECT')
         ) {
           console.log('[FCZ-WALLET] Clearing stale key:', key);
           localStorage.removeItem(key);

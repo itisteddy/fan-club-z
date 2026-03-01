@@ -7,6 +7,7 @@
 interface EnvGroup {
   name: string;
   required: string[];
+  requiredAny?: string[];
   optional?: string[];
   description?: string;
 }
@@ -56,9 +57,8 @@ const CLIENT_ENV_GROUPS: EnvGroup[] = [
   },
   {
     name: 'WalletConnect',
-    required: [
-      'VITE_WC_PROJECT_ID',
-    ],
+    required: [],
+    requiredAny: ['VITE_WALLETCONNECT_PROJECT_ID', 'VITE_WC_PROJECT_ID'],
     description: 'WalletConnect project ID for wallet connections'
   },
   {
@@ -80,6 +80,15 @@ function checkEnv(group: EnvGroup, env: Record<string, string | undefined>): { m
       missing.push(key);
     } else {
       present.push(key);
+    }
+  }
+
+  if (group.requiredAny && group.requiredAny.length > 0) {
+    const hasAny = group.requiredAny.some((key) => Boolean(env[key] && env[key]?.trim() !== ''));
+    if (hasAny) {
+      present.push(`one-of(${group.requiredAny.join(' | ')})`);
+    } else {
+      missing.push(`one-of(${group.requiredAny.join(' | ')})`);
     }
   }
 
@@ -172,4 +181,3 @@ if (require.main === module) {
 }
 
 export { checkEnv, SERVER_ENV_GROUPS, CLIENT_ENV_GROUPS };
-

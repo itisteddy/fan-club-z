@@ -30,7 +30,6 @@ transfers_out AS (
   FROM public.wallet_transactions
   WHERE
     currency = 'USD'
-    AND COALESCE(direction, 'credit') = 'credit'
     AND COALESCE(status, 'completed') = 'completed'
     AND COALESCE(from_account, '') = 'CREATOR_EARNINGS'
     AND COALESCE(to_account, '') = 'STAKE'
@@ -47,6 +46,7 @@ UPDATE public.wallets w
 SET
   creator_earnings_balance = cb.net_creator_earnings,
   stake_balance = GREATEST(0, w.stake_balance - (cb.net_creator_earnings - w.creator_earnings_balance)),
+  available_balance = GREATEST(0, w.available_balance - (cb.net_creator_earnings - w.creator_earnings_balance)),
   updated_at = NOW()
 FROM computed_balances cb
 WHERE w.user_id = cb.user_id

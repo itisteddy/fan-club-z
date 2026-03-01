@@ -6,12 +6,13 @@ import {
   TrendingDown, 
   Minus, 
   Info, 
-  DollarSign,
   Users,
   Clock,
   AlertTriangle
 } from 'lucide-react';
 import { Prediction, PredictionOption } from '../store/predictionStore';
+import { formatCurrency } from '@/lib/format';
+import { ZaurumMark } from '@/components/currency/ZaurumMark';
 
 interface PredictionPlacementModalProps {
   prediction: Prediction;
@@ -125,8 +126,8 @@ const PredictionPlacementModal: React.FC<PredictionPlacementModalProps> = ({
               </h3>
               <div className="flex items-center gap-4 text-sm text-gray-600">
                 <div className="flex items-center gap-1">
-                  <DollarSign size={14} />
-                  <span>${totalPool.toLocaleString()} pool</span>
+                  <ZaurumMark className="h-3.5 w-3.5" />
+                  <span>{formatCurrency(totalPool, { compact: false })} pool</span>
                 </div>
                 <div className="flex items-center gap-1">
                   <Users size={14} />
@@ -217,11 +218,13 @@ const PredictionPlacementModal: React.FC<PredictionPlacementModalProps> = ({
               >
                 <div className="flex items-center justify-between mb-3">
                   <h4 className="font-semibold text-gray-900">Prediction Amount</h4>
-                  <span className="text-sm text-gray-500">Balance: ${userBalance.toLocaleString()}</span>
+                  <span className="text-sm text-gray-500">Balance: {formatCurrency(userBalance, { compact: false })}</span>
                 </div>
                 
                 <div className="relative">
-                  <DollarSign className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+                  <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400">
+                    <ZaurumMark className="h-5 w-5" />
+                  </span>
                   <input
                     type="number"
                     value={amount}
@@ -241,7 +244,7 @@ const PredictionPlacementModal: React.FC<PredictionPlacementModalProps> = ({
                       onClick={() => setAmount(quickAmount.toString())}
                       className="flex-1 py-2 text-sm font-medium border border-gray-300 rounded-lg hover:border-teal-400 hover:bg-teal-50 transition-all duration-200"
                     >
-                      ${quickAmount}
+                      {formatCurrency(quickAmount, { compact: false })}
                     </button>
                   ))}
                 </div>
@@ -256,7 +259,7 @@ const PredictionPlacementModal: React.FC<PredictionPlacementModalProps> = ({
                 {amount && !meetsMinimum && canAfford && (
                   <div className="flex items-center gap-2 mt-2 text-amber-600">
                     <Info size={16} />
-                    <span className="text-sm">Minimum amount: ${prediction.stakeMin ?? prediction.stake_min ?? 0}</span>
+                    <span className="text-sm">Minimum amount: {formatCurrency(prediction.stakeMin ?? prediction.stake_min ?? 0, { compact: false })}</span>
                   </div>
                 )}
               </motion.div>
@@ -273,17 +276,25 @@ const PredictionPlacementModal: React.FC<PredictionPlacementModalProps> = ({
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <p className="text-sm text-gray-600">Your Prediction</p>
-                    <p className="text-lg font-bold text-gray-900">${numericAmount.toLocaleString()}</p>
+                    <p className="text-lg font-bold text-gray-900 inline-flex items-center gap-1">
+                      <ZaurumMark className="h-4 w-4" />
+                      {formatCurrency(numericAmount, { compact: false })}
+                    </p>
                   </div>
                   <div>
                     <p className="text-sm text-gray-600">Potential Return</p>
-                    <p className="text-lg font-bold text-teal-600">${potentialPayout.toLocaleString()}</p>
+                    <p className="text-lg font-bold text-teal-600 inline-flex items-center gap-1">
+                      <ZaurumMark className="h-4 w-4" />
+                      {formatCurrency(potentialPayout, { compact: false })}
+                    </p>
                   </div>
                 </div>
                 <div className="mt-3 pt-3 border-t border-teal-200">
                   <p className="text-sm text-gray-600">
-                    Potential profit: <span className="font-semibold text-teal-600">
-                      ${(potentialPayout - numericAmount).toLocaleString()}
+                    Potential profit:{' '}
+                    <span className="font-semibold text-teal-600 inline-flex items-center gap-1">
+                      <ZaurumMark className="h-3.5 w-3.5" />
+                      {formatCurrency(potentialPayout - numericAmount, { compact: false })}
                     </span>
                   </p>
                 </div>

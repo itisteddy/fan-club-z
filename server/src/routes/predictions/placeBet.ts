@@ -1,72 +1,50 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { supabase } from '../../config/database';
+import { config } from '../../config';
 import { VERSION } from '@fanclubz/shared';
 import { getAddress } from 'viem';
 import crypto from 'crypto';
 import { reconcileWallet } from '../../services/walletReconciliation';
 import { emitPredictionUpdate, emitWalletUpdate } from '../../services/realtime';
 import { recomputePredictionState } from '../../services/predictionMath';
-import { enrichPredictionWithOddsV2 } from '../../utils/enrichPredictionOddsV2';
 import {
   StakeQuoteError,
   computeStakeQuoteFromDb,
   insertPositionStakeEvent,
 } from '../../services/stakeQuote';
 import { beginPredictionStakeLock, PredictionStakeLockError } from '../../services/predictionStakeLock';
-import { requireSupabaseAuth } from '../../middleware/requireSupabaseAuth';
-import { isCryptoAllowedForClient } from '../../middleware/requireCryptoEnabled';
-import type { AuthenticatedRequest } from '../../middleware/auth';
+import { logMoneyMutation } from '../../utils/moneyMutationLogger';
 
 export const placeBetRouter = Router();
 
-/** Generate a short request id for logging and client debugging. */
-function requestId(): string {
-  return crypto.randomUUID?.() ?? `req_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
-}
-
-/**
- * Map DB/Supabase errors to HTTP status + FCZ error code + user-facing message.
- * Returns { status, code, message } or null if unknown (caller uses 500).
- */
-function mapDbError(err: any): { status: number; code: string; message: string } | null {
-  if (!err?.code) return null;
-  switch (err.code) {
-    case '23503':
-      return { status: 400, code: 'FCZ_INVALID_REFERENCE', message: 'Invalid prediction or option' };
-    case '23505':
-      return { status: 409, code: 'FCZ_DUPLICATE_BET', message: 'Bet already exists' };
-    case '23502':
-      return { status: 400, code: 'FCZ_BAD_REQUEST', message: 'Missing required fields' };
-    case '42501':
-    case 'PGRST301':
-      return { status: 403, code: 'FCZ_FORBIDDEN', message: 'Not allowed' };
-    default:
-      return null;
-  }
-}
-
 /**
  * POST /api/predictions/:predictionId/place-bet
- * Atomic, idempotent bet placement. Requires Authorization: Bearer <Supabase access_token>.
- * userId is taken from the authenticated user (not from body).
+ * Atomic, idempotent bet placement
+ * 
+ * Input: { predictionId, optionId, amountUSD }
+ * 
+ * Steps (in transaction):
+ * 1. Verify ENABLE_BETS=1
+ * 2. Check escrow available >= amount
+ * 3. Create lock with idempotent lock_ref
+ * 4. Insert entry consuming lock
+ * 5. Create wallet_transaction
+ * 6. Emit event_log
  */
 async function handlePlaceBet(req: any, res: any) {
-  const reqId = requestId();
   let mutationLock: Awaited<ReturnType<typeof beginPredictionStakeLock>> | null = null;
   let mutationLockCommit = false;
   try {
-    const predictionId = req.params.predictionId;
-    const authReq = req as AuthenticatedRequest;
-    const userId = authReq.user?.id;
-    if (!userId) {
-      return res.status(401).json({
-        code: 'FCZ_AUTH_REQUIRED',
-        message: 'Authorization required',
-        requestId: reqId,
+    if (config.features.walletMode === 'zaurum_only') {
+      return res.status(410).json({
+        error: 'crypto_disabled_zaurum_only',
+        message: 'Crypto bet placement is disabled in zaurum-only mode.',
         version: VERSION,
       });
     }
+
+    const predictionId = req.params.predictionId;
 
     // Verify ENABLE_BETS flag
     const enableBets = process.env.ENABLE_BETS === '1' || 
@@ -76,33 +54,19 @@ async function handlePlaceBet(req: any, res: any) {
     if (!enableBets) {
       console.log('[FCZ-BET] Bet placement disabled - ENABLE_BETS flag not set');
       return res.status(403).json({
-        code: 'FCZ_FORBIDDEN',
         error: 'BETTING_DISABLED',
         message: 'Betting is temporarily unavailable. Please try again later.',
-        requestId: reqId,
+        hint: 'Server admin: Set ENABLE_BETS=1 in server/.env',
         version: VERSION
       });
     }
 
-    // Validate input (userId comes from auth; body.userId ignored for security)
+    // Validate input
     const BodySchema = z.object({
       optionId: z.string().uuid('Invalid optionId'),
-      amountUSD: z.number().positive('amountUSD must be positive').optional(),
-      userId: z.string().uuid().optional(),
-      walletAddress: z.string().optional(),
-      fundingMode: z.enum(['crypto', 'demo', 'fiat']).optional(),
-      amountNgn: z.number().positive().optional(),
-    }).superRefine((val, ctx) => {
-      const mode = val.fundingMode ?? 'crypto';
-      if (mode === 'fiat') {
-        if (!Number.isFinite(Number(val.amountNgn)) || Number(val.amountNgn) <= 0) {
-          ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['amountNgn'], message: 'amountNgn is required for fiat fundingMode' });
-        }
-      } else {
-        if (!Number.isFinite(Number(val.amountUSD)) || Number(val.amountUSD) <= 0) {
-          ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['amountUSD'], message: 'amountUSD is required for demo/crypto fundingMode' });
-        }
-      }
+      amountUSD: z.number().positive('amountUSD must be positive'),
+      userId: z.string().uuid('Invalid userId'),
+      walletAddress: z.string().optional()
     });
 
     let body;
@@ -111,33 +75,16 @@ async function handlePlaceBet(req: any, res: any) {
     } catch (err) {
       if (err instanceof z.ZodError) {
         return res.status(400).json({
-          code: 'FCZ_BAD_REQUEST',
           error: 'invalid_body',
-          message: err.issues?.[0]?.message ?? 'Missing or invalid fields',
           details: err.issues,
-          requestId: reqId,
           version: VERSION
         });
       }
       throw err;
     }
 
-    // userId is derived from Authorization (req.user) – never trust body.userId
-    const { optionId } = body;
-    const amountUSD = Number((body as any).amountUSD || 0);
-    const fundingMode = body.fundingMode ?? 'crypto';
+    const { optionId, amountUSD, userId } = body;
     const bodyWallet = body.walletAddress ? getAddress(body.walletAddress) : undefined;
-
-    if (fundingMode === 'crypto' && !isCryptoAllowedForClient(req)) {
-      console.log('[CRYPTO-GATE] Rejected place-bet: client not allowed for crypto', { client: (req as any).client });
-      return res.status(403).json({
-        code: 'FCZ_FORBIDDEN',
-        error: 'crypto_disabled_for_client',
-        message: 'Crypto is not available for this client',
-        requestId: reqId,
-        version: VERSION
-      });
-    }
 
     console.log(`[FCZ-BET] Place bet request:`, { predictionId, optionId, amountUSD, userId });
 
@@ -150,20 +97,16 @@ async function handlePlaceBet(req: any, res: any) {
 
     if (predError || !prediction) {
       return res.status(404).json({
-        code: 'FCZ_NOT_FOUND',
         error: 'prediction_not_found',
         message: 'Prediction not found',
-        requestId: reqId,
         version: VERSION
       });
     }
 
     if (prediction.status !== 'open') {
       return res.status(400).json({
-        code: 'FCZ_BAD_REQUEST',
         error: 'prediction_not_open',
         message: `Prediction is ${prediction.status}`,
-        requestId: reqId,
         version: VERSION
       });
     }
@@ -178,618 +121,47 @@ async function handlePlaceBet(req: any, res: any) {
 
     if (optError || !option) {
       return res.status(404).json({
-        code: 'FCZ_INVALID_REFERENCE',
         error: 'option_not_found',
         message: 'Option not found',
-        requestId: reqId,
         version: VERSION
       });
     }
 
     // Serialize same-market stake mutations in this app server to reduce race conditions on
-    // pooled totals / aggregated positions before a full DB transaction rewrite.
+    // pooled totals / aggregated positions before a full DB-transaction rewrite.
     mutationLock = await beginPredictionStakeLock(predictionId);
 
-    let quoteUsed: any = null;
-    let quoteSameOutcomeEntry: any = null;
-    if (fundingMode === 'demo' || fundingMode === 'crypto') {
-      try {
-        const quoteResult = await computeStakeQuoteFromDb({
-          predictionId,
-          optionId,
-          amount: amountUSD,
-          userId,
-          mode: fundingMode === 'demo' ? 'DEMO' : 'REAL',
-        });
-        quoteUsed = quoteResult.quote;
-        quoteSameOutcomeEntry = quoteResult.sameOutcomeEntry;
-        if (quoteResult.otherOutcomeEntry) {
-          return res.status(409).json({
-            error: 'duplicate_entry',
-            message: 'You already have a position on another outcome for this prediction.',
-            version: VERSION,
-          });
-        }
-      } catch (quoteErr: any) {
-        if (quoteErr instanceof StakeQuoteError) {
-          return res.status(quoteErr.status).json({
-            error: quoteErr.code,
-            message: quoteErr.message,
-            version: VERSION,
-          });
-        }
-        throw quoteErr;
-      }
-    }
-
-    // DEMO wallet mode (DB-backed ledger). Crypto path remains unchanged below.
-    if (fundingMode === 'demo') {
-      const DEMO_CURRENCY = 'DEMO_USD';
-      const PROVIDER = 'demo-wallet';
-      const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
-
-      // Idempotency: reuse existing requestId if provided
-      const nonce = req.body.requestId || Date.now().toString();
-      const lockRefInput = `${userId}|${predictionId}|${optionId}|${amountUSD}|${nonce}|demo`;
-      const lockRef = crypto.createHash('sha256').update(lockRefInput).digest('hex').substring(0, 32);
-      const externalRef = `demo_bet_lock:${lockRef}`;
-
-      // Ensure demo wallet row exists
-      await supabase
-        .from('wallets')
-        .upsert(
-          {
-            user_id: userId,
-            currency: DEMO_CURRENCY,
-            available_balance: 0,
-            reserved_balance: 0,
-            demo_credits_balance: 0,
-            updated_at: new Date().toISOString(),
-          } as any,
-          { onConflict: 'user_id,currency', ignoreDuplicates: true }
-        );
-
-      // Idempotent retry: if tx exists, return existing entry
-      const { data: existingTx } = await supabase
-        .from('wallet_transactions')
-        .select('entry_id')
-        .eq('provider', PROVIDER)
-        .eq('external_ref', externalRef)
-        .maybeSingle();
-      if ((existingTx as any)?.entry_id) {
-        const existingEntryId = (existingTx as any).entry_id as string;
-        const recomputed = await recomputePredictionState(predictionId);
-        const { data: entryRow } = await supabase
-          .from('prediction_entries')
-          .select('*')
-          .eq('id', existingEntryId)
-          .maybeSingle();
-        return res.status(200).json({
-          ok: true,
-          entryId: existingEntryId,
-          quoteUsed: quoteUsed ?? null,
-          data: { prediction: enrichPredictionWithOddsV2(recomputed.prediction), entry: entryRow || null },
-          message: 'Bet already placed (idempotent)',
-          version: VERSION,
-        });
-      }
-
-      // Create/reuse lock with lock_ref idempotency
-      const { data: lockByRef } = await supabase
-        .from('escrow_locks')
-        .select('id, state, status, amount')
-        .eq('lock_ref', lockRef)
-        .maybeSingle();
-
-      let lockId: string;
-      const lockStatus = (lockByRef as any)?.status || (lockByRef as any)?.state;
-      if (lockByRef?.id) {
-        lockId = lockByRef.id as any;
-        if (lockStatus === 'consumed') {
-          const { data: existingEntry } = await supabase
-            .from('prediction_entries')
-            .select('id')
-            .eq('escrow_lock_id', lockId)
-            .order('created_at', { ascending: false })
-            .maybeSingle();
-          const entryId = (existingEntry as any)?.id as string | undefined;
-          const recomputed = await recomputePredictionState(predictionId);
-          const { data: entryRow } = entryId
-            ? await supabase.from('prediction_entries').select('*').eq('id', entryId).maybeSingle()
-            : { data: null };
-          return res.status(200).json({
-            ok: true,
-            entryId: entryId || null,
-            consumedLockId: lockId,
-            quoteUsed: quoteUsed ?? null,
-            data: { prediction: enrichPredictionWithOddsV2(recomputed.prediction), entry: entryRow || null },
-            message: 'Bet already placed (idempotent)',
-            version: VERSION,
-          });
-        }
-        if (Number((lockByRef as any).amount || 0) < amountUSD) {
-          return res.status(400).json({
-            error: 'INSUFFICIENT_LOCK',
-            message: `Existing lock amount (${(lockByRef as any).amount}) is less than required (${amountUSD})`,
-            version: VERSION,
-          });
-        }
-      } else {
-        const { data: newLock, error: lockErr } = await supabase
-          .from('escrow_locks')
-          .insert({
-            user_id: userId,
-            prediction_id: predictionId,
-            option_id: optionId,
-            amount: amountUSD,
-            state: 'locked',
-            status: 'locked',
-            lock_ref: lockRef,
-            expires_at: expiresAt.toISOString(),
-            currency: 'USD',
-            meta: { provider: PROVIDER },
-          } as any)
-          .select('id')
-          .single();
-        if (lockErr || !newLock?.id) {
-          console.error('[FCZ-BET] demo lock create failed', lockErr);
-          return res.status(500).json({ code: 'FCZ_DATABASE_ERROR', error: 'database_error', message: 'Failed to create lock', requestId: reqId, version: VERSION });
-        }
-        lockId = newLock.id as any;
-      }
-
-      // Reserve demo balance (compare-and-swap to reduce race issues)
-      const { data: w } = await supabase
-        .from('wallets')
-        .select('available_balance,reserved_balance,demo_credits_balance')
-        .eq('user_id', userId)
-        .eq('currency', DEMO_CURRENCY)
-        .maybeSingle();
-      const prevAvailLegacy = Number((w as any)?.available_balance || 0);
-      const hasExplicitDemoAvail = (w as any)?.demo_credits_balance !== null && (w as any)?.demo_credits_balance !== undefined;
-      const prevDemoAvail = Number((w as any)?.demo_credits_balance ?? prevAvailLegacy);
-      const prevRes = Number((w as any)?.reserved_balance || 0);
-      if (prevDemoAvail < amountUSD) {
-        return res.status(400).json({ error: 'INSUFFICIENT_FUNDS', message: 'Insufficient demo credits', version: VERSION });
-      }
-      const nextDemoAvail = prevDemoAvail - amountUSD;
-      const nextRes = prevRes + amountUSD;
-      let balanceUpdateQuery = supabase
-        .from('wallets')
-        .update({
-          // Keep legacy available_balance mirrored for old readers, but demo_credits_balance is source of truth.
-          available_balance: nextDemoAvail,
-          demo_credits_balance: nextDemoAvail,
-          reserved_balance: nextRes,
-          updated_at: new Date().toISOString(),
-        } as any)
-        .eq('user_id', userId)
-        .eq('currency', DEMO_CURRENCY)
-        .eq('available_balance', prevAvailLegacy)
-        .eq('reserved_balance', prevRes);
-      if (hasExplicitDemoAvail) {
-        balanceUpdateQuery = balanceUpdateQuery.eq('demo_credits_balance', prevDemoAvail);
-      }
-      const { error: balErr } = await balanceUpdateQuery;
-      if (balErr) {
-        return res.status(400).json({ error: 'INSUFFICIENT_FUNDS', message: 'Insufficient demo credits', version: VERSION });
-      }
-
-      // Create or top-up aggregated prediction entry
-      let entry: any = null;
-      const isTopUp = Boolean(quoteSameOutcomeEntry?.id);
-      if (isTopUp) {
-        const nextAmount = Number(quoteSameOutcomeEntry.amount || 0) + amountUSD;
-        const { data: updatedEntry, error: updateErr } = await supabase
-          .from('prediction_entries')
-          .update({
-            amount: nextAmount,
-            potential_payout: quoteUsed?.after?.estPayout ?? nextAmount,
-            updated_at: new Date().toISOString(),
-          } as any)
-          .eq('id', quoteSameOutcomeEntry.id)
-          .select('*')
-          .single();
-        if (updateErr || !updatedEntry?.id) {
-          console.error('[FCZ-BET] demo entry top-up failed', { requestId: reqId, error: updateErr });
-          return res.status(500).json({
-            code: 'FCZ_DATABASE_ERROR',
-            error: 'entry_update_failed',
-            message: 'Failed to increase stake',
-            requestId: reqId,
-            version: VERSION,
-          });
-        }
-        entry = updatedEntry;
-      } else {
-        const { data: createdEntry, error: entryErr } = await supabase
-          .from('prediction_entries')
-          .insert({
-            prediction_id: predictionId,
-            option_id: optionId,
-            user_id: userId,
-            amount: amountUSD,
-            status: 'active',
-            potential_payout: quoteUsed?.after?.estPayout ?? amountUSD,
-            escrow_lock_id: lockId,
-            provider: PROVIDER,
-          } as any)
-          .select('*')
-          .single();
-        if (entryErr || !createdEntry?.id) {
-          const errCode = (entryErr as any)?.code;
-          const errMessage = (entryErr as any)?.message;
-          console.error('[FCZ-BET] demo entry create failed', { requestId: reqId, code: errCode, message: errMessage, full: entryErr });
-          const mapped = mapDbError(entryErr);
-          if (mapped) {
-            return res.status(mapped.status).json({
-              code: mapped.code,
-              message: mapped.message,
-              requestId: reqId,
-              version: VERSION,
-            });
-          }
-          return res.status(500).json({
-            code: 'FCZ_DATABASE_ERROR',
-            error: 'database_error',
-            message: 'Failed to create entry',
-            requestId: reqId,
-            version: VERSION,
-          });
-        }
-        entry = createdEntry;
-      }
-
-      // Mark lock as consumed
-      await supabase.from('escrow_locks').update({ state: 'consumed', status: 'consumed' } as any).eq('id', lockId);
-
-      // Record wallet transaction (idempotent)
-      await supabase.from('wallet_transactions').insert({
-        user_id: userId,
-        direction: 'debit',
-        type: 'bet_lock',
-        channel: 'fiat',
-        provider: PROVIDER,
-        amount: amountUSD,
-        currency: DEMO_CURRENCY,
-        status: 'completed',
-        external_ref: externalRef,
-        prediction_id: predictionId,
-        entry_id: entry.id,
-        description: `Demo stake on "${prediction.title}"`,
-        meta: { kind: 'bet_lock', prediction_id: predictionId, entry_id: entry.id, escrow_lock_id: lockId, provider: PROVIDER },
-      } as any).then(({ error }) => {
-        if (error && (error as any).code !== '23505') {
-          console.warn('[FCZ-BET] demo wallet tx insert error (non-fatal):', error);
-        }
-      });
-
-      await insertPositionStakeEvent({
-        userId,
+    let quoteUsed;
+    let existingEntry: any = null;
+    try {
+      const quoteResult = await computeStakeQuoteFromDb({
         predictionId,
         optionId,
-        entryId: entry.id,
         amount: amountUSD,
-        mode: 'DEMO',
-        quoteSnapshot: quoteUsed,
-        metadata: {
-          fundingMode: 'demo',
-          lockId,
-          requestId: reqId,
-        },
+        userId,
+        mode: 'REAL',
       });
-
-      const recomputed = await recomputePredictionState(predictionId);
-      emitPredictionUpdate({ predictionId });
-      emitWalletUpdate({ userId, reason: 'bet_placed' });
-
-      mutationLockCommit = true;
-      return res.status(200).json({
-        ok: true,
-        entryId: entry.id,
-        consumedLockId: lockId,
-        quoteUsed: quoteUsed ?? null,
-        data: { prediction: enrichPredictionWithOddsV2(recomputed.prediction), entry },
-        requestId: reqId,
-        version: VERSION,
-      });
-    }
-
-    // ============================================================
-    // FIAT wallet mode (NGN via Paystack) - Phase 7B
-    // ============================================================
-    if (fundingMode === 'fiat') {
-      const FIAT_CURRENCY = 'NGN';
-      const FIAT_PROVIDER = 'fiat-paystack';
-
-      // Check if fiat is enabled
-      const fiatEnabled = process.env.FIAT_PAYSTACK_ENABLED === 'true' || process.env.FIAT_PAYSTACK_ENABLED === '1';
-      if (!fiatEnabled) {
-        return res.status(400).json({
-          error: 'FIAT_DISABLED',
-          message: 'Fiat betting is not enabled',
+      quoteUsed = quoteResult.quote;
+      existingEntry = quoteResult.sameOutcomeEntry;
+      if (quoteResult.otherOutcomeEntry) {
+        return res.status(409).json({
+          error: 'duplicate_entry',
+          message: 'You already have a position on another outcome for this prediction.',
           version: VERSION,
         });
       }
-
-      // For fiat mode we require explicit NGN input (no FX assumptions).
-      const amountNgn = Number((body as any).amountNgn);
-      if (!Number.isFinite(amountNgn) || amountNgn <= 0) {
-        return res.status(400).json({
-          error: 'invalid_body',
-          message: 'amountNgn is required for fiat fundingMode',
+    } catch (quoteErr: any) {
+      if (quoteErr instanceof StakeQuoteError) {
+        return res.status(quoteErr.status).json({
+          error: quoteErr.code,
+          message: quoteErr.message,
           version: VERSION,
         });
       }
-      const amountKobo = Math.round(amountNgn * 100);
-
-      const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
-      const nonce = req.body.requestId || Date.now().toString();
-      const lockRefInput = `${userId}|${predictionId}|${optionId}|${amountKobo}|${nonce}|fiat`;
-      const lockRef = crypto.createHash('sha256').update(lockRefInput).digest('hex').substring(0, 32);
-      // NOTE: external_ref must be based on the lock_ref we end up using (may reuse an existing lock)
-      let externalRef = `fiat_bet_lock:${lockRef}`;
-
-      // Check fiat balance
-      const { data: fiatTxns } = await supabase
-        .from('wallet_transactions')
-        .select('direction, amount, type')
-        .eq('user_id', userId)
-        .eq('provider', FIAT_PROVIDER)
-        .eq('currency', FIAT_CURRENCY)
-        .in('status', ['confirmed', 'completed']);
-
-      let fiatCredits = 0;
-      let fiatDebits = 0;
-      for (const tx of fiatTxns || []) {
-        const amt = Number((tx as any).amount || 0);
-        if ((tx as any).direction === 'credit') fiatCredits += amt;
-        else if ((tx as any).direction === 'debit') fiatDebits += amt;
-      }
-      // IMPORTANT: pending fiat withdrawals reserve funds but are not debited until paid (Phase 7C).
-      // Subtract them here to prevent double-spend between withdrawal requests and fiat staking.
-      let pendingWithdrawalKobo = 0;
-      try {
-        const { data: pendingWithdrawals } = await supabase
-          .from('fiat_withdrawals')
-          .select('amount_kobo,status')
-          .eq('user_id', userId)
-          .in('status', ['requested', 'approved', 'processing']);
-        pendingWithdrawalKobo = (pendingWithdrawals || []).reduce((sum: number, w: any) => sum + Number(w.amount_kobo || 0), 0);
-      } catch {
-        // ignore (degraded check falls back to ledger-only)
-      }
-
-      const fiatAvailable = Math.max(0, (fiatCredits - fiatDebits) - pendingWithdrawalKobo);
-
-      if (fiatAvailable < amountKobo) {
-        return res.status(400).json({
-          error: 'INSUFFICIENT_FUNDS',
-          message: `Insufficient fiat balance. Available: ${fiatAvailable / 100} NGN, Required: ${amountNgn} NGN`,
-          available: fiatAvailable / 100,
-          required: amountNgn,
-          version: VERSION,
-        });
-      }
-
-      // Idempotent retry check
-      const { data: existingTx } = await supabase
-        .from('wallet_transactions')
-        .select('entry_id')
-        .eq('provider', FIAT_PROVIDER)
-        .eq('external_ref', externalRef)
-        .maybeSingle();
-      if ((existingTx as any)?.entry_id) {
-        const existingEntryId = (existingTx as any).entry_id as string;
-        const recomputed = await recomputePredictionState(predictionId);
-        const { data: entryRow } = await supabase
-          .from('prediction_entries')
-          .select('*')
-          .eq('id', existingEntryId)
-          .maybeSingle();
-        return res.status(200).json({
-          ok: true,
-          entryId: existingEntryId,
-          data: { prediction: enrichPredictionWithOddsV2(recomputed.prediction), entry: entryRow || null },
-          message: 'Bet already placed (idempotent)',
-          version: VERSION,
-        });
-      }
-
-      // Create/reuse lock with lock_ref idempotency (mirror demo behavior).
-      // This prevents 500s when a previous failed attempt left an active lock.
-      const { data: lockByRef } = await supabase
-        .from('escrow_locks')
-        .select('id, lock_ref, state, status, amount, option_id, expires_at')
-        .eq('lock_ref', lockRef)
-        .maybeSingle();
-
-      // Also check for any active lock for this user/prediction (unique index may block inserts).
-      const { data: activeLock } = lockByRef?.id
-        ? ({ data: null } as any)
-        : await supabase
-            .from('escrow_locks')
-            .select('id, lock_ref, state, status, amount, option_id, expires_at')
-            .eq('user_id', userId)
-            .eq('prediction_id', predictionId)
-            .or('status.eq.locked,state.eq.locked')
-            .gt('expires_at', new Date().toISOString())
-            .order('created_at', { ascending: false })
-            .maybeSingle();
-
-      const lockCandidate = (lockByRef as any)?.id ? lockByRef : (activeLock as any);
-      const lockStatus = (lockCandidate as any)?.status || (lockCandidate as any)?.state;
-
-      let lockId: string;
-      if ((lockCandidate as any)?.id) {
-        lockId = String((lockCandidate as any).id);
-
-        // If lock already consumed, return the existing entry (idempotent)
-        if (lockStatus === 'consumed') {
-          const { data: existingEntry } = await supabase
-            .from('prediction_entries')
-            .select('id')
-            .eq('escrow_lock_id', lockId)
-            .order('created_at', { ascending: false })
-            .maybeSingle();
-          const entryId = (existingEntry as any)?.id as string | undefined;
-          const recomputed = await recomputePredictionState(predictionId);
-          const { data: entryRow } = entryId
-            ? await supabase.from('prediction_entries').select('*').eq('id', entryId).maybeSingle()
-            : { data: null };
-          return res.status(200).json({
-            ok: true,
-            entryId: entryId || null,
-            consumedLockId: lockId,
-            data: { prediction: enrichPredictionWithOddsV2(recomputed.prediction), entry: entryRow || null },
-            message: 'Bet already placed (idempotent)',
-            fundingMode: 'fiat',
-            version: VERSION,
-          });
-        }
-
-        // Use existing lock_ref for wallet tx idempotency if present
-        const existingLockRef = String((lockCandidate as any).lock_ref || '').trim();
-        if (existingLockRef) {
-          externalRef = `fiat_bet_lock:${existingLockRef}`;
-        }
-
-        // Refresh lock details to match the current request (safe: lock is not consumed yet)
-        const updatePatch: any = {
-          option_id: optionId,
-          amount: amountNgn,
-          expires_at: expiresAt.toISOString(),
-          currency: FIAT_CURRENCY,
-          meta: { provider: FIAT_PROVIDER, amountKobo },
-        };
-        // If the existing lock doesn't have a lock_ref, set it for future idempotency
-        if (!existingLockRef) {
-          updatePatch.lock_ref = lockRef;
-          externalRef = `fiat_bet_lock:${lockRef}`;
-        }
-        await supabase.from('escrow_locks').update(updatePatch).eq('id', lockId);
-      } else {
-        const { data: newLock, error: lockErr } = await supabase
-          .from('escrow_locks')
-          .insert({
-            user_id: userId,
-            prediction_id: predictionId,
-            option_id: optionId,
-            amount: amountNgn, // Store in NGN for display
-            state: 'locked',
-            status: 'locked',
-            lock_ref: lockRef,
-            expires_at: expiresAt.toISOString(),
-            currency: FIAT_CURRENCY,
-            meta: { provider: FIAT_PROVIDER, amountKobo },
-          } as any)
-          .select('id')
-          .single();
-        if (lockErr || !newLock?.id) {
-          console.error('[FCZ-BET] fiat lock create failed', lockErr);
-          return res.status(500).json({ code: 'FCZ_DATABASE_ERROR', error: 'database_error', message: 'Failed to create lock', requestId: reqId, version: VERSION });
-        }
-        lockId = newLock.id as any;
-      }
-
-      // Create prediction entry
-      const { data: entry, error: entryErr } = await supabase
-        .from('prediction_entries')
-        .insert({
-          prediction_id: predictionId,
-          option_id: optionId,
-          user_id: userId,
-          amount: amountNgn, // Store in NGN
-          status: 'active',
-          potential_payout: amountNgn * 2.0,
-          escrow_lock_id: lockId,
-          provider: FIAT_PROVIDER,
-        } as any)
-        .select('*')
-        .single();
-      if (entryErr || !entry?.id) {
-        const errCode = (entryErr as any)?.code;
-        const errMessage = (entryErr as any)?.message;
-        console.error('[FCZ-BET] fiat entry create failed', { requestId: reqId, code: errCode, message: errMessage, full: entryErr });
-        const mapped = mapDbError(entryErr);
-        if (mapped) {
-          return res.status(mapped.status).json({
-            code: mapped.code,
-            message: mapped.message,
-            requestId: reqId,
-            version: VERSION,
-          });
-        }
-        return res.status(500).json({
-          code: 'FCZ_DATABASE_ERROR',
-          error: 'database_error',
-          message: 'Failed to create entry',
-          requestId: reqId,
-          version: VERSION,
-        });
-      }
-
-      // Mark lock as consumed
-      await supabase.from('escrow_locks').update({ state: 'consumed', status: 'consumed' } as any).eq('id', lockId);
-
-      // Record wallet transaction (fiat bet lock debit)
-      await supabase.from('wallet_transactions').insert({
-        user_id: userId,
-        direction: 'debit',
-        // wallet_transactions.type has CHECK constraints; use allowed type
-        type: 'bet_lock',
-        channel: 'fiat',
-        provider: FIAT_PROVIDER,
-        amount: amountKobo,
-        currency: FIAT_CURRENCY,
-        status: 'completed',
-        external_ref: externalRef,
-        prediction_id: predictionId,
-        entry_id: entry.id,
-        description: `Fiat stake on "${prediction.title}"`,
-        meta: { kind: 'bet_lock', currency: 'NGN', prediction_id: predictionId, entry_id: entry.id, escrow_lock_id: lockId, provider: FIAT_PROVIDER, amountNgn, amountKobo },
-      } as any).then(({ error }) => {
-        if (error && (error as any).code !== '23505') {
-          console.warn('[FCZ-BET] fiat wallet tx insert error (non-fatal):', error);
-        }
-      });
-
-      const recomputed = await recomputePredictionState(predictionId);
-      emitPredictionUpdate({ predictionId });
-      emitWalletUpdate({ userId, reason: 'bet_placed' });
-
-      mutationLockCommit = true;
-      return res.status(200).json({
-        ok: true,
-        entryId: entry.id,
-        consumedLockId: lockId,
-        data: { prediction: enrichPredictionWithOddsV2(recomputed.prediction), entry },
-        fundingMode: 'fiat',
-        version: VERSION,
-      });
+      throw quoteErr;
     }
 
     const walletSnapshot = await reconcileWallet({ userId, walletAddress: bodyWallet });
-
-    const { data: existingEntry, error: existingEntryError } = await supabase
-      .from('prediction_entries')
-      .select('id, amount, potential_payout')
-      .eq('prediction_id', predictionId)
-      .eq('user_id', userId)
-      .eq('option_id', optionId)
-      .maybeSingle();
-
-    if (existingEntryError) {
-      console.error('[FCZ-BET] Failed to fetch existing entry:', existingEntryError);
-      return res.status(500).json({
-        code: 'FCZ_DATABASE_ERROR',
-        error: 'entry_lookup_failed',
-        message: 'Unable to verify existing bets for this prediction',
-        requestId: reqId,
-        version: VERSION
-      });
-    }
-
     const isTopUp = Boolean(existingEntry);
 
     // Persist wallet address association if provided and missing
@@ -941,7 +313,7 @@ async function handlePlaceBet(req: any, res: any) {
             consumedLockId: existingLock.id,
             quoteUsed: quoteUsed ?? null,
             data: {
-              prediction: enrichPredictionWithOddsV2(recomputed.prediction),
+              prediction: recomputed.prediction,
               entry: entryFetchError ? null : entryRow,
             },
             newEscrowReserved: reservedUSDC,
@@ -978,7 +350,6 @@ async function handlePlaceBet(req: any, res: any) {
         lock_ref: lockRef, // Idempotency key
         expires_at: expiresAt.toISOString(), // Auto-expire after 10 minutes
         currency: 'USD',
-        meta: { provider: 'crypto-base-usdc' },
       };
       
       // Add optional columns if they exist in schema
@@ -1030,7 +401,7 @@ async function handlePlaceBet(req: any, res: any) {
                 consumedLockId: concurrentLock.id,
                 quoteUsed: quoteUsed ?? null,
                 data: {
-                  prediction: enrichPredictionWithOddsV2(recomputed.prediction),
+                  prediction: recomputed.prediction,
                   entry: entryFetchError ? null : entryRow,
                 },
                 newEscrowReserved: reservedUSDC,
@@ -1054,10 +425,8 @@ async function handlePlaceBet(req: any, res: any) {
     const lockId = existingLock?.id;
     if (!lockId) {
       return res.status(500).json({
-        code: 'FCZ_DATABASE_ERROR',
         error: 'lock_creation_failed',
         message: 'Failed to obtain lock ID',
-        requestId: reqId,
         version: VERSION
       });
     }
@@ -1115,22 +484,11 @@ async function handlePlaceBet(req: any, res: any) {
           .update({ state: 'released', status: 'released', released_at: new Date().toISOString() })
           .eq('id', lockId);
 
-        console.error('[FCZ-BET] Error creating entry:', entryError, 'requestId:', reqId);
-        const mapped = mapDbError(entryError);
-        if (mapped) {
-          return res.status(mapped.status).json({
-            code: mapped.code,
-            message: mapped.message,
-            requestId: reqId,
-            version: VERSION,
-          });
-        }
+        console.error('[FCZ-BET] Error creating entry:', entryError);
         return res.status(500).json({
-          code: 'FCZ_DATABASE_ERROR',
           error: 'database_error',
           message: 'Failed to create prediction entry',
-          requestId: reqId,
-          version: VERSION,
+          version: VERSION
         });
       }
 
@@ -1150,6 +508,22 @@ async function handlePlaceBet(req: any, res: any) {
         version: VERSION
       });
     }
+
+    await insertPositionStakeEvent({
+      userId,
+      predictionId,
+      optionId,
+      amount: amountUSD,
+      mode: 'REAL',
+      entryId,
+      quoteSnapshot: quoteUsed,
+      metadata: {
+        isTopUp,
+        rail: 'crypto',
+        lockId,
+        requestId: req.body?.requestId || null,
+      },
+    });
 
     // Mark lock as consumed (bet is now placed, funds are committed to active bet)
     // After migration 116, 'consumed' is a valid state value
@@ -1202,21 +576,6 @@ async function handlePlaceBet(req: any, res: any) {
       console.log('[FCZ-BET] ✅ Wallet transaction recorded:', walletTxData?.id);
     }
 
-    await insertPositionStakeEvent({
-      userId,
-      predictionId,
-      optionId,
-      entryId,
-      amount: amountUSD,
-      mode: 'REAL',
-      quoteSnapshot: quoteUsed,
-      metadata: {
-        fundingMode: 'crypto',
-        lockId,
-        requestId: reqId,
-      },
-    });
-
     // Emit event_log
     await supabase
       .from('event_log')
@@ -1251,13 +610,36 @@ async function handlePlaceBet(req: any, res: any) {
     emitWalletUpdate({ userId, reason: 'bet_placed' });
 
     mutationLockCommit = true;
+    logMoneyMutation({
+      action: isTopUp ? 'stake_topup' : 'stake_place',
+      source: 'predictions.placeBet',
+      userId,
+      predictionId,
+      entryId,
+      amount: amountUSD,
+      before: {
+        availableToStakeUSDC: walletSnapshot.availableToStakeUSDC,
+        reservedUSDC: walletSnapshot.reservedUSDC,
+        escrowUSDC: walletSnapshot.escrowUSDC,
+      },
+      after: {
+        availableToStakeUSDC: finalSnapshot.availableToStakeUSDC,
+        reservedUSDC: finalSnapshot.reservedUSDC,
+        escrowUSDC: finalSnapshot.escrowUSDC,
+      },
+      meta: {
+        optionId,
+        lockId,
+        isTopUp,
+      },
+    });
     return res.status(200).json({
       ok: true,
       entryId,
       consumedLockId: lockId,
       quoteUsed: quoteUsed ?? null,
       data: {
-        prediction: enrichPredictionWithOddsV2(recomputed.prediction),
+        prediction: recomputed.prediction,
         entry: latestEntryError ? null : latestEntry,
       },
       newEscrowReserved: finalSnapshot.reservedUSDC,
@@ -1265,29 +647,29 @@ async function handlePlaceBet(req: any, res: any) {
     });
   } catch (error) {
     if (error instanceof PredictionStakeLockError) {
-      return res.status(503).json({
-        code: 'FCZ_DATABASE_ERROR',
-        error: 'DB_LOCK_UNAVAILABLE',
+      return res.status(error.status).json({
+        error: error.code,
         message: error.message,
-        requestId: reqId,
         version: VERSION,
       });
     }
     console.error('[FCZ-BET] Unhandled error:', error);
     return res.status(500).json({
-      code: 'FCZ_DATABASE_ERROR',
       error: 'internal_error',
       message: 'Failed to place bet',
-      requestId: reqId,
       version: VERSION
     });
   } finally {
     if (mutationLock) {
-      await mutationLock.release(mutationLockCommit);
+      try {
+        await mutationLock.release(mutationLockCommit);
+      } catch (lockError) {
+        console.error('[FCZ-BET] Failed to release prediction stake lock:', lockError);
+      }
     }
   }
 }
 
 // Register both kebab-case and snake_case for backward compatibility
-placeBetRouter.post('/:predictionId/place-bet', requireSupabaseAuth, handlePlaceBet);
-placeBetRouter.post('/:predictionId/place_bet', requireSupabaseAuth, handlePlaceBet);
+placeBetRouter.post('/:predictionId/place-bet', handlePlaceBet);
+placeBetRouter.post('/:predictionId/place_bet', handlePlaceBet);

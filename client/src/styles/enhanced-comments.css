@@ -510,28 +510,3 @@
     text-align: center;
   }
 }
-
-/* Deep-link highlight */
-.comment-highlight {
-  animation: comment-highlight-pulse 1.2s ease-out;
-  border-radius: 12px;
-}
-
-@keyframes comment-highlight-pulse {
-  0% {
-    background-color: rgba(0, 0, 0, 0.04);
-  }
-  40% {
-    background-color: rgba(0, 0, 0, 0.08);
-  }
-  100% {
-    background-color: transparent;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .comment-highlight {
-    animation: none;
-    background-color: rgba(0, 0, 0, 0.04);
-  }
-}

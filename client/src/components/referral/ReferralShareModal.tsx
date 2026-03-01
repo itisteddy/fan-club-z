@@ -211,7 +211,7 @@ export const ReferralShareModal: React.FC<ReferralShareModalProps> = ({
                 </label>
                 <div className="grid grid-cols-4 gap-3">
                   {/* Native Share (on supported devices) */}
-                  {typeof navigator !== 'undefined' && typeof (navigator as any).share === 'function' && (
+                  {typeof navigator !== 'undefined' && navigator.share && (
                     <button
                       onClick={handleNativeShare}
                       className="flex flex-col items-center gap-1.5 p-3 rounded-xl bg-gray-50 hover:bg-gray-100 transition-colors"

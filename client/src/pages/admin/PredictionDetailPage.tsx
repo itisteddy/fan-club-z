@@ -10,6 +10,7 @@ import {
   DollarSign,
   Users,
   Clock,
+  Lock,
   CheckCircle,
   XCircle,
   Ban,
@@ -87,7 +88,9 @@ export const PredictionDetailPage: React.FC = () => {
   const [actionLoading, setActionLoading] = useState(false);
   const [showVoidModal, setShowVoidModal] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
+  const [showCloseModal, setShowCloseModal] = useState(false);
   const [reason, setReason] = useState('');
+  const [closeReason, setCloseReason] = useState('');
   const [settingOutcome, setSettingOutcome] = useState<string | null>(null);
   const [showSettleModal, setShowSettleModal] = useState(false);
   const [settleOptionId, setSettleOptionId] = useState<string | null>(null);
@@ -270,6 +273,36 @@ export const PredictionDetailPage: React.FC = () => {
     }
   };
 
+  const handleCloseEarly = async () => {
+    if (!predictionId) {
+      toast.error('Missing prediction ID');
+      return;
+    }
+
+    const adminKey = typeof window !== 'undefined' ? localStorage.getItem('fcz_admin_key') : null;
+    if (!actorId && !adminKey) {
+      toast.error('Admin access required. Please ensure you are logged in or have an admin key set.');
+      setShowCloseModal(false);
+      return;
+    }
+
+    setActionLoading(true);
+    try {
+      const payload: Record<string, any> = {};
+      if (closeReason.trim()) payload.reason = closeReason.trim();
+      const result = await adminPost<any>(`/api/v2/admin/predictions/${predictionId}/close`, actorId || '', payload);
+      toast.success(result?.alreadyClosed ? 'Prediction already closed' : 'Prediction closed');
+      setShowCloseModal(false);
+      setCloseReason('');
+      fetchData();
+    } catch (e: any) {
+      console.error('[Admin/Close] Error:', e);
+      toast.error(e.message || 'Failed to close prediction');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   const handleCancel = async () => {
     if (!predictionId) {
       toast.error('Missing prediction ID');
@@ -352,9 +385,9 @@ export const PredictionDetailPage: React.FC = () => {
   }
 
   const { prediction, creator, options, stats, entries } = data;
-  const isActive = prediction.status === 'active';
   const isTerminal = prediction.status === 'voided' || prediction.status === 'cancelled';
   const isSettled = prediction.status === 'settled' || Boolean(prediction.winningOptionId);
+  const canCloseEarly = ['open', 'active', 'pending'].includes(String(prediction.status || '').toLowerCase()) && !isTerminal && !isSettled;
   const appUrl = FRONTEND_URL || 'https://app.fanclubz.app';
 
   return (
@@ -622,6 +655,17 @@ export const PredictionDetailPage: React.FC = () => {
       <div className="bg-slate-800 border border-slate-700 rounded-xl p-4">
         <h3 className="text-white font-semibold mb-4">Admin Actions</h3>
         <div className="flex flex-wrap gap-3">
+          {canCloseEarly && (
+            <button
+              onClick={() => setShowCloseModal(true)}
+              disabled={actionLoading}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+            >
+              <Lock className="w-4 h-4" />
+              Close Early
+            </button>
+          )}
+
           {/* Void - refunds bets */}
           <button
             onClick={() => setShowVoidModal(true)}
@@ -714,6 +758,45 @@ export const PredictionDetailPage: React.FC = () => {
         </div>
       )}
 
+      {/* Close Modal */}
+      {showCloseModal && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50">
+          <div className="bg-slate-800 rounded-xl max-w-md w-full p-6 border border-slate-700">
+            <h3 className="text-xl font-bold text-white mb-4">Close Prediction Early</h3>
+            <p className="text-slate-400 mb-4">
+              This stops new bets immediately and moves the prediction to the closed state. You can settle it later.
+            </p>
+            <label className="block text-sm font-medium text-slate-300 mb-2">
+              Reason (optional)
+            </label>
+            <textarea
+              value={closeReason}
+              onChange={(e) => setCloseReason(e.target.value)}
+              placeholder="Optional note for audit log..."
+              className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 h-24 resize-none"
+              maxLength={1000}
+            />
+            <div className="flex justify-end gap-3 mt-4">
+              <button
+                onClick={() => { setShowCloseModal(false); setCloseReason(''); }}
+                className="px-4 py-2 bg-slate-700 text-white rounded-lg hover:bg-slate-600"
+                disabled={actionLoading}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleCloseEarly}
+                disabled={actionLoading}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+              >
+                {actionLoading && <Loader2 className="w-4 h-4 animate-spin" />}
+                Close prediction
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Void Modal */}
       {showVoidModal && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50">
@@ -796,4 +879,3 @@ export const PredictionDetailPage: React.FC = () => {
 };
 
 export default PredictionDetailPage;
-

@@ -1,6 +1,5 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { buildPredictionCanonicalUrl } from '@/lib/predictionUrls';
 import { formatCurrency } from '@/lib/format';
 
 export interface Notification {
@@ -232,8 +231,8 @@ export const useNotificationStore = create<NotificationStore>()(
           
           // Handle navigation based on notification type
           if (notification.data?.predictionId) {
-            // Navigate to prediction detail (canonical URL)
-            window.location.href = buildPredictionCanonicalUrl(notification.data.predictionId);
+            // Navigate to prediction detail
+            window.location.href = `/predictions/${notification.data.predictionId}`;
           }
         };
 
@@ -267,8 +266,8 @@ export const useNotificationStore = create<NotificationStore>()(
       notifySettlementCompleted: (predictionId: string, predictionTitle: string, outcome: 'won' | 'lost', payout?: number) => {
         const { addNotification, addToast } = get();
         
-        const message = outcome === 'won' 
-          ? `You won ${payout ? formatCurrency(Number(payout), { compact: false }) : ''} on "${predictionTitle}"!`
+        const message = outcome === 'won'
+          ? `You won ${typeof payout === 'number' ? formatCurrency(payout, { compact: false }) : ''} on "${predictionTitle}"!`
           : `Settlement completed for "${predictionTitle}". Better luck next time!`;
           
         // Add persistent notification
@@ -426,8 +425,8 @@ export const notifySettlementReady = (predictionId: string, predictionTitle: str
 export const notifySettlementCompleted = (predictionId: string, predictionTitle: string, outcome: 'won' | 'lost', payout?: number) => {
   const store = useNotificationStore.getState();
   
-  const message = outcome === 'won' 
-    ? `You won ${payout ? formatCurrency(Number(payout), { compact: false }) : ''} on "${predictionTitle}"!`
+  const message = outcome === 'won'
+    ? `You won ${typeof payout === 'number' ? formatCurrency(payout, { compact: false }) : ''} on "${predictionTitle}"!`
     : `Settlement completed for "${predictionTitle}". Better luck next time!`;
     
   // Add persistent notification

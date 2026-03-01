@@ -1,5 +1,7 @@
 import React, { forwardRef } from 'react';
-import { TrendingUp, DollarSign, Trophy, Target } from 'lucide-react';
+import { TrendingUp, Trophy, Target } from 'lucide-react';
+import { formatCurrency } from '@/lib/format';
+import { ZaurumMark } from '@/components/currency/ZaurumMark';
 
 export type ShareResultProps = {
   title: string;
@@ -60,12 +62,10 @@ const ShareResultCard = forwardRef<HTMLDivElement, ShareResultProps>(
           {/* Stake */}
           <div className="rounded-2xl bg-gray-50 p-4">
             <div className="flex items-center gap-2 text-gray-600 mb-2">
-              <DollarSign className="size-4" />
+              <ZaurumMark className="size-4" />
               <span className="text-sm font-medium">Stake</span>
             </div>
-            <div className="text-lg font-bold text-gray-900">
-              ${stake.toLocaleString()}
-            </div>
+            <div className="text-lg font-bold text-gray-900">{formatCurrency(stake, { compact: false })}</div>
           </div>
 
           {/* Result */}
@@ -82,14 +82,12 @@ const ShareResultCard = forwardRef<HTMLDivElement, ShareResultProps>(
           {/* Payout */}
           <div className="rounded-2xl bg-gray-50 p-4">
             <div className="flex items-center gap-2 text-gray-600 mb-2">
-              <DollarSign className="size-4" />
+              <ZaurumMark className="size-4" />
               <span className="text-sm font-medium">
                 {result === 'won' ? 'Won' : 'Potential Win'}
               </span>
             </div>
-            <div className={`text-lg font-bold ${result === 'won' ? 'text-emerald-600' : 'text-gray-900'}`}>
-              ${payout.toLocaleString()}
-            </div>
+            <div className={`text-lg font-bold ${result === 'won' ? 'text-emerald-600' : 'text-gray-900'}`}>{formatCurrency(payout, { compact: false })}</div>
           </div>
         </div>
 
@@ -118,4 +116,3 @@ const ShareResultCard = forwardRef<HTMLDivElement, ShareResultProps>(
 );
 
 export default ShareResultCard;
-

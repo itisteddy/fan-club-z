@@ -1,4 +1,7 @@
 import { describe, expect, it } from '@jest/globals';
+process.env.VITE_SUPABASE_URL ||= 'https://example.supabase.co';
+process.env.VITE_SUPABASE_ANON_KEY ||= 'test-anon-key';
+process.env.SUPABASE_SERVICE_ROLE_KEY ||= 'test-service-role-key';
 import { OutcomeSchema } from '../routes/admin/predictions';
 
 const validUuid = '77fdcf15-7557-4335-b56d-ed7060dffbbe';

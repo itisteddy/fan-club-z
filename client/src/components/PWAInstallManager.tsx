@@ -3,28 +3,17 @@ import PWAInstallBanner from './PWAInstallBanner';
 import IOSInstallModal from './IOSInstallModal';
 import SmartInstallPrompt from './SmartInstallPrompt';
 import TopUpdateToast from './TopUpdateToast';
-import { getPWAManager } from '../utils/pwa';
+import { pwaManager } from '../utils/pwa';
 import { supabase } from '@/lib/supabase';
-import { shouldUseStoreSafeMode } from '@/config/platform';
-import { Capacitor } from '@capacitor/core';
 
-const UPDATE_SNOOZE_UNTIL_KEY = 'pwa-update-snooze-until';
-const UPDATE_SNOOZE_VERSION_KEY = 'pwa-update-snooze-version';
+const UPDATE_SNOOZE_UNTIL_KEY = 'fcz:pwa-update:snooze-until';
+const UPDATE_SNOOZE_UPDATE_KEY = 'fcz:pwa-update:snooze-key';
 const UPDATE_SNOOZE_MS = 12 * 60 * 60 * 1000; // 12 hours
 
 const PWAInstallManager: React.FC = () => {
   const [showIOSModal, setShowIOSModal] = useState(false);
   const [showUpdateNotification, setShowUpdateNotification] = useState(false);
   const [pendingUpdateKey, setPendingUpdateKey] = useState<string | null>(null);
-
-  // Phase 5: PWA install UX should only render for web builds
-  // Never show in native builds or store-safe mode (fail-safe guard)
-  const storeSafe = shouldUseStoreSafeMode();
-  const isNative = Capacitor.isNativePlatform();
-  if (isNative || storeSafe) {
-    console.log('[PWAInstallManager] Blocked: isNative=' + isNative + ', storeSafe=' + storeSafe);
-    return null;
-  }
 
   useEffect(() => {
     // Track session start for timing calculations
@@ -39,28 +28,18 @@ const PWAInstallManager: React.FC = () => {
 
     // Listen for app updates
     const handleUpdateAvailable = (event: Event) => {
-      const customEvent = event as CustomEvent<{ updateKey?: string }>;
-      const nextUpdateKey = customEvent.detail?.updateKey || null;
+      const detail = (event as CustomEvent<{ updateKey?: string }>).detail || {};
+      const updateKey = String(detail.updateKey || 'unknown');
+      const now = Date.now();
+      const snoozeUntil = Number(localStorage.getItem(UPDATE_SNOOZE_UNTIL_KEY) || '0');
+      const snoozedKey = localStorage.getItem(UPDATE_SNOOZE_UPDATE_KEY) || '';
 
-      try {
-        const snoozeUntil = Number(localStorage.getItem(UPDATE_SNOOZE_UNTIL_KEY) || '0');
-        const snoozedVersion = localStorage.getItem(UPDATE_SNOOZE_VERSION_KEY);
-        const now = Date.now();
-
-        // Suppress repeat prompts for the same update during snooze window.
-        if (
-          nextUpdateKey &&
-          snoozeUntil > now &&
-          snoozedVersion &&
-          snoozedVersion === nextUpdateKey
-        ) {
-          return;
-        }
-      } catch {
-        // If localStorage is unavailable, fail open and still show prompt.
+      // If the user tapped "Later" for this exact update, don't interrupt them again until snooze expires.
+      if (snoozeUntil > now && snoozedKey === updateKey) {
+        return;
       }
 
-      setPendingUpdateKey(nextUpdateKey);
+      setPendingUpdateKey(updateKey);
       setShowUpdateNotification(true);
     };
 
@@ -72,7 +51,6 @@ const PWAInstallManager: React.FC = () => {
         const alreadyRequested = localStorage.getItem('notification-permission-requested');
         
         if (hasInteracted && !alreadyRequested) {
-          const pwaManager = getPWAManager();
           const granted = await pwaManager.requestNotificationPermission();
           localStorage.setItem('notification-permission-requested', 'true');
           
@@ -124,6 +102,8 @@ const PWAInstallManager: React.FC = () => {
   }, []);
 
   const handleUpdateApp = async () => {
+    localStorage.removeItem(UPDATE_SNOOZE_UNTIL_KEY);
+    localStorage.removeItem(UPDATE_SNOOZE_UPDATE_KEY);
     try {
       const { data } = await supabase.auth.getSession();
       if (data?.session?.access_token && data.session.refresh_token) {
@@ -147,29 +127,14 @@ const PWAInstallManager: React.FC = () => {
       });
     }
     
-    try {
-      localStorage.removeItem(UPDATE_SNOOZE_UNTIL_KEY);
-      localStorage.removeItem(UPDATE_SNOOZE_VERSION_KEY);
-    } catch {
-      // Ignore storage failures during reload flow.
-    }
-
     window.location.reload();
   };
 
   const dismissUpdate = () => {
-    try {
-      if (pendingUpdateKey) {
-        localStorage.setItem(UPDATE_SNOOZE_VERSION_KEY, pendingUpdateKey);
-        localStorage.setItem(
-          UPDATE_SNOOZE_UNTIL_KEY,
-          String(Date.now() + UPDATE_SNOOZE_MS),
-        );
-      }
-    } catch {
-      // Ignore storage failures; dismissal should still close the UI.
+    if (pendingUpdateKey) {
+      localStorage.setItem(UPDATE_SNOOZE_UPDATE_KEY, pendingUpdateKey);
+      localStorage.setItem(UPDATE_SNOOZE_UNTIL_KEY, String(Date.now() + UPDATE_SNOOZE_MS));
     }
-
     setShowUpdateNotification(false);
     
     // Track update dismissal

@@ -45,16 +45,15 @@ walletActivity.get('/activity', async (req, res) => {
 
     console.log(`[FCZ-PAY] Fetching activity for user: ${userId}, limit: ${limitNum}`);
 
-    // Fetch wallet transactions (crypto + demo ledger)
+    // Fetch wallet transactions (crypto only)
     // Support multiple provider formats: 'crypto-base-usdc', 'base/usdc', 'base-usdc', 'onchain-escrow'
     // Include ALL channels: deposits, withdraws, payouts (wins), losses, fees
-    const providers = ['crypto-base-usdc', 'base/usdc', 'base-usdc', 'onchain-escrow', 'demo-wallet', 'fiat-paystack'];
+    const providers = ['crypto-base-usdc', 'base/usdc', 'base-usdc', 'onchain-escrow'];
     const channels = [
       'crypto', 
       'escrow_deposit', 
       'escrow_withdraw', 
       'escrow_consumed',
-      'fiat',             // Demo ledger channel
       'payout',           // Settlement win payout
       'settlement_loss',  // Settlement loss record
       'creator_fee',      // Creator fee received
@@ -139,105 +138,45 @@ walletActivity.get('/activity', async (req, res) => {
       for (const tx of transactions) {
         let kind: ActivityItem['kind'] | null = null;
         let description = tx.description || '';
-        const metaKind = (tx.meta as any)?.kind as string | undefined;
-        const isDemo = tx.provider === 'demo-wallet' || tx.channel === 'fiat';
-        const isFiat = tx.provider === 'fiat-paystack' || tx.currency === 'NGN';
-
-        // Demo ledger mapping (separate from crypto channels)
-        if (isDemo) {
-          if (metaKind === 'demo_faucet') {
-            kind = 'deposit';
-            description = description || 'Demo credits added';
-          } else if (metaKind === 'bet_lock' || tx.type === 'bet_lock') {
-            kind = 'bet_placed';
-            description = description || 'Demo stake placed';
-          } else if (metaKind === 'payout' || tx.type === 'payout') {
-            kind = 'win';
-            description = description || 'Demo win payout';
-          } else if (metaKind === 'settlement_loss' || metaKind === 'loss') {
-            // Support both old 'settlement_loss' and new 'loss' meta.kind values
-            kind = 'loss';
-            description = description || 'Demo loss';
-          } else if (metaKind === 'creator_fee') {
-            kind = 'creator_fee';
-            description = description || 'Creator earnings (demo)';
-          } else if (metaKind === 'platform_fee') {
-            kind = 'platform_fee';
-            description = description || 'Platform fee (demo)';
-          } else if (tx.type === 'adjustment' && tx.direction === 'credit') {
-            kind = 'deposit';
-            description = description || 'Demo credits added';
-          }
-        }
-
-        // Fiat ledger mapping (NGN via Paystack)
-        if (!kind && isFiat) {
-          if (tx.type === 'deposit' && tx.direction === 'credit') {
-            kind = 'deposit';
-            description = description || 'Fiat deposit';
-          } else if (tx.type === 'withdraw' && tx.direction === 'debit') {
-            kind = 'withdraw';
-            description = description || 'Fiat withdrawal';
-          } else if (tx.type === 'bet_lock' && tx.direction === 'debit') {
-            kind = 'bet_placed';
-            description = description || 'Fiat stake placed';
-          } else if (tx.type === 'bet_unlock' && tx.direction === 'credit') {
-            kind = 'bet_refund';
-            description = description || 'Fiat stake refunded';
-          } else if (tx.type === 'payout' && tx.direction === 'credit') {
-            kind = 'win';
-            description = description || 'Fiat payout';
-          } else if (tx.type === 'creator_fee' && tx.direction === 'credit') {
-            kind = 'creator_fee';
-            description = description || 'Creator fee (fiat)';
-          } else if (tx.type === 'platform_fee' && tx.direction === 'credit') {
-            kind = 'platform_fee';
-            description = description || 'Platform fee (fiat)';
-          }
-        }
 
         // Determine kind from channel and direction
-        if (!kind && tx.channel === 'escrow_deposit' && tx.direction === 'credit') {
+        if (tx.channel === 'escrow_deposit' && tx.direction === 'credit') {
           kind = 'deposit';
           description = description || 'Deposited USDC to escrow';
-        } else if (!kind && tx.channel === 'escrow_withdraw' && tx.direction === 'debit') {
+        } else if (tx.channel === 'escrow_withdraw' && tx.direction === 'debit') {
           kind = 'withdraw';
           description = description || 'Withdrew USDC from escrow';
-        } else if (!kind && tx.channel === 'escrow_consumed' && tx.direction === 'debit') {
+        } else if (tx.channel === 'escrow_consumed' && tx.direction === 'debit') {
           kind = 'bet_placed';
           description = description || 'Stake placed';
-        } else if (!kind && tx.channel === 'escrow_consumed' && tx.direction === 'credit') {
+        } else if (tx.channel === 'escrow_consumed' && tx.direction === 'credit') {
           kind = 'bet_refund';
           description = description || 'Stake refunded';
-        } else if (!kind && tx.channel === 'payout' && tx.direction === 'credit') {
+        } else if (tx.channel === 'payout' && tx.direction === 'credit') {
           // Win payout from settlement
           kind = 'win';
           description = description || 'Won prediction';
-        } else if (!kind && tx.channel === 'settlement_loss') {
+        } else if (tx.channel === 'settlement_loss') {
           // Loss recorded at settlement
           kind = 'loss';
           description = description || 'Lost prediction';
-        } else if (!kind && tx.channel === 'creator_fee' && tx.direction === 'credit') {
+        } else if (tx.channel === 'creator_fee' && tx.direction === 'credit') {
           kind = 'creator_fee';
           description = description || 'Creator fee received';
-        } else if (!kind && tx.channel === 'platform_fee' && tx.direction === 'credit') {
+        } else if (tx.channel === 'platform_fee' && tx.direction === 'credit') {
           kind = 'platform_fee';
           description = description || 'Platform fee';
-        } else if (!kind && tx.channel === 'escrow_unlock' && tx.direction === 'credit') {
+        } else if (tx.channel === 'escrow_unlock' && tx.direction === 'credit') {
           kind = 'unlock';
           description = description || 'Funds unlocked';
         }
 
         if (kind) {
           // Return structure that matches what normalizeWalletTransaction expects
-          const rawAmount = Math.abs(Number(tx.amount || 0));
-          // Fiat amounts are stored in kobo; convert to NGN for UI
-          const amountForUi = isFiat ? rawAmount / 100 : rawAmount;
-
           activityItems.push({
             id: tx.id,
             kind,
-            amount: amountForUi,
+            amount: Math.abs(Number(tx.amount || 0)),
             txHash: tx.tx_hash || tx.external_ref || undefined,
             createdAt: tx.created_at,
             // Include additional fields for normalization

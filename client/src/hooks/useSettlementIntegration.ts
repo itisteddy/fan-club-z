@@ -10,7 +10,7 @@ interface UseSettlementIntegrationReturn {
   
   // Settlement operations
   settlePrediction: (predictionId: string, winningOptionId: string, proofUrl?: string, reason?: string) => Promise<void>;
-  createDispute: (predictionId: string, reason: string, evidenceUrl?: string, userId?: string) => Promise<void>;
+  createDispute: (predictionId: string, reason: string, evidenceUrl?: string) => Promise<void>;
   resolveDispute: (disputeId: string, resolution: 'approved' | 'rejected', resolutionReason: string, newWinningOptionId?: string) => Promise<void>;
   
   // State
@@ -171,27 +171,25 @@ export const useSettlementIntegration = (): UseSettlementIntegrationReturn => {
   }, [clearError]);
 
   const createDispute = useCallback(async (
-    predictionId: string,
-    reason: string,
-    evidenceUrl?: string,
-    userId?: string
+    predictionId: string, 
+    reason: string, 
+    evidenceUrl?: string
   ) => {
     try {
       setIsProcessing(true);
       clearError();
+      
       const token = localStorage.getItem('token');
-      const sessionUserId = userId; // Caller must pass userId (from useAuthSession) for POST body
-      const response = await fetch(`${apiBase}/api/v2/settlement/${predictionId}/dispute`, {
+      const response = await fetch(`${apiBase}/api/v2/settlement/dispute`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          userId: sessionUserId,
+          predictionId,
           reason,
-          evidenceUrl: evidenceUrl || null,
-          evidence: []
+          evidenceUrl
         })
       });
 

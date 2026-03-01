@@ -3,10 +3,8 @@ import { Share2, Loader2 } from 'lucide-react';
 import { useShareResult } from './useShareResult';
 import type { ShareOutcomeProps } from './ShareOutcomeCard';
 import { formatCurrency } from '@/lib/format';
-import { buildPredictionCanonicalUrl } from '@/lib/predictionUrls';
 
 interface ShareOutcomeButtonProps extends ShareOutcomeProps {
-  predictionId: string;
   className?: string;
   children?: React.ReactNode;
   onShare?: () => void;
@@ -24,7 +22,6 @@ export function ShareOutcomeButton({
   creatorName,
   user,
   deeplink,
-  predictionId,
   className = '',
   children,
   onShare
@@ -34,11 +31,14 @@ export function ShareOutcomeButton({
 
   const handleShare = async () => {
     if (isSharing) return;
+    
     setIsSharing(true);
     onShare?.();
+
     try {
-      const shareUrl = buildPredictionCanonicalUrl(predictionId, title);
+      const shareUrl = window.location.href;
       const shareText = `I ${result === 'won' ? 'won' : result === 'lost' ? 'lost' : 'participated in'} ${formatCurrency(Math.abs(payout - stake), { compact: true })} on "${title}". Try it → ${deeplink || 'app.fanclubz.app'}`;
+
       await share({
         title: `My FanClubZ ${result}`,
         text: shareText,

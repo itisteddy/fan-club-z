@@ -2,8 +2,21 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { supabase } from '../../config/database';
 import { VERSION } from '@fanclubz/shared';
+import { config } from '../../config';
 
 const router = Router();
+
+router.use((req, res, next) => {
+  if (config.features.walletMode === 'zaurum_only') {
+    res.status(410).json({
+      error: 'crypto_disabled_zaurum_only',
+      message: 'Crypto transaction endpoints are disabled in zaurum-only mode.',
+      version: VERSION,
+    });
+    return;
+  }
+  next();
+});
 
 /**
  * POST /api/wallet/log-transaction

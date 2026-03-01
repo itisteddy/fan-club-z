@@ -4,17 +4,6 @@ type FormatCurrencyOptions = {
   currency?: string;
 };
 
-const ZAURUM_SYMBOL = '◈';
-
-function formatZaurumValue(value: number, compact: boolean): string {
-  const formatter = new Intl.NumberFormat(undefined, {
-    notation: compact ? 'compact' : 'standard',
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
-  return `${ZAURUM_SYMBOL}${formatter.format(value || 0)}`;
-}
-
 export function formatCurrency(n: number | string, opts?: FormatCurrencyOptions): string;
 export function formatCurrency(n: number | string, currency?: string, showSign?: boolean): string;
 export function formatCurrency(
@@ -27,26 +16,32 @@ export function formatCurrency(
     typeof optsOrCurrency === 'string'
       ? { currency: optsOrCurrency, showSign: legacyShowSign }
       : optsOrCurrency || {};
-  const { compact = true, showSign = false, currency = 'USD' } = resolvedOptions;
-  const normalized = String(currency || 'USD').toUpperCase();
+  const { compact = true, showSign = false } = resolvedOptions;
 
-  let formatted: string;
-  if (normalized === 'NGN') {
-    const formatter = new Intl.NumberFormat(undefined, {
-      style: 'currency',
-      currency: 'NGN',
-      notation: compact ? 'compact' : 'standard',
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    });
-    formatted = formatter.format(num || 0);
-  } else {
-    // In Zaurum mode, all non-fiat in-app values display with Zaurum mark.
-    formatted = formatZaurumValue(num || 0, compact);
-  }
-
-  return showSign && num > 0 ? `+${formatted}` : formatted;
+  const abs = Math.abs(num || 0);
+  const formatted = formatZaurumNumber(abs, { compact });
+  const sign = showSign ? (num > 0 ? '+' : num < 0 ? '-' : '') : '';
+  return `${sign}${formatted}`;
 };
+
+export function formatZaurumNumber(
+  n: number | string,
+  opts?: { compact?: boolean; maxFractionDigits?: number }
+): string {
+  const num = typeof n === 'string' ? Number(n) : n;
+  const compact = opts?.compact ?? true;
+  if (compact) {
+    return new Intl.NumberFormat(undefined, {
+      notation: 'compact',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: opts?.maxFractionDigits ?? 2,
+    }).format(num || 0);
+  }
+  return new Intl.NumberFormat(undefined, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: opts?.maxFractionDigits ?? 2,
+  }).format(num || 0);
+}
 
 export const formatNumber = (n: number | string, opts?: Intl.NumberFormatOptions) => {
   const num = typeof n === "string" ? Number(n) : n;

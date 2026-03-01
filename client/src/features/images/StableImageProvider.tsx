@@ -22,7 +22,7 @@ import type { Prediction } from './useAutoImage';
 import { qaLog } from '../../utils/devQa';
 import { getApiUrl } from '@/utils/environment';
 
-const getImagesApiBase = () => `${getApiUrl()}/api`;
+const API_BASE = `${getApiUrl()}/api`;
 
 /**
  * Save image URL to database for permanent storage
@@ -36,7 +36,7 @@ async function saveImageToDatabase(predictionId: string, imageUrl: string): Prom
   }
   
   try {
-    const response = await fetch(`${getImagesApiBase()}/v2/predictions/${predictionId}/image`, {
+    const response = await fetch(`${API_BASE}/v2/predictions/${predictionId}/image`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ imageUrl }),
@@ -84,44 +84,12 @@ export function useStableImage({
   // Lock image once loaded to prevent any changes
   const imageLocked = useRef(false);
   const fetchedRef = useRef(false);
-  const lastDbUrlRef = useRef<string | null>(null);
 
   // Reset locks when prediction changes
   useEffect(() => {
     imageLocked.current = false;
     fetchedRef.current = false;
-    lastDbUrlRef.current = null;
   }, [prediction.id]);
-
-  // CRITICAL: if a DB-backed image_url appears later (e.g. creator uploads cover after creation),
-  // immediately switch to it even if we previously locked a fallback image.
-  useEffect(() => {
-    const url = prediction.image_url ? String(prediction.image_url).trim() : '';
-    if (url && url !== lastDbUrlRef.current) {
-      setImage({
-        url,
-        previewUrl: url,
-        width: 800,
-        height: 600,
-        photographer: '',
-        provider: 'pexels',
-      });
-      setProvider('pexels');
-      setUsedFallback(false);
-      setError(null);
-      setLoading(false);
-      imageLocked.current = true;
-      fetchedRef.current = true;
-      lastDbUrlRef.current = url;
-      return;
-    }
-    if (!url) {
-      // If image_url is cleared (rare), allow normal fetch pipeline again.
-      lastDbUrlRef.current = null;
-      imageLocked.current = false;
-      fetchedRef.current = false;
-    }
-  }, [prediction.id, prediction.image_url]);
 
   const fetchStableImage = useCallback(async () => {
     // Don't fetch if already locked or already fetching
@@ -162,13 +130,15 @@ export function useStableImage({
       if (prediction.image_url && !cancelled) {
         qaLog(`[stable-image] Using database image for ${prediction.id}: ${prediction.image_url.slice(0, 50)}...`);
         setImage({
+          id: `db-${prediction.id}`,
           url: prediction.image_url,
-          previewUrl: prediction.image_url,
           width: 800,
           height: 600,
+          alt: prediction.title,
           photographer: '',
-          provider: 'pexels',
-        });
+          photographerUrl: '',
+          provider: 'database'
+        } as StockImage);
         setProvider('pexels'); // Treat as primary provider
         imageLocked.current = true;
         setLoading(false);
@@ -275,7 +245,7 @@ export function useStableImage({
         });
 
         // PERFORMANCE FIX: Reduced timeout to prevent hanging
-        const response = await fetch(`${getImagesApiBase()}/images?${params}`, {
+        const response = await fetch(`${API_BASE}/images?${params}`, {
           signal: AbortSignal.timeout(5000) // 5 second timeout (reduced from 10s)
         });
 
@@ -316,3 +286,4 @@ export function useStableImage({
     provider
   };
 }
+

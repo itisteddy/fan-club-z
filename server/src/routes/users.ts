@@ -2,9 +2,8 @@ import express from 'express';
 import crypto from 'crypto';
 import { supabase } from '../config/database';
 import { VERSION } from '@fanclubz/shared';
-import { requireSupabaseAuth, requireSupabaseAuthAllowDeleted } from '../middleware/requireSupabaseAuth';
+import { requireSupabaseAuth } from '../middleware/requireSupabaseAuth';
 import type { AuthenticatedRequest } from '../middleware/auth';
-import { assertContentAllowed } from '../services/contentFilter';
 import { getUserAchievements } from '../services/achievementsService';
 
 // [PERF] Helper to generate ETag from response data
@@ -15,16 +14,6 @@ function generateETag(data: unknown): string {
 
 // [PERF] Helper to check conditional GET and return 304 if ETag matches
 function checkETag(req: express.Request, res: express.Response, data: unknown): boolean {
-  // Respect client's no-cache request - skip ETag check if client wants fresh data
-  const cacheControl = req.headers['cache-control'] || '';
-  const wantsFreshData = cacheControl.includes('no-cache') || cacheControl.includes('no-store');
-  
-  if (wantsFreshData) {
-    // Client explicitly asked for fresh data, don't use ETag caching
-    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
-    return false;
-  }
-  
   const etag = generateETag(data);
   const ifNoneMatch = req.headers['if-none-match'];
   
@@ -40,64 +29,6 @@ function checkETag(req: express.Request, res: express.Response, data: unknown): 
 }
 
 const router = express.Router();
-
-type SimpleIpLimiterOptions = {
-  keyPrefix: string;
-  windowMs: number;
-  max: number;
-};
-
-function createSimpleIpRateLimiter(options: SimpleIpLimiterOptions) {
-  const buckets = new Map<string, { count: number; resetAt: number }>();
-  let lastSweep = 0;
-
-  return (req: express.Request, res: express.Response, next: express.NextFunction) => {
-    const now = Date.now();
-    const ip = String(req.ip || req.headers['x-forwarded-for'] || 'unknown');
-    const key = `${options.keyPrefix}:${ip}`;
-
-    // Periodic bounded cleanup for expired buckets.
-    if (now - lastSweep > options.windowMs) {
-      for (const [bucketKey, bucket] of buckets.entries()) {
-        if (bucket.resetAt <= now) buckets.delete(bucketKey);
-      }
-      lastSweep = now;
-    }
-
-    const current = buckets.get(key);
-    if (!current || current.resetAt <= now) {
-      buckets.set(key, { count: 1, resetAt: now + options.windowMs });
-      return next();
-    }
-
-    if (current.count >= options.max) {
-      const retryAfterSec = Math.max(1, Math.ceil((current.resetAt - now) / 1000));
-      res.setHeader('Retry-After', String(retryAfterSec));
-      return res.status(429).json({
-        error: 'rate_limited',
-        message: 'Too many requests. Please try again shortly.',
-        version: VERSION,
-      });
-    }
-
-    current.count += 1;
-    buckets.set(key, current);
-    return next();
-  };
-}
-
-// Basic per-IP protection for public profile discovery endpoints.
-// Note: in-memory and per-instance; replace/augment with global limiter if/when introduced.
-const publicProfileResolveRateLimit = createSimpleIpRateLimiter({
-  keyPrefix: 'users:resolve',
-  windowMs: 60_000,
-  max: 120,
-});
-const publicProfileReadRateLimit = createSimpleIpRateLimiter({
-  keyPrefix: 'users:public-profile',
-  windowMs: 60_000,
-  max: 60,
-});
 
 async function buildPublicProfilePayload(userId: string) {
   // TODO(ugc-blocking): apply block/ban visibility rules here when item 6 ships.
@@ -317,374 +248,7 @@ router.get('/leaderboard', async (req, res) => {
   }
 });
 
-// Phase 5: Current terms version; bump when Terms/Privacy/Community Guidelines change
-const TERMS_VERSION = '1.0';
-
-// GET /api/v2/users/me/status - Get account status (allows deleted accounts through)
-router.get('/me/status', requireSupabaseAuthAllowDeleted, async (req: AuthenticatedRequest, res) => {
-  const userId = req.user?.id;
-  if (!userId) {
-    return res.status(401).json({ error: 'unauthorized', message: 'Authorization required', version: VERSION });
-  }
-  const accountStatus = (req as any).accountStatus || 'active';
-  return res.json({
-    status: accountStatus,
-    version: VERSION,
-  });
-});
-
-// GET /api/v2/users/me/terms-accepted - Check if current user has accepted current terms (Phase 5)
-// Uses requireSupabaseAuthAllowDeleted so deleted users get a proper 409 rather than being blocked
-router.get('/me/terms-accepted', requireSupabaseAuthAllowDeleted, async (req: AuthenticatedRequest, res) => {
-  const userId = req.user?.id;
-  if (!userId) {
-    return res.status(401).json({ error: 'unauthorized', message: 'Authorization required', version: VERSION });
-  }
-  const accountStatus = (req as any).accountStatus || 'active';
-
-  // Deleted accounts → 409 with ACCOUNT_DELETED code
-  if (accountStatus === 'deleted') {
-    return res.status(409).json({
-      error: 'account_deleted',
-      code: 'ACCOUNT_DELETED',
-      message: 'This account was previously deleted. You can restore it to continue.',
-      version: VERSION,
-    });
-  }
-
-  try {
-    const { data, error } = await supabase
-      .from('terms_acceptance')
-      .select('id, terms_version, accepted_at')
-      .eq('user_id', userId)
-      .eq('terms_version', TERMS_VERSION)
-      .maybeSingle();
-
-    // Defensive: if table doesn't exist, assume accepted
-    if (error) {
-      const msg = String(error.message || '').toLowerCase();
-      if (msg.includes('does not exist') || String(error.code || '') === '42P01') {
-        return res.json({ accepted: true, terms_version: TERMS_VERSION, accepted_at: null, version: VERSION });
-      }
-      return res.status(500).json({ error: 'Database error', message: error.message, version: VERSION });
-    }
-    return res.json({
-      accepted: !!data,
-      terms_version: TERMS_VERSION,
-      accepted_at: data?.accepted_at ?? null,
-      version: VERSION,
-    });
-  } catch (e: any) {
-    return res.status(500).json({ error: 'Internal server error', message: e?.message, version: VERSION });
-  }
-});
-
-// POST /api/v2/users/me/accept-terms - Record acceptance of Terms/Privacy/Community Guidelines (Phase 5)
-router.post('/me/accept-terms', requireSupabaseAuthAllowDeleted, async (req: AuthenticatedRequest, res) => {
-  const userId = req.user?.id;
-  if (!userId) {
-    return res.status(401).json({ error: 'unauthorized', message: 'Authorization required', version: VERSION });
-  }
-  const accountStatus = (req as any).accountStatus || 'active';
-
-  // Deleted accounts → 409 with ACCOUNT_DELETED code
-  if (accountStatus === 'deleted') {
-    return res.status(409).json({
-      error: 'account_deleted',
-      code: 'ACCOUNT_DELETED',
-      message: 'This account was previously deleted. You can restore it to continue.',
-      version: VERSION,
-    });
-  }
-
-  try {
-    const { error } = await supabase
-      .from('terms_acceptance')
-      .upsert(
-        { user_id: userId, terms_version: TERMS_VERSION, accepted_at: new Date().toISOString() },
-        { onConflict: 'user_id,terms_version' }
-      );
-
-    // Defensive: if table doesn't exist, return success
-    if (error) {
-      const msg = String(error.message || '').toLowerCase();
-      if (msg.includes('does not exist') || String(error.code || '') === '42P01') {
-        return res.json({ success: true, terms_version: TERMS_VERSION, version: VERSION });
-      }
-      return res.status(500).json({ error: 'Database error', message: error.message, version: VERSION });
-    }
-    return res.json({ success: true, terms_version: TERMS_VERSION, version: VERSION });
-  } catch (e: any) {
-    return res.status(500).json({ error: 'Internal server error', message: e?.message, version: VERSION });
-  }
-});
-
-// POST /api/v2/users/me/restore - Restore a self-deleted account
-router.post('/me/restore', requireSupabaseAuthAllowDeleted, async (req: AuthenticatedRequest, res) => {
-  const userId = req.user?.id;
-  if (!userId) {
-    return res.status(401).json({ error: 'unauthorized', message: 'Authorization required', version: VERSION });
-  }
-  const accountStatus = (req as any).accountStatus || 'active';
-
-  // Already active → idempotent 200
-  if (accountStatus === 'active') {
-    return res.status(200).json({ success: true, message: 'Account is already active', version: VERSION });
-  }
-
-  // Suspended → cannot self-restore
-  if (accountStatus === 'suspended') {
-    return res.status(403).json({
-      error: 'account_suspended',
-      code: 'ACCOUNT_SUSPENDED',
-      message: 'This account has been suspended. Contact support for assistance.',
-      version: VERSION,
-    });
-  }
-
-  try {
-    // Restore: set status to active, clear deleted_at
-    // Try new column first
-    const newColUpdate = await supabase
-      .from('users')
-      .update({
-        account_status: 'active',
-        deleted_at: null,
-        is_banned: false,
-        ban_reason: null,
-        banned_at: null,
-        banned_by: null,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', userId);
-
-    if (newColUpdate.error) {
-      // Fallback: try without new columns (account_status/deleted_at might not exist)
-      const legacyUpdate = await supabase
-        .from('users')
-        .update({
-          is_banned: false,
-          ban_reason: null,
-          banned_at: null,
-          banned_by: null,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', userId);
-
-      if (legacyUpdate.error) {
-        // Last resort: just unset is_banned
-        const minimalUpdate = await supabase
-          .from('users')
-          .update({
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', userId);
-
-        if (minimalUpdate.error) {
-          console.error('[users/me/restore] All update attempts failed:', minimalUpdate.error.message);
-          return res.status(500).json({
-            error: 'Restore failed',
-            message: 'Unable to restore account. Please contact support.',
-            version: VERSION,
-          });
-        }
-      }
-    }
-
-    // Note: username remains anonymized. User will need to set up profile again.
-    return res.status(200).json({
-      success: true,
-      message: 'Account restored. Please update your profile to continue.',
-      needsOnboarding: true,
-      version: VERSION,
-    });
-  } catch (e: any) {
-    console.error('[users/me/restore]', e);
-    return res.status(500).json({
-      error: 'Internal server error',
-      message: 'Unable to restore account. Please contact support.',
-      version: VERSION,
-    });
-  }
-});
-
-// POST /api/v2/users/me/delete - Soft-delete current user account.
-// Anonymizes PII, sets status='deleted'. Does NOT delete auth user (so re-login → restore flow).
-router.post('/me/delete', requireSupabaseAuth, async (req: AuthenticatedRequest, res) => {
-  const userId = req.user?.id;
-  if (!userId) {
-    return res.status(401).json({ error: 'unauthorized', message: 'Authorization required', version: VERSION });
-  }
-  const userFacingMessage = 'Account deletion failed. Please try again or contact support.';
-  try {
-    // Idempotency: if already deleted, return success
-    const accountStatus = (req as any).accountStatus || 'active';
-    if (accountStatus === 'deleted') {
-      return res.status(200).json({ success: true, message: 'Account deleted', version: VERSION });
-    }
-
-    // Determine the best update payload depending on which columns exist
-    const now = new Date().toISOString();
-    const anonymizedUsername = `deleted_${userId.slice(0, 8)}`;
-
-    // Layer 1: all columns including new account_status
-    const fullPayload: Record<string, any> = {
-      username: anonymizedUsername,
-      full_name: null,
-      avatar_url: null,
-      account_status: 'deleted',
-      deleted_at: now,
-      is_banned: true,
-      ban_reason: 'self_deleted',
-      banned_at: now,
-      banned_by: userId,
-      updated_at: now,
-    };
-
-    // Layer 2: without new account_status/deleted_at columns
-    const legacyPayload: Record<string, any> = {
-      username: anonymizedUsername,
-      full_name: null,
-      avatar_url: null,
-      is_banned: true,
-      ban_reason: 'self_deleted',
-      banned_at: now,
-      banned_by: userId,
-      updated_at: now,
-    };
-
-    // Layer 3: absolute minimal
-    const minimalPayload: Record<string, any> = {
-      username: anonymizedUsername,
-      full_name: null,
-      avatar_url: null,
-      updated_at: now,
-    };
-
-    let updateResult = await supabase.from('users').update(fullPayload).eq('id', userId);
-
-    if (updateResult.error) {
-      console.warn('[users/me/delete] Full update failed:', updateResult.error.message, updateResult.error.code);
-      updateResult = await supabase.from('users').update(legacyPayload).eq('id', userId);
-    }
-
-    if (updateResult.error) {
-      console.warn('[users/me/delete] Legacy update failed:', updateResult.error.message, updateResult.error.code);
-      updateResult = await supabase.from('users').update(minimalPayload).eq('id', userId);
-    }
-
-    if (updateResult.error) {
-      console.error('[users/me/delete] Minimal update failed:', updateResult.error.message, updateResult.error.code);
-      // Last resort: try updating only updated_at to confirm DB connectivity
-      const pingResult = await supabase.from('users').update({ updated_at: now }).eq('id', userId);
-      if (pingResult.error) {
-        console.error('[users/me/delete] Even updated_at-only write failed:', pingResult.error.message);
-        return res.status(500).json({ error: 'Deletion failed', message: userFacingMessage, version: VERSION });
-      }
-      // DB is reachable but columns are missing — still mark as soft-deleted via auth metadata
-      console.warn('[users/me/delete] Columns missing but updated_at succeeded; marking via auth metadata');
-    }
-
-    // Also mark deletion in Supabase auth metadata (belt-and-suspenders)
-    try {
-      await supabase.auth.admin.updateUserById(userId, {
-        user_metadata: { account_status: 'deleted', deleted_at: now },
-      });
-    } catch (authErr: any) {
-      // Non-fatal: users table update was the primary operation
-      console.warn('[users/me/delete] Auth metadata update failed (non-fatal):', authErr?.message);
-    }
-
-    // NOTE: We do NOT delete the auth user. This allows re-login → restore flow.
-    // The account is effectively disabled via account_status/is_banned.
-
-    return res.status(200).json({ success: true, message: 'Account deleted', version: VERSION });
-  } catch (e: any) {
-    console.error('[users/me/delete]', e);
-    return res.status(500).json({
-      error: 'Internal server error',
-      message: userFacingMessage,
-      version: VERSION,
-    });
-  }
-});
-
-// GET /api/v2/users/me/blocked - List blocked user IDs (UGC moderation)
-// Defensive: returns empty list if user_blocks table doesn't exist yet
-router.get('/me/blocked', requireSupabaseAuth, async (req: AuthenticatedRequest, res) => {
-  const blockerId = req.user?.id;
-  if (!blockerId) {
-    return res.status(401).json({ error: 'unauthorized', message: 'Authorization required', version: VERSION });
-  }
-  try {
-    const { data, error } = await supabase
-      .from('user_blocks')
-      .select('blocked_user_id')
-      .eq('blocker_id', blockerId);
-    if (error) {
-      // Table may not exist yet - return empty list instead of 500
-      console.warn('[users/me/blocked] Query error (table may not exist):', error.message);
-      return res.json({ data: { blockedUserIds: [] }, version: VERSION });
-    }
-    const blockedUserIds = (data || []).map((r: { blocked_user_id: string }) => r.blocked_user_id);
-    return res.json({ data: { blockedUserIds }, version: VERSION });
-  } catch (e: any) {
-    return res.json({ data: { blockedUserIds: [] }, version: VERSION });
-  }
-});
-
-// POST /api/v2/users/me/block - Block a user (UGC moderation)
-router.post('/me/block', requireSupabaseAuth, async (req: AuthenticatedRequest, res) => {
-  const blockerId = req.user?.id;
-  if (!blockerId) {
-    return res.status(401).json({ error: 'unauthorized', message: 'Authorization required', version: VERSION });
-  }
-  const userId = (req.body?.userId ?? req.body?.blockedUserId) as string | undefined;
-  if (!userId || typeof userId !== 'string') {
-    return res.status(400).json({ error: 'Bad request', message: 'userId is required', version: VERSION });
-  }
-  if (userId === blockerId) {
-    return res.status(400).json({ error: 'Bad request', message: 'Cannot block yourself', version: VERSION });
-  }
-  try {
-    const { error: insertError } = await supabase
-      .from('user_blocks')
-      .upsert(
-        { blocker_id: blockerId, blocked_user_id: userId },
-        { onConflict: 'blocker_id,blocked_user_id' }
-      );
-    if (insertError) {
-      return res.status(500).json({ error: 'Database error', message: insertError.message, version: VERSION });
-    }
-    return res.status(201).json({ data: { blockedUserId: userId }, message: 'User blocked', version: VERSION });
-  } catch (e: any) {
-    return res.status(500).json({ error: 'Internal server error', message: e?.message, version: VERSION });
-  }
-});
-
-// DELETE /api/v2/users/me/block/:userId - Unblock a user (UGC moderation)
-router.delete('/me/block/:userId', requireSupabaseAuth, async (req: AuthenticatedRequest, res) => {
-  const blockerId = req.user?.id;
-  if (!blockerId) {
-    return res.status(401).json({ error: 'unauthorized', message: 'Authorization required', version: VERSION });
-  }
-  const { userId } = req.params;
-  if (!userId) {
-    return res.status(400).json({ error: 'Bad request', message: 'userId is required', version: VERSION });
-  }
-  try {
-    await supabase
-      .from('user_blocks')
-      .delete()
-      .eq('blocker_id', blockerId)
-      .eq('blocked_user_id', userId);
-    return res.status(200).json({ data: { unblockedUserId: userId }, message: 'User unblocked', version: VERSION });
-  } catch (e: any) {
-    return res.status(500).json({ error: 'Internal server error', message: e?.message, version: VERSION });
-  }
-});
-
-// GET /api/v2/users/:id - Get user profile by ID
+// GET /api/v2/users/:id/achievements - Public profile achievements (awards + badges)
 router.get('/:id/achievements', async (req, res) => {
   try {
     const userId = String(req.params.id || '').trim();
@@ -708,7 +272,7 @@ router.get('/:id/achievements', async (req, res) => {
 });
 
 // GET /api/v2/users/resolve?handle=:handle - Resolve public profile handle to user id
-router.get('/resolve', publicProfileResolveRateLimit, async (req, res) => {
+router.get('/resolve', async (req, res) => {
   try {
     const handle = String(req.query.handle || '').trim().replace(/^@/, '');
     if (!handle) {
@@ -754,7 +318,7 @@ router.get('/resolve', publicProfileResolveRateLimit, async (req, res) => {
 });
 
 // GET /api/v2/users/:id/public-profile - Safe public profile payload (no private fields)
-router.get('/:id/public-profile', publicProfileReadRateLimit, async (req, res) => {
+router.get('/:id/public-profile', async (req, res) => {
   try {
     const userId = String(req.params.id || '').trim();
     if (!userId) {
@@ -870,28 +434,10 @@ router.get('/:id', async (req, res) => {
 });
 
 // PATCH /api/v2/users/:id/profile - Update user profile (name, avatar)
-// SECURITY: Must be authenticated and self-only.
-// Uses service role key to bypass RLS, but authorization is enforced here.
-router.patch('/:id/profile', requireSupabaseAuth, async (req: AuthenticatedRequest, res) => {
+// Uses service role key to bypass RLS
+router.patch('/:id/profile', async (req, res) => {
   const { id } = req.params;
   const { full_name, avatar_url } = req.body;
-  const actorId = req.user?.id;
-
-  if (!actorId) {
-    return res.status(401).json({
-      error: 'unauthorized',
-      message: 'Authorization required',
-      version: VERSION,
-    });
-  }
-
-  if (actorId !== id) {
-    return res.status(403).json({
-      error: 'forbidden',
-      message: 'You can only update your own profile',
-      version: VERSION,
-    });
-  }
   
   console.log(`✏️ User profile update for ID: ${id}`, { full_name, avatar_url: avatar_url ? '[provided]' : '[not provided]' });
   
@@ -904,18 +450,6 @@ router.patch('/:id/profile', requireSupabaseAuth, async (req: AuthenticatedReque
   }
   
   try {
-    if (full_name !== undefined) {
-      try {
-        assertContentAllowed([{ label: 'full name', value: full_name }]);
-      } catch (err: any) {
-        return res.status(400).json({
-          error: 'Bad request',
-          message: err?.message || 'Objectionable content detected',
-          code: err?.code || 'CONTENT_NOT_ALLOWED',
-          version: VERSION,
-        });
-      }
-    }
     const updates: Record<string, any> = {
       updated_at: new Date().toISOString()
     };

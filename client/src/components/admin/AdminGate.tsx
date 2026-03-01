@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Shield, Loader2, Lock } from 'lucide-react';
+import { Loader2, Lock } from 'lucide-react';
+import { useAuthSession } from '../../providers/AuthSessionProvider';
 
 interface AdminGateProps {
   children: React.ReactNode;
@@ -12,19 +13,63 @@ const ADMIN_KEY_STORAGE = 'fcz_admin_key';
  * Stores admin key in localStorage and requires it for all admin API calls
  */
 export const AdminGate: React.FC<AdminGateProps> = ({ children }) => {
+  const { user } = useAuthSession();
   const [adminKey, setAdminKey] = useState<string | null>(null);
+  const [sessionAllowed, setSessionAllowed] = useState(false);
   const [inputKey, setInputKey] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [checking, setChecking] = useState(true);
 
   useEffect(() => {
-    // Load admin key from localStorage
-    const stored = localStorage.getItem(ADMIN_KEY_STORAGE);
-    if (stored) {
-      setAdminKey(stored);
-    }
-    setChecking(false);
-  }, []);
+    let mounted = true;
+
+    const checkAdminAccess = async () => {
+      setChecking(true);
+      setSessionAllowed(false);
+
+      // Load admin key from localStorage first (works across builds on same origin)
+      const stored = localStorage.getItem(ADMIN_KEY_STORAGE);
+      if (stored) {
+        if (!mounted) return;
+        setAdminKey(stored);
+        setChecking(false);
+        return;
+      }
+
+      if (!user?.id) {
+        if (!mounted) return;
+        setAdminKey(null);
+        setChecking(false);
+        return;
+      }
+
+      // Fallback: allow a logged-in admin session (no local admin key required).
+      try {
+        const url = `/api/v2/admin/audit?limit=1&actorId=${encodeURIComponent(user.id)}`;
+        const res = await fetch(url, { method: 'GET', credentials: 'include' });
+        if (!mounted) return;
+        if (res.ok) {
+          setSessionAllowed(true);
+          setAdminKey(null);
+          setChecking(false);
+          return;
+        }
+      } catch (e) {
+        // Fall through to the admin-key prompt on network/proxy issues.
+        console.warn('[AdminGate] Session-based admin check failed, falling back to key prompt', e);
+      }
+
+      if (!mounted) return;
+      setAdminKey(null);
+      setSessionAllowed(false);
+      setChecking(false);
+    };
+
+    checkAdminAccess();
+    return () => {
+      mounted = false;
+    };
+  }, [user?.id]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -44,6 +89,7 @@ export const AdminGate: React.FC<AdminGateProps> = ({ children }) => {
   const handleClear = () => {
     localStorage.removeItem(ADMIN_KEY_STORAGE);
     setAdminKey(null);
+    setSessionAllowed(false);
     setInputKey('');
     setError(null);
   };
@@ -59,7 +105,7 @@ export const AdminGate: React.FC<AdminGateProps> = ({ children }) => {
     );
   }
 
-  if (!adminKey) {
+  if (!adminKey && !sessionAllowed) {
     return (
       <div className="min-h-screen bg-slate-900 flex items-center justify-center">
         <div className="text-center max-w-md px-6">
@@ -67,7 +113,9 @@ export const AdminGate: React.FC<AdminGateProps> = ({ children }) => {
             <Lock className="w-8 h-8 text-slate-600" />
           </div>
           <h1 className="text-2xl font-bold text-white mb-2">Admin Access Required</h1>
-          <p className="text-slate-400 mb-6">Please enter your admin key to continue.</p>
+          <p className="text-slate-400 mb-6">
+            Sign in as an admin or enter your admin key to continue.
+          </p>
           
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>

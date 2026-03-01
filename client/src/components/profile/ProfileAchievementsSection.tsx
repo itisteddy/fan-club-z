@@ -59,16 +59,19 @@ function iconForKey(iconKey?: string | null) {
   }
 }
 
-function iconForBadge(definition: AchievementBadgeDefinition) {
-  // Keep creator-earnings visual language aligned with profit/gains iconography.
-  if (definition.key === 'FIRST_CREATOR_EARNING') return TrendingUp;
-  return iconForKey(definition.iconKey);
-}
-
 function shortAwardTitle(title: string) {
   return title
     .replace(/^Top\s+/i, '')
     .replace(/^10\s+/, '10 ');
+}
+
+function normalizeZaurumCopy(value: string) {
+  return value
+    .replace(/\$/g, '')
+    .replace(/\bUSD\b/gi, 'Zaurum')
+    .replace(/\bUSDC\b/gi, 'Zaurum')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
 }
 
 function windowTag(window?: AchievementAward['window'] | null) {
@@ -96,7 +99,7 @@ function formatScore(score: number) {
 function metricLabel(metric?: string) {
   switch (metric) {
     case 'creator_earnings_amount':
-      return 'Creator earnings';
+      return 'Creator earnings (Zaurum)';
     case 'payouts_amount':
       return 'Payout total';
     case 'net_profit':
@@ -121,7 +124,7 @@ function badgeHowToEarnBullets(badgeKey: string): string[] {
     case 'FIRST_COMMENT':
       return ['Post 100 comments on markets.', 'Comments must be successfully submitted.'];
     case 'FIRST_CREATOR_EARNING':
-      return ['Accumulate 10 creator earnings credits.', 'Creator fees must be credited to your creator earnings balance.'];
+      return ['Accumulate your first 10.00 Zaurum in creator earnings.', 'Creator fees must be credited to your creator earnings balance.'];
     default:
       return ['Complete the achievement activity shown above.'];
   }
@@ -196,15 +199,17 @@ export const ProfileAchievementsSection: React.FC<Props> = ({
 
   return (
     <>
-      <div className="relative bg-white rounded-2xl border border-black/[0.06] px-4 pb-4 pt-4">
-        <button
-          type="button"
-          onClick={() => setShowInfo(true)}
-          className="absolute top-3 right-3 inline-flex items-center justify-center w-7 h-7 rounded-lg border border-black/[0.06] text-gray-400 hover:bg-gray-50 hover:text-gray-600"
-          aria-label="Achievements info"
-        >
-          <HelpCircle className="w-3.5 h-3.5" />
-        </button>
+      <div className="bg-white rounded-2xl border border-black/[0.06] p-4">
+        <div className="flex items-center justify-end mb-3">
+          <button
+            type="button"
+            onClick={() => setShowInfo(true)}
+            className="inline-flex items-center justify-center w-8 h-8 rounded-lg border border-black/[0.06] text-gray-500 hover:bg-gray-50"
+            aria-label="Achievements info"
+          >
+            <HelpCircle className="w-4 h-4" />
+          </button>
+        </div>
 
         {loading ? (
           <div className="space-y-3">
@@ -251,7 +256,7 @@ export const ProfileAchievementsSection: React.FC<Props> = ({
                 style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' } as React.CSSProperties}
               >
                 {titleTiles.map((tile) => {
-                  const Icon = iconForBadge(tile.definition);
+                  const Icon = iconForKey(tile.definition.iconKey);
                   const active = tile.activeAward;
                   return (
                     <button
@@ -261,7 +266,7 @@ export const ProfileAchievementsSection: React.FC<Props> = ({
                       className={[
                         'min-w-[94px] w-[94px] rounded-xl border px-2 py-2 text-left transition-colors',
                         active
-                          ? 'bg-emerald-50/70 border-emerald-200 hover:bg-emerald-100/70'
+                          ? 'bg-emerald-50/80 border-emerald-200 hover:bg-emerald-50'
                           : 'bg-gray-50 border-gray-200 hover:bg-gray-100',
                       ].join(' ')}
                       aria-label={
@@ -273,7 +278,7 @@ export const ProfileAchievementsSection: React.FC<Props> = ({
                       <div
                         className={[
                           'w-7 h-7 rounded-lg border flex items-center justify-center mb-2',
-                          active ? 'bg-emerald-50 border-emerald-200' : 'bg-gray-100 border-gray-200',
+                          active ? 'bg-emerald-100 border-emerald-200' : 'bg-gray-100 border-gray-200',
                         ].join(' ')}
                       >
                         <Icon className={['w-4 h-4', active ? 'text-emerald-700' : 'text-gray-400'].join(' ')} />
@@ -284,7 +289,7 @@ export const ProfileAchievementsSection: React.FC<Props> = ({
                       {active ? (
                         <div className="mt-1">
                           <div className="text-xs font-semibold text-emerald-900">#{active.rank}</div>
-                          <div className="inline-flex mt-1 rounded-full border border-emerald-200 px-1.5 py-0.5 text-[10px] text-emerald-700 bg-emerald-100/60">
+                          <div className="inline-flex mt-1 rounded-full border border-emerald-200 px-1.5 py-0.5 text-[10px] text-emerald-700 bg-emerald-100/80">
                             {windowTag(active.window)}
                           </div>
                         </div>
@@ -301,9 +306,11 @@ export const ProfileAchievementsSection: React.FC<Props> = ({
               <div className="text-xs font-medium text-gray-700 mb-2">Badges</div>
               <div className="grid grid-cols-3 gap-2">
                 {badgeTiles.map((tile) => {
-                  const Icon = iconForBadge(tile.definition);
+                  const Icon = iconForKey(tile.definition.iconKey);
                   const earned = Boolean(tile.earned);
-                  const progressLabel = tile.definition.progressLabel;
+                  const progressLabel = tile.definition.progressLabel
+                    ? normalizeZaurumCopy(tile.definition.progressLabel)
+                    : undefined;
                   const progressPct = typeof tile.definition.progressPct === 'number' ? tile.definition.progressPct : 0;
                   return (
                     <button
@@ -313,10 +320,10 @@ export const ProfileAchievementsSection: React.FC<Props> = ({
                       className={[
                         'relative rounded-xl border p-2 text-center min-h-[86px] transition-colors',
                         earned
-                          ? 'bg-emerald-50/70 border-emerald-200 hover:bg-emerald-100/70'
+                          ? 'bg-emerald-50/80 border-emerald-200 hover:bg-emerald-50'
                           : 'bg-gray-50 border-gray-200 hover:bg-gray-100',
                       ].join(' ')}
-                      aria-label={`${tile.definition.title}. ${earned ? 'Earned.' : `Locked. Progress ${progressLabel || ''}`}`}
+                      aria-label={`${normalizeZaurumCopy(tile.definition.title)}. ${earned ? 'Earned.' : `Locked. Progress ${progressLabel || ''}`}`}
                     >
                       {!earned && (
                         <div className="absolute top-1.5 right-1.5 w-4 h-4 rounded-full bg-white border border-gray-200 flex items-center justify-center">
@@ -326,17 +333,17 @@ export const ProfileAchievementsSection: React.FC<Props> = ({
                       <div
                         className={[
                           'mx-auto w-9 h-9 rounded-xl border flex items-center justify-center',
-                          earned ? 'bg-emerald-50 border-emerald-200' : 'bg-gray-100 border-gray-200',
+                          earned ? 'bg-emerald-100 border-emerald-200' : 'bg-gray-100 border-gray-200',
                         ].join(' ')}
                       >
                         <Icon className={['w-4.5 h-4.5', earned ? 'text-emerald-700' : 'text-gray-400'].join(' ')} />
                       </div>
                       <div className={['mt-2 text-[10px] leading-tight line-clamp-2', earned ? 'text-emerald-900' : 'text-gray-500'].join(' ')}>
-                        {tile.definition.title}
+                        {normalizeZaurumCopy(tile.definition.title)}
                       </div>
                       {!earned && progressLabel && (
                         <div className="mt-1 space-y-1">
-                          <div className="text-[10px] text-gray-400">{progressLabel}</div>
+                          <div className="text-[10px] text-gray-400">{normalizeZaurumCopy(progressLabel)}</div>
                           <div className="h-1 w-full rounded-full bg-gray-200 overflow-hidden">
                             <div
                               className="h-full rounded-full bg-gray-400/70"
@@ -380,7 +387,7 @@ export const ProfileAchievementsSection: React.FC<Props> = ({
               <div className="sticky top-0 bg-white/95 backdrop-blur border-b border-gray-100 px-4 py-3 flex items-center justify-between">
                 <div className="min-w-0">
                   <Dialog.Title className="text-sm font-semibold text-gray-900 truncate">
-                    {detail.definition.title}
+                    {normalizeZaurumCopy(detail.definition.title)}
                   </Dialog.Title>
                   <Dialog.Description className="text-xs text-gray-500">
                     {detail.type === 'title' ? 'Title (rotating award)' : 'Badge (permanent)'}
@@ -392,7 +399,7 @@ export const ProfileAchievementsSection: React.FC<Props> = ({
               </div>
 
               <div className="p-4 space-y-4">
-                <p className="text-sm text-gray-700">{detail.definition.description}</p>
+                <p className="text-sm text-gray-700">{normalizeZaurumCopy(detail.definition.description)}</p>
 
                 {detail.type === 'title' ? (
                   <>
@@ -445,7 +452,9 @@ export const ProfileAchievementsSection: React.FC<Props> = ({
                         <div className="px-3 py-2">
                           <div className="flex items-center justify-between text-sm">
                             <span className="text-gray-500">Progress</span>
-                            <span className="font-medium text-gray-900">{detail.definition.progressLabel}</span>
+                            <span className="font-medium text-gray-900">
+                              {normalizeZaurumCopy(detail.definition.progressLabel)}
+                            </span>
                           </div>
                           {!detail.earned && (
                             <div className="mt-2 h-1.5 rounded-full bg-gray-200 overflow-hidden">

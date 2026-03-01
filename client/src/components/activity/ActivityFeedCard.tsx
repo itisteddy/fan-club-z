@@ -2,7 +2,6 @@ import React from 'react';
 import {
   Target,
   TrendingUp,
-  DollarSign,
   Activity,
   Download,
   ArrowUpRight,
@@ -15,7 +14,9 @@ import {
   Gift,
   ExternalLink,
 } from 'lucide-react';
-import { formatCurrency, formatTimeAgo } from '@/lib/format';
+import { formatTimeAgo } from '@/lib/format';
+import { ZaurumMark } from '@/components/currency/ZaurumMark';
+import { ZaurumAmount } from '@/components/currency/ZaurumAmount';
 
 export type ActivityKind = 
   | 'deposit' 
@@ -69,7 +70,7 @@ interface ActivityDisplayInfo {
   icon: React.ReactNode;
   title: string;
   subtitle: string;
-  amount: string | null;
+  amount: number | null;
   badge: string;
   badgeColor: string;
   isPositive: boolean;
@@ -81,7 +82,7 @@ interface ActivityDisplayInfo {
 export function getActivityDisplay(item: ActivityItemData): ActivityDisplayInfo {
   const kind = (item.kind || item.type || '').toLowerCase();
   const amount = item.amountUSD ?? item.amount ?? 0;
-  const formattedAmount = amount > 0 ? formatCurrency(amount, { compact: true }) : null;
+  const formattedAmount = amount > 0 ? amount : null;
   const predTitle = item.predictionTitle || item.meta?.prediction_title || item.data?.prediction_title || '';
   const optionLabel = item.meta?.option_label || item.data?.option_label || '';
   
@@ -213,7 +214,7 @@ export function getActivityDisplay(item: ActivityItemData): ActivityDisplayInfo 
     case 'wallet.platform_fee':
       return {
         iconBg: 'bg-slate-100',
-        icon: <DollarSign className="w-4 h-4 text-slate-600" />,
+        icon: <ZaurumMark className="w-4 h-4" />,
         title: 'Platform fee',
         subtitle: predTitle || '',
         amount: formattedAmount,
@@ -330,9 +331,12 @@ export const ActivityFeedItem: React.FC<ActivityFeedItemProps> = ({
       </div>
       
       <div className="text-right flex-shrink-0 ml-2">
-        {display.amount && (
+        {display.amount !== null && (
           <div className={`text-sm font-semibold font-mono ${display.isPositive ? 'text-emerald-600' : 'text-gray-700'}`}>
-            {display.isPositive ? '+' : '-'}{display.amount}
+            <span className="inline-flex items-center gap-1">
+              <span>{display.isPositive ? '+' : '-'}</span>
+              <ZaurumAmount value={display.amount} compact markSize="xs" />
+            </span>
           </div>
         )}
         <div className={`text-xs font-medium ${display.badgeColor}`}>

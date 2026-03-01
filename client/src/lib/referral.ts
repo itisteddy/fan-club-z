@@ -6,24 +6,16 @@
  */
 
 import { getApiUrl } from '@/config';
-import { buildReferralUrl } from '@/lib/urls';
 
 const REFERRAL_COOKIE_NAME = 'ref_code';
 const REFERRAL_STORAGE_KEY = 'fanclubz_ref_code';
-const REFERRER_PREVIEW_KEY = 'fanclubz_referrer_preview';
 const REFERRAL_COOKIE_EXPIRY_DAYS = 90;
-
-const envFlag = (value: unknown): boolean => {
-  if (typeof value !== 'string') return false;
-  const v = value.trim().toLowerCase();
-  return v === '1' || v === 'true' || v === 'yes' || v === 'on';
-};
 
 /**
  * Check if referral feature is enabled
  */
 export const isReferralEnabled = (): boolean => {
-  return envFlag(import.meta.env.VITE_REFERRALS_ENABLE);
+  return import.meta.env.VITE_REFERRALS_ENABLE === '1';
 };
 
 /**
@@ -62,48 +54,11 @@ export const setRefCode = (code: string): void => {
   // Set cookie
   const expiryDate = new Date();
   expiryDate.setDate(expiryDate.getDate() + REFERRAL_COOKIE_EXPIRY_DAYS);
-  const secure = typeof window !== 'undefined' && window.location.protocol === 'https:' ? '; Secure' : '';
-  document.cookie = `${REFERRAL_COOKIE_NAME}=${code}; expires=${expiryDate.toUTCString()}; path=/; SameSite=Lax${secure}`;
+  document.cookie = `${REFERRAL_COOKIE_NAME}=${code}; expires=${expiryDate.toUTCString()}; path=/; SameSite=Lax`;
   
   // Set localStorage as backup
   try {
     localStorage.setItem(REFERRAL_STORAGE_KEY, code);
-  } catch {
-    // Ignore storage errors
-  }
-};
-
-export interface ReferrerPreview {
-  id: string;
-  username: string | null;
-  fullName?: string | null;
-  avatarUrl?: string | null;
-  referralCode?: string | null;
-}
-
-export const setReferrerPreview = (preview: ReferrerPreview): void => {
-  if (!isReferralEnabled() || !preview) return;
-  try {
-    localStorage.setItem(REFERRER_PREVIEW_KEY, JSON.stringify(preview));
-  } catch {
-    // Ignore storage errors
-  }
-};
-
-export const getReferrerPreview = (): ReferrerPreview | null => {
-  if (!isReferralEnabled()) return null;
-  try {
-    const raw = localStorage.getItem(REFERRER_PREVIEW_KEY);
-    if (!raw) return null;
-    return JSON.parse(raw) as ReferrerPreview;
-  } catch {
-    return null;
-  }
-};
-
-export const clearReferrerPreview = (): void => {
-  try {
-    localStorage.removeItem(REFERRER_PREVIEW_KEY);
   } catch {
     // Ignore storage errors
   }
@@ -122,7 +77,6 @@ export const clearRefCode = (): void => {
   } catch {
     // Ignore storage errors
   }
-  clearReferrerPreview();
 };
 
 /**
@@ -138,11 +92,13 @@ const getCookie = (name: string): string | null => {
 };
 
 /**
- * Generate the full referral link for a user (canonical domain; never localhost in production).
+ * Generate the full referral link for a user
  */
 export const getMyReferralLink = (referralCode: string | null | undefined): string | null => {
   if (!isReferralEnabled() || !referralCode) return null;
-  return buildReferralUrl(referralCode);
+  
+  const baseUrl = import.meta.env.VITE_FRONTEND_URL || 'https://app.fanclubz.app';
+  return `${baseUrl}/r/${referralCode}`;
 };
 
 /**
@@ -214,25 +170,6 @@ export const attributeReferral = async (userId: string): Promise<{ attributed: b
   } catch (error) {
     console.error('[Referral] Attribution error:', error);
     return { attributed: false, reason: 'error' };
-  }
-};
-
-/**
- * Resolve a referral code to a public referrer preview.
- */
-export const resolveReferrerPreview = async (refCode: string): Promise<ReferrerPreview | null> => {
-  if (!isReferralEnabled() || !refCode) return null;
-  try {
-    const apiUrl = getApiUrl();
-    const r = await fetch(`${apiUrl}/api/referrals/referrer?refCode=${encodeURIComponent(refCode)}`, {
-      method: 'GET',
-      headers: { 'Content-Type': 'application/json' },
-    });
-    if (!r.ok) return null;
-    const j = await r.json().catch(() => null);
-    return (j?.data as ReferrerPreview) || null;
-  } catch {
-    return null;
   }
 };
 

@@ -42,8 +42,6 @@ const INITIAL_RETRY_DELAY_MS = 1000;
 const MAX_RETRY_DELAY_MS = 60000;
 const POLL_INTERVAL_MS = 10000;
 const CHECKPOINT_SAVE_INTERVAL_BLOCKS = 50n; // Save checkpoint every 50 blocks to reduce DB load
-// Base RPC providers commonly enforce <=10k block span for eth_getLogs (inclusive).
-const MAX_GET_LOGS_BLOCK_SPAN = 9_500n;
 
 function envOn(): boolean {
   return process.env.PAYMENTS_ENABLE === '1' && process.env.ENABLE_BASE_DEPOSITS === '1';
@@ -541,30 +539,6 @@ export async function startBaseDepositWatcher(ctx: Ctx) {
   let lastCheckpointBlock = 0n;
   let consecutiveCheckpointFailures = 0;
 
-  const fetchTransferLogsChunked = async (start: bigint, end: bigint) => {
-    const allLogs: Log[] = [];
-    let cursor = start;
-    while (cursor <= end) {
-      const chunkEnd = cursor + MAX_GET_LOGS_BLOCK_SPAN < end
-        ? cursor + MAX_GET_LOGS_BLOCK_SPAN
-        : end;
-      log('info', 'Fetching transfer logs chunk', {
-        from: cursor.toString(),
-        to: chunkEnd.toString(),
-        range: (chunkEnd - cursor).toString(),
-      });
-      const chunkLogs = await client.getLogs({
-        address: usdc,
-        event: { type: 'event', name: 'Transfer', inputs: ERC20_ABI[0].inputs as any },
-        fromBlock: cursor,
-        toBlock: chunkEnd
-      });
-      allLogs.push(...(chunkLogs as any));
-      cursor = chunkEnd + 1n;
-    }
-    return allLogs;
-  };
-
   const poll = async () => {
     try {
       const latest = await client.getBlockNumber();
@@ -600,7 +574,12 @@ export async function startBaseDepositWatcher(ctx: Ctx) {
         range: (latest - start).toString()
       });
 
-      const logs = await fetchTransferLogsChunked(start, latest);
+      const logs = await client.getLogs({
+        address: usdc,
+        event: { type: 'event', name: 'Transfer', inputs: ERC20_ABI[0].inputs as any },
+        fromBlock: start,
+        toBlock: latest
+      });
 
       if (logs.length > 0) {
         log('info', 'Found transfer events', { count: logs.length });
@@ -652,3 +631,4 @@ export async function startBaseDepositWatcher(ctx: Ctx) {
   poll();
   log('info', 'Base USDC deposit watcher started');
 }
+

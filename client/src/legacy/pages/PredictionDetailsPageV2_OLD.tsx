@@ -597,7 +597,7 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
                   </div>
 
                   {/* Options Section - Only on Overview tab */}
-                  {(!isAuthenticated && String((prediction as any).status || '').toLowerCase() !== 'settled') ? (
+                  {!isAuthenticated ? (
                     <SignInCallout
                       onSignIn={() =>
                         openAuthGate({
@@ -611,9 +611,7 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
                       options={prediction.options || []}
                       selectedId={selectedOptionId || undefined}
                       onSelect={handleOptionSelect}
-                      disabled={isPlacingBet || !isAuthenticated || String((prediction as any).status || '').toLowerCase() !== 'open'}
-                      winningOptionId={(prediction as any).winning_option_id || (prediction as any).winningOptionId}
-                      showWinningIndicator={String((prediction as any).status || '').toLowerCase() === 'settled'}
+                      disabled={isPlacingBet}
                     />
                   )}
 
@@ -674,7 +672,7 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
                   exit={reduceMotion ? {} : { opacity: 0, x: 20 }}
                   data-qa="comments-section"
                 >
-                  <CommentsSection predictionId={predictionId} predictionTitle={prediction?.title} />
+                  <CommentsSection predictionId={predictionId} />
                 </motion.div>
               )}
 

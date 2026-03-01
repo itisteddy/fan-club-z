@@ -1,7 +1,5 @@
-import React from 'react';
-import { Routes, Route } from 'react-router-dom';
-import { useEffect } from 'react';
-import { useLocation } from 'react-router-dom';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Routes, Route, useLocation } from 'react-router-dom';
 import AdminGate from '@/components/admin/AdminGate';
 import AdminLayout from '@/components/admin/AdminLayout';
 
@@ -27,23 +25,35 @@ import { CategoriesPage } from '@/pages/admin/CategoriesPage';
  */
 const LandingAdminRouter: React.FC = () => {
   const location = useLocation();
+  const [redirectingToCanonical, setRedirectingToCanonical] = useState(false);
 
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const host = window.location.hostname.toLowerCase();
-    const shouldCanonicalize = host === 'app.fanclubz.app' || host === 'www.fanclubz.app';
-    if (!shouldCanonicalize) return;
-    const target = `https://fanclubz.app${location.pathname}${location.search}${location.hash}`;
-    if (window.location.href !== target) {
-      window.location.replace(target);
+  const canonicalRedirectUrl = useMemo(() => {
+    if (typeof window === 'undefined') return null;
+    try {
+      const current = new URL(window.location.href);
+      const host = current.hostname.toLowerCase();
+      const isProdAlias = host === 'app.fanclubz.app' || host === 'www.fanclubz.app';
+      if (!isProdAlias) return null;
+      if (!current.pathname.startsWith('/admin')) return null;
+      return `https://fanclubz.app${current.pathname}${current.search}${current.hash}`;
+    } catch {
+      return null;
     }
   }, [location.pathname, location.search, location.hash]);
 
-  if (typeof window !== 'undefined') {
-    const host = window.location.hostname.toLowerCase();
-    if (host === 'app.fanclubz.app' || host === 'www.fanclubz.app') {
-      return null;
-    }
+  useEffect(() => {
+    if (!canonicalRedirectUrl || typeof window === 'undefined') return;
+    if (canonicalRedirectUrl === window.location.href) return;
+    setRedirectingToCanonical(true);
+    window.location.replace(canonicalRedirectUrl);
+  }, [canonicalRedirectUrl]);
+
+  if (redirectingToCanonical) {
+    return (
+      <div className="min-h-screen bg-slate-900 flex items-center justify-center">
+        <p className="text-slate-300">Redirecting to admin…</p>
+      </div>
+    );
   }
 
   return (
@@ -51,7 +61,6 @@ const LandingAdminRouter: React.FC = () => {
       <AdminLayout>
         <Routes>
           <Route index element={<AdminHomePage />} />
-          <Route path="/" element={<AdminHomePage />} />
           <Route path="users" element={<UsersPage />} />
           <Route path="users/:userId" element={<UserDetailPage />} />
           <Route path="users/:userId/view" element={<UserViewPage />} />
@@ -73,4 +82,3 @@ const LandingAdminRouter: React.FC = () => {
 };
 
 export default LandingAdminRouter;
-

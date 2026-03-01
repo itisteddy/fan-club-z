@@ -14,6 +14,10 @@ import { setNativeAuthInFlight } from '@/lib/auth/nativeAuthState';
 let isProcessingCallback = false;
 let lastHandledUrl: string | null = null;
 
+/**
+ * Reset native OAuth state. MUST be called on sign out to prevent
+ * stale `isProcessingCallback` / `lastHandledUrl` blocking re-login.
+ */
 export function resetNativeOAuthState() {
   isProcessingCallback = false;
   lastHandledUrl = null;
@@ -21,15 +25,17 @@ export function resetNativeOAuthState() {
 }
 
 export async function exchangeFromDeepLink(callbackUrl: string) {
-  let u: URL;
+  // Parse the callback URL. Custom schemes need normalization.
+  let parsedUrl: URL;
   try {
-    u = new URL(callbackUrl);
+    parsedUrl = new URL(callbackUrl);
   } catch {
-    // Fallback for some URL parsers with custom schemes
-    u = new URL(callbackUrl.replace('fanclubz://', 'https://'));
+    // Fallback for custom schemes (fanclubz://...) that some URL parsers reject.
+    // If this also throws, the error propagates to the caller.
+    parsedUrl = new URL(callbackUrl.replace('fanclubz://', 'https://'));
   }
 
-  const code = u.searchParams.get('code');
+  const code = parsedUrl.searchParams.get('code');
   if (!code) {
     throw new Error(`[NativeOAuth] Missing ?code= in callbackUrl: ${callbackUrl}`);
   }
@@ -48,8 +54,29 @@ export async function exchangeFromDeepLink(callbackUrl: string) {
  * @returns true if this was an auth callback and was handled, false otherwise
  */
 export async function handleNativeAuthCallback(url: string): Promise<boolean> {
-  // Only process in real native runtime (runtime is authoritative)
-  if (!isNativeIOSRuntime() && !isNativeAndroidRuntime()) {
+  // Check if this is an auth callback URL first.
+  const isDeepLinkCallback = url && url.startsWith('fanclubz://auth/callback');
+  const isHttpsCallback = url && (
+    url.includes('app.fanclubz.app/auth/callback') ||
+    url.includes('localhost/auth/callback') ||
+    url.includes('127.0.0.1/auth/callback')
+  );
+  if (!isDeepLinkCallback && !isHttpsCallback) {
+    return false;
+  }
+
+  // Only process in real native runtime.
+  // CRITICAL FIX (2026-02-11): Also accept VITE_BUILD_TARGET as a signal.
+  // After logout on Android, Capacitor.isNativePlatform() can lag, causing
+  // isNativeAndroidRuntime() to return false briefly. But if the deep link
+  // `fanclubz://auth/callback` was received by CapacitorApp.addListener, we
+  // are DEFINITELY in a native context — the listener only fires in native.
+  // So we also accept build target as a fallback signal.
+  const buildTarget = import.meta.env.VITE_BUILD_TARGET;
+  const isNative = isNativeIOSRuntime() || isNativeAndroidRuntime() || buildTarget === 'android' || buildTarget === 'ios';
+  // If we got a deep-link callback from Capacitor listener, process it even when
+  // native runtime detection is lagging (observed right after logout on Android).
+  if (!isNative && !isDeepLinkCallback) {
     return false;
   }
 
@@ -67,18 +94,6 @@ export async function handleNativeAuthCallback(url: string): Promise<boolean> {
       console.log('[NativeOAuth] Duplicate callback URL received, ignoring');
     }
     return true;
-  }
-
-  // Check if this is an auth callback URL
-  const isDeepLinkCallback = url && url.startsWith('fanclubz://auth/callback');
-  const isHttpsCallback = url && (
-    url.includes('app.fanclubz.app/auth/callback') ||
-    url.includes('localhost/auth/callback') ||
-    url.includes('127.0.0.1/auth/callback')
-  );
-
-  if (!isDeepLinkCallback && !isHttpsCallback) {
-    return false;
   }
 
   isProcessingCallback = true;
@@ -99,49 +114,37 @@ export async function handleNativeAuthCallback(url: string): Promise<boolean> {
       }
 
       // Parse the deep link URL to extract query params
-      let code: string | null = null;
-      let state: string | null = null;
-      let next: string | null = null;
-      let parsedUrl: URL | null = null;
-
+      // Declare parsedUrl at this scope so it's accessible for both code and token_hash extraction
+      let deepLinkParsed: URL;
       try {
-        // Deep link format: fanclubz://auth/callback?code=xxx&state=yyy
-        parsedUrl = new URL(url.replace('fanclubz://', 'https://'));
-        code = parsedUrl.searchParams.get('code');
-        state = parsedUrl.searchParams.get('state');
-        next = parsedUrl.searchParams.get('next');
-
-        // Some providers return values in the hash fragment
-        if (!code && parsedUrl.hash) {
-          const hashParams = new URLSearchParams(parsedUrl.hash.replace(/^#/, ''));
-          code = hashParams.get('code');
-          if (!state) {
-            state = hashParams.get('state');
-          }
-          if (!next) {
-            next = hashParams.get('next');
-          }
-        }
-
-        if (import.meta.env.DEV) {
-          console.log('[NativeOAuth] Extracted:', {
-            code: code ? 'present' : 'missing',
-            state: state ? 'present' : 'missing'
-          });
-        }
+        deepLinkParsed = new URL(url.replace('fanclubz://', 'https://'));
       } catch (err) {
         console.error('[NativeOAuth] ❌ Failed to parse deep link URL:', err);
         isProcessingCallback = false;
         return false;
       }
 
-      // Handle email confirmation token_hash (Supabase sends this for email signup confirmation)
-      if (!parsedUrl) {
-        isProcessingCallback = false;
-        return false;
+      let code: string | null = deepLinkParsed.searchParams.get('code');
+      const state: string | null = deepLinkParsed.searchParams.get('state');
+      let next: string | null = deepLinkParsed.searchParams.get('next');
+
+      // Some providers return values in the hash fragment
+      if (!code && deepLinkParsed.hash) {
+        const hashParams = new URLSearchParams(deepLinkParsed.hash.replace(/^#/, ''));
+        code = code || hashParams.get('code');
+        if (!next) next = hashParams.get('next');
       }
-      const tokenHash = parsedUrl.searchParams.get('token_hash');
-      const type = parsedUrl.searchParams.get('type');
+
+      if (import.meta.env.DEV) {
+        console.log('[NativeOAuth] Extracted:', {
+          code: code ? 'present' : 'missing',
+          state: state ? 'present' : 'missing'
+        });
+      }
+
+      // Handle email confirmation token_hash (Supabase sends this for email signup confirmation)
+      const tokenHash = deepLinkParsed.searchParams.get('token_hash');
+      const type = deepLinkParsed.searchParams.get('type');
       if (tokenHash && type) {
         try {
           if (import.meta.env.DEV) {

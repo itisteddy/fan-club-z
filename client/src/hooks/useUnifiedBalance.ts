@@ -46,6 +46,7 @@ export function useUnifiedBalance() {
   const summaryAvailable = Number(summary?.availableToStakeUSDC ?? summary?.available ?? 0);
   const summaryReserved = Number(summary?.reservedUSDC ?? summary?.reserved ?? 0);
   const summaryEscrow = Number(summary?.escrowUSDC ?? 0);
+  const summaryStakeBalance = Number(summary?.stakeBalance ?? summary?.balances?.stakeBalance ?? summary?.available ?? 0);
   const summaryTotal =
     typeof summaryAvailable === 'number' && typeof summaryReserved === 'number'
       ? summaryAvailable + summaryReserved
@@ -66,8 +67,10 @@ export function useUnifiedBalance() {
   // - After stake: available decreases correctly (because locks are counted in summary).
   // - After settlement/unlock: available increases correctly when locks are released.
 
+  // Creator earnings transfers increase stake balance immediately; use the higher of
+  // reconciled available and explicit stake balance so "Move to Balance" is reflected instantly.
   const computedAvailable = hasLoadedSummary
-    ? Math.max(0, summaryAvailable)
+    ? Math.max(0, summaryAvailable, summaryStakeBalance)
     : Math.max(0, onchainBalance);
 
   // Reserved balance: prefer summary (locks), fall back to on-chain reserved snapshot

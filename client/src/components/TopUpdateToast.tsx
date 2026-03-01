@@ -33,20 +33,19 @@ const TopUpdateToast: React.FC<TopUpdateToastProps> = ({
   if (!isVisible && !isAnimatingOut) return null;
 
   return (
-    <div
-      className={`
-        fixed inset-x-0 top-4 z-[10001] flex justify-center px-4 pointer-events-none update-notification
-        transition-all duration-300 ease-out
-        ${isVisible && !isAnimatingOut ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-2'}
-      `}
-      aria-live="polite"
-      aria-atomic="true"
-    >
-      {/* Non-blocking toast notification */}
+    <>
+      {/* Non-blocking update prompt: keep visible but do not block app interactions */}
       <div className={`
-        pointer-events-auto w-full max-w-sm max-h-[90vh] overflow-y-auto
-      `}>
-        <div className="bg-white rounded-2xl shadow-2xl border border-gray-200 overflow-hidden">
+        fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 update-notification
+        w-[calc(100vw-32px)] max-w-sm max-h-[90vh] overflow-y-auto
+        transition-all duration-300 ease-out
+        pointer-events-none
+        ${isVisible && !isAnimatingOut 
+          ? 'opacity-100 scale-100' 
+          : 'opacity-0 scale-95'
+        }
+      `} style={{ zIndex: 10001 }}>
+        <div className="bg-white rounded-2xl shadow-2xl border border-gray-200 overflow-hidden pointer-events-auto">
           {/* Header with icon and close */}
           <div className="bg-gradient-to-r from-purple-500 to-teal-600 p-4 text-white relative">
             <div className="flex items-center space-x-3">
@@ -104,7 +103,7 @@ const TopUpdateToast: React.FC<TopUpdateToastProps> = ({
           </div>
         </div>
       </div>
-    </div>
+    </>
   );
 };
 

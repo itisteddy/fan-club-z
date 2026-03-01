@@ -1,12 +1,11 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { MoreVertical, Edit2, Trash2, Flag, Ban } from 'lucide-react';
+import { MoreVertical, Edit2, Trash2, Flag } from 'lucide-react';
 import { qaLog } from '../../utils/devQa';
 
 interface CommentOverflowMenuProps {
   onEdit?: () => void;
   onDelete?: () => void;
   onReport?: () => void;
-  onBlock?: () => void;
   isOwner?: boolean;
 }
 
@@ -14,15 +13,14 @@ const CommentOverflowMenu: React.FC<CommentOverflowMenuProps> = ({
   onEdit,
   onDelete,
   onReport,
-  onBlock,
   isOwner = false,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [focusedIndex, setFocusedIndex] = useState(-1);
   const menuRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
-
-  // Menu items based on ownership and UGC
+  
+  // Menu items based on ownership
   const menuItems = [
     ...(isOwner && onEdit ? [{ 
       label: 'Edit', 
@@ -41,12 +39,6 @@ const CommentOverflowMenu: React.FC<CommentOverflowMenuProps> = ({
       icon: Flag, 
       action: onReport,
       destructive: false 
-    }] : []),
-    ...(onBlock ? [{ 
-      label: 'Block user', 
-      icon: Ban, 
-      action: onBlock,
-      destructive: true 
     }] : []),
   ];
 

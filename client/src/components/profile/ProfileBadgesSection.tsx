@@ -14,6 +14,7 @@
 
 import React from 'react';
 import { Award, Sparkles, Star } from 'lucide-react';
+import { motion } from 'framer-motion';
 import { OGBadgeEnhanced } from '@/components/badges/OGBadgeEnhanced';
 import type { OGTier } from '@/components/badges/OGBadge';
 import { cn } from '@/utils/cn';
@@ -90,7 +91,9 @@ export const ProfileBadgesSection: React.FC<ProfileBadgesSectionProps> = ({
     : null;
 
   return (
-    <div
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
       className={cn(
         'bg-white rounded-2xl border border-gray-100 overflow-hidden',
         'shadow-sm',
@@ -107,7 +110,7 @@ export const ProfileBadgesSection: React.FC<ProfileBadgesSectionProps> = ({
 
       {/* OG Badge Feature Card */}
       <div className="p-4">
-        <div
+        <motion.div
           className={cn(
             'relative rounded-xl p-4 overflow-hidden',
             'bg-gradient-to-br',
@@ -115,27 +118,52 @@ export const ProfileBadgesSection: React.FC<ProfileBadgesSectionProps> = ({
             'border',
             config.borderColor
           )}
+          whileHover={{ scale: 1.01 }}
+          transition={{ type: 'spring', stiffness: 400, damping: 25 }}
         >
           {/* Decorative elements for Gold tier */}
           {ogBadge === 'gold' && (
             <>
-              <div className="absolute top-2 right-2">
+              <motion.div
+                className="absolute top-2 right-2"
+                animate={{ 
+                  rotate: [0, 10, -10, 0],
+                  scale: [1, 1.1, 1],
+                }}
+                transition={{ 
+                  duration: 3, 
+                  repeat: Infinity,
+                  repeatType: 'reverse',
+                }}
+              >
                 <Sparkles className={cn('w-5 h-5', config.sparkleColor)} />
-              </div>
-              <div className="absolute bottom-2 left-2 opacity-30">
+              </motion.div>
+              <motion.div
+                className="absolute bottom-2 left-2 opacity-30"
+                animate={{ 
+                  rotate: [0, -5, 5, 0],
+                }}
+                transition={{ 
+                  duration: 4, 
+                  repeat: Infinity,
+                  repeatType: 'reverse',
+                }}
+              >
                 <Star className="w-6 h-6 text-amber-300" />
-              </div>
+              </motion.div>
             </>
           )}
 
           <div className="flex items-start gap-4 relative z-10">
             {/* Large badge display */}
             <div className="relative flex-shrink-0">
-              <div
+              <motion.div
                 className={cn(
                   'w-16 h-16 rounded-2xl flex items-center justify-center shadow-lg',
                   config.iconBg
                 )}
+                whileHover={{ rotate: [0, -5, 5, 0] }}
+                transition={{ duration: 0.4 }}
               >
                 <OGBadgeEnhanced
                   tier={ogBadge}
@@ -143,11 +171,14 @@ export const ProfileBadgesSection: React.FC<ProfileBadgesSectionProps> = ({
                   showTooltip={false}
                   animate={false}
                 />
-              </div>
+              </motion.div>
               
               {/* Member number badge */}
               {ogBadgeMemberNumber && (
-                <div
+                <motion.div
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1 }}
+                  transition={{ delay: 0.3, type: 'spring' }}
                   className={cn(
                     'absolute -bottom-1 -right-1 px-1.5 py-0.5 rounded-full',
                     'text-xs font-bold font-mono shadow-sm',
@@ -157,7 +188,7 @@ export const ProfileBadgesSection: React.FC<ProfileBadgesSectionProps> = ({
                   )}
                 >
                   #{ogBadgeMemberNumber}
-                </div>
+                </motion.div>
               )}
             </div>
 
@@ -188,9 +219,9 @@ export const ProfileBadgesSection: React.FC<ProfileBadgesSectionProps> = ({
               )}
             </div>
           </div>
-        </div>
+        </motion.div>
       </div>
-    </div>
+    </motion.div>
   );
 };
 
@@ -217,7 +248,9 @@ export const ProfileBadgesCompact: React.FC<ProfileBadgesCompactProps> = ({
   if (!config) return null;
 
   return (
-    <div
+    <motion.div
+      initial={{ opacity: 0, x: -10 }}
+      animate={{ opacity: 1, x: 0 }}
       className={cn(
         'inline-flex items-center gap-2 px-3 py-1.5 rounded-full',
         'border',
@@ -229,8 +262,8 @@ export const ProfileBadgesCompact: React.FC<ProfileBadgesCompactProps> = ({
       <OGBadgeEnhanced
         tier={ogBadge}
         size="sm"
-        showTooltip={false}
-        animate={false}
+        showTooltip={true}
+        animate={true}
       />
       <span className={cn('text-sm font-semibold', config.pillText)}>
         {config.subtitle}
@@ -240,7 +273,7 @@ export const ProfileBadgesCompact: React.FC<ProfileBadgesCompactProps> = ({
           #{ogBadgeMemberNumber}
         </span>
       )}
-    </div>
+    </motion.div>
   );
 };
 

@@ -101,7 +101,7 @@ export const DensePredictionCardSkeleton: React.FC<{ index?: number }> = ({ inde
 export const FilterPillsSkeleton: React.FC = () => (
   <>
     <style>{shimmerStyles}</style>
-    <div className="sticky top-0 z-40 bg-white border-b border-gray-100 safe-area-pt">
+    <div className="sticky top-0 z-40 bg-white border-b border-gray-100">
       <div className="px-4 py-3">
         <div className="flex items-center gap-3">
           <div className="flex-1 overflow-x-auto scrollbar-hide">

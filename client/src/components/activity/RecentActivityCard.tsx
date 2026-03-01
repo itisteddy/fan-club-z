@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import {
   Activity,
-  DollarSign,
   Download,
   ArrowUpRight,
   Lock,
@@ -17,9 +16,11 @@ import {
   X,
   Clock,
 } from 'lucide-react';
-import { formatTimeAgo, formatCurrency } from '@/lib/format';
+import { formatTimeAgo, formatZaurumNumber } from '@/lib/format';
 import type { ActivityKind } from '@fanclubz/shared';
 import toast from 'react-hot-toast';
+import { ZaurumMark } from '@/components/currency/ZaurumMark';
+import { ZaurumAmount } from '@/components/currency/ZaurumAmount';
 
 export interface ActivityDisplayItem {
   id: string;
@@ -41,7 +42,8 @@ interface ActivityDisplay {
   icon: React.ReactNode;
   title: string;
   subtitle?: string;
-  amount: string | null;
+  amountValue: number | null;
+  amountSign?: '+' | '-' | '';
   badge: string;
   badgeColor: string;
 }
@@ -54,7 +56,8 @@ function getActivityDisplay(item: ActivityDisplayItem): ActivityDisplay {
         icon: <Download className="w-4 h-4 text-emerald-600" />,
         title: 'Deposited Zaurum',
         subtitle: item.meta?.description,
-        amount: formatCurrency(item.amountUSD, { compact: true }),
+        amountValue: item.amountUSD,
+        amountSign: '',
         badge: 'deposit',
         badgeColor: 'text-emerald-600',
       };
@@ -64,7 +67,8 @@ function getActivityDisplay(item: ActivityDisplayItem): ActivityDisplay {
         icon: <ArrowUpRight className="w-4 h-4 text-orange-600" />,
         title: 'Withdrew Zaurum',
         subtitle: item.meta?.description,
-        amount: formatCurrency(item.amountUSD, { compact: true }),
+        amountValue: item.amountUSD,
+        amountSign: '',
         badge: 'withdraw',
         badgeColor: 'text-orange-600',
       };
@@ -74,7 +78,8 @@ function getActivityDisplay(item: ActivityDisplayItem): ActivityDisplay {
         icon: <Lock className="w-4 h-4 text-amber-600" />,
         title: 'Funds locked',
         subtitle: item.meta?.predictionTitle,
-        amount: formatCurrency(item.amountUSD, { compact: true }),
+        amountValue: item.amountUSD,
+        amountSign: '',
         badge: 'locked',
         badgeColor: 'text-amber-600',
       };
@@ -85,7 +90,8 @@ function getActivityDisplay(item: ActivityDisplayItem): ActivityDisplay {
         icon: <Unlock className="w-4 h-4 text-blue-600" />,
         title: 'Funds released',
         subtitle: item.meta?.predictionTitle,
-        amount: formatCurrency(item.amountUSD, { compact: true }),
+        amountValue: item.amountUSD,
+        amountSign: '',
         badge: 'released',
         badgeColor: 'text-blue-600',
       };
@@ -96,7 +102,8 @@ function getActivityDisplay(item: ActivityDisplayItem): ActivityDisplay {
         icon: <Target className="w-4 h-4 text-purple-600" />,
         title: item.meta?.predictionTitle ? `Staked on "${item.meta.predictionTitle}"` : 'Stake placed',
         subtitle: item.meta?.optionLabel ? `Option: ${item.meta.optionLabel}` : undefined,
-        amount: formatCurrency(item.amountUSD, { compact: true }),
+        amountValue: item.amountUSD,
+        amountSign: '',
         badge: 'placed',
         badgeColor: 'text-purple-600',
       };
@@ -106,7 +113,8 @@ function getActivityDisplay(item: ActivityDisplayItem): ActivityDisplay {
         icon: <Trophy className="w-4 h-4 text-emerald-600" />,
         title: 'Won prediction',
         subtitle: item.meta?.predictionTitle,
-        amount: `+${formatCurrency(item.amountUSD, { compact: true })}`,
+        amountValue: item.amountUSD,
+        amountSign: '+',
         badge: 'won',
         badgeColor: 'text-emerald-600',
       };
@@ -116,7 +124,8 @@ function getActivityDisplay(item: ActivityDisplayItem): ActivityDisplay {
         icon: <XCircle className="w-4 h-4 text-red-500" />,
         title: 'Lost prediction',
         subtitle: item.meta?.predictionTitle,
-        amount: `-${formatCurrency(item.amountUSD, { compact: true })}`,
+        amountValue: item.amountUSD,
+        amountSign: '-',
         badge: 'lost',
         badgeColor: 'text-red-500',
       };
@@ -126,17 +135,19 @@ function getActivityDisplay(item: ActivityDisplayItem): ActivityDisplay {
         icon: <Gift className="w-4 h-4 text-emerald-600" />,
         title: 'Claimed winnings',
         subtitle: item.meta?.predictionTitle,
-        amount: `+${formatCurrency(item.amountUSD, { compact: true })}`,
+        amountValue: item.amountUSD,
+        amountSign: '+',
         badge: 'claimed',
         badgeColor: 'text-emerald-600',
       };
     case 'payout':
       return {
         iconBg: 'bg-emerald-100',
-        icon: <DollarSign className="w-4 h-4 text-emerald-600" />,
+        icon: <ZaurumMark className="w-4 h-4" />,
         title: 'Payout received',
         subtitle: item.meta?.predictionTitle,
-        amount: `+${formatCurrency(item.amountUSD, { compact: true })}`,
+        amountValue: item.amountUSD,
+        amountSign: '+',
         badge: 'payout',
         badgeColor: 'text-emerald-600',
       };
@@ -146,17 +157,19 @@ function getActivityDisplay(item: ActivityDisplayItem): ActivityDisplay {
         icon: <PiggyBank className="w-4 h-4 text-amber-600" />,
         title: 'Creator fee received',
         subtitle: item.meta?.predictionTitle,
-        amount: `+${formatCurrency(item.amountUSD, { compact: true })}`,
+        amountValue: item.amountUSD,
+        amountSign: '+',
         badge: 'creator',
         badgeColor: 'text-amber-600',
       };
     case 'platform_fee':
       return {
         iconBg: 'bg-slate-100',
-        icon: <DollarSign className="w-4 h-4 text-slate-600" />,
+        icon: <ZaurumMark className="w-4 h-4" />,
         title: 'Platform fee',
         subtitle: item.meta?.predictionTitle,
-        amount: formatCurrency(item.amountUSD, { compact: true }),
+        amountValue: item.amountUSD,
+        amountSign: '',
         badge: 'platform',
         badgeColor: 'text-slate-600',
       };
@@ -166,7 +179,8 @@ function getActivityDisplay(item: ActivityDisplayItem): ActivityDisplay {
         icon: <CheckCircle className="w-4 h-4 text-indigo-600" />,
         title: 'Settlement posted',
         subtitle: item.meta?.predictionTitle,
-        amount: null,
+        amountValue: null,
+        amountSign: '',
         badge: 'settled',
         badgeColor: 'text-indigo-600',
       };
@@ -176,7 +190,8 @@ function getActivityDisplay(item: ActivityDisplayItem): ActivityDisplay {
         icon: <Unlock className="w-4 h-4 text-blue-600" />,
         title: 'Bet refunded',
         subtitle: item.meta?.predictionTitle,
-        amount: `+${formatCurrency(item.amountUSD, { compact: true })}`,
+        amountValue: item.amountUSD,
+        amountSign: '+',
         badge: 'refund',
         badgeColor: 'text-blue-600',
       };
@@ -186,7 +201,8 @@ function getActivityDisplay(item: ActivityDisplayItem): ActivityDisplay {
         icon: <Activity className="w-4 h-4 text-gray-500" />,
         title: 'Activity',
         subtitle: item.meta?.description,
-        amount: formatCurrency(item.amountUSD, { compact: true }),
+        amountValue: item.amountUSD,
+        amountSign: '',
         badge: item.kind,
         badgeColor: 'text-gray-500',
       };
@@ -275,13 +291,14 @@ export function RecentActivityCard({
                   </div>
 
                   <div className="text-right flex-shrink-0 ml-3">
-                    {display.amount && (
-                      <div className={`text-sm font-semibold font-mono ${
-                        display.amount.startsWith('+') ? 'text-emerald-600' :
-                        display.amount.startsWith('-') ? 'text-red-500' :
+                    {display.amountValue !== null && (
+                      <div className={`text-sm font-semibold font-mono inline-flex items-center gap-1 ${
+                        display.amountSign === '+' ? 'text-emerald-600' :
+                        display.amountSign === '-' ? 'text-red-500' :
                         'text-gray-700'
                       }`}>
-                        {display.amount}
+                        {display.amountSign ? <span>{display.amountSign}</span> : null}
+                        <ZaurumAmount value={display.amountValue} compact markSize="xs" />
                       </div>
                     )}
                     <div className={`text-xs font-medium ${display.badgeColor}`}>{display.badge}</div>
@@ -359,12 +376,19 @@ function ActivityDetailModal({ item, onClose }: ActivityDetailModalProps) {
 
         <div className="bg-gray-50 rounded-2xl p-4 mb-4">
           <p className="text-xs text-gray-500 mb-1">Amount</p>
-          <p className={`text-2xl font-semibold ${
-            display.amount?.startsWith('+') ? 'text-emerald-600' :
-            display.amount?.startsWith('-') ? 'text-red-500' :
+          <p className={`text-2xl font-semibold inline-flex items-center gap-1 ${
+            display.amountSign === '+' ? 'text-emerald-600' :
+            display.amountSign === '-' ? 'text-red-500' :
             'text-gray-900'
           }`}>
-            {display.amount || formatCurrency(0, { compact: false })}
+            {display.amountValue !== null ? (
+              <>
+                {display.amountSign ? <span>{display.amountSign}</span> : null}
+                <ZaurumAmount value={display.amountValue} compact={false} markSize="md" />
+              </>
+            ) : (
+              formatZaurumNumber(0, { compact: false })
+            )}
           </p>
           <div className="flex items-center gap-2 text-xs text-gray-500 mt-3">
             <Clock className="w-3.5 h-3.5" />

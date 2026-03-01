@@ -38,7 +38,7 @@ const UnifiedLeaderboardPage: React.FC = () => {
   const { user } = useAuthStore();
   const navigate = useNavigate();
   const rowBaseClasses =
-    'bg-white rounded-2xl px-3 py-2.5 transition-all duration-200 border';
+    'bg-white rounded-xl px-3 py-1.5 transition-all duration-200 border flex items-center';
   
   // Determine available tabs based on feature flags
   const referralsEnabled = useMemo(() => isReferralEnabled(), []);

@@ -52,60 +52,6 @@ const parseUtmParams = (query: any) => {
 };
 
 /**
- * GET /api/referrals/referrer?refCode=ABC123
- * Resolve a referral code to a lightweight public referrer preview.
- *
- * This is intentionally public and returns only non-sensitive fields so the
- * client can show “Invited by @username” UX after /r/:code.
- */
-router.get('/api/referrals/referrer', checkFeatureEnabled, async (req, res) => {
-  const refCode = (req.query.refCode as string) || (req.query.code as string);
-
-  if (!refCode) {
-    return res.status(400).json({
-      error: 'Bad request',
-      message: 'refCode is required',
-      version: VERSION,
-    });
-  }
-
-  try {
-    const { data: referrer, error } = await supabase
-      .from('users')
-      .select('id, username, full_name, avatar_url, referral_code')
-      .eq('referral_code', refCode)
-      .single();
-
-    if (error || !referrer) {
-      return res.status(404).json({
-        error: 'Not found',
-        message: 'Invalid referral code',
-        version: VERSION,
-      });
-    }
-
-    return res.json({
-      data: {
-        id: referrer.id,
-        username: referrer.username,
-        fullName: referrer.full_name,
-        avatarUrl: referrer.avatar_url,
-        referralCode: referrer.referral_code,
-      },
-      message: 'Referrer resolved',
-      version: VERSION,
-    });
-  } catch (e: any) {
-    console.error('[Referral] Referrer resolve error:', e);
-    return res.status(500).json({
-      error: 'Internal server error',
-      message: e?.message || 'Failed to resolve referrer',
-      version: VERSION,
-    });
-  }
-});
-
-/**
  * GET /r/:code
  * Handle referral link clicks - log click and redirect to app
  */

@@ -3,9 +3,6 @@ import { z } from 'zod';
 
 import { supabase } from '../config/database';
 import { fetchEscrowSnapshotFor } from './escrowContract';
-import { makePublicClient } from '../chain/base/client';
-import { resolveAndValidateAddresses } from '../chain/base/addressRegistry';
-import { getEscrowAddress } from './escrowContract';
 
 const CHAIN_ID = Number(process.env.CHAIN_ID || '0');
 
@@ -56,77 +53,6 @@ async function findUserAddress(userId: string): Promise<string | null> {
 }
 
 const DEFAULT_LOCK_TTL_MS = 10 * 60 * 1000; // 10 minutes
-
-const TRANSFER_TOPIC0 = '0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef';
-let cachedUsdcAddress: string | null = null;
-
-async function getUsdcAddress(): Promise<string> {
-  if (cachedUsdcAddress) return cachedUsdcAddress;
-  const resolved = await resolveAndValidateAddresses();
-  if (!resolved.usdc) {
-    throw new Error('[FCZ-PAY] USDC address missing');
-  }
-  cachedUsdcAddress = getAddress(resolved.usdc).toLowerCase();
-  return cachedUsdcAddress;
-}
-
-function topicToAddress(topic?: string | null): string | null {
-  if (!topic) return null;
-  // topic is 32-byte hex; address is last 20 bytes
-  const hex = topic.toLowerCase();
-  if (!hex.startsWith('0x') || hex.length !== 66) return null;
-  return `0x${hex.slice(26)}`;
-}
-
-function hexToBigInt(hex?: string | null): bigint {
-  if (!hex) return 0n;
-  try {
-    return BigInt(hex);
-  } catch {
-    return 0n;
-  }
-}
-
-/**
- * If we have a txHash, infer deposit/withdraw amounts by inspecting USDC Transfer logs.
- * This is robust even if periodic reconciliation already updated total_deposited/withdrawn.
- */
-async function inferTransferAmountsFromTx(args: {
-  txHash: string;
-  walletAddress: string;
-}): Promise<{ depositUSD: number; withdrawUSD: number }> {
-  const txHash = String(args.txHash);
-  const wallet = getAddress(args.walletAddress).toLowerCase();
-  const usdc = await getUsdcAddress();
-  const client = makePublicClient();
-  const receipt = await client.getTransactionReceipt({ hash: txHash as `0x${string}` });
-  const logs = (receipt as any)?.logs as Array<{ address?: string; topics?: string[]; data?: string }> | undefined;
-  if (!Array.isArray(logs) || logs.length === 0) return { depositUSD: 0, withdrawUSD: 0 };
-
-  const escrow = (await getEscrowAddress()).toLowerCase();
-
-  let depositUnits = 0n;
-  let withdrawUnits = 0n;
-
-  for (const l of logs) {
-    const addr = String(l.address || '').toLowerCase();
-    if (addr !== usdc) continue;
-    const topics = l.topics || [];
-    if (!topics[0] || String(topics[0]).toLowerCase() !== TRANSFER_TOPIC0) continue;
-    const from = topicToAddress(topics[1])?.toLowerCase() ?? null;
-    const to = topicToAddress(topics[2])?.toLowerCase() ?? null;
-    const value = hexToBigInt(l.data || '0x0');
-
-    if (escrow && from === wallet && to === escrow) {
-      depositUnits += value;
-    } else if (escrow && from === escrow && to === wallet) {
-      withdrawUnits += value;
-    }
-  }
-
-  const toUSD = (u: bigint) => Number(u) / 1_000_000;
-  return { depositUSD: toUSD(depositUnits), withdrawUSD: toUSD(withdrawUnits) };
-}
 
 async function fetchReservedFromLocks(userId: string): Promise<number> {
   const { data: locks, error } = await supabase
@@ -182,58 +108,28 @@ async function fetchEscrowFromLocks(userId: string): Promise<number> {
   }
 
   if (!locks || locks.length === 0) {
-    console.log(`[FCZ-LOCKS] No locks found for user ${userId}`);
     return 0;
   }
 
-  // DEBUG: Log all locks
-  console.log(`[FCZ-LOCKS] Found ${locks.length} locks for user ${userId}:`, 
-    locks.map(l => ({ 
-      id: l.id?.slice(0, 8), 
-      status: l.status, 
-      state: l.state,
-      amount: l.amount, 
-      prediction_id: l.prediction_id?.slice(0, 8) || 'NONE',
-      expires_at: l.expires_at
-    }))
-  );
-
-  // Fetch prediction statuses for all locks to check if they're settled
+  // Fetch prediction statuses for all consumed locks to check if they're settled
   const predictionIds = [...new Set(locks.map(l => l.prediction_id).filter(Boolean))];
   let settledPredictionIds = new Set<string>();
   
-  console.log(`[FCZ-LOCKS] Unique prediction IDs from locks: ${predictionIds.length}`);
-  
   if (predictionIds.length > 0) {
-    const { data: predictions, error: predErr } = await supabase
+    const { data: predictions } = await supabase
       .from('predictions')
       .select('id, status')
       .in('id', predictionIds);
     
-    if (predErr) {
-      console.error('[FCZ-LOCKS] Failed to fetch prediction statuses:', predErr);
-    }
-    
     if (predictions) {
-      console.log(`[FCZ-LOCKS] Prediction statuses:`, 
-        predictions.map(p => ({ id: p.id.slice(0, 8), status: p.status }))
-      );
-      // CRITICAL FIX: Exclude locks for both 'settled' AND 'closed' predictions
-      // 'closed' predictions should have been settled - locks are stale
-      // Only 'open' (active) predictions should keep their locks
       settledPredictionIds = new Set(
-        predictions.filter(p => p.status === 'settled' || p.status === 'closed').map(p => p.id)
+        predictions.filter(p => p.status === 'settled').map(p => p.id)
       );
-      console.log(`[FCZ-LOCKS] Settled/closed prediction count: ${settledPredictionIds.size}`);
     }
   }
 
   const now = new Date();
   let escrowTotal = 0;
-  let skippedSettled = 0;
-  let skippedExpired = 0;
-  let skippedReleased = 0;
-  let countedLocks = 0;
 
   for (const lock of locks) {
     const amount = Number(lock.amount || 0);
@@ -244,33 +140,19 @@ async function fetchEscrowFromLocks(userId: string): Promise<number> {
     const isConsumed = lockStatus === 'consumed';
     const isExpired = isConsumed ? false : effectiveExpiry ? effectiveExpiry < now : true;
     
-    // Skip released/voided locks
-    if (lockStatus === 'released' || lockStatus === 'voided') {
-      skippedReleased++;
-      continue;
-    }
-    
-    // CRITICAL: Exclude ALL locks (both locked AND consumed) for settled predictions
-    if (lock.prediction_id && settledPredictionIds.has(lock.prediction_id)) {
-      skippedSettled++;
-      continue;
-    }
-
-    // Skip expired locks (only for non-consumed)
-    if (isExpired) {
-      skippedExpired++;
-      continue;
+    // CRITICAL: Exclude consumed locks for settled predictions
+    // Even if the lock wasn't properly released, if the prediction is settled,
+    // the funds are no longer tied up and should not count toward escrow
+    if (isConsumed && lock.prediction_id && settledPredictionIds.has(lock.prediction_id)) {
+      continue; // Skip this lock - prediction is settled
     }
 
     // Count locked (pending) and consumed (placed bets, not yet settled)
-    if (lockStatus === 'locked' || lockStatus === 'consumed') {
-      console.log(`[FCZ-LOCKS] COUNTING lock: $${amount}, status=${lockStatus}, prediction=${lock.prediction_id || 'NONE'}`);
+    // Released = bet settled and funds unlocked, voided = cancelled, expired = timed out
+    if (!isExpired && (lockStatus === 'locked' || lockStatus === 'consumed')) {
       escrowTotal += amount;
-      countedLocks++;
     }
   }
-
-  console.log(`[FCZ-LOCKS] Summary: counted=${countedLocks} ($${escrowTotal}), skippedSettled=${skippedSettled}, skippedExpired=${skippedExpired}, skippedReleased=${skippedReleased}`);
 
   return escrowTotal;
 }
@@ -354,33 +236,19 @@ async function recordDeltaTransactions(args: {
   depositDelta: number;
   withdrawDelta: number;
   txHash?: string | null;
-  walletAddress?: string | null;
 }) {
   if (!args.txHash) {
     return;
   }
 
-  // If deltas are zero but we have a txHash, infer from receipt so we can still record activity.
-  let depositDelta = args.depositDelta;
-  let withdrawDelta = args.withdrawDelta;
-  if (depositDelta <= 0 && withdrawDelta <= 0 && args.walletAddress) {
-    try {
-      const inferred = await inferTransferAmountsFromTx({ txHash: args.txHash, walletAddress: args.walletAddress });
-      depositDelta = inferred.depositUSD;
-      withdrawDelta = inferred.withdrawUSD;
-    } catch (e) {
-      console.warn('[FCZ-PAY] Unable to infer transfer amounts from txHash (non-fatal):', e);
-    }
-  }
-
   const entries: Array<{ direction: 'credit' | 'debit'; channel: string; amount: number }> = [];
 
-  if (depositDelta > 0) {
-    entries.push({ direction: 'credit', channel: 'escrow_deposit', amount: depositDelta });
+  if (args.depositDelta > 0) {
+    entries.push({ direction: 'credit', channel: 'escrow_deposit', amount: args.depositDelta });
   }
 
-  if (withdrawDelta > 0) {
-    entries.push({ direction: 'debit', channel: 'escrow_withdraw', amount: withdrawDelta });
+  if (args.withdrawDelta > 0) {
+    entries.push({ direction: 'debit', channel: 'escrow_withdraw', amount: args.withdrawDelta });
   }
 
   for (const entry of entries) {
@@ -388,8 +256,7 @@ async function recordDeltaTransactions(args: {
       .from('wallet_transactions')
       .insert({
         user_id: args.userId,
-        // wallet_transactions.type is constrained (deposit/withdraw/...), not credit/debit
-        type: entry.channel === 'escrow_deposit' ? 'deposit' : 'withdraw',
+        type: entry.direction === 'credit' ? 'credit' : 'debit',
         direction: entry.direction,
         channel: entry.channel,
         provider: 'crypto-base-usdc',
@@ -432,38 +299,7 @@ export async function reconcileWallet(options: ReconcileOptions): Promise<Wallet
   }
 
   const normalizedAddress = addressSchema.parse(walletAddress);
-  let snapshot = await fetchEscrowSnapshotFor(normalizedAddress);
-  
-  // CRITICAL FIX: If we have a txHash and on-chain balance is 0, verify from tx receipt
-  // This handles RPC timing issues where the balance hasn't propagated yet
-  if (options.txHash && snapshot.availableUSDC === 0 && snapshot.totalDepositedUSDC === 0) {
-    try {
-      const inferred = await inferTransferAmountsFromTx({
-        txHash: options.txHash,
-        walletAddress: normalizedAddress,
-      });
-      
-      if (inferred.depositUSD > 0) {
-        console.log(`[FCZ-PAY] On-chain balance is 0 but tx ${options.txHash} shows deposit of ${inferred.depositUSD}. Retrying...`);
-        // Wait a moment and retry the on-chain read
-        await new Promise(resolve => setTimeout(resolve, 2000));
-        snapshot = await fetchEscrowSnapshotFor(normalizedAddress);
-        
-        // If still 0, use the tx receipt as source of truth for this response
-        if (snapshot.availableUSDC === 0 && snapshot.totalDepositedUSDC === 0) {
-          console.log(`[FCZ-PAY] Retry still shows 0. Using tx receipt values for deposit: ${inferred.depositUSD}`);
-          snapshot = {
-            ...snapshot,
-            availableUSDC: inferred.depositUSD,
-            totalDepositedUSDC: inferred.depositUSD,
-          };
-        }
-      }
-    } catch (e) {
-      console.warn('[FCZ-PAY] Failed to verify deposit from tx receipt:', e);
-    }
-  }
-  
+  const snapshot = await fetchEscrowSnapshotFor(normalizedAddress);
   const reservedFromLocks = await fetchReservedFromLocks(userId);
   const escrowFromLocks = await fetchEscrowFromLocks(userId);
 
@@ -475,31 +311,25 @@ export async function reconcileWallet(options: ReconcileOptions): Promise<Wallet
   // - Released = bets settled, funds unlocked (should not count toward escrow)
   // - Expired = locks that timed out (should not count)
   
-  // Escrow total = on-chain total (all funds in escrow contract)
-  // This includes both available and any on-chain reserved balance
-  const escrowTotal = snapshot.availableUSDC + snapshot.reservedUSDC;
-
   // Available to stake:
   // Contracts typically do not reduce "balances" for active bets (consumed locks),
-  // so we subtract both locked and consumed amounts tracked in DB.
-  //
-  // IMPORTANT: lock tracking can drift (stale rows, missed releases). Never allow DB locks
-  // to subtract more than the on-chain escrow total.
-  const escrowLocksCapped = Math.min(Math.max(escrowFromLocks, 0), escrowTotal);
-  const reservedCapped = Math.min(Math.max(reservedFromLocks, 0), escrowTotal);
-  const effectiveAvailable = Math.max(escrowTotal - escrowLocksCapped, 0);
+  // so we must subtract both locked and consumed amounts tracked in DB.
+  // fetchEscrowFromLocks returns locked + consumed (excluding released/expired and settled predictions).
+  const effectiveAvailable = Math.max(snapshot.availableUSDC - escrowFromLocks, 0);
   
   // CRITICAL DEBUG LOGGING: Log balance calculation details
   console.log(`[FCZ-RECONCILE] Balance calculation for user ${userId}:`, {
     onchainAvailable: snapshot.availableUSDC,
     escrowFromLocks,
-    escrowLocksCapped,
     effectiveAvailable,
     reservedFromLocks,
-    reservedCapped,
-    escrowTotal,
+    escrowTotal: snapshot.availableUSDC + snapshot.reservedUSDC,
     walletAddress: normalizedAddress
   });
+  
+  // Escrow total = on-chain total (all funds in escrow contract)
+  // This includes both available and any on-chain reserved balance
+  const escrowTotal = snapshot.availableUSDC + snapshot.reservedUSDC;
 
   const existing = await getExistingWalletRow(userId);
 
@@ -513,7 +343,6 @@ export async function reconcileWallet(options: ReconcileOptions): Promise<Wallet
         depositDelta: depositDelta > 0 ? depositDelta : 0,
         withdrawDelta: withdrawDelta > 0 ? withdrawDelta : 0,
         txHash: options.txHash,
-        walletAddress: normalizedAddress,
       });
     }
   } else if (options.recordTransactions && snapshot.totalDepositedUSDC > 0) {
@@ -522,14 +351,13 @@ export async function reconcileWallet(options: ReconcileOptions): Promise<Wallet
       depositDelta: snapshot.totalDepositedUSDC,
       withdrawDelta: 0,
       txHash: options.txHash,
-      walletAddress: normalizedAddress,
     });
   }
 
   await upsertWalletSnapshot({
     userId,
     available: effectiveAvailable,
-    reserved: reservedCapped,
+    reserved: reservedFromLocks,
     totalDeposited: snapshot.totalDepositedUSDC,
     totalWithdrawn: snapshot.totalWithdrawnUSDC,
   });
