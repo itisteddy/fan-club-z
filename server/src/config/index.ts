@@ -101,6 +101,7 @@ export const config = {
     pushNotifications: process.env.ENABLE_PUSH_NOTIFICATIONS === 'true',
     analytics: process.env.ENABLE_ANALYTICS === 'true',
     blockchain: process.env.ENABLE_BLOCKCHAIN === 'true',
+    dailyClaimEnabled: process.env.FCZ_ENABLE_DAILY_CLAIM !== 'false',
   },
   
   // Email Configuration
