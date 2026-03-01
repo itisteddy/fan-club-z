@@ -20,7 +20,7 @@ function placeBetErrorFromResponse(status: number, errorData: Record<string, unk
     const err = (errorData as any)?.error;
     const msg = typeof (errorData as any)?.message === 'string' ? String((errorData as any).message) : '';
     if (err === 'crypto_disabled_for_client' || msg.toLowerCase().includes('crypto is not available')) {
-      return 'Crypto staking isn’t available on this device right now. Switch to Demo Credits.';
+      return 'Crypto staking isn’t available on this device right now. Switch to Zaurum.';
     }
     if (err === 'BETTING_DISABLED') {
       return 'Betting is temporarily unavailable. Please try again later.';
@@ -947,7 +947,7 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
             void useAuthStore.getState().logout();
           }
           if (errorData.error === 'INSUFFICIENT_FUNDS') {
-            throw new Error('Insufficient demo credits.');
+            throw new Error('Insufficient Zaurum.');
           }
           if (errorData.error === 'BETTING_DISABLED') {
             throw new Error('Betting is temporarily unavailable. Please try again later.');

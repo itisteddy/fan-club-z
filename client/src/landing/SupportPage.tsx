@@ -54,9 +54,9 @@ export default function SupportPage() {
           </div>
 
           <div className="space-y-2">
-            <h3 className="font-semibold text-white">Demo Credits vs wallet-connected mode</h3>
+            <h3 className="font-semibold text-white">Zaurum vs wallet-connected mode</h3>
             <ul className="list-disc pl-5 space-y-1">
-              <li><strong className="text-white">Demo credits have no cash value.</strong></li>
+              <li><strong className="text-white">Zaurum has no cash value.</strong></li>
               <li>
                 If you connect a wallet, ensure you’re on the supported network and that your wallet is connected in the app.
               </li>
@@ -101,4 +101,3 @@ export default function SupportPage() {
     </LegalLayout>
   );
 }
-

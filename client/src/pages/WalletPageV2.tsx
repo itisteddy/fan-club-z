@@ -804,7 +804,7 @@ const WalletPageV2: React.FC<WalletPageV2Props> = ({ onNavigateBack }) => {
             <>
               {/* Wallet balances */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                {/* 1. Wallet USDC - ERC20 balance in user's crypto wallet */}
+                {/* 1. Wallet balance */}
                 <div className="bg-white rounded-2xl border border-black/[0.06] p-4 min-h-[88px] flex flex-col justify-center">
                   <div className="flex items-center space-x-1 mb-2">
                     <Wallet className="w-4 h-4 text-blue-500" />
@@ -815,12 +815,10 @@ const WalletPageV2: React.FC<WalletPageV2Props> = ({ onNavigateBack }) => {
                       ? '...' 
                       : formatCurrency(resolvedWalletUSDC ?? 0, { compact: true })}
                   </div>
-                  <div className="text-xs text-gray-500 mt-1">
-                    USDC on Base
-                  </div>
+                  <div className="text-xs text-gray-500 mt-1">On-chain wallet</div>
                 </div>
                 
-                {/* 2. Escrow Total - Total USDC in escrow contract (available + reserved) */}
+                {/* 2. Escrow Total - Total balance in escrow (available + reserved) */}
                 <div className="bg-white rounded-2xl border border-black/[0.06] p-4 min-h-[88px] flex flex-col justify-center">
                   <div className="flex items-center space-x-1 mb-2">
                     <Download className="w-4 h-4 text-emerald-500" />
@@ -889,7 +887,7 @@ const WalletPageV2: React.FC<WalletPageV2Props> = ({ onNavigateBack }) => {
                 </div>
                 <div className="space-y-2">
                   <div className="flex items-center justify-between text-sm">
-                    <span className="text-gray-600">Demo Credits</span>
+                    <span className="text-gray-600">Zaurum</span>
                     <span className="font-mono font-medium text-gray-900">{formatCurrency(demoCreditsBalance, { compact: false })}</span>
                   </div>
                   <div className="flex items-center justify-between text-sm">
@@ -965,9 +963,7 @@ const WalletPageV2: React.FC<WalletPageV2Props> = ({ onNavigateBack }) => {
                 
                 <div className="mt-3 space-y-2">
                   <div className="flex items-center justify-between text-sm">
-                    <span className="text-gray-600 whitespace-nowrap">
-                      Wallet USDC <span className="ml-1 text-[10px] px-1 py-0.5 rounded bg-gray-100">ERC20</span>
-                    </span>
+                    <span className="text-gray-600 whitespace-nowrap">Wallet Balance</span>
                     <span className="font-mono font-medium tabular-nums whitespace-nowrap">
                       {resolvedWalletUSDC !== undefined 
                         ? `${resolvedWalletUSDC.toFixed(2)}`
@@ -975,7 +971,7 @@ const WalletPageV2: React.FC<WalletPageV2Props> = ({ onNavigateBack }) => {
                           ? 'Loading...' 
                           : balanceError 
                             ? 'Error' 
-                            : '$0.00'}
+                            : formatCurrency(0, { compact: false })}
                     </span>
                   </div>
                   <div className="flex items-center justify-between text-sm">

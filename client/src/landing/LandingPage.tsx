@@ -197,7 +197,7 @@ const LandingPage: React.FC = () => {
               {
                 question: 'How do I fund my wallet?',
                 answer:
-                  'FanClubZ uses the Base Sepolia testnet. You\'ll need to install a wallet like MetaMask, add the Base Sepolia network, and get test ETH and USDC from faucets.',
+                  'FanClubZ supports Zaurum for in-app staking. For wallet-connected testnet flows, install a wallet like MetaMask and use the funding guide.',
                 hasLink: true,
               },
             ].map((item) => (
@@ -411,5 +411,4 @@ const LandingPage: React.FC = () => {
 };
 
 export default LandingPage;
-
 

@@ -198,7 +198,7 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
       });
       const json = await resp.json().catch(() => null);
       if (!resp.ok) {
-        throw new Error(json?.message || 'Failed to faucet demo credits');
+        throw new Error(json?.message || 'Failed to claim Zaurum');
       }
       setDemoSummary(json?.summary ?? null);
       await refetchActivity();
@@ -219,11 +219,11 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
       if (json?.alreadyGranted) {
         toast(`Not yet available. Next request in ${formatRemaining(nextAt - Date.now())}.`, { id: 'demo-faucet', icon: '⏳' });
       } else {
-        toast('Demo credits added.', { id: 'demo-faucet', icon: '✅' });
+        toast('Zaurum claimed.', { id: 'demo-faucet', icon: '✅' });
       }
     } catch (e: any) {
-      setDemoError(e?.message || 'Failed to faucet demo credits');
-      toast(e?.message || 'Failed to add demo credits', { id: 'demo-faucet', icon: '⚠️' });
+      setDemoError(e?.message || 'Failed to claim Zaurum');
+      toast(e?.message || 'Failed to claim Zaurum', { id: 'demo-faucet', icon: '⚠️' });
     } finally {
       setDemoLoading(false);
     }
@@ -432,7 +432,7 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
                     isCryptoMode ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'
                   }`}
                 >
-                  Crypto (USDC)
+                  Crypto
                 </button>
               )}
               {showDemo && (
@@ -442,7 +442,7 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
                     isDemoMode ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'
                   }`}
                 >
-                  Demo Credits
+                  Zaurum
                 </button>
               )}
               {effectiveFiatEnabled && (
@@ -473,7 +473,7 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
                 <p className="text-sm text-gray-600 mb-4">
                   {storeSafePolicy.allowCryptoWalletConnect 
                     ? 'Connect your crypto wallet to view balances and manage funds'
-                    : 'Crypto wallet features are not available in this build. Use demo credits to explore predictions.'}
+                    : 'Crypto wallet features are not available in this build. Use Zaurum to explore predictions.'}
                 </p>
                 {storeSafePolicy.allowCryptoWalletConnect ? (
                   <button
@@ -487,7 +487,7 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
                     onClick={() => setMode('demo')}
                     className="px-6 py-3 bg-gray-600 text-white rounded-lg font-medium hover:bg-gray-700 transition-colors"
                   >
-                    Switch to Demo Mode
+                    Switch to Zaurum
                   </button>
                 )}
                 {/* Funding Guide Link */}
@@ -519,7 +519,7 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
               {isDemoMode ? (
                 <>
                   <StatCard
-                    label="Demo Credits"
+                    label="Zaurum"
                     value={demoSummary?.total ?? 0}
                     variant="currency"
                     icon={<Wallet className="w-4 h-4" />}
@@ -577,7 +577,7 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
                     value={walletBalance || 0} 
                     variant="currency"
                     icon={<Wallet className="w-4 h-4" />}
-                    subtitle="USDC on Base"
+                    subtitle="On-chain wallet"
                   />
                   <StatCard 
                     label="Available" 
@@ -639,7 +639,7 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
                 <div className="mt-4 rounded-xl border border-gray-100 bg-gray-50 p-3">
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-sm">
                     <div className="flex items-center justify-between sm:block">
-                      <p className="text-gray-500 text-xs">Demo Credits</p>
+                      <p className="text-gray-500 text-xs">Zaurum</p>
                       <p className="font-mono font-medium text-gray-900">{formatCurrency(demoCreditsBalance, { compact: false })}</p>
                     </div>
                     <div className="flex items-center justify-between sm:block">
@@ -655,7 +655,7 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
               </CardContent>
             </Card>
 
-            {/* Phase 7D: FX USD estimates (display-only) */}
+            {/* Phase 7D: FX estimates (display-only) */}
             {isFiatMode && (
               <div className="mt-3 mb-1 px-1">
                 {(() => {
@@ -678,7 +678,7 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
                             {retrievedAt ? ` · Updated ${retrievedAt}` : ''}
                           </p>
                           {totalUsdEst != null && (
-                            <p className="font-medium text-gray-700">Total (USD est.) ≈ {formatCurrency(totalUsdEst, { compact: false, currency: 'USD' })}</p>
+                            <p className="font-medium text-gray-700">Total estimate ≈ {formatCurrency(totalUsdEst, { compact: false, currency: 'USD' })}</p>
                           )}
                         </>
                       ) : (
@@ -731,7 +731,7 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
                       <span>
                         {demoRemainingMs > 0
                           ? `Next credits in ${formatRemaining(demoRemainingMs)}`
-                          : 'Get Demo Credits'}
+                          : 'Get Zaurum'}
                       </span>
                     </button>
                   </div>

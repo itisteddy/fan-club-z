@@ -26,6 +26,8 @@ import { usePaystackStatus, useFiatSummary } from '@/hooks/useFiatWallet';
 import { getPayoutPreview, getPreOddsMultiple } from '@fanclubz/shared';
 import { isCryptoEnabledForClient } from '@/lib/cryptoFeatureFlags';
 import { apiClient } from '@/lib/apiClient';
+import { formatCurrency } from '@/lib/format';
+import { ZaurumMark } from '@/components/currency/ZaurumMark';
 
 interface PlacePredictionModalProps {
   prediction: Prediction | null;
@@ -37,16 +39,6 @@ type StakeQuoteView = {
   current: { userStake: number; oddsOrPrice: number; estPayout: number };
   after: { userStake: number; oddsOrPrice: number; estPayout: number };
   disclaimer?: string;
-};
-
-// Utility functions
-const formatCurrency = (amount: number, currency: 'USD' | 'NGN' = 'USD') => {
-  return new Intl.NumberFormat(currency === 'NGN' ? 'en-NG' : 'en-US', {
-    style: 'currency',
-    currency,
-    minimumFractionDigits: 0,
-    maximumFractionDigits: currency === 'NGN' ? 0 : 2,
-  }).format(amount);
 };
 
 export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
@@ -107,10 +99,10 @@ export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
       setDemoError(null);
       const resp = await fetch(`${getApiUrl()}/api/demo-wallet/summary?userId=${user.id}`);
       const json = await resp.json().catch(() => null);
-      if (!resp.ok) throw new Error(json?.message || 'Failed to load demo credits');
+      if (!resp.ok) throw new Error(json?.message || 'Failed to load Zaurum balance');
       setDemoSummary(json?.summary ?? null);
     } catch (e: any) {
-      setDemoError(e?.message || 'Failed to load demo credits');
+      setDemoError(e?.message || 'Failed to load Zaurum balance');
       setDemoSummary(null);
     } finally {
       setDemoLoading(false);
@@ -128,7 +120,7 @@ export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
         body: JSON.stringify({ userId: user.id }),
       });
       const json = await resp.json().catch(() => null);
-      if (!resp.ok) throw new Error(json?.message || 'Failed to get demo credits');
+      if (!resp.ok) throw new Error(json?.message || 'Failed to claim Zaurum');
       setDemoSummary(json?.summary ?? null);
       if (json?.nextEligibleAt) {
         setCooldown(`fcz_demo_credits_next_at:${user.id}`, String(json.nextEligibleAt));
@@ -139,7 +131,7 @@ export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
         toast.success('Demo credits added.');
       }
     } catch (e: any) {
-      setDemoError(e?.message || 'Failed to get demo credits');
+      setDemoError(e?.message || 'Failed to claim Zaurum');
     } finally {
       setDemoLoading(false);
     }
@@ -433,7 +425,7 @@ export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
                         isCryptoMode ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'
                       }`}
                     >
-                      Crypto (USDC)
+                      Crypto
                     </button>
                     {isDemoEnabled && (
                       <button
@@ -442,7 +434,7 @@ export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
                           isDemoMode ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'
                         }`}
                       >
-                        Demo Credits
+                        Zaurum
                       </button>
                     )}
                     {isFiatEnabled && (
@@ -482,7 +474,7 @@ export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
                       <WalletIcon className="w-4 h-4" />
                       <div>
                         <p className="font-semibold">Available to stake</p>
-                        <p className="text-purple-700">${escrowAvailable.toFixed(2)} USDC</p>
+                        <p className="text-purple-700">{formatCurrency(escrowAvailable, { compact: false })}</p>
                       </div>
                     </div>
                     <button
@@ -509,8 +501,8 @@ export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
                     <div className="flex items-center gap-2">
                       <WalletIcon className="w-4 h-4" />
                       <div>
-                        <p className="font-semibold">Demo available</p>
-                        <p className="text-emerald-700">${demoAvailable.toFixed(2)}</p>
+                        <p className="font-semibold">Zaurum available</p>
+                        <p className="text-emerald-700">{formatCurrency(demoAvailable, { compact: false })}</p>
                       </div>
                     </div>
                     <button
@@ -519,7 +511,7 @@ export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
                       disabled={!user?.id || demoLoading}
                     >
                       <ArrowUpRight className="w-3 h-3" />
-                      Get credits
+                      Get Zaurum
                     </button>
                   </div>
                 )}
@@ -604,7 +596,7 @@ export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
                     >
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Stake amount {isFiatMode ? '(NGN)' : '(USD)'}
+                          Stake amount {isFiatMode ? '(NGN)' : '(ZAU)'}
                         </label>
                         <div className="relative">
                           <Input
@@ -617,7 +609,7 @@ export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
                             max={isFiatMode ? displayBalance : (prediction.stake_max || displayBalance)}
                           />
                           <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 font-medium">
-                            {isFiatMode ? '₦' : '$'}
+                            {isFiatMode ? '₦' : <ZaurumMark className="h-4 w-4 text-amber-500" />}
                           </span>
                         </div>
                         <div className="flex items-center justify-between text-xs text-gray-500 mt-2">
@@ -644,7 +636,7 @@ export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
                               disabled={quickAmount > displayBalance}
                               className="text-sm h-10"
                             >
-                              {isFiatMode ? `₦${quickAmount.toLocaleString()}` : `$${quickAmount}`}
+                              {isFiatMode ? `₦${quickAmount.toLocaleString()}` : formatCurrency(quickAmount, { compact: false })}
                             </Button>
                           ))}
                         </div>

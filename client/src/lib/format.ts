@@ -4,6 +4,17 @@ type FormatCurrencyOptions = {
   currency?: string;
 };
 
+const ZAURUM_SYMBOL = '◈';
+
+function formatZaurumValue(value: number, compact: boolean): string {
+  const formatter = new Intl.NumberFormat(undefined, {
+    notation: compact ? 'compact' : 'standard',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+  return `${ZAURUM_SYMBOL}${formatter.format(value || 0)}`;
+}
+
 export function formatCurrency(n: number | string, opts?: FormatCurrencyOptions): string;
 export function formatCurrency(n: number | string, currency?: string, showSign?: boolean): string;
 export function formatCurrency(
@@ -17,26 +28,23 @@ export function formatCurrency(
       ? { currency: optsOrCurrency, showSign: legacyShowSign }
       : optsOrCurrency || {};
   const { compact = true, showSign = false, currency = 'USD' } = resolvedOptions;
-  
-  if (compact) {
+  const normalized = String(currency || 'USD').toUpperCase();
+
+  let formatted: string;
+  if (normalized === 'NGN') {
     const formatter = new Intl.NumberFormat(undefined, {
-      style: "currency",
-      currency,
-      notation: "compact",
+      style: 'currency',
+      currency: 'NGN',
+      notation: compact ? 'compact' : 'standard',
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     });
-    const formatted = formatter.format(num || 0);
-    return showSign && num > 0 ? `+${formatted}` : formatted;
+    formatted = formatter.format(num || 0);
+  } else {
+    // In Zaurum mode, all non-fiat in-app values display with Zaurum mark.
+    formatted = formatZaurumValue(num || 0, compact);
   }
-  
-  const formatter = new Intl.NumberFormat(undefined, {
-    style: "currency",
-    currency,
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
-  const formatted = formatter.format(num || 0);
+
   return showSign && num > 0 ? `+${formatted}` : formatted;
 };
 

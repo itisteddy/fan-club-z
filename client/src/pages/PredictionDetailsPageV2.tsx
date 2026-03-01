@@ -59,6 +59,7 @@ import { t } from '@/lib/lexicon';
 import { useMerkleProof } from '@/hooks/useMerkleProof';
 import { useMerkleClaim } from '@/hooks/useMerkleClaim';
 import { usePredictionActivity } from '@/hooks/useActivityFeed';
+import { ZaurumMark } from '@/components/currency/ZaurumMark';
 
 const showSuccessToast = (message: string) => toast.success(message);
 const showErrorToast = (message: string) => toast.error(message);
@@ -298,7 +299,7 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
         body: JSON.stringify({ userId: currentUser.id }),
       });
       const json = await resp.json().catch(() => null);
-      if (!resp.ok) throw new Error(json?.message || 'Failed to faucet demo credits');
+      if (!resp.ok) throw new Error(json?.message || 'Failed to claim Zaurum');
       setDemoSummary(json?.summary ?? null);
       // Persist cooldown timestamp for consistent UX across the app
       if (json?.nextEligibleAt) {
@@ -316,7 +317,7 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
       }
     } catch (e: any) {
       console.error('[DEMO] faucet error', e);
-      showErrorToast(e?.message || 'Failed to get demo credits');
+      showErrorToast(e?.message || 'Failed to get Zaurum');
     } finally {
       setDemoLoading(false);
     }
@@ -615,7 +616,7 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
         navigate('/wallet');
         return;
       }
-      showErrorToast(`Insufficient balance. Available: $${maxAvailable.toFixed(2)}`);
+      showErrorToast(`Insufficient balance. Available: ${formatCurrency(maxAvailable, { compact: false })}`);
       return;
     }
 
@@ -639,8 +640,8 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
         walletAddress
       );
 
-      showSuccessToast(`Stake placed: ${isFiatMode ? `₦${Number(stakeAmount).toLocaleString()}` : `$${stakeAmount}`} | lock consumed`);
-      AriaUtils.announce(`Prediction placed successfully for ${stakeAmount} ${isFiatMode ? 'naira' : 'dollars'}`);
+      showSuccessToast(`Stake placed: ${isFiatMode ? `₦${Number(stakeAmount).toLocaleString()}` : formatCurrency(Number(stakeAmount || 0), { compact: false })} | lock consumed`);
+      AriaUtils.announce(`Prediction placed successfully for ${stakeAmount} ${isFiatMode ? 'naira' : 'zaurum'}`);
       
       // IMPORTANT: Keep user on prediction details page - do not navigate away
       // Inline confirmation chip (keep user on overview)
@@ -1194,7 +1195,7 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
                   {justPlaced && (
                     <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 flex items-center justify-between">
                       <div className="text-sm text-emerald-800 font-medium">
-                        You staked {isFiatMode ? `₦${justPlaced.amount.toFixed(0)}` : `$${justPlaced.amount.toFixed(2)}`} on “{justPlaced.optionLabel}”.
+                        You staked {isFiatMode ? `₦${justPlaced.amount.toFixed(0)}` : formatCurrency(justPlaced.amount, { compact: false })} on “{justPlaced.optionLabel}”.
                       </div>
                       <button
                         type="button"
@@ -1220,7 +1221,7 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
                               }`}
                               type="button"
                             >
-                              Crypto (USDC)
+                              Crypto
                             </button>
                           )}
                           {showDemo && (
@@ -1231,7 +1232,7 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
                               }`}
                               type="button"
                             >
-                              Demo Credits
+                              Zaurum
                             </button>
                           )}
                           {effectiveFiatEnabled && (
@@ -1250,13 +1251,15 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
 
                       <div>
                         <label htmlFor="stake-input" className="block text-sm font-medium text-gray-900 mb-2">
-                          Stake Amount ({isFiatMode ? 'NGN' : 'USD'})
+                          Stake Amount ({isFiatMode ? 'NGN' : 'ZAU'})
                         </label>
                         <div className="relative">
                           {isFiatMode ? (
                             <Banknote className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400 pointer-events-none" />
                           ) : (
-                            <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400 pointer-events-none" />
+                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">
+                              <ZaurumMark className="h-5 w-5 text-amber-500" />
+                            </span>
                           )}
                           <input
                             id="stake-input"
@@ -1289,7 +1292,7 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
                             disabled={demoLoading}
                             className="w-full rounded-xl border bg-gray-50 px-4 py-2.5 text-sm font-semibold hover:bg-gray-100 transition-colors disabled:opacity-50"
                           >
-                            Get Demo Credits
+                            Get Zaurum
                           </button>
                         </div>
                       )}
@@ -1303,7 +1306,7 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
                             disabled={isPlacingBet || amount > userBalance}
                             className="rounded-lg border bg-gray-50 px-3 py-2 text-sm font-medium hover:bg-gray-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                           >
-                            {isFiatMode ? `₦${amount.toLocaleString()}` : `$${amount}`}
+                            {isFiatMode ? `₦${amount.toLocaleString()}` : formatCurrency(amount, { compact: false })}
                           </button>
                         ))}
                       </div>
@@ -1398,9 +1401,9 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
             ? t('betVerb')
             : (need > 0
                 ? (isDemoMode
-                    ? `Get demo credits (need $${need.toFixed(2)})`
-                    : (isFiatMode ? `Deposit NGN (need ₦${need.toFixed(0)})` : `Add funds (need $${need.toFixed(2)})`))
-                : `${t('betVerb')}: ${isFiatMode ? `₦${amt.toFixed(0)}` : `$${amt.toFixed(2)}`}`);
+                    ? `Get Zaurum (need ${formatCurrency(need, { compact: false })})`
+                    : (isFiatMode ? `Deposit NGN (need ₦${need.toFixed(0)})` : `Add funds (need ${formatCurrency(need, { compact: false })})`))
+                : `${t('betVerb')}: ${isFiatMode ? `₦${amt.toFixed(0)}` : formatCurrency(amt, { compact: false })}`);
           const canBet = !!stakeAmount && amt > 0;
           return (
             <StickyBetBar

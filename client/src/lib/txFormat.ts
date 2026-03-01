@@ -96,7 +96,7 @@ export function formatTxAmount(args: {
   kind?: string;
   compact?: boolean;
 }): { tone: TxTone; display: string; absAmount: number } {
-  const { amount, currencySymbol = '$', compact = true, currency = 'USD' } = args;
+  const { amount, compact = true, currency = 'USD' } = args;
   const absAmount = Math.abs(amount);
   const tone = getTxDeltaTone({ amount, direction: args.direction, type: args.type, kind: args.kind });
 

@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { Heart, MessageCircle, DollarSign, TrendingUp } from 'lucide-react';
+import { Heart, MessageCircle, TrendingUp } from 'lucide-react';
 import { useAccount, useSwitchChain } from 'wagmi';
 import { baseSepolia } from 'wagmi/chains';
 import AuthRequiredState from '../ui/empty/AuthRequiredState';
@@ -8,6 +8,8 @@ import { selectEscrowAvailableUSD } from '@/lib/balance/balanceSelector';
 import { useWalletStore } from '@/store/walletStore';
 import { t } from '@/lib/lexicon';
 import { isCryptoEnabledForClient } from '@/lib/cryptoFeatureFlags';
+import { formatCurrency } from '@/lib/format';
+import { ZaurumMark } from '@/components/currency/ZaurumMark';
 
 interface PredictionOption {
   id: string;
@@ -166,10 +168,12 @@ const PredictionActionPanel: React.FC<PredictionActionPanelProps> = ({
             >
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Stake Amount (USD)
+                  Stake Amount (ZAU)
                 </label>
                 <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">
+                    <ZaurumMark className="w-4 h-4" />
+                  </span>
                   <input
                     type="number"
                     value={stakeAmount}
@@ -181,12 +185,9 @@ const PredictionActionPanel: React.FC<PredictionActionPanelProps> = ({
                   />
                 </div>
                 <p className="text-sm text-gray-600 mt-1 flex items-center justify-between">
-                  <span>
-                    {BASE_ENABLED && BETS_ONCHAIN 
-                      ? `Available in escrow: $${Math.max(0, escrowAvailable).toFixed(2)}`
-                      : `Available: ${(userBalance || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-                    }
-                  </span>
+                  <span>{BASE_ENABLED && BETS_ONCHAIN
+                    ? `Available in escrow: ${formatCurrency(Math.max(0, escrowAvailable), { compact: false })}`
+                    : `Available: ${formatCurrency(userBalance || 0, { compact: false })}`}</span>
                   {(BASE_ENABLED && BETS_ONCHAIN ? needsFunds : parseFloat(stakeAmount) > userBalance) && (
                     <span className="text-red-600 font-medium">Insufficient funds</span>
                   )}
@@ -234,7 +235,7 @@ const PredictionActionPanel: React.FC<PredictionActionPanelProps> = ({
                   className="w-full py-4 rounded-xl font-bold text-lg transition-all transform bg-gradient-to-r from-amber-500 to-orange-500 text-white hover:from-amber-600 hover:to-orange-600 active:scale-[0.98] shadow-lg hover:shadow-xl"
                   style={{ position: 'relative', zIndex: 10 }}
                 >
-                  Add funds (need ${Math.max(0, stakeValue - escrowAvailable).toFixed(2)})
+                  {`Add funds (need ${formatCurrency(Math.max(0, stakeValue - escrowAvailable), { compact: false })})`}
                 </button>
               ) : (
                 <button
@@ -260,7 +261,7 @@ const PredictionActionPanel: React.FC<PredictionActionPanelProps> = ({
                   ) : parseFloat(stakeAmount) <= 0 || !stakeAmount ? (
                     'Enter Amount'
                   ) : (
-                    `${t('betVerb')}: $${parseFloat(stakeAmount).toFixed(2)}`
+                    `${t('betVerb')}: ${formatCurrency(parseFloat(stakeAmount), { compact: false })}`
                   )}
                 </button>
               )}

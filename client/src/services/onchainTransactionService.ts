@@ -19,6 +19,7 @@ import { config as wagmiBaseConfig } from '@/lib/wagmi';
 import { getAddress, type Address, type Hash, createPublicClient, http, formatUnits } from 'viem';
 import { baseSepolia } from 'wagmi/chains';
 import { getApiUrl } from '@/utils/environment';
+import { formatCurrency } from '@/lib/format';
 
 const wagmiConfig = wagmiBaseConfig;
 
@@ -253,7 +254,7 @@ export function parseOnchainError(error: unknown): { message: string; code: stri
     const requiredUSD = Number(error.requiredAmount) / 1_000_000;
     const actualUSD = Number(error.actualAmount) / 1_000_000;
     return { 
-      message: `Approval not confirmed yet (need $${requiredUSD.toFixed(2)}, have $${actualUSD.toFixed(2)}). Please wait a moment and try again.`,
+      message: `Approval not confirmed yet (need ${formatCurrency(requiredUSD, { compact: false })}, have ${formatCurrency(actualUSD, { compact: false })}). Please wait a moment and try again.`,
       code: 'ALLOWANCE_VERIFICATION_FAILED'
     };
   }
@@ -288,7 +289,7 @@ export function parseOnchainError(error: unknown): { message: string; code: stri
   }
   
   if (errorStr.includes('insufficient balance') || errorStr.includes('exceeds balance') || errorStr.includes('transfer amount exceeds balance')) {
-    return { message: 'Insufficient USDC balance', code: 'INSUFFICIENT_BALANCE' };
+    return { message: 'Insufficient balance', code: 'INSUFFICIENT_BALANCE' };
   }
   
   if (errorStr.includes('insufficient escrow') || errorStr.includes('not enough funds in escrow')) {

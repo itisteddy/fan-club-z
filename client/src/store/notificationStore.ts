@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { buildPredictionCanonicalUrl } from '@/lib/predictionUrls';
+import { formatCurrency } from '@/lib/format';
 
 export interface Notification {
   id: string;
@@ -267,7 +268,7 @@ export const useNotificationStore = create<NotificationStore>()(
         const { addNotification, addToast } = get();
         
         const message = outcome === 'won' 
-          ? `You won ${payout ? `$${payout}` : ''} on "${predictionTitle}"!`
+          ? `You won ${payout ? formatCurrency(Number(payout), { compact: false }) : ''} on "${predictionTitle}"!`
           : `Settlement completed for "${predictionTitle}". Better luck next time!`;
           
         // Add persistent notification
@@ -321,7 +322,7 @@ export const notificationHelpers = {
     useNotificationStore.getState().addNotification({
       type: 'prediction_outcome',
       title: '🎉 You won!',
-      message: `Your prediction "${predictionTitle}" was correct! You earned $${amount.toFixed(2)}.`,
+      message: `Your prediction "${predictionTitle}" was correct! You earned ${formatCurrency(amount, { compact: false })}.`,
       data: { predictionId, amount },
     }),
 
@@ -353,7 +354,7 @@ export const notificationHelpers = {
     useNotificationStore.getState().addNotification({
       type: 'payout',
       title: 'Payout received',
-      message: `$${amount.toFixed(2)} has been added to your wallet.`,
+      message: `${formatCurrency(amount, { compact: false })} has been added to your wallet.`,
       data: { amount, transactionId },
     }),
 
@@ -426,7 +427,7 @@ export const notifySettlementCompleted = (predictionId: string, predictionTitle:
   const store = useNotificationStore.getState();
   
   const message = outcome === 'won' 
-    ? `You won ${payout ? `$${payout}` : ''} on "${predictionTitle}"!`
+    ? `You won ${payout ? formatCurrency(Number(payout), { compact: false }) : ''} on "${predictionTitle}"!`
     : `Settlement completed for "${predictionTitle}". Better luck next time!`;
     
   // Add persistent notification
