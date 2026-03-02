@@ -685,9 +685,11 @@ const PredictionsPage: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNa
       onClick={(e) => {
         const target = e.target as HTMLElement | null;
         if (target?.closest('[data-no-card-nav="true"],button,a,input,textarea,select,label')) return;
-        const targetPredictionId = resolvePredictionRouteId(prediction)
-          || String(prediction?.id || prediction?.predictionId || '').trim();
-        if (!targetPredictionId) return;
+        const targetPredictionId = resolvePredictionRouteId(prediction);
+        if (!targetPredictionId) {
+          toast.error('Prediction link unavailable');
+          return;
+        }
         navigate(buildPredictionCanonicalPath(targetPredictionId, prediction?.title), { state: { from: fromPath } });
       }}
       role="button"
@@ -786,9 +788,11 @@ const PredictionsPage: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNa
     const isSettled = Boolean(prediction?.settledAt) || (String(prediction?.status || '').toLowerCase() === 'settled');
 
     const openSafely = () => {
-      const targetPredictionId = canonicalPredictionId
-        || String(prediction?.id || prediction?.predictionId || '').trim();
-      if (!targetPredictionId) return;
+      const targetPredictionId = canonicalPredictionId;
+      if (!targetPredictionId) {
+        toast.error('Prediction link unavailable');
+        return;
+      }
       navigate(buildPredictionCanonicalPath(targetPredictionId, prediction?.title), { state: { from: fromPath } });
     };
 
@@ -1022,8 +1026,7 @@ const PredictionsPage: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNa
           }}
           prediction={{
             id:
-              resolvePredictionRouteId(selectedPrediction) ||
-              String((selectedPrediction as any).id || ''),
+              resolvePredictionRouteId(selectedPrediction) || '',
             title: (selectedPrediction as any).title,
             category: (selectedPrediction as any).category,
             totalPool:

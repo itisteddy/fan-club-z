@@ -184,14 +184,7 @@ export const useUnifiedCommentStore = create<CommentsState & CommentsActions>()(
         }));
 
         try {
-          // Try the social endpoint first, then the comments endpoint
-          let response;
-          try {
-            response = await apiClient.get(`/social/predictions/${predictionId}/comments?page=1&limit=20`);
-          } catch (socialError) {
-            qaLog('Social endpoint failed, trying comments endpoint:', socialError);
-            response = await apiClient.get(`/comments/predictions/${predictionId}/comments?page=1&limit=20`);
-          }
+          const response = await apiClient.get(`/social/predictions/${predictionId}/comments?page=1&limit=20`);
           
           // Handle different response formats
           let items: Comment[] = [];
@@ -284,13 +277,7 @@ export const useUnifiedCommentStore = create<CommentsState & CommentsActions>()(
         try {
           // Calculate next page
           const currentPage = Math.ceil((currentState.items?.length || 0) / 20) + 1;
-          
-          let response;
-          try {
-            response = await apiClient.get(`/social/predictions/${predictionId}/comments?page=${currentPage}&limit=20`);
-          } catch (socialError) {
-            response = await apiClient.get(`/comments/predictions/${predictionId}/comments?page=${currentPage}&limit=20`);
-          }
+          const response = await apiClient.get(`/social/predictions/${predictionId}/comments?page=${currentPage}&limit=20`);
           
           let newItems: Comment[] = [];
           let nextCursor = null;
@@ -358,12 +345,16 @@ export const useUnifiedCommentStore = create<CommentsState & CommentsActions>()(
 
         // Create optimistic comment with current user info
         const { user } = useAuthStore.getState();
+        const userId = user?.id;
+        if (!userId) {
+          throw new Error('You must be signed in to comment');
+        }
         const tempId = `temp_${Date.now()}`;
         const optimisticComment: Comment = {
           id: tempId,
           predictionId,
           user: { 
-            id: user?.id || 'demo-user', 
+            id: userId,
             username: user?.username || 'You', 
             full_name: user?.full_name,
             avatarUrl: user?.avatar_url,
@@ -394,21 +385,11 @@ export const useUnifiedCommentStore = create<CommentsState & CommentsActions>()(
         });
 
         try {
-          // Try social endpoint first, then comments endpoint
-          let response;
-          try {
-            response = await apiClient.post(`/social/predictions/${predictionId}/comments`, {
-              content: trimmedText,
-              userId: user?.id || 'demo-user',
-              user: user
-            });
-          } catch (socialError) {
-            qaLog('Social endpoint failed, trying comments endpoint:', socialError);
-            response = await apiClient.post(`/comments/predictions/${predictionId}/comments`, {
-              content: trimmedText,
-              user: user
-            });
-          }
+          const response = await apiClient.post(`/social/predictions/${predictionId}/comments`, {
+            content: trimmedText,
+            userId,
+            user,
+          });
 
           // Handle different response formats
           let serverComment: Comment;
@@ -483,6 +464,11 @@ export const useUnifiedCommentStore = create<CommentsState & CommentsActions>()(
         }
 
         // Optimistic update
+        const { user } = useAuthStore.getState();
+        const userId = user?.id;
+        if (!userId) {
+          throw new Error('You must be signed in to edit comments');
+        }
         set((state) => ({
           byPrediction: {
             ...state.byPrediction,
@@ -498,17 +484,10 @@ export const useUnifiedCommentStore = create<CommentsState & CommentsActions>()(
         }));
 
         try {
-          // Try social endpoint first, then comments endpoint
-          let response;
-          try {
-            response = await apiClient.put(`/social/comments/${commentId}`, {
-              content: trimmedText
-            });
-          } catch (socialError) {
-            response = await apiClient.put(`/comments/${commentId}`, {
-              content: trimmedText
-            });
-          }
+          const response = await apiClient.put(`/social/comments/${commentId}`, {
+            content: trimmedText,
+            userId,
+          });
 
           let updatedComment: Comment;
           if (response.data) {
@@ -565,6 +544,11 @@ export const useUnifiedCommentStore = create<CommentsState & CommentsActions>()(
         }
 
         // Optimistic delete
+        const { user } = useAuthStore.getState();
+        const userId = user?.id;
+        if (!userId) {
+          throw new Error('You must be signed in to delete comments');
+        }
         set((state) => ({
           byPrediction: {
             ...state.byPrediction,
@@ -576,12 +560,7 @@ export const useUnifiedCommentStore = create<CommentsState & CommentsActions>()(
         }));
 
         try {
-          // Try social endpoint first, then comments endpoint
-          try {
-            await apiClient.delete(`/social/comments/${commentId}`);
-          } catch (socialError) {
-            await apiClient.delete(`/comments/${commentId}`);
-          }
+          await apiClient.delete(`/social/comments/${commentId}?userId=${encodeURIComponent(userId)}`);
 
           qaLog(`Comment ${commentId} deleted successfully`);
 

@@ -828,27 +828,15 @@ const WalletPageV2: React.FC<WalletPageV2Props> = ({ onNavigateBack }) => {
           ) : (
             <>
               {/* Wallet balances */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                {/* 1. Wallet balance */}
-                <div className="bg-white rounded-2xl border border-black/[0.06] p-4 min-h-[88px] flex flex-col justify-center">
-                  <div className="flex items-center space-x-1 mb-2">
-                    <Wallet className="w-4 h-4 text-blue-500" />
-                    <div className="text-xs text-gray-600 font-medium tracking-wide">Wallet</div>
-                  </div>
-                  <div className="text-lg font-bold text-gray-900 font-mono truncate">
-                    {isLoadingBalance ? '...' : <ZaurumAmount value={resolvedWalletUSDC ?? 0} compact markSize="sm" />}
-                  </div>
-                  <div className="text-xs text-gray-500 mt-1">Zaurum balance</div>
-                </div>
-                
-                {/* 2. Available balance */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {/* 1. Available balance */}
                 <div className="bg-white rounded-2xl border border-black/[0.06] p-4 min-h-[88px] flex flex-col justify-center">
                   <div className="flex items-center space-x-1 mb-2">
                     <Download className="w-4 h-4 text-emerald-500" />
                     <div className="text-xs text-gray-600 font-medium tracking-wide">Available</div>
                   </div>
-                  <div className="text-lg font-bold text-gray-900 font-mono truncate">
-                    {isLoadingBalance ? '...' : <ZaurumAmount value={resolvedEscrowAvailable ?? 0} compact markSize="sm" />}
+                  <div className="text-lg font-bold text-gray-900 font-mono tabular-nums">
+                    {isLoadingBalance ? '...' : <ZaurumAmount value={resolvedEscrowAvailable ?? 0} compact={false} markSize="sm" />}
                   </div>
                   <div className="text-xs text-gray-500 mt-1 flex items-center gap-2">
                     <span className="text-emerald-600 font-medium inline-flex items-center gap-1">Ready to stake</span>
@@ -864,7 +852,7 @@ const WalletPageV2: React.FC<WalletPageV2Props> = ({ onNavigateBack }) => {
                   </div>
                 </div>
 
-                {/* 3. Creator Earnings (separate from Zaurum + stake balance) */}
+                {/* 2. Creator Earnings (separate from Zaurum + stake balance) */}
                 <div className="bg-white rounded-2xl border border-black/[0.06] p-4 min-h-[88px] flex flex-col justify-center">
                   <div className="flex items-center space-x-1 mb-2">
                     <Gift className="w-4 h-4 text-amber-500" />

@@ -38,7 +38,7 @@ const UnifiedLeaderboardPage: React.FC = () => {
   const { user } = useAuthStore();
   const navigate = useNavigate();
   const rowBaseClasses =
-    'bg-white rounded-lg px-2 py-0 transition-all duration-200 border flex items-center h-10';
+    'bg-white rounded-xl px-3 py-2 transition-all duration-200 border flex items-center min-h-[56px]';
   
   // Determine available tabs based on feature flags
   const referralsEnabled = useMemo(() => isReferralEnabled(), []);
@@ -273,13 +273,13 @@ const UnifiedLeaderboardPage: React.FC = () => {
             <div className="flex items-center gap-1.5 flex-1 min-w-0">
             {/* Rank Badge */}
             <div className={cn(
-                "w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-bold border-2",
+                "w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold border-2",
               rankBadge.color
             )}>
               {isTopThree ? (
-                <RankIcon className="w-2.5 h-2.5" />
+                <RankIcon className="w-3 h-3" />
               ) : (
-                <span className="text-[9px]">{rank}</span>
+                <span className="text-[10px]">{rank}</span>
               )}
             </div>
             
@@ -295,7 +295,7 @@ const UnifiedLeaderboardPage: React.FC = () => {
                 username={entry.username}
                 avatarUrl={entry.avatarUrl}
                 size="sm"
-                className="h-5 w-5"
+                className="h-8 w-8"
               />
             </button>
             
@@ -305,13 +305,13 @@ const UnifiedLeaderboardPage: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => openReferralProfile(entry)}
-                  className="font-semibold text-[12px] text-gray-900 truncate hover:text-emerald-700 cursor-pointer text-left p-0 border-0 bg-transparent appearance-none leading-3 min-h-0 min-w-0 h-auto"
+                  className="font-semibold text-[17px] text-gray-900 truncate hover:text-emerald-700 cursor-pointer text-left p-0 border-0 bg-transparent appearance-none leading-5 min-h-0 min-w-0 h-auto"
                 >
                   {entry.fullName || entry.username}
                 </button>
                 <OGBadge tier={entry.ogBadge} size="sm" />
                 {isCurrentUser && (
-                  <span className="flex-shrink-0 px-1 py-0.5 bg-emerald-100 text-emerald-700 text-[10px] font-medium rounded-full">
+                  <span className="flex-shrink-0 px-1.5 py-0.5 bg-emerald-100 text-emerald-700 text-[11px] font-medium rounded-full">
                     You
                   </span>
                 )}
@@ -319,7 +319,7 @@ const UnifiedLeaderboardPage: React.FC = () => {
               <button
                 type="button"
                 onClick={() => openReferralProfile(entry)}
-                className="text-[10px] text-gray-500 truncate hover:text-gray-700 cursor-pointer text-left p-0 border-0 bg-transparent appearance-none leading-3 min-h-0 min-w-0 h-auto"
+                className="text-[14px] text-gray-500 truncate hover:text-gray-700 cursor-pointer text-left p-0 border-0 bg-transparent appearance-none leading-4 min-h-0 min-w-0 h-auto"
               >
                 @{entry.username}
               </button>
@@ -327,8 +327,8 @@ const UnifiedLeaderboardPage: React.FC = () => {
           </div>
           
           {/* Referral Stats */}
-            <div className="text-right pl-1.5 w-14 shrink-0">
-              <div className="text-xs leading-none font-bold font-mono tabular-nums text-emerald-600">
+            <div className="ml-auto text-right pl-2 w-[68px] shrink-0">
+              <div className="text-[24px] leading-none font-semibold font-mono tabular-nums text-emerald-600">
                 {entry.activeReferrals}
               </div>
             </div>
@@ -503,13 +503,13 @@ const UnifiedLeaderboardPage: React.FC = () => {
                       <div className="flex items-center gap-1.5 flex-1 min-w-0">
                         {/* Rank Badge */}
                         <div className={cn(
-                          "w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-bold border-2",
+                          "w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold border-2",
                           rankBadge.color
                         )}>
                           {isTopThree ? (
-                            <RankIcon className="w-2.5 h-2.5" />
+                            <RankIcon className="w-3 h-3" />
                           ) : (
-                            <span className="text-[9px]">{leaderUser.rank}</span>
+                            <span className="text-[10px]">{leaderUser.rank}</span>
                           )}
                         </div>
                         
@@ -525,7 +525,7 @@ const UnifiedLeaderboardPage: React.FC = () => {
                             username={leaderUser.username}
                             avatarUrl={leaderUser.avatar_url}
                             size="sm"
-                            className="h-5 w-5"
+                            className="h-8 w-8"
                           />
                         </button>
                         
@@ -535,13 +535,13 @@ const UnifiedLeaderboardPage: React.FC = () => {
                             <button
                               type="button"
                               onClick={() => openUserProfile(leaderUser)}
-                            className="font-semibold text-[12px] text-gray-900 truncate hover:text-emerald-700 cursor-pointer text-left p-0 border-0 bg-transparent appearance-none leading-3 min-h-0 min-w-0 h-auto"
+                            className="font-semibold text-[17px] text-gray-900 truncate hover:text-emerald-700 cursor-pointer text-left p-0 border-0 bg-transparent appearance-none leading-5 min-h-0 min-w-0 h-auto"
                             >
                               {leaderUser.full_name || leaderUser.username}
                             </button>
                             <OGBadge tier={leaderUser.og_badge} size="sm" />
                             {isCurrentUser && (
-                              <span className="flex-shrink-0 px-1 py-0.5 bg-emerald-100 text-emerald-700 text-[10px] font-medium rounded-full">
+                              <span className="flex-shrink-0 px-1.5 py-0.5 bg-emerald-100 text-emerald-700 text-[11px] font-medium rounded-full">
                                 You
                               </span>
                             )}
@@ -549,7 +549,7 @@ const UnifiedLeaderboardPage: React.FC = () => {
                           <button
                             type="button"
                             onClick={() => openUserProfile(leaderUser)}
-                            className="text-[10px] text-gray-500 truncate hover:text-gray-700 cursor-pointer text-left p-0 border-0 bg-transparent appearance-none leading-3 min-h-0 min-w-0 h-auto"
+                            className="text-[14px] text-gray-500 truncate hover:text-gray-700 cursor-pointer text-left p-0 border-0 bg-transparent appearance-none leading-4 min-h-0 min-w-0 h-auto"
                           >
                             @{leaderUser.username}
                           </button>
@@ -557,8 +557,8 @@ const UnifiedLeaderboardPage: React.FC = () => {
                       </div>
                       
                       {/* Enhanced Stats Display - Simplified */}
-                      <div className="text-right pl-1.5 w-16 shrink-0">
-                        <div className={cn("text-xs leading-none font-bold font-mono tabular-nums inline-flex items-center justify-end gap-1 w-full", statDisplay.color)}>
+                      <div className="ml-auto text-right pl-2 w-[84px] shrink-0">
+                        <div className={cn("text-[24px] leading-none font-semibold font-mono tabular-nums inline-flex items-center justify-end gap-1 w-full", statDisplay.color)}>
                           {activeTab === 'profit' && <ZaurumMark className="w-2.5 h-2.5" />}
                           <span>{statDisplay.primary}</span>
                         </div>
