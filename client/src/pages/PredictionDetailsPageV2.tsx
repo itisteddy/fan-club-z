@@ -41,6 +41,7 @@ import { formatZaurumNumber } from '@/lib/format';
 import { t } from '@/lib/lexicon';
 import { ZaurumMark } from '@/components/currency/ZaurumMark';
 import { ZaurumAmount } from '@/components/currency/ZaurumAmount';
+import { buildPredictionCanonicalPath } from '@/lib/predictionUrls';
 import { useMerkleProof } from '@/hooks/useMerkleProof';
 import { useMerkleClaim } from '@/hooks/useMerkleClaim';
 import { usePredictionActivity } from '@/hooks/useActivityFeed';
@@ -251,18 +252,13 @@ const userBalance = isAuthenticated ? availableToStake : 0;
   // Activity feed for count badge
   const { items: activityItems, refresh: refreshActivity } = usePredictionActivity(predictionId, { limit: 25, autoLoad: true });
 
-  // Set share URL (canonical slug) and gently rewrite URL to SEO path
+  // Set share URL (canonical id + slug) and gently rewrite URL to SEO path
   useEffect(() => {
     if (typeof window === 'undefined') return;
+    if (!predictionId) return;
     const title = prediction?.title || prediction?.question || '';
-    const slug = title
-      .toLowerCase()
-      .trim()
-      .replace(/[^a-z0-9\s-]/g, '')
-      .replace(/\s+/g, '-')
-      .replace(/-+/g, '-')
-      .slice(0, 80);
-    const canonical = `${window.location.origin}/predictions/${slug}`;
+    const canonicalPath = buildPredictionCanonicalPath(predictionId, title);
+    const canonical = `${window.location.origin}${canonicalPath}`;
     setShareUrl(canonical);
     // Inject/replace canonical link
     try {
@@ -274,17 +270,16 @@ const userBalance = isAuthenticated ? availableToStake : 0;
       }
       link.setAttribute('href', canonical);
     } catch {}
-    // If the current URL isn't already the canonical slug path, replace it (no reload)
+    // If the current URL isn't already the canonical path, replace it (no reload)
     try {
-      const targetPath = `/predictions/${slug}`;
-      if (window.location.pathname !== targetPath) {
-        navigate(targetPath, { 
+      if (window.location.pathname !== canonicalPath) {
+        navigate(canonicalPath, {
           replace: true,
           state: preservedStateRef.current ?? locationState ?? undefined
         });
       }
     } catch {}
-  }, [prediction?.title, predictionId, navigate, locationState]);
+  }, [prediction?.title, prediction?.question, predictionId, navigate, locationState]);
 
   // Handle navigation
   const handleBack = () => {

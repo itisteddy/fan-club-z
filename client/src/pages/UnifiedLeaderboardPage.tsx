@@ -38,7 +38,7 @@ const UnifiedLeaderboardPage: React.FC = () => {
   const { user } = useAuthStore();
   const navigate = useNavigate();
   const rowBaseClasses =
-    'bg-white rounded-lg px-2 py-0 transition-all duration-200 border flex items-center min-h-[54px]';
+    'bg-white rounded-lg px-2 py-0 transition-all duration-200 border flex items-center h-14';
   
   // Determine available tabs based on feature flags
   const referralsEnabled = useMemo(() => isReferralEnabled(), []);
@@ -287,7 +287,7 @@ const UnifiedLeaderboardPage: React.FC = () => {
             <button
               type="button"
               onClick={() => openReferralProfile(entry)}
-              className="rounded-full p-0 border-0 bg-transparent appearance-none leading-none focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
+              className="rounded-full p-0 border-0 bg-transparent appearance-none leading-none min-h-0 h-auto focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
               aria-label={`Open profile for ${entry.fullName || entry.username}`}
             >
               <UserAvatar 
@@ -305,7 +305,7 @@ const UnifiedLeaderboardPage: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => openReferralProfile(entry)}
-                  className="font-semibold text-[12px] text-gray-900 truncate hover:text-emerald-700 cursor-pointer text-left p-0 border-0 bg-transparent appearance-none leading-3"
+                  className="font-semibold text-[12px] text-gray-900 truncate hover:text-emerald-700 cursor-pointer text-left p-0 border-0 bg-transparent appearance-none leading-3 min-h-0 h-auto"
                 >
                   {entry.fullName || entry.username}
                 </button>
@@ -319,7 +319,7 @@ const UnifiedLeaderboardPage: React.FC = () => {
               <button
                 type="button"
                 onClick={() => openReferralProfile(entry)}
-                className="text-[10px] text-gray-500 truncate hover:text-gray-700 cursor-pointer text-left p-0 border-0 bg-transparent appearance-none leading-3"
+                className="text-[10px] text-gray-500 truncate hover:text-gray-700 cursor-pointer text-left p-0 border-0 bg-transparent appearance-none leading-3 min-h-0 h-auto"
               >
                 @{entry.username}
               </button>
@@ -517,7 +517,7 @@ const UnifiedLeaderboardPage: React.FC = () => {
                         <button
                           type="button"
                           onClick={() => openUserProfile(leaderUser)}
-                          className="rounded-full p-0 border-0 bg-transparent appearance-none leading-none focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
+                          className="rounded-full p-0 border-0 bg-transparent appearance-none leading-none min-h-0 h-auto focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
                           aria-label={`Open profile for ${leaderUser.full_name || leaderUser.username}`}
                         >
                           <UserAvatar 
@@ -535,7 +535,7 @@ const UnifiedLeaderboardPage: React.FC = () => {
                             <button
                               type="button"
                               onClick={() => openUserProfile(leaderUser)}
-                            className="font-semibold text-[12px] text-gray-900 truncate hover:text-emerald-700 cursor-pointer text-left p-0 border-0 bg-transparent appearance-none leading-3"
+                            className="font-semibold text-[12px] text-gray-900 truncate hover:text-emerald-700 cursor-pointer text-left p-0 border-0 bg-transparent appearance-none leading-3 min-h-0 h-auto"
                             >
                               {leaderUser.full_name || leaderUser.username}
                             </button>
@@ -549,7 +549,7 @@ const UnifiedLeaderboardPage: React.FC = () => {
                           <button
                             type="button"
                             onClick={() => openUserProfile(leaderUser)}
-                            className="text-[10px] text-gray-500 truncate hover:text-gray-700 cursor-pointer text-left p-0 border-0 bg-transparent appearance-none leading-3"
+                            className="text-[10px] text-gray-500 truncate hover:text-gray-700 cursor-pointer text-left p-0 border-0 bg-transparent appearance-none leading-3 min-h-0 h-auto"
                           >
                             @{leaderUser.username}
                           </button>

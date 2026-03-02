@@ -79,11 +79,14 @@ const PredictionsPage: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNa
       candidate?.predictionId,
       candidate?.prediction_id,
     ];
+    const uuidPattern = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
     for (const value of options) {
       if (typeof value !== 'string') continue;
       const clean = value.trim();
       if (!clean) continue;
       if (isUuid(clean)) return clean;
+      const embedded = clean.match(uuidPattern)?.[0];
+      if (embedded && isUuid(embedded)) return embedded;
     }
     return null;
   }, [isUuid]);

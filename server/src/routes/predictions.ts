@@ -211,20 +211,32 @@ router.get('/resolve/slug/:slug', async (req, res) => {
       }
     }
 
-    // Fallback: scan recent predictions and match by computed slug.
-    // Note: For our dataset size this is fine. If this grows large, add a persisted slug column or an index.
-    const { data: preds, error } = await supabase
-      .from('predictions')
-      .select('id,title,created_at')
-      .order('created_at', { ascending: false })
-      .limit(200);
+    // Fallback: scan predictions in deterministic pages and match by computed slug.
+    // We intentionally page through a larger window so completed/older predictions still resolve.
+    const pageSize = 1000;
+    const maxRowsToScan = 100000;
+    let offset = 0;
+    let matched: { id: string; title: string; created_at: string } | undefined;
+    while (offset < maxRowsToScan && !matched) {
+      const { data: preds, error } = await supabase
+        .from('predictions')
+        .select('id,title,created_at')
+        .order('created_at', { ascending: false })
+        .range(offset, offset + pageSize - 1);
 
-    if (error) {
-      console.error('[predictions.resolve.slug] DB error:', error);
-      return res.status(500).json({ error: 'db_error', message: 'Failed to resolve slug', version: VERSION });
+      if (error) {
+        console.error('[predictions.resolve.slug] DB error:', error);
+        return res.status(500).json({ error: 'db_error', message: 'Failed to resolve slug', version: VERSION });
+      }
+
+      if (!preds || preds.length === 0) break;
+      matched = preds.find(p => {
+        const computed = slugify(p.title);
+        return computed === candidate || computed.startsWith(candidate) || candidate.startsWith(computed);
+      });
+      offset += pageSize;
     }
 
-    const matched = (preds || []).find(p => slugify(p.title) === candidate);
     if (!matched) {
       return res.status(404).json({ error: 'not_found', message: 'Prediction not found for slug', version: VERSION });
     }

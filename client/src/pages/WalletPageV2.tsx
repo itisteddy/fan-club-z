@@ -28,11 +28,12 @@ import { t } from '@/lib/lexicon';
 import { useWeb3Recovery } from '@/providers/Web3Provider';
 import { computeWalletStatus } from '@/utils/walletStatus';
 import { useCreatorEarningsHistory, useTransferCreatorEarnings } from '@/hooks/useCreatorEarningsWallet';
-import { FCZ_WALLET_MODE } from '@/utils/environment';
+import { FCZ_ENABLE_DAILY_CLAIM, FCZ_WALLET_MODE } from '@/utils/environment';
 import { ZaurumMark } from '@/components/currency/ZaurumMark';
 import { ZaurumAmount } from '@/components/currency/ZaurumAmount';
 import { buildPredictionCanonicalPath } from '@/lib/predictionUrls';
 import RecentActivityCard, { type ActivityDisplayItem } from '@/components/activity/RecentActivityCard';
+import { getApiUrl } from '@/config';
 
 interface WalletPageV2Props {
   onNavigateBack?: () => void;
@@ -99,6 +100,8 @@ const WalletPageV2: React.FC<WalletPageV2Props> = ({ onNavigateBack }) => {
   const [bulkClaiming, setBulkClaiming] = useState(false);
   const [bulkTotal, setBulkTotal] = useState(0);
   const [bulkDone, setBulkDone] = useState(0);
+  const [isClaimingDaily, setIsClaimingDaily] = useState(false);
+  const [nextDailyClaimAt, setNextDailyClaimAt] = useState<string | null>(null);
   const { claim, isClaiming } = useMerkleClaim();
   const [txNotice, setTxNotice] = useState<{ hash: string; kind: string; predictionId?: string } | null>(null);
   const [selectedActivity, setSelectedActivity] = useState<WalletActivityItem | null>(null);
@@ -136,7 +139,7 @@ const WalletPageV2: React.FC<WalletPageV2Props> = ({ onNavigateBack }) => {
     total: escrowTotalUSD ?? 0,
   });
   useEffect(() => {
-    if (walletStatus.code !== 'ready') {
+    if (!isZaurumOnly && walletStatus.code !== 'ready') {
       return;
     }
     setLastReadyBalances(prev => {
@@ -158,7 +161,7 @@ const WalletPageV2: React.FC<WalletPageV2Props> = ({ onNavigateBack }) => {
 
       return next;
     });
-  }, [walletStatus.code, walletUSDC, escrowAvailableUSD, escrowReservedUSD, escrowTotalUSD]);
+  }, [walletStatus.code, walletUSDC, escrowAvailableUSD, escrowReservedUSD, escrowTotalUSD, isZaurumOnly]);
   
   // Wallet activity (from database - transaction history only)
   // Show first 20 in main view, all transactions in modal
@@ -461,24 +464,24 @@ const WalletPageV2: React.FC<WalletPageV2Props> = ({ onNavigateBack }) => {
   }, [handleRefresh]);
   
   // Display balances using last confirmed values during reconnects to avoid UI flicker
-  const resolveValue = (current: number | undefined, fallback: number) =>
-    typeof current === 'number' ? current : fallback;
-  const resolvedWalletUSDC =
-    walletStatus.code === 'ready'
-      ? resolveValue(walletUSDC, lastReadyBalances.wallet)
-      : lastReadyBalances.wallet;
-  const resolvedEscrowAvailable =
-    walletStatus.code === 'ready'
-      ? resolveValue(escrowAvailableUSD, lastReadyBalances.available)
-      : lastReadyBalances.available;
-  const resolvedEscrowReserved =
-    walletStatus.code === 'ready'
-      ? resolveValue(escrowReservedUSD, lastReadyBalances.reserved)
-      : lastReadyBalances.reserved;
-  const resolvedEscrowTotal =
-    walletStatus.code === 'ready'
-      ? resolveValue(escrowTotalUSD, lastReadyBalances.total)
-      : lastReadyBalances.total;
+  const summaryAvailable = Number(summary?.available ?? summary?.balances?.available ?? 0);
+  const summaryReserved = Number(summary?.reserved ?? summary?.balances?.reserved ?? 0);
+  const summaryWallet = Number(summary?.walletBalance ?? summary?.balances?.wallet ?? 0);
+  const resolveValue = (current: number | undefined, fallback: number, summaryFallback = 0) =>
+    typeof current === 'number' ? current : (fallback > 0 ? fallback : summaryFallback);
+  const shouldUseLiveBalances = isZaurumOnly || walletStatus.code === 'ready';
+  const resolvedWalletUSDC = shouldUseLiveBalances
+    ? resolveValue(walletUSDC, lastReadyBalances.wallet, summaryWallet)
+    : lastReadyBalances.wallet;
+  const resolvedEscrowAvailable = shouldUseLiveBalances
+    ? resolveValue(escrowAvailableUSD, lastReadyBalances.available, summaryAvailable)
+    : lastReadyBalances.available;
+  const resolvedEscrowReserved = shouldUseLiveBalances
+    ? resolveValue(escrowReservedUSD, lastReadyBalances.reserved, summaryReserved)
+    : lastReadyBalances.reserved;
+  const resolvedEscrowTotal = shouldUseLiveBalances
+    ? resolveValue(escrowTotalUSD, lastReadyBalances.total)
+    : lastReadyBalances.total;
   const demoCreditsBalance = Number(summary?.demoCredits ?? summary?.balances?.demoCredits ?? 0);
   const creatorEarningsBalanceLoaded = Boolean(summary) && !isLoadingBalance && !balanceError;
   const creatorEarningsBalance = Number(summary?.creatorEarnings ?? summary?.balances?.creatorEarnings ?? 0);
@@ -513,6 +516,58 @@ const WalletPageV2: React.FC<WalletPageV2Props> = ({ onNavigateBack }) => {
       void queryClient.invalidateQueries({ queryKey: QK.walletActivity(user.id) });
     }
   }, [isConnected, address, chainId, queryClient, user?.id]);
+
+  const canClaimDaily = FCZ_ENABLE_DAILY_CLAIM && authenticated && Boolean(user?.id);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    const key = `fcz:daily-claim-next:${user.id}`;
+    const saved = localStorage.getItem(key);
+    if (saved) setNextDailyClaimAt(saved);
+  }, [user?.id]);
+
+  const isDailyClaimLocked = useMemo(() => {
+    if (!nextDailyClaimAt) return false;
+    const next = new Date(nextDailyClaimAt).getTime();
+    if (!Number.isFinite(next)) return false;
+    return Date.now() < next;
+  }, [nextDailyClaimAt]);
+
+  const handleDailyClaim = useCallback(async () => {
+    if (!user?.id || isClaimingDaily || !canClaimDaily) return;
+    setIsClaimingDaily(true);
+    try {
+      const r = await fetch(`${getApiUrl()}/api/demo-wallet/faucet`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: user.id }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) {
+        throw new Error(j?.message || 'Failed to claim daily Zaurum');
+      }
+
+      if (j?.nextEligibleAt) {
+        setNextDailyClaimAt(String(j.nextEligibleAt));
+        localStorage.setItem(`fcz:daily-claim-next:${user.id}`, String(j.nextEligibleAt));
+      }
+
+      if (j?.alreadyGranted) {
+        toast('Daily claim already used. Try again tomorrow.');
+      } else {
+        toast.success(`Claimed ${Number(j?.amount || 0).toFixed(2)} Zaurum`);
+      }
+
+      void queryClient.invalidateQueries({ queryKey: ['wallet'], exact: false });
+      void queryClient.invalidateQueries({ queryKey: ['wallet-summary'], exact: false });
+      void queryClient.invalidateQueries({ queryKey: ['wallet-activity'], exact: false });
+      refetchBalances();
+    } catch (e: any) {
+      toast.error(e?.message || 'Failed to claim daily Zaurum');
+    } finally {
+      setIsClaimingDaily(false);
+    }
+  }, [user?.id, isClaimingDaily, canClaimDaily, queryClient, refetchBalances]);
 
   useEffect(() => {
     if (authenticated && user?.id) {
@@ -958,6 +1013,24 @@ const WalletPageV2: React.FC<WalletPageV2Props> = ({ onNavigateBack }) => {
                 <div className="grid grid-cols-2 gap-3 mt-6">
                   {actionButtons}
                 </div>
+
+                {canClaimDaily && (
+                  <div className="mt-4 rounded-xl border border-emerald-100 bg-emerald-50/60 p-3">
+                    <button
+                      type="button"
+                      onClick={handleDailyClaim}
+                      disabled={isDailyClaimLocked || isClaimingDaily}
+                      className="w-full h-10 rounded-xl bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {isClaimingDaily ? 'Claiming...' : 'Claim daily Zaurum'}
+                    </button>
+                    <p className="mt-2 text-[11px] text-gray-600 text-center">
+                      {isDailyClaimLocked && nextDailyClaimAt
+                        ? `Next claim: ${new Date(nextDailyClaimAt).toLocaleString()}`
+                        : 'Claim once every 24 hours.'}
+                    </p>
+                  </div>
+                )}
                 
                 {/* Recent Activity */}
                 {walletActivity?.items && walletActivity.items.length > 0 ? (
@@ -1066,8 +1139,26 @@ const WalletPageV2: React.FC<WalletPageV2Props> = ({ onNavigateBack }) => {
               ) : (
                 <>
                   <div className="bg-white rounded-2xl border border-black/[0.06] p-4">
-                    <div className="grid grid-cols-2 gap-3">
-                      {actionButtons}
+                    <div className="space-y-2">
+                      <button
+                        type="button"
+                        onClick={handleDailyClaim}
+                        disabled={!canClaimDaily || isDailyClaimLocked || isClaimingDaily}
+                        className="w-full h-11 rounded-xl bg-emerald-600 text-white font-semibold hover:bg-emerald-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {isClaimingDaily ? 'Claiming...' : 'Claim daily Zaurum'}
+                      </button>
+                      {isDailyClaimLocked && nextDailyClaimAt ? (
+                        <p className="text-xs text-gray-500 text-center">
+                          Next claim: {new Date(nextDailyClaimAt).toLocaleString()}
+                        </p>
+                      ) : !canClaimDaily ? (
+                        <p className="text-xs text-gray-500 text-center">
+                          Daily claim is currently unavailable.
+                        </p>
+                      ) : (
+                        <p className="text-xs text-gray-500 text-center">Claim once every 24 hours.</p>
+                      )}
                     </div>
                   </div>
                   <RecentActivityCard
