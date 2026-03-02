@@ -305,7 +305,7 @@ const UnifiedLeaderboardPage: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => openReferralProfile(entry)}
-                  className="font-semibold text-[17px] text-gray-900 truncate hover:text-emerald-700 cursor-pointer text-left p-0 border-0 bg-transparent appearance-none leading-5 min-h-0 min-w-0 h-auto"
+                  className="font-semibold text-[15px] text-gray-900 truncate hover:text-emerald-700 cursor-pointer text-left p-0 border-0 bg-transparent appearance-none leading-5 min-h-0 min-w-0 h-auto"
                 >
                   {entry.fullName || entry.username}
                 </button>
@@ -319,7 +319,7 @@ const UnifiedLeaderboardPage: React.FC = () => {
               <button
                 type="button"
                 onClick={() => openReferralProfile(entry)}
-                className="text-[14px] text-gray-500 truncate hover:text-gray-700 cursor-pointer text-left p-0 border-0 bg-transparent appearance-none leading-4 min-h-0 min-w-0 h-auto"
+                className="text-[13px] text-gray-500 truncate hover:text-gray-700 cursor-pointer text-left p-0 border-0 bg-transparent appearance-none leading-4 min-h-0 min-w-0 h-auto"
               >
                 @{entry.username}
               </button>
@@ -327,8 +327,8 @@ const UnifiedLeaderboardPage: React.FC = () => {
           </div>
           
           {/* Referral Stats */}
-            <div className="ml-auto text-right pl-2 w-[68px] shrink-0">
-              <div className="text-[24px] leading-none font-semibold font-mono tabular-nums text-emerald-600">
+            <div className="ml-auto text-right pl-2 w-[72px] shrink-0">
+              <div className="text-[16px] leading-5 font-semibold tabular-nums text-emerald-600">
                 {entry.activeReferrals}
               </div>
             </div>
@@ -535,7 +535,7 @@ const UnifiedLeaderboardPage: React.FC = () => {
                             <button
                               type="button"
                               onClick={() => openUserProfile(leaderUser)}
-                            className="font-semibold text-[17px] text-gray-900 truncate hover:text-emerald-700 cursor-pointer text-left p-0 border-0 bg-transparent appearance-none leading-5 min-h-0 min-w-0 h-auto"
+                            className="font-semibold text-[15px] text-gray-900 truncate hover:text-emerald-700 cursor-pointer text-left p-0 border-0 bg-transparent appearance-none leading-5 min-h-0 min-w-0 h-auto"
                             >
                               {leaderUser.full_name || leaderUser.username}
                             </button>
@@ -549,7 +549,7 @@ const UnifiedLeaderboardPage: React.FC = () => {
                           <button
                             type="button"
                             onClick={() => openUserProfile(leaderUser)}
-                            className="text-[14px] text-gray-500 truncate hover:text-gray-700 cursor-pointer text-left p-0 border-0 bg-transparent appearance-none leading-4 min-h-0 min-w-0 h-auto"
+                            className="text-[13px] text-gray-500 truncate hover:text-gray-700 cursor-pointer text-left p-0 border-0 bg-transparent appearance-none leading-4 min-h-0 min-w-0 h-auto"
                           >
                             @{leaderUser.username}
                           </button>
@@ -557,8 +557,8 @@ const UnifiedLeaderboardPage: React.FC = () => {
                       </div>
                       
                       {/* Enhanced Stats Display - Simplified */}
-                      <div className="ml-auto text-right pl-2 w-[84px] shrink-0">
-                        <div className={cn("text-[24px] leading-none font-semibold font-mono tabular-nums inline-flex items-center justify-end gap-1 w-full", statDisplay.color)}>
+                      <div className="ml-auto text-right pl-2 w-[104px] shrink-0">
+                        <div className={cn("text-[16px] leading-5 font-semibold tabular-nums inline-flex items-center justify-end gap-1 w-full", statDisplay.color)}>
                           {activeTab === 'profit' && <ZaurumMark className="w-2.5 h-2.5" />}
                           <span>{statDisplay.primary}</span>
                         </div>

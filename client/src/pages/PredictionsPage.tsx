@@ -91,6 +91,16 @@ const PredictionsPage: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNa
     return null;
   }, [isUuid]);
 
+  const resolvePredictionManageId = useCallback((candidate: any): string | null => {
+    const options = [candidate?.id, candidate?.predictionId, candidate?.prediction_id];
+    for (const value of options) {
+      if (typeof value !== 'string' && typeof value !== 'number') continue;
+      const clean = String(value).trim();
+      if (clean) return clean;
+    }
+    return null;
+  }, []);
+
   // Helper function to get time remaining with proper status context
   const getTimeRemaining = (deadline: string | null | undefined, predictionStatus?: string) => {
     if (!deadline) return 'Unknown';
@@ -345,6 +355,10 @@ const PredictionsPage: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNa
           id: prediction.id,
           predictionId: prediction.id,
           entryId: entry.id,
+          creatorId: (prediction as any).creator_id || (prediction as any).creator?.id || null,
+          canManage:
+            (((prediction as any).creator_id || (prediction as any).creator?.id) === user.id) &&
+            ['open', 'closed', 'awaiting_settlement', 'disputed'].includes(String(prediction.status || '').toLowerCase()),
           title: prediction.title,
           category: prediction.category,
           position: option?.label || 'Unknown',
@@ -751,15 +765,14 @@ const PredictionsPage: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNa
           onClick={(e) => {
             e.preventDefault();
             e.stopPropagation();
-            (e.nativeEvent as Event).stopImmediatePropagation?.();
+            const manageId = resolvePredictionManageId(prediction);
+            if (!manageId) {
+              toast.error('Unable to manage this prediction right now');
+              return;
+            }
             setSelectedPrediction(prediction);
             setShowManageModal(true);
           }}
-          onClickCapture={(e) => e.stopPropagation()}
-          onMouseDown={(e) => e.stopPropagation()}
-          onPointerDown={(e) => e.stopPropagation()}
-          onTouchStart={(e) => e.stopPropagation()}
-          onTouchEnd={(e) => e.stopPropagation()}
           className="bg-blue-600 text-white px-4 py-2 rounded-lg font-medium text-sm flex items-center gap-1 hover:bg-blue-700 transition-colors z-10 relative"
         >
           Manage <Settings className="w-4 h-4" />
@@ -912,7 +925,29 @@ const PredictionsPage: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNa
 
       <div className="flex items-center justify-between text-sm text-gray-500">
         <span>{prediction.participants} participants</span>
-        <span>{isSettled ? `Settled ${prediction.settledAt}` : 'Closed — awaiting settlement'}</span>
+        <div className="flex items-center gap-2">
+          <span>{isSettled ? `Settled ${prediction.settledAt}` : 'Closed — awaiting settlement'}</span>
+          {prediction.canManage && (
+            <button
+              data-no-card-nav="true"
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                const manageId = resolvePredictionManageId(prediction);
+                if (!manageId) {
+                  toast.error('Unable to manage this prediction right now');
+                  return;
+                }
+                setSelectedPrediction(prediction);
+                setShowManageModal(true);
+              }}
+              className="bg-blue-600 text-white px-3 py-1.5 rounded-lg font-medium text-xs flex items-center gap-1 hover:bg-blue-700 transition-colors"
+            >
+              Manage <Settings className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
       </div>
       </div>
   );
@@ -1026,7 +1061,7 @@ const PredictionsPage: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNa
           }}
           prediction={{
             id:
-              resolvePredictionRouteId(selectedPrediction) || '',
+              resolvePredictionManageId(selectedPrediction) || '',
             title: (selectedPrediction as any).title,
             category: (selectedPrediction as any).category,
             totalPool:

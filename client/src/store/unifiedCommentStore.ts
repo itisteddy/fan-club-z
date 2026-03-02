@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { devtools } from 'zustand/middleware';
 import { apiClient } from '../lib/api'; // Use the correct apiClient
 import { useAuthStore } from './authStore';
+import { supabase } from '../lib/supabase';
 import { qaLog } from '../utils/devQa';
 
 // Comment interface matching API response
@@ -103,16 +104,17 @@ const transformComment = (serverComment: any): Comment => {
 // Classify errors based on response
 function classifyError(error: any): Status {
   if (!error) return 'network_error';
+  const status = getErrorStatus(error);
   
   if (error.name === 'TypeError' || error.message?.includes('Failed to fetch')) {
     return 'network_error';
   }
   
-  if (error.status >= 500) {
+  if (status >= 500) {
     return 'server_error';
   }
   
-  if (error.status >= 400 && error.status < 500) {
+  if (status >= 400 && status < 500) {
     return 'client_error';
   }
   
@@ -121,6 +123,29 @@ function classifyError(error: any): Status {
   }
   
   return 'network_error';
+}
+
+function getErrorStatus(error: any): number | null {
+  if (!error) return null;
+  if (typeof error.status === 'number') return error.status;
+  const message = String(error.message || '');
+  const match = message.match(/\bstatus:\s*(\d{3})\b/i);
+  if (match?.[1]) return Number(match[1]);
+  return null;
+}
+
+async function resolveCommentUserId(): Promise<string | null> {
+  const authState = useAuthStore.getState();
+  if (authState.user?.id) {
+    return authState.user.id;
+  }
+
+  try {
+    const { data } = await supabase.auth.getUser();
+    return data.user?.id || null;
+  } catch {
+    return null;
+  }
 }
 
 export const useUnifiedCommentStore = create<CommentsState & CommentsActions>()(
@@ -219,7 +244,8 @@ export const useUnifiedCommentStore = create<CommentsState & CommentsActions>()(
 
         } catch (error: any) {
           // Handle 404 as empty comments (no error state)
-          if (error.status === 404) {
+          const statusCode = getErrorStatus(error);
+          if (statusCode === 404) {
             qaLog(`No comments found for ${predictionId} (404)`);
             set((state) => ({
               byPrediction: {
@@ -333,6 +359,13 @@ export const useUnifiedCommentStore = create<CommentsState & CommentsActions>()(
 
         qaLog(`Adding comment to ${predictionId}:`, trimmedText);
 
+        // Create optimistic comment with current user info
+        const { user } = useAuthStore.getState();
+        const userId = await resolveCommentUserId();
+        if (!userId) {
+          throw new Error('You must be signed in to comment');
+        }
+
         set((state) => ({
           byPrediction: {
             ...state.byPrediction,
@@ -342,13 +375,6 @@ export const useUnifiedCommentStore = create<CommentsState & CommentsActions>()(
             },
           },
         }));
-
-        // Create optimistic comment with current user info
-        const { user } = useAuthStore.getState();
-        const userId = user?.id;
-        if (!userId) {
-          throw new Error('You must be signed in to comment');
-        }
         const tempId = `temp_${Date.now()}`;
         const optimisticComment: Comment = {
           id: tempId,

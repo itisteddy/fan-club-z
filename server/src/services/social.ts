@@ -491,6 +491,24 @@ export class SocialService {
   }
 
   // Fallback manual method
+  private async getUsersForComments(userIds: string[]): Promise<Map<string, any>> {
+    const uniqueUserIds = [...new Set(userIds.filter(Boolean))];
+    if (uniqueUserIds.length === 0) {
+      return new Map();
+    }
+
+    const { data: users } = await this.supabase
+      .from('users')
+      .select('id, username, full_name, avatar_url, is_verified')
+      .in('id', uniqueUserIds);
+
+    const userMap = new Map<string, any>();
+    for (const user of users || []) {
+      userMap.set(user.id, user);
+    }
+    return userMap;
+  }
+
   private async getPredictionCommentsManual(
     predictionId: string, 
     pagination: PaginationQuery,
@@ -500,18 +518,28 @@ export class SocialService {
       const { page, limit } = pagination;
       const offset = (page - 1) * limit;
 
-      // Get top-level comments with user info
-      const { data: topLevelComments, error: topError, count } = await this.supabase
+      // Get top-level comments
+      let topQuery = this.supabase
         .from('comments')
-        .select(`
-          *,
-          user:users(id, username, full_name, avatar_url, is_verified)
-        `, { count: 'exact' })
+        .select('*', { count: 'exact' })
         .eq('prediction_id', predictionId)
         .is('parent_comment_id', null)
-        .eq('is_deleted', false)
         .order('created_at', { ascending: false })
         .range(offset, offset + limit - 1);
+
+      // Be schema-tolerant: some environments may not have is_deleted.
+      let topResult = await topQuery.eq('is_deleted', false);
+      if (topResult.error) {
+        topResult = await this.supabase
+          .from('comments')
+          .select('*', { count: 'exact' })
+          .eq('prediction_id', predictionId)
+          .is('parent_comment_id', null)
+          .order('created_at', { ascending: false })
+          .range(offset, offset + limit - 1);
+      }
+
+      const { data: topLevelComments, error: topError, count } = topResult;
 
       if (topError) {
         logger.error('Error fetching top-level comments:', topError);
@@ -536,19 +564,30 @@ export class SocialService {
 
       // Get replies for all top-level comments
       const commentIds = topLevelComments.map(c => c.id);
-      const { data: replies, error: repliesError } = await this.supabase
+      let repliesResult = await this.supabase
         .from('comments')
-        .select(`
-          *,
-          user:users(id, username, full_name, avatar_url, is_verified)
-        `)
+        .select('*')
         .in('parent_comment_id', commentIds)
-        .eq('is_deleted', false)
         .order('created_at', { ascending: true });
+
+      if (repliesResult.error) {
+        repliesResult = await this.supabase
+          .from('comments')
+          .select('*')
+          .in('parent_comment_id', commentIds)
+          .order('created_at', { ascending: true });
+      }
+
+      const { data: replies, error: repliesError } = repliesResult;
 
       if (repliesError) {
         logger.error('Error fetching replies:', repliesError);
       }
+
+      const userMap = await this.getUsersForComments([
+        ...topLevelComments.map((c: any) => c.user_id),
+        ...(replies || []).map((r: any) => r.user_id),
+      ]);
 
       // Get like status for current user if provided
       let userLikes: any[] = [];
@@ -575,6 +614,7 @@ export class SocialService {
           .filter(reply => reply.parent_comment_id === comment.id)
           .map(reply => ({
             ...reply,
+            user: userMap.get(reply.user_id) || null,
             is_liked_by_user: likedCommentIds.has(reply.id),
             is_owned_by_user: reply.user_id === userId,
             is_liked: likedCommentIds.has(reply.id),
@@ -583,6 +623,7 @@ export class SocialService {
 
         return {
           ...comment,
+          user: userMap.get(comment.user_id) || null,
           is_liked_by_user: likedCommentIds.has(comment.id),
           is_owned_by_user: comment.user_id === userId,
           is_liked: likedCommentIds.has(comment.id),
@@ -629,12 +670,21 @@ export class SocialService {
 
       // If replying to a comment, verify parent exists
       if (commentData.parent_comment_id) {
-        const { data: parentComment, error: parentError } = await this.supabase
+        let parentLookup = await this.supabase
           .from('comments')
           .select('id')
           .eq('id', commentData.parent_comment_id)
-          .eq('is_deleted', false)
           .single();
+
+        if (parentLookup.error) {
+          parentLookup = await this.supabase
+            .from('comments')
+            .select('id')
+            .eq('id', commentData.parent_comment_id)
+            .single();
+        }
+
+        const { data: parentComment, error: parentError } = parentLookup;
 
         if (parentError || !parentComment) {
           throw new Error('Parent comment not found');
@@ -650,10 +700,7 @@ export class SocialService {
           parent_comment_id: commentData.parent_comment_id || null,
           content: commentData.content.trim(),
         })
-        .select(`
-          *,
-          user:users(id, username, full_name, avatar_url, is_verified)
-        `)
+        .select('*')
         .single();
 
       if (error) {
@@ -661,8 +708,10 @@ export class SocialService {
         throw new Error('Failed to create comment');
       }
 
+      const userMap = await this.getUsersForComments([userId]);
       const enhancedComment: EnhancedComment = {
         ...data,
+        user: userMap.get(userId) || null,
         is_liked_by_user: false,
         is_owned_by_user: true,
         is_liked: false,
@@ -684,7 +733,7 @@ export class SocialService {
 
   async updateComment(commentId: string, userId: string, content: string): Promise<EnhancedComment> {
     try {
-      const { data, error } = await this.supabase
+      let updateResult = await this.supabase
         .from('comments')
         .update({
           content: content.trim(),
@@ -694,19 +743,33 @@ export class SocialService {
         .eq('id', commentId)
         .eq('user_id', userId)
         .eq('is_deleted', false)
-        .select(`
-          *,
-          user:users(id, username, full_name, avatar_url, is_verified)
-        `)
+        .select('*')
         .single();
+
+      if (updateResult.error) {
+        updateResult = await this.supabase
+          .from('comments')
+          .update({
+            content: content.trim(),
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', commentId)
+          .eq('user_id', userId)
+          .select('*')
+          .single();
+      }
+
+      const { data, error } = updateResult;
 
       if (error) {
         logger.error('Error updating comment:', error);
         throw new Error('Failed to update comment');
       }
 
+      const userMap = await this.getUsersForComments([userId]);
       const enhancedComment: EnhancedComment = {
         ...data,
+        user: userMap.get(userId) || null,
         is_liked_by_user: false, // TODO: Check actual like status
         is_owned_by_user: true,
         is_liked: false,
@@ -726,7 +789,7 @@ export class SocialService {
   async deleteComment(commentId: string, userId: string): Promise<void> {
     try {
       // Soft delete by marking as deleted instead of removing
-      const { error } = await this.supabase
+      let softDelete = await this.supabase
         .from('comments')
         .update({
           is_deleted: true,
@@ -736,9 +799,17 @@ export class SocialService {
         .eq('id', commentId)
         .eq('user_id', userId);
 
-      if (error) {
-        logger.error('Error deleting comment:', error);
-        throw new Error('Failed to delete comment');
+      if (softDelete.error) {
+        const hardDelete = await this.supabase
+          .from('comments')
+          .delete()
+          .eq('id', commentId)
+          .eq('user_id', userId);
+
+        if (hardDelete.error) {
+          logger.error('Error deleting comment:', hardDelete.error);
+          throw new Error('Failed to delete comment');
+        }
       }
 
       logger.info(`Comment soft deleted successfully: ${commentId}`);

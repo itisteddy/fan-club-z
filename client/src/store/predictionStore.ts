@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase';
 import { getApiUrl } from '../config';
 import { useAuthStore } from './authStore';
 import { apiClient } from '../lib/apiUtils';
+import { FCZ_WALLET_MODE } from '../utils/environment';
 
 // ---- Idempotency helpers for bet placement ----
 function computeBetKey(userId: string | undefined, predictionId: string, optionId: string, amount: number) {
@@ -694,9 +695,20 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
                               import.meta.env.FCZ_ENABLE_BASE_BETS === '1' ||
                               import.meta.env.VITE_FCZ_BASE_ENABLE === '1';
       const FLAG_DEMO = import.meta.env.VITE_FCZ_ENABLE_DEMO === '1';
-      const isCryptoMode = FLAG_BASE_BETS && !FLAG_DEMO;
+      const isZaurumOnlyMode = FCZ_WALLET_MODE === 'zaurum_only';
+      const isCryptoMode = !isZaurumOnlyMode && FLAG_BASE_BETS && !FLAG_DEMO;
 
-      console.log('[FCZ-BET] mode detection', { FLAG_BASE_BETS, FLAG_DEMO, isCryptoMode, predictionId, optionId, amount, userId });
+      console.log('[FCZ-BET] mode detection', {
+        walletMode: FCZ_WALLET_MODE,
+        FLAG_BASE_BETS,
+        FLAG_DEMO,
+        isZaurumOnlyMode,
+        isCryptoMode,
+        predictionId,
+        optionId,
+        amount,
+        userId
+      });
 
       // Use new unified place-bet endpoint if crypto mode is enabled
       if (isCryptoMode) {
