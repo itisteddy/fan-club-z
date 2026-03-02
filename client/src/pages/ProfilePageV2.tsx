@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Edit3, User, Activity, TrendingUp, Target, Trophy, Upload, X, Mail, XCircle } from 'lucide-react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { Edit3, User, Activity, TrendingUp, Target, Trophy, X, Mail, XCircle, Camera, ImageIcon } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import { useAuthSession } from '../providers/AuthSessionProvider';
@@ -21,6 +21,13 @@ import { useUserAchievements } from '@/hooks/useUserAchievements';
 import { apiClient } from '@/lib/apiClient';
 import { ZaurumMark } from '@/components/currency/ZaurumMark';
 import { ZaurumAmount } from '@/components/currency/ZaurumAmount';
+import toast from 'react-hot-toast';
+import {
+  isNativeRuntime,
+  openNativeAppSettings,
+  pickNativeProfilePhoto,
+  validateProfilePhotoFile,
+} from '@/lib/profilePhotoPicker';
 
 interface ProfilePageV2Props {
   onNavigateBack?: () => void;
@@ -81,9 +88,108 @@ const ProfilePageV2: React.FC<ProfilePageV2Props> = ({ onNavigateBack, userId })
   const [editLastName, setEditLastName] = useState('');
   const [editBio, setEditBio] = useState('');
   const [showShareModal, setShowShareModal] = useState(false);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [showDeleteAccountModal, setShowDeleteAccountModal] = useState(false);
+  const [deletingAccount, setDeletingAccount] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const captureInputRef = useRef<HTMLInputElement | null>(null);
   
   // Referral hook
   const { isEnabled: referralsEnabled } = useReferral();
+
+  const uploadProfilePhoto = useCallback(async (file: File) => {
+    const validation = validateProfilePhotoFile(file);
+    if (!validation.ok) {
+      toast.error(validation.message);
+      return;
+    }
+    try {
+      setUploadingAvatar(true);
+      await useAuthStore.getState().uploadAvatar(file);
+      toast.success('Profile photo updated.');
+    } catch (err) {
+      console.error('[Profile] Avatar upload failed', err);
+      toast.error((err as Error)?.message || 'Failed to update profile photo.');
+    } finally {
+      setUploadingAvatar(false);
+    }
+  }, []);
+
+  const handleFileSelection = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    await uploadProfilePhoto(file);
+  }, [uploadProfilePhoto]);
+
+  const handleTakePhoto = useCallback(async () => {
+    if (!isNativeRuntime()) {
+      captureInputRef.current?.click();
+      return;
+    }
+    const result = await pickNativeProfilePhoto('camera');
+    if (result.ok) {
+      await uploadProfilePhoto(result.file);
+      return;
+    }
+    if (result.cancelled) return;
+    if (result.code === 'permission_denied') {
+      const shouldOpenSettings = window.confirm('Camera access is off. Open Settings to enable it?');
+      if (shouldOpenSettings) {
+        try {
+          await openNativeAppSettings();
+        } catch (error) {
+          console.warn('[Profile] Failed to open settings:', error);
+          toast.error('Open Settings and enable Camera permission for Fan Club Z.');
+        }
+      }
+      return;
+    }
+    if (result.code === 'camera_unavailable') {
+      toast('Camera unavailable. Opening photo library instead.');
+      const fallback = await pickNativeProfilePhoto('photos');
+      if (fallback.ok) {
+        await uploadProfilePhoto(fallback.file);
+      } else if (!fallback.cancelled) {
+        toast.error(fallback.message || 'Unable to select a photo.');
+      }
+      return;
+    }
+    toast.error(result.message || 'Unable to capture photo right now.');
+  }, [uploadProfilePhoto]);
+
+  const handleChoosePhoto = useCallback(async () => {
+    if (!isNativeRuntime()) {
+      fileInputRef.current?.click();
+      return;
+    }
+    const result = await pickNativeProfilePhoto('photos');
+    if (result.ok) {
+      await uploadProfilePhoto(result.file);
+      return;
+    }
+    if (!result.cancelled) {
+      toast.error(result.message || 'Unable to select a photo.');
+    }
+  }, [uploadProfilePhoto]);
+
+  const handleDeleteAccount = useCallback(async () => {
+    if (deletingAccount) return;
+    try {
+      setDeletingAccount(true);
+      await apiClient.post('/users/me/delete', {});
+      toast.success('Account deleted.');
+      await useAuthStore.getState().logout();
+      navigate('/', { replace: true });
+    } catch (error) {
+      console.error('[Profile] Delete account failed:', error);
+      const message = (error as Error)?.message || 'Account deletion failed. Please try again.';
+      toast.error(message);
+    } finally {
+      setDeletingAccount(false);
+      setShowDeleteAccountModal(false);
+    }
+  }, [deletingAccount, navigate]);
   
   // Determine user context - profile is self-mode only for /profile (no explicit target route).
   const explicitRouteUserId = (userId || routeUserId || '').trim();
@@ -800,6 +906,13 @@ const ProfilePageV2: React.FC<ProfilePageV2Props> = ({ onNavigateBack, userId })
     {authenticated && isOwnProfile && (
       <div className="mx-auto w-full max-w-[720px] lg:max-w-[960px] px-4 mt-4 mb-[calc(5rem+env(safe-area-inset-bottom))]">
         <button
+          type="button"
+          onClick={() => setShowDeleteAccountModal(true)}
+          className="w-full text-sm px-4 py-3 mb-3 rounded-2xl border border-red-200 bg-red-50 text-red-700 hover:bg-red-100 flex items-center justify-center shadow-sm"
+        >
+          Delete account
+        </button>
+        <button
           onClick={async () => {
             try {
               await useAuthStore.getState().logout();
@@ -811,6 +924,39 @@ const ProfilePageV2: React.FC<ProfilePageV2Props> = ({ onNavigateBack, userId })
         >
           Sign out
         </button>
+      </div>
+    )}
+
+    {showDeleteAccountModal && (
+      <div className="fixed inset-0 z-[60] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
+        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm">
+          <div className="px-4 py-3 border-b border-gray-100">
+            <h3 className="text-sm font-semibold text-gray-900">Delete account?</h3>
+          </div>
+          <div className="px-4 py-3">
+            <p className="text-sm text-gray-700">
+              This action permanently removes your account profile from the app.
+            </p>
+          </div>
+          <div className="px-4 py-3 border-t border-gray-100 flex items-center justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => setShowDeleteAccountModal(false)}
+              disabled={deletingAccount}
+              className="px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-lg disabled:opacity-60"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={() => void handleDeleteAccount()}
+              disabled={deletingAccount}
+              className="px-3 py-2 bg-red-600 text-white rounded-lg text-sm hover:bg-red-700 disabled:opacity-60"
+            >
+              {deletingAccount ? 'Deleting...' : 'Delete'}
+            </button>
+          </div>
+        </div>
       </div>
     )}
 
@@ -858,24 +1004,42 @@ const ProfilePageV2: React.FC<ProfilePageV2Props> = ({ onNavigateBack, userId })
             </div>
             <div>
               <label className="block text-xs text-gray-600 mb-2">Profile photo</label>
-              <label className="inline-flex items-center gap-2 px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-700 hover:bg-gray-50 cursor-pointer">
-                <Upload className="w-4 h-4 text-gray-500" />
-                Upload image
-                <input
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={async (e) => {
-                    const file = e.target.files?.[0];
-                    if (!file) return;
-                    try {
-                      await useAuthStore.getState().uploadAvatar(file);
-                    } catch (err) {
-                      console.error('Avatar upload failed', err);
-                    }
-                  }}
-                />
-              </label>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => void handleTakePhoto()}
+                  disabled={uploadingAvatar}
+                  className="inline-flex items-center gap-2 px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                  <Camera className="w-4 h-4 text-gray-500" />
+                  Take photo
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handleChoosePhoto()}
+                  disabled={uploadingAvatar}
+                  className="inline-flex items-center gap-2 px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                  <ImageIcon className="w-4 h-4 text-gray-500" />
+                  Choose image
+                </button>
+              </div>
+              {uploadingAvatar && <p className="text-xs text-gray-500 mt-2">Uploading photo...</p>}
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleFileSelection}
+              />
+              <input
+                ref={captureInputRef}
+                type="file"
+                accept="image/*"
+                capture="user"
+                className="hidden"
+                onChange={handleFileSelection}
+              />
             </div>
           </div>
           <div className="px-4 py-3 border-t border-gray-100 flex items-center justify-end gap-2">

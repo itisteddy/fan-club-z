@@ -392,6 +392,11 @@ export const clearScrollTimeout = () => {
   console.warn('clearScrollTimeout is deprecated, scroll management is now automatic');
 };
 
+// Compatibility helper used by comment deep-link flow.
+export const unsuppressScrollToTop = () => {
+  // Intentionally no-op: current scroll manager no longer suppresses top scroll globally.
+};
+
 // Hook for React components
 export const useScrollPreservation = () => {
   return {

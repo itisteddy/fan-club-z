@@ -2,9 +2,10 @@ import express from 'express';
 import crypto from 'crypto';
 import { supabase } from '../config/database';
 import { VERSION } from '@fanclubz/shared';
-import { requireSupabaseAuth } from '../middleware/requireSupabaseAuth';
+import { requireSupabaseAuth, requireSupabaseAuthAllowDeleted } from '../middleware/requireSupabaseAuth';
 import type { AuthenticatedRequest } from '../middleware/auth';
 import { getUserAchievements } from '../services/achievementsService';
+import { assertContentAllowed } from '../services/contentFilter';
 
 // [PERF] Helper to generate ETag from response data
 function generateETag(data: unknown): string {
@@ -29,6 +30,7 @@ function checkETag(req: express.Request, res: express.Response, data: unknown): 
 }
 
 const router = express.Router();
+const TERMS_VERSION = '1.0';
 
 async function buildPublicProfilePayload(userId: string) {
   // TODO(ugc-blocking): apply block/ban visibility rules here when item 6 ships.
@@ -248,6 +250,318 @@ router.get('/leaderboard', async (req, res) => {
   }
 });
 
+// GET /api/v2/users/me/status - Get account status (allows deleted accounts through)
+router.get('/me/status', requireSupabaseAuthAllowDeleted as any, async (req: AuthenticatedRequest, res) => {
+  const userId = req.user?.id;
+  if (!userId) {
+    return res.status(401).json({ error: 'unauthorized', message: 'Authorization required', version: VERSION });
+  }
+  const accountStatus = (req as any).accountStatus || 'active';
+  return res.json({
+    status: accountStatus,
+    version: VERSION,
+  });
+});
+
+// GET /api/v2/users/me/terms-accepted
+router.get('/me/terms-accepted', requireSupabaseAuthAllowDeleted as any, async (req: AuthenticatedRequest, res) => {
+  const userId = req.user?.id;
+  if (!userId) {
+    return res.status(401).json({ error: 'unauthorized', message: 'Authorization required', version: VERSION });
+  }
+  const accountStatus = (req as any).accountStatus || 'active';
+  if (accountStatus === 'deleted') {
+    return res.status(409).json({
+      error: 'account_deleted',
+      code: 'ACCOUNT_DELETED',
+      message: 'This account was previously deleted. You can restore it to continue.',
+      version: VERSION,
+    });
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('terms_acceptance')
+      .select('id, terms_version, accepted_at')
+      .eq('user_id', userId)
+      .eq('terms_version', TERMS_VERSION)
+      .maybeSingle();
+
+    if (error) {
+      const msg = String(error.message || '').toLowerCase();
+      if (msg.includes('does not exist') || String(error.code || '') === '42P01') {
+        return res.json({ accepted: true, terms_version: TERMS_VERSION, accepted_at: null, version: VERSION });
+      }
+      return res.status(500).json({ error: 'Database error', message: error.message, version: VERSION });
+    }
+
+    return res.json({
+      accepted: !!data,
+      terms_version: TERMS_VERSION,
+      accepted_at: data?.accepted_at ?? null,
+      version: VERSION,
+    });
+  } catch (e: any) {
+    return res.status(500).json({ error: 'Internal server error', message: e?.message, version: VERSION });
+  }
+});
+
+// POST /api/v2/users/me/accept-terms
+router.post('/me/accept-terms', requireSupabaseAuthAllowDeleted as any, async (req: AuthenticatedRequest, res) => {
+  const userId = req.user?.id;
+  if (!userId) {
+    return res.status(401).json({ error: 'unauthorized', message: 'Authorization required', version: VERSION });
+  }
+  const accountStatus = (req as any).accountStatus || 'active';
+  if (accountStatus === 'deleted') {
+    return res.status(409).json({
+      error: 'account_deleted',
+      code: 'ACCOUNT_DELETED',
+      message: 'This account was previously deleted. You can restore it to continue.',
+      version: VERSION,
+    });
+  }
+
+  try {
+    const { error } = await supabase
+      .from('terms_acceptance')
+      .upsert(
+        { user_id: userId, terms_version: TERMS_VERSION, accepted_at: new Date().toISOString() },
+        { onConflict: 'user_id,terms_version' }
+      );
+
+    if (error) {
+      const msg = String(error.message || '').toLowerCase();
+      if (msg.includes('does not exist') || String(error.code || '') === '42P01') {
+        return res.json({ success: true, terms_version: TERMS_VERSION, version: VERSION });
+      }
+      return res.status(500).json({ error: 'Database error', message: error.message, version: VERSION });
+    }
+    return res.json({ success: true, terms_version: TERMS_VERSION, version: VERSION });
+  } catch (e: any) {
+    return res.status(500).json({ error: 'Internal server error', message: e?.message, version: VERSION });
+  }
+});
+
+// POST /api/v2/users/me/restore
+router.post('/me/restore', requireSupabaseAuthAllowDeleted as any, async (req: AuthenticatedRequest, res) => {
+  const userId = req.user?.id;
+  if (!userId) {
+    return res.status(401).json({ error: 'unauthorized', message: 'Authorization required', version: VERSION });
+  }
+  const accountStatus = (req as any).accountStatus || 'active';
+
+  if (accountStatus === 'active') {
+    return res.status(200).json({ success: true, message: 'Account is already active', version: VERSION });
+  }
+  if (accountStatus === 'suspended') {
+    return res.status(403).json({
+      error: 'account_suspended',
+      code: 'ACCOUNT_SUSPENDED',
+      message: 'This account has been suspended. Contact support for assistance.',
+      version: VERSION,
+    });
+  }
+
+  try {
+    const newColUpdate = await supabase
+      .from('users')
+      .update({
+        account_status: 'active',
+        deleted_at: null,
+        is_banned: false,
+        ban_reason: null,
+        banned_at: null,
+        banned_by: null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', userId);
+
+    if (newColUpdate.error) {
+      const legacyUpdate = await supabase
+        .from('users')
+        .update({
+          is_banned: false,
+          ban_reason: null,
+          banned_at: null,
+          banned_by: null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', userId);
+
+      if (legacyUpdate.error) {
+        const minimalUpdate = await supabase
+          .from('users')
+          .update({ updated_at: new Date().toISOString() })
+          .eq('id', userId);
+
+        if (minimalUpdate.error) {
+          console.error('[users/me/restore] All update attempts failed:', minimalUpdate.error.message);
+          return res.status(500).json({
+            error: 'Restore failed',
+            message: 'Unable to restore account. Please contact support.',
+            version: VERSION,
+          });
+        }
+      }
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'Account restored. Please update your profile to continue.',
+      needsOnboarding: true,
+      version: VERSION,
+    });
+  } catch (e: any) {
+    console.error('[users/me/restore]', e);
+    return res.status(500).json({
+      error: 'Internal server error',
+      message: 'Unable to restore account. Please contact support.',
+      version: VERSION,
+    });
+  }
+});
+
+// POST /api/v2/users/me/delete - soft delete
+router.post('/me/delete', requireSupabaseAuth as any, async (req: AuthenticatedRequest, res) => {
+  const userId = req.user?.id;
+  if (!userId) {
+    return res.status(401).json({ error: 'unauthorized', message: 'Authorization required', version: VERSION });
+  }
+  const userFacingMessage = 'Account deletion failed. Please try again or contact support.';
+  try {
+    const accountStatus = (req as any).accountStatus || 'active';
+    if (accountStatus === 'deleted') {
+      return res.status(200).json({ success: true, message: 'Account deleted', version: VERSION });
+    }
+
+    const now = new Date().toISOString();
+    const anonymizedUsername = `deleted_${userId.slice(0, 8)}`;
+
+    const fullPayload: Record<string, any> = {
+      username: anonymizedUsername,
+      full_name: null,
+      avatar_url: null,
+      account_status: 'deleted',
+      deleted_at: now,
+      is_banned: true,
+      ban_reason: 'self_deleted',
+      banned_at: now,
+      banned_by: userId,
+      updated_at: now,
+    };
+    const legacyPayload: Record<string, any> = {
+      username: anonymizedUsername,
+      full_name: null,
+      avatar_url: null,
+      is_banned: true,
+      ban_reason: 'self_deleted',
+      banned_at: now,
+      banned_by: userId,
+      updated_at: now,
+    };
+    const minimalPayload: Record<string, any> = {
+      username: anonymizedUsername,
+      full_name: null,
+      avatar_url: null,
+      updated_at: now,
+    };
+
+    let updateResult = await supabase.from('users').update(fullPayload).eq('id', userId);
+    if (updateResult.error) {
+      updateResult = await supabase.from('users').update(legacyPayload).eq('id', userId);
+    }
+    if (updateResult.error) {
+      updateResult = await supabase.from('users').update(minimalPayload).eq('id', userId);
+    }
+    if (updateResult.error) {
+      console.error('[users/me/delete] All update attempts failed:', updateResult.error.message);
+      return res.status(500).json({ error: 'Deletion failed', message: userFacingMessage, version: VERSION });
+    }
+
+    return res.status(200).json({ success: true, message: 'Account deleted', version: VERSION });
+  } catch (e: any) {
+    console.error('[users/me/delete]', e);
+    return res.status(500).json({
+      error: 'Internal server error',
+      message: userFacingMessage,
+      version: VERSION,
+    });
+  }
+});
+
+// GET /api/v2/users/me/blocked
+router.get('/me/blocked', requireSupabaseAuth as any, async (req: AuthenticatedRequest, res) => {
+  const blockerId = req.user?.id;
+  if (!blockerId) {
+    return res.status(401).json({ error: 'unauthorized', message: 'Authorization required', version: VERSION });
+  }
+  try {
+    const { data, error } = await supabase
+      .from('user_blocks')
+      .select('blocked_user_id')
+      .eq('blocker_id', blockerId);
+    if (error) {
+      return res.json({ data: { blockedUserIds: [] }, version: VERSION });
+    }
+    const blockedUserIds = (data || []).map((r: { blocked_user_id: string }) => r.blocked_user_id);
+    return res.json({ data: { blockedUserIds }, version: VERSION });
+  } catch {
+    return res.json({ data: { blockedUserIds: [] }, version: VERSION });
+  }
+});
+
+// POST /api/v2/users/me/block
+router.post('/me/block', requireSupabaseAuth as any, async (req: AuthenticatedRequest, res) => {
+  const blockerId = req.user?.id;
+  if (!blockerId) {
+    return res.status(401).json({ error: 'unauthorized', message: 'Authorization required', version: VERSION });
+  }
+  const userId = (req.body?.userId ?? req.body?.blockedUserId) as string | undefined;
+  if (!userId || typeof userId !== 'string') {
+    return res.status(400).json({ error: 'Bad request', message: 'userId is required', version: VERSION });
+  }
+  if (userId === blockerId) {
+    return res.status(400).json({ error: 'Bad request', message: 'Cannot block yourself', version: VERSION });
+  }
+  try {
+    const { error: insertError } = await supabase
+      .from('user_blocks')
+      .upsert(
+        { blocker_id: blockerId, blocked_user_id: userId },
+        { onConflict: 'blocker_id,blocked_user_id' }
+      );
+    if (insertError) {
+      return res.status(500).json({ error: 'Database error', message: insertError.message, version: VERSION });
+    }
+    return res.status(201).json({ data: { blockedUserId: userId }, message: 'User blocked', version: VERSION });
+  } catch (e: any) {
+    return res.status(500).json({ error: 'Internal server error', message: e?.message, version: VERSION });
+  }
+});
+
+// DELETE /api/v2/users/me/block/:userId
+router.delete('/me/block/:userId', requireSupabaseAuth as any, async (req: AuthenticatedRequest, res) => {
+  const blockerId = req.user?.id;
+  if (!blockerId) {
+    return res.status(401).json({ error: 'unauthorized', message: 'Authorization required', version: VERSION });
+  }
+  const { userId } = req.params;
+  if (!userId) {
+    return res.status(400).json({ error: 'Bad request', message: 'userId is required', version: VERSION });
+  }
+  try {
+    await supabase
+      .from('user_blocks')
+      .delete()
+      .eq('blocker_id', blockerId)
+      .eq('blocked_user_id', userId);
+    return res.status(200).json({ data: { unblockedUserId: userId }, message: 'User unblocked', version: VERSION });
+  } catch (e: any) {
+    return res.status(500).json({ error: 'Internal server error', message: e?.message, version: VERSION });
+  }
+});
+
 // GET /api/v2/users/:id/achievements - Public profile achievements (awards + badges)
 router.get('/:id/achievements', async (req, res) => {
   try {
@@ -435,9 +749,25 @@ router.get('/:id', async (req, res) => {
 
 // PATCH /api/v2/users/:id/profile - Update user profile (name, avatar)
 // Uses service role key to bypass RLS
-router.patch('/:id/profile', async (req, res) => {
+router.patch('/:id/profile', requireSupabaseAuth as any, async (req: AuthenticatedRequest, res) => {
   const { id } = req.params;
   const { full_name, avatar_url } = req.body;
+  const actorId = req.user?.id;
+
+  if (!actorId) {
+    return res.status(401).json({
+      error: 'unauthorized',
+      message: 'Authorization required',
+      version: VERSION,
+    });
+  }
+  if (actorId !== id) {
+    return res.status(403).json({
+      error: 'forbidden',
+      message: 'You can only update your own profile',
+      version: VERSION,
+    });
+  }
   
   console.log(`✏️ User profile update for ID: ${id}`, { full_name, avatar_url: avatar_url ? '[provided]' : '[not provided]' });
   
@@ -450,6 +780,18 @@ router.patch('/:id/profile', async (req, res) => {
   }
   
   try {
+    if (full_name !== undefined) {
+      try {
+        assertContentAllowed([{ label: 'full name', value: full_name }]);
+      } catch (err: any) {
+        return res.status(400).json({
+          error: 'Bad request',
+          message: err?.message || 'Objectionable content detected',
+          code: err?.code || 'CONTENT_NOT_ALLOWED',
+          version: VERSION,
+        });
+      }
+    }
     const updates: Record<string, any> = {
       updated_at: new Date().toISOString()
     };

@@ -810,117 +810,86 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
 
         return result;
       } else {
-        // DEMO MODE: Use old wallet lock flow and entries endpoint
-        // Only reachable when VITE_FCZ_ENABLE_DEMO=1
-      const { useWalletStore } = await import('./walletStore');
-      const walletStore = useWalletStore.getState();
-      
-      const prediction = get().predictions.find(p => p.id === predictionId);
-      const option = prediction?.options.find(o => o.id === optionId);
-      const description = `Bet on "${option?.label || 'Unknown'}" in "${prediction?.title || 'Unknown Prediction'}"`;
-      
-        console.log('🔄 [DEMO] Locking wallet funds before prediction placement...');
-      await walletStore.makePrediction(amount, description, predictionId);
-        console.log('✅ [DEMO] Wallet funds locked successfully');
-        
-        // Create prediction entry
-        const entryBody: any = {
-          option_id: optionId,
-          stakeUSD: amount,
-          user_id: userId
-        };
-      
-      const response = await fetch(`${getApiUrl()}/api/v2/predictions/${predictionId}/entries`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-          body: JSON.stringify(entryBody),
-      });
+        // ZAURUM mode: place entry via v2 endpoint only (no client-side pre-lock).
+        console.log('[FCZ-BET] Placing zaurum bet via entries endpoint...', { predictionId, optionId, amount, userId });
 
-      if (!response.ok) {
-          const errorData = await response.json().catch(() => ({}));
-          
-          // Handle 409 Conflict (lock already consumed)
-          if (response.status === 409) {
-            throw new Error(errorData.message || 'This lock has already been used. Please try placing the bet again.');
-          }
-          
-        // If API call fails, we should reverse the wallet transaction
-        // For now, just throw the error - wallet will show locked funds
-          throw new Error(errorData.message || `Failed to place prediction: ${response.statusText}`);
-      }
+        const compositeKey = computeBetKey(userId, predictionId, optionId, amount);
+        const inFlight = get().inFlightBets || {};
+        if (inFlight[compositeKey]) {
+          console.log('[FCZ-BET] Duplicate click prevented (in-flight):', compositeKey);
+          set({ loading: false });
+          return;
+        }
+        set(state => ({ inFlightBets: { ...(state.inFlightBets || {}), [compositeKey]: true } }));
+        const requestId = getOrCreateRequestId(compositeKey);
 
-      const data = await response.json();
-      const responsePrediction = data?.data?.prediction ?? data?.prediction;
-      const responseEntry = data?.data?.entry ?? data?.entry;
-      
-      // Use the full updated prediction object returned by the server
-      if (responsePrediction) {
-          console.log('📊 [DEMO] Updating prediction with server data:', {
-          id: responsePrediction.id,
-          pool_total: responsePrediction.pool_total,
-          participant_count: responsePrediction.participant_count,
-          options: responsePrediction.options?.length || 0
+        const response = await fetch(`${getApiUrl()}/api/v2/predictions/${predictionId}/entries`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            option_id: optionId,
+            stakeUSD: amount,
+            user_id: userId,
+            requestId
+          }),
         });
-        
-        set(state => ({
-          predictions: state.predictions.map(pred => 
-            pred.id === predictionId 
-              ? { 
-                  ...pred,
-                  ...responsePrediction, // Use full updated prediction from server
-                  user_entry: responseEntry
-                }
-              : pred
-          ),
-          // Also update other arrays if they contain this prediction
-          userPredictions: state.userPredictions.map(pred => 
-            pred.id === predictionId 
-              ? { 
-                  ...pred,
-                  ...responsePrediction,
-                  user_entry: responseEntry
-                }
-              : pred
-          ),
-          createdPredictions: state.createdPredictions.map(pred => 
-            pred.id === predictionId 
-              ? { 
-                  ...pred,
-                  ...responsePrediction,
-                  user_entry: responseEntry
-                }
-              : pred
-          ),
-          loading: false,
-          error: null
-        }));
-      } else {
-        // Fallback to partial update if no full prediction returned
-        set(state => ({
-          predictions: state.predictions.map(pred => 
-            pred.id === predictionId 
-              ? { 
-                  ...pred, 
-                  pool_total: data.pool_total || pred.pool_total,
-                  participant_count: data.participant_count || pred.participant_count,
-                  user_entry: responseEntry
-                }
-              : pred
-          ),
-          loading: false,
-          error: null
-        }));
-      }
 
-        console.log('✅ [DEMO] Prediction placed successfully with updated data');
-      
-        // In demo mode, refresh wallet store (reuse walletStore from line above)
-        console.log('🔄 [DEMO] Refreshing wallet data after prediction placement...');
-      await walletStore.initializeWallet();
-        console.log('✅ [DEMO] Wallet refreshed');
-        return data;
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({})) as Record<string, unknown>;
+          if ((errorData as any).error === 'INSUFFICIENT_FUNDS' || (errorData as any).error === 'insufficient_demo_credits') {
+            throw new Error('Insufficient funds.');
+          }
+          if ((errorData as any).error === 'BETTING_DISABLED') {
+            throw new Error('Betting is temporarily unavailable. Please try again later.');
+          }
+          throw new Error((errorData as any).message || `Failed to place prediction: ${response.statusText}`);
+        }
+
+        const result = await response.json();
+        const updatedPrediction = result?.data?.prediction ?? result?.prediction;
+        const newEntry = result?.data?.entry ?? result?.entry;
+
+        set(state => {
+          const mergePrediction = (pred: any) => {
+            if (!pred || pred.id !== predictionId) return pred;
+            return updatedPrediction ? { ...pred, ...updatedPrediction } : pred;
+          };
+
+          return {
+            predictions: state.predictions.map(mergePrediction),
+            userPredictions: state.userPredictions.map(mergePrediction),
+            createdPredictions: state.createdPredictions.map(mergePrediction),
+            userCreatedPredictions: state.userCreatedPredictions.map(mergePrediction),
+            userPredictionEntries: newEntry
+              ? [
+                  ...state.userPredictionEntries.filter(entry => entry.id !== newEntry.id),
+                  newEntry
+                ]
+              : state.userPredictionEntries,
+            loading: false,
+            error: null
+          };
+        });
+
+        try {
+          const { user } = useAuthStore.getState();
+          if (user?.id) {
+            await Promise.all([
+              get().fetchUserCreatedPredictions(user.id),
+              get().fetchUserPredictionEntries(user.id)
+            ]);
+          }
+        } catch (refreshErr) {
+          console.warn('[FCZ-BET] Post-bet refresh encountered an issue:', refreshErr);
+        }
+
+        set(state => {
+          const next = { ...(state.inFlightBets || {}) };
+          delete next[compositeKey];
+          return { inFlightBets: next } as any;
+        });
+
+        return result;
       }
 
     } catch (error) {

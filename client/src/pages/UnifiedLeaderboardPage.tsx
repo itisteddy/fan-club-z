@@ -269,7 +269,7 @@ const UnifiedLeaderboardPage: React.FC = () => {
         role="listitem"
         aria-label={`${entry.fullName || entry.username}, rank ${rank}, ${entry.activeReferrals} active referrals`}
       >
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between w-full">
             <div className="flex items-center gap-1.5 flex-1 min-w-0">
             {/* Rank Badge */}
             <div className={cn(
@@ -327,8 +327,8 @@ const UnifiedLeaderboardPage: React.FC = () => {
           </div>
           
           {/* Referral Stats */}
-            <div className="ml-auto text-right pl-2 w-[72px] shrink-0">
-              <div className="text-[16px] leading-5 font-semibold tabular-nums text-emerald-600">
+            <div className="ml-auto text-right pl-2 w-[64px] shrink-0">
+              <div className="text-[15px] leading-5 font-semibold tabular-nums text-emerald-600">
                 {entry.activeReferrals}
               </div>
             </div>
@@ -499,7 +499,7 @@ const UnifiedLeaderboardPage: React.FC = () => {
                     role="listitem"
                     aria-label={`${leaderUser.full_name || leaderUser.username}, rank ${leaderUser.rank}, ${activeTab === 'profit' ? `${statDisplay.primary} zaurum profit` : `${statDisplay.primary} ${activeTab === 'predictions' ? 'predictions' : 'win rate'}`}`}
                   >
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-center justify-between w-full">
                       <div className="flex items-center gap-1.5 flex-1 min-w-0">
                         {/* Rank Badge */}
                         <div className={cn(
@@ -557,8 +557,8 @@ const UnifiedLeaderboardPage: React.FC = () => {
                       </div>
                       
                       {/* Enhanced Stats Display - Simplified */}
-                      <div className="ml-auto text-right pl-2 w-[104px] shrink-0">
-                        <div className={cn("text-[16px] leading-5 font-semibold tabular-nums inline-flex items-center justify-end gap-1 w-full", statDisplay.color)}>
+                      <div className="ml-auto text-right pl-2 w-[88px] shrink-0">
+                        <div className={cn("text-[15px] leading-5 font-semibold tabular-nums inline-flex items-center justify-end gap-1 w-full", statDisplay.color)}>
                           {activeTab === 'profit' && <ZaurumMark className="w-2.5 h-2.5" />}
                           <span>{statDisplay.primary}</span>
                         </div>
