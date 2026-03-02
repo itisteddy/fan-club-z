@@ -104,6 +104,18 @@ export const config = {
     walletMode: (process.env.FCZ_WALLET_MODE === 'zaurum_only' ? 'zaurum_only' : 'dual') as 'dual' | 'zaurum_only',
     dailyClaimEnabled: process.env.FCZ_ENABLE_DAILY_CLAIM !== 'false',
   },
+
+  // Crypto Testnet Gate configuration
+  crypto: {
+    mode: (process.env.CRYPTO_MODE || 'off') as 'testnet' | 'mainnet' | 'off',
+    allowedClients: (process.env.CRYPTO_ALLOWED_CLIENTS || 'web').split(','),
+    allowedOrigin: process.env.CRYPTO_ALLOWED_ORIGIN || null,
+  },
+
+  // Apple Auth Configuration
+  apple: {
+    clientId: process.env.APPLE_CLIENT_ID || process.env.APPLE_SERVICES_ID,
+  },
   
   // Email Configuration
   email: {

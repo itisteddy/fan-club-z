@@ -1,11 +1,11 @@
-import { Router } from 'express';
+import { Router, Request, Response } from 'express';
 import crypto from 'crypto';
 import { supabase } from '../config/database';
 import { VERSION } from '@fanclubz/shared';
 import { reconcileWallet } from '../services/walletReconciliation';
 import { config } from '../config';
 
-export const walletSummary = Router();
+export const walletSummary: Router = Router();
 
 // [PERF] Helper to generate ETag from response data
 function generateETag(data: unknown): string {
@@ -31,7 +31,7 @@ function generateETag(data: unknown): string {
  *   lastUpdated: string
  * }
  */
-walletSummary.get('/summary', async (req, res) => {
+walletSummary.get('/summary', async (req: Request, res: Response) => {
   try {
     const { userId, walletAddress, refresh } = req.query as {
       userId?: string;

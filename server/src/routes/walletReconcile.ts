@@ -1,11 +1,11 @@
-import { Router } from 'express';
+import { Router, Request, Response } from 'express';
 import { z } from 'zod';
 import { VERSION } from '@fanclubz/shared';
 
 import { reconcileWallet } from '../services/walletReconciliation';
 import { config } from '../config';
 
-export const walletReconcile = Router();
+export const walletReconcile: Router = Router();
 
 const BodySchema = z.object({
   userId: z.string().uuid(),
@@ -16,7 +16,7 @@ const BodySchema = z.object({
     .optional(),
 });
 
-walletReconcile.post('/reconcile', async (req, res) => {
+walletReconcile.post('/reconcile', async (req: Request, res: Response) => {
   try {
     if (config.features.walletMode === 'zaurum_only') {
       return res.status(410).json({
