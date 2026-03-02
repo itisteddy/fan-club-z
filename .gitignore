@@ -66,3 +66,12 @@ client/android/keystore/keystore.properties
 fcz_icon_pack 2/
 fcz_icon_pack.zip
 fcz_favicon.ico
+
+# Repo-local temp and caches (hygiene: avoid accidental commit)
+tmp/
+.tmp/
+.temp/
+.turbo/
+.cache/
+logs/
+.nyc_output/
