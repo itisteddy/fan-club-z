@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-PID_FILE="/tmp/fcz-server.pid"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
+LOCAL_TMP="${LOCAL_TMP:-$ROOT_DIR/.local/tmp}"
+PID_FILE="${PID_FILE:-$LOCAL_TMP/fcz-server.pid}"
 
 if [[ ! -f "$PID_FILE" ]]; then
   echo "No pid file at $PID_FILE"

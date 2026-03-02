@@ -2,11 +2,13 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+LOCAL_TMP="${LOCAL_TMP:-$ROOT_DIR/.local/tmp}"
+mkdir -p "$LOCAL_TMP"
 SERVER_PORT="${SERVER_PORT:-3001}"
 HEALTH_URL="http://127.0.0.1:${SERVER_PORT}/health"
 PREDICTIONS_URL="http://127.0.0.1:${SERVER_PORT}/api/v2/predictions?page=1&limit=5"
-SERVER_LOG="${SERVER_LOG:-/tmp/fcz-server.log}"
-SERVER_PID_FILE="${SERVER_PID_FILE:-/tmp/fcz-server.pid}"
+SERVER_LOG="${SERVER_LOG:-$LOCAL_TMP/fcz-server.log}"
+SERVER_PID_FILE="${SERVER_PID_FILE:-$LOCAL_TMP/fcz-server.pid}"
 ENABLE_WATCHDOG="${ENABLE_WATCHDOG:-1}"
 WATCH_INTERVAL_SECS="${WATCH_INTERVAL_SECS:-3}"
 APP_PACKAGE="${APP_PACKAGE:-com.fanclubz.app}"

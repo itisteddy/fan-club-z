@@ -68,6 +68,7 @@ fcz_icon_pack.zip
 fcz_favicon.ico
 
 # Repo-local temp and caches (hygiene: avoid accidental commit)
+.local/
 tmp/
 .tmp/
 .temp/

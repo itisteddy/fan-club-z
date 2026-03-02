@@ -40,7 +40,7 @@ You should see: `1.15.2` (or similar)
 ### Step 3: Install Pods
 
 ```bash
-cd "/Users/efe/Library/CloudStorage/OneDrive-Personal/Fan Club Z v2.0/FanClubZ-version2.0/client/ios/App"
+cd "~/dev/fanclubz/client/ios/App"
 pod install
 ```
 
@@ -54,7 +54,7 @@ This will:
 ### Step 4: Sync Capacitor
 
 ```bash
-cd "/Users/efe/Library/CloudStorage/OneDrive-Personal/Fan Club Z v2.0/FanClubZ-version2.0/client"
+cd "~/dev/fanclubz/client"
 npx cap sync ios
 ```
 

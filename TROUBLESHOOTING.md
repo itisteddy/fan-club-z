@@ -20,7 +20,7 @@ Your code changes are saved correctly in the files, but they're not appearing in
 
 ### Step 2: Clear ALL Build Caches
 ```bash
-cd /Users/efe/Library/CloudStorage/OneDrive-Personal/Fan\ Club\ Z\ v2.0/FanClubZ-version2.0/client
+cd ~/dev/fanclubz/client
 
 # Remove all cache directories
 rm -rf dist
@@ -60,7 +60,7 @@ npm run dev
 I've created a script for you. Run this:
 
 ```bash
-cd /Users/efe/Library/CloudStorage/OneDrive-Personal/Fan\ Club\ Z\ v2.0/FanClubZ-version2.0/client
+cd ~/dev/fanclubz/client
 
 # Make it executable
 chmod +x quick-fix.sh
@@ -82,25 +82,25 @@ Let's confirm the changes are in your code:
 
 ### Check 1: Balance Fix
 ```bash
-grep -n "balance: walletBalance" /Users/efe/Library/CloudStorage/OneDrive-Personal/Fan\ Club\ Z\ v2.0/FanClubZ-version2.0/client/src/pages/PredictionDetailsPageV2.tsx
+grep -n "balance: walletBalance" ~/dev/fanclubz/client/src/pages/PredictionDetailsPageV2.tsx
 ```
 **Expected:** Should show line ~95 with `const { balance: walletBalance, balances } = useWalletStore();`
 
 ### Check 2: Button Position Fix  
 ```bash
-grep -n "paddingBottom: 'calc" /Users/efe/Library/CloudStorage/OneDrive-Personal/Fan\ Club\ Z\ v2.0/FanClubZ-version2.0/client/src/pages/PredictionDetailsPageV2.tsx
+grep -n "paddingBottom: 'calc" ~/dev/fanclubz/client/src/pages/PredictionDetailsPageV2.tsx
 ```
 **Expected:** Should show the inline style with calc()
 
 ### Check 3: Category Pills Fix
 ```bash
-grep -n "px-2.5 py-1.5" /Users/efe/Library/CloudStorage/OneDrive-Personal/Fan\ Club\ Z\ v2.0/FanClubZ-version2.0/client/src/pages/DiscoverPage.tsx
+grep -n "px-2.5 py-1.5" ~/dev/fanclubz/client/src/pages/DiscoverPage.tsx
 ```
 **Expected:** Should show the smaller padding values
 
 ### Check 4: Stats Endpoint
 ```bash
-grep -n "stats/platform" /Users/efe/Library/CloudStorage/OneDrive-Personal/Fan\ Club\ Z\ v2.0/FanClubZ-version2.0/server/src/routes/predictions.ts
+grep -n "stats/platform" ~/dev/fanclubz/server/src/routes/predictions.ts
 ```
 **Expected:** Should show the new endpoint
 
@@ -162,7 +162,7 @@ grep -n "stats/platform" /Users/efe/Library/CloudStorage/OneDrive-Personal/Fan\ 
 
 ### Option A: Nuclear Option (Complete Reset)
 ```bash
-cd /Users/efe/Library/CloudStorage/OneDrive-Personal/Fan\ Club\ Z\ v2.0/FanClubZ-version2.0/client
+cd ~/dev/fanclubz/client
 
 # Stop server
 # Then:

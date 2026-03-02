@@ -22,7 +22,7 @@
 
 ### Status snapshot
 
-- **File:** `/tmp/fcz_git_status_before.txt`
+- **File:** `.local/tmp/fcz_git_status_before.txt` (or OS temp during audit)
 - **Untracked count:** 1 entry
 - **Tracked changes:** 0 (clean working tree except untracked)
 
@@ -71,7 +71,7 @@ No existing rules removed. `.env.example` and committed env templates are **not*
 ## Phase D — Clean (after)
 
 - **Removed:** `tmp/` (manually, as it contained nested repo and was skipped by `git clean -fd`).
-- **Status after:** Saved to `/tmp/fcz_git_status_after.txt`.
+- **Status after:** Saved to `.local/tmp/fcz_git_status_after.txt` (or OS temp).
 
 ---
 

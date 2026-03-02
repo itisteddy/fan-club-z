@@ -2,8 +2,10 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-LOG_FILE="/tmp/fcz-server.log"
-PID_FILE="/tmp/fcz-server.pid"
+LOCAL_TMP="${LOCAL_TMP:-$ROOT_DIR/.local/tmp}"
+mkdir -p "$LOCAL_TMP"
+LOG_FILE="${LOG_FILE:-$LOCAL_TMP/fcz-server.log}"
+PID_FILE="${PID_FILE:-$LOCAL_TMP/fcz-server.pid}"
 
 if [[ -f "$PID_FILE" ]]; then
   PID="$(cat "$PID_FILE" || true)"

@@ -2,12 +2,14 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+LOCAL_TMP="${LOCAL_TMP:-$ROOT_DIR/.local/tmp}"
+mkdir -p "$LOCAL_TMP"
 SERVER_PORT="${SERVER_PORT:-3001}"
 HEALTH_URL="http://127.0.0.1:${SERVER_PORT}/health"
-SERVER_LOG="${SERVER_LOG:-/tmp/fcz-server.log}"
-SERVER_PID_FILE="${SERVER_PID_FILE:-/tmp/fcz-server.pid}"
-WATCHDOG_PID_FILE="${WATCHDOG_PID_FILE:-/tmp/fcz-mobile-watchdog.pid}"
-WATCHDOG_LOG="${WATCHDOG_LOG:-/tmp/fcz-mobile-watchdog.log}"
+SERVER_LOG="${SERVER_LOG:-$LOCAL_TMP/fcz-server.log}"
+SERVER_PID_FILE="${SERVER_PID_FILE:-$LOCAL_TMP/fcz-server.pid}"
+WATCHDOG_PID_FILE="${WATCHDOG_PID_FILE:-$LOCAL_TMP/fcz-mobile-watchdog.pid}"
+WATCHDOG_LOG="${WATCHDOG_LOG:-$LOCAL_TMP/fcz-mobile-watchdog.log}"
 
 listener_pid() {
   lsof -nP -iTCP:"${SERVER_PORT}" -sTCP:LISTEN -t 2>/dev/null | head -n1 || true

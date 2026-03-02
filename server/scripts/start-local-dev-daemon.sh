@@ -2,11 +2,13 @@
 set -euo pipefail
 
 # Starts the API server as a background process for local device testing.
-# Uses bash (not zsh) to avoid bg_nice issues and keeps logs in /tmp.
+# Uses bash (not zsh) to avoid bg_nice issues. Logs/pid in repo .local/tmp/ (not OS /tmp).
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-PID_FILE="/tmp/fcz-server.pid"
-LOG_FILE="/tmp/fcz-server.log"
+LOCAL_TMP="${LOCAL_TMP:-$ROOT_DIR/.local/tmp}"
+mkdir -p "$LOCAL_TMP"
+PID_FILE="${PID_FILE:-$LOCAL_TMP/fcz-server.pid}"
+LOG_FILE="${LOG_FILE:-$LOCAL_TMP/fcz-server.log}"
 PORT="${PORT:-3001}"
 HEALTH_URL="http://127.0.0.1:${PORT}/health"
 

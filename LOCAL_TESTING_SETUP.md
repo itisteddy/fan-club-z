@@ -12,7 +12,7 @@ This guide will help you set up and run the FanClubZ application locally for tes
 ### Step 1: Install Dependencies
 
 ```bash
-cd "/Users/efe/Library/CloudStorage/OneDrive-Personal/Fan Club Z v2.0/FanClubZ-version2.0"
+cd "~/dev/fanclubz"
 
 # Install root dependencies
 npm install
@@ -85,20 +85,20 @@ VITE_API_URL=http://localhost:3001
 
 **Terminal 1 - Backend Server:**
 ```bash
-cd "/Users/efe/Library/CloudStorage/OneDrive-Personal/Fan Club Z v2.0/FanClubZ-version2.0"
+cd "~/dev/fanclubz"
 npm run dev
 ```
 
 **Terminal 2 - Frontend Client:**
 ```bash
-cd "/Users/efe/Library/CloudStorage/OneDrive-Personal/Fan Club Z v2.0/FanClubZ-version2.0/client"
+cd "~/dev/fanclubz/client"
 npm run dev
 ```
 
 #### Option B: Run Both in Background
 
 ```bash
-cd "/Users/efe/Library/CloudStorage/OneDrive-Personal/Fan Club Z v2.0/FanClubZ-version2.0"
+cd "~/dev/fanclubz"
 
 # Start server in background
 npm run dev &

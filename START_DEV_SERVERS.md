@@ -9,7 +9,7 @@ You need to run **BOTH** the frontend and backend servers simultaneously.
 
 ### Option 1: Run Both in Same Terminal (Recommended for Quick Start)
 ```bash
-cd "/Users/efe/Library/CloudStorage/OneDrive-Personal/Fan Club Z v2.0/FanClubZ-version2.0"
+cd "~/dev/fanclubz"
 
 # Start both servers (server runs on port 3001, client on 5174)
 npm run dev & cd client && npm run dev
@@ -19,13 +19,13 @@ npm run dev & cd client && npm run dev
 
 **Terminal 1 - Backend Server:**
 ```bash
-cd "/Users/efe/Library/CloudStorage/OneDrive-Personal/Fan Club Z v2.0/FanClubZ-version2.0"
+cd "~/dev/fanclubz"
 npm run dev
 ```
 
 **Terminal 2 - Frontend Client:**
 ```bash
-cd "/Users/efe/Library/CloudStorage/OneDrive-Personal/Fan Club Z v2.0/FanClubZ-version2.0/client"
+cd "~/dev/fanclubz/client"
 npm run dev
 ```
 

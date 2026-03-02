@@ -16,7 +16,7 @@ The problem is likely ONE of these:
 #### STEP 1: Complete Cache Clear
 ```bash
 # Stop dev server (Ctrl+C)
-cd /Users/efe/Library/CloudStorage/OneDrive-Personal/Fan\ Club\ Z\ v2.0/FanClubZ-version2.0
+cd ~/dev/fanclubz
 
 # Clear Vite cache
 rm -rf client/node_modules/.vite
