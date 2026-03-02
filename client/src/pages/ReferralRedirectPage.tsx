@@ -8,13 +8,14 @@
 
 import React, { useEffect } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
-import { setRefCode, isReferralEnabled } from '@/lib/referral';
+import { setRefCode, isReferralEnabled, resolveReferrerPreview, setReferrerPreview, type ReferrerPreview } from '@/lib/referral';
 import { Gift, Loader2 } from 'lucide-react';
 
 const ReferralRedirectPage: React.FC = () => {
   const { code } = useParams<{ code: string }>();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+  const [referrer, setReferrer] = React.useState<ReferrerPreview | null>(null);
   
   useEffect(() => {
     if (!code) {
@@ -22,10 +23,20 @@ const ReferralRedirectPage: React.FC = () => {
       return;
     }
     
+    let cancelled = false;
     // Store the referral code if feature is enabled
     if (isReferralEnabled()) {
       setRefCode(code);
       console.log('[Referral] Code captured:', code);
+      // Best-effort resolve so we can show “Invited by @username”
+      void (async () => {
+        const preview = await resolveReferrerPreview(code);
+        if (cancelled) return;
+        if (preview) {
+          setReferrer(preview);
+          setReferrerPreview(preview);
+        }
+      })();
     }
     
     // Determine redirect destination
@@ -46,9 +57,12 @@ const ReferralRedirectPage: React.FC = () => {
     // Small delay for visual feedback, then redirect
     const timer = setTimeout(() => {
       navigate(redirectUrl.pathname + redirectUrl.search, { replace: true });
-    }, 500);
+    }, 900);
     
-    return () => clearTimeout(timer);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
   }, [code, searchParams, navigate]);
   
   return (
@@ -67,7 +81,9 @@ const ReferralRedirectPage: React.FC = () => {
           Welcome to FanClubZ!
         </h1>
         <p className="text-gray-600 mb-6 max-w-sm mx-auto">
-          You've been invited by a friend. Redirecting you to the app...
+          {referrer?.username
+            ? <>You’ve been invited by <span className="font-semibold">@{referrer.username}</span>. Redirecting you to the app…</>
+            : "You've been invited by a friend. Redirecting you to the app..."}
         </p>
         
         {/* Loading spinner */}

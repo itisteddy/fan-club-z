@@ -10,8 +10,10 @@ import {
   User, 
   AlertTriangle,
   Calendar,
+  DollarSign,
   Users,
-  BarChart3
+  BarChart3,
+  Flag
 } from 'lucide-react';
 import { usePredictionStore } from '../../store/predictionStore';
 import { useAuthSession } from '../../providers/AuthSessionProvider';
@@ -25,8 +27,10 @@ import LoadingState from '../ui/LoadingState';
 import EmptyState from '../ui/EmptyState';
 import AuthRequiredState from '../ui/empty/AuthRequiredState';
 import { t } from '@/lib/lexicon';
-import { ZaurumAmount } from '@/components/currency/ZaurumAmount';
-import { ZaurumMark } from '@/components/currency/ZaurumMark';
+import { isFeatureEnabled } from '@/config/featureFlags';
+import { buildPredictionCanonicalUrl } from '@/lib/predictionUrls';
+import { ReportContentModal } from '../ugc/ReportContentModal';
+import toast from 'react-hot-toast';
 
 interface PredictionDetailsContentProps {
   predictionId: string;
@@ -37,7 +41,7 @@ const PredictionDetailsContent: React.FC<PredictionDetailsContentProps> = ({
   predictionId, 
   onNavigateBack 
 }) => {
-  const { user, isAuthenticated } = useAuthSession();
+  const { user, session, isAuthenticated } = useAuthSession();
   const { executeWithErrorHandling } = useErrorHandling({
     context: 'PredictionDetailsContent',
   });
@@ -50,6 +54,7 @@ const PredictionDetailsContent: React.FC<PredictionDetailsContentProps> = ({
   const [isLiked, setIsLiked] = useState(false);
   const [likeCount, setLikeCount] = useState(0);
   const [commentCount, setCommentCount] = useState(0);
+  const [showReportModal, setShowReportModal] = useState(false);
 
   // Refs
   const commentsRef = useRef<HTMLDivElement>(null);
@@ -61,6 +66,13 @@ const PredictionDetailsContent: React.FC<PredictionDetailsContentProps> = ({
   const prediction = useMemo(() => {
     return predictions.find(p => p.id === predictionId) || null;
   }, [predictions, predictionId]);
+
+  const ugcModerationEnabled = isFeatureEnabled('UGC_MODERATION');
+  const isCreator = useMemo(() => {
+    if (!user?.id || !prediction) return false;
+    const creatorId = (prediction as any).creator_id || prediction.creator?.id;
+    return Boolean(creatorId && String(creatorId) === String(user.id));
+  }, [prediction, user?.id]);
 
   // Handle missing creator
   const creatorMissing = useMemo(() => {
@@ -106,6 +118,8 @@ const PredictionDetailsContent: React.FC<PredictionDetailsContentProps> = ({
     );
   }, [isAuthenticated, isLiked, executeWithErrorHandling, predictionId]);
 
+  const shareUrl = buildPredictionCanonicalUrl(predictionId, prediction?.title);
+
   // Handle share
   const handleShare = useCallback(async () => {
     if (navigator.share) {
@@ -113,7 +127,7 @@ const PredictionDetailsContent: React.FC<PredictionDetailsContentProps> = ({
         await navigator.share({
           title: prediction?.title || 'Prediction',
           text: prediction?.description || 'Check out this prediction',
-          url: window.location.href,
+          url: shareUrl,
         });
         showSuccessToast('Shared successfully');
       } catch (error) {
@@ -122,15 +136,17 @@ const PredictionDetailsContent: React.FC<PredictionDetailsContentProps> = ({
         }
       }
     } else {
-      // Fallback to clipboard
       try {
-        await navigator.clipboard.writeText(window.location.href);
-        showSuccessToast('Link copied to clipboard');
+        await navigator.clipboard.writeText(shareUrl);
+        showSuccessToast('Link copied');
       } catch (error) {
-        showErrorToast('Failed to copy link');
+        showErrorToast("Couldn't copy link");
+        try {
+          window.prompt('Copy this link:', shareUrl);
+        } catch {}
       }
     }
-  }, [prediction]);
+  }, [prediction, predictionId, shareUrl]);
 
   // Handle comment toggle
   const handleCommentToggle = useCallback(() => {
@@ -280,11 +296,11 @@ const PredictionDetailsContent: React.FC<PredictionDetailsContentProps> = ({
           
           <div className="text-center">
             <div className="flex items-center justify-center w-8 h-8 bg-green-100 rounded-full mx-auto mb-2">
-              <ZaurumMark className="w-4 h-4" />
+              <DollarSign className="w-4 h-4 text-green-600" />
             </div>
             <p className="text-sm text-gray-500">Total Staked</p>
             <p className="font-semibold text-gray-900">
-              <ZaurumAmount value={prediction.pool_total || 0} compact={false} markSize="xs" />
+              ${prediction.pool_total || '0'}
             </p>
           </div>
           
@@ -338,8 +354,29 @@ const PredictionDetailsContent: React.FC<PredictionDetailsContentProps> = ({
             <Share2 className="w-4 h-4" />
             <span>Share</span>
           </button>
+          {ugcModerationEnabled && !isCreator && (
+            <button
+              onClick={() => setShowReportModal(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200 transition-colors"
+              aria-label="Report prediction"
+            >
+              <Flag className="w-4 h-4" />
+              <span>Report</span>
+            </button>
+          )}
         </div>
       </div>
+      {ugcModerationEnabled && (
+        <ReportContentModal
+          open={showReportModal}
+          targetType="prediction"
+          targetId={predictionId}
+          label="this prediction"
+          accessToken={session?.access_token}
+          onClose={() => setShowReportModal(false)}
+          onSuccess={() => toast.success('Report submitted. Our team will review it.')}
+        />
+      )}
 
       {/* Betting Options */}
       {prediction.options && prediction.options.length > 0 && (
@@ -366,7 +403,7 @@ const PredictionDetailsContent: React.FC<PredictionDetailsContentProps> = ({
                   <div>
                     <p className="font-medium text-gray-900">{option.label}</p>
                     <p className="text-sm text-gray-500">
-                      {option.total_staked ? <><ZaurumAmount value={option.total_staked} compact={true} markSize="xs" /> staked</> : 'No stakes yet'}
+                      {option.total_staked ? `${option.total_staked} staked` : 'No stakes yet'}
                     </p>
                   </div>
                   <div className="text-right">

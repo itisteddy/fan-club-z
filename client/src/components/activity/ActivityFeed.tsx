@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { 
   MessageCircle, 
+  DollarSign, 
   Heart, 
   TrendingUp, 
   Clock, 
@@ -13,7 +14,6 @@ import {
 import { useActivityFeed, ActivityItem } from '../../hooks/useActivityFeed';
 import { formatCurrency, formatTimeAgo } from '@/lib/format';
 import { t } from '@/lib/lexicon';
-import { ZaurumMark } from '@/components/currency/ZaurumMark';
 
 interface ActivityFeedProps {
   predictionId: string;
@@ -41,6 +41,14 @@ function ActivityItemComponent({ item }: ActivityItemComponentProps) {
     navigate(`/profile/${encodeURIComponent(actorId)}`);
   };
 
+  const getActivityIcon = (type: string) => {
+    if (type.startsWith('comment')) return MessageCircle;
+    if (type.startsWith('entry')) return DollarSign;
+    if (type.startsWith('reaction')) return Heart;
+    if (type.startsWith('prediction')) return TrendingUp;
+    return Clock;
+  };
+
   const getActivityMessage = (item: ActivityItem) => {
     const { type, actor, data } = item;
     const actorName = actor?.full_name || actor?.username || 'Anonymous';
@@ -57,7 +65,7 @@ function ActivityItemComponent({ item }: ActivityItemComponentProps) {
         return {
           message: `${actorName} locked a ${t('bet')}`,
           details: `${formatCurrency(data.amount, { compact: true })}${data.option_label ? ` on ${data.option_label}` : ''}`,
-          icon: () => <ZaurumMark className="w-4 h-4" />
+          icon: DollarSign
         };
       
       case 'reaction.like':
@@ -84,25 +92,25 @@ function ActivityItemComponent({ item }: ActivityItemComponentProps) {
         return {
           message: 'Escrow funds released',
           details: data.amount ? formatCurrency(data.amount, { compact: true }) : '',
-          icon: () => <ZaurumMark className="w-4 h-4" />,
+          icon: DollarSign,
         };
       case 'wallet.payout':
         return {
           message: 'Settlement payout received',
           details: data.amount ? `${formatCurrency(data.amount, { compact: true })}${data.prediction_title ? ` · ${data.prediction_title}` : ''}` : (data.prediction_title ?? ''),
-          icon: () => <ZaurumMark className="w-4 h-4" />,
+          icon: DollarSign,
         };
       case 'wallet.platform_fee':
         return {
           message: 'Platform fee credited',
           details: data.amount ? formatCurrency(data.amount, { compact: true }) : '',
-          icon: () => <ZaurumMark className="w-4 h-4" />,
+          icon: DollarSign,
         };
       case 'wallet.creator_fee':
         return {
           message: 'Creator earnings received',
           details: data.amount ? `${formatCurrency(data.amount, { compact: true })}${data.prediction_title ? ` · ${data.prediction_title}` : ''}` : (data.prediction_title ?? ''),
-          icon: () => <ZaurumMark className="w-4 h-4" />,
+          icon: DollarSign,
         };
       default:
         return {

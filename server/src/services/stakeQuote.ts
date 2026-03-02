@@ -1,5 +1,3 @@
-// Import canonical pool pricing directly from shared source so tests/build use the same function
-// even if package barrel exports lag behind in local/dev environments.
 import { getPostOddsMultiple } from '@fanclubz/shared';
 import { supabase } from '../config/database';
 

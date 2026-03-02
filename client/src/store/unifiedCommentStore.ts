@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { devtools } from 'zustand/middleware';
-import { apiClient } from '../lib/api';
+import { apiClient, ApiError } from '../lib/api';
 import { useAuthStore } from './authStore';
 import { qaLog } from '../utils/devQa';
 import { v4 as uuidv4 } from 'uuid';
@@ -365,7 +365,7 @@ function buildOptimisticComment(
 /** Classify API errors into Status types. */
 function classifyError(error: any): Status {
   if (!error) return 'network_error';
-  const status = getErrorStatus(error);
+  const status = error.status ?? (error instanceof ApiError ? error.status : undefined);
   if (error.name === 'TypeError' || error.message?.includes('Failed to fetch')) return 'network_error';
   if (typeof status === 'number' && status >= 500) return 'server_error';
   if (typeof status === 'number' && status >= 400 && status < 500) return 'client_error';
@@ -373,24 +373,17 @@ function classifyError(error: any): Status {
   return 'network_error';
 }
 
-function getErrorStatus(error: any): number | undefined {
-  if (!error) return undefined;
-  if (typeof error.status === 'number') return error.status;
-  const message = String(error.message || '');
-  const match = message.match(/\bstatus:\s*(\d{3})\b/i);
-  if (match?.[1]) return Number(match[1]);
-  return undefined;
-}
-
 /** Human-readable message from an API error. */
 function friendlyErrorMessage(error: any): string {
-  const status = getErrorStatus(error);
-  if (status === 401) return 'Session expired. Please log in again.';
-  if (status === 403) return 'Account suspended.';
-  if (status === 409) return 'Account issue. Restore to comment.';
-  if (status === 422) return 'Invalid comment.';
-  if (status === 404) return 'Server endpoint not found.';
-  if (typeof status === 'number' && status >= 400) return error?.message || 'Failed to post comment.';
+  if (error instanceof ApiError) {
+    const data = error.responseData as any;
+    if (error.status === 401) return 'Session expired. Please log in again.';
+    if (error.status === 403) return data?.error || 'Account suspended.';
+    if (error.status === 409) return data?.error || 'Account issue. Restore to comment.';
+    if (error.status === 422) return data?.error || 'Invalid comment.';
+    if (error.status === 404) return 'Server endpoint not found.';
+    return data?.error || error.message || 'Failed to post comment.';
+  }
   if (error?.message?.includes('Failed to fetch') || error?.name === 'TypeError') {
     return 'Network error. Check your connection.';
   }
@@ -757,7 +750,7 @@ export const useUnifiedCommentStore = create<CommentsState & CommentsActions>()(
           });
 
           // Handle auth-specific errors
-          if (getErrorStatus(error) === 401) {
+          if (error instanceof ApiError && error.status === 401) {
             void useAuthStore.getState().logout();
           }
 
@@ -1044,7 +1037,7 @@ export const useUnifiedCommentStore = create<CommentsState & CommentsActions>()(
               },
             },
           }));
-          if (getErrorStatus(error) === 401) void useAuthStore.getState().logout();
+          if (error instanceof ApiError && error.status === 401) void useAuthStore.getState().logout();
           throw error;
         }
       },
@@ -1097,7 +1090,7 @@ export const useUnifiedCommentStore = create<CommentsState & CommentsActions>()(
               [predictionId]: { ...state.byPrediction[predictionId], items: originalItems },
             },
           }));
-          if (getErrorStatus(error) === 401) void useAuthStore.getState().logout();
+          if (error instanceof ApiError && error.status === 401) void useAuthStore.getState().logout();
           throw error;
         }
       },
@@ -1165,12 +1158,11 @@ export const useUnifiedCommentStore = create<CommentsState & CommentsActions>()(
           console.log('[DEEPLINK][Store] fetchCommentById error', {
             predictionId,
             commentId,
-            status: getErrorStatus(error) ?? 500,
+            status: error instanceof ApiError ? error.status : 500,
             message: error?.message,
           });
-          const status = getErrorStatus(error);
-          if (typeof status === 'number') {
-            return { ok: false, status };
+          if (error instanceof ApiError) {
+            return { ok: false, status: error.status };
           }
           return { ok: false, status: 500 };
         }
@@ -1262,7 +1254,7 @@ export const useUnifiedCommentStore = create<CommentsState & CommentsActions>()(
               [predictionId]: { ...state.byPrediction[predictionId], items: originalItems },
             },
           }));
-          if (getErrorStatus(error) === 401) void useAuthStore.getState().logout();
+          if (error instanceof ApiError && error.status === 401) void useAuthStore.getState().logout();
           throw error;
         }
       },

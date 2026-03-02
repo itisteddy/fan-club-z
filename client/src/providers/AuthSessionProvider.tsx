@@ -3,8 +3,6 @@ import { useSupabase } from './SupabaseProvider';
 import { User, Session, AuthChangeEvent } from '@supabase/supabase-js';
 import { captureReturnTo } from '../lib/returnTo';
 import { auth as authHelpers, buildAuthRedirectUrl } from '@/lib/supabase';
-import { resetNativeOAuthState } from '@/lib/auth/nativeOAuth';
-import { resetBrowserContextCache } from '@/lib/browserContext';
 
 interface AuthSessionContextType {
   user: User | null;
@@ -16,6 +14,7 @@ interface AuthSessionContextType {
   signUp: (email: string, password: string, userData?: any) => Promise<{ error: any }>;
   signOut: () => Promise<{ error: any }>;
   signInWithGoogle: () => Promise<{ error: any }>;
+  signInWithApple: () => Promise<{ error: any }>;
   signInWithEmailLink: (email: string) => Promise<{ error: any }>;
 }
 
@@ -148,9 +147,9 @@ export const AuthSessionProvider: React.FC<AuthSessionProviderProps> = ({ childr
         password,
         options: {
           data: userData,
-          emailRedirectTo: import.meta.env.PROD 
-            ? 'https://app.fanclubz.app/'
-            : `${window.location.origin}/`,
+          // CRITICAL: email confirmation links must land on /auth/callback so the app can
+          // establish a session (AuthCallback handles magic-link + signup confirmations).
+          emailRedirectTo: buildAuthRedirectUrl('/predictions'),
         },
       });
       return { error };
@@ -161,9 +160,7 @@ export const AuthSessionProvider: React.FC<AuthSessionProviderProps> = ({ childr
 
   const signOut = async () => {
     try {
-      resetNativeOAuthState();
-      resetBrowserContextCache();
-      const { error } = await authHelpers.signOut();
+      const { error } = await supabase.auth.signOut();
       return { error };
     } catch (error: any) {
       return { error: { message: error.message || 'An unexpected error occurred' } };
@@ -197,6 +194,25 @@ export const AuthSessionProvider: React.FC<AuthSessionProviderProps> = ({ childr
     }
   };
 
+  const signInWithApple = async () => {
+    try {
+      captureReturnTo();
+      const currentPath = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+      const next = currentPath;
+      if (import.meta.env.DEV) {
+        console.log('🔐 Apple OAuth next:', next);
+      }
+      const { error } = await authHelpers.signInWithOAuth('apple', { next });
+      if (error) {
+        console.error('🔐 Apple OAuth error:', error);
+      }
+      return { error };
+    } catch (error: any) {
+      console.error('🔐 Apple OAuth exception:', error);
+      return { error: { message: error.message || 'An unexpected error occurred' } };
+    }
+  };
+
   const signInWithEmailLink = async (email: string) => {
     try {
       // Capture current location
@@ -219,16 +235,28 @@ export const AuthSessionProvider: React.FC<AuthSessionProviderProps> = ({ childr
     }
   };
 
+  // CRITICAL: isAuthenticated must be derived from actual session, not just user object
+  // This prevents "ghost login" where UI shows logged-in but Supabase has no session
+  const isAuthenticated = Boolean(session && session.user);
+
+  // Log hydration once on mount (DEV only)
+  useEffect(() => {
+    if (initialized && import.meta.env.DEV) {
+      console.log('[auth] hydration', { hasSession: Boolean(session), userId: session?.user?.id || null });
+    }
+  }, [initialized, session]);
+
   const value: AuthSessionContextType = {
     user,
     session,
     loading,
     initialized,
-    isAuthenticated: Boolean(user),
+    isAuthenticated,
     signIn,
     signUp,
     signOut,
     signInWithGoogle,
+    signInWithApple,
     signInWithEmailLink,
   };
 

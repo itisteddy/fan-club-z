@@ -1,6 +1,6 @@
 {
   "extends": [
-    "@typescript-eslint/recommended",
+    "plugin:@typescript-eslint/recommended",
     "plugin:react/recommended",
     "plugin:react-hooks/recommended"
   ],
@@ -36,7 +36,7 @@
   },
   "overrides": [
     {
-      "files": ["vite.config.*", "scripts/**", "../server/**"],
+      "files": ["vite.config.*", "scripts/**"],
       "rules": { 
         "no-restricted-properties": "off", 
         "no-restricted-syntax": "off" 

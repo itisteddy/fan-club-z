@@ -1,11 +1,12 @@
 import { create } from 'zustand';
 import { supabase } from '../lib/supabase';
+import type { CategorySlug } from '@/constants/categories';
 
 export interface ApprovedSource {
   id: string;
   name: string;
   url: string;
-  category: 'sports' | 'music' | 'film' | 'finance' | 'pop_culture';
+  category: CategorySlug | string;
   trust_level: 'high' | 'medium' | 'pending';
   status: 'approved' | 'pending' | 'rejected';
   created_at: string;

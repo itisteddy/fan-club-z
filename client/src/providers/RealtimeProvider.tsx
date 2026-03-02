@@ -1,7 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { useQueryClient } from '@tanstack/react-query';
-import { useLocation } from 'react-router-dom';
 import { getSocketUrl } from '@/utils/environment';
 import { useAuthSession } from './AuthSessionProvider';
 import { QK } from '@/lib/queryKeys';
@@ -22,22 +21,10 @@ const refreshActivePredictions = async () => {
 
 export const RealtimeProvider: React.FC<Props> = ({ children }) => {
   const { user } = useAuthSession();
-  const location = useLocation();
   const queryClient = useQueryClient();
   const socketRef = useRef<Socket | null>(null);
 
   useEffect(() => {
-    const isAdminRoute = location.pathname.startsWith('/admin');
-    if (isAdminRoute) {
-      if (socketRef.current) {
-        try {
-          socketRef.current.close();
-        } catch {}
-        socketRef.current = null;
-      }
-      return;
-    }
-
     const url = getSocketUrl().replace(/\/$/, '');
     console.log('[REALTIME] Connecting to Socket.io:', url);
     const socket = io(url, {
@@ -102,8 +89,9 @@ export const RealtimeProvider: React.FC<Props> = ({ children }) => {
       socket.off('settlement:complete', onSettlementComplete);
       socket.close();
     };
-  }, [user?.id, queryClient, location.pathname]);
+  }, [user?.id, queryClient]);
 
   return <>{children}</>;
 };
+
 

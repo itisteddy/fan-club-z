@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Edit3, User, Activity, TrendingUp, Target, Trophy, X, Mail, XCircle, Camera, ImageIcon } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Edit3, User, Activity, DollarSign, TrendingUp, Target, Trophy, Upload, X, Mail, XCircle } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import { useAuthSession } from '../providers/AuthSessionProvider';
@@ -7,7 +7,7 @@ import { usePredictionStore } from '../store/predictionStore';
 import { openAuthGate } from '../auth/authGateAdapter';
 import UserAvatar from '../components/common/UserAvatar';
 import AppHeader from '../components/layout/AppHeader';
-import { formatLargeNumber, formatPercentage, formatTimeAgo } from '@/lib/format';
+import { formatLargeNumber, formatCurrency, formatPercentage, formatTimeAgo } from '@/lib/format';
 import { useUserActivity, ActivityItem as FeedActivityItem } from '@/hooks/useActivityFeed';
 import { t } from '@/lib/lexicon';
 import { ReferralCard, ReferralShareModal } from '@/components/referral';
@@ -19,15 +19,6 @@ import { ProfileAchievementsSection } from '@/components/profile/ProfileAchievem
 import { useReferral } from '@/hooks/useReferral';
 import { useUserAchievements } from '@/hooks/useUserAchievements';
 import { apiClient } from '@/lib/apiClient';
-import { ZaurumMark } from '@/components/currency/ZaurumMark';
-import { ZaurumAmount } from '@/components/currency/ZaurumAmount';
-import toast from 'react-hot-toast';
-import {
-  isNativeRuntime,
-  openNativeAppSettings,
-  pickNativeProfilePhoto,
-  validateProfilePhotoFile,
-} from '@/lib/profilePhotoPicker';
 
 interface ProfilePageV2Props {
   onNavigateBack?: () => void;
@@ -79,117 +70,19 @@ const ProfilePageV2: React.FC<ProfilePageV2Props> = ({ onNavigateBack, userId })
   const [publicProfileLoading, setPublicProfileLoading] = useState(false);
   const [publicProfileError, setPublicProfileError] = useState<string | null>(null);
   const [resolvedPublicUserId, setResolvedPublicUserId] = useState<string | null>(null);
-  const [selfOgBadgeFallback, setSelfOgBadgeFallback] = useState<{
-    tier: 'gold' | 'silver' | 'bronze' | null;
-    assignedAt: string | null;
-  } | null>(null);
 
   const [editFirstName, setEditFirstName] = useState('');
   const [editLastName, setEditLastName] = useState('');
   const [editBio, setEditBio] = useState('');
   const [showShareModal, setShowShareModal] = useState(false);
-  const [uploadingAvatar, setUploadingAvatar] = useState(false);
-  const [showDeleteAccountModal, setShowDeleteAccountModal] = useState(false);
-  const [deletingAccount, setDeletingAccount] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const captureInputRef = useRef<HTMLInputElement | null>(null);
   
   // Referral hook
   const { isEnabled: referralsEnabled } = useReferral();
-
-  const uploadProfilePhoto = useCallback(async (file: File) => {
-    const validation = validateProfilePhotoFile(file);
-    if (!validation.ok) {
-      toast.error(validation.message);
-      return;
-    }
-    try {
-      setUploadingAvatar(true);
-      await useAuthStore.getState().uploadAvatar(file);
-      toast.success('Profile photo updated.');
-    } catch (err) {
-      console.error('[Profile] Avatar upload failed', err);
-      toast.error((err as Error)?.message || 'Failed to update profile photo.');
-    } finally {
-      setUploadingAvatar(false);
-    }
-  }, []);
-
-  const handleFileSelection = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    e.target.value = '';
-    if (!file) return;
-    await uploadProfilePhoto(file);
-  }, [uploadProfilePhoto]);
-
-  const handleTakePhoto = useCallback(async () => {
-    if (!isNativeRuntime()) {
-      captureInputRef.current?.click();
-      return;
-    }
-    const result = await pickNativeProfilePhoto('camera');
-    if (result.ok) {
-      await uploadProfilePhoto(result.file);
-      return;
-    }
-    if (result.cancelled) return;
-    if (result.code === 'permission_denied') {
-      const shouldOpenSettings = window.confirm('Camera access is off. Open Settings to enable it?');
-      if (shouldOpenSettings) {
-        try {
-          await openNativeAppSettings();
-        } catch (error) {
-          console.warn('[Profile] Failed to open settings:', error);
-          toast.error('Open Settings and enable Camera permission for Fan Club Z.');
-        }
-      }
-      return;
-    }
-    if (result.code === 'camera_unavailable') {
-      toast('Camera unavailable. Opening photo library instead.');
-      const fallback = await pickNativeProfilePhoto('photos');
-      if (fallback.ok) {
-        await uploadProfilePhoto(fallback.file);
-      } else if (!fallback.cancelled) {
-        toast.error(fallback.message || 'Unable to select a photo.');
-      }
-      return;
-    }
-    toast.error(result.message || 'Unable to capture photo right now.');
-  }, [uploadProfilePhoto]);
-
-  const handleChoosePhoto = useCallback(async () => {
-    if (!isNativeRuntime()) {
-      fileInputRef.current?.click();
-      return;
-    }
-    const result = await pickNativeProfilePhoto('photos');
-    if (result.ok) {
-      await uploadProfilePhoto(result.file);
-      return;
-    }
-    if (!result.cancelled) {
-      toast.error(result.message || 'Unable to select a photo.');
-    }
-  }, [uploadProfilePhoto]);
-
-  const handleDeleteAccount = useCallback(async () => {
-    if (deletingAccount) return;
-    try {
-      setDeletingAccount(true);
-      await apiClient.post('/users/me/delete', {});
-      toast.success('Account deleted.');
-      await useAuthStore.getState().logout();
-      navigate('/', { replace: true });
-    } catch (error) {
-      console.error('[Profile] Delete account failed:', error);
-      const message = (error as Error)?.message || 'Account deletion failed. Please try again.';
-      toast.error(message);
-    } finally {
-      setDeletingAccount(false);
-      setShowDeleteAccountModal(false);
-    }
-  }, [deletingAccount, navigate]);
+  
+  // Self-profile OG badge fetched directly from users table to ensure it loads
+  const [selfOgBadge, setSelfOgBadge] = useState<'gold' | 'silver' | 'bronze' | null>(null);
+  const [selfOgBadgeAssignedAt, setSelfOgBadgeAssignedAt] = useState<string | null>(null);
+  const [selfOgBadgeMemberNumber, setSelfOgBadgeMemberNumber] = useState<number | null>(null);
   
   // Determine user context - profile is self-mode only for /profile (no explicit target route).
   const explicitRouteUserId = (userId || routeUserId || '').trim();
@@ -228,14 +121,40 @@ const ProfilePageV2: React.FC<ProfilePageV2Props> = ({ onNavigateBack, userId })
       userMetadata.username ??
       (displayEmail ? displayEmail.split('@')[0] : '')) || 'user';
   
-  // Get OG badge from user metadata
+  // OG badge - for self-profile, prefer the directly-fetched selfOgBadge (most reliable)
+  // For public profiles, use the publicProfile payload
+  const sessionMeta: any = (sessionUser as any)?.user_metadata || {};
+  const storeMeta: any = (storeUser as any)?.user_metadata || {};
   const ogBadge = isOwnProfile
-    ? ((user as any)?.user_metadata?.og_badge || (user as any)?.og_badge || selfOgBadgeFallback?.tier || null)
+    ? (
+        selfOgBadge ||
+        sessionMeta.og_badge ||
+        (sessionUser as any)?.og_badge ||
+        storeMeta.og_badge ||
+        (storeUser as any)?.og_badge ||
+        null
+      )
     : (publicProfile?.user.ogBadge || null);
   const ogBadgeAssignedAt = isOwnProfile
-    ? ((user as any)?.user_metadata?.og_badge_assigned_at || (user as any)?.og_badge_assigned_at || selfOgBadgeFallback?.assignedAt || null)
+    ? (
+        selfOgBadgeAssignedAt ||
+        sessionMeta.og_badge_assigned_at ||
+        (sessionUser as any)?.og_badge_assigned_at ||
+        storeMeta.og_badge_assigned_at ||
+        (storeUser as any)?.og_badge_assigned_at ||
+        null
+      )
     : (publicProfile?.user.ogBadgeAssignedAt || null);
-  const ogBadgeMemberNumber = (user as any)?.user_metadata?.og_badge_member_number || (user as any)?.og_badge_member_number || null;
+  const ogBadgeMemberNumber = isOwnProfile
+    ? (
+        selfOgBadgeMemberNumber ||
+        sessionMeta.og_badge_member_number ||
+        (sessionUser as any)?.og_badge_member_number ||
+        storeMeta.og_badge_member_number ||
+        (storeUser as any)?.og_badge_member_number ||
+        null
+      )
+    : null;
 
   useEffect(() => {
     if (isPublicRoute) {
@@ -248,6 +167,52 @@ const ProfilePageV2: React.FC<ProfilePageV2Props> = ({ onNavigateBack, userId })
       setLoading(false);
     }
   }, [authenticated, user?.id, isPublicRoute]);
+
+  // Fetch OG badge directly from users table for self-profile to guarantee it loads
+  useEffect(() => {
+    if (!isOwnProfile) return;
+    let cancelled = false;
+    const run = async () => {
+      try {
+        const unwrapProfile = (res: any) => {
+          if (res?.data?.user) return res.data;
+          if (res?.user) return res;
+          if (res?.data?.data?.user) return res.data.data;
+          return null;
+        };
+
+        let profilePayload: any = null;
+        const selfId = String((user as any)?.id || '').trim();
+        if (selfId) {
+          const res = await apiClient.get(`/users/${encodeURIComponent(selfId)}/public-profile`);
+          profilePayload = unwrapProfile(res);
+        }
+
+        // Fallback: resolve by current handle when auth user id is not hydrated yet.
+        if (!profilePayload && displayHandle) {
+          const resolved = await apiClient.get(`/users/resolve?handle=${encodeURIComponent(displayHandle)}`);
+          const resolvedUserId = String(resolved?.data?.userId || resolved?.userId || '').trim();
+          if (resolvedUserId) {
+            const res = await apiClient.get(`/users/${encodeURIComponent(resolvedUserId)}/public-profile`);
+            profilePayload = unwrapProfile(res);
+          }
+        }
+
+        if (cancelled || !profilePayload?.user) return;
+        const badge = profilePayload.user.ogBadge || null;
+        const badgeAt = profilePayload.user.ogBadgeAssignedAt || null;
+        const memberNumber = profilePayload.user.ogBadgeMemberNumber || null;
+        setSelfOgBadge(badge);
+        setSelfOgBadgeAssignedAt(badgeAt);
+        setSelfOgBadgeMemberNumber(memberNumber);
+      } catch (error) {
+        // Non-fatal: profile still renders without OG badge if lookup fails.
+        console.warn('[ProfilePageV2] Failed to load self OG badge', error);
+      }
+    };
+    void run();
+    return () => { cancelled = true; };
+  }, [isOwnProfile, user?.id, displayHandle]);
 
   useEffect(() => {
     let cancelled = false;
@@ -264,14 +229,13 @@ const ProfilePageV2: React.FC<ProfilePageV2Props> = ({ onNavigateBack, userId })
         let targetUserId = explicitRouteUserId;
         if (!targetUserId && explicitRouteHandle) {
           const resolved = await apiClient.get(`/users/resolve?handle=${encodeURIComponent(explicitRouteHandle)}`);
-          const resolvedPayload = ((resolved as any)?.data ?? resolved ?? {}) as any;
-          targetUserId = String(resolvedPayload.userId || '');
+          targetUserId = String(resolved?.data?.userId || '');
           if (!targetUserId) throw new Error('Profile not found');
         }
         const profileRes = await apiClient.get(`/users/${encodeURIComponent(targetUserId)}/public-profile`);
         if (cancelled) return;
         setResolvedPublicUserId(targetUserId);
-        setPublicProfile((((profileRes as any)?.data ?? profileRes) || null) as PublicProfilePayload | null);
+        setPublicProfile((profileRes?.data || null) as PublicProfilePayload | null);
       } catch (err: any) {
         if (cancelled) return;
         setPublicProfile(null);
@@ -287,38 +251,6 @@ const ProfilePageV2: React.FC<ProfilePageV2Props> = ({ onNavigateBack, userId })
     void run();
     return () => { cancelled = true; };
   }, [isPublicRoute, explicitRouteUserId, explicitRouteHandle]);
-
-  useEffect(() => {
-    let cancelled = false;
-    const run = async () => {
-      if (!isOwnProfile || !user?.id) {
-        setSelfOgBadgeFallback(null);
-        return;
-      }
-
-      const localTier = (user as any)?.user_metadata?.og_badge || (user as any)?.og_badge || null;
-      if (localTier) {
-        setSelfOgBadgeFallback(null);
-        return;
-      }
-
-      try {
-        const res = await apiClient.get(`/users/${encodeURIComponent(user.id)}/public-profile`);
-        if (cancelled) return;
-        const payload = ((res as any)?.data ?? res ?? {}) as any;
-        const publicUser = (payload.user || {}) as { ogBadge?: 'gold' | 'silver' | 'bronze' | null; ogBadgeAssignedAt?: string | null };
-        setSelfOgBadgeFallback({
-          tier: publicUser.ogBadge ?? null,
-          assignedAt: publicUser.ogBadgeAssignedAt ?? null,
-        });
-      } catch {
-        if (!cancelled) setSelfOgBadgeFallback(null);
-      }
-    };
-
-    void run();
-    return () => { cancelled = true; };
-  }, [isOwnProfile, user?.id]);
 
   // Ensure profile analytics are calculated from fresh data
   useEffect(() => {
@@ -397,10 +329,6 @@ const ProfilePageV2: React.FC<ProfilePageV2Props> = ({ onNavigateBack, userId })
   const profileAchievementsError = isOwnProfile ? achievementsError : (publicProfileError ? new Error(publicProfileError) : null);
 
   const getActivityDisplay = (item: FeedActivityItem) => {
-    const amountNode = item.data?.amount
-      ? <ZaurumAmount value={Number(item.data.amount)} compact markSize="xs" />
-      : null;
-
     switch (item.type) {
       case 'entry.create':
       case 'bet_placed':
@@ -409,7 +337,7 @@ const ProfilePageV2: React.FC<ProfilePageV2Props> = ({ onNavigateBack, userId })
           icon: <Target className="w-4 h-4 text-blue-600" />, 
           title: item.predictionTitle ? `Staked on ${item.predictionTitle}` : 'Stake placed',
           subtitle: item.data?.option_label ? `Option: ${item.data.option_label}` : '',
-          amount: amountNode,
+          amount: item.data?.amount ? formatCurrency(Number(item.data.amount), { compact: true }) : null,
           badge: 'placed',
           badgeColor: 'text-blue-600'
         };
@@ -426,40 +354,40 @@ const ProfilePageV2: React.FC<ProfilePageV2Props> = ({ onNavigateBack, userId })
       case 'wallet.unlock':
         return {
           iconBg: 'bg-emerald-100',
-          icon: <ZaurumMark className="w-4 h-4" />,
+          icon: <DollarSign className="w-4 h-4 text-emerald-600" />,
           title: 'Escrow funds released',
           subtitle: item.data?.prediction_title ? item.data.prediction_title : '',
-          amount: amountNode,
+          amount: item.data?.amount ? formatCurrency(Number(item.data.amount), { compact: true }) : null,
           badge: 'wallet',
           badgeColor: 'text-emerald-600'
         };
       case 'wallet.payout':
         return {
           iconBg: 'bg-emerald-100',
-          icon: <ZaurumMark className="w-4 h-4" />,
+          icon: <DollarSign className="w-4 h-4 text-emerald-700" />,
           title: 'Settlement payout received',
           subtitle: item.data?.prediction_title ? item.data.prediction_title : '',
-          amount: amountNode,
+          amount: item.data?.amount ? formatCurrency(Number(item.data.amount), { compact: true }) : null,
           badge: 'payout',
           badgeColor: 'text-emerald-700'
         };
       case 'wallet.platform_fee':
         return {
           iconBg: 'bg-slate-100',
-          icon: <ZaurumMark className="w-4 h-4" />,
+          icon: <DollarSign className="w-4 h-4 text-slate-600" />,
           title: 'Platform fee credited',
           subtitle: item.data?.prediction_title ? item.data.prediction_title : '',
-          amount: amountNode,
+          amount: item.data?.amount ? formatCurrency(Number(item.data.amount), { compact: true }) : null,
           badge: 'platform',
           badgeColor: 'text-slate-600'
         };
       case 'wallet.creator_fee':
         return {
           iconBg: 'bg-amber-100',
-          icon: <ZaurumMark className="w-4 h-4" />,
+          icon: <DollarSign className="w-4 h-4 text-amber-600" />,
           title: 'Creator earnings received',
           subtitle: item.data?.prediction_title ? item.data.prediction_title : '',
-          amount: amountNode,
+          amount: item.data?.amount ? formatCurrency(Number(item.data.amount), { compact: true }) : null,
           badge: 'creator',
           badgeColor: 'text-amber-600'
         };
@@ -469,7 +397,7 @@ const ProfilePageV2: React.FC<ProfilePageV2Props> = ({ onNavigateBack, userId })
           icon: <XCircle className="w-4 h-4 text-red-600" />,
           title: 'Lost prediction',
           subtitle: item.predictionTitle ?? item.data?.prediction_title ?? '',
-          amount: amountNode,
+          amount: item.data?.amount ? formatCurrency(Number(item.data.amount), { compact: true }) : null,
           badge: 'loss',
           badgeColor: 'text-red-600'
         };
@@ -479,7 +407,7 @@ const ProfilePageV2: React.FC<ProfilePageV2Props> = ({ onNavigateBack, userId })
           icon: <Activity className="w-4 h-4 text-gray-500" />,
           title: 'Wallet activity',
           subtitle: item.data?.channel ?? '',
-          amount: amountNode,
+          amount: item.data?.amount ? formatCurrency(Number(item.data.amount), { compact: true }) : null,
           badge: 'wallet',
           badgeColor: 'text-gray-500'
         };
@@ -732,10 +660,7 @@ const ProfilePageV2: React.FC<ProfilePageV2Props> = ({ onNavigateBack, userId })
                         {profileCompletedCount} completed
                       </span>
                       <span className="text-gray-500">
-                        <span className="inline-flex items-center gap-1">
-                          <ZaurumAmount value={Math.abs(profileProfitLoss)} compact markSize="xs" />
-                          <span>{profileProfitLoss >= 0 ? 'profit' : 'loss'}</span>
-                        </span>
+                        {formatCurrency(Math.abs(profileProfitLoss), { compact: true })} {profileProfitLoss >= 0 ? 'profit' : 'loss'}
                       </span>
                     </div>
                   </div>
@@ -906,13 +831,6 @@ const ProfilePageV2: React.FC<ProfilePageV2Props> = ({ onNavigateBack, userId })
     {authenticated && isOwnProfile && (
       <div className="mx-auto w-full max-w-[720px] lg:max-w-[960px] px-4 mt-4 mb-[calc(5rem+env(safe-area-inset-bottom))]">
         <button
-          type="button"
-          onClick={() => setShowDeleteAccountModal(true)}
-          className="w-full text-sm px-4 py-3 mb-3 rounded-2xl border border-red-200 bg-red-50 text-red-700 hover:bg-red-100 flex items-center justify-center shadow-sm"
-        >
-          Delete account
-        </button>
-        <button
           onClick={async () => {
             try {
               await useAuthStore.getState().logout();
@@ -924,39 +842,6 @@ const ProfilePageV2: React.FC<ProfilePageV2Props> = ({ onNavigateBack, userId })
         >
           Sign out
         </button>
-      </div>
-    )}
-
-    {showDeleteAccountModal && (
-      <div className="fixed inset-0 z-[60] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
-        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm">
-          <div className="px-4 py-3 border-b border-gray-100">
-            <h3 className="text-sm font-semibold text-gray-900">Delete account?</h3>
-          </div>
-          <div className="px-4 py-3">
-            <p className="text-sm text-gray-700">
-              This action permanently removes your account profile from the app.
-            </p>
-          </div>
-          <div className="px-4 py-3 border-t border-gray-100 flex items-center justify-end gap-2">
-            <button
-              type="button"
-              onClick={() => setShowDeleteAccountModal(false)}
-              disabled={deletingAccount}
-              className="px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-lg disabled:opacity-60"
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              onClick={() => void handleDeleteAccount()}
-              disabled={deletingAccount}
-              className="px-3 py-2 bg-red-600 text-white rounded-lg text-sm hover:bg-red-700 disabled:opacity-60"
-            >
-              {deletingAccount ? 'Deleting...' : 'Delete'}
-            </button>
-          </div>
-        </div>
       </div>
     )}
 
@@ -1004,42 +889,24 @@ const ProfilePageV2: React.FC<ProfilePageV2Props> = ({ onNavigateBack, userId })
             </div>
             <div>
               <label className="block text-xs text-gray-600 mb-2">Profile photo</label>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => void handleTakePhoto()}
-                  disabled={uploadingAvatar}
-                  className="inline-flex items-center gap-2 px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-60 disabled:cursor-not-allowed"
-                >
-                  <Camera className="w-4 h-4 text-gray-500" />
-                  Take photo
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void handleChoosePhoto()}
-                  disabled={uploadingAvatar}
-                  className="inline-flex items-center gap-2 px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-60 disabled:cursor-not-allowed"
-                >
-                  <ImageIcon className="w-4 h-4 text-gray-500" />
-                  Choose image
-                </button>
-              </div>
-              {uploadingAvatar && <p className="text-xs text-gray-500 mt-2">Uploading photo...</p>}
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={handleFileSelection}
-              />
-              <input
-                ref={captureInputRef}
-                type="file"
-                accept="image/*"
-                capture="user"
-                className="hidden"
-                onChange={handleFileSelection}
-              />
+              <label className="inline-flex items-center gap-2 px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-700 hover:bg-gray-50 cursor-pointer">
+                <Upload className="w-4 h-4 text-gray-500" />
+                Upload image
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    try {
+                      await useAuthStore.getState().uploadAvatar(file);
+                    } catch (err) {
+                      console.error('Avatar upload failed', err);
+                    }
+                  }}
+                />
+              </label>
             </div>
           </div>
           <div className="px-4 py-3 border-t border-gray-100 flex items-center justify-end gap-2">

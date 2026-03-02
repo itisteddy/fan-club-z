@@ -89,13 +89,14 @@ export function getTxDeltaTone(args: {
  */
 export function formatTxAmount(args: {
   amount: number;
+  currencySymbol?: string;
   currency?: string;
   direction?: 'credit' | 'debit';
   type?: string;
   kind?: string;
   compact?: boolean;
 }): { tone: TxTone; display: string; absAmount: number } {
-  const { amount, compact = true, currency = 'USD' } = args;
+  const { amount, currencySymbol = '$', compact = true, currency = 'USD' } = args;
   const absAmount = Math.abs(amount);
   const tone = getTxDeltaTone({ amount, direction: args.direction, type: args.type, kind: args.kind });
 

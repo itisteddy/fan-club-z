@@ -1,6 +1,6 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronLeft, Plus, X, Calendar, Users, Settings, Sparkles, Check, Globe, Clock, Shield, CheckCircle, AlertCircle } from 'lucide-react';
+import { ChevronLeft, Plus, X, Calendar, DollarSign, Users, Settings, Sparkles, Check, Globe, Clock, Shield, CheckCircle, AlertCircle, Image as ImageIcon } from 'lucide-react';
 import { usePredictionStore } from '../store/predictionStore';
 import { useSettlementStore } from '../store/settlementStore';
 import { useAuthStore } from '../store/authStore';
@@ -12,8 +12,11 @@ import { RulePreview } from '../components/settlement/RulePreview';
 import UnifiedHeader from '../components/layout/UnifiedHeader';
 import { openAuthGate } from '../auth/authGateAdapter';
 import { useAuthSession } from '../providers/AuthSessionProvider';
-import { ZaurumMark } from '@/components/currency/ZaurumMark';
-import { formatCurrency } from '@/lib/format';
+import { useCategories } from '../hooks/useCategories';
+import { CategorySelector } from '../components/prediction/CategorySelector';
+import { uploadPredictionCoverImage, COVER_IMAGE_ACCEPT } from '@/lib/predictionCoverImage';
+import { getApiUrl } from '../config';
+import CoverCropModal from '@/components/modals/CoverCropModal';
 
 interface PredictionOption {
   id: string;
@@ -24,13 +27,21 @@ interface CreatePredictionPageProps {
   onNavigateBack?: () => void;
 }
 
+const MAX_OPTIONS = 50;
+const MAX_OPTION_LENGTH = 80;
+const SOFT_WARNING_THRESHOLD = 12;
+
+const normalizeOptionLabel = (value: string): string => value.trim().replace(/\\s+/g, ' ');
+const isUuid = (value: string): boolean =>
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+
 const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateBack }) => {
   const [step, setStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitSuccess, setSubmitSuccess] = useState(false);
   const { createPrediction } = usePredictionStore();
   const { user: storeUser, isAuthenticated: storeIsAuthenticated } = useAuthStore();
-  const { user: sessionUser } = useAuthSession();
+  const { user: sessionUser, session } = useAuthSession();
   const currentUser = sessionUser ?? storeUser ?? null;
   const isAuthenticated = !!sessionUser || storeIsAuthenticated;
   const navigate = useNavigate();
@@ -45,14 +56,17 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
   }, []);
 
   // Use individual state variables instead of one large object to prevent re-renders
+  const { categories, isLoading: categoriesLoading } = useCategories();
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [category, setCategory] = useState('');
+  const [categoryId, setCategoryId] = useState<string | null>(null); // Changed to categoryId (UUID)
   const [type, setType] = useState('binary');
   const [options, setOptions] = useState<PredictionOption[]>([
     { id: '1', label: 'Yes' },
     { id: '2', label: 'No' }
   ]);
+  const [optionErrors, setOptionErrors] = useState<Record<string, string>>({});
+  const [optionsError, setOptionsError] = useState<string | null>(null);
   const [entryDeadline, setEntryDeadline] = useState('');
   const [stakeMin, setStakeMin] = useState('1');
   const [stakeMax, setStakeMax] = useState('1000');
@@ -68,6 +82,13 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
     postponed: 'auto_void' as 'auto_void' | 'extend_lock' | 'keep_open',
     source_down: 'use_backup' as 'use_backup' | 'pause_and_escalate'
   });
+
+  const [coverImageFile, setCoverImageFile] = useState<File | null>(null);
+  const [coverImagePreviewUrl, setCoverImagePreviewUrl] = useState<string | null>(null);
+  const coverFileInputRef = useRef<HTMLInputElement>(null);
+  const [cropModalOpen, setCropModalOpen] = useState(false);
+  const [pendingCropSrc, setPendingCropSrc] = useState<string | null>(null);
+  const [pendingCropFile, setPendingCropFile] = useState<File | null>(null);
 
   // Check for existing draft on mount
   useEffect(() => {
@@ -86,7 +107,12 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
       const draft = JSON.parse(draftStr);
       setTitle(draft.title || '');
       setDescription(draft.description || '');
-      setCategory(draft.category || '');
+      // Support both legacy category (slug) and new categoryId (UUID)
+      if (draft.categoryId) {
+        setCategoryId(draft.categoryId);
+      } else {
+        setCategoryId(null); // CategorySelector will auto-select general
+      }
       setType(draft.type || 'binary');
       setOptions(draft.options || [{ id: '1', label: 'Yes' }, { id: '2', label: 'No' }]);
       setEntryDeadline(draft.entryDeadline || '');
@@ -115,7 +141,7 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
     const draft = {
       title,
       description,
-      category,
+      categoryId, // Save categoryId instead of category slug
       type,
       options,
       entryDeadline,
@@ -132,7 +158,7 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
     };
     sessionStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
     setHasDraft(true);
-  }, [title, description, category, type, options, entryDeadline, stakeMin, stakeMax, settlementMethod, isPrivate, primarySource, backupSource, ruleText, timezone, contingencies, step]);
+  }, [title, description, categoryId, type, options, entryDeadline, stakeMin, stakeMax, settlementMethod, isPrivate, primarySource, backupSource, ruleText, timezone, contingencies, step]);
 
   // Discard draft
   const discardDraft = useCallback(() => {
@@ -159,14 +185,6 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
     }
   }, [isAuthenticated, currentUser, hasDraft, restoreDraft]);
 
-  const categories = [
-    { id: 'sports', label: 'Sports', icon: '⚽', gradient: 'from-orange-500 to-red-500' },
-    { id: 'politics', label: 'Politics', icon: '🏛️', gradient: 'from-blue-500 to-indigo-500' },
-    { id: 'entertainment', label: 'Entertainment', icon: '🎬', gradient: 'from-purple-500 to-pink-500' },
-    { id: 'crypto', label: 'Crypto', icon: '₿', gradient: 'from-yellow-500 to-orange-500' },
-    { id: 'tech', label: 'Technology', icon: '💻', gradient: 'from-purple-500 to-teal-500' },
-    { id: 'custom', label: 'Custom', icon: '⚡', gradient: 'from-gray-500 to-gray-600' },
-  ];
 
   const predictionTypes = [
     {
@@ -183,27 +201,102 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
     }
   ];
 
+  const validateOptions = useCallback((opts: PredictionOption[]) => {
+    const errors: Record<string, string> = {};
+    const normalizedOptions = opts.map((opt) => ({
+      ...opt,
+      label: normalizeOptionLabel(opt.label),
+    }));
+
+    let generalError: string | null = null;
+    if (normalizedOptions.length < 2) {
+      generalError = 'Add at least 2 options';
+    } else if (normalizedOptions.length > MAX_OPTIONS) {
+      generalError = `Max ${MAX_OPTIONS} options allowed`;
+    }
+
+    const seen = new Map<string, string>();
+    for (const opt of normalizedOptions) {
+      const label = opt.label;
+      if (!label) {
+        errors[opt.id] = 'Option cannot be empty';
+        continue;
+      }
+      if (label.length > MAX_OPTION_LENGTH) {
+        errors[opt.id] = `Max ${MAX_OPTION_LENGTH} characters`;
+        continue;
+      }
+      const key = label.toLowerCase();
+      if (seen.has(key)) {
+        errors[opt.id] = 'Duplicate option';
+        const firstId = seen.get(key);
+        if (firstId && !errors[firstId]) {
+          errors[firstId] = 'Duplicate option';
+        }
+      } else {
+        seen.set(key, opt.id);
+      }
+    }
+
+    return {
+      normalizedOptions,
+      errors,
+      generalError,
+      isValid: !generalError && Object.keys(errors).length === 0,
+    };
+  }, []);
+
   const addOption = useCallback(() => {
+    if (options.length >= MAX_OPTIONS) {
+      toast.error(`Max ${MAX_OPTIONS} options allowed for stability`);
+      return;
+    }
     const newId = (options.length + 1).toString();
     setOptions(prev => [...prev, { id: newId, label: '' }]);
+    setOptionsError(null);
   }, [options.length]);
 
   const removeOption = useCallback((id: string) => {
     setOptions(prev => prev.filter(option => option.id !== id));
+    setOptionErrors((prev) => {
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
+    setOptionsError(null);
   }, []);
 
   const updateOption = useCallback((id: string, label: string) => {
     setOptions(prev => prev.map(option =>
       option.id === id ? { ...option, label } : option
     ));
+    setOptionErrors((prev) => {
+      if (!prev[id]) return prev;
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
+    setOptionsError(null);
   }, []);
+
+  const handleOptionBlur = useCallback((id: string) => {
+    setOptions((prev) => {
+      const next = prev.map((option) =>
+        option.id === id ? { ...option, label: normalizeOptionLabel(option.label) } : option
+      );
+      const { errors, generalError } = validateOptions(next);
+      setOptionErrors(errors);
+      setOptionsError(generalError);
+      return next;
+    });
+  }, [validateOptions]);
 
   const validateStep = useCallback((stepNumber: number): boolean => {
     switch (stepNumber) {
       case 1:
-        return !!(title.trim() && category);
+        return !!(title.trim() && categoryId);
       case 2:
-        return !!(type && options.every(opt => opt.label.trim()));
+        return !!(type && validateOptions(options).isValid);
       case 3:
         return !!(entryDeadline && stakeMin);
       case 4:
@@ -211,15 +304,24 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
       default:
         return true;
     }
-  }, [title, category, type, options, entryDeadline, stakeMin]);
+  }, [title, categoryId, type, options, entryDeadline, stakeMin, validateOptions]);
 
   const handleNext = useCallback(() => {
+    if (step === 2) {
+      const { errors, generalError, isValid } = validateOptions(options);
+      setOptionErrors(errors);
+      setOptionsError(generalError);
+      if (!isValid) {
+        toast.error('Please fix the option errors');
+        return;
+      }
+    }
     if (validateStep(step) && step < 4) {
       setStep(step + 1);
       // Scroll to top when advancing to next step
       scrollToTop({ delay: 150 });
     }
-  }, [step, validateStep]);
+  }, [step, validateStep, validateOptions, options]);
 
   const handleBack = useCallback(() => {
     if (step > 1) {
@@ -246,7 +348,7 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
       if (!title.trim()) {
         throw new Error('Title is required');
       }
-      if (!category) {
+      if (!categoryId) {
         throw new Error('Category is required');
       }
       if (!entryDeadline) {
@@ -284,14 +386,24 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
         }
       }
 
-      // Prepare prediction data
-      const predictionData = {
+      const { normalizedOptions, errors, generalError, isValid } = validateOptions(options);
+      if (!isValid) {
+        setOptionErrors(errors);
+        setOptionsError(generalError);
+        throw new Error(generalError || 'Please fix the option errors');
+      }
+
+      const categoryPayload = categoryId && isUuid(categoryId)
+        ? { categoryId }
+        : { category: categoryId };
+
+      const predictionData: any = {
         title: title.trim(),
         description: description.trim() || undefined,
-        category: category,
+        ...categoryPayload,
         type: type as 'binary' | 'multi_outcome' | 'pool',
-        options: options
-          .filter(opt => opt.label.trim()) // Only include options with labels
+        options: normalizedOptions
+          .filter(opt => opt.label.trim())
           .map(opt => ({
             id: opt.id,
             label: opt.label.trim(),
@@ -303,20 +415,57 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
         stakeMax: stakeMax ? Math.max(parseFloat(stakeMin) || 100, parseFloat(stakeMax)) : undefined,
         settlementMethod: settlementMethod as 'auto' | 'manual',
         isPrivate: isPrivate,
-        creatorId: currentUser.id // Add the real user ID
+        creatorId: currentUser.id
       };
 
-      // Validate options
       if (predictionData.options.length < 2) {
         throw new Error('At least 2 prediction options are required');
       }
 
       console.log('Creating prediction with data:', predictionData);
 
-      // Create the prediction (this is now async and saves to Supabase)
       const createdPrediction = await createPrediction(predictionData);
       
       console.log('Prediction created successfully!', createdPrediction);
+
+      // Optional: upload cover image AFTER creation so object path can be stable: {predictionId}/cover.webp
+      // If upload fails, do not block prediction creation; fall back to random image.
+      if (coverImageFile && createdPrediction?.id) {
+        try {
+          toast.loading('Processing cover image…', { id: 'cover-upload' });
+          const skipOptimize = (coverImageFile.name || '').toLowerCase().startsWith('cover.');
+          const upload = await uploadPredictionCoverImage(String(createdPrediction.id), coverImageFile, { upsert: true, skipOptimize });
+
+          const token =
+            session?.access_token ||
+            (typeof window !== 'undefined' ? localStorage.getItem('token') : null);
+
+          const res = await fetch(`${getApiUrl()}/api/v2/predictions/${createdPrediction.id}/cover-image`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+            credentials: 'include',
+            body: JSON.stringify({ coverImageUrl: upload.coverImageUrl }),
+          });
+
+          if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            throw new Error((err as any)?.message || 'Failed to save cover image');
+          }
+
+          // Ensure local UI updates immediately (store + cards) without requiring refresh.
+          try {
+            await usePredictionStore.getState().fetchPredictionById(String(createdPrediction.id));
+          } catch {}
+
+          toast.success('Cover image uploaded', { id: 'cover-upload' });
+        } catch (err) {
+          toast.dismiss('cover-upload');
+          const msg = err instanceof Error ? err.message : 'Cover upload failed';
+          toast.error(`${msg} (using default image)`);
+        }
+      } else {
+        toast.dismiss('cover-upload');
+      }
       
       // Create settlement configuration if automatic settlement is selected
       if (settlementMethod === 'auto' && createdPrediction) {
@@ -344,13 +493,13 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
       toast.success('🎉 Prediction created successfully!');
       setSubmitSuccess(true);
       
-      // Navigate to My Stakes after success
+      // Navigate to Discover after success
       setTimeout(() => {
         // Reset form
         setStep(1);
         setTitle('');
         setDescription('');
-        setCategory('');
+        setCategoryId(null);
         setType('binary');
         setOptions([
           { id: '1', label: 'Yes' },
@@ -363,10 +512,13 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
         setIsPrivate(false);
         setSubmitSuccess(false);
         setIsSubmitting(false);
-        
-        // Navigate to My Stakes to show created prediction using react-router-dom
+        setCoverImageFile(null);
+        if (coverImagePreviewUrl) URL.revokeObjectURL(coverImagePreviewUrl);
+        setCoverImagePreviewUrl(null);
+
+        // Navigate to Discover using react-router-dom
         // Use replace: true to prevent going back to the success screen
-        navigate('/predictions', { replace: true });
+        navigate('/discover', { replace: true });
       }, 2000);
     } catch (error) {
       console.error('Failed to create prediction:', error);
@@ -374,7 +526,7 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
       toast.error(errorMessage);
       setIsSubmitting(false);
     }
-  }, [validateStep, title, category, entryDeadline, description, type, options, stakeMin, stakeMax, settlementMethod, isPrivate, isAuthenticated, currentUser, createPrediction, navigate, saveDraft]);
+  }, [validateStep, title, categoryId, entryDeadline, description, type, options, stakeMin, stakeMax, settlementMethod, isPrivate, isAuthenticated, currentUser, createPrediction, navigate, saveDraft, coverImageFile, coverImagePreviewUrl, session?.access_token]);
 
   // Success View
   if (submitSuccess) {
@@ -397,7 +549,7 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
           
           <h2 className="text-2xl font-bold text-gray-900 mb-2">Prediction Created!</h2>
           <p className="text-gray-600 mb-4">Your prediction has been successfully created and is now live.</p>
-          <div className="text-sm text-teal-600 font-medium">Redirecting to My Predictions...</div>
+          <div className="text-sm text-teal-600 font-medium">Redirecting to Discover...</div>
         </motion.div>
       </div>
     );
@@ -497,7 +649,7 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
                       type="text"
                       value={title}
                       onChange={(e) => setTitle(e.target.value)}
-                      placeholder="Will Bitcoin reach 100,000 Zaurum by end of 2024?"
+                      placeholder="Will Bitcoin reach $100,000 by end of 2024?"
                       className="w-full p-4 border-2 border-gray-200 rounded-2xl focus:border-teal-500 focus:outline-none transition-all duration-200 text-gray-900 placeholder-gray-500"
                     />
                   </div>
@@ -516,30 +668,98 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
                     />
                   </div>
 
-                  {/* Category - Pill-based (consistent with DiscoverPage) */}
+                  {/* Category - Chip selector (consistent with DiscoverPage) */}
                   <div className="form-section">
                     <label className="block text-sm font-semibold text-gray-700 mb-3">
                       Category *
                     </label>
-                    <div className="flex flex-wrap gap-3">
-                      {categories.map((cat) => (
-                        <motion.button
-                          key={cat.id}
-                          whileHover={{ scale: 1.02 }}
-                          whileTap={{ scale: 0.98 }}
-                          onClick={() => setCategory(cat.id)}
-                          className={`motion-button pill-category px-4 py-2.5 rounded-full text-sm font-semibold transition-all flex items-center gap-2 min-h-[40px] ${
-                            category === cat.id
-                              ? `bg-gradient-to-r ${cat.gradient} text-white shadow-lg`
-                              : 'bg-gray-100 text-gray-700 hover:bg-gray-200 border border-gray-200'
-                          }`}
-                        >
-                          <span className="text-base">{cat.icon}</span>
-                          <span>{cat.label}</span>
-                        </motion.button>
-                      ))}
-                    </div>
+                    <CategorySelector
+                      value={categoryId}
+                      onChange={setCategoryId}
+                      categories={categories}
+                      isLoading={categoriesLoading}
+                    />
                   </div>
+
+                  {/* Cover image (optional) */}
+                  <div className="form-section">
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      Cover image (optional)
+                    </label>
+                    <p className="text-xs text-gray-500 mb-3">
+                      If you skip, we&apos;ll use a random image.
+                    </p>
+                    <input
+                      ref={coverFileInputRef}
+                      type="file"
+                      accept={COVER_IMAGE_ACCEPT}
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          // Open crop modal so user controls crop region before upload
+                          const src = URL.createObjectURL(file);
+                          setPendingCropFile(file);
+                          setPendingCropSrc(src);
+                          setCropModalOpen(true);
+                        }
+                        e.target.value = '';
+                      }}
+                    />
+                    {!coverImageFile ? (
+                      <button
+                        type="button"
+                        onClick={() => coverFileInputRef.current?.click()}
+                        className="w-full p-6 border-2 border-dashed border-gray-200 rounded-2xl flex flex-col items-center justify-center gap-2 text-gray-500 hover:border-teal-400 hover:text-teal-600 transition-colors"
+                      >
+                        <ImageIcon className="w-10 h-10" />
+                        <span className="font-medium">Choose image</span>
+                        <span className="text-xs">JPEG, PNG or WebP, max 5 MB</span>
+                      </button>
+                    ) : (
+                      <div className="relative rounded-2xl overflow-hidden border-2 border-gray-200 aspect-video bg-gray-100">
+                        <img
+                          src={coverImagePreviewUrl || ''}
+                          alt="Cover preview"
+                          className="w-full h-full object-cover"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setCoverImageFile(null);
+                            if (coverImagePreviewUrl) URL.revokeObjectURL(coverImagePreviewUrl);
+                            setCoverImagePreviewUrl(null);
+                          }}
+                          className="absolute top-2 right-2 p-2 bg-black/50 text-white rounded-lg hover:bg-black/70"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  <CoverCropModal
+                    isOpen={cropModalOpen}
+                    imageSrc={pendingCropSrc}
+                    originalFile={pendingCropFile}
+                    onClose={() => {
+                      setCropModalOpen(false);
+                      if (pendingCropSrc) URL.revokeObjectURL(pendingCropSrc);
+                      setPendingCropSrc(null);
+                      setPendingCropFile(null);
+                    }}
+                    onConfirm={({ file, previewUrl }) => {
+                      setCropModalOpen(false);
+                      if (pendingCropSrc) URL.revokeObjectURL(pendingCropSrc);
+                      setPendingCropSrc(null);
+                      setPendingCropFile(null);
+
+                      setCoverImageFile(file);
+                      if (coverImagePreviewUrl) URL.revokeObjectURL(coverImagePreviewUrl);
+                      setCoverImagePreviewUrl(previewUrl);
+                    }}
+                    title="Crop cover image"
+                  />
                 </div>
               </motion.div>
             )}
@@ -582,12 +802,16 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
                                 { id: '1', label: 'Yes' },
                                 { id: '2', label: 'No' }
                               ]);
+                              setOptionErrors({});
+                              setOptionsError(null);
                             } else if (predType.id === 'multiple') {
                               setOptions([
                                 { id: '1', label: '' },
                                 { id: '2', label: '' },
                                 { id: '3', label: '' }
                               ]);
+                              setOptionErrors({});
+                              setOptionsError(null);
                             }
                           }}
                           className={`motion-button w-full p-4 rounded-2xl border-2 text-left transition-all duration-200 ${
@@ -614,7 +838,7 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
                       <label className="block text-sm font-semibold text-gray-700 mb-3">
                         Prediction Options *
                       </label>
-                      <div className="space-y-3">
+                      <div className={`space-y-3 ${options.length > 6 ? 'max-h-72 overflow-y-auto pr-2' : ''}`}>
                         {options.map((option, index) => (
                           <div key={option.id} className="flex items-center gap-3">
                             <div className="input-container flex-1">
@@ -622,9 +846,15 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
                                 type="text"
                                 value={option.label}
                                 onChange={(e) => updateOption(option.id, e.target.value)}
+                                onBlur={() => handleOptionBlur(option.id)}
                                 placeholder={`Option ${index + 1}`}
-                                className="w-full p-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none transition-all duration-200"
+                                className={`w-full p-3 border-2 rounded-xl focus:border-blue-500 focus:outline-none transition-all duration-200 ${
+                                  optionErrors[option.id] ? 'border-red-300' : 'border-gray-200'
+                                }`}
                               />
+                              {optionErrors[option.id] && (
+                                <p className="text-xs text-red-500 mt-1">{optionErrors[option.id]}</p>
+                              )}
                             </div>
                             {type === 'multiple' && options.length > 2 && (
                               <motion.button
@@ -639,18 +869,33 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
                           </div>
                         ))}
                         
-                        {type === 'multiple' && options.length < 6 && (
-                          <motion.button
-                            whileHover={{ scale: 1.02 }}
-                            whileTap={{ scale: 0.98 }}
-                            onClick={addOption}
-                            className="motion-button w-full p-3 border-2 border-dashed border-gray-300 rounded-xl text-gray-600 hover:border-blue-400 hover:text-blue-600 transition-all duration-200 flex items-center justify-center gap-2"
-                          >
-                            <Plus size={18} />
-                            <span>Add Option</span>
-                          </motion.button>
+                        {type === 'multiple' && (
+                          <div className={options.length > 6 ? 'sticky bottom-0 bg-white pt-2' : ''}>
+                            <motion.button
+                              whileHover={{ scale: 1.02 }}
+                              whileTap={{ scale: 0.98 }}
+                              onClick={addOption}
+                              disabled={options.length >= MAX_OPTIONS}
+                              className={`motion-button w-full p-3 border-2 border-dashed rounded-xl transition-all duration-200 flex items-center justify-center gap-2 ${
+                                options.length >= MAX_OPTIONS
+                                  ? 'border-gray-200 text-gray-400 cursor-not-allowed'
+                                  : 'border-gray-300 text-gray-600 hover:border-blue-400 hover:text-blue-600'
+                              }`}
+                            >
+                              <Plus size={18} />
+                              <span>Add Option</span>
+                            </motion.button>
+                          </div>
                         )}
                       </div>
+                      {optionsError && (
+                        <p className="text-xs text-red-600 mt-2">{optionsError}</p>
+                      )}
+                      {options.length >= SOFT_WARNING_THRESHOLD && (
+                        <p className="text-xs text-amber-600 mt-2">
+                          Lots of options can reduce participation. Consider consolidating.
+                        </p>
+                      )}
                     </div>
                   )}
                 </div>
@@ -668,7 +913,7 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
               >
                 <div className="flex items-center gap-3 mb-6">
                   <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-purple-600 rounded-2xl flex items-center justify-center">
-                    <ZaurumMark className="h-6 w-6 text-white" />
+                    <DollarSign size={24} className="text-white" />
                   </div>
                   <div>
                     <h2 className="text-2xl font-bold text-gray-900">Settings & Launch</h2>
@@ -695,7 +940,7 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
                   <div className="grid grid-cols-2 gap-4">
                     <div className="input-container">
                       <label className="block text-sm font-semibold text-gray-700 mb-2">
-                        Minimum Stake (Zaurum)
+                        Minimum Stake ($)
                       </label>
                       <input
                         type="number"
@@ -708,7 +953,7 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
                     </div>
                     <div className="input-container">
                       <label className="block text-sm font-semibold text-gray-700 mb-2">
-                        Maximum Stake (Zaurum)
+                        Maximum Stake ($)
                       </label>
                       <input
                         type="number"
@@ -839,7 +1084,7 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
                     <div className="mb-4">
                       <label className="block text-sm font-medium text-gray-600 mb-1">Category</label>
                       <span className="inline-block px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm font-medium">
-                        {categories.find(cat => cat.id === category)?.label || category}
+                        {categoryId ? categories.find(cat => cat.id === categoryId)?.label || 'Unknown' : 'Not selected'}
                       </span>
                     </div>
 
@@ -860,9 +1105,7 @@ const CreatePredictionPage: React.FC<CreatePredictionPageProps> = ({ onNavigateB
                     <div className="grid grid-cols-2 gap-4">
                       <div>
                         <label className="block text-sm font-medium text-gray-600 mb-1">Stake Limits</label>
-                        <p className="text-gray-900">
-                          {formatCurrency(Number(stakeMin) || 0, { compact: false })} - {formatCurrency(Number(stakeMax) || 0, { compact: false })}
-                        </p>
+                        <p className="text-gray-900">${stakeMin} - ${stakeMax}</p>
                       </div>
                       <div>
                         <label className="block text-sm font-medium text-gray-600 mb-1">Deadline</label>

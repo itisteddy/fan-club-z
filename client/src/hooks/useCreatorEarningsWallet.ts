@@ -1,6 +1,6 @@
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { getApiUrl } from '@/utils/environment';
-import { getAuthHeaders } from '@/lib/apiClient';
+import { supabase } from '@/lib/supabase';
 
 export type CreatorEarningsHistoryItem = {
   id: string;
@@ -15,6 +15,16 @@ export type CreatorEarningsHistoryItem = {
   referenceId?: string | null;
   metadata?: Record<string, unknown>;
 };
+
+async function getAuthHeaders(): Promise<Record<string, string>> {
+  try {
+    const { data } = await supabase.auth.getSession();
+    const token = data.session?.access_token;
+    return token ? { Authorization: `Bearer ${token}` } : {};
+  } catch {
+    return {};
+  }
+}
 
 export function useCreatorEarningsHistory(enabled: boolean, limit = 20) {
   return useQuery({
@@ -87,4 +97,3 @@ export function useTransferCreatorEarnings() {
     },
   });
 }
-

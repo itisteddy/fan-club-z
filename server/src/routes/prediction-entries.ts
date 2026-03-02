@@ -16,7 +16,10 @@ router.get('/user/:userId', async (req, res) => {
       .from('prediction_entries')
       .select(`
         *,
-        prediction:predictions(*),
+        prediction:predictions(
+          *,
+          options:prediction_options!prediction_options_prediction_id_fkey(*)
+        ),
         option:prediction_options(*)
       `)
       .eq('user_id', userId)

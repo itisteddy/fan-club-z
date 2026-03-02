@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { Plus, Download, TrendingUp, CreditCard, User, Wallet, ArrowRightLeft, Copy, ExternalLink, X, Target, Clock, Receipt, Lock, Unlock, ArrowUpRight, XCircle, Gift, HelpCircle } from 'lucide-react';
+import { Plus, Download, DollarSign, TrendingUp, CreditCard, User, Wallet, ArrowRightLeft, Copy, ExternalLink, X, Target, Clock, Receipt, Lock, Unlock, ArrowUpRight, XCircle, Trophy, Gift, HelpCircle, Banknote } from 'lucide-react';
 import { useAccount, useDisconnect, useSwitchChain } from 'wagmi';
 import { useStableWalletConnection } from '@/hooks/useStableWalletConnection';
 import { baseSepolia } from 'wagmi/chains';
@@ -12,40 +12,34 @@ import { openAuthGate } from '../auth/authGateAdapter';
 import AppHeader from '../components/layout/AppHeader';
 import toast from 'react-hot-toast';
 import { formatCurrency, formatLargeNumber, formatPercentage } from '@/lib/format';
+import { formatTxAmount, toneClass } from '@/lib/txFormat';
 import { useClaimableClaims, type ClaimableItem } from '@/hooks/useClaimableClaims';
 import { useMerkleClaim } from '@/hooks/useMerkleClaim';
 import { useNavigate, useLocation } from 'react-router-dom';
 import SignedOutGateCard from '../components/auth/SignedOutGateCard';
 import DepositUSDCModal from '../components/wallet/DepositUSDCModal';
 import WithdrawUSDCModal from '../components/wallet/WithdrawUSDCModal';
+import FiatDepositSheet from '../components/wallet/FiatDepositSheet';
+import FiatWithdrawalSheet from '../components/wallet/FiatWithdrawalSheet';
 import { useOnchainActivity, formatActivityKind } from '../hooks/useOnchainActivity';
 import { useUnifiedBalance } from '../hooks/useUnifiedBalance';
 import { useEscrowBalance } from '../hooks/useEscrowBalance';
-import { useWalletActivity, type WalletActivityItem } from '../hooks/useWalletActivity';
+import { useWalletActivity, type WalletActivityItem, type WalletActivityResponse } from '../hooks/useWalletActivity';
+import { useFiatSummary, usePaystackStatus } from '../hooks/useFiatWallet';
 import { useAutoNetworkSwitch } from '../hooks/useAutoNetworkSwitch';
 import { QK } from '@/lib/queryKeys';
 import { t } from '@/lib/lexicon';
 import { useWeb3Recovery } from '@/providers/Web3Provider';
 import { computeWalletStatus } from '@/utils/walletStatus';
+import { isCryptoEnabledForClient } from '@/lib/cryptoFeatureFlags';
 import { useCreatorEarningsHistory, useTransferCreatorEarnings } from '@/hooks/useCreatorEarningsWallet';
-import { FCZ_ENABLE_DAILY_CLAIM, FCZ_WALLET_MODE } from '@/utils/environment';
-import { ZaurumMark } from '@/components/currency/ZaurumMark';
-import { ZaurumAmount } from '@/components/currency/ZaurumAmount';
-import { buildPredictionCanonicalPath } from '@/lib/predictionUrls';
-import RecentActivityCard, { type ActivityDisplayItem } from '@/components/activity/RecentActivityCard';
-import { getApiUrl } from '@/config';
 
 interface WalletPageV2Props {
   onNavigateBack?: () => void;
 }
 
 const WalletPageV2: React.FC<WalletPageV2Props> = ({ onNavigateBack }) => {
-  const ZaurumIcon: React.FC<{ className?: string }> = ({ className }) => (
-    <ZaurumMark className={className ?? 'w-4 h-4'} />
-  );
-
   const { user: sessionUser, session } = useAuthSession();
-  const isZaurumOnly = FCZ_WALLET_MODE === 'zaurum_only';
   const { user: storeUser, isAuthenticated: storeAuth } = useAuthStore(
     useShallow((state) => ({
       user: state.user,
@@ -96,13 +90,15 @@ const WalletPageV2: React.FC<WalletPageV2Props> = ({ onNavigateBack }) => {
   const [showDeposit, setShowDeposit] = useState(false);
   const [showWithdraw, setShowWithdraw] = useState(false);
   const [showClaims, setShowClaims] = useState(false);
+  
+  // Fiat wallet modal state (Phase 7)
+  const [showFiatDeposit, setShowFiatDeposit] = useState(false);
+  const [showFiatWithdraw, setShowFiatWithdraw] = useState(false);
+  const [showDepositInfo, setShowDepositInfo] = useState(false);
   const [claimingId, setClaimingId] = useState<string | null>(null);
   const [bulkClaiming, setBulkClaiming] = useState(false);
   const [bulkTotal, setBulkTotal] = useState(0);
   const [bulkDone, setBulkDone] = useState(0);
-  const [isClaimingDaily, setIsClaimingDaily] = useState(false);
-  const [nextDailyClaimAt, setNextDailyClaimAt] = useState<string | null>(null);
-  const [dailyClaimNowMs, setDailyClaimNowMs] = useState<number>(() => Date.now());
   const { claim, isClaiming } = useMerkleClaim();
   const [txNotice, setTxNotice] = useState<{ hash: string; kind: string; predictionId?: string } | null>(null);
   const [selectedActivity, setSelectedActivity] = useState<WalletActivityItem | null>(null);
@@ -125,11 +121,25 @@ const WalletPageV2: React.FC<WalletPageV2Props> = ({ onNavigateBack }) => {
     available: escrowAvailableUSD,
     locked: escrowReservedUSD,
     total: escrowTotalUSD,
-    summary,
     isLoading: isLoadingBalance,
     error: balanceError,
     refetch: refetchBalances
   } = useUnifiedBalance();
+
+  // Guard: if balances stay "loading" for too long, surface recovery actions instead of infinite spinners.
+  const [balanceStuck, setBalanceStuck] = useState(false);
+  useEffect(() => {
+    if (!authenticated) {
+      setBalanceStuck(false);
+      return;
+    }
+    if (!isLoadingBalance) {
+      setBalanceStuck(false);
+      return;
+    }
+    const t = setTimeout(() => setBalanceStuck(true), 15_000);
+    return () => clearTimeout(t);
+  }, [authenticated, isLoadingBalance]);
   
   // On-chain escrow balance - for withdrawals (what user can actually withdraw from contract)
   const { availableUSD: onchainEscrowBalance } = useEscrowBalance();
@@ -140,7 +150,7 @@ const WalletPageV2: React.FC<WalletPageV2Props> = ({ onNavigateBack }) => {
     total: escrowTotalUSD ?? 0,
   });
   useEffect(() => {
-    if (!isZaurumOnly && walletStatus.code !== 'ready') {
+    if (walletStatus.code !== 'ready') {
       return;
     }
     setLastReadyBalances(prev => {
@@ -162,12 +172,16 @@ const WalletPageV2: React.FC<WalletPageV2Props> = ({ onNavigateBack }) => {
 
       return next;
     });
-  }, [walletStatus.code, walletUSDC, escrowAvailableUSD, escrowReservedUSD, escrowTotalUSD, isZaurumOnly]);
+  }, [walletStatus.code, walletUSDC, escrowAvailableUSD, escrowReservedUSD, escrowTotalUSD]);
   
   // Wallet activity (from database - transaction history only)
   // Show first 20 in main view, all transactions in modal
-  const { data: walletActivity, isLoading: isLoadingActivity } = useWalletActivity(user?.id, 20);
-  const { data: allWalletActivity, isLoading: isLoadingAllActivity } = useWalletActivity(user?.id, 1000);
+  const walletActivityQuery = useWalletActivity(user?.id, 20);
+  const allWalletActivityQuery = useWalletActivity(user?.id, 1000);
+  const walletActivity = walletActivityQuery.data as WalletActivityResponse | undefined;
+  const isLoadingActivity = walletActivityQuery.isLoading;
+  const allWalletActivity = allWalletActivityQuery.data as WalletActivityResponse | undefined;
+  const isLoadingAllActivity = allWalletActivityQuery.isLoading;
   const { data: claimables } = useClaimableClaims(address, 100);
   const [showAllTransactions, setShowAllTransactions] = useState(false);
   const [showCreatorTransfer, setShowCreatorTransfer] = useState(false);
@@ -178,17 +192,12 @@ const WalletPageV2: React.FC<WalletPageV2Props> = ({ onNavigateBack }) => {
     showCreatorHistory && Boolean(session?.access_token),
     30
   );
-  const recentActivityItems = useMemo<ActivityDisplayItem[]>(() => {
-    const items = walletActivity?.items ?? [];
-    return items.map((item) => ({
-      id: item.id,
-      kind: item.kind as any,
-      amountUSD: Number(item.amountUSD ?? 0),
-      txHash: item.txHash,
-      createdAt: item.createdAt,
-      meta: item.meta as any,
-    }));
-  }, [walletActivity?.items]);
+  
+  // Fiat wallet hooks (Phase 7)
+  const { data: paystackStatus } = usePaystackStatus();
+  const { data: fiatSummaryData } = useFiatSummary(user?.id);
+  const fiatEnabled = paystackStatus?.enabled || false;
+  const fiatSummary = fiatSummaryData?.summary || null;
   
   // Connection helpers
   const openConnectSheet = useCallback(() => {
@@ -278,7 +287,7 @@ const WalletPageV2: React.FC<WalletPageV2Props> = ({ onNavigateBack }) => {
       return null;
     }
 
-    if (!isZaurumOnly && effectiveWalletStatus === 'disconnected') {
+    if (effectiveWalletStatus === 'disconnected') {
       buttons.push(
         <button
           key="connect"
@@ -290,7 +299,7 @@ const WalletPageV2: React.FC<WalletPageV2Props> = ({ onNavigateBack }) => {
       );
     }
 
-    if (!isZaurumOnly && effectiveWalletStatus === 'wrong_network') {
+    if (effectiveWalletStatus === 'wrong_network') {
       buttons.push(
         <button
           key="switch"
@@ -302,7 +311,7 @@ const WalletPageV2: React.FC<WalletPageV2Props> = ({ onNavigateBack }) => {
       );
     }
 
-    if (!isZaurumOnly && effectiveWalletStatus === 'session_unhealthy') {
+    if (effectiveWalletStatus === 'session_unhealthy') {
       buttons.push(
         <button
           key="reconnect"
@@ -343,26 +352,30 @@ const WalletPageV2: React.FC<WalletPageV2Props> = ({ onNavigateBack }) => {
   }, [walletStatus.code, openConnectSheet, handleReconnectNow, handleSwitchToBase]);
 
   const handleDeposit = useCallback(() => {
-    if (isZaurumOnly) {
-      toast('Deposit is disabled in Zaurum-only mode.');
-      return;
-    }
     if (!ensureWalletReady()) return;
     setShowDeposit(true);
-  }, [ensureWalletReady, isZaurumOnly]);
+  }, [ensureWalletReady]);
 
   const handleWithdraw = useCallback(() => {
-    if (isZaurumOnly) {
-      toast('Withdrawal is disabled in Zaurum-only mode.');
-      return;
-    }
     if (!ensureWalletReady()) return;
     setShowWithdraw(true);
-  }, [ensureWalletReady, isZaurumOnly]);
+  }, [ensureWalletReady]);
 
+  // On iOS/native (crypto disabled), Deposit CTA must never be dead: open fiat deposit or show info.
+  const handleDepositCTA = useCallback(() => {
+    if (isCryptoEnabledForClient()) {
+      handleDeposit();
+      return;
+    }
+    if (fiatEnabled) {
+      setShowFiatDeposit(true);
+      return;
+    }
+    setShowDepositInfo(true);
+  }, [fiatEnabled, handleDeposit]);
+
+  const cryptoEnabled = isCryptoEnabledForClient();
   const actionButtons = useMemo(() => {
-    if (isZaurumOnly) return null;
-
     const disabledSecondary =
       <button
         disabled
@@ -370,6 +383,32 @@ const WalletPageV2: React.FC<WalletPageV2Props> = ({ onNavigateBack }) => {
       >
         Withdraw
       </button>;
+
+    // iOS/native: crypto disabled — Deposit CTA must always do something (fiat or info).
+    if (!cryptoEnabled) {
+      return (
+        <>
+          <button
+            onClick={handleDepositCTA}
+            className="h-11 rounded-xl bg-emerald-600 text-white font-semibold hover:bg-emerald-700 transition-colors"
+            data-qa="deposit-cta"
+          >
+            {fiatEnabled ? '+ Deposit' : 'Add funds'}
+          </button>
+          {fiatEnabled ? (
+            <button
+              onClick={() => setShowFiatWithdraw(true)}
+              disabled={!fiatSummary || fiatSummary.availableNgn < 200}
+              className="h-11 rounded-xl border-2 border-gray-300 text-gray-700 font-semibold hover:border-gray-400 transition-colors disabled:opacity-50"
+            >
+              Withdraw
+            </button>
+          ) : (
+            disabledSecondary
+          )}
+        </>
+      );
+    }
 
     switch (effectiveWalletStatus) {
       case 'reconnecting':
@@ -391,6 +430,7 @@ const WalletPageV2: React.FC<WalletPageV2Props> = ({ onNavigateBack }) => {
             <button
               onClick={openConnectSheet}
               className="h-11 rounded-xl bg-emerald-600 text-white font-semibold hover:bg-emerald-700 transition-colors"
+              data-qa="connect-wallet"
             >
               Connect Wallet
             </button>
@@ -445,7 +485,7 @@ const WalletPageV2: React.FC<WalletPageV2Props> = ({ onNavigateBack }) => {
           </>
         );
     }
-  }, [effectiveWalletStatus, handleReconnectNow, handleSwitchToBase, handleDeposit, handleWithdraw, openConnectSheet, escrowAvailableUSD, isZaurumOnly]);
+  }, [cryptoEnabled, fiatEnabled, fiatSummary, effectiveWalletStatus, handleReconnectNow, handleSwitchToBase, handleDeposit, handleDepositCTA, handleWithdraw, openConnectSheet, escrowAvailableUSD]);
 
   // Handle balance refresh after transactions
   const handleRefresh = useCallback(() => {
@@ -465,26 +505,25 @@ const WalletPageV2: React.FC<WalletPageV2Props> = ({ onNavigateBack }) => {
   }, [handleRefresh]);
   
   // Display balances using last confirmed values during reconnects to avoid UI flicker
-  const summaryAvailable = Number(summary?.available ?? summary?.balances?.available ?? 0);
-  const summaryReserved = Number(summary?.reserved ?? summary?.balances?.reserved ?? 0);
-  const summaryWallet = Number(summary?.walletBalance ?? summary?.balances?.wallet ?? 0);
-  const resolveValue = (current: number | undefined, fallback: number, summaryFallback = 0) =>
-    typeof current === 'number' ? current : (fallback > 0 ? fallback : summaryFallback);
-  const shouldUseLiveBalances = isZaurumOnly || walletStatus.code === 'ready';
-  const resolvedWalletUSDC = shouldUseLiveBalances
-    ? resolveValue(walletUSDC, lastReadyBalances.wallet, summaryWallet)
-    : lastReadyBalances.wallet;
-  const resolvedEscrowAvailable = shouldUseLiveBalances
-    ? resolveValue(escrowAvailableUSD, lastReadyBalances.available, summaryAvailable)
-    : lastReadyBalances.available;
-  const resolvedEscrowReserved = shouldUseLiveBalances
-    ? resolveValue(escrowReservedUSD, lastReadyBalances.reserved, summaryReserved)
-    : lastReadyBalances.reserved;
-  const resolvedEscrowTotal = shouldUseLiveBalances
-    ? resolveValue(escrowTotalUSD, lastReadyBalances.total)
-    : lastReadyBalances.total;
+  const resolveValue = (current: number | undefined, fallback: number) =>
+    typeof current === 'number' ? current : fallback;
+  const resolvedWalletUSDC =
+    walletStatus.code === 'ready'
+      ? resolveValue(walletUSDC, lastReadyBalances.wallet)
+      : lastReadyBalances.wallet;
+  const resolvedEscrowAvailable =
+    walletStatus.code === 'ready'
+      ? resolveValue(escrowAvailableUSD, lastReadyBalances.available)
+      : lastReadyBalances.available;
+  const resolvedEscrowReserved =
+    walletStatus.code === 'ready'
+      ? resolveValue(escrowReservedUSD, lastReadyBalances.reserved)
+      : lastReadyBalances.reserved;
+  const resolvedEscrowTotal =
+    walletStatus.code === 'ready'
+      ? resolveValue(escrowTotalUSD, lastReadyBalances.total)
+      : lastReadyBalances.total;
   const demoCreditsBalance = Number(summary?.demoCredits ?? summary?.balances?.demoCredits ?? 0);
-  const creatorEarningsBalanceLoaded = Boolean(summary) && !isLoadingBalance && !balanceError;
   const creatorEarningsBalance = Number(summary?.creatorEarnings ?? summary?.balances?.creatorEarnings ?? 0);
   const stakeBalance = Number(summary?.stakeBalance ?? summary?.balances?.stakeBalance ?? summary?.available ?? 0);
   
@@ -517,77 +556,6 @@ const WalletPageV2: React.FC<WalletPageV2Props> = ({ onNavigateBack }) => {
       void queryClient.invalidateQueries({ queryKey: QK.walletActivity(user.id) });
     }
   }, [isConnected, address, chainId, queryClient, user?.id]);
-
-  const canClaimDaily = FCZ_ENABLE_DAILY_CLAIM && authenticated && Boolean(user?.id);
-
-  useEffect(() => {
-    if (!user?.id) return;
-    const key = `fcz:daily-claim-next:${user.id}`;
-    const saved = localStorage.getItem(key);
-    if (saved) setNextDailyClaimAt(saved);
-  }, [user?.id]);
-
-  const isDailyClaimLocked = useMemo(() => {
-    if (!nextDailyClaimAt) return false;
-    const next = new Date(nextDailyClaimAt).getTime();
-    if (!Number.isFinite(next)) return false;
-    return dailyClaimNowMs < next;
-  }, [nextDailyClaimAt, dailyClaimNowMs]);
-
-  useEffect(() => {
-    if (!isDailyClaimLocked) return;
-    const timer = window.setInterval(() => setDailyClaimNowMs(Date.now()), 1000);
-    return () => window.clearInterval(timer);
-  }, [isDailyClaimLocked]);
-
-  const dailyClaimCountdown = useMemo(() => {
-    if (!nextDailyClaimAt) return null;
-    const next = new Date(nextDailyClaimAt).getTime();
-    if (!Number.isFinite(next)) return null;
-    const remainingMs = next - dailyClaimNowMs;
-    if (remainingMs <= 0) return null;
-    const totalSeconds = Math.floor(remainingMs / 1000);
-    const hours = Math.floor(totalSeconds / 3600);
-    const minutes = Math.floor((totalSeconds % 3600) / 60);
-    const seconds = totalSeconds % 60;
-    return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-  }, [nextDailyClaimAt, dailyClaimNowMs]);
-
-  const handleDailyClaim = useCallback(async () => {
-    if (!user?.id || isClaimingDaily || !canClaimDaily) return;
-    setIsClaimingDaily(true);
-    try {
-      const r = await fetch(`${getApiUrl()}/api/demo-wallet/faucet`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: user.id }),
-      });
-      const j = await r.json().catch(() => ({}));
-      if (!r.ok) {
-        throw new Error(j?.message || 'Failed to claim daily Zaurum');
-      }
-
-      if (j?.nextEligibleAt) {
-        setNextDailyClaimAt(String(j.nextEligibleAt));
-        localStorage.setItem(`fcz:daily-claim-next:${user.id}`, String(j.nextEligibleAt));
-      }
-
-      if (j?.alreadyGranted) {
-        toast('Daily claim already used. Try again tomorrow.');
-      } else {
-        toast.success(`Claimed ${Number(j?.amount || 0).toFixed(2)} Zaurum`);
-      }
-
-      void queryClient.invalidateQueries({ queryKey: ['wallet'], exact: false });
-      void queryClient.invalidateQueries({ queryKey: ['wallet-summary'], exact: false });
-      void queryClient.invalidateQueries({ queryKey: ['wallet-activity'], exact: false });
-      refetchBalances();
-    } catch (e: any) {
-      toast.error(e?.message || 'Failed to claim daily Zaurum');
-    } finally {
-      setIsClaimingDaily(false);
-    }
-  }, [user?.id, isClaimingDaily, canClaimDaily, queryClient, refetchBalances]);
 
   useEffect(() => {
     if (authenticated && user?.id) {
@@ -716,7 +684,7 @@ const WalletPageV2: React.FC<WalletPageV2Props> = ({ onNavigateBack }) => {
               </div>
               {/* Funding Guide Link */}
               <div className="mt-4 pt-4 border-t border-gray-100 text-center">
-                <p className="text-sm text-gray-500 mb-2">Need help funding your wallet?</p>
+                <p className="text-sm text-gray-500 mb-2">New to crypto wallets?</p>
                 <a
                   href="https://fanclubz.app/docs/funding-guide"
                   target="_blank"
@@ -828,38 +796,57 @@ const WalletPageV2: React.FC<WalletPageV2Props> = ({ onNavigateBack }) => {
           ) : (
             <>
               {/* Wallet balances */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {/* 1. Available balance */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                {/* 1. Wallet USDC - ERC20 balance in user's crypto wallet */}
+                <div className="bg-white rounded-2xl border border-black/[0.06] p-4 min-h-[88px] flex flex-col justify-center">
+                  <div className="flex items-center space-x-1 mb-2">
+                    <Wallet className="w-4 h-4 text-blue-500" />
+                    <div className="text-xs text-gray-600 font-medium tracking-wide">Wallet</div>
+                  </div>
+                  <div className="text-lg font-bold text-gray-900 font-mono truncate">
+                    {isLoadingBalance
+                      ? '...' 
+                      : formatCurrency(resolvedWalletUSDC ?? 0, { compact: true })}
+                  </div>
+                  <div className="text-xs text-gray-500 mt-1">
+                    USDC on Base
+                  </div>
+                </div>
+                
+                {/* 2. Escrow Total - Total USDC in escrow contract (available + reserved) */}
                 <div className="bg-white rounded-2xl border border-black/[0.06] p-4 min-h-[88px] flex flex-col justify-center">
                   <div className="flex items-center space-x-1 mb-2">
                     <Download className="w-4 h-4 text-emerald-500" />
-                    <div className="text-xs text-gray-600 font-medium tracking-wide">Available</div>
+                    <div className="text-xs text-gray-600 font-medium tracking-wide">Escrow</div>
                   </div>
-                  <div className="text-lg font-bold text-gray-900 font-mono tabular-nums">
-                    {isLoadingBalance ? '...' : <ZaurumAmount value={resolvedEscrowAvailable ?? 0} compact={false} markSize="sm" />}
+                  <div className="text-lg font-bold text-gray-900 font-mono truncate">
+                    {isLoadingBalance
+                      ? '...' 
+                      : formatCurrency(resolvedEscrowTotal ?? 0, { compact: true })}
                   </div>
                   <div className="text-xs text-gray-500 mt-1 flex items-center gap-2">
-                    <span className="text-emerald-600 font-medium inline-flex items-center gap-1">Ready to stake</span>
+                    <span className="text-emerald-600 font-medium">
+                      {formatCurrency(resolvedEscrowAvailable ?? 0, { compact: true })} free
+                    </span>
                     {resolvedEscrowReserved > 0 && (
                       <>
                         <span className="text-gray-400">·</span>
-                        <span className="text-amber-600 font-medium inline-flex items-center gap-1">
-                          <ZaurumAmount value={resolvedEscrowReserved} compact markSize="xs" />
-                          <span>locked</span>
+                        <span className="text-amber-600 font-medium">
+                          {formatCurrency(resolvedEscrowReserved, { compact: true })} locked
                         </span>
                       </>
                     )}
                   </div>
                 </div>
 
-                {/* 2. Creator Earnings (separate from Zaurum + stake balance) */}
+                {/* 3. Creator Earnings (separate from demo + stake balance) */}
                 <div className="bg-white rounded-2xl border border-black/[0.06] p-4 min-h-[88px] flex flex-col justify-center">
                   <div className="flex items-center space-x-1 mb-2">
                     <Gift className="w-4 h-4 text-amber-500" />
                     <div className="text-xs text-gray-600 font-medium tracking-wide">Creator Earnings</div>
                   </div>
                   <div className="text-lg font-bold text-gray-900 font-mono truncate">
-                    {creatorEarningsBalanceLoaded ? <ZaurumAmount value={creatorEarningsBalance} compact markSize="sm" /> : '...'}
+                    {formatCurrency(creatorEarningsBalance, { compact: true })}
                   </div>
                   <div className="text-xs text-gray-500 mt-1">
                     Move to balance to use for staking
@@ -871,7 +858,7 @@ const WalletPageV2: React.FC<WalletPageV2Props> = ({ onNavigateBack }) => {
                         setCreatorTransferAmount('');
                         setShowCreatorTransfer(true);
                       }}
-                      disabled={!creatorEarningsBalanceLoaded || creatorEarningsBalance <= 0}
+                      disabled={creatorEarningsBalance <= 0}
                       className="inline-flex items-center justify-center rounded-lg bg-amber-100 px-2.5 py-1.5 text-[11px] font-semibold text-amber-800 hover:bg-amber-200 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       Move to Balance
@@ -887,33 +874,29 @@ const WalletPageV2: React.FC<WalletPageV2Props> = ({ onNavigateBack }) => {
                 </div>
               </div>
 
-              {!isZaurumOnly && (
-                <div className="bg-white rounded-2xl border border-black/[0.06] p-4">
-                  <div className="flex items-center justify-between mb-3">
-                    <h3 className="text-sm font-semibold text-gray-900">Internal Balances</h3>
-                    <span className="text-[11px] text-gray-500">Auditable wallet ledger</span>
+              {/* Explicit balance breakdown (server-side internal balances) */}
+              <div className="bg-white rounded-2xl border border-black/[0.06] p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-sm font-semibold text-gray-900">Internal Balances</h3>
+                  <span className="text-[11px] text-gray-500">Auditable wallet ledger</span>
+                </div>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-gray-600">Demo Credits</span>
+                    <span className="font-mono font-medium text-gray-900">{formatCurrency(demoCreditsBalance, { compact: false })}</span>
                   </div>
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="text-gray-600">Zaurum</span>
-                      <span className="font-mono font-medium text-gray-900"><ZaurumAmount value={demoCreditsBalance} markSize="xs" /></span>
-                    </div>
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="text-gray-600">Wallet / Stake Balance</span>
-                      <span className="font-mono font-medium text-gray-900"><ZaurumAmount value={stakeBalance} markSize="xs" /></span>
-                    </div>
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="text-gray-600">Creator Earnings</span>
-                      <span className="font-mono font-semibold text-amber-700">
-                        {creatorEarningsBalanceLoaded ? <ZaurumAmount value={creatorEarningsBalance} markSize="xs" /> : '...'}
-                      </span>
-                    </div>
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-gray-600">Wallet / Stake Balance</span>
+                    <span className="font-mono font-medium text-gray-900">{formatCurrency(stakeBalance, { compact: false })}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-gray-600">Creator Earnings</span>
+                    <span className="font-mono font-semibold text-amber-700">{formatCurrency(creatorEarningsBalance, { compact: false })}</span>
                   </div>
                 </div>
-              )}
+              </div>
 
               {/* On-chain Balance Card - Detailed breakdown */}
-              {!isZaurumOnly ? (
               <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-2xl border border-blue-100 p-4">
                 <div className="flex items-center justify-between mb-4 gap-2">
                   <div className="flex items-center gap-2 min-w-0">
@@ -941,7 +924,7 @@ const WalletPageV2: React.FC<WalletPageV2Props> = ({ onNavigateBack }) => {
                       <span className="w-2 h-2 rounded-full bg-emerald-500" />
                       Disconnect
                     </button>
-                  ) : !isZaurumOnly ? (
+                  ) : (
                     <button
                       type="button"
                       onClick={openConnectSheet}
@@ -950,10 +933,6 @@ const WalletPageV2: React.FC<WalletPageV2Props> = ({ onNavigateBack }) => {
                       <span className="w-2 h-2 rounded-full bg-emerald-500" />
                       Connect Wallet
                     </button>
-                  ) : (
-                    <span className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 px-3 py-1 text-xs font-medium text-gray-500">
-                      Zaurum Mode
-                    </span>
                   )}
                 </div>
                 
@@ -980,16 +959,16 @@ const WalletPageV2: React.FC<WalletPageV2Props> = ({ onNavigateBack }) => {
                 <div className="mt-3 space-y-2">
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-gray-600 whitespace-nowrap">
-                      Wallet balance
+                      Wallet USDC <span className="ml-1 text-[10px] px-1 py-0.5 rounded bg-gray-100">ERC20</span>
                     </span>
-                    <span className="font-mono font-medium tabular-nums whitespace-nowrap inline-flex items-center gap-1">
+                    <span className="font-mono font-medium tabular-nums whitespace-nowrap">
                       {resolvedWalletUSDC !== undefined 
-                        ? <ZaurumAmount value={resolvedWalletUSDC} compact={false} markSize="xs" />
+                        ? `${resolvedWalletUSDC.toFixed(2)}`
                         : isLoadingBalance 
                           ? 'Loading...' 
                           : balanceError 
                             ? 'Error' 
-                            : '0.00'}
+                            : '$0.00'}
                     </span>
                   </div>
                   <div className="flex items-center justify-between text-sm">
@@ -997,7 +976,7 @@ const WalletPageV2: React.FC<WalletPageV2Props> = ({ onNavigateBack }) => {
                       <span className="inline-block h-1.5 w-3 rounded bg-green-500" />Available
                     </span>
                     <span className="font-mono font-semibold text-green-600 tabular-nums whitespace-nowrap">
-                      {isLoadingBalance ? 'Loading...' : <ZaurumAmount value={resolvedEscrowAvailable ?? 0} markSize="xs" />}
+                      {isLoadingBalance ? 'Loading...' : `${(resolvedEscrowAvailable ?? 0).toFixed(2)}`}
                     </span>
                   </div>
                   {resolvedEscrowReserved > 0 && (
@@ -1006,7 +985,7 @@ const WalletPageV2: React.FC<WalletPageV2Props> = ({ onNavigateBack }) => {
                         <span className="inline-block h-1.5 w-3 rounded bg-amber-500" />In active {t('bets')}
                       </span>
                       <span className="font-mono font-medium text-amber-600 tabular-nums whitespace-nowrap">
-                        {isLoadingBalance ? 'Loading...' : <ZaurumAmount value={resolvedEscrowReserved ?? 0} markSize="xs" />}
+                        {isLoadingBalance ? 'Loading...' : `${(resolvedEscrowReserved ?? 0).toFixed(2)}`}
                       </span>
                     </div>
                   )}
@@ -1017,28 +996,43 @@ const WalletPageV2: React.FC<WalletPageV2Props> = ({ onNavigateBack }) => {
                     Wallet session expired. Please reconnect your wallet before making deposits, withdrawals, or bets.
                   </div>
                 )}
+
+                {balanceStuck && (
+                  <div className="mt-3 rounded-xl border border-rose-200 bg-rose-50 p-3">
+                    <div className="text-xs font-semibold text-rose-900">Wallet is taking too long to load</div>
+                    <div className="mt-1 text-xs text-rose-800">
+                      This can happen if your wallet session is stale or your network is unstable.
+                    </div>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          try {
+                            refetchBalances();
+                            toast('Refreshing balances…');
+                          } catch {}
+                        }}
+                        className="inline-flex items-center gap-2 rounded-lg bg-white px-3 py-1.5 text-xs font-semibold text-rose-900 border border-rose-200 hover:bg-rose-100 transition-colors"
+                      >
+                        Refresh
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          triggerRecovery();
+                          openConnectSheet();
+                        }}
+                        className="inline-flex items-center gap-2 rounded-lg bg-rose-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-rose-700 transition-colors"
+                      >
+                        Reconnect wallet
+                      </button>
+                    </div>
+                  </div>
+                )}
                 
                 <div className="grid grid-cols-2 gap-3 mt-6">
                   {actionButtons}
                 </div>
-
-                {canClaimDaily && (
-                  <div className="mt-4 rounded-xl border border-emerald-100 bg-emerald-50/60 p-3">
-                    <button
-                      type="button"
-                      onClick={handleDailyClaim}
-                      disabled={isDailyClaimLocked || isClaimingDaily}
-                      className="w-full h-10 rounded-xl bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      {isClaimingDaily ? 'Claiming...' : 'Claim daily Zaurum'}
-                    </button>
-                    <p className="mt-2 text-[11px] text-gray-600 text-center">
-                      {isDailyClaimLocked && dailyClaimCountdown
-                        ? `Next claim in ${dailyClaimCountdown}`
-                        : 'Claim once every 24 hours.'}
-                    </p>
-                  </div>
-                )}
                 
                 {/* Recent Activity */}
                 {walletActivity?.items && walletActivity.items.length > 0 ? (
@@ -1065,11 +1059,11 @@ const WalletPageV2: React.FC<WalletPageV2Props> = ({ onNavigateBack }) => {
                           entry: Target,
                           bet_placed: Target,
                           claim: Receipt,
-                          payout: ZaurumIcon,
-                          win: ZaurumIcon,
-                          loss: ZaurumIcon,
-                          creator_fee: ZaurumIcon,
-                          platform_fee: ZaurumIcon,
+                          payout: DollarSign,
+                          win: Trophy,
+                          loss: XCircle,
+                          creator_fee: DollarSign,
+                          platform_fee: DollarSign,
                           settlement: Receipt,
                           bet_refund: Unlock,
                         };
@@ -1118,9 +1112,14 @@ const WalletPageV2: React.FC<WalletPageV2Props> = ({ onNavigateBack }) => {
                               <span className="text-[11px] text-gray-500 whitespace-nowrap">
                                 {item.createdAt ? formatTimeAgo(item.createdAt) : ''}
                               </span>
-                              <span className="font-mono text-xs font-medium whitespace-nowrap inline-flex items-center gap-1">
-                                <ZaurumAmount value={item.amountUSD} markSize="xs" />
-                              </span>
+                              {(() => {
+                                const tx = formatTxAmount({ amount: item.amountUSD, kind: item.kind, compact: false, currency: (item as any)?.meta?.currency || 'USD' });
+                                return (
+                                  <span className={`font-mono text-xs font-medium whitespace-nowrap ${toneClass(tx.tone)}`}>
+                                    {tx.display}
+                                  </span>
+                                );
+                              })()}
                             </div>
                           </div>
                         );
@@ -1144,41 +1143,62 @@ const WalletPageV2: React.FC<WalletPageV2Props> = ({ onNavigateBack }) => {
                   </div>
                 ) : null}
               </div>
-              ) : (
-                <>
-                  <div className="bg-white rounded-2xl border border-black/[0.06] p-4">
-                    <div className="space-y-2">
-                      <button
-                        type="button"
-                        onClick={handleDailyClaim}
-                        disabled={!canClaimDaily || isDailyClaimLocked || isClaimingDaily}
-                        className="w-full h-11 rounded-xl bg-emerald-600 text-white font-semibold hover:bg-emerald-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        {isClaimingDaily ? 'Claiming...' : 'Claim daily Zaurum'}
-                      </button>
-                      {isDailyClaimLocked && dailyClaimCountdown ? (
-                        <p className="text-xs text-gray-500 text-center">
-                          Next claim in {dailyClaimCountdown}
-                        </p>
-                      ) : !canClaimDaily ? (
-                        <p className="text-xs text-gray-500 text-center">
-                          Daily claim is currently unavailable.
-                        </p>
-                      ) : (
-                        <p className="text-xs text-gray-500 text-center">Claim once every 24 hours.</p>
-                      )}
+              
+              {/* Fiat Wallet Section (Phase 7) */}
+              {fiatEnabled && (
+                <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-2xl border border-green-100 p-4">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-medium text-green-600 bg-green-100 px-2 py-1 rounded-full">NGN Fiat</span>
+                      <Banknote className="w-4 h-4 text-green-600" />
                     </div>
                   </div>
-                  <RecentActivityCard
-                    items={recentActivityItems}
-                    loading={isLoadingActivity}
-                    maxItems={8}
-                    showViewAll={recentActivityItems.length > 8}
-                    onViewAll={() => setShowAllTransactions(true)}
-                    emptyTitle="No recent activity"
-                    emptyDescription="Your wallet activity will appear here."
-                  />
-                </>
+                  
+                  <div className="space-y-2 mb-4">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-gray-600">Total Balance</span>
+                      <span className="font-mono font-semibold text-gray-900">
+                        ₦{fiatSummary ? fiatSummary.totalNgn.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0.00'}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-gray-700 flex items-center gap-2">
+                        <span className="inline-block h-1.5 w-3 rounded bg-green-500" />Available
+                      </span>
+                      <span className="font-mono font-semibold text-green-600">
+                        ₦{fiatSummary ? fiatSummary.availableNgn.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0.00'}
+                      </span>
+                    </div>
+                    {fiatSummary && fiatSummary.lockedNgn > 0 && (
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-gray-700 flex items-center gap-2">
+                          <span className="inline-block h-1.5 w-3 rounded bg-amber-500" />In active {t('bets')}
+                        </span>
+                        <span className="font-mono font-medium text-amber-600">
+                          ₦{fiatSummary.lockedNgn.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-3 mt-4">
+                    <button
+                      onClick={() => setShowFiatDeposit(true)}
+                      className="h-11 rounded-xl bg-green-600 text-white font-semibold hover:bg-green-700 transition-colors flex items-center justify-center gap-2"
+                    >
+                      <Plus className="w-4 h-4" />
+                      Deposit
+                    </button>
+                    <button
+                      onClick={() => setShowFiatWithdraw(true)}
+                      disabled={!fiatSummary || fiatSummary.availableNgn < 200}
+                      className="h-11 rounded-xl border-2 border-gray-300 text-gray-700 font-semibold hover:border-gray-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                    >
+                      <ArrowUpRight className="w-4 h-4" />
+                      Withdraw
+                    </button>
+                  </div>
+                </div>
               )}
             </>
           )}
@@ -1186,7 +1206,7 @@ const WalletPageV2: React.FC<WalletPageV2Props> = ({ onNavigateBack }) => {
       </div>
       
       {/* Crypto Wallet Modals */}
-      {user?.id && !isZaurumOnly && (
+      {user?.id && (
         <>
           {showDeposit && (
             <DepositUSDCModal
@@ -1215,6 +1235,61 @@ const WalletPageV2: React.FC<WalletPageV2Props> = ({ onNavigateBack }) => {
         </>
       )}
 
+      {/* Fiat Wallet Modals (Phase 7) */}
+      {user?.id && fiatEnabled && (
+        <>
+          {showFiatDeposit && (
+            <FiatDepositSheet
+              open={showFiatDeposit}
+              onClose={() => setShowFiatDeposit(false)}
+              userId={user.id}
+              userEmail={user.email}
+              onSuccess={() => {
+                setShowFiatDeposit(false);
+                handleRefresh();
+                queryClient.invalidateQueries({ queryKey: ['fiat'] });
+              }}
+            />
+          )}
+          {showFiatWithdraw && (
+            <FiatWithdrawalSheet
+              open={showFiatWithdraw}
+              onClose={() => setShowFiatWithdraw(false)}
+              userId={user.id}
+              fiatSummary={fiatSummary}
+              onSuccess={() => {
+                setShowFiatWithdraw(false);
+                handleRefresh();
+                queryClient.invalidateQueries({ queryKey: ['fiat'] });
+              }}
+            />
+          )}
+        </>
+      )}
+
+      {/* Deposit info modal (shown on iOS when deposits unavailable) */}
+      {showDepositInfo && (
+        <div className="fixed inset-0 z-modal flex items-end md:items-center justify-center">
+          <div className="absolute inset-0 bg-black/60" onClick={() => setShowDepositInfo(false)} />
+          <div className="relative w-full max-w-md mx-auto bg-white rounded-t-2xl md:rounded-2xl shadow-xl p-6 animate-slide-up">
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">Deposits Coming Soon</h3>
+            <p className="text-sm text-gray-600 mb-4">
+              Deposits are not yet available on the mobile app. You can add funds by visiting
+              the web app at <span className="font-medium text-emerald-600">app.fanclubz.app</span>.
+            </p>
+            <p className="text-sm text-gray-500 mb-5">
+              We're working on bringing deposits directly to the app. Stay tuned!
+            </p>
+            <button
+              onClick={() => setShowDepositInfo(false)}
+              className="w-full h-11 rounded-xl bg-emerald-600 text-white font-semibold hover:bg-emerald-700 transition-colors"
+            >
+              Got it
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Creator earnings transfer sheet */}
       {showCreatorTransfer && (
         <div className="fixed inset-0 z-modal flex items-end md:items-center justify-center">
@@ -1235,9 +1310,7 @@ const WalletPageV2: React.FC<WalletPageV2Props> = ({ onNavigateBack }) => {
             </div>
             <div className="rounded-2xl border border-amber-100 bg-amber-50 p-3 mb-4">
               <p className="text-xs text-amber-700">Available creator earnings</p>
-              <p className="text-xl font-semibold text-amber-900 font-mono">
-                {creatorEarningsBalanceLoaded ? <ZaurumAmount value={creatorEarningsBalance} markSize="sm" /> : '...'}
-              </p>
+              <p className="text-xl font-semibold text-amber-900 font-mono">{formatCurrency(creatorEarningsBalance, { compact: false })}</p>
             </div>
             <div className="space-y-3">
               <label className="block">
@@ -1255,7 +1328,6 @@ const WalletPageV2: React.FC<WalletPageV2Props> = ({ onNavigateBack }) => {
                   <button
                     type="button"
                     onClick={() => setCreatorTransferAmount(creatorEarningsBalance > 0 ? creatorEarningsBalance.toFixed(2) : '0')}
-                    disabled={!creatorEarningsBalanceLoaded}
                     className="rounded-xl border border-gray-200 px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50"
                   >
                     Max
@@ -1268,11 +1340,11 @@ const WalletPageV2: React.FC<WalletPageV2Props> = ({ onNavigateBack }) => {
                 <div className="space-y-1 text-sm">
                   <div className="flex items-center justify-between">
                     <span className="text-gray-600">Creator Earnings after</span>
-                    <span className="font-mono text-gray-900"><ZaurumAmount value={previewCreatorAfter} markSize="xs" /></span>
+                    <span className="font-mono text-gray-900">{formatCurrency(previewCreatorAfter, { compact: false })}</span>
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="text-gray-600">Wallet / Stake Balance after</span>
-                    <span className="font-mono text-gray-900"><ZaurumAmount value={previewStakeAfter} markSize="xs" /></span>
+                    <span className="font-mono text-gray-900">{formatCurrency(previewStakeAfter, { compact: false })}</span>
                   </div>
                 </div>
               </div>
@@ -1328,10 +1400,7 @@ const WalletPageV2: React.FC<WalletPageV2Props> = ({ onNavigateBack }) => {
                         <p className="text-[11px] text-gray-400">{formatTimeAgo(item.createdAt)}</p>
                       </div>
                       <div className={`font-mono text-sm font-semibold ${isTransfer ? 'text-blue-700' : 'text-emerald-700'}`}>
-                        <span className="inline-flex items-center gap-1">
-                          <span>{isTransfer ? '-' : '+'}</span>
-                          <ZaurumAmount value={item.amount} markSize="xs" />
-                        </span>
+                        {isTransfer ? '-' : '+'}{formatCurrency(item.amount, { compact: false })}
                       </div>
                     </div>
                   );
@@ -1363,9 +1432,14 @@ const WalletPageV2: React.FC<WalletPageV2Props> = ({ onNavigateBack }) => {
 
             <div className="bg-gray-50 rounded-2xl p-4 mb-4">
               <p className="text-xs text-gray-500 mb-1">Amount</p>
-              <p className="text-2xl font-semibold text-gray-900">
-                <ZaurumAmount value={selectedActivity.amountUSD} markSize="md" />
-              </p>
+              {(() => {
+                const tx = formatTxAmount({ amount: selectedActivity.amountUSD, kind: selectedActivity.kind, compact: false, currency: (selectedActivity as any)?.meta?.currency || 'USD' });
+                return (
+                  <p className={`text-2xl font-semibold ${toneClass(tx.tone)}`}>
+                    {tx.display}
+                  </p>
+                );
+              })()}
               <div className="flex items-center gap-2 text-xs text-gray-500 mt-3">
                 <Clock className="w-3.5 h-3.5" />
                 <span>{selectedActivity.createdAt ? formatTimeAgo(selectedActivity.createdAt) : 'Just now'}</span>
@@ -1514,15 +1588,12 @@ const WalletPageV2: React.FC<WalletPageV2Props> = ({ onNavigateBack }) => {
                   <div key={`${c.predictionId}:${c.amountUnits}`} className="flex items-center justify-between p-3 border rounded-xl">
                     <div className="min-w-0">
                       <div className="font-medium text-gray-900 truncate">{c.title || 'Settled prediction'}</div>
-                      <div className="text-xs text-gray-500 inline-flex items-center gap-1">
-                        <span>Claim</span>
-                        <ZaurumAmount value={c.amountUSD} markSize="xs" />
-                      </div>
+                      <div className="text-xs text-gray-500">Claim {formatCurrency(c.amountUSD, { compact: false })}</div>
                     </div>
                     <div className="flex items-center gap-2 flex-shrink-0">
                       <button
                         className="h-9 px-3 rounded-lg border text-sm text-gray-700 hover:bg-gray-50"
-                        onClick={() => navigate(buildPredictionCanonicalPath(c.predictionId, c.title), {
+                        onClick={() => navigate(`/predictions/${c.predictionId}`, {
                           state: { from: fromPath }
                         })}
                       >
@@ -1541,7 +1612,7 @@ const WalletPageV2: React.FC<WalletPageV2Props> = ({ onNavigateBack }) => {
                             });
                             if (tx) {
                               await queryClient.invalidateQueries({ queryKey: ['wallet', 'claimable'] });
-                              // Trigger a balance refresh for wallet + escrow.
+                              // trigger a balance refresh for USDC + escrow
                               window.dispatchEvent(new CustomEvent('fcz:balance:refresh'));
                             }
                           } finally {
@@ -1589,11 +1660,11 @@ const WalletPageV2: React.FC<WalletPageV2Props> = ({ onNavigateBack }) => {
                     entry: Target,
                     bet_placed: Target,
                     claim: Receipt,
-                    payout: ZaurumIcon,
-                    win: ZaurumIcon,
-                    loss: ZaurumIcon,
-                    creator_fee: ZaurumIcon,
-                    platform_fee: ZaurumIcon,
+                    payout: DollarSign,
+                    win: Trophy,
+                    loss: XCircle,
+                    creator_fee: DollarSign,
+                    platform_fee: DollarSign,
                     settlement: Receipt,
                     bet_refund: Unlock,
                   };
@@ -1647,9 +1718,14 @@ const WalletPageV2: React.FC<WalletPageV2Props> = ({ onNavigateBack }) => {
                         </div>
                       </div>
                       <div className="text-right flex-shrink-0 min-w-[80px]">
-                        <div className="text-sm font-mono font-medium text-gray-700 inline-flex items-center gap-1">
-                          <ZaurumAmount value={item.amountUSD} markSize="xs" />
-                        </div>
+                        {(() => {
+                          const tx = formatTxAmount({ amount: item.amountUSD, kind: item.kind, compact: false, currency: (item as any)?.meta?.currency || 'USD' });
+                          return (
+                            <div className={`text-sm font-mono font-medium ${toneClass(tx.tone)}`}>
+                              {tx.display}
+                            </div>
+                          );
+                        })()}
                       </div>
                     </div>
                   );

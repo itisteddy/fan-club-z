@@ -101,20 +101,6 @@ export const config = {
     pushNotifications: process.env.ENABLE_PUSH_NOTIFICATIONS === 'true',
     analytics: process.env.ENABLE_ANALYTICS === 'true',
     blockchain: process.env.ENABLE_BLOCKCHAIN === 'true',
-    walletMode: (process.env.FCZ_WALLET_MODE === 'zaurum_only' ? 'zaurum_only' : 'dual') as 'dual' | 'zaurum_only',
-    dailyClaimEnabled: process.env.FCZ_ENABLE_DAILY_CLAIM !== 'false',
-  },
-
-  // Crypto Testnet Gate configuration
-  crypto: {
-    mode: (process.env.CRYPTO_MODE || 'off') as 'testnet' | 'mainnet' | 'off',
-    allowedClients: (process.env.CRYPTO_ALLOWED_CLIENTS || 'web').split(','),
-    allowedOrigin: process.env.CRYPTO_ALLOWED_ORIGIN || null,
-  },
-
-  // Apple Auth Configuration
-  apple: {
-    clientId: process.env.APPLE_CLIENT_ID || process.env.APPLE_SERVICES_ID,
   },
   
   // Email Configuration
@@ -165,6 +151,15 @@ export const config = {
     maxSize: process.env.LOG_MAX_SIZE || '10m',
   },
   
+  // Sign in with Apple (Phase 2 — ENV only; no secrets in code)
+  apple: {
+    clientId: process.env.APPLE_CLIENT_ID || process.env.APPLE_SERVICES_ID || '',
+    teamId: process.env.APPLE_TEAM_ID || '',
+    keyId: process.env.APPLE_KEY_ID || '',
+    privateKey: process.env.APPLE_PRIVATE_KEY || process.env.APPLE_PRIVATE_KEY_PATH || '',
+    redirectUri: process.env.APPLE_REDIRECT_URI || '',
+  },
+
   // Security Configuration
   security: {
     bcryptRounds: parseInt(process.env.BCRYPT_ROUNDS || '12', 10),
@@ -190,6 +185,25 @@ export const config = {
     enabled: process.env.ENABLE_WEBSOCKET !== 'false',
     port: parseInt(process.env.WEBSOCKET_PORT || '3002', 10),
     origins: process.env.WEBSOCKET_ORIGINS?.split(',') || ['http://localhost:3000', 'http://localhost:5173'],
+  },
+
+  // Crypto / testnet gating (web-only today)
+  crypto: {
+    mode: (process.env.CRYPTO_MODE || 'off') as 'off' | 'testnet' | 'mainnet',
+    allowedClients: (process.env.CRYPTO_ALLOWED_CLIENTS || 'web')
+      .split(',')
+      .map((s) => s.trim().toLowerCase())
+      .filter(Boolean),
+    allowedOrigin: process.env.CRYPTO_ALLOWED_ORIGIN || 'https://app.fanclubz.app',
+  },
+  
+  // Settlement / finalization configuration
+  settlement: {
+    // Allow prediction creators to request finalization (queue for admin to finalize)
+    // If false, only admins can request finalization
+    allowCreatorFinalizationRequest: process.env.ALLOW_CREATOR_FINALIZATION_REQUEST === 'true',
+    // Dispute window in hours after settlement before finalization can occur
+    disputeWindowHours: parseInt(process.env.SETTLEMENT_DISPUTE_WINDOW_HOURS || '24', 10),
   },
 } as const;
 
@@ -217,6 +231,15 @@ if (process.env.VITE_SUPABASE_URL && !process.env.VITE_SUPABASE_URL.startsWith('
 // Validate JWT secret strength in production
 if (process.env.NODE_ENV === 'production' && config.jwt.secret.length < 32) {
   throw new Error('JWT_SECRET must be at least 32 characters long in production');
+}
+
+// Fail fast: if CRYPTO_MODE=mainnet, require mainnet config (prevent accidents)
+if (config.crypto.mode === 'mainnet') {
+  if (!process.env.CRYPTO_MAINNET_CHAIN_ID || !process.env.CRYPTO_MAINNET_RPC_URL) {
+    throw new Error(
+      'CRYPTO_MODE=mainnet requires CRYPTO_MAINNET_CHAIN_ID and CRYPTO_MAINNET_RPC_URL. Do not set mainnet until ready.'
+    );
+  }
 }
 
 export default config;

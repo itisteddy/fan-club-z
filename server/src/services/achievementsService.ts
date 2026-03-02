@@ -168,114 +168,6 @@ type BadgeEligibilityDefinition = {
   goalValue: number | null;
 };
 
-let achievementsRefreshInFlight: Promise<void> | null = null;
-let achievementsRefreshLastRunAt = 0;
-const ACHIEVEMENTS_REFRESH_MIN_INTERVAL_MS = 2 * 60 * 1000;
-
-function scheduleAchievementsRefresh(reason: string) {
-  const now = Date.now();
-  if (achievementsRefreshInFlight) return;
-  if (now - achievementsRefreshLastRunAt < ACHIEVEMENTS_REFRESH_MIN_INTERVAL_MS) return;
-
-  achievementsRefreshLastRunAt = now;
-  achievementsRefreshInFlight = (async () => {
-    try {
-      await recomputeStatsAndAwards({ daysBack: 60, windows: ['7d', '30d', 'all'], topN: 50 });
-      if (process.env.NODE_ENV !== 'production') {
-        console.log('[Achievements] background refresh completed', { reason });
-      }
-    } catch (error: any) {
-      console.warn('[Achievements] background refresh failed:', error?.message || error);
-    } finally {
-      achievementsRefreshInFlight = null;
-    }
-  })();
-}
-
-async function fetchLiveUserBadgeProgress(userId: string): Promise<UserBadgeProgressStats | null> {
-  const [stakesRes, commentsRes, creatorRes] = await Promise.all([
-    supabase
-      .from('position_stake_events')
-      .select('id', { count: 'exact', head: true })
-      .eq('user_id', userId),
-    supabase
-      .from('comments')
-      .select('id', { count: 'exact', head: true })
-      .eq('user_id', userId)
-      .eq('is_deleted', false),
-    supabase
-      .from('wallet_transactions')
-      .select('amount, from_account, to_account, type, channel, direction, status')
-      .eq('user_id', userId)
-      .eq('direction', 'credit')
-      .eq('status', 'completed'),
-  ]);
-
-  if (stakesRes.error || commentsRes.error || creatorRes.error) {
-    if (process.env.NODE_ENV !== 'production') {
-      console.warn('[Achievements] live progress fallback failed', {
-        stakes: stakesRes.error?.message,
-        comments: commentsRes.error?.message,
-        creator: creatorRes.error?.message,
-      });
-    }
-    return null;
-  }
-
-  const creatorEarningsAmount = (creatorRes.data || []).reduce((sum: number, row: any) => {
-    const toAccount = String(row.to_account || '');
-    const fromAccount = String(row.from_account || '');
-    const type = String(row.type || '').toUpperCase();
-    const channel = String(row.channel || '');
-    const isCredit =
-      toAccount === 'CREATOR_EARNINGS' ||
-      type === 'CREATOR_EARNING_CREDIT' ||
-      channel === 'creator_fee';
-    const isTransferOut = fromAccount === 'CREATOR_EARNINGS' && toAccount === 'STAKE';
-    if (!isCredit || isTransferOut) return sum;
-    return sum + Number(row.amount || 0);
-  }, 0);
-
-  return {
-    userId,
-    stakesCount: Number(stakesRes.count || 0),
-    commentsCount: Number(commentsRes.count || 0),
-    creatorEarningsAmount: Number(creatorEarningsAmount || 0),
-  };
-}
-
-async function ensureEarnedBadgesForUser(
-  userId: string,
-  progress: UserBadgeProgressStats,
-  badgeDefs: Array<{
-    key: string;
-    progressMetric: BadgeProgressMetric | null;
-    goalValue: number | null;
-  }>,
-  existingBadgeKeys: Set<string>,
-): Promise<boolean> {
-  const candidates = computeBadgeEligibilityFromDefinitions([progress], badgeDefs)
-    .map((r) => r.badgeKey)
-    .filter((key) => !existingBadgeKeys.has(key));
-
-  if (candidates.length === 0) return false;
-
-  const rows = candidates.map((badgeKey) => ({
-    user_id: userId,
-    badge_key: badgeKey,
-    metadata: { source: 'live_progress_fallback' },
-  }));
-
-  const { error } = await supabase
-    .from('user_badges')
-    .upsert(rows, { onConflict: 'user_id,badge_key', ignoreDuplicates: true });
-  if (error) {
-    console.warn('[Achievements] failed to upsert live-earned badges', error);
-    return false;
-  }
-  return true;
-}
-
 function currentProgressValue(stats: UserBadgeProgressStats, metric: BadgeProgressMetric): number {
   switch (metric) {
     case 'stakes_count':
@@ -308,7 +200,7 @@ function formatBadgeProgressLabel(metric: BadgeProgressMetric | null | undefined
   const safeCurrent = Math.max(0, current);
   const safeTarget = Math.max(0, target);
   if (metric === 'creator_earnings_amount') {
-    return `${safeCurrent.toFixed(2)}/${safeTarget.toFixed(2)}`;
+    return `$${safeCurrent.toFixed(2)}/$${safeTarget.toFixed(2)}`;
   }
   return `${Math.floor(safeCurrent)}/${Math.floor(safeTarget)}`;
 }
@@ -650,7 +542,6 @@ export async function recomputeStatsAndAwards(params?: {
 }
 
 export async function getUserAchievements(userId: string): Promise<AchievementsResponse> {
-  scheduleAchievementsRefresh(`read:${userId}`);
   const windowSortRank: Record<AwardWindow, number> = { '7d': 0, '30d': 1, all: 2 };
   const awardsResPromise = supabase
     .from('user_awards_current')
@@ -749,7 +640,7 @@ export async function getUserAchievements(userId: string): Promise<AchievementsR
     return a.awardKey.localeCompare(b.awardKey);
   });
 
-  let badges: UserBadge[] = (userBadgesRes.data || [])
+  const badges: UserBadge[] = (userBadgesRes.data || [])
     .map((row: any) => {
       const def = badgeDefByKey.get(String(row.badge_key));
       if (!def) return null;
@@ -792,12 +683,18 @@ export async function getUserAchievements(userId: string): Promise<AchievementsR
     }))
     .sort((a, b) => (a.sortOrder - b.sortOrder) || a.key.localeCompare(b.key));
 
+  const badgesEarned = badges.map((b) => ({
+    badgeKey: b.badgeKey,
+    earnedAt: b.earnedAt,
+    metadata: b.metadata,
+  }));
+
   const progressRows = (userProgressRes.data || []) as Array<{
     stakes_count?: number | string | null;
     comments_count?: number | string | null;
     creator_earnings_amount?: number | string | null;
   }>;
-  let userProgressStats: UserBadgeProgressStats = progressRows.reduce<UserBadgeProgressStats>(
+  const userProgressStats: UserBadgeProgressStats = progressRows.reduce<UserBadgeProgressStats>(
     (acc, row) => {
       acc.stakesCount += Number(row.stakes_count || 0);
       acc.commentsCount += Number(row.comments_count || 0);
@@ -806,51 +703,7 @@ export async function getUserAchievements(userId: string): Promise<AchievementsR
     },
     { userId, stakesCount: 0, commentsCount: 0, creatorEarningsAmount: 0 },
   );
-
-  if (progressRows.length === 0) {
-    const liveProgress = await fetchLiveUserBadgeProgress(userId);
-    if (liveProgress) {
-      userProgressStats = liveProgress;
-    }
-  }
-
-  let earnedKeySet = new Set(badges.map((b) => b.badgeKey));
-  const syncedLiveBadges = await ensureEarnedBadgesForUser(
-    userId,
-    userProgressStats,
-    badgeDefinitions.map((d) => ({
-      key: d.key,
-      progressMetric: d.progressMetric ?? null,
-      goalValue: d.goalValue ?? null,
-    })),
-    earnedKeySet,
-  );
-
-  if (syncedLiveBadges) {
-    const refreshedBadgesRes = await supabase
-      .from('user_badges')
-      .select('badge_key, earned_at, metadata')
-      .eq('user_id', userId)
-      .order('earned_at', { ascending: false });
-    if (!refreshedBadgesRes.error) {
-      badges = (refreshedBadgesRes.data || [])
-        .map((row: any) => {
-          const def = badgeDefByKey.get(String(row.badge_key));
-          if (!def) return null;
-          return {
-            badgeKey: String(row.badge_key),
-            title: String(def.title),
-            description: String(def.description),
-            iconKey: def.icon_key ? String(def.icon_key) : null,
-            earnedAt: String(row.earned_at),
-            metadata: (row.metadata || {}) as Record<string, unknown>,
-          };
-        })
-        .filter(Boolean) as UserBadge[];
-    }
-    earnedKeySet = new Set(badges.map((b) => b.badgeKey));
-  }
-
+  const earnedKeySet = new Set(badgesEarned.map((b) => b.badgeKey));
   const badgeDefinitionsWithProgress = badgeDefinitions.map((def) => {
     const currentValue = def.progressMetric ? currentProgressValue(userProgressStats, def.progressMetric) : 0;
     const goalValue = def.goalValue == null ? null : Number(def.goalValue);
@@ -870,12 +723,6 @@ export async function getUserAchievements(userId: string): Promise<AchievementsR
       isEarned,
     };
   });
-
-  const badgesEarned = badges.map((b) => ({
-    badgeKey: b.badgeKey,
-    earnedAt: b.earnedAt,
-    metadata: b.metadata,
-  }));
 
   return {
     userId,

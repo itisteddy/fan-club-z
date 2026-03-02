@@ -4,6 +4,7 @@
  */
 
 import React from 'react';
+import { LogoMarkPng } from '@/assets/brand';
 
 interface LogoProps {
   size?: 'sm' | 'md' | 'lg' | 'xl';
@@ -35,12 +36,12 @@ const Logo: React.FC<LogoProps> = ({
       role={onClick ? 'button' : undefined}
       tabIndex={onClick ? 0 : undefined}
     >
+      {/* Logo image - preserve aspect ratio, no distortion */}
       <img
-        src="/assets/zaurum-mark.png"
-        alt="Zaurum"
+        src={LogoMarkPng}
+        alt="Fan Club Z"
         className="w-full h-full object-contain"
-        loading="lazy"
-        decoding="async"
+        style={{ objectFit: 'contain' }}
       />
       
       {/* Text variant (if full logo is requested) */}

@@ -308,17 +308,22 @@ function Web3ProviderInner({ children }: { children: React.ReactNode }) {
     setLastRecoveryTime(now);
 
     try {
-      // Only cleanup if there's NO persisted connection (genuine disconnect)
-      if (!hasPersisted) {
+      /**
+       * IMPORTANT UX FIX:
+       * Do NOT automatically disconnect users during "recovery".
+       * Some WalletConnect/session errors are transient (relay hiccups, mobile backgrounding),
+       * and auto-disconnecting causes the "wallet disconnects after some time" issue.
+       *
+       * Recovery should primarily:
+       * - invalidate/remove queries that may be stuck
+       * - mark the session unhealthy so UI can prompt a reconnect
+       *
+       * Cleanup/disconnect should happen only when:
+       * - user explicitly disconnects, OR
+       * - we can positively detect there is NO persisted session AND wallet is already disconnected.
+       */
+      if (!hasPersisted && !isConnected && !isConnecting && !isReconnecting) {
         await cleanupSessions();
-      }
-
-      if (isConnected) {
-        try {
-          disconnect();
-        } catch (e) {
-          // Ignore disconnect errors during recovery
-        }
       }
 
       await new Promise(resolve => setTimeout(resolve, 300));
@@ -344,7 +349,7 @@ function Web3ProviderInner({ children }: { children: React.ReactNode }) {
         setIsRecovering(false);
       }
     }
-  }, [cleanupSessions, disconnect, isConnected, isConnecting, isReconnecting, status, lastRecoveryTime, queryClient]);
+  }, [cleanupSessions, isConnected, isConnecting, isReconnecting, lastRecoveryTime, queryClient]);
 
   /**
    * Wrap an async operation with automatic recovery on session errors

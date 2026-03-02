@@ -34,99 +34,127 @@ const AuthCallback: React.FC = () => {
         // Parse URL params
         const searchParams = new URLSearchParams(window.location.search);
         const hash = window.location.hash || '';
-        const hashParams = new URLSearchParams(hash.replace(/^#/, ''));
         const code = searchParams.get('code');
         const errorParam = searchParams.get('error');
         const errorDescription = searchParams.get('error_description');
         const hasHashAccessToken = hash.includes('access_token=');
         const hasQueryAccessToken = Boolean(searchParams.get('access_token'));
-        const tokenHash = searchParams.get('token_hash') || hashParams.get('token_hash');
-        const otpType = searchParams.get('type') || hashParams.get('type');
         const isOAuthFlow = Boolean(code);
         const isMagicLinkFlow = hasHashAccessToken || hasQueryAccessToken;
-        const isOtpConfirmationFlow = Boolean(tokenHash && otpType);
 
-        console.log('[auth:cb] mounted', {
-          hasCode: Boolean(code),
-          hasError: Boolean(errorParam),
-          hasTokenHash: Boolean(tokenHash),
-          otpType: otpType || null,
-        });
+        console.log('[auth:cb] mounted', { hasCode: Boolean(code), hasError: Boolean(errorParam) });
 
         // Handle error case
         if (errorParam) {
           const errorMsg = errorDescription || errorParam || 'Authentication failed';
+          console.error('[auth:cb] OAuth error:', errorParam, errorDescription);
           setError(errorMsg);
+          // Clear URL params to prevent re-processing
           window.history.replaceState({}, '', window.location.pathname);
           return;
         }
 
-        // If no code and no access_token/token_hash, fail fast
-        if (!isOAuthFlow && !isMagicLinkFlow && !isOtpConfirmationFlow) {
+        // If no code and no access_token, show error (e.g. stale link or wrong redirect)
+        if (!isOAuthFlow && !isMagicLinkFlow) {
+          console.error('[auth:cb] No auth code or token in URL');
           setError('This sign-in link is invalid or has expired. Please request a new link from the sign-in screen.');
           return;
         }
 
-        // If session already exists, redirect immediately
+        // Check if we already have a valid session (idempotency)
         const { data: { session: existingSession }, error: sessionCheckError } = await supabase.auth.getSession();
         if (existingSession && !sessionCheckError) {
+          console.log('[auth:cb] Session already exists, redirecting');
           const nextFromUrl = searchParams.get('next');
           const nextFromStorage = consumeReturnTo();
           const target = sanitizeInternalPath(nextFromUrl ?? nextFromStorage ?? '/predictions');
+          
+          // Clear URL params
           window.history.replaceState({}, '', window.location.pathname);
+          
+          console.log('[auth:cb] redirecting to', { returnTo: target });
           navigate(target, { replace: true });
           return;
         }
 
-        // Magic-link flow
+        // For magic-link flows
         if (isMagicLinkFlow && !isOAuthFlow) {
+          console.log('[auth:cb] Processing magic-link flow');
           try {
             const { data: urlData, error: urlError } = await (supabase.auth as any).getSessionFromUrl({
               storeSession: true,
             });
-            if (urlError) throw urlError;
-            if (!urlData?.session) throw new Error('Magic link session not established');
+            if (urlError) {
+              throw urlError;
+            }
+            if (!urlData?.session) {
+              throw new Error('Magic link session not established');
+            }
+            console.log('[auth:cb] Magic-link session established');
           } catch (urlException: any) {
+            console.error('[auth:cb] Magic-link error:', urlException);
             throw urlException;
           }
         }
 
-        // Email confirmation/signup flow
-        if (isOtpConfirmationFlow && tokenHash && otpType && !isOAuthFlow && !isMagicLinkFlow) {
-          const { data: verifyData, error: verifyError } = await supabase.auth.verifyOtp({
-            token_hash: tokenHash,
-            type: otpType as any,
-          });
-          if (verifyError) throw verifyError;
-          if (!verifyData?.session) throw new Error('Email confirmation succeeded but no session was created.');
-          window.history.replaceState({}, '', window.location.pathname);
-        }
-
-        // OAuth flow (PKCE)
+        // For OAuth flows: exchange code for session using CODE ONLY (PKCE)
         if (isOAuthFlow && code) {
-          const { data: exchangeData, error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
-          if (exchangeError) throw exchangeError;
-          if (!exchangeData?.session) throw new Error('Code exchange succeeded but no session returned');
-          const { data: { session: verifiedSession }, error: verifyError } = await supabase.auth.getSession();
-          if (verifyError || !verifiedSession) throw new Error('Session verification failed after exchange');
-          window.history.replaceState({}, '', window.location.pathname);
+          console.log('[auth:cb] exchanging code...');
+          try {
+            // CRITICAL: pass ONLY the code
+            const { data: exchangeData, error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
+            
+            if (exchangeError) {
+              console.error('[auth:cb] Code exchange error:', exchangeError);
+              throw exchangeError;
+            }
+            
+            if (!exchangeData?.session) {
+              throw new Error('Code exchange succeeded but no session returned');
+            }
+            
+            console.log('[auth:cb] exchange success');
+            
+            // Immediately verify session exists
+            const { data: { session: verifiedSession }, error: verifyError } = await supabase.auth.getSession();
+            if (verifyError || !verifiedSession) {
+              throw new Error('Session verification failed after exchange');
+            }
+            
+            console.log('[auth:cb] session present', { userId: verifiedSession.user.id });
+            
+            // Clear URL params to prevent re-processing
+            window.history.replaceState({}, '', window.location.pathname);
+          } catch (exchangeErr: any) {
+            console.error('[auth:cb] Exchange failed:', exchangeErr);
+            throw exchangeErr;
+          }
         }
 
         // Final session check
         const { data: { session: finalSession }, error: finalSessionError } = await supabase.auth.getSession();
-        if (finalSessionError) throw finalSessionError;
+        if (finalSessionError) {
+          console.error('[auth:cb] Final session check error:', finalSessionError);
+          throw finalSessionError;
+        }
+
         if (!finalSession) {
           throw new Error('Authentication failed: No session established');
         }
 
-        // Redirect
+        // Get return URL
         const nextFromUrl = searchParams.get('next');
         const nextFromStorage = consumeReturnTo();
         const target = sanitizeInternalPath(nextFromUrl ?? nextFromStorage ?? '/predictions');
+        
+        console.log('[auth:cb] redirecting to', { returnTo: target });
+        
+        // Navigate to target
         navigate(target, { replace: true });
       } catch (err: any) {
+        console.error('[auth:cb] Callback error:', err);
         setError(err.message || 'Authentication failed');
-        isProcessingRef.current = false; // allow retry after a terminal error
+        isProcessingRef.current = false; // Allow retry on error
       }
     };
 

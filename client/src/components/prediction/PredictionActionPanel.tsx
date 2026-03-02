@@ -1,14 +1,13 @@
 import React, { useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { Heart, MessageCircle, TrendingUp } from 'lucide-react';
+import { Heart, MessageCircle, DollarSign, TrendingUp } from 'lucide-react';
 import { useAccount, useSwitchChain } from 'wagmi';
 import { baseSepolia } from 'wagmi/chains';
 import AuthRequiredState from '../ui/empty/AuthRequiredState';
 import { selectEscrowAvailableUSD } from '@/lib/balance/balanceSelector';
 import { useWalletStore } from '@/store/walletStore';
 import { t } from '@/lib/lexicon';
-import { formatZaurumNumber } from '@/lib/format';
-import { ZaurumMark } from '@/components/currency/ZaurumMark';
+import { isCryptoEnabledForClient } from '@/lib/cryptoFeatureFlags';
 
 interface PredictionOption {
   id: string;
@@ -57,9 +56,10 @@ const PredictionActionPanel: React.FC<PredictionActionPanelProps> = ({
   const { address, isConnected, chainId } = useAccount();
   const { switchChainAsync } = useSwitchChain();
 
-  // Feature flags
-  const BASE_ENABLED = import.meta.env.VITE_FCZ_BASE_ENABLE === '1';
-  const BETS_ONCHAIN = import.meta.env.VITE_FCZ_BASE_BETS === '1';
+  // Feature flags (crypto testnet web-only: hide on native)
+  const cryptoAllowed = isCryptoEnabledForClient();
+  const BASE_ENABLED = cryptoAllowed && import.meta.env.VITE_FCZ_BASE_ENABLE === '1';
+  const BETS_ONCHAIN = cryptoAllowed && import.meta.env.VITE_FCZ_BASE_BETS === '1';
   const BASE_CHAIN_ID = baseSepolia.id as 84532;
 
   // Real escrow-available balance
@@ -166,10 +166,10 @@ const PredictionActionPanel: React.FC<PredictionActionPanelProps> = ({
             >
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Stake Amount (Zaurum)
+                  Stake Amount (USD)
                 </label>
                 <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500"><ZaurumMark className="h-4 w-4" /></span>
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
                   <input
                     type="number"
                     value={stakeAmount}
@@ -181,12 +181,11 @@ const PredictionActionPanel: React.FC<PredictionActionPanelProps> = ({
                   />
                 </div>
                 <p className="text-sm text-gray-600 mt-1 flex items-center justify-between">
-                  <span className="inline-flex items-center gap-1">
-                    <span>{BASE_ENABLED && BETS_ONCHAIN ? 'Available in escrow:' : 'Available:'}</span>
-                    <span className="inline-flex items-center gap-1">
-                      <ZaurumMark className="h-3.5 w-3.5" />
-                      <span>{formatZaurumNumber(BASE_ENABLED && BETS_ONCHAIN ? Math.max(0, escrowAvailable) : (userBalance || 0), { compact: false })}</span>
-                    </span>
+                  <span>
+                    {BASE_ENABLED && BETS_ONCHAIN 
+                      ? `Available in escrow: $${Math.max(0, escrowAvailable).toFixed(2)}`
+                      : `Available: ${(userBalance || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                    }
                   </span>
                   {(BASE_ENABLED && BETS_ONCHAIN ? needsFunds : parseFloat(stakeAmount) > userBalance) && (
                     <span className="text-red-600 font-medium">Insufficient funds</span>
@@ -235,11 +234,7 @@ const PredictionActionPanel: React.FC<PredictionActionPanelProps> = ({
                   className="w-full py-4 rounded-xl font-bold text-lg transition-all transform bg-gradient-to-r from-amber-500 to-orange-500 text-white hover:from-amber-600 hover:to-orange-600 active:scale-[0.98] shadow-lg hover:shadow-xl"
                   style={{ position: 'relative', zIndex: 10 }}
                 >
-                  <span className="inline-flex items-center gap-1">
-                    <span>Add funds (need</span>
-                    <ZaurumMark className="h-4 w-4" />
-                    <span>{formatZaurumNumber(Math.max(0, stakeValue - escrowAvailable), { compact: false })})</span>
-                  </span>
+                  Add funds (need ${Math.max(0, stakeValue - escrowAvailable).toFixed(2)})
                 </button>
               ) : (
                 <button
@@ -265,11 +260,7 @@ const PredictionActionPanel: React.FC<PredictionActionPanelProps> = ({
                   ) : parseFloat(stakeAmount) <= 0 || !stakeAmount ? (
                     'Enter Amount'
                   ) : (
-                    <span className="inline-flex items-center gap-1">
-                      <span>{t('betVerb')}:</span>
-                      <ZaurumMark className="h-4 w-4" />
-                      <span>{formatZaurumNumber(parseFloat(stakeAmount), { compact: false })}</span>
-                    </span>
+                    `${t('betVerb')}: $${parseFloat(stakeAmount).toFixed(2)}`
                   )}
                 </button>
               )}

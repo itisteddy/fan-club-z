@@ -16,9 +16,6 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), ""); // loads .env*, no prefix filter
-  const resolvedBuildTarget =
-    (env.VITE_BUILD_TARGET || '').toLowerCase() ||
-    (mode === 'ios' || mode === 'android' ? mode : 'web');
 
   // Only expose VITE_* to client (Vite handles this automatically in code),
   // but we can also use env here to configure dev server safely.
@@ -30,7 +27,7 @@ export default defineConfig(({ mode }) => {
   const stripLogs = env.VITE_STRIP_LOGS === '1' && mode === 'production';
   
   // [PERF] Check if SW should be enabled (default off in dev)
-  const enableSW = env.VITE_ENABLE_SW === '1' || mode === 'production';
+  const enableSW = env.VITE_ENABLE_SW === '1';
 
   // [PERF] Build plugins array conditionally
   const plugins: PluginOption[] = [
@@ -42,6 +39,8 @@ export default defineConfig(({ mode }) => {
     plugins.push(
       VitePWA({
         registerType: 'autoUpdate',
+        // Avoid intermittent workbox terser crashes in CI/local builds.
+        minify: false,
         // [PERF] Disable in dev to avoid SW caching issues
         devOptions: {
           enabled: false,
@@ -187,8 +186,15 @@ export default defineConfig(({ mode }) => {
     define: {
       __BUILD_TIME__: JSON.stringify(new Date().toISOString()),
       __CACHE_BUST__: JSON.stringify(Date.now()),
-      // Keep BUILD_TARGET deterministic across web/native bundles.
-      'import.meta.env.VITE_BUILD_TARGET': JSON.stringify(resolvedBuildTarget),
+      // Phase C: Make BUILD_TARGET deterministic (no gitignored env files required)
+      // These are injected at build time based on --mode flag
+      // .env.* files can still override if present, but not required
+      'import.meta.env.VITE_BUILD_TARGET': JSON.stringify(
+        env.VITE_BUILD_TARGET || (mode === 'ios' || mode === 'android' ? mode : 'web')
+      ),
+      'import.meta.env.VITE_STORE_SAFE_MODE': JSON.stringify(
+        env.VITE_STORE_SAFE_MODE || (mode === 'ios' ? 'true' : 'false')
+      ),
     },
     optimizeDeps: {
       entries: ['src/main.tsx'],

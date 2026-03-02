@@ -2,6 +2,7 @@ import React from 'react';
 import {
   Target,
   TrendingUp,
+  DollarSign,
   Activity,
   Download,
   ArrowUpRight,
@@ -14,9 +15,8 @@ import {
   Gift,
   ExternalLink,
 } from 'lucide-react';
-import { formatTimeAgo } from '@/lib/format';
-import { ZaurumMark } from '@/components/currency/ZaurumMark';
-import { ZaurumAmount } from '@/components/currency/ZaurumAmount';
+import { formatCurrency, formatTimeAgo } from '@/lib/format';
+import { formatTxAmount, toneClass } from '@/lib/txFormat';
 
 export type ActivityKind = 
   | 'deposit' 
@@ -70,7 +70,7 @@ interface ActivityDisplayInfo {
   icon: React.ReactNode;
   title: string;
   subtitle: string;
-  amount: number | null;
+  amount: string | null;
   badge: string;
   badgeColor: string;
   isPositive: boolean;
@@ -82,7 +82,8 @@ interface ActivityDisplayInfo {
 export function getActivityDisplay(item: ActivityItemData): ActivityDisplayInfo {
   const kind = (item.kind || item.type || '').toLowerCase();
   const amount = item.amountUSD ?? item.amount ?? 0;
-  const formattedAmount = amount > 0 ? amount : null;
+  const tx = amount > 0 ? formatTxAmount({ amount, kind, compact: true }) : null;
+  const formattedAmount = tx?.display || null;
   const predTitle = item.predictionTitle || item.meta?.prediction_title || item.data?.prediction_title || '';
   const optionLabel = item.meta?.option_label || item.data?.option_label || '';
   
@@ -92,7 +93,7 @@ export function getActivityDisplay(item: ActivityItemData): ActivityDisplayInfo 
       return {
         iconBg: 'bg-emerald-100',
         icon: <Download className="w-4 h-4 text-emerald-600" />,
-        title: 'Deposited Zaurum',
+        title: 'Deposited USDC',
         subtitle: 'To escrow',
         amount: formattedAmount,
         badge: 'deposit',
@@ -105,7 +106,7 @@ export function getActivityDisplay(item: ActivityItemData): ActivityDisplayInfo 
       return {
         iconBg: 'bg-orange-100',
         icon: <ArrowUpRight className="w-4 h-4 text-orange-600" />,
-        title: 'Withdrew Zaurum',
+        title: 'Withdrew USDC',
         subtitle: 'From escrow',
         amount: formattedAmount,
         badge: 'withdraw',
@@ -214,7 +215,7 @@ export function getActivityDisplay(item: ActivityItemData): ActivityDisplayInfo 
     case 'wallet.platform_fee':
       return {
         iconBg: 'bg-slate-100',
-        icon: <ZaurumMark className="w-4 h-4" />,
+        icon: <DollarSign className="w-4 h-4 text-slate-600" />,
         title: 'Platform fee',
         subtitle: predTitle || '',
         amount: formattedAmount,
@@ -331,14 +332,16 @@ export const ActivityFeedItem: React.FC<ActivityFeedItemProps> = ({
       </div>
       
       <div className="text-right flex-shrink-0 ml-2">
-        {display.amount !== null && (
-          <div className={`text-sm font-semibold font-mono ${display.isPositive ? 'text-emerald-600' : 'text-gray-700'}`}>
-            <span className="inline-flex items-center gap-1">
-              <span>{display.isPositive ? '+' : '-'}</span>
-              <ZaurumAmount value={display.amount} compact markSize="xs" />
-            </span>
-          </div>
-        )}
+        {display.amount && (() => {
+          const amount = item.amountUSD ?? item.amount ?? 0;
+          if (amount === 0) return null;
+          const tx = formatTxAmount({ amount, kind: item.kind, compact: true });
+          return (
+            <div className={`text-sm font-semibold font-mono ${toneClass(tx.tone)}`}>
+              {tx.display}
+            </div>
+          );
+        })()}
         <div className={`text-xs font-medium ${display.badgeColor}`}>
           {display.badge}
         </div>

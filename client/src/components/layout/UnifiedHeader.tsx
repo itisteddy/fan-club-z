@@ -78,7 +78,7 @@ const UnifiedHeader: React.FC<UnifiedHeaderProps> = ({
       initial={reduceMotion ? {} : { y: -10, opacity: 0 }}
       animate={{ y: 0, opacity: 1 }}
       className={`
-        ${sticky ? 'sticky top-0 z-40' : ''} 
+        ${sticky ? 'sticky top-0 z-40 safe-area-pt' : ''} 
         ${transparent ? 'bg-transparent' : 'bg-white border-b border-gray-100'} 
         ${className}
       `}
@@ -101,9 +101,12 @@ const UnifiedHeader: React.FC<UnifiedHeaderProps> = ({
             {/* Logo */}
             {showLogo && (
               <div className="flex items-center space-x-2">
-                <div className="w-8 h-8 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-lg flex items-center justify-center">
-                  <span className="text-white font-bold text-lg">F</span>
-                </div>
+                <img
+                  src="/icons/icon-32.png"
+                  alt="Fan Club Z"
+                  className="w-8 h-8 object-contain"
+                  style={{ objectFit: 'contain' }}
+                />
                 <div className="flex flex-col min-w-0">
                   <span className="text-lg font-bold text-gray-900 truncate">
                     Fan Club Z

@@ -2,6 +2,7 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import AuthGateModal from '../components/auth/AuthGateModal';
+import { openTerms, openPrivacy } from '../utils/openExternalUrl';
 
 const CURRENT_YEAR = new Date().getFullYear();
 
@@ -26,11 +27,11 @@ const LandingPage: React.FC = () => {
   return (
     <div className="bg-gradient-to-b from-[#211234] via-[#1b1130] to-[#130c24] text-white min-h-screen">
       {/* Header */}
-      <header className="sticky top-0 z-40 backdrop-blur supports-[backdrop-filter]:bg-white/5">
+      <header className="sticky top-0 z-40 backdrop-blur supports-[backdrop-filter]:bg-white/5 safe-area-pt">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4">
           <div className="flex items-center gap-2">
             <img
-              src="/brand/fcz-logomark.png"
+              src="/icons/icon-32.png"
               alt="FanClubZ"
               className="h-8 w-8"
               style={{ objectFit: 'contain' }}
@@ -196,7 +197,7 @@ const LandingPage: React.FC = () => {
               {
                 question: 'How do I fund my wallet?',
                 answer:
-                  'FanClubZ uses Zaurum for in-app staking. You can fund your in-app balance directly from Wallet.',
+                  'FanClubZ uses the Base Sepolia testnet. You\'ll need to install a wallet like MetaMask, add the Base Sepolia network, and get test ETH and USDC from faucets.',
                 hasLink: true,
               },
             ].map((item) => (
@@ -251,7 +252,7 @@ const LandingPage: React.FC = () => {
           <div>
             <div className="mb-3 flex items-center gap-2">
               <img
-                src="/brand/fcz-logomark.png"
+                src="/icons/icon-32.png"
                 alt="FanClubZ"
                 className="h-6 w-6"
                 style={{ objectFit: 'contain' }}
@@ -295,6 +296,40 @@ const LandingPage: React.FC = () => {
                 >
                   Docs
                 </a>
+              </li>
+              <li>
+                <a
+                  href="/support"
+                  className="hover:text-white"
+                  onClick={(e) => { e.preventDefault(); navigate('/support'); }}
+                >
+                  Support
+                </a>
+              </li>
+            </ul>
+          </div>
+          <div>
+            <div className="mb-2 text-sm font-semibold text-white/80">Legal</div>
+            <ul className="space-y-2 text-sm text-white/70">
+              <li>
+                <button type="button" onClick={openPrivacy} className="text-left hover:text-white underline">
+                  Privacy Policy
+                </button>
+              </li>
+              <li>
+                <button type="button" onClick={openTerms} className="text-left hover:text-white underline">
+                  Terms of Service
+                </button>
+              </li>
+              <li>
+                <button type="button" onClick={() => navigate('/guidelines')} className="text-left hover:text-white underline">
+                  Community Guidelines
+                </button>
+              </li>
+              <li>
+                <button type="button" onClick={() => navigate('/cookies')} className="text-left hover:text-white underline">
+                  Cookie Policy
+                </button>
               </li>
             </ul>
           </div>
@@ -343,7 +378,7 @@ const LandingPage: React.FC = () => {
               </li>
               <li>
                 <a
-                  href="https://discord.gg/Bxvet6BU"
+                  href="https://discord.gg/PdEs8vD2H5"
                   target="_blank"
                   rel="noreferrer"
                   className="hover:text-white"
@@ -376,4 +411,5 @@ const LandingPage: React.FC = () => {
 };
 
 export default LandingPage;
+
 

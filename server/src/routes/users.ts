@@ -4,8 +4,8 @@ import { supabase } from '../config/database';
 import { VERSION } from '@fanclubz/shared';
 import { requireSupabaseAuth, requireSupabaseAuthAllowDeleted } from '../middleware/requireSupabaseAuth';
 import type { AuthenticatedRequest } from '../middleware/auth';
-import { getUserAchievements } from '../services/achievementsService';
 import { assertContentAllowed } from '../services/contentFilter';
+import { getUserAchievements } from '../services/achievementsService';
 
 // [PERF] Helper to generate ETag from response data
 function generateETag(data: unknown): string {
@@ -15,6 +15,16 @@ function generateETag(data: unknown): string {
 
 // [PERF] Helper to check conditional GET and return 304 if ETag matches
 function checkETag(req: express.Request, res: express.Response, data: unknown): boolean {
+  // Respect client's no-cache request - skip ETag check if client wants fresh data
+  const cacheControl = req.headers['cache-control'] || '';
+  const wantsFreshData = cacheControl.includes('no-cache') || cacheControl.includes('no-store');
+  
+  if (wantsFreshData) {
+    // Client explicitly asked for fresh data, don't use ETag caching
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+    return false;
+  }
+  
   const etag = generateETag(data);
   const ifNoneMatch = req.headers['if-none-match'];
   
@@ -30,7 +40,64 @@ function checkETag(req: express.Request, res: express.Response, data: unknown): 
 }
 
 const router = express.Router();
-const TERMS_VERSION = '1.0';
+
+type SimpleIpLimiterOptions = {
+  keyPrefix: string;
+  windowMs: number;
+  max: number;
+};
+
+function createSimpleIpRateLimiter(options: SimpleIpLimiterOptions) {
+  const buckets = new Map<string, { count: number; resetAt: number }>();
+  let lastSweep = 0;
+
+  return (req: express.Request, res: express.Response, next: express.NextFunction) => {
+    const now = Date.now();
+    const ip = String(req.ip || req.headers['x-forwarded-for'] || 'unknown');
+    const key = `${options.keyPrefix}:${ip}`;
+
+    // Periodic bounded cleanup for expired buckets.
+    if (now - lastSweep > options.windowMs) {
+      for (const [bucketKey, bucket] of buckets.entries()) {
+        if (bucket.resetAt <= now) buckets.delete(bucketKey);
+      }
+      lastSweep = now;
+    }
+
+    const current = buckets.get(key);
+    if (!current || current.resetAt <= now) {
+      buckets.set(key, { count: 1, resetAt: now + options.windowMs });
+      return next();
+    }
+
+    if (current.count >= options.max) {
+      const retryAfterSec = Math.max(1, Math.ceil((current.resetAt - now) / 1000));
+      res.setHeader('Retry-After', String(retryAfterSec));
+      return res.status(429).json({
+        error: 'rate_limited',
+        message: 'Too many requests. Please try again shortly.',
+        version: VERSION,
+      });
+    }
+
+    current.count += 1;
+    buckets.set(key, current);
+    return next();
+  };
+}
+
+// Basic per-IP protection for public profile discovery endpoints.
+// Note: in-memory and per-instance; replace/augment with global limiter if/when introduced.
+const publicProfileResolveRateLimit = createSimpleIpRateLimiter({
+  keyPrefix: 'users:resolve',
+  windowMs: 60_000,
+  max: 120,
+});
+const publicProfileReadRateLimit = createSimpleIpRateLimiter({
+  keyPrefix: 'users:public-profile',
+  windowMs: 60_000,
+  max: 60,
+});
 
 async function buildPublicProfilePayload(userId: string) {
   // TODO(ugc-blocking): apply block/ban visibility rules here when item 6 ships.
@@ -250,8 +317,11 @@ router.get('/leaderboard', async (req, res) => {
   }
 });
 
+// Phase 5: Current terms version; bump when Terms/Privacy/Community Guidelines change
+const TERMS_VERSION = '1.0';
+
 // GET /api/v2/users/me/status - Get account status (allows deleted accounts through)
-router.get('/me/status', requireSupabaseAuthAllowDeleted as any, async (req: AuthenticatedRequest, res) => {
+router.get('/me/status', requireSupabaseAuthAllowDeleted, async (req: AuthenticatedRequest, res) => {
   const userId = req.user?.id;
   if (!userId) {
     return res.status(401).json({ error: 'unauthorized', message: 'Authorization required', version: VERSION });
@@ -263,13 +333,16 @@ router.get('/me/status', requireSupabaseAuthAllowDeleted as any, async (req: Aut
   });
 });
 
-// GET /api/v2/users/me/terms-accepted
-router.get('/me/terms-accepted', requireSupabaseAuthAllowDeleted as any, async (req: AuthenticatedRequest, res) => {
+// GET /api/v2/users/me/terms-accepted - Check if current user has accepted current terms (Phase 5)
+// Uses requireSupabaseAuthAllowDeleted so deleted users get a proper 409 rather than being blocked
+router.get('/me/terms-accepted', requireSupabaseAuthAllowDeleted, async (req: AuthenticatedRequest, res) => {
   const userId = req.user?.id;
   if (!userId) {
     return res.status(401).json({ error: 'unauthorized', message: 'Authorization required', version: VERSION });
   }
   const accountStatus = (req as any).accountStatus || 'active';
+
+  // Deleted accounts → 409 with ACCOUNT_DELETED code
   if (accountStatus === 'deleted') {
     return res.status(409).json({
       error: 'account_deleted',
@@ -287,6 +360,7 @@ router.get('/me/terms-accepted', requireSupabaseAuthAllowDeleted as any, async (
       .eq('terms_version', TERMS_VERSION)
       .maybeSingle();
 
+    // Defensive: if table doesn't exist, assume accepted
     if (error) {
       const msg = String(error.message || '').toLowerCase();
       if (msg.includes('does not exist') || String(error.code || '') === '42P01') {
@@ -294,7 +368,6 @@ router.get('/me/terms-accepted', requireSupabaseAuthAllowDeleted as any, async (
       }
       return res.status(500).json({ error: 'Database error', message: error.message, version: VERSION });
     }
-
     return res.json({
       accepted: !!data,
       terms_version: TERMS_VERSION,
@@ -306,13 +379,15 @@ router.get('/me/terms-accepted', requireSupabaseAuthAllowDeleted as any, async (
   }
 });
 
-// POST /api/v2/users/me/accept-terms
-router.post('/me/accept-terms', requireSupabaseAuthAllowDeleted as any, async (req: AuthenticatedRequest, res) => {
+// POST /api/v2/users/me/accept-terms - Record acceptance of Terms/Privacy/Community Guidelines (Phase 5)
+router.post('/me/accept-terms', requireSupabaseAuthAllowDeleted, async (req: AuthenticatedRequest, res) => {
   const userId = req.user?.id;
   if (!userId) {
     return res.status(401).json({ error: 'unauthorized', message: 'Authorization required', version: VERSION });
   }
   const accountStatus = (req as any).accountStatus || 'active';
+
+  // Deleted accounts → 409 with ACCOUNT_DELETED code
   if (accountStatus === 'deleted') {
     return res.status(409).json({
       error: 'account_deleted',
@@ -330,6 +405,7 @@ router.post('/me/accept-terms', requireSupabaseAuthAllowDeleted as any, async (r
         { onConflict: 'user_id,terms_version' }
       );
 
+    // Defensive: if table doesn't exist, return success
     if (error) {
       const msg = String(error.message || '').toLowerCase();
       if (msg.includes('does not exist') || String(error.code || '') === '42P01') {
@@ -343,17 +419,20 @@ router.post('/me/accept-terms', requireSupabaseAuthAllowDeleted as any, async (r
   }
 });
 
-// POST /api/v2/users/me/restore
-router.post('/me/restore', requireSupabaseAuthAllowDeleted as any, async (req: AuthenticatedRequest, res) => {
+// POST /api/v2/users/me/restore - Restore a self-deleted account
+router.post('/me/restore', requireSupabaseAuthAllowDeleted, async (req: AuthenticatedRequest, res) => {
   const userId = req.user?.id;
   if (!userId) {
     return res.status(401).json({ error: 'unauthorized', message: 'Authorization required', version: VERSION });
   }
   const accountStatus = (req as any).accountStatus || 'active';
 
+  // Already active → idempotent 200
   if (accountStatus === 'active') {
     return res.status(200).json({ success: true, message: 'Account is already active', version: VERSION });
   }
+
+  // Suspended → cannot self-restore
   if (accountStatus === 'suspended') {
     return res.status(403).json({
       error: 'account_suspended',
@@ -364,6 +443,8 @@ router.post('/me/restore', requireSupabaseAuthAllowDeleted as any, async (req: A
   }
 
   try {
+    // Restore: set status to active, clear deleted_at
+    // Try new column first
     const newColUpdate = await supabase
       .from('users')
       .update({
@@ -378,6 +459,7 @@ router.post('/me/restore', requireSupabaseAuthAllowDeleted as any, async (req: A
       .eq('id', userId);
 
     if (newColUpdate.error) {
+      // Fallback: try without new columns (account_status/deleted_at might not exist)
       const legacyUpdate = await supabase
         .from('users')
         .update({
@@ -390,9 +472,12 @@ router.post('/me/restore', requireSupabaseAuthAllowDeleted as any, async (req: A
         .eq('id', userId);
 
       if (legacyUpdate.error) {
+        // Last resort: just unset is_banned
         const minimalUpdate = await supabase
           .from('users')
-          .update({ updated_at: new Date().toISOString() })
+          .update({
+            updated_at: new Date().toISOString(),
+          })
           .eq('id', userId);
 
         if (minimalUpdate.error) {
@@ -406,6 +491,7 @@ router.post('/me/restore', requireSupabaseAuthAllowDeleted as any, async (req: A
       }
     }
 
+    // Note: username remains anonymized. User will need to set up profile again.
     return res.status(200).json({
       success: true,
       message: 'Account restored. Please update your profile to continue.',
@@ -422,22 +508,26 @@ router.post('/me/restore', requireSupabaseAuthAllowDeleted as any, async (req: A
   }
 });
 
-// POST /api/v2/users/me/delete - soft delete
-router.post('/me/delete', requireSupabaseAuth as any, async (req: AuthenticatedRequest, res) => {
+// POST /api/v2/users/me/delete - Soft-delete current user account.
+// Anonymizes PII, sets status='deleted'. Does NOT delete auth user (so re-login → restore flow).
+router.post('/me/delete', requireSupabaseAuth, async (req: AuthenticatedRequest, res) => {
   const userId = req.user?.id;
   if (!userId) {
     return res.status(401).json({ error: 'unauthorized', message: 'Authorization required', version: VERSION });
   }
   const userFacingMessage = 'Account deletion failed. Please try again or contact support.';
   try {
+    // Idempotency: if already deleted, return success
     const accountStatus = (req as any).accountStatus || 'active';
     if (accountStatus === 'deleted') {
       return res.status(200).json({ success: true, message: 'Account deleted', version: VERSION });
     }
 
+    // Determine the best update payload depending on which columns exist
     const now = new Date().toISOString();
     const anonymizedUsername = `deleted_${userId.slice(0, 8)}`;
 
+    // Layer 1: all columns including new account_status
     const fullPayload: Record<string, any> = {
       username: anonymizedUsername,
       full_name: null,
@@ -450,6 +540,8 @@ router.post('/me/delete', requireSupabaseAuth as any, async (req: AuthenticatedR
       banned_by: userId,
       updated_at: now,
     };
+
+    // Layer 2: without new account_status/deleted_at columns
     const legacyPayload: Record<string, any> = {
       username: anonymizedUsername,
       full_name: null,
@@ -460,6 +552,8 @@ router.post('/me/delete', requireSupabaseAuth as any, async (req: AuthenticatedR
       banned_by: userId,
       updated_at: now,
     };
+
+    // Layer 3: absolute minimal
     const minimalPayload: Record<string, any> = {
       username: anonymizedUsername,
       full_name: null,
@@ -468,16 +562,41 @@ router.post('/me/delete', requireSupabaseAuth as any, async (req: AuthenticatedR
     };
 
     let updateResult = await supabase.from('users').update(fullPayload).eq('id', userId);
+
     if (updateResult.error) {
+      console.warn('[users/me/delete] Full update failed:', updateResult.error.message, updateResult.error.code);
       updateResult = await supabase.from('users').update(legacyPayload).eq('id', userId);
     }
+
     if (updateResult.error) {
+      console.warn('[users/me/delete] Legacy update failed:', updateResult.error.message, updateResult.error.code);
       updateResult = await supabase.from('users').update(minimalPayload).eq('id', userId);
     }
+
     if (updateResult.error) {
-      console.error('[users/me/delete] All update attempts failed:', updateResult.error.message);
-      return res.status(500).json({ error: 'Deletion failed', message: userFacingMessage, version: VERSION });
+      console.error('[users/me/delete] Minimal update failed:', updateResult.error.message, updateResult.error.code);
+      // Last resort: try updating only updated_at to confirm DB connectivity
+      const pingResult = await supabase.from('users').update({ updated_at: now }).eq('id', userId);
+      if (pingResult.error) {
+        console.error('[users/me/delete] Even updated_at-only write failed:', pingResult.error.message);
+        return res.status(500).json({ error: 'Deletion failed', message: userFacingMessage, version: VERSION });
+      }
+      // DB is reachable but columns are missing — still mark as soft-deleted via auth metadata
+      console.warn('[users/me/delete] Columns missing but updated_at succeeded; marking via auth metadata');
     }
+
+    // Also mark deletion in Supabase auth metadata (belt-and-suspenders)
+    try {
+      await supabase.auth.admin.updateUserById(userId, {
+        user_metadata: { account_status: 'deleted', deleted_at: now },
+      });
+    } catch (authErr: any) {
+      // Non-fatal: users table update was the primary operation
+      console.warn('[users/me/delete] Auth metadata update failed (non-fatal):', authErr?.message);
+    }
+
+    // NOTE: We do NOT delete the auth user. This allows re-login → restore flow.
+    // The account is effectively disabled via account_status/is_banned.
 
     return res.status(200).json({ success: true, message: 'Account deleted', version: VERSION });
   } catch (e: any) {
@@ -490,8 +609,9 @@ router.post('/me/delete', requireSupabaseAuth as any, async (req: AuthenticatedR
   }
 });
 
-// GET /api/v2/users/me/blocked
-router.get('/me/blocked', requireSupabaseAuth as any, async (req: AuthenticatedRequest, res) => {
+// GET /api/v2/users/me/blocked - List blocked user IDs (UGC moderation)
+// Defensive: returns empty list if user_blocks table doesn't exist yet
+router.get('/me/blocked', requireSupabaseAuth, async (req: AuthenticatedRequest, res) => {
   const blockerId = req.user?.id;
   if (!blockerId) {
     return res.status(401).json({ error: 'unauthorized', message: 'Authorization required', version: VERSION });
@@ -502,17 +622,19 @@ router.get('/me/blocked', requireSupabaseAuth as any, async (req: AuthenticatedR
       .select('blocked_user_id')
       .eq('blocker_id', blockerId);
     if (error) {
+      // Table may not exist yet - return empty list instead of 500
+      console.warn('[users/me/blocked] Query error (table may not exist):', error.message);
       return res.json({ data: { blockedUserIds: [] }, version: VERSION });
     }
     const blockedUserIds = (data || []).map((r: { blocked_user_id: string }) => r.blocked_user_id);
     return res.json({ data: { blockedUserIds }, version: VERSION });
-  } catch {
+  } catch (e: any) {
     return res.json({ data: { blockedUserIds: [] }, version: VERSION });
   }
 });
 
-// POST /api/v2/users/me/block
-router.post('/me/block', requireSupabaseAuth as any, async (req: AuthenticatedRequest, res) => {
+// POST /api/v2/users/me/block - Block a user (UGC moderation)
+router.post('/me/block', requireSupabaseAuth, async (req: AuthenticatedRequest, res) => {
   const blockerId = req.user?.id;
   if (!blockerId) {
     return res.status(401).json({ error: 'unauthorized', message: 'Authorization required', version: VERSION });
@@ -540,8 +662,8 @@ router.post('/me/block', requireSupabaseAuth as any, async (req: AuthenticatedRe
   }
 });
 
-// DELETE /api/v2/users/me/block/:userId
-router.delete('/me/block/:userId', requireSupabaseAuth as any, async (req: AuthenticatedRequest, res) => {
+// DELETE /api/v2/users/me/block/:userId - Unblock a user (UGC moderation)
+router.delete('/me/block/:userId', requireSupabaseAuth, async (req: AuthenticatedRequest, res) => {
   const blockerId = req.user?.id;
   if (!blockerId) {
     return res.status(401).json({ error: 'unauthorized', message: 'Authorization required', version: VERSION });
@@ -562,7 +684,7 @@ router.delete('/me/block/:userId', requireSupabaseAuth as any, async (req: Authe
   }
 });
 
-// GET /api/v2/users/:id/achievements - Public profile achievements (awards + badges)
+// GET /api/v2/users/:id - Get user profile by ID
 router.get('/:id/achievements', async (req, res) => {
   try {
     const userId = String(req.params.id || '').trim();
@@ -586,7 +708,7 @@ router.get('/:id/achievements', async (req, res) => {
 });
 
 // GET /api/v2/users/resolve?handle=:handle - Resolve public profile handle to user id
-router.get('/resolve', async (req, res) => {
+router.get('/resolve', publicProfileResolveRateLimit, async (req, res) => {
   try {
     const handle = String(req.query.handle || '').trim().replace(/^@/, '');
     if (!handle) {
@@ -632,7 +754,7 @@ router.get('/resolve', async (req, res) => {
 });
 
 // GET /api/v2/users/:id/public-profile - Safe public profile payload (no private fields)
-router.get('/:id/public-profile', async (req, res) => {
+router.get('/:id/public-profile', publicProfileReadRateLimit, async (req, res) => {
   try {
     const userId = String(req.params.id || '').trim();
     if (!userId) {
@@ -748,8 +870,9 @@ router.get('/:id', async (req, res) => {
 });
 
 // PATCH /api/v2/users/:id/profile - Update user profile (name, avatar)
-// Uses service role key to bypass RLS
-router.patch('/:id/profile', requireSupabaseAuth as any, async (req: AuthenticatedRequest, res) => {
+// SECURITY: Must be authenticated and self-only.
+// Uses service role key to bypass RLS, but authorization is enforced here.
+router.patch('/:id/profile', requireSupabaseAuth, async (req: AuthenticatedRequest, res) => {
   const { id } = req.params;
   const { full_name, avatar_url } = req.body;
   const actorId = req.user?.id;
@@ -761,6 +884,7 @@ router.patch('/:id/profile', requireSupabaseAuth as any, async (req: Authenticat
       version: VERSION,
     });
   }
+
   if (actorId !== id) {
     return res.status(403).json({
       error: 'forbidden',

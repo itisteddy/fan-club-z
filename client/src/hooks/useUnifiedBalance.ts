@@ -5,14 +5,12 @@ import { useUSDCBalance } from './useUSDCBalance';
 import { useAccount } from 'wagmi';
 import { useAuthStore } from '@/store/authStore';
 import { useWalletSummary } from './useWalletSummary';
-import { FCZ_WALLET_MODE } from '@/utils/environment';
 
 /**
  * Unified balance hook that combines wallet and escrow balances
  * This is the SINGLE SOURCE OF TRUTH for all balance displays
  */
 export function useUnifiedBalance() {
-  const isZaurumOnlyMode = FCZ_WALLET_MODE === 'zaurum_only';
   const { user } = useAuthStore();
   const { address } = useAccount();
   const queryClient = useQueryClient();
@@ -48,10 +46,6 @@ export function useUnifiedBalance() {
   const summaryAvailable = Number(summary?.availableToStakeUSDC ?? summary?.available ?? 0);
   const summaryReserved = Number(summary?.reservedUSDC ?? summary?.reserved ?? 0);
   const summaryEscrow = Number(summary?.escrowUSDC ?? 0);
-  const summaryStakeBalance = Number(summary?.stakeBalance ?? summary?.balances?.stakeBalance ?? summary?.available ?? 0);
-  const hasExplicitSummaryAvailable =
-    summary?.availableToStakeUSDC != null ||
-    summary?.available != null;
   const summaryTotal =
     typeof summaryAvailable === 'number' && typeof summaryReserved === 'number'
       ? summaryAvailable + summaryReserved
@@ -72,14 +66,8 @@ export function useUnifiedBalance() {
   // - After stake: available decreases correctly (because locks are counted in summary).
   // - After settlement/unlock: available increases correctly when locks are released.
 
-  // Creator earnings transfers increase stake balance immediately; use the higher of
-  // reconciled available and explicit stake balance so "Move to Balance" is reflected instantly.
   const computedAvailable = hasLoadedSummary
-    ? (
-      isZaurumOnlyMode
-        ? Math.max(0, hasExplicitSummaryAvailable ? summaryAvailable : summaryStakeBalance)
-        : Math.max(0, summaryAvailable, summaryStakeBalance)
-    )
+    ? Math.max(0, summaryAvailable)
     : Math.max(0, onchainBalance);
 
   // Reserved balance: prefer summary (locks), fall back to on-chain reserved snapshot
@@ -106,9 +94,7 @@ export function useUnifiedBalance() {
     };
   }, [normalizedAvailable, normalizedReserved, normalizedTotal]);
 
-  const isLoading = isZaurumOnlyMode
-    ? summaryLoading
-    : (walletLoading || escrowLoading || summaryLoading);
+  const isLoading = walletLoading || escrowLoading || summaryLoading;
 
   const available = isLoading ? lastValuesRef.current.available : normalizedAvailable;
   const reserved = isLoading ? lastValuesRef.current.reserved : normalizedReserved;

@@ -3,7 +3,38 @@ import { supabase } from '../lib/supabase';
 import { getApiUrl } from '../config';
 import { useAuthStore } from './authStore';
 import { apiClient } from '../lib/apiUtils';
-import { FCZ_WALLET_MODE } from '../utils/environment';
+import { getAuthHeaders } from '../lib/api';
+import { useFundingModeStore } from './fundingModeStore';
+import type { CategorySlug } from '@/constants/categories';
+
+/** User-facing error messages for place-bet responses (no generic "Failed to create entry"). */
+function placeBetErrorFromResponse(status: number, errorData: Record<string, unknown>): string {
+  if (status === 401 || (errorData as any).code === 'FCZ_AUTH_REQUIRED') {
+    return 'Session expired. Sign in again.';
+  }
+  if (status === 409 || (errorData as any).code === 'FCZ_DUPLICATE_BET') {
+    return 'You already placed a stake on this prediction.';
+  }
+  if (status === 403 || (errorData as any).code === 'FCZ_FORBIDDEN') {
+    // Prefer server message for gated flows (e.g., crypto disabled for this client)
+    const err = (errorData as any)?.error;
+    const msg = typeof (errorData as any)?.message === 'string' ? String((errorData as any).message) : '';
+    if (err === 'crypto_disabled_for_client' || msg.toLowerCase().includes('crypto is not available')) {
+      return 'Crypto staking isn’t available on this device right now. Switch to Demo Credits.';
+    }
+    if (err === 'BETTING_DISABLED') {
+      return 'Betting is temporarily unavailable. Please try again later.';
+    }
+    return msg || "You don't have permission to place this bet.";
+  }
+  if (status === 400) {
+    return typeof (errorData as any).message === 'string' ? (errorData as any).message : 'Invalid stake or option.';
+  }
+  if (status >= 500) {
+    return 'Something went wrong. Try again.';
+  }
+  return typeof (errorData as any).message === 'string' ? (errorData as any).message : 'Unable to place bet. Please try again.';
+}
 
 // ---- Idempotency helpers for bet placement ----
 function computeBetKey(userId: string | undefined, predictionId: string, optionId: string, amount: number) {
@@ -37,7 +68,7 @@ export interface Prediction {
   title: string;
   question?: string;
   description?: string;
-  category: 'sports' | 'pop_culture' | 'custom' | 'esports' | 'celebrity_gossip' | 'politics';
+  category: CategorySlug | string;
   type: 'binary' | 'multi_outcome' | 'pool';
   status: 'pending' | 'open' | 'closed' | 'settled' | 'disputed' | 'cancelled' | 'awaiting_settlement' | 'ended' | 'refunded';
   stake_min: number;
@@ -258,18 +289,14 @@ interface PredictionActions {
   fetchCreatedPredictions: (userId: string) => Promise<void>;
   fetchPredictionById: (id: string) => Promise<Prediction | null>;
   createPrediction: (predictionData: any) => Promise<Prediction>;
-  placePrediction: (
-    predictionId: string,
-    optionId: string,
-    amount: number,
-    userId?: string,
-    walletAddress?: string | null
-  ) => Promise<any>;
+  placePrediction: (predictionId: string, optionId: string, amount: number, userId?: string, walletAddress?: string | null) => Promise<any>;
+  placeFiatPrediction: (predictionId: string, optionId: string, amountNgn: number, userId: string) => Promise<void>;
   
   // User-specific data fetching
   fetchUserPredictionEntries: (userId: string) => Promise<void>;
   fetchUserCreatedPredictions: (userId: string) => Promise<void>;
-  
+  fetchCompletedPredictions: (userId: string) => Promise<void>;
+
   // Utility methods for accessing user data
   getUserPredictionEntries: (userId: string) => PredictionEntry[];
   getUserCreatedPredictions: (userId: string) => Prediction[];
@@ -617,16 +644,23 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
     set({ loading: true, error: null });
     
     try {
+      const authHeaders = await getAuthHeaders();
       const response = await fetch(`${getApiUrl()}/api/v2/predictions`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          ...authHeaders,
         },
         body: JSON.stringify(predictionData),
       });
 
       if (!response.ok) {
-        throw new Error(`Failed to create prediction: ${response.statusText}`);
+        const errorData = (await response.json().catch(() => ({}))) as Record<string, unknown>;
+        if (response.status === 401 || (errorData as any).code === 'FCZ_AUTH_REQUIRED') {
+          // Keep auth state consistent: force logout on auth-required responses.
+          void useAuthStore.getState().logout();
+        }
+        throw new Error((errorData as any)?.message || `Failed to create prediction: ${response.statusText}`);
       }
 
       const data = await response.json();
@@ -689,26 +723,98 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
     set({ loading: true, error: null });
     
     try {
-      // Check if crypto mode is enabled (prefer on-chain when Base is enabled)
       const FLAG_BASE_BETS = import.meta.env.VITE_FCZ_BASE_BETS === '1' || 
                               import.meta.env.ENABLE_BASE_BETS === '1' ||
                               import.meta.env.FCZ_ENABLE_BASE_BETS === '1' ||
                               import.meta.env.VITE_FCZ_BASE_ENABLE === '1';
-      const FLAG_DEMO = import.meta.env.VITE_FCZ_ENABLE_DEMO === '1';
-      const isZaurumOnlyMode = FCZ_WALLET_MODE === 'zaurum_only';
-      const isCryptoMode = !isZaurumOnlyMode && FLAG_BASE_BETS && !FLAG_DEMO;
+      const funding = useFundingModeStore.getState();
+      const selectedMode = funding.mode;
+      const isCryptoMode = selectedMode === 'crypto';
+      const isFiatMode = selectedMode === 'fiat' && funding.isFiatEnabled;
 
-      console.log('[FCZ-BET] mode detection', {
-        walletMode: FCZ_WALLET_MODE,
-        FLAG_BASE_BETS,
-        FLAG_DEMO,
-        isZaurumOnlyMode,
-        isCryptoMode,
-        predictionId,
-        optionId,
-        amount,
-        userId
-      });
+      console.log('[FCZ-BET] mode detection', { FLAG_BASE_BETS, selectedMode, isCryptoMode, predictionId, optionId, amount, userId });
+
+      // FIAT MODE: Use unified endpoint with fundingMode='fiat' and amountNgn
+      if (isFiatMode) {
+        console.log('[FCZ-BET] Placing bet via unified endpoint (fiat)...', { predictionId, optionId, amountNgn: amount, userId });
+
+        const compositeKey = computeBetKey(userId, predictionId, optionId, amount);
+        const inFlight = get().inFlightBets || {};
+        if (inFlight[compositeKey]) {
+          console.log('[FCZ-BET] Duplicate click prevented (in-flight):', compositeKey);
+          set({ loading: false });
+          return;
+        }
+        set(state => ({ inFlightBets: { ...(state.inFlightBets || {}), [compositeKey]: true } }));
+        const requestId = getOrCreateRequestId(compositeKey);
+
+        const authHeaders = await getAuthHeaders();
+        const response = await fetch(`${getApiUrl()}/api/predictions/${predictionId}/place-bet`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...authHeaders },
+          body: JSON.stringify({
+            optionId,
+            amountNgn: amount,
+            userId,
+            fundingMode: 'fiat',
+            requestId,
+          }),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({})) as Record<string, unknown>;
+          if (response.status === 401 || (errorData as any).code === 'FCZ_AUTH_REQUIRED') {
+            void useAuthStore.getState().logout();
+          }
+          if (errorData.error === 'INSUFFICIENT_FUNDS') {
+            throw new Error('Insufficient fiat balance. Please deposit more NGN.');
+          }
+          if (errorData.error === 'FIAT_DISABLED') {
+            throw new Error('Fiat betting is currently disabled.');
+          }
+          if (errorData.error === 'BETTING_DISABLED') {
+            throw new Error('Betting is temporarily unavailable. Please try again later.');
+          }
+          throw new Error(placeBetErrorFromResponse(response.status, errorData));
+        }
+
+        const result = await response.json();
+        console.log('[FCZ-BET] Fiat bet placed successfully:', result);
+
+        const updatedPrediction = result?.data?.prediction;
+        const newEntry = result?.data?.entry;
+
+        set(state => {
+          const mergePrediction = (pred: any) => {
+            if (!pred || pred.id !== predictionId) return pred;
+            return updatedPrediction ? { ...pred, ...updatedPrediction } : pred;
+          };
+
+          return {
+            predictions: state.predictions.map(mergePrediction),
+            userPredictions: state.userPredictions.map(mergePrediction),
+            createdPredictions: state.createdPredictions.map(mergePrediction),
+            userCreatedPredictions: state.userCreatedPredictions.map(mergePrediction),
+            userPredictionEntries: newEntry
+              ? [
+                  ...state.userPredictionEntries.filter(entry => entry.id !== newEntry.id),
+                  newEntry
+                ]
+              : state.userPredictionEntries,
+            loading: false,
+            error: null
+          };
+        });
+
+        // clear in-flight
+        set(state => {
+          const next = { ...(state.inFlightBets || {}) };
+          delete next[compositeKey];
+          return { inFlightBets: next } as any;
+        });
+
+        return result;
+      }
 
       // Use new unified place-bet endpoint if crypto mode is enabled
       if (isCryptoMode) {
@@ -725,34 +831,33 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
         // mark in-flight
         set(state => ({ inFlightBets: { ...(state.inFlightBets || {}), [compositeKey]: true } }));
         const requestId = getOrCreateRequestId(compositeKey);
-        
+
+        const authHeaders = await getAuthHeaders();
         const response = await fetch(`${getApiUrl()}/api/predictions/${predictionId}/place-bet`, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
+          headers: { 'Content-Type': 'application/json', ...authHeaders },
           body: JSON.stringify({
             optionId,
             amountUSD: amount,
             userId,
             walletAddress: walletAddress || undefined,
+            fundingMode: 'crypto',
             requestId
           }),
         });
 
         if (!response.ok) {
-          const errorData = await response.json().catch(() => ({}));
-          
-          // Handle specific error codes
-          if (errorData.error === 'INSUFFICIENT_ESCROW') {
+          const errorData = (await response.json().catch(() => ({}))) as Record<string, unknown>;
+          if (response.status === 401 || (errorData as any).code === 'FCZ_AUTH_REQUIRED') {
+            void useAuthStore.getState().logout();
+          }
+          if ((errorData as any).error === 'INSUFFICIENT_ESCROW') {
             throw new Error('INSUFFICIENT_ESCROW');
           }
-          
-          if (errorData.error === 'BETTING_DISABLED') {
+          if ((errorData as any).error === 'BETTING_DISABLED') {
             throw new Error('Betting is temporarily unavailable. Please try again later.');
           }
-          
-          throw new Error(errorData.message || `Unable to place bet. Please try again.`);
+          throw new Error(placeBetErrorFromResponse(response.status, errorData));
         }
 
         const result = await response.json();
@@ -810,8 +915,8 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
 
         return result;
       } else {
-        // ZAURUM mode: place entry via v2 endpoint only (no client-side pre-lock).
-        console.log('[FCZ-BET] Placing zaurum bet via entries endpoint...', { predictionId, optionId, amount, userId });
+        // DEMO MODE: Use the SAME unified endpoint with fundingMode='demo'
+        console.log('[FCZ-BET] Placing bet via unified endpoint (demo)...', { predictionId, optionId, amount, userId });
 
         const compositeKey = computeBetKey(userId, predictionId, optionId, amount);
         const inFlight = get().inFlightBets || {};
@@ -823,31 +928,38 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
         set(state => ({ inFlightBets: { ...(state.inFlightBets || {}), [compositeKey]: true } }));
         const requestId = getOrCreateRequestId(compositeKey);
 
-        const response = await fetch(`${getApiUrl()}/api/v2/predictions/${predictionId}/entries`, {
+        const authHeaders = await getAuthHeaders();
+        const response = await fetch(`${getApiUrl()}/api/predictions/${predictionId}/place-bet`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', ...authHeaders },
           body: JSON.stringify({
-            option_id: optionId,
-            stakeUSD: amount,
-            user_id: userId,
+            optionId,
+            amountUSD: amount,
+            userId,
+            fundingMode: 'demo',
             requestId
           }),
         });
 
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({})) as Record<string, unknown>;
-          if ((errorData as any).error === 'INSUFFICIENT_FUNDS' || (errorData as any).error === 'insufficient_demo_credits') {
-            throw new Error('Insufficient funds.');
+          if (response.status === 401 || (errorData as any).code === 'FCZ_AUTH_REQUIRED') {
+            void useAuthStore.getState().logout();
           }
-          if ((errorData as any).error === 'BETTING_DISABLED') {
+          if (errorData.error === 'INSUFFICIENT_FUNDS') {
+            throw new Error('Insufficient demo credits.');
+          }
+          if (errorData.error === 'BETTING_DISABLED') {
             throw new Error('Betting is temporarily unavailable. Please try again later.');
           }
-          throw new Error((errorData as any).message || `Failed to place prediction: ${response.statusText}`);
+          throw new Error(placeBetErrorFromResponse(response.status, errorData));
         }
 
         const result = await response.json();
-        const updatedPrediction = result?.data?.prediction ?? result?.prediction;
-        const newEntry = result?.data?.entry ?? result?.entry;
+        console.log('[FCZ-BET] Demo bet placed successfully:', result);
+
+        const updatedPrediction = result?.data?.prediction;
+        const newEntry = result?.data?.entry;
 
         set(state => {
           const mergePrediction = (pred: any) => {
@@ -920,6 +1032,116 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
           return { inFlightBets: next } as any;
         });
       } catch {}
+    }
+  },
+
+  /**
+   * Place a prediction bet using fiat (NGN) balance
+   * Phase 7B: Fiat staking
+   */
+  placeFiatPrediction: async (predictionId: string, optionId: string, amountNgn: number, userId: string) => {
+    set({ loading: true, error: null });
+
+    try {
+      console.log('[FCZ-BET] Placing fiat bet...', { predictionId, optionId, amountNgn, userId });
+
+      // Generate stable idempotency key
+      const compositeKey = computeBetKey(userId, predictionId, optionId, amountNgn);
+      const inFlight = get().inFlightBets || {};
+      if (inFlight[compositeKey]) {
+        console.log('[FCZ-BET] Duplicate click prevented (in-flight):', compositeKey);
+        set({ loading: false });
+        return;
+      }
+      set(state => ({ inFlightBets: { ...(state.inFlightBets || {}), [compositeKey]: true } }));
+      const requestId = getOrCreateRequestId(compositeKey);
+
+      const authHeaders = await getAuthHeaders();
+      const response = await fetch(`${getApiUrl()}/api/predictions/${predictionId}/place-bet`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...authHeaders },
+        body: JSON.stringify({
+          optionId,
+          amountNgn,
+          userId,
+          fundingMode: 'fiat',
+          requestId,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({})) as Record<string, unknown>;
+        if (response.status === 401 || (errorData as any).code === 'FCZ_AUTH_REQUIRED') {
+          void useAuthStore.getState().logout();
+        }
+        if (errorData.error === 'INSUFFICIENT_FUNDS') {
+          throw new Error('Insufficient fiat balance. Please deposit more NGN.');
+        }
+        if (errorData.error === 'FIAT_DISABLED') {
+          throw new Error('Fiat betting is currently disabled.');
+        }
+        if (errorData.error === 'BETTING_DISABLED') {
+          throw new Error('Betting is temporarily unavailable. Please try again later.');
+        }
+        throw new Error(placeBetErrorFromResponse(response.status, errorData));
+      }
+
+      const result = await response.json();
+      console.log('[FCZ-BET] Fiat bet placed successfully:', result);
+
+      const updatedPrediction = result?.data?.prediction;
+      const newEntry = result?.data?.entry;
+
+      set(state => {
+        const mergePrediction = (pred: any) => {
+          if (!pred || pred.id !== predictionId) return pred;
+          return updatedPrediction ? { ...pred, ...updatedPrediction } : pred;
+        };
+
+        return {
+          predictions: state.predictions.map(mergePrediction),
+          userPredictions: state.userPredictions.map(mergePrediction),
+          createdPredictions: state.createdPredictions.map(mergePrediction),
+          userCreatedPredictions: state.userCreatedPredictions.map(mergePrediction),
+          userPredictionEntries: newEntry
+            ? [
+                ...state.userPredictionEntries.filter(entry => entry.id !== newEntry.id),
+                newEntry
+              ]
+            : state.userPredictionEntries,
+          loading: false,
+          error: null
+        };
+      });
+
+      try {
+        const { user } = useAuthStore.getState();
+        if (user?.id) {
+          await Promise.all([
+            get().fetchUserCreatedPredictions(user.id),
+            get().fetchUserPredictionEntries(user.id)
+          ]);
+        }
+      } catch (refreshErr) {
+        console.warn('[FCZ-BET] Post-bet refresh encountered an issue:', refreshErr);
+      }
+
+      // Clear in-flight
+      set(state => {
+        const next = { ...(state.inFlightBets || {}) };
+        delete next[compositeKey];
+        return { inFlightBets: next } as any;
+      });
+
+      return result;
+    } catch (error) {
+      console.error('❌ Error placing fiat prediction:', error);
+      let errorMessage = 'Failed to place prediction';
+      if (error instanceof Error) {
+        errorMessage = error.message;
+      }
+      set({ loading: false, error: errorMessage });
+      throw error;
     }
   },
 
@@ -1022,6 +1244,23 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
     } catch (error) {
       console.error('❌ Error fetching user created predictions:', error);
       // Don't set error state for this, just log it
+    }
+  },
+
+  fetchCompletedPredictions: async (userId: string) => {
+    try {
+      console.log('📋 Fetching completed predictions (creator or participant) for:', userId);
+      const authHeaders = await getAuthHeaders();
+      const data = await apiClient.get(`/api/v2/predictions/completed/${userId}`, {
+        timeout: 10000,
+        retryOptions: { maxRetries: 3 },
+        headers: authHeaders,
+      });
+      const completedPredictions = data.data || [];
+      set({ completedPredictions });
+      console.log('✅ Completed predictions fetched:', completedPredictions.length);
+    } catch (error) {
+      console.error('❌ Error fetching completed predictions:', error);
     }
   },
 

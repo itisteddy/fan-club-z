@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Share2, Copy, Check, Twitter, MessageCircle, Download, Link } from 'lucide-react';
 import { usePredictionStore } from '../../store/predictionStore';
 import { notificationHelpers } from '../../store/notificationStore';
+import { buildPredictionCanonicalUrl } from '@/lib/predictionUrls';
 
 interface SharePredictionProps {
   predictionId: string;
@@ -23,21 +24,21 @@ export const SharePrediction: React.FC<SharePredictionProps> = ({
     signups: 0,
   });
 
-  const shareUrl = `${window.location.origin}/predictions/${predictionId}`;
+  const shareUrl = buildPredictionCanonicalUrl(predictionId, predictionTitle);
   const shareText = `Check out this prediction: "${predictionTitle}" on Fan Club Z!`;
 
   const handleCopyLink = async () => {
     try {
       await navigator.clipboard.writeText(shareUrl);
       setCopied(true);
-      notificationHelpers.showSuccessToast('Link copied to clipboard');
-      
+      notificationHelpers.showSuccessToast('Link copied');
       setTimeout(() => setCopied(false), 2000);
-      
-      // Track share event
       trackShare('copy_link');
     } catch (error) {
-      notificationHelpers.showErrorToast('Failed to copy link');
+      notificationHelpers.showErrorToast("Couldn't copy link");
+      try {
+        window.prompt('Copy this link:', shareUrl);
+      } catch {}
     }
   };
 

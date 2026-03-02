@@ -11,12 +11,11 @@ import Card, { CardHeader, CardContent } from '../components/ui/card/Card';
 import EmptyState from '../components/ui/empty/EmptyState';
 import { SkeletonCard } from '../components/ui/skeleton/Skeleton';
 import { getApiUrl } from '../config';
-import { formatNumberShort, formatPercent, formatPercentage } from '@/lib/format';
+import { formatNumberShort, formatUSDCompact, formatPercent, formatPercentage } from '@/lib/format';
 import { cn } from '../utils/cn';
 import { KeyboardNavigation, AriaUtils } from '../utils/accessibility';
 import { t } from '@/lib/lexicon';
 import { isReferralEnabled, fetchReferralLeaderboard, type ReferralLeaderboardEntry } from '@/lib/referral';
-import { ZaurumMark } from '@/components/currency/ZaurumMark';
 
 interface LeaderboardUser {
   id: string;
@@ -37,8 +36,6 @@ type TabType = 'predictions' | 'profit' | 'winrate' | 'referrals';
 const UnifiedLeaderboardPage: React.FC = () => {
   const { user } = useAuthStore();
   const navigate = useNavigate();
-  const rowBaseClasses =
-    'bg-white rounded-xl px-3 py-2 transition-all duration-200 border flex items-center min-h-[56px]';
   
   // Determine available tabs based on feature flags
   const referralsEnabled = useMemo(() => isReferralEnabled(), []);
@@ -199,7 +196,7 @@ const UnifiedLeaderboardPage: React.FC = () => {
       case 'profit':
         const profit = user.total_profit || 0;
         return {
-          primary: `${profit > 0 ? '+' : profit < 0 ? '-' : ''}${formatNumberShort(Math.abs(profit))}`,
+          primary: formatUSDCompact(profit),
           color: profit > 0 ? 'text-emerald-600' : profit < 0 ? 'text-red-600' : 'text-gray-600'
         };
       case 'winrate':
@@ -254,84 +251,78 @@ const UnifiedLeaderboardPage: React.FC = () => {
       <motion.div 
         key={entry.userId}
         className={cn(
-          rowBaseClasses,
-          "hover:shadow-md hover:scale-[1.01] border",
+          "bg-white rounded-xl px-3 py-1.5 border",
           isCurrentUser 
-            ? 'bg-emerald-50 border-emerald-200 shadow-sm' 
+            ? 'bg-emerald-50 border-emerald-200' 
             : isTopThree
-              ? 'bg-gradient-to-r from-emerald-50 to-teal-50 border-emerald-200 shadow-sm'
-              : 'bg-white border-gray-100'
+              ? 'bg-gradient-to-r from-emerald-50 to-teal-50 border-emerald-200'
+              : 'border-gray-100'
         )}
-        initial={{ opacity: 0, y: 20 }}
+        initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: index * 0.05 }}
-        whileHover={{ scale: 1.01 }}
+        transition={{ delay: index * 0.02 }}
         role="listitem"
-        aria-label={`${entry.fullName || entry.username}, rank ${rank}, ${entry.activeReferrals} active referrals`}
+        aria-label={`${entry.fullName || entry.username}, rank ${rank}`}
       >
-        <div className="flex items-center justify-between w-full">
-            <div className="flex items-center gap-1.5 flex-1 min-w-0">
-            {/* Rank Badge */}
-            <div className={cn(
-                "w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold border-2",
-              rankBadge.color
-            )}>
-              {isTopThree ? (
-                <RankIcon className="w-3 h-3" />
-              ) : (
-                <span className="text-[10px]">{rank}</span>
-              )}
-            </div>
-            
-            {/* User Avatar */}
-            <button
-              type="button"
-              onClick={() => openReferralProfile(entry)}
-              className="rounded-full p-0 border-0 bg-transparent appearance-none leading-none min-h-0 min-w-0 h-auto focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
-              aria-label={`Open profile for ${entry.fullName || entry.username}`}
-            >
-              <UserAvatar 
-                email={entry.username}
-                username={entry.username}
-                avatarUrl={entry.avatarUrl}
-                size="sm"
-                className="h-8 w-8"
-              />
-            </button>
-            
-            {/* User Info */}
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-1.5 min-w-0">
-                <button
-                  type="button"
-                  onClick={() => openReferralProfile(entry)}
-                  className="font-semibold text-[15px] text-gray-900 truncate hover:text-emerald-700 cursor-pointer text-left p-0 border-0 bg-transparent appearance-none leading-5 min-h-0 min-w-0 h-auto"
-                >
-                  {entry.fullName || entry.username}
-                </button>
-                <OGBadge tier={entry.ogBadge} size="sm" />
-                {isCurrentUser && (
-                  <span className="flex-shrink-0 px-1.5 py-0.5 bg-emerald-100 text-emerald-700 text-[11px] font-medium rounded-full">
-                    You
-                  </span>
-                )}
-              </div>
+        <div className="flex items-center gap-2 min-h-0">
+          {/* Rank Badge */}
+          <div className={cn(
+            "w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold border shrink-0",
+            rankBadge.color
+          )}>
+            {isTopThree ? (
+              <RankIcon className="w-3.5 h-3.5" />
+            ) : (
+              <span>{rank}</span>
+            )}
+          </div>
+          
+          {/* User Avatar */}
+          <button
+            type="button"
+            onClick={() => openReferralProfile(entry)}
+            className="shrink-0 rounded-full min-h-0 min-w-0 h-auto w-auto p-0 m-0 border-0 bg-transparent appearance-none"
+            aria-label={`Open profile for ${entry.fullName || entry.username}`}
+          >
+            <UserAvatar 
+              email={entry.username}
+              username={entry.username}
+              avatarUrl={entry.avatarUrl}
+              size="sm"
+              className="h-7 w-7 text-[10px]"
+            />
+          </button>
+          
+          {/* User Info */}
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-1 min-w-0">
               <button
                 type="button"
                 onClick={() => openReferralProfile(entry)}
-                className="text-[13px] text-gray-500 truncate hover:text-gray-700 cursor-pointer text-left p-0 border-0 bg-transparent appearance-none leading-4 min-h-0 min-w-0 h-auto"
+                className="block min-h-0 min-w-0 h-auto w-auto p-0 m-0 border-0 bg-transparent appearance-none text-left font-medium text-sm leading-tight text-gray-900 truncate hover:text-emerald-700 cursor-pointer"
               >
-                @{entry.username}
+                {entry.fullName || entry.username}
               </button>
+              <OGBadge tier={entry.ogBadge} size="sm" />
+              {isCurrentUser && (
+                <span className="shrink-0 px-1.5 py-0.5 bg-emerald-100 text-emerald-700 text-[10px] font-medium rounded-full">
+                  You
+                </span>
+              )}
             </div>
+            <button
+              type="button"
+              onClick={() => openReferralProfile(entry)}
+              className="block min-h-0 min-w-0 h-auto w-auto p-0 m-0 border-0 bg-transparent appearance-none text-left text-xs leading-tight text-gray-500 truncate hover:text-gray-700 cursor-pointer"
+            >
+              @{entry.username}
+            </button>
           </div>
           
           {/* Referral Stats */}
-            <div className="ml-auto text-right pl-2 w-[64px] shrink-0">
-              <div className="text-[15px] leading-5 font-semibold tabular-nums text-emerald-600">
-                {entry.activeReferrals}
-              </div>
-            </div>
+          <div className="text-[15px] leading-none font-bold font-mono text-emerald-600 shrink-0">
+            {entry.activeReferrals}
+          </div>
         </div>
       </motion.div>
     );
@@ -432,9 +423,9 @@ const UnifiedLeaderboardPage: React.FC = () => {
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
-                  className="space-y-1"
-                  role="list"
-                  aria-label="Top Referrers leaderboard"
+                className="space-y-2"
+                role="list"
+                aria-label="Top Referrers leaderboard"
                 >
                   {referralData.map((entry, index) => renderReferralItem(entry, index))}
                 </motion.div>
@@ -469,9 +460,9 @@ const UnifiedLeaderboardPage: React.FC = () => {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="space-y-1"
-              role="list"
-              aria-label={`${getTabConfig().find(tab => tab.id === activeTab)?.label} leaderboard`}
+                className="space-y-2"
+                role="list"
+                aria-label={`${getTabConfig().find(tab => tab.id === activeTab)?.label} leaderboard`}
             >
               {leaderboardData.map((leaderUser, index) => {
                 const rankBadge = getRankBadge(leaderUser.rank || 0);
@@ -484,84 +475,77 @@ const UnifiedLeaderboardPage: React.FC = () => {
                   <motion.div 
                     key={leaderUser.id}
                     className={cn(
-                      rowBaseClasses,
-                      "hover:shadow-md hover:scale-[1.01] border",
+                      "bg-white rounded-xl px-3 py-1.5 border",
                       isCurrentUser 
-                        ? 'bg-emerald-50 border-emerald-200 shadow-sm' 
+                        ? 'bg-emerald-50 border-emerald-200' 
                         : isTopThree
-                          ? 'bg-gradient-to-r from-yellow-50 to-orange-50 border-yellow-200 shadow-sm'
-                          : 'bg-white border-gray-100'
+                          ? 'bg-gradient-to-r from-yellow-50 to-orange-50 border-yellow-200'
+                          : 'border-gray-100'
                     )}
-                    initial={{ opacity: 0, y: 20 }}
+                    initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: index * 0.05 }}
-                    whileHover={{ scale: 1.01 }}
+                    transition={{ delay: index * 0.02 }}
                     role="listitem"
-                    aria-label={`${leaderUser.full_name || leaderUser.username}, rank ${leaderUser.rank}, ${activeTab === 'profit' ? `${statDisplay.primary} zaurum profit` : `${statDisplay.primary} ${activeTab === 'predictions' ? 'predictions' : 'win rate'}`}`}
+                    aria-label={`${leaderUser.full_name || leaderUser.username}, rank ${leaderUser.rank}`}
                   >
-                    <div className="flex items-center justify-between w-full">
-                      <div className="flex items-center gap-1.5 flex-1 min-w-0">
-                        {/* Rank Badge */}
-                        <div className={cn(
-                          "w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold border-2",
-                          rankBadge.color
-                        )}>
-                          {isTopThree ? (
-                            <RankIcon className="w-3 h-3" />
-                          ) : (
-                            <span className="text-[10px]">{leaderUser.rank}</span>
-                          )}
-                        </div>
-                        
-                        {/* User Avatar */}
-                        <button
-                          type="button"
-                          onClick={() => openUserProfile(leaderUser)}
-                          className="rounded-full p-0 border-0 bg-transparent appearance-none leading-none min-h-0 min-w-0 h-auto focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
-                          aria-label={`Open profile for ${leaderUser.full_name || leaderUser.username}`}
-                        >
-                          <UserAvatar 
-                            email={leaderUser.username}
-                            username={leaderUser.username}
-                            avatarUrl={leaderUser.avatar_url}
-                            size="sm"
-                            className="h-8 w-8"
-                          />
-                        </button>
-                        
-                        {/* User Info */}
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-1.5 min-w-0">
-                            <button
-                              type="button"
-                              onClick={() => openUserProfile(leaderUser)}
-                            className="font-semibold text-[15px] text-gray-900 truncate hover:text-emerald-700 cursor-pointer text-left p-0 border-0 bg-transparent appearance-none leading-5 min-h-0 min-w-0 h-auto"
-                            >
-                              {leaderUser.full_name || leaderUser.username}
-                            </button>
-                            <OGBadge tier={leaderUser.og_badge} size="sm" />
-                            {isCurrentUser && (
-                              <span className="flex-shrink-0 px-1.5 py-0.5 bg-emerald-100 text-emerald-700 text-[11px] font-medium rounded-full">
-                                You
-                              </span>
-                            )}
-                          </div>
+                    <div className="flex items-center gap-2 min-h-0">
+                      {/* Rank Badge */}
+                      <div className={cn(
+                        "w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold border shrink-0",
+                        rankBadge.color
+                      )}>
+                        {isTopThree ? (
+                          <RankIcon className="w-3.5 h-3.5" />
+                        ) : (
+                          <span>{leaderUser.rank}</span>
+                        )}
+                      </div>
+                      
+                      {/* User Avatar */}
+                      <button
+                        type="button"
+                        onClick={() => openUserProfile(leaderUser)}
+                        className="shrink-0 rounded-full min-h-0 min-w-0 h-auto w-auto p-0 m-0 border-0 bg-transparent appearance-none"
+                        aria-label={`Open profile for ${leaderUser.full_name || leaderUser.username}`}
+                      >
+                        <UserAvatar 
+                          email={leaderUser.username}
+                          username={leaderUser.username}
+                          avatarUrl={leaderUser.avatar_url}
+                          size="sm"
+                          className="h-7 w-7 text-[10px]"
+                        />
+                      </button>
+                      
+                      {/* User Info */}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1 min-w-0">
                           <button
                             type="button"
                             onClick={() => openUserProfile(leaderUser)}
-                            className="text-[13px] text-gray-500 truncate hover:text-gray-700 cursor-pointer text-left p-0 border-0 bg-transparent appearance-none leading-4 min-h-0 min-w-0 h-auto"
+                            className="block min-h-0 min-w-0 h-auto w-auto p-0 m-0 border-0 bg-transparent appearance-none text-left font-medium text-sm leading-tight text-gray-900 truncate hover:text-emerald-700 cursor-pointer"
                           >
-                            @{leaderUser.username}
+                            {leaderUser.full_name || leaderUser.username}
                           </button>
+                          <OGBadge tier={leaderUser.og_badge} size="sm" />
+                          {isCurrentUser && (
+                            <span className="shrink-0 px-1.5 py-0.5 bg-emerald-100 text-emerald-700 text-[10px] font-medium rounded-full">
+                              You
+                            </span>
+                          )}
                         </div>
+                        <button
+                          type="button"
+                          onClick={() => openUserProfile(leaderUser)}
+                          className="block min-h-0 min-w-0 h-auto w-auto p-0 m-0 border-0 bg-transparent appearance-none text-left text-xs leading-tight text-gray-500 truncate hover:text-gray-700 cursor-pointer"
+                        >
+                          @{leaderUser.username}
+                        </button>
                       </div>
                       
-                      {/* Enhanced Stats Display - Simplified */}
-                      <div className="ml-auto text-right pl-2 w-[88px] shrink-0">
-                        <div className={cn("text-[15px] leading-5 font-semibold tabular-nums inline-flex items-center justify-end gap-1 w-full", statDisplay.color)}>
-                          {activeTab === 'profit' && <ZaurumMark className="w-2.5 h-2.5" />}
-                          <span>{statDisplay.primary}</span>
-                        </div>
+                      {/* Stats */}
+                      <div className={cn("text-[15px] leading-none font-bold font-mono shrink-0", statDisplay.color)}>
+                        {statDisplay.primary}
                       </div>
                     </div>
                   </motion.div>

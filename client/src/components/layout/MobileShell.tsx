@@ -89,6 +89,7 @@ const MobileShell: React.FC<MobileShellProps> = ({
         };
 
       case path.startsWith('/prediction/'):
+      case path.match(/^\/p\/[^/]+/) !== null:
         return {
           title: 'Prediction Details',
           leftAction: { 

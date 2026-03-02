@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { formatCurrency } from '@/lib/format';
+import { buildPredictionCanonicalUrl } from '@/lib/predictionUrls';
 
 export interface Notification {
   id: string;
@@ -231,8 +231,8 @@ export const useNotificationStore = create<NotificationStore>()(
           
           // Handle navigation based on notification type
           if (notification.data?.predictionId) {
-            // Navigate to prediction detail
-            window.location.href = `/predictions/${notification.data.predictionId}`;
+            // Navigate to prediction detail (canonical URL)
+            window.location.href = buildPredictionCanonicalUrl(notification.data.predictionId);
           }
         };
 
@@ -266,8 +266,8 @@ export const useNotificationStore = create<NotificationStore>()(
       notifySettlementCompleted: (predictionId: string, predictionTitle: string, outcome: 'won' | 'lost', payout?: number) => {
         const { addNotification, addToast } = get();
         
-        const message = outcome === 'won'
-          ? `You won ${typeof payout === 'number' ? formatCurrency(payout, { compact: false }) : ''} on "${predictionTitle}"!`
+        const message = outcome === 'won' 
+          ? `You won ${payout ? `$${payout}` : ''} on "${predictionTitle}"!`
           : `Settlement completed for "${predictionTitle}". Better luck next time!`;
           
         // Add persistent notification
@@ -321,7 +321,7 @@ export const notificationHelpers = {
     useNotificationStore.getState().addNotification({
       type: 'prediction_outcome',
       title: '🎉 You won!',
-      message: `Your prediction "${predictionTitle}" was correct! You earned ${formatCurrency(amount, { compact: false })}.`,
+      message: `Your prediction "${predictionTitle}" was correct! You earned $${amount.toFixed(2)}.`,
       data: { predictionId, amount },
     }),
 
@@ -353,7 +353,7 @@ export const notificationHelpers = {
     useNotificationStore.getState().addNotification({
       type: 'payout',
       title: 'Payout received',
-      message: `${formatCurrency(amount, { compact: false })} has been added to your wallet.`,
+      message: `$${amount.toFixed(2)} has been added to your wallet.`,
       data: { amount, transactionId },
     }),
 
@@ -425,8 +425,8 @@ export const notifySettlementReady = (predictionId: string, predictionTitle: str
 export const notifySettlementCompleted = (predictionId: string, predictionTitle: string, outcome: 'won' | 'lost', payout?: number) => {
   const store = useNotificationStore.getState();
   
-  const message = outcome === 'won'
-    ? `You won ${typeof payout === 'number' ? formatCurrency(payout, { compact: false }) : ''} on "${predictionTitle}"!`
+  const message = outcome === 'won' 
+    ? `You won ${payout ? `$${payout}` : ''} on "${predictionTitle}"!`
     : `Settlement completed for "${predictionTitle}". Better luck next time!`;
     
   // Add persistent notification

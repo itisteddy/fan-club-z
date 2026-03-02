@@ -16,32 +16,29 @@ export function formatCurrency(
     typeof optsOrCurrency === 'string'
       ? { currency: optsOrCurrency, showSign: legacyShowSign }
       : optsOrCurrency || {};
-  const { compact = true, showSign = false } = resolvedOptions;
-
-  const abs = Math.abs(num || 0);
-  const formatted = formatZaurumNumber(abs, { compact });
-  const sign = showSign ? (num > 0 ? '+' : num < 0 ? '-' : '') : '';
-  return `${sign}${formatted}`;
-};
-
-export function formatZaurumNumber(
-  n: number | string,
-  opts?: { compact?: boolean; maxFractionDigits?: number }
-): string {
-  const num = typeof n === 'string' ? Number(n) : n;
-  const compact = opts?.compact ?? true;
+  const { compact = true, showSign = false, currency = 'USD' } = resolvedOptions;
+  
   if (compact) {
-    return new Intl.NumberFormat(undefined, {
-      notation: 'compact',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: opts?.maxFractionDigits ?? 2,
-    }).format(num || 0);
+    const formatter = new Intl.NumberFormat(undefined, {
+      style: "currency",
+      currency,
+      notation: "compact",
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+    const formatted = formatter.format(num || 0);
+    return showSign && num > 0 ? `+${formatted}` : formatted;
   }
-  return new Intl.NumberFormat(undefined, {
+  
+  const formatter = new Intl.NumberFormat(undefined, {
+    style: "currency",
+    currency,
     minimumFractionDigits: 2,
-    maximumFractionDigits: opts?.maxFractionDigits ?? 2,
-  }).format(num || 0);
-}
+    maximumFractionDigits: 2,
+  });
+  const formatted = formatter.format(num || 0);
+  return showSign && num > 0 ? `+${formatted}` : formatted;
+};
 
 export const formatNumber = (n: number | string, opts?: Intl.NumberFormatOptions) => {
   const num = typeof n === "string" ? Number(n) : n;

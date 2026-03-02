@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Bell, User, MessageCircle, Trophy, Settings as SettingsIcon } from 'lucide-react';
 import { useNotificationStore } from '../../store/notificationStore';
-import { ZaurumMark } from '@/components/currency/ZaurumMark';
 
 interface NotificationBellProps {
   onClick: () => void;
@@ -53,7 +52,7 @@ export const ActivityIndicator: React.FC<{ type: 'comment' | 'like' | 'predictio
       case 'prediction':
         return <Trophy className="w-4 h-4" />;
       case 'payout':
-        return <ZaurumMark className="w-4 h-4 text-teal-500" />;
+        return <span className="text-teal-500">$</span>;
       default:
         return <Bell className="w-4 h-4" />;
     }

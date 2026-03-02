@@ -8,8 +8,6 @@ import { useUnifiedCommentStore } from '../../store/unifiedCommentStore';
 import UserAvatar from '../common/UserAvatar';
 import { cn } from '@/utils/cn';
 import { formatTimeRemaining } from '@/lib/utils';
-import { formatCurrency } from '@/lib/format';
-import { ZaurumMark } from '@/components/currency/ZaurumMark';
 import { buildPredictionCanonicalPath } from '@/lib/predictionUrls';
 
 interface DensePredictionCardProps {
@@ -36,10 +34,10 @@ const DensePredictionCard: React.FC<DensePredictionCardProps> = ({
   const commentCount = getCommentCount(prediction.id);
 
   const handleCardClick = useCallback(() => {
-    navigate(buildPredictionCanonicalPath(prediction.id, prediction.title), {
+    navigate(buildPredictionCanonicalPath(prediction.id, prediction.title || prediction.question), {
       state: { from: fromPath }
     });
-  }, [navigate, prediction.id, prediction.title, fromPath]);
+  }, [navigate, prediction.id, prediction.title, prediction.question, fromPath]);
 
   const handleLike = useCallback(async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -131,9 +129,8 @@ const DensePredictionCard: React.FC<DensePredictionCardProps> = ({
               <TrendingUp size={12} />
               <span className="font-medium truncate max-w-[120px]">{highestOption.label}</span>
             </div>
-            <div className="text-gray-500 inline-flex items-center gap-1">
-              <ZaurumMark className="w-3.5 h-3.5" />
-              {formatCurrency(totalVolume, { compact: true })}
+            <div className="text-gray-500">
+              ${totalVolume.toLocaleString()}
             </div>
           </div>
         )}
@@ -166,7 +163,7 @@ const DensePredictionCard: React.FC<DensePredictionCardProps> = ({
                         {percentage.toFixed(0)}%
                       </span>
                       <span className="text-xs text-gray-500">
-                        {formatCurrency(amount, { compact: true })}
+                        ${amount.toLocaleString()}
                       </span>
                     </div>
                   </div>

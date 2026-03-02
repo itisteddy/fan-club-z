@@ -299,7 +299,7 @@ const CommentModal: React.FC<CommentModalProps> = ({
                         <div className="bg-gray-50 rounded-2xl px-4 py-3">
                           <div className="flex items-center gap-2 mb-1">
                             <TappableUsername 
-                              username={comment.user?.username || 'Anonymous'}
+                              username={comment.user?.full_name || comment.user?.username || 'Anonymous'}
                               userId={comment.user?.id || 'anonymous'}
                               className="font-semibold text-gray-900 text-sm hover:text-blue-600"
                               showAt={false}

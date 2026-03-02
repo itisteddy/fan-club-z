@@ -66,8 +66,9 @@ const Notification: React.FC<NotificationProps> = ({
   const getStyles = () => {
     const baseStyles = {
       position: 'fixed' as const,
-      top: '20px',
-      right: '20px',
+      // iOS safe-area: keep top overlays below the notch / Dynamic Island
+      top: 'var(--top-overlay-offset)',
+      right: 'max(12px, var(--safe-right))',
       zIndex: 9999,
       padding: '16px 20px',
       borderRadius: '16px',
