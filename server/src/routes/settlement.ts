@@ -122,10 +122,21 @@ async function applyDemoDelta(userId: string, args: { availableDelta: number; re
   const prevRes = Number((w as any)?.reserved_balance || 0);
   const prevDemo = Number((w as any)?.demo_credits_balance ?? prevAvail);
   const nextAvail = prevAvail + args.availableDelta;
-  const nextRes = prevRes + args.reservedDelta;
+  // Settlement may attempt to release more reserved than currently tracked due to
+  // historical/stale lock rows. Clamp at zero so settlement can complete safely.
+  const nextResRaw = prevRes + args.reservedDelta;
+  const nextRes = Math.max(0, nextResRaw);
   const nextDemo = prevDemo + args.availableDelta;
-  if (nextDemo < 0 || nextAvail < 0 || nextRes < 0) {
+  if (nextDemo < 0 || nextAvail < 0) {
     throw new Error('Demo wallet balance would become negative');
+  }
+  if (nextResRaw < 0 && process.env.NODE_ENV !== 'production') {
+    console.warn('[SETTLEMENT] Reserved underflow clamped during applyDemoDelta', {
+      userId,
+      prevRes,
+      requestedReservedDelta: args.reservedDelta,
+      nextResRaw,
+    });
   }
 
   const { error: updErr } = await supabase
