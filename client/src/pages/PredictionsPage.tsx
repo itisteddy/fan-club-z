@@ -685,7 +685,8 @@ const PredictionsPage: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNa
       onClick={(e) => {
         const target = e.target as HTMLElement | null;
         if (target?.closest('[data-no-card-nav="true"],button,a,input,textarea,select,label')) return;
-        const targetPredictionId = resolvePredictionRouteId(prediction);
+        const targetPredictionId = resolvePredictionRouteId(prediction)
+          || String(prediction?.id || prediction?.predictionId || '').trim();
         if (!targetPredictionId) return;
         navigate(buildPredictionCanonicalPath(targetPredictionId, prediction?.title), { state: { from: fromPath } });
       }}
@@ -748,9 +749,15 @@ const PredictionsPage: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNa
           onClick={(e) => {
             e.preventDefault();
             e.stopPropagation();
+            (e.nativeEvent as Event).stopImmediatePropagation?.();
             setSelectedPrediction(prediction);
             setShowManageModal(true);
           }}
+          onClickCapture={(e) => e.stopPropagation()}
+          onMouseDown={(e) => e.stopPropagation()}
+          onPointerDown={(e) => e.stopPropagation()}
+          onTouchStart={(e) => e.stopPropagation()}
+          onTouchEnd={(e) => e.stopPropagation()}
           className="bg-blue-600 text-white px-4 py-2 rounded-lg font-medium text-sm flex items-center gap-1 hover:bg-blue-700 transition-colors z-10 relative"
         >
           Manage <Settings className="w-4 h-4" />
@@ -779,7 +786,8 @@ const PredictionsPage: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNa
     const isSettled = Boolean(prediction?.settledAt) || (String(prediction?.status || '').toLowerCase() === 'settled');
 
     const openSafely = () => {
-      const targetPredictionId = canonicalPredictionId;
+      const targetPredictionId = canonicalPredictionId
+        || String(prediction?.id || prediction?.predictionId || '').trim();
       if (!targetPredictionId) return;
       navigate(buildPredictionCanonicalPath(targetPredictionId, prediction?.title), { state: { from: fromPath } });
     };

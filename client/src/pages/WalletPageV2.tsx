@@ -102,6 +102,7 @@ const WalletPageV2: React.FC<WalletPageV2Props> = ({ onNavigateBack }) => {
   const [bulkDone, setBulkDone] = useState(0);
   const [isClaimingDaily, setIsClaimingDaily] = useState(false);
   const [nextDailyClaimAt, setNextDailyClaimAt] = useState<string | null>(null);
+  const [dailyClaimNowMs, setDailyClaimNowMs] = useState<number>(() => Date.now());
   const { claim, isClaiming } = useMerkleClaim();
   const [txNotice, setTxNotice] = useState<{ hash: string; kind: string; predictionId?: string } | null>(null);
   const [selectedActivity, setSelectedActivity] = useState<WalletActivityItem | null>(null);
@@ -530,8 +531,27 @@ const WalletPageV2: React.FC<WalletPageV2Props> = ({ onNavigateBack }) => {
     if (!nextDailyClaimAt) return false;
     const next = new Date(nextDailyClaimAt).getTime();
     if (!Number.isFinite(next)) return false;
-    return Date.now() < next;
-  }, [nextDailyClaimAt]);
+    return dailyClaimNowMs < next;
+  }, [nextDailyClaimAt, dailyClaimNowMs]);
+
+  useEffect(() => {
+    if (!isDailyClaimLocked) return;
+    const timer = window.setInterval(() => setDailyClaimNowMs(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, [isDailyClaimLocked]);
+
+  const dailyClaimCountdown = useMemo(() => {
+    if (!nextDailyClaimAt) return null;
+    const next = new Date(nextDailyClaimAt).getTime();
+    if (!Number.isFinite(next)) return null;
+    const remainingMs = next - dailyClaimNowMs;
+    if (remainingMs <= 0) return null;
+    const totalSeconds = Math.floor(remainingMs / 1000);
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+    return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+  }, [nextDailyClaimAt, dailyClaimNowMs]);
 
   const handleDailyClaim = useCallback(async () => {
     if (!user?.id || isClaimingDaily || !canClaimDaily) return;
@@ -1025,8 +1045,8 @@ const WalletPageV2: React.FC<WalletPageV2Props> = ({ onNavigateBack }) => {
                       {isClaimingDaily ? 'Claiming...' : 'Claim daily Zaurum'}
                     </button>
                     <p className="mt-2 text-[11px] text-gray-600 text-center">
-                      {isDailyClaimLocked && nextDailyClaimAt
-                        ? `Next claim: ${new Date(nextDailyClaimAt).toLocaleString()}`
+                      {isDailyClaimLocked && dailyClaimCountdown
+                        ? `Next claim in ${dailyClaimCountdown}`
                         : 'Claim once every 24 hours.'}
                     </p>
                   </div>
@@ -1148,9 +1168,9 @@ const WalletPageV2: React.FC<WalletPageV2Props> = ({ onNavigateBack }) => {
                       >
                         {isClaimingDaily ? 'Claiming...' : 'Claim daily Zaurum'}
                       </button>
-                      {isDailyClaimLocked && nextDailyClaimAt ? (
+                      {isDailyClaimLocked && dailyClaimCountdown ? (
                         <p className="text-xs text-gray-500 text-center">
-                          Next claim: {new Date(nextDailyClaimAt).toLocaleString()}
+                          Next claim in {dailyClaimCountdown}
                         </p>
                       ) : !canClaimDaily ? (
                         <p className="text-xs text-gray-500 text-center">

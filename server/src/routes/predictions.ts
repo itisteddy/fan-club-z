@@ -183,6 +183,11 @@ router.get('/resolve/slug/:slug', async (req, res) => {
   try {
     const { slug } = req.params as { slug: string };
     const candidate = (slug || '').trim().toLowerCase();
+    const candidateWithoutNumericSuffix = candidate.replace(/-\d+$/, '');
+    const candidatePrefix = candidateWithoutNumericSuffix.slice(0, 48);
+    const normalizeForLooseMatch = (value: string) =>
+      value.replace(/[^a-z0-9]/g, '');
+    const candidateLoose = normalizeForLooseMatch(candidateWithoutNumericSuffix);
 
     // If a UUID is accidentally passed, return it directly if it exists
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -232,7 +237,18 @@ router.get('/resolve/slug/:slug', async (req, res) => {
       if (!preds || preds.length === 0) break;
       matched = preds.find(p => {
         const computed = slugify(p.title);
-        return computed === candidate || computed.startsWith(candidate) || candidate.startsWith(computed);
+        const computedWithoutNumericSuffix = computed.replace(/-\d+$/, '');
+        const computedLoose = normalizeForLooseMatch(computedWithoutNumericSuffix);
+        return (
+          computed === candidate ||
+          computedWithoutNumericSuffix === candidateWithoutNumericSuffix ||
+          computed.startsWith(candidate) ||
+          candidate.startsWith(computed) ||
+          computedWithoutNumericSuffix.startsWith(candidateWithoutNumericSuffix) ||
+          candidateWithoutNumericSuffix.startsWith(computedWithoutNumericSuffix) ||
+          (candidatePrefix.length >= 20 && computedWithoutNumericSuffix.startsWith(candidatePrefix)) ||
+          (candidateLoose.length >= 20 && computedLoose.startsWith(candidateLoose))
+        );
       });
       offset += pageSize;
     }
