@@ -75,9 +75,9 @@ const PredictionsPage: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNa
 
   const resolvePredictionRouteId = useCallback((candidate: any): string | null => {
     const options = [
+      candidate?.id,
       candidate?.predictionId,
       candidate?.prediction_id,
-      candidate?.id,
     ];
     for (const value of options) {
       if (typeof value !== 'string') continue;
@@ -340,7 +340,7 @@ const PredictionsPage: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNa
         
         return {
           id: prediction.id,
-          predictionId: entry.prediction_id || prediction.id,
+          predictionId: prediction.id,
           entryId: entry.id,
           title: prediction.title,
           category: prediction.category,

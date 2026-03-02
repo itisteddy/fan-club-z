@@ -67,6 +67,8 @@ export const restCorsOptions: cors.CorsOptions = {
     'X-Admin-Key',
     'apikey',
     'x-client-info',
+    'x-fcz-client',
+    'X-FCZ-Client',
   ],
   exposedHeaders: ['Content-Range', 'X-Content-Range', 'ETag'],
 };
@@ -88,4 +90,3 @@ export function socketIoCorsOrigin(origin: string | undefined, callback: (err: E
   console.warn(`[RT-CORS] ❌ Blocked origin (connection denied): ${o}`);
   return callback(null, false);
 }
-
