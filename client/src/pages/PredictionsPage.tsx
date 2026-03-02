@@ -83,7 +83,7 @@ const PredictionsPage: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNa
       if (typeof value !== 'string') continue;
       const clean = value.trim();
       if (!clean) continue;
-      if (isUuid(clean) || clean.length >= 8) return clean;
+      if (isUuid(clean)) return clean;
     }
     return null;
   }, [isUuid]);

@@ -38,7 +38,7 @@ const UnifiedLeaderboardPage: React.FC = () => {
   const { user } = useAuthStore();
   const navigate = useNavigate();
   const rowBaseClasses =
-    'bg-white rounded-xl px-3 py-1 transition-all duration-200 border flex items-center';
+    'bg-white rounded-lg px-2 py-0 transition-all duration-200 border flex items-center min-h-[54px]';
   
   // Determine available tabs based on feature flags
   const referralsEnabled = useMemo(() => isReferralEnabled(), []);
@@ -270,16 +270,16 @@ const UnifiedLeaderboardPage: React.FC = () => {
         aria-label={`${entry.fullName || entry.username}, rank ${rank}, ${entry.activeReferrals} active referrals`}
       >
         <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 flex-1 min-w-0">
+            <div className="flex items-center gap-1.5 flex-1 min-w-0">
             {/* Rank Badge */}
             <div className={cn(
-                "w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold border-2",
+                "w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold border-2",
               rankBadge.color
             )}>
               {isTopThree ? (
-                <RankIcon className="w-4 h-4" />
+                <RankIcon className="w-3 h-3" />
               ) : (
-                <span className="text-xs">{rank}</span>
+                <span className="text-[10px]">{rank}</span>
               )}
             </div>
             
@@ -295,6 +295,7 @@ const UnifiedLeaderboardPage: React.FC = () => {
                 username={entry.username}
                 avatarUrl={entry.avatarUrl}
                 size="sm"
+                className="h-7 w-7"
               />
             </button>
             
@@ -304,7 +305,7 @@ const UnifiedLeaderboardPage: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => openReferralProfile(entry)}
-                  className="font-semibold text-[14px] text-gray-900 truncate hover:text-emerald-700 cursor-pointer text-left p-0 border-0 bg-transparent appearance-none leading-4"
+                  className="font-semibold text-[12px] text-gray-900 truncate hover:text-emerald-700 cursor-pointer text-left p-0 border-0 bg-transparent appearance-none leading-3"
                 >
                   {entry.fullName || entry.username}
                 </button>
@@ -318,7 +319,7 @@ const UnifiedLeaderboardPage: React.FC = () => {
               <button
                 type="button"
                 onClick={() => openReferralProfile(entry)}
-                className="text-[12px] text-gray-500 truncate hover:text-gray-700 cursor-pointer text-left p-0 border-0 bg-transparent appearance-none leading-3"
+                className="text-[10px] text-gray-500 truncate hover:text-gray-700 cursor-pointer text-left p-0 border-0 bg-transparent appearance-none leading-3"
               >
                 @{entry.username}
               </button>
@@ -326,8 +327,8 @@ const UnifiedLeaderboardPage: React.FC = () => {
           </div>
           
           {/* Referral Stats */}
-            <div className="text-right pl-2">
-              <div className="text-base font-bold font-mono text-emerald-600">
+            <div className="text-right pl-1.5">
+              <div className="text-xs leading-none font-bold font-mono text-emerald-600">
                 {entry.activeReferrals}
               </div>
             </div>
@@ -431,7 +432,7 @@ const UnifiedLeaderboardPage: React.FC = () => {
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
-                  className="space-y-1.5"
+                  className="space-y-1"
                   role="list"
                   aria-label="Top Referrers leaderboard"
                 >
@@ -468,7 +469,7 @@ const UnifiedLeaderboardPage: React.FC = () => {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="space-y-1.5"
+              className="space-y-1"
               role="list"
               aria-label={`${getTabConfig().find(tab => tab.id === activeTab)?.label} leaderboard`}
             >
@@ -499,16 +500,16 @@ const UnifiedLeaderboardPage: React.FC = () => {
                     aria-label={`${leaderUser.full_name || leaderUser.username}, rank ${leaderUser.rank}, ${activeTab === 'profit' ? `${statDisplay.primary} zaurum profit` : `${statDisplay.primary} ${activeTab === 'predictions' ? 'predictions' : 'win rate'}`}`}
                   >
                     <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2 flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5 flex-1 min-w-0">
                         {/* Rank Badge */}
                         <div className={cn(
-                          "w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold border-2",
+                          "w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold border-2",
                           rankBadge.color
                         )}>
                           {isTopThree ? (
-                            <RankIcon className="w-4 h-4" />
+                            <RankIcon className="w-3 h-3" />
                           ) : (
-                            <span className="text-xs">{leaderUser.rank}</span>
+                            <span className="text-[10px]">{leaderUser.rank}</span>
                           )}
                         </div>
                         
@@ -524,6 +525,7 @@ const UnifiedLeaderboardPage: React.FC = () => {
                             username={leaderUser.username}
                             avatarUrl={leaderUser.avatar_url}
                             size="sm"
+                            className="h-7 w-7"
                           />
                         </button>
                         
@@ -533,7 +535,7 @@ const UnifiedLeaderboardPage: React.FC = () => {
                             <button
                               type="button"
                               onClick={() => openUserProfile(leaderUser)}
-                              className="font-semibold text-[14px] text-gray-900 truncate hover:text-emerald-700 cursor-pointer text-left p-0 border-0 bg-transparent appearance-none leading-4"
+                            className="font-semibold text-[12px] text-gray-900 truncate hover:text-emerald-700 cursor-pointer text-left p-0 border-0 bg-transparent appearance-none leading-3"
                             >
                               {leaderUser.full_name || leaderUser.username}
                             </button>
@@ -547,7 +549,7 @@ const UnifiedLeaderboardPage: React.FC = () => {
                           <button
                             type="button"
                             onClick={() => openUserProfile(leaderUser)}
-                            className="text-[12px] text-gray-500 truncate hover:text-gray-700 cursor-pointer text-left p-0 border-0 bg-transparent appearance-none leading-3"
+                            className="text-[10px] text-gray-500 truncate hover:text-gray-700 cursor-pointer text-left p-0 border-0 bg-transparent appearance-none leading-3"
                           >
                             @{leaderUser.username}
                           </button>
@@ -555,9 +557,9 @@ const UnifiedLeaderboardPage: React.FC = () => {
                       </div>
                       
                       {/* Enhanced Stats Display - Simplified */}
-                      <div className="text-right pl-2">
-                        <div className={cn("text-base font-bold font-mono inline-flex items-center justify-end gap-1", statDisplay.color)}>
-                          {activeTab === 'profit' && <ZaurumMark className="w-3.5 h-3.5" />}
+                      <div className="text-right pl-1.5">
+                        <div className={cn("text-xs leading-none font-bold font-mono inline-flex items-center justify-end gap-1", statDisplay.color)}>
+                          {activeTab === 'profit' && <ZaurumMark className="w-2.5 h-2.5" />}
                           <span>{statDisplay.primary}</span>
                         </div>
                       </div>

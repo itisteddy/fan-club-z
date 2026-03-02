@@ -32,6 +32,7 @@ import { FCZ_WALLET_MODE } from '@/utils/environment';
 import { ZaurumMark } from '@/components/currency/ZaurumMark';
 import { ZaurumAmount } from '@/components/currency/ZaurumAmount';
 import { buildPredictionCanonicalPath } from '@/lib/predictionUrls';
+import RecentActivityCard, { type ActivityDisplayItem } from '@/components/activity/RecentActivityCard';
 
 interface WalletPageV2Props {
   onNavigateBack?: () => void;
@@ -173,6 +174,17 @@ const WalletPageV2: React.FC<WalletPageV2Props> = ({ onNavigateBack }) => {
     showCreatorHistory && Boolean(session?.access_token),
     30
   );
+  const recentActivityItems = useMemo<ActivityDisplayItem[]>(() => {
+    const items = walletActivity?.items ?? [];
+    return items.map((item) => ({
+      id: item.id,
+      kind: item.kind as any,
+      amountUSD: Number(item.amountUSD ?? 0),
+      txHash: item.txHash,
+      createdAt: item.createdAt,
+      meta: item.meta as any,
+    }));
+  }, [walletActivity?.items]);
   
   // Connection helpers
   const openConnectSheet = useCallback(() => {
@@ -754,20 +766,17 @@ const WalletPageV2: React.FC<WalletPageV2Props> = ({ onNavigateBack }) => {
                   <div className="text-xs text-gray-500 mt-1">Zaurum balance</div>
                 </div>
                 
-                {/* 2. Escrow total */}
+                {/* 2. Available balance */}
                 <div className="bg-white rounded-2xl border border-black/[0.06] p-4 min-h-[88px] flex flex-col justify-center">
                   <div className="flex items-center space-x-1 mb-2">
                     <Download className="w-4 h-4 text-emerald-500" />
-                    <div className="text-xs text-gray-600 font-medium tracking-wide">Escrow</div>
+                    <div className="text-xs text-gray-600 font-medium tracking-wide">Available</div>
                   </div>
                   <div className="text-lg font-bold text-gray-900 font-mono truncate">
-                    {isLoadingBalance ? '...' : <ZaurumAmount value={resolvedEscrowTotal ?? 0} compact markSize="sm" />}
+                    {isLoadingBalance ? '...' : <ZaurumAmount value={resolvedEscrowAvailable ?? 0} compact markSize="sm" />}
                   </div>
                   <div className="text-xs text-gray-500 mt-1 flex items-center gap-2">
-                    <span className="text-emerald-600 font-medium inline-flex items-center gap-1">
-                      <ZaurumAmount value={resolvedEscrowAvailable ?? 0} compact markSize="xs" />
-                      <span>free</span>
-                    </span>
+                    <span className="text-emerald-600 font-medium inline-flex items-center gap-1">Ready to stake</span>
                     {resolvedEscrowReserved > 0 && (
                       <>
                         <span className="text-gray-400">·</span>
@@ -815,31 +824,33 @@ const WalletPageV2: React.FC<WalletPageV2Props> = ({ onNavigateBack }) => {
                 </div>
               </div>
 
-              {/* Explicit balance breakdown (server-side internal balances) */}
-              <div className="bg-white rounded-2xl border border-black/[0.06] p-4">
-                <div className="flex items-center justify-between mb-3">
-                  <h3 className="text-sm font-semibold text-gray-900">Internal Balances</h3>
-                  <span className="text-[11px] text-gray-500">Auditable wallet ledger</span>
+              {!isZaurumOnly && (
+                <div className="bg-white rounded-2xl border border-black/[0.06] p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="text-sm font-semibold text-gray-900">Internal Balances</h3>
+                    <span className="text-[11px] text-gray-500">Auditable wallet ledger</span>
+                  </div>
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-gray-600">Zaurum</span>
+                      <span className="font-mono font-medium text-gray-900"><ZaurumAmount value={demoCreditsBalance} markSize="xs" /></span>
+                    </div>
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-gray-600">Wallet / Stake Balance</span>
+                      <span className="font-mono font-medium text-gray-900"><ZaurumAmount value={stakeBalance} markSize="xs" /></span>
+                    </div>
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-gray-600">Creator Earnings</span>
+                      <span className="font-mono font-semibold text-amber-700">
+                        {creatorEarningsBalanceLoaded ? <ZaurumAmount value={creatorEarningsBalance} markSize="xs" /> : '...'}
+                      </span>
+                    </div>
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-gray-600">Zaurum</span>
-                    <span className="font-mono font-medium text-gray-900"><ZaurumAmount value={demoCreditsBalance} markSize="xs" /></span>
-                  </div>
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-gray-600">Wallet / Stake Balance</span>
-                    <span className="font-mono font-medium text-gray-900"><ZaurumAmount value={stakeBalance} markSize="xs" /></span>
-                  </div>
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-gray-600">Creator Earnings</span>
-                    <span className="font-mono font-semibold text-amber-700">
-                      {creatorEarningsBalanceLoaded ? <ZaurumAmount value={creatorEarningsBalance} markSize="xs" /> : '...'}
-                    </span>
-                  </div>
-                </div>
-              </div>
+              )}
 
               {/* On-chain Balance Card - Detailed breakdown */}
+              {!isZaurumOnly ? (
               <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-2xl border border-blue-100 p-4">
                 <div className="flex items-center justify-between mb-4 gap-2">
                   <div className="flex items-center gap-2 min-w-0">
@@ -1052,6 +1063,24 @@ const WalletPageV2: React.FC<WalletPageV2Props> = ({ onNavigateBack }) => {
                   </div>
                 ) : null}
               </div>
+              ) : (
+                <>
+                  <div className="bg-white rounded-2xl border border-black/[0.06] p-4">
+                    <div className="grid grid-cols-2 gap-3">
+                      {actionButtons}
+                    </div>
+                  </div>
+                  <RecentActivityCard
+                    items={recentActivityItems}
+                    loading={isLoadingActivity}
+                    maxItems={8}
+                    showViewAll={recentActivityItems.length > 8}
+                    onViewAll={() => setShowAllTransactions(true)}
+                    emptyTitle="No recent activity"
+                    emptyDescription="Your wallet activity will appear here."
+                  />
+                </>
+              )}
             </>
           )}
         </div>

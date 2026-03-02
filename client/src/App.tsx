@@ -509,6 +509,8 @@ const PredictionDetailsRouteWrapper: React.FC = () => {
 
   React.useEffect(() => {
     const run = async () => {
+      setResolvedId(null);
+      setChecking(true);
       if (!id) {
         setChecking(false);
         return;
