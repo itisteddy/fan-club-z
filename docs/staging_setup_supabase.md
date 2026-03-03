@@ -21,6 +21,8 @@ postgresql://postgres:gsaBmp5LPsUlFBJG@db.rzihzwvgpvozekicrdqr.supabase.co:5432/
 
 If the staging backend returns **500** on `GET /api/v2/predictions`, the DB may be missing columns the API expects. Run **336_predictions_entry_deadline_users_verified.sql** (adds `entry_deadline` to predictions and `is_verified` to users), or run the full migration suite (see below).
 
+If you see **"Could not find the table 'public.user_awards_current'"** or 500s on profile/achievements/public-profile, run **340_achievements_badges_awards.sql** (creates achievements/badges/awards tables).
+
 The backend seeds `categories` on startup; the table must exist or you'll see "Could not find the table 'public.categories' in the schema cache".
 
 1. You can run **`315_categories_table.sql`** first: it creates `public.categories` and, if `public.predictions` exists, adds `category_id` to it. It no longer errors if `predictions` is missing.
