@@ -67,19 +67,43 @@ In **Authentication → URL Configuration** for the **staging** Supabase project
 
 If your Vercel staging domain is different (e.g. `staging.fanclubz.app`), use that domain in both Site URL and Redirect URLs. **Do not** add bare hostnames without `https://` or `http://`; that can break OAuth and magic links.
 
-## 5. Fix "Database error saving new user"
+## 5. Fix "Database error saving new user" (do this once)
 
-If sign-in (e.g. Google) fails with **"Database error saving new user"**, the `handle_new_user` trigger is inserting into `public.users` but RLS is blocking it. Apply the RLS policies:
+Sign-in fails with **"Database error saving new user"** because the Auth trigger inserts into `public.users` and RLS blocks it. The trigger often runs in a context where `auth.uid()` is not set, so we need a policy that allows the **service_role** (Auth backend) to insert.
 
-**Run migration 335** on the staging database (Supabase SQL Editor or from `server/`):
+**Do this once on your staging Supabase project:**
 
-```bash
-cd server
-MIGRATION_DATABASE_URL='postgresql://postgres.rzihzwvgpvozekicrdqr:YOUR_PASSWORD@aws-1-eu-west-1.pooler.supabase.com:6543/postgres' \
-  npm run db:migrate-file -- migrations/335_public_users_rls_signup.sql
+1. Open **Supabase Dashboard** → your **staging** project → **SQL Editor**.
+2. Click **New query**.
+3. Paste and run the SQL below (same as `server/migrations/335_public_users_rls_signup.sql`):
+
+```sql
+ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Users can insert own row on signup" ON public.users;
+CREATE POLICY "Users can insert own row on signup"
+  ON public.users FOR INSERT WITH CHECK (auth.uid() = id);
+
+DROP POLICY IF EXISTS "Service role can insert users on signup" ON public.users;
+CREATE POLICY "Service role can insert users on signup"
+  ON public.users FOR INSERT TO service_role WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Authenticated can read users" ON public.users;
+CREATE POLICY "Authenticated can read users"
+  ON public.users FOR SELECT
+  USING (auth.role() = 'authenticated' OR auth.role() = 'service_role');
+
+DROP POLICY IF EXISTS "Users can update own row" ON public.users;
+CREATE POLICY "Users can update own row"
+  ON public.users FOR UPDATE USING (auth.uid() = id);
 ```
 
-Or in Supabase Dashboard → SQL Editor, paste and run the contents of `server/migrations/335_public_users_rls_signup.sql`. It enables RLS and adds policies so the auth trigger can insert and users can read/update.
+4. Click **Run**. You should see "Success. No rows returned."
+5. Try sign-in again on staging.
+
+If you prefer the migration script from your machine, from `server/` run:
+
+`MIGRATION_DATABASE_URL='postgresql://...staging...' npm run db:migrate-file -- migrations/335_public_users_rls_signup.sql`
 
 ## 6. "Sign-in link is invalid or expired"
 

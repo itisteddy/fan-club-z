@@ -53,6 +53,8 @@ CREATE TRIGGER on_auth_user_created
 ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Users can insert own row on signup" ON public.users;
 CREATE POLICY "Users can insert own row on signup" ON public.users FOR INSERT WITH CHECK (auth.uid() = id);
+DROP POLICY IF EXISTS "Service role can insert users on signup" ON public.users;
+CREATE POLICY "Service role can insert users on signup" ON public.users FOR INSERT TO service_role WITH CHECK (true);
 DROP POLICY IF EXISTS "Authenticated can read users" ON public.users;
 CREATE POLICY "Authenticated can read users" ON public.users FOR SELECT USING (auth.role() = 'authenticated' OR auth.role() = 'service_role');
 DROP POLICY IF EXISTS "Users can update own row" ON public.users;
