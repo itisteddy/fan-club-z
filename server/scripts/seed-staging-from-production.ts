@@ -30,8 +30,9 @@ if (!prodUrl || !stagingUrl) {
   console.error('❌ Set PRODUCTION_DATABASE_URL (or DATABASE_URL) and STAGING_DATABASE_URL (or MIGRATION_DATABASE_URL)');
   process.exit(1);
 }
-if (prodUrl === stagingUrl) {
-  console.error('❌ Production and staging URLs must be different');
+const allowSameDb = process.env.SEED_ALLOW_SAME_DB === '1' || process.env.SEED_ALLOW_SAME_DB === 'true';
+if (prodUrl === stagingUrl && !allowSameDb) {
+  console.error('❌ Production and staging URLs must be different (or set SEED_ALLOW_SAME_DB=1 to copy within same DB)');
   process.exit(1);
 }
 

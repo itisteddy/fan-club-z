@@ -36,7 +36,7 @@ STAGING_DATABASE_URL='postgresql://...staging...' \
 npm run db:seed-staging-from-production
 ```
 
-Get the production URL from Supabase → **Project Settings → Database → Connection string** (production project). Use the staging project’s connection string for `STAGING_DATABASE_URL`.
+Get the production URL from Supabase → **Project Settings → Database → Connection string** (production project). Use the staging project’s connection string for `STAGING_DATABASE_URL`. Prefer the **pooler** (port 6543) if the direct URL (port 5432) gives `ENOTFOUND` or connection errors from your network.
 
 Optional: limit how many predictions (and their options) are copied:
 
@@ -56,6 +56,10 @@ If you see `password authentication failed for user 'postgres'`:
 3. **Special characters in password** – If the password contains `@`, `#`, `/`, `?`, `%`, or other reserved characters, **URL-encode** them in the URI (e.g. `@` → `%40`, `#` → `%23`). Or put the URL in single quotes so the shell doesn’t interpret characters.
 4. **Pooler vs direct** – For the **pooler** (port 6543), the username is usually `postgres.PROJECT_REF` (e.g. `postgres.abc123xyz`). For the **direct** connection (port 5432), use `postgres`. Get both from the Supabase connection string dropdown.
 5. **Password typo** – Easy to mix `1` (one) and `l` (letter); double-check.
+
+6. **Direct URL `ENOTFOUND`** – If the direct host (`db.<ref>.supabase.co`) fails to resolve, use the **pooler** connection string (port 6543, host `aws-…pooler.supabase.com`) for that environment.
+
+**Same-DB test:** To run the script against a single database (e.g. staging → staging) for a dry run, set `SEED_ALLOW_SAME_DB=1` and use the same URL for both `PRODUCTION_DATABASE_URL` and `STAGING_DATABASE_URL`.
 
 ## Safety
 
