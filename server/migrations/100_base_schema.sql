@@ -25,9 +25,14 @@ END $$;
 ALTER TABLE public.users ADD COLUMN IF NOT EXISTS og_badge og_badge_tier NULL;
 ALTER TABLE public.users ADD COLUMN IF NOT EXISTS og_badge_member_number integer NULL;
 
--- Trigger to sync new auth users into public.users
+-- Trigger to sync new auth users into public.users.
+-- SECURITY DEFINER: runs as function owner so RLS doesn't block; set search_path so owner can always insert.
 CREATE OR REPLACE FUNCTION public.handle_new_user()
-RETURNS trigger AS $$
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
 BEGIN
   INSERT INTO public.users (id, email, username, full_name, updated_at)
   VALUES (
@@ -39,10 +44,12 @@ BEGIN
   )
   ON CONFLICT (id) DO UPDATE SET
     email = EXCLUDED.email,
+    username = COALESCE(EXCLUDED.username, public.users.username),
+    full_name = COALESCE(EXCLUDED.full_name, public.users.full_name),
     updated_at = now();
   RETURN NEW;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$;
 
 DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 CREATE TRIGGER on_auth_user_created
