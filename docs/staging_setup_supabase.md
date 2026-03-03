@@ -19,6 +19,8 @@ postgresql://postgres:gsaBmp5LPsUlFBJG@db.rzihzwvgpvozekicrdqr.supabase.co:5432/
 
 ## 3. Apply Migrations (required for categories and app schema)
 
+If the staging backend returns **500** on `GET /api/v2/predictions`, the DB may be missing columns the API expects. Run **336_predictions_entry_deadline_users_verified.sql** (adds `entry_deadline` to predictions and `is_verified` to users), or run the full migration suite (see below).
+
 The backend seeds `categories` on startup; the table must exist or you'll see "Could not find the table 'public.categories' in the schema cache".
 
 1. You can run **`315_categories_table.sql`** first: it creates `public.categories` and, if `public.predictions` exists, adds `category_id` to it. It no longer errors if `predictions` is missing.
@@ -40,8 +42,8 @@ From the `server/` directory:
 # Staging: ensure DATABASE_URL in server/.env or use .env.staging at repo root
 APP_ENV=staging npm run db:migrate-all
 
-# Or run a single migration file
-npm run db:migrate-file -- migrations/315_categories_table.sql
+# Or run a single migration file (e.g. fix 500 on GET /api/v2/predictions)
+npm run db:migrate-file -- migrations/336_predictions_entry_deadline_users_verified.sql
 ```
 
 The script uses a direct Postgres connection (`pg`), so no Supabase RPC is required. For `pnpm db:migrate:staging` to use staging, have `DATABASE_URL` (or `SUPABASE_DB_URL`) in root `.env.staging` or in `server/.env` when you run it.

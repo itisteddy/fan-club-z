@@ -15,6 +15,7 @@ CREATE TABLE IF NOT EXISTS public.users (
   created_at timestamptz DEFAULT now() NOT NULL,
   updated_at timestamptz DEFAULT now() NOT NULL
 );
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS is_verified boolean DEFAULT false;
 
 -- Enum for OG badges (required by 206 before 301 runs)
 DO $$ BEGIN
@@ -101,6 +102,7 @@ CREATE TABLE IF NOT EXISTS public.predictions (
   created_at timestamptz DEFAULT now() NOT NULL,
   updated_at timestamptz DEFAULT now() NOT NULL
 );
+ALTER TABLE public.predictions ADD COLUMN IF NOT EXISTS entry_deadline timestamptz NULL;
 
 CREATE INDEX IF NOT EXISTS idx_predictions_creator ON public.predictions(creator_id);
 CREATE INDEX IF NOT EXISTS idx_predictions_status ON public.predictions(status);

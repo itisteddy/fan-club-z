@@ -529,10 +529,8 @@ router.get('/', async (req, res) => {
         
         if (catBySlug) {
           query = query.eq('category_id', catBySlug.id);
-        } else {
-          // Fallback to legacy category string match
-          query = query.eq('category', category);
         }
+        // If slug not found in categories, skip category filter (avoids 500 when predictions.category column is missing e.g. staging)
       }
     }
     
