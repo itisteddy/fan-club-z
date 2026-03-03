@@ -14,8 +14,8 @@ From Project Settings > API:
 - SUPABASE_SERVICE_ROLE_KEY (service_role key - server only)
 
 From Project Settings > Database: DATABASE_URL (Connection string) if needed.
-postgresql://postgres.rzihzwvgpvozekicrdqr:QAZxcvbnm<LP@1984@aws-1-eu-west-1.pooler.supabase.com:6543/postgres
-postgresql://postgres:QAZxcvbnm<LP@1984@db.rzihzwvgpvozekicrdqr.supabase.co:5432/postgres
+postgresql://postgres.rzihzwvgpvozekicrdqr:gsaBmp5LPsUlFBJG@aws-1-eu-west-1.pooler.supabase.com:6543/postgres
+postgresql://postgres:gsaBmp5LPsUlFBJG@db.rzihzwvgpvozekicrdqr.supabase.co:5432/postgres
 
 ## 3. Apply Migrations (required for categories and app schema)
 
@@ -46,35 +46,31 @@ npm run db:migrate-file -- migrations/315_categories_table.sql
 
 The script uses a direct Postgres connection (`pg`), so no Supabase RPC is required. For `pnpm db:migrate:staging` to use staging, have `DATABASE_URL` (or `SUPABASE_DB_URL`) in root `.env.staging` or in `server/.env` when you run it.
 
-## 4. Auth Redirect URLs
+## 4. Auth Redirect URLs (required for sign-in)
 
-In Authentication > URL Configuration:
-- **Site URL:** `https://fanclubz-staging.vercel.app` (or your staging domain). Must include `https://`.
-- **Redirect URLs:** Add full URLs only (protocol + path). Do not add bare hostnames like `fanclubz-staging.vercel.app` (missing `https://` can break OAuth).
+Supabase Auth must know your **exact** staging frontend URL. If these are wrong, you get "Sign-in didn't complete" or "This sign-in link is invalid or has expired."
+
+In **Authentication → URL Configuration** for the **staging** Supabase project:
+
+- **Site URL:** Your staging app URL, e.g.  
+  `https://fanclubz-staging.vercel.app`  
+  (must match where users land; include `https://`.)
+- **Redirect URLs:** Add **full** URLs (protocol + path). Add at least:
   - `https://fanclubz-staging.vercel.app/**`
   - `http://localhost:5173/**`
   - `http://localhost:3000/**`
   - `http://localhost:5174/**`
-  - `https://rzihzwvgpvozekicrdqr.supabase.co/auth/v1/callback` (Supabase callback)
+  - Your Supabase Auth callback, e.g.  
+    `https://<STAGING_PROJECT_REF>.supabase.co/auth/v1/callback`
 
-## 5. Fix "Database error saving new user"
+If your Vercel staging domain is different (e.g. `staging.fanclubz.app`), use that domain in both Site URL and Redirect URLs. **Do not** add bare hostnames without `https://` or `http://`; that can break OAuth and magic links.
 
-If Google (or other) sign-in fails with "Database error saving new user", RLS on `public.users` is blocking the trigger that creates the row. Run migration **335_public_users_rls_signup.sql** on the staging DB (e.g. via SQL Editor or `MIGRATION_DATABASE_URL=... npm run db:migrate-file -- migrations/335_public_users_rls_signup.sql` from `server/`). It adds policies so the auth trigger can insert and users can read/update.
+## 5. "Sign-in link is invalid or expired"
 
-## 6. Enable Auth Providers (e.g. Google)
+- **Magic link (email):** Links are one-time and expire. Use **Return to Home** and sign in again to get a **new** link sent to your email.
+- **Wrong Supabase project:** Ensure the staging app uses the **staging** Supabase URL and anon key (Vercel env: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` for the staging project). If the app points at production Supabase, links from staging will be invalid.
+- **Redirect URL mismatch:** If Site URL or Redirect URLs in Supabase don’t include `https://fanclubz-staging.vercel.app` (or your real staging URL), fix them as in §4 and try again.
 
-Staging uses a **separate** Supabase project, so you must enable the same sign-in methods as production. Otherwise you get "Unsupported provider: provider is not enabled".
-
-1. In Supabase Dashboard → **Authentication** → **Providers**.
-2. Enable **Google** (and any others you need): turn the provider **ON**, add the same OAuth Client ID and Secret you use in production (or a separate staging OAuth client).
-3. In Google Cloud Console, add your staging redirect URL to the OAuth client (e.g. `https://rzihzwvgpvozekicrdqr.supabase.co/auth/v1/callback` for the staging project).
-
-## 7. Staging vs production data
-
-Staging has its **own database**. It does not contain production data (e.g. production predictions or users). Use staging to test releases; it will show different or empty data until you seed it.
-
-To copy production data into staging (categories, users, predictions, options), see [Seed staging from production](./seed_staging_from_production.md). Run the script with `PRODUCTION_DATABASE_URL` and `STAGING_DATABASE_URL` from the `server/` directory.
-
-## 8. RLS and Storage
+## 6. RLS and Storage
 
 Ensure RLS policies and storage buckets match production as needed.
