@@ -32,7 +32,7 @@ From `server/`, `npm run build` runs `build:shared` then `build:server` (TypeScr
 
 ## 3. Environment Variables
 
-Set in Render **Environment** tab. **Do not** use production keys.
+Set in Render **Environment** tab. **Do not** use production keys. For a full checklist (mirror prod), see **`docs/staging_env_checklist.md`**.
 
 | Variable | Value | Notes |
 |----------|-------|-------|

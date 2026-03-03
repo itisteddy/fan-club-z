@@ -201,6 +201,18 @@ async function syncPredictionCommentsCount(predictionId: string): Promise<void> 
     );
   }
 
+  if (countResult.error && isMissingColumn(countResult.error, 'content')) {
+    countResult = await safeQuery(() =>
+      supabase
+        .from('comments')
+        .select('id', { count: 'exact', head: true })
+        .eq('prediction_id', predictionId)
+        .or('is_deleted.is.null,is_deleted.eq.false')
+        .is('deleted_at', null)
+        .neq('body', 'Comment deleted')
+    );
+  }
+
   if (countResult.error) {
     return;
   }
@@ -394,14 +406,16 @@ router.get('/predictions/:predictionId/comments', async (req, res) => {
       return true;
     })
     .map((comment: any) => {
+      const contentVal = comment.content ?? comment.body ?? '';
+      const commentWithContent = { ...comment, content: contentVal };
       const userData = comment.user || usersMap[comment.user_id] || null;
       const isDeleted = Boolean(
         comment.is_deleted ||
         comment.deleted_at ||
-        String(comment.content || '').trim().toLowerCase() === 'comment deleted'
+        String(contentVal).trim().toLowerCase() === 'comment deleted'
       );
       const isEdited = Boolean(comment.edited_at) || ((comment.edit_count || 0) > 0);
-      const cleaned = isDeleted ? { ...comment, content: null } : comment;
+      const cleaned = isDeleted ? { ...commentWithContent, content: null } : commentWithContent;
       const viewerMatchesAuthor = Boolean(
         viewerId &&
         (comment.user_id === viewerId ||
@@ -712,7 +726,7 @@ router.post('/predictions/:predictionId/comments', requireSupabaseAuth, requireT
       const existing = await safeQuery<Record<string, any> | null>(() =>
         supabase
           .from('comments')
-          .select('id, prediction_id, user_id, parent_comment_id, content, created_at, updated_at, edited_at, is_deleted, deleted_at, deleted_by, likes_count, is_edited')
+          .select('id, prediction_id, user_id, parent_comment_id, body, created_at, updated_at, edited_at, is_deleted, deleted_at, deleted_by, likes_count')
           .eq('user_id', userId)
           .eq('client_request_id', requestId)
           .maybeSingle()
@@ -725,6 +739,7 @@ router.post('/predictions/:predictionId/comments', requireSupabaseAuth, requireT
           success: true,
           data: {
             ...commentRow,
+            content: commentRow.content ?? commentRow.body,
             user: udata || { id: userId, username: 'You' },
             is_liked_by_user: false,
             is_owned_by_user: true,
@@ -736,12 +751,13 @@ router.post('/predictions/:predictionId/comments', requireSupabaseAuth, requireT
     }
 
     // ---- INSERT (minimal, no join — safest approach) ----
+    // Base schema has 'body'; migration 341 adds 'content'. Insert body so staging works.
     console.log('[comments:POST] Inserting comment...');
     const insertPayload = {
       prediction_id: predictionId,
       user_id: userId,
       parent_comment_id: actualParentId,
-      content: trimmed,
+      body: trimmed,
       client_request_id: requestId || null,
     };
 
@@ -749,7 +765,7 @@ router.post('/predictions/:predictionId/comments', requireSupabaseAuth, requireT
       supabase
         .from('comments')
         .insert(insertPayload)
-        .select('id, prediction_id, user_id, parent_comment_id, content, created_at, updated_at, edited_at, is_deleted, deleted_at, deleted_by, likes_count, is_edited')
+        .select('id, prediction_id, user_id, parent_comment_id, body, created_at, updated_at, edited_at, is_deleted, deleted_at, deleted_by, likes_count')
         .single()
     );
 
@@ -759,7 +775,7 @@ router.post('/predictions/:predictionId/comments', requireSupabaseAuth, requireT
         const existing = await safeQuery<Record<string, any> | null>(() =>
           supabase
             .from('comments')
-            .select('id, prediction_id, user_id, parent_comment_id, content, created_at, updated_at, edited_at, is_deleted, deleted_at, deleted_by, likes_count, is_edited')
+            .select('id, prediction_id, user_id, parent_comment_id, body, created_at, updated_at, edited_at, is_deleted, deleted_at, deleted_by, likes_count')
             .eq('user_id', userId)
             .eq('client_request_id', requestId)
             .maybeSingle()
@@ -892,6 +908,7 @@ router.post('/predictions/:predictionId/comments', requireSupabaseAuth, requireT
       success: true,
       data: {
         ...commentRow,
+        content: commentRow.content ?? commentRow.body,
         user: userProfile || { id: userId, username: 'You' },
         is_edited: false,
         edited_at: null,

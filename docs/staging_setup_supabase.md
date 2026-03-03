@@ -23,6 +23,8 @@ If the staging backend returns **500** on `GET /api/v2/predictions`, the DB may 
 
 If you see **"Could not find the table 'public.user_awards_current'"** or 500s on profile/achievements/public-profile, run **340_achievements_badges_awards.sql** (creates achievements/badges/awards tables).
 
+If **comments** return 503 or "Comments are temporarily unavailable", run **333_ugc_comments_moderation.sql** (adds comment columns) and **341_comments_content_column.sql** (adds `content` column). The API also supports the base-schema `body` column; 341 is optional but ensures consistency.
+
 The backend seeds `categories` on startup; the table must exist or you'll see "Could not find the table 'public.categories' in the schema cache".
 
 1. You can run **`315_categories_table.sql`** first: it creates `public.categories` and, if `public.predictions` exists, adds `category_id` to it. It no longer errors if `predictions` is missing.
