@@ -73,6 +73,8 @@ Staging uses a **separate** Supabase project, so you must enable the same sign-i
 
 Staging has its **own database**. It does not contain production data (e.g. production predictions or users). Use staging to test releases; it will show different or empty data until you seed it.
 
+To copy production data into staging (categories, users, predictions, options), see [Seed staging from production](./seed_staging_from_production.md). Run the script with `PRODUCTION_DATABASE_URL` and `STAGING_DATABASE_URL` from the `server/` directory.
+
 ## 8. RLS and Storage
 
 Ensure RLS policies and storage buckets match production as needed.

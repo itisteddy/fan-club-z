@@ -25,7 +25,8 @@
     "db:query": "tsx scripts/db-query.ts",
     "db:inspect": "tsx scripts/inspect-db.ts",
     "db:migrate-supabase": "tsx scripts/run-migrations-supabase.ts",
-    "db:migrate-all": "tsx scripts/run-migrations-all.ts"
+    "db:migrate-all": "tsx scripts/run-migrations-all.ts",
+    "db:seed-staging-from-production": "tsx scripts/seed-staging-from-production.ts"
   },
   "dependencies": {
     "@fanclubz/shared": "file:../shared",
