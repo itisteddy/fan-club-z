@@ -67,12 +67,26 @@ In **Authentication → URL Configuration** for the **staging** Supabase project
 
 If your Vercel staging domain is different (e.g. `staging.fanclubz.app`), use that domain in both Site URL and Redirect URLs. **Do not** add bare hostnames without `https://` or `http://`; that can break OAuth and magic links.
 
-## 5. "Sign-in link is invalid or expired"
+## 5. Fix "Database error saving new user"
+
+If sign-in (e.g. Google) fails with **"Database error saving new user"**, the `handle_new_user` trigger is inserting into `public.users` but RLS is blocking it. Apply the RLS policies:
+
+**Run migration 335** on the staging database (Supabase SQL Editor or from `server/`):
+
+```bash
+cd server
+MIGRATION_DATABASE_URL='postgresql://postgres.rzihzwvgpvozekicrdqr:YOUR_PASSWORD@aws-1-eu-west-1.pooler.supabase.com:6543/postgres' \
+  npm run db:migrate-file -- migrations/335_public_users_rls_signup.sql
+```
+
+Or in Supabase Dashboard → SQL Editor, paste and run the contents of `server/migrations/335_public_users_rls_signup.sql`. It enables RLS and adds policies so the auth trigger can insert and users can read/update.
+
+## 6. "Sign-in link is invalid or expired"
 
 - **Magic link (email):** Links are one-time and expire. Use **Return to Home** and sign in again to get a **new** link sent to your email.
 - **Wrong Supabase project:** Ensure the staging app uses the **staging** Supabase URL and anon key (Vercel env: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` for the staging project). If the app points at production Supabase, links from staging will be invalid.
 - **Redirect URL mismatch:** If Site URL or Redirect URLs in Supabase don’t include `https://fanclubz-staging.vercel.app` (or your real staging URL), fix them as in §4 and try again.
 
-## 6. RLS and Storage
+## 7. RLS and Storage
 
 Ensure RLS policies and storage buckets match production as needed.

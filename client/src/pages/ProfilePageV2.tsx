@@ -189,7 +189,8 @@ const ProfilePageV2: React.FC<ProfilePageV2Props> = ({ onNavigateBack, userId })
         }
 
         // Fallback: resolve by current handle when auth user id is not hydrated yet.
-        if (!profilePayload && displayHandle) {
+        // Skip when handle is the default "user" (not signed in) to avoid 404.
+        if (!profilePayload && displayHandle && displayHandle !== 'user') {
           const resolved = await apiClient.get(`/users/resolve?handle=${encodeURIComponent(displayHandle)}`);
           const resolvedUserId = String(resolved?.data?.userId || resolved?.userId || '').trim();
           if (resolvedUserId) {
