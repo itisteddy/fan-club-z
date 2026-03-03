@@ -20,13 +20,23 @@ Auth is **not** copied: `auth.users` stays as-is on staging. So production users
 
 ## Run the script
 
-From the **server/** directory:
+**Option A – from repo root** (loads `.env` for `PRODUCTION_DATABASE_URL` or `DATABASE_URL`):
 
 ```bash
+# Set staging URL if not in .env; production can come from .env
+STAGING_DATABASE_URL='postgresql://...staging...' ./scripts/run-seed-staging.sh
+```
+
+**Option B – from server/** (pass both URLs):
+
+```bash
+cd server
 PRODUCTION_DATABASE_URL='postgresql://...prod...' \
 STAGING_DATABASE_URL='postgresql://...staging...' \
 npm run db:seed-staging-from-production
 ```
+
+Get the production URL from Supabase → **Project Settings → Database → Connection string** (production project). Use the staging project’s connection string for `STAGING_DATABASE_URL`.
 
 Optional: limit how many predictions (and their options) are copied:
 

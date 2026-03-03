@@ -23,11 +23,15 @@ dotenv.config({ path: path.join(__dirname, '../../.env') });
 
 const { Pool } = pg;
 
-const prodUrl = process.env.PRODUCTION_DATABASE_URL;
-const stagingUrl = process.env.STAGING_DATABASE_URL;
+const prodUrl = process.env.PRODUCTION_DATABASE_URL || process.env.DATABASE_URL;
+const stagingUrl = process.env.STAGING_DATABASE_URL || process.env.MIGRATION_DATABASE_URL;
 
 if (!prodUrl || !stagingUrl) {
-  console.error('❌ Set PRODUCTION_DATABASE_URL and STAGING_DATABASE_URL');
+  console.error('❌ Set PRODUCTION_DATABASE_URL (or DATABASE_URL) and STAGING_DATABASE_URL (or MIGRATION_DATABASE_URL)');
+  process.exit(1);
+}
+if (prodUrl === stagingUrl) {
+  console.error('❌ Production and staging URLs must be different');
   process.exit(1);
 }
 
