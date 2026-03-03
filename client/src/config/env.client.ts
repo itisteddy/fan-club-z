@@ -31,6 +31,7 @@ export const envClient = {
   VITE_FCZ_ODDS_V2: import.meta.env.VITE_FCZ_ODDS_V2,
   VITE_FCZ_WALLET_CONNECT_V2: import.meta.env.VITE_FCZ_WALLET_CONNECT_V2,
   VITE_API_BASE_URL: import.meta.env.VITE_API_BASE_URL ?? import.meta.env.VITE_API_BASE,
+  VITE_APP_ENV: import.meta.env.VITE_APP_ENV,
   VITE_DEBUG: import.meta.env.VITE_DEBUG,
   VITE_VAPID_PUBLIC_KEY: import.meta.env.VITE_VAPID_PUBLIC_KEY,
   VITE_ESCROW_CONTRACT_ADDRESS: import.meta.env.VITE_ESCROW_CONTRACT_ADDRESS,

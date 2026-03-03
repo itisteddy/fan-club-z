@@ -73,6 +73,7 @@ const defaultOrigins = [
   'https://app.fanclubz.app',
   'https://web.fanclubz.app',
   'https://auth.fanclubz.app',
+  'https://fanclubz-staging.vercel.app',
   'capacitor://localhost',
   'capacitor://app.fanclubz.app',
   'ionic://localhost',

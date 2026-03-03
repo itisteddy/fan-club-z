@@ -72,7 +72,28 @@ export function getEnvironmentConfig(): EnvironmentConfig {
     console.log('  - VITE_API_BASE:', API_BASE);
     console.log('  - MODE:', mode);
   }
-  
+
+  // Env override first (so Vercel staging with VITE_API_BASE_URL uses staging backend, not production)
+  if (API_BASE) {
+    let normalizedApiBase = API_BASE;
+    if (runningInNativeApp) {
+      normalizedApiBase = normalizedApiBase.replace(/^http:\/\/localhost(?=[:/]|$)/i, 'http://127.0.0.1');
+    }
+    if (!runningInNativeApp || !normalizedApiBase.trim().startsWith('/')) {
+      const envLabel = hostname.includes('staging') || envClient.VITE_APP_ENV === 'staging' ? 'staging' : (isProd ? 'production' : 'development');
+      const config: EnvironmentConfig = {
+        apiUrl: normalizedApiBase,
+        socketUrl: normalizedApiBase,
+        environment: envLabel === 'staging' ? 'staging' : (isProd ? 'production' : 'development'),
+        isDevelopment: !isProd && envLabel !== 'staging',
+        isProduction: isProd && envLabel !== 'staging',
+      };
+      if (DEBUG_ENABLED) console.log('🔧 Using VITE_API_BASE_URL:', config);
+      return config;
+    }
+    if (DEBUG_ENABLED) console.log('📱 Native shell detected: ignoring relative VITE_API_BASE:', API_BASE);
+  }
+
   // Production environment
   if (hostname === 'app.fanclubz.app' || hostname === 'fanclubz.app' || hostname === 'www.fanclubz.app') {
     const config: EnvironmentConfig = {
@@ -99,7 +120,7 @@ export function getEnvironmentConfig(): EnvironmentConfig {
     return config;
   }
   
-  // Vercel deployments (default to production)
+  // Vercel deployments (default to production when VITE_API_BASE_URL is not set)
   if (hostname.includes('vercel.app')) {
     const config: EnvironmentConfig = {
       apiUrl: productionApi,
@@ -110,32 +131,6 @@ export function getEnvironmentConfig(): EnvironmentConfig {
     };
     if (DEBUG_ENABLED) console.log('🚀 Vercel deployment detected, using single service:', config);
     return config;
-  }
-
-  // Environment variable override (useful for pointing native shells at a dev/staging API)
-  // NOTE: This must run before the native-shell forced-production branch.
-  if (API_BASE) {
-    let normalizedApiBase = API_BASE;
-    if (runningInNativeApp) {
-      // Android WebView/network-security can reject cleartext "localhost".
-      // Use loopback IP so adb reverse routing stays deterministic.
-      normalizedApiBase = normalizedApiBase.replace(/^http:\/\/localhost(?=[:/]|$)/i, 'http://127.0.0.1');
-    }
-    // In native shells, a relative API base like "/api" points to the Capacitor local origin
-    // (http://localhost/...), which is not a backend. Ignore it and fall through.
-    if (runningInNativeApp && normalizedApiBase.trim().startsWith('/')) {
-      if (DEBUG_ENABLED) console.log('📱 Native shell detected: ignoring relative VITE_API_BASE:', API_BASE);
-    } else {
-    const config: EnvironmentConfig = {
-      apiUrl: normalizedApiBase,
-      socketUrl: normalizedApiBase,
-      environment: isProd ? 'production' : 'development',
-      isDevelopment: !isProd,
-      isProduction: isProd
-    };
-    if (DEBUG_ENABLED) console.log('🔧 Using VITE_API_BASE:', config);
-    return config;
-    }
   }
 
   // Capacitor / native shell builds always target production API (unless overridden above)
