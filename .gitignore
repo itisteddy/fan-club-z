@@ -28,6 +28,10 @@ node_modules/.vite/
 !client/.env.web
 !client/.env.ios
 !client/.env.android
+# Exception: Allow example env templates (no secrets)
+!.env.example
+!.env.staging.example
+!.env.production.example
 
 # Logs
 *.log

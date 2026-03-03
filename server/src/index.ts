@@ -67,26 +67,23 @@ app.use(helmet({
 }));
 
 // CORS configuration: Single source of truth for all CORS logic
-// Phase 1: Use cors() middleware properly to eliminate preflight 500s
-const allowedOrigins = [
+// Use CORS_ALLOWLIST when set; otherwise fallback to sensible defaults
+const defaultOrigins = [
   'https://fanclubz.app',
   'https://app.fanclubz.app',
-  // Admin portal
   'https://web.fanclubz.app',
-  // Auth domain (Supabase auth hosted) may be used during OAuth flows
   'https://auth.fanclubz.app',
-  // Capacitor native shells (iOS/Android WebView origins)
-  // iOS uses capacitor://app.fanclubz.app (appId-based) or capacitor://localhost
-  // These must be allowed for native app API calls to work
   'capacitor://localhost',
   'capacitor://app.fanclubz.app',
   'ionic://localhost',
-  // Local development origins
   'http://localhost',
-  'http://localhost:5173',
-  'http://localhost:5174', // Vite default dev port
   'http://localhost:3000',
+  'http://localhost:5173',
+  'http://localhost:5174',
 ];
+const allowedOrigins = config.security.corsOrigins.length > 0
+  ? config.security.corsOrigins
+  : defaultOrigins;
 
 // Avoid turning "origin not allowed" into a 500 again.
 // We log blocked origins (deduped) and simply omit CORS headers for them.
@@ -198,6 +195,7 @@ function checkConditionalGet(req: express.Request, res: express.Response, etag: 
 app.get('/health', (req, res) => {
   res.status(200).json({
     status: 'OK',
+    env: config.server.appEnv || config.server.nodeEnv || 'production',
     timestamp: new Date().toISOString(),
     version: VERSION,
     environment: config.server.nodeEnv || 'production',

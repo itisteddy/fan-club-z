@@ -8,6 +8,8 @@
   ],
   "scripts": {
     "dev": "vite",
+    "dev:staging": "vite --mode staging",
+    "dev:prod": "vite --mode production",
     "dev:web": "vite --mode web",
     "dev:ios": "vite --mode ios",
     "clean": "rimraf dist .turbo .vite .cache",

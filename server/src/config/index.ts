@@ -8,11 +8,14 @@ dotenv.config({ path: path.join(__dirname, '../.env') }); // server/.env (when r
 dotenv.config({ path: path.join(__dirname, '../../../.env.local') }); // root/.env.local
 dotenv.config({ path: path.join(__dirname, '../../../.env') }); // root/.env
 
+export const APP_ENV = (process.env.APP_ENV || process.env.NODE_ENV || 'development') as 'local' | 'staging' | 'production';
+
 export const config = {
   // Server Configuration
   server: {
     port: parseInt(process.env.PORT || '3001', 10),
     nodeEnv: process.env.NODE_ENV || 'development',
+    appEnv: APP_ENV,
   },
   
   // Frontend Configuration
@@ -164,7 +167,7 @@ export const config = {
   security: {
     bcryptRounds: parseInt(process.env.BCRYPT_ROUNDS || '12', 10),
     sessionSecret: process.env.SESSION_SECRET || 'your-session-secret-for-production',
-    corsOrigins: process.env.CORS_ORIGINS?.split(',') || [],
+    corsOrigins: process.env.CORS_ALLOWLIST?.split(',').map(s => s.trim()).filter(Boolean) || process.env.CORS_ORIGINS?.split(',') || [],
     trustProxy: process.env.TRUST_PROXY === 'true',
   },
   

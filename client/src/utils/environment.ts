@@ -6,8 +6,8 @@ export const isDev = envClient.DEV;
 export const isProd = envClient.PROD;
 export const mode = envClient.MODE;
 
-// API Configuration
-export const API_BASE = envClient.VITE_API_BASE;
+// API Configuration (VITE_API_BASE_URL preferred; VITE_API_BASE for backward compat)
+export const API_BASE = envClient.VITE_API_BASE_URL ?? envClient.VITE_API_BASE;
 export const SUPABASE_URL = envClient.VITE_SUPABASE_URL;
 export const SUPABASE_ANON_KEY = envClient.VITE_SUPABASE_ANON_KEY;
 export const FRONTEND_URL = envClient.VITE_FRONTEND_URL;
