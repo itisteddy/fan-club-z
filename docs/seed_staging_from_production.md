@@ -67,6 +67,16 @@ If you see `password authentication failed for user 'postgres'`:
 - The script only **reads** from production and **writes** to staging; it does not change production.
 - Inserts use `ON CONFLICT (id) DO UPDATE`, so re-running updates existing rows instead of duplicating.
 
+## Schema and FKs
+
+- **Categories** are copied in full (upsert by `slug`).
+- **public.users** has `id` → `auth.users(id)`. Only rows whose `id` exists in staging `auth.users` are copied. If staging has no auth users, 0 users are copied.
+- **predictions** has `creator_id` → `public.users(id)`. Only predictions whose creator exists in staging `public.users` are copied.
+- **prediction_options** are copied only for predictions that exist on staging.
+- Columns are limited to the **intersection** of production and staging table columns (so schema drift is handled).
+
+Use the **pooler** URL (port 6543); the script strips `?sslmode=require` and applies SSL via config. For production, use the URL-encoded password if it contains `@` or `#` (e.g. `%3C` for `<`, `%40` for `@`).
+
 ## After seeding
 
-Staging will show the same categories and predictions (and creator names from `public.users`). New signups on staging still create new auth and `public.users` rows; the copied data is independent of who can log in.
+Staging will show the same categories and, when staging has matching auth/users, predictions and creator names. If staging has no auth users yet, only categories are copied. New signups on staging still create new auth and `public.users` rows; the copied data is independent of who can log in.
