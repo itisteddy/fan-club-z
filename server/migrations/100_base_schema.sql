@@ -48,6 +48,15 @@ CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
   FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
 
+-- RLS so trigger insert succeeds (avoid "Database error saving new user")
+ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Users can insert own row on signup" ON public.users;
+CREATE POLICY "Users can insert own row on signup" ON public.users FOR INSERT WITH CHECK (auth.uid() = id);
+DROP POLICY IF EXISTS "Authenticated can read users" ON public.users;
+CREATE POLICY "Authenticated can read users" ON public.users FOR SELECT USING (auth.role() = 'authenticated' OR auth.role() = 'service_role');
+DROP POLICY IF EXISTS "Users can update own row" ON public.users;
+CREATE POLICY "Users can update own row" ON public.users FOR UPDATE USING (auth.uid() = id);
+
 -- 2. public.wallets
 CREATE TABLE IF NOT EXISTS public.wallets (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),

@@ -49,10 +49,19 @@ The script uses a direct Postgres connection (`pg`), so no Supabase RPC is requi
 ## 4. Auth Redirect URLs
 
 In Authentication > URL Configuration:
-- Site URL: https://staging.fanclubz.app (or your staging Vercel URL, e.g. https://fanclubz-staging.vercel.app)
-- Redirect URLs: Add staging domain, localhost:3000, localhost:5173, localhost:5174
+- **Site URL:** `https://fanclubz-staging.vercel.app` (or your staging domain). Must include `https://`.
+- **Redirect URLs:** Add full URLs only (protocol + path). Do not add bare hostnames like `fanclubz-staging.vercel.app` (missing `https://` can break OAuth).
+  - `https://fanclubz-staging.vercel.app/**`
+  - `http://localhost:5173/**`
+  - `http://localhost:3000/**`
+  - `http://localhost:5174/**`
+  - `https://rzihzwvgpvozekicrdqr.supabase.co/auth/v1/callback` (Supabase callback)
 
-## 5. Enable Auth Providers (e.g. Google)
+## 5. Fix "Database error saving new user"
+
+If Google (or other) sign-in fails with "Database error saving new user", RLS on `public.users` is blocking the trigger that creates the row. Run migration **335_public_users_rls_signup.sql** on the staging DB (e.g. via SQL Editor or `MIGRATION_DATABASE_URL=... npm run db:migrate-file -- migrations/335_public_users_rls_signup.sql` from `server/`). It adds policies so the auth trigger can insert and users can read/update.
+
+## 6. Enable Auth Providers (e.g. Google)
 
 Staging uses a **separate** Supabase project, so you must enable the same sign-in methods as production. Otherwise you get "Unsupported provider: provider is not enabled".
 
@@ -60,10 +69,10 @@ Staging uses a **separate** Supabase project, so you must enable the same sign-i
 2. Enable **Google** (and any others you need): turn the provider **ON**, add the same OAuth Client ID and Secret you use in production (or a separate staging OAuth client).
 3. In Google Cloud Console, add your staging redirect URL to the OAuth client (e.g. `https://rzihzwvgpvozekicrdqr.supabase.co/auth/v1/callback` for the staging project).
 
-## 6. Staging vs production data
+## 7. Staging vs production data
 
 Staging has its **own database**. It does not contain production data (e.g. production predictions or users). Use staging to test releases; it will show different or empty data until you seed it.
 
-## 7. RLS and Storage
+## 8. RLS and Storage
 
 Ensure RLS policies and storage buckets match production as needed.
