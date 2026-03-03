@@ -1,7 +1,7 @@
 {
-  "buildCommand": "cd .. && npm install && cd client && npm run build",
+  "buildCommand": "pnpm run build",
   "outputDirectory": "dist",
-  "installCommand": "cd .. && npm install && cd client && npm install",
+  "installCommand": "cd .. && pnpm install",
   "headers": [
     {
       "source": "/.well-known/apple-app-site-association",

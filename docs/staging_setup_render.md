@@ -18,12 +18,15 @@
 
 ---
 
-## 2. Build & Start Commands
+## 2. Build & Start Commands (server only — avoid building client)
 
-Use same as production, e.g.:
+So the staging backend only builds the server (faster, no client dependency issues):
 
-- **Build Command:** `pnpm install && pnpm build`
-- **Start Command:** `pnpm start` (or `node server/dist/index.js`)
+- **Root Directory:** `server`
+- **Build Command:** `npm install && npm run build`
+- **Start Command:** `npm start` (or `node dist/index.js`)
+
+From `server/`, `npm run build` runs `build:shared` then `build:server` (TypeScript). No client or Vite build.
 
 ---
 

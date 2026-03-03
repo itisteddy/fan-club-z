@@ -7,21 +7,16 @@
 -- ========================================
 -- Computes available, reserved, and total from wallets table
 -- Filters by currency to only show USD balances
--- Handles both column name variants: available/reserved OR available_balance/reserved_balance
+-- Uses available_balance/reserved_balance (standard wallet schema)
+DROP VIEW IF EXISTS v_wallet_summary;
 CREATE OR REPLACE VIEW v_wallet_summary AS
 SELECT
   w.user_id,
-  COALESCE(
-    COALESCE(w.available, w.available_balance),
-    0
-  )::numeric AS available,
-  COALESCE(
-    COALESCE(w.reserved, w.reserved_balance),
-    0
-  )::numeric AS reserved,
+  COALESCE(w.available_balance, 0)::numeric AS available,
+  COALESCE(w.reserved_balance, 0)::numeric AS reserved,
   (
-    COALESCE(COALESCE(w.available, w.available_balance), 0) +
-    COALESCE(COALESCE(w.reserved, w.reserved_balance), 0)
+    COALESCE(w.available_balance, 0) +
+    COALESCE(w.reserved_balance, 0)
   )::numeric AS total
 FROM wallets w
 WHERE w.currency = 'USD';
@@ -30,26 +25,27 @@ WHERE w.currency = 'USD';
 -- Wallet Activity View
 -- ========================================
 -- Latest 200 transactions, filtered by provider
--- Only crypto-base-usdc transactions (no demo)
+-- Only crypto-base-usdc transactions (no demo). Uses type/channel when direction column absent.
 CREATE OR REPLACE VIEW v_wallet_activity AS
 SELECT
   t.id,
   t.user_id,
   CASE
-    WHEN t.direction = 'credit' AND t.channel = 'escrow_deposit' THEN 'DEPOSIT'
-    WHEN t.direction = 'debit' AND t.channel = 'escrow_withdraw' THEN 'WITHDRAW'
-    WHEN t.direction = 'debit' AND t.channel = 'escrow_consumed' THEN 'BET'
-    WHEN t.direction = 'credit' AND t.channel = 'escrow_consumed' THEN 'PAYOUT'
+    WHEN t.channel = 'escrow_deposit' OR t.type = 'deposit' THEN 'DEPOSIT'
+    WHEN t.channel = 'escrow_withdraw' OR t.type = 'withdraw' THEN 'WITHDRAW'
+    WHEN t.channel = 'escrow_consumed' AND t.type IN ('bet_lock','bet_unlock') THEN 'BET'
+    WHEN t.channel = 'escrow_consumed' OR t.type = 'payout' THEN 'PAYOUT'
     WHEN t.channel = 'escrow_locked' THEN 'LOCK'
     WHEN t.channel = 'escrow_released' THEN 'UNLOCK'
-    ELSE UPPER(t.channel)
+    WHEN t.channel IS NOT NULL THEN UPPER(t.channel)
+    ELSE UPPER(COALESCE(t.type, 'OTHER'))
   END AS kind,
   t.amount::numeric,
   t.currency,
   t.created_at,
   t.meta
 FROM wallet_transactions t
-WHERE t.provider IN ('crypto-base-usdc')  -- Only crypto, no demo
+WHERE t.provider IN ('crypto-base-usdc', 'base/usdc') OR t.provider IS NULL
 ORDER BY t.created_at DESC
 LIMIT 200;
 

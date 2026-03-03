@@ -22,12 +22,12 @@ CREATE INDEX IF NOT EXISTS idx_bet_settlements_created_at ON bet_settlements(cre
 -- RLS policies
 ALTER TABLE bet_settlements ENABLE ROW LEVEL SECURITY;
 
--- Allow read access for all authenticated users
-CREATE POLICY IF NOT EXISTS "bet_settlements_read_all" ON bet_settlements 
+DROP POLICY IF EXISTS "bet_settlements_read_all" ON bet_settlements;
+CREATE POLICY "bet_settlements_read_all" ON bet_settlements
     FOR SELECT USING (true);
 
--- Allow service role to write
-CREATE POLICY IF NOT EXISTS "bet_settlements_write_service" ON bet_settlements 
+DROP POLICY IF EXISTS "bet_settlements_write_service" ON bet_settlements;
+CREATE POLICY "bet_settlements_write_service" ON bet_settlements
     FOR ALL USING (true);
 
 -- Comment

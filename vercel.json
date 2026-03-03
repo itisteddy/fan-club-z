@@ -1,7 +1,7 @@
 {
-  "buildCommand": "npm --prefix client install && npm --prefix client run build",
-  "outputDirectory": "client/dist",
-  "installCommand": "npm --prefix client install",
+  "buildCommand": "pnpm run build",
+  "outputDirectory": "dist",
+  "installCommand": "cd .. && pnpm install",
   "headers": [
     {
       "source": "/.well-known/apple-app-site-association",

@@ -1,6 +1,8 @@
 -- Migration 111: Wallet Summary View
 -- Computes wallet balances from transactions and escrow locks
 -- Filters by crypto provider (no demo data)
+-- Drop if exists so we can replace with different column set (available/reserved/total -> wallet_usdc/escrow_usdc/reserved_usdc)
+DROP VIEW IF EXISTS v_wallet_summary;
 
 CREATE OR REPLACE VIEW v_wallet_summary AS
 SELECT
@@ -8,8 +10,8 @@ SELECT
   COALESCE(
     SUM(
       CASE 
-        WHEN wt.type = 'credit' OR wt.direction = 'credit' THEN wt.amount
-        WHEN wt.type = 'debit' OR wt.direction = 'debit' THEN -wt.amount
+        WHEN wt.type IN ('deposit', 'payout', 'bet_unlock', 'platform_fee', 'creator_fee') THEN wt.amount
+        WHEN wt.type IN ('withdraw', 'bet_lock', 'adjustment') THEN -wt.amount
         ELSE 0
       END
     ),

@@ -27,22 +27,29 @@ CREATE INDEX IF NOT EXISTS idx_categories_slug
   ON public.categories (slug);
 
 -- Add category_id column to predictions table (nullable for backward compatibility)
+-- Only run if public.predictions exists (e.g. staging may run categories before full schema)
 DO $$
 BEGIN
-  IF NOT EXISTS (
-    SELECT 1 FROM information_schema.columns
-    WHERE table_schema = 'public'
-    AND table_name = 'predictions'
-    AND column_name = 'category_id'
-  ) THEN
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'predictions')
+     AND NOT EXISTS (
+       SELECT 1 FROM information_schema.columns
+       WHERE table_schema = 'public'
+       AND table_name = 'predictions'
+       AND column_name = 'category_id'
+     ) THEN
     ALTER TABLE public.predictions ADD COLUMN category_id UUID REFERENCES public.categories(id) ON DELETE SET NULL;
   END IF;
 END $$;
 
--- Create index for category_id lookups
-CREATE INDEX IF NOT EXISTS idx_predictions_category_id 
-  ON public.predictions (category_id) 
-  WHERE category_id IS NOT NULL;
+-- Create index for category_id lookups (only if predictions exists)
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'predictions') THEN
+    CREATE INDEX IF NOT EXISTS idx_predictions_category_id
+      ON public.predictions (category_id)
+      WHERE category_id IS NOT NULL;
+  END IF;
+END $$;
 
 -- Add updated_at trigger
 CREATE OR REPLACE FUNCTION update_categories_updated_at()

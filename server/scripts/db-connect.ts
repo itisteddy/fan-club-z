@@ -14,13 +14,20 @@ import pg from 'pg';
 import dotenv from 'dotenv';
 import path from 'path';
 
-// Load environment variables
+// Load environment variables (support staging for migrations)
 dotenv.config({ path: path.join(__dirname, '../.env') });
+const appEnv = process.env.APP_ENV || process.env.NODE_ENV || 'development';
+if (appEnv === 'staging') {
+  dotenv.config({ path: path.join(__dirname, '../../.env.staging') });
+}
+dotenv.config({ path: path.join(__dirname, '../../.env.local') });
+dotenv.config({ path: path.join(__dirname, '../../.env') });
 
 const { Pool } = pg;
 
-// Get database URL from environment
-const dbUrl = process.env.SUPABASE_DB_URL || 
+// Get database URL from environment (MIGRATION_DATABASE_URL overrides for one-off migration runs)
+const dbUrl = process.env.MIGRATION_DATABASE_URL ||
+              process.env.SUPABASE_DB_URL || 
               process.env.DATABASE_URL || 
               process.env.POSTGRES_URL ||
               (process.env.POSTGRES_HOST && process.env.POSTGRES_USER && process.env.POSTGRES_PASSWORD

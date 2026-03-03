@@ -20,10 +20,10 @@ WHERE id IN (
 );
 
 -- Step 2: Create unique constraint - one active lock per user+prediction
--- This prevents race conditions where multiple locks are created simultaneously
+-- (Cannot use expires_at > NOW() in predicate - NOW() is not immutable. Rely on status/state only.)
 CREATE UNIQUE INDEX IF NOT EXISTS idx_one_active_lock_per_prediction
 ON escrow_locks(user_id, prediction_id)
-WHERE ((status = 'locked' OR state = 'locked') AND expires_at > NOW());
+WHERE (status = 'locked' OR state = 'locked');
 
 -- Step 3: Add lock_ref column if it doesn't exist (for request idempotency)
 ALTER TABLE escrow_locks
