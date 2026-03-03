@@ -47,6 +47,16 @@ STAGING_DATABASE_URL='...' \
 npm run db:seed-staging-from-production
 ```
 
+## Troubleshooting: password authentication failed
+
+If you see `password authentication failed for user 'postgres'`:
+
+1. **Which URL failed?** The script now reports either "Production connection failed" or "Staging connection failed" so you know which URL to fix.
+2. **Copy the connection string again** from Supabase → Project Settings → Database → Connection string (use **URI**). Ensure you use the **database password** (not the anon key).
+3. **Special characters in password** – If the password contains `@`, `#`, `/`, `?`, `%`, or other reserved characters, **URL-encode** them in the URI (e.g. `@` → `%40`, `#` → `%23`). Or put the URL in single quotes so the shell doesn’t interpret characters.
+4. **Pooler vs direct** – For the **pooler** (port 6543), the username is usually `postgres.PROJECT_REF` (e.g. `postgres.abc123xyz`). For the **direct** connection (port 5432), use `postgres`. Get both from the Supabase connection string dropdown.
+5. **Password typo** – Easy to mix `1` (one) and `l` (letter); double-check.
+
 ## Safety
 
 - Use a **read-only** or restricted production user for `PRODUCTION_DATABASE_URL` if possible.

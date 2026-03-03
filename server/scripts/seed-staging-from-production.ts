@@ -91,12 +91,19 @@ async function main() {
   console.log('🔌 Connecting to production (read) and staging (write)...');
   try {
     await prodPool.query('SELECT 1');
-    await stagingPool.query('SELECT 1');
+    console.log('   Production: OK');
   } catch (e) {
-    console.error('❌ Connection failed:', e);
+    console.error('❌ Production connection failed (check PRODUCTION_DATABASE_URL / password):', e);
     process.exit(1);
   }
-  console.log('✅ Connected.\n');
+  try {
+    await stagingPool.query('SELECT 1');
+    console.log('   Staging: OK');
+  } catch (e) {
+    console.error('❌ Staging connection failed (check STAGING_DATABASE_URL / password):', e);
+    process.exit(1);
+  }
+  console.log('✅ Both connected.\n');
 
   try {
     console.log('Copying categories...');
