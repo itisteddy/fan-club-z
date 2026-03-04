@@ -298,6 +298,8 @@ app.use('/api/me', meRouter);
 app.use('/api/v2/me', meRouter);
 app.use('/api/v2/auth', authRouter);
 app.use('/api/v2/predictions', predictionsRoutes);
+// Back-compat for clients calling /api/v2/predictions/:id/place-bet directly.
+app.use('/api/v2/predictions', placeBetRouter);
 app.use('/api/predictions', placeBetRouter);
 app.use('/api/v1/predictions', placeBetRouter); // Back-compat for older clients (snake_case route supported inside)
 app.use('/api/v2/prediction-entries', predictionEntriesRoutes);
