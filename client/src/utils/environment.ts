@@ -59,6 +59,19 @@ export interface EnvironmentConfig {
 
 let didLogNativeEnv = false;
 
+function isFrontendHost(host: string): boolean {
+  const h = String(host || '').toLowerCase();
+  return h === 'app.fanclubz.app' || h === 'fanclubz.app' || h === 'www.fanclubz.app';
+}
+
+function parseHost(rawUrl: string): string | null {
+  try {
+    return new URL(rawUrl).hostname.toLowerCase();
+  } catch {
+    return null;
+  }
+}
+
 export function getEnvironmentConfig(): EnvironmentConfig {
   const hostname = window.location.hostname;
   const protocol = window.location.protocol;
@@ -79,7 +92,23 @@ export function getEnvironmentConfig(): EnvironmentConfig {
     if (runningInNativeApp) {
       normalizedApiBase = normalizedApiBase.replace(/^http:\/\/localhost(?=[:/]|$)/i, 'http://127.0.0.1');
     }
-    if (!runningInNativeApp || !normalizedApiBase.trim().startsWith('/')) {
+    const trimmedBase = normalizedApiBase.trim();
+    const baseHost = parseHost(trimmedBase);
+    const onFrontendHost = isFrontendHost(hostname);
+    const isRelativeBase = trimmedBase.startsWith('/');
+    const pointsToFrontendHost = Boolean(baseHost && isFrontendHost(baseHost));
+    const unsafeProdOverride = onFrontendHost && (isRelativeBase || pointsToFrontendHost);
+
+    // Safety: never allow production frontend host to call itself for API.
+    // This causes /api POST requests to hit frontend hosting and return 405.
+    if (unsafeProdOverride) {
+      if (DEBUG_ENABLED) {
+        console.warn('[env] Ignoring unsafe API_BASE on production frontend host:', {
+          hostname,
+          apiBase: trimmedBase,
+        });
+      }
+    } else if (!runningInNativeApp || !isRelativeBase) {
       const envLabel = hostname.includes('staging') || envClient.VITE_APP_ENV === 'staging' ? 'staging' : (isProd ? 'production' : 'development');
       const config: EnvironmentConfig = {
         apiUrl: normalizedApiBase,
