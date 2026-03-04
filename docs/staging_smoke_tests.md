@@ -1,6 +1,24 @@
 # Staging Smoke Tests
 
-## Before Release to Production
+## Automated smoke test (run before promotion)
+
+Run the script that calls **GET /health** and **GET /health/deep** and fails fast if staging is miswired:
+
+```bash
+# From repo root (override URL if needed)
+STAGING_API_URL=https://fanclubz-backend-staging.onrender.com pnpm run staging-smoke-test
+# Or: pnpm run db:verify:staging
+```
+
+- **/health** must return HTTP 200 and `env: "staging"`.
+- **/health/deep** checks DB connectivity and required tables (`users`, `wallets`, `predictions`, etc.). If any required table is missing or DB is unreachable, the script prints the failed checks and exits non-zero.
+- Use the script output (and optional `requestId` from responses) to diagnose staging 500s.
+
+See **`docs/promotion_checklist.md`** and **`docs/release_workflow.md`** for promotion steps.
+
+---
+
+## Manual smoke tests (before release to production)
 
 Run these flows on staging to verify no regressions. Confirm **no production data** is modified.
 
@@ -71,7 +89,8 @@ Run these flows on staging to verify no regressions. Confirm **no production dat
 
 ## 8. No Production Impact
 
-- [ ] Staging backend `/health` returns `"env": "staging"`
+- [ ] Staging backend **GET /health** returns HTTP 200 and `"env": "staging"`
+- [ ] Staging backend **GET /health/deep** returns HTTP 200 and `ok: true` (all required tables present)
 - [ ] Staging frontend uses staging Supabase (different project)
 - [ ] No production DB writes during staging tests
 

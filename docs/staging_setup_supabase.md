@@ -25,6 +25,8 @@ If you see **"Could not find the table 'public.user_awards_current'"** or 500s o
 
 If **comments** return 503 or "Comments are temporarily unavailable", run **333_ugc_comments_moderation.sql** (adds comment columns) and **341_comments_content_column.sql** (adds `content` column). The API also supports the base-schema `body` column; 341 is optional but ensures consistency.
 
+If **GET /api/demo-wallet/summary** returns 500 or the Wallet page shows "Failed to load demo wallet summary", the `wallets` table is missing demo/creator/stake columns. Run **342_wallets_demo_creator_stake_columns.sql** (adds `demo_credits_balance`, `creator_earnings_balance`, `stake_balance`).
+
 The backend seeds `categories` on startup; the table must exist or you'll see "Could not find the table 'public.categories' in the schema cache".
 
 1. You can run **`315_categories_table.sql`** first: it creates `public.categories` and, if `public.predictions` exists, adds `category_id` to it. It no longer errors if `predictions` is missing.
@@ -51,6 +53,8 @@ npm run db:migrate-file -- migrations/336_predictions_entry_deadline_users_verif
 ```
 
 The script uses a direct Postgres connection (`pg`), so no Supabase RPC is required. For `pnpm db:migrate:staging` to use staging, have `DATABASE_URL` (or `SUPABASE_DB_URL`) in root `.env.staging` or in `server/.env` when you run it.
+
+**Verify schema:** After deploying the backend with the `/health/deep` endpoint, run `pnpm run staging-smoke-test` or `curl -s <STAGING_BACKEND>/health/deep | jq .` to confirm required tables exist. See **`docs/staging_diagnosis.md`** for interpreting failures.
 
 ## 4. Auth Redirect URLs (required for sign-in)
 

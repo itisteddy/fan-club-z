@@ -54,15 +54,20 @@ Adjust domains to match your staging frontend and local dev ports.
 
 ---
 
-## 4. Health Endpoint
+## 4. Health and deep health
 
 After deploy, verify:
 
 ```bash
-curl https://fanclubz-backend-staging.onrender.com/health
-```
+# Basic health (env stamp)
+curl -s https://fanclubz-backend-staging.onrender.com/health | jq .
+# Expect: "ok": true, "env": "staging", "service": "backend"
 
-Expected response includes `"env": "staging"`.
+# Deep health (DB + required tables) — use after backend has /health/deep deployed
+curl -s https://fanclubz-backend-staging.onrender.com/health/deep | jq .
+# Expect: "ok": true, "db": { "ok": true }, "checks": [ ... ]
+# If ok is false, use docs/staging_diagnosis.md to fix missing tables or DB config.
+```
 
 ---
 

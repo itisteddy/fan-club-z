@@ -27,13 +27,15 @@ import cors from 'cors';
 import compression from 'compression';
 import helmet from 'helmet';
 import path from 'path';
-import { config } from './config';
+import { config, getCorsOrigins } from './config';
 import { supabase } from './config/database';
 import { db } from './config/database';
 import { VERSION } from '@fanclubz/shared';
 import { checkMaintenanceMode } from './middleware/maintenance';
 import { clientIdMiddleware } from './middleware/clientId';
 import { requireCryptoEnabled } from './middleware/requireCryptoEnabled';
+import { requestIdMiddleware, getRequestId } from './middleware/requestId';
+import { healthDeepRouter } from './routes/healthDeep';
 
 const app = express();
 const PORT = config.server.port || 3001;
@@ -66,25 +68,8 @@ app.use(helmet({
   crossOriginEmbedderPolicy: false, // Required for some wallet integrations
 }));
 
-// CORS configuration: Single source of truth for all CORS logic
-// Use CORS_ALLOWLIST when set; otherwise fallback to sensible defaults
-const defaultOrigins = [
-  'https://fanclubz.app',
-  'https://app.fanclubz.app',
-  'https://web.fanclubz.app',
-  'https://auth.fanclubz.app',
-  'https://fanclubz-staging.vercel.app',
-  'capacitor://localhost',
-  'capacitor://app.fanclubz.app',
-  'ionic://localhost',
-  'http://localhost',
-  'http://localhost:3000',
-  'http://localhost:5173',
-  'http://localhost:5174',
-];
-const allowedOrigins = config.security.corsOrigins.length > 0
-  ? config.security.corsOrigins
-  : defaultOrigins;
+// CORS configuration: env-driven (CORS_ALLOWLIST) or getCorsOrigins() defaults; same list for REST and Socket.IO
+const allowedOrigins = getCorsOrigins();
 
 // Avoid turning "origin not allowed" into a 500 again.
 // We log blocked origins (deduped) and simply omit CORS headers for them.
@@ -153,6 +138,9 @@ app.use(express.json({
   },
 }));
 
+// Request ID for observability (header + error responses)
+app.use(requestIdMiddleware);
+
 // Maintenance mode check (must be before routes)
 app.use(checkMaintenanceMode);
 
@@ -192,20 +180,22 @@ function checkConditionalGet(req: express.Request, res: express.Response, etag: 
   return false;
 }
 
-// Health check endpoint
+// Health check endpoint (staging/prod parity; no DB)
+const gitSha = process.env.RENDER_GIT_COMMIT || process.env.SOURCE_VERSION || process.env.VERCEL_GIT_COMMIT_SHA || null;
 app.get('/health', (req, res) => {
   res.status(200).json({
-    status: 'OK',
+    ok: true,
     env: config.server.appEnv || config.server.nodeEnv || 'production',
-    timestamp: new Date().toISOString(),
+    gitSha,
+    service: 'backend',
+    time: new Date().toISOString(),
     version: VERSION,
-    environment: config.server.nodeEnv || 'production',
     uptime: process.uptime(),
-    cors: 'enabled',
-    settlement: 'enabled',
-    compression: 'enabled', // [PERF] Added compression indicator
   });
 });
+
+// Deep health (DB + required tables) — diagnostic for staging
+app.use(healthDeepRouter);
 
 // Root endpoint
 app.get('/', (req, res) => {
@@ -393,21 +383,25 @@ app.get('/api/v2/test-cors', (req, res) => {
 
 // 404 handler
 app.use('*', (req, res) => {
-  console.log(`❌ 404 - Route not found: ${req.originalUrl} - origin:`, req.headers.origin);
+  const requestId = getRequestId(req);
+  console.log(`❌ 404 [${requestId}] - Route not found: ${req.originalUrl} - origin:`, req.headers.origin);
   res.status(404).json({
     error: 'Not Found',
     message: `Route ${req.originalUrl} not found`,
+    requestId,
     timestamp: new Date().toISOString(),
     version: VERSION
   });
 });
 
-// Error handler
-app.use((error: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
-  console.error('🚨 Server error:', error);
+// Error handler (safe message to client; full stack logged server-side with requestId)
+app.use((error: any, req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  const requestId = getRequestId(req);
+  console.error(`🚨 Server error [${requestId}]:`, error?.stack || error);
   res.status(500).json({
     error: 'Internal Server Error',
     message: 'Something went wrong',
+    requestId,
     timestamp: new Date().toISOString(),
     version: VERSION
   });

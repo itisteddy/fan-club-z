@@ -39,6 +39,18 @@
 
 ---
 
+## Prod vs staging URLs
+
+| Layer | Production | Staging |
+|-------|------------|---------|
+| Frontend | https://app.fanclubz.app | https://fanclubz-staging.vercel.app |
+| Backend API | https://fan-club-z.onrender.com | https://fanclubz-backend-staging.onrender.com |
+| Supabase | Production project (Dashboard) | Staging project (separate) |
+
+Backend **GET /health** and **GET /health/deep** are used to verify env and schema (see `pnpm run staging-smoke-test`).
+
+---
+
 ## Scripts
 
 | Script | Description |
@@ -46,6 +58,9 @@
 | pnpm dev | Start server + client. Uses .env.local. |
 | pnpm dev:staging | Start client only, pointing at staging backend + staging Supabase. |
 | pnpm dev:prod | Start client only, pointing at production backend. |
+| pnpm run staging-smoke-test | Call staging /health and /health/deep; fail if miswired. |
+| pnpm run db:verify:staging | Same as staging-smoke-test (HTTP checks). |
+| pnpm run db:migrate:staging | Run server migrations against staging DB (set DATABASE_URL for staging). |
 
 ---
 
