@@ -858,9 +858,18 @@ router.get('/:id', async (req, res) => {
     const stats = {
       predictionsCreated: createdPredictions.count || 0,
       predictionsParticipated: participatedPredictions.count || 0,
-      totalVolume: createdPredictions.data?.reduce((sum, pred) => sum + (pred.pool_total || 0), 0) || 0,
-      totalInvested: participatedPredictions.data?.reduce((sum, entry) => sum + (entry.amount || 0), 0) || 0,
-      totalEarnings: participatedPredictions.data?.reduce((sum, entry) => sum + (entry.actual_payout || 0), 0) || 0,
+      totalVolume: createdPredictions.data?.reduce(
+        (sum: number, pred: any) => sum + (Number(pred?.pool_total) || 0),
+        0
+      ) || 0,
+      totalInvested: participatedPredictions.data?.reduce(
+        (sum: number, entry: any) => sum + (Number(entry?.amount) || 0),
+        0
+      ) || 0,
+      totalEarnings: participatedPredictions.data?.reduce(
+        (sum: number, entry: any) => sum + (Number(entry?.actual_payout) || 0),
+        0
+      ) || 0,
       winRate: 0 // Will calculate based on won vs total predictions
     };
 

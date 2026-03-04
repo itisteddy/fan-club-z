@@ -68,12 +68,14 @@ async function ensureDemoWalletRow(userId: string) {
 async function fetchDemoSummary(userId: string) {
   await ensureDemoWalletRow(userId);
   const selectCols = 'available_balance, reserved_balance, demo_credits_balance, updated_at';
-  let { data, error } = await supabase
+  let data: any = null;
+  let error: any = null;
+  ({ data, error } = await supabase
     .from('wallets')
     .select(selectCols)
     .eq('user_id', userId)
     .eq('currency', CURRENCY)
-    .maybeSingle();
+    .maybeSingle());
   if (error && isMissingColumnError(error)) {
     const { data: fallbackData, error: fallbackError } = await supabase
       .from('wallets')

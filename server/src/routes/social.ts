@@ -40,6 +40,10 @@ function isNotNullViolation(error: any, column: string): boolean {
   return code === '23502' && message.includes(column.toLowerCase());
 }
 
+function getCommentContent(row: any): string {
+  return String(row?.content ?? row?.body ?? '');
+}
+
 type PublicUserRow = {
   id: string;
   auth_user_id?: string | null;
@@ -487,7 +491,7 @@ router.get('/predictions/:predictionId/comments/:commentId', async (req, res) =>
     const isDeleted = Boolean(
       comment.is_deleted ||
       comment.deleted_at ||
-      String(comment.content || '').trim().toLowerCase() === 'comment deleted'
+      getCommentContent(comment).trim().toLowerCase() === 'comment deleted'
     );
     if (isDeleted) {
       return res.status(404).json({ success: false, code: 'NOT_FOUND', error: 'Comment not found.' });
@@ -542,7 +546,7 @@ router.get('/predictions/:predictionId/comments/:commentId', async (req, res) =>
       const parentDeleted = parent && Boolean(
         parent.is_deleted ||
         parent.deleted_at ||
-        String(parent.content || '').trim().toLowerCase() === 'comment deleted'
+        getCommentContent(parent).trim().toLowerCase() === 'comment deleted'
       );
       if (parent && !parentDeleted) {
         const parentUsers = await fetchUsersByIdentityIds([String(parent.user_id || '')]);
@@ -562,7 +566,7 @@ router.get('/predictions/:predictionId/comments/:commentId', async (req, res) =>
       const replies = (repliesResult.data as any[]) || [];
       const replyUsers = await fetchUsersByIdentityIds(replies.map((r) => r.user_id).filter(Boolean));
       threadReplies = replies
-        .filter((r) => !Boolean(r.is_deleted || r.deleted_at || String(r.content || '').trim().toLowerCase() === 'comment deleted'))
+        .filter((r) => !Boolean(r.is_deleted || r.deleted_at || getCommentContent(r).trim().toLowerCase() === 'comment deleted'))
         .map((r) => ({ ...r, user: replyUsers[String(r.user_id || '')] || null }));
     } else {
       const repliesResult = await safeQuery(() =>
@@ -576,7 +580,7 @@ router.get('/predictions/:predictionId/comments/:commentId', async (req, res) =>
       const replies = (repliesResult.data as any[]) || [];
       const replyUsers = await fetchUsersByIdentityIds(replies.map((r) => r.user_id).filter(Boolean));
       threadReplies = replies
-        .filter((r) => !Boolean(r.is_deleted || r.deleted_at || String(r.content || '').trim().toLowerCase() === 'comment deleted'))
+        .filter((r) => !Boolean(r.is_deleted || r.deleted_at || getCommentContent(r).trim().toLowerCase() === 'comment deleted'))
         .map((r) => ({ ...r, user: replyUsers[String(r.user_id || '')] || null }));
     }
 
@@ -721,16 +725,24 @@ router.post('/predictions/:predictionId/comments', requireSupabaseAuth, requireT
       }
     }
 
-    // ---- Idempotency (clientRequestId) ----
-    if (requestId) {
-      const existing = await safeQuery<Record<string, any> | null>(() =>
+    const fetchExistingByRequestId = async (uid: string, reqId: string) => {
+      let existing = await safeQuery<Record<string, any> | null>(() =>
         supabase
           .from('comments')
-          .select('id, prediction_id, user_id, parent_comment_id, body, created_at, updated_at, edited_at, is_deleted, deleted_at, deleted_by, likes_count')
-          .eq('user_id', userId)
-          .eq('client_request_id', requestId)
+          .select('*')
+          .eq('user_id', uid)
+          .eq('client_request_id', reqId)
           .maybeSingle()
       );
+      if (existing.error && isMissingColumn(existing.error, 'client_request_id')) {
+        return { data: null, error: existing.error };
+      }
+      return existing;
+    };
+
+    // ---- Idempotency (clientRequestId) ----
+    if (requestId) {
+      const existing = await fetchExistingByRequestId(userId, requestId);
       if (!existing.error && existing.data?.id) {
         const commentRow = existing.data as Record<string, any>;
         const userLookup = await fetchUsersByIdentityIds([userId]);
@@ -739,7 +751,7 @@ router.post('/predictions/:predictionId/comments', requireSupabaseAuth, requireT
           success: true,
           data: {
             ...commentRow,
-            content: commentRow.content ?? commentRow.body,
+            content: getCommentContent(commentRow),
             user: udata || { id: userId, username: 'You' },
             is_liked_by_user: false,
             is_owned_by_user: true,
@@ -751,35 +763,67 @@ router.post('/predictions/:predictionId/comments', requireSupabaseAuth, requireT
     }
 
     // ---- INSERT (minimal, no join — safest approach) ----
-    // Base schema has 'body'; migration 341 adds 'content'. Insert body so staging works.
+    // Cross-schema safe: support either comments.body (base) or comments.content (migration 341+).
     console.log('[comments:POST] Inserting comment...');
-    const insertPayload = {
+    const baseInsertPayload = {
       prediction_id: predictionId,
       user_id: userId,
       parent_comment_id: actualParentId,
-      body: trimmed,
-      client_request_id: requestId || null,
     };
 
     let insertResult = await safeQuery<Record<string, any> | null>(() =>
       supabase
         .from('comments')
-        .insert(insertPayload)
-        .select('id, prediction_id, user_id, parent_comment_id, body, created_at, updated_at, edited_at, is_deleted, deleted_at, deleted_by, likes_count')
+        .insert({
+          ...baseInsertPayload,
+          body: trimmed,
+          client_request_id: requestId || null,
+        })
+        .select('*')
         .single()
     );
+    if (insertResult.error && isMissingColumn(insertResult.error, 'body')) {
+      insertResult = await safeQuery<Record<string, any> | null>(() =>
+        supabase
+          .from('comments')
+          .insert({
+            ...baseInsertPayload,
+            content: trimmed,
+            client_request_id: requestId || null,
+          })
+          .select('*')
+          .single()
+      );
+    }
+    if (insertResult.error && isMissingColumn(insertResult.error, 'client_request_id')) {
+      insertResult = await safeQuery<Record<string, any> | null>(() =>
+        supabase
+          .from('comments')
+          .insert({
+            ...baseInsertPayload,
+            body: trimmed,
+          })
+          .select('*')
+          .single()
+      );
+      if (insertResult.error && isMissingColumn(insertResult.error, 'body')) {
+        insertResult = await safeQuery<Record<string, any> | null>(() =>
+          supabase
+            .from('comments')
+            .insert({
+              ...baseInsertPayload,
+              content: trimmed,
+            })
+            .select('*')
+            .single()
+        );
+      }
+    }
 
     if (insertResult.error) {
       // If unique constraint on (user_id, client_request_id) fired, fetch existing
       if (requestId) {
-        const existing = await safeQuery<Record<string, any> | null>(() =>
-          supabase
-            .from('comments')
-            .select('id, prediction_id, user_id, parent_comment_id, body, created_at, updated_at, edited_at, is_deleted, deleted_at, deleted_by, likes_count')
-            .eq('user_id', userId)
-            .eq('client_request_id', requestId)
-            .maybeSingle()
-        );
+        const existing = await fetchExistingByRequestId(userId, requestId);
         if (!existing.error && existing.data?.id) {
           insertResult = existing as any;
         } else {
@@ -908,7 +952,7 @@ router.post('/predictions/:predictionId/comments', requireSupabaseAuth, requireT
       success: true,
       data: {
         ...commentRow,
-        content: commentRow.content ?? commentRow.body,
+        content: getCommentContent(commentRow),
         user: userProfile || { id: userId, username: 'You' },
         is_edited: false,
         edited_at: null,
@@ -1089,6 +1133,16 @@ router.patch('/comments/:commentId', requireSupabaseAuth, requireTermsAccepted, 
         content: trimmed,
         updated_at: now,
       },
+      {
+        body: trimmed,
+        updated_at: now,
+        edited_at: now,
+        edit_count: (existing.edit_count || 0) + 1,
+      },
+      {
+        body: trimmed,
+        updated_at: now,
+      },
     ];
 
     let updatedResult = await safeQuery<Record<string, any> | null>(() =>
@@ -1125,6 +1179,26 @@ router.patch('/comments/:commentId', requireSupabaseAuth, requireTermsAccepted, 
         supabase
           .from('comments')
           .update(updatePayloads[3])
+          .eq('id', commentId)
+          .select('*')
+          .single()
+      );
+    }
+    if (updatedResult.error && isMissingColumn(updatedResult.error, 'content')) {
+      updatedResult = await safeQuery<Record<string, any> | null>(() =>
+        supabase
+          .from('comments')
+          .update(updatePayloads[4])
+          .eq('id', commentId)
+          .select('*')
+          .single()
+      );
+    }
+    if (updatedResult.error && isMissingColumn(updatedResult.error, 'edited_at')) {
+      updatedResult = await safeQuery<Record<string, any> | null>(() =>
+        supabase
+          .from('comments')
+          .update(updatePayloads[5])
           .eq('id', commentId)
           .select('*')
           .single()
@@ -1278,6 +1352,28 @@ router.delete('/comments/:commentId', requireSupabaseAuth, requireTermsAccepted,
         content: 'Comment deleted',
         updated_at: now,
       },
+      {
+        is_deleted: true,
+        deleted_at: now,
+        deleted_by: userId,
+        body: 'Comment deleted',
+        updated_at: now,
+      },
+      {
+        is_deleted: true,
+        deleted_at: now,
+        body: 'Comment deleted',
+        updated_at: now,
+      },
+      {
+        deleted_at: now,
+        body: 'Comment deleted',
+        updated_at: now,
+      },
+      {
+        body: 'Comment deleted',
+        updated_at: now,
+      },
     ];
 
     let softResult = await safeQuery<Record<string, any> | null>(() =>
@@ -1328,6 +1424,46 @@ router.delete('/comments/:commentId', requireSupabaseAuth, requireTermsAccepted,
           .select('*')
           .single()
       );
+    }
+    if (softResult.error && isMissingColumn(softResult.error, 'content')) {
+      softResult = await safeQuery<Record<string, any> | null>(() =>
+        supabase
+          .from('comments')
+          .update(deletePayloads[5])
+          .eq('id', commentId)
+          .select('*')
+          .single()
+      );
+      if (softResult.error && isMissingColumn(softResult.error, 'deleted_by')) {
+        softResult = await safeQuery<Record<string, any> | null>(() =>
+          supabase
+            .from('comments')
+            .update(deletePayloads[6])
+            .eq('id', commentId)
+            .select('*')
+            .single()
+        );
+      }
+      if (softResult.error && isMissingColumn(softResult.error, 'is_deleted')) {
+        softResult = await safeQuery<Record<string, any> | null>(() =>
+          supabase
+            .from('comments')
+            .update(deletePayloads[7])
+            .eq('id', commentId)
+            .select('*')
+            .single()
+        );
+      }
+      if (softResult.error && isMissingColumn(softResult.error, 'deleted_at')) {
+        softResult = await safeQuery<Record<string, any> | null>(() =>
+          supabase
+            .from('comments')
+            .update(deletePayloads[8])
+            .eq('id', commentId)
+            .select('*')
+            .single()
+        );
+      }
     }
 
     if (softResult.error || !softResult.data) {
