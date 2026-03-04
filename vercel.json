@@ -1,7 +1,7 @@
 {
-  "buildCommand": "pnpm run build",
-  "outputDirectory": "dist",
-  "installCommand": "cd .. && pnpm install",
+  "buildCommand": "pnpm --filter @fanclubz/client run build",
+  "outputDirectory": "client/dist",
+  "installCommand": "pnpm install",
   "headers": [
     {
       "source": "/.well-known/apple-app-site-association",
