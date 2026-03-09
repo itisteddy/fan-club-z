@@ -443,6 +443,23 @@ router.get('/resolve/slug/:slug', async (req, res) => {
       }
     }
 
+    // Recovery: if a UUID-like id is missing a tail character (observed in some shared links),
+    // resolve by unique prefix against recent predictions.
+    const uuidishPrefixRegex = /^[0-9a-f-]{30,35}$/i;
+    if (uuidishPrefixRegex.test(candidate)) {
+      const { data: recentIds, error: recentErr } = await supabase
+        .from('predictions')
+        .select('id,created_at')
+        .order('created_at', { ascending: false })
+        .limit(500);
+      if (!recentErr && Array.isArray(recentIds)) {
+        const matches = recentIds.filter((p: any) => String(p?.id || '').startsWith(candidate));
+        if (matches.length === 1) {
+          return res.json({ id: matches[0].id, version: VERSION });
+        }
+      }
+    }
+
     // Fallback: scan recent predictions and match by computed slug.
     // Note: For our dataset size this is fine. If this grows large, add a persisted slug column or an index.
     const { data: preds, error } = await supabase

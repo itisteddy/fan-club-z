@@ -68,6 +68,7 @@ interface PredictionDetailsPageProps {
 }
 
 type DetailsLocationState = { from?: string; focusCommentId?: string } | null;
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
   predictionId: propPredictionId
@@ -480,6 +481,25 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
       const url = `${getApiUrl()}/api/v2/predictions/${predictionId}`;
       const probe = await fetch(url, { method: 'GET' });
       if (probe.status === 404) {
+        // Recovery path for malformed/stale deep links:
+        // try resolver endpoint and canonicalize to the resolved id.
+        try {
+          const resolver = await fetch(
+            `${getApiUrl()}/api/v2/predictions/resolve/slug/${encodeURIComponent(predictionId)}`,
+            { method: 'GET' }
+          );
+          if (resolver.ok) {
+            const resolved = await resolver.json().catch(() => ({} as any));
+            const resolvedId = String((resolved as any)?.id || '').trim();
+            if (resolvedId && UUID_REGEX.test(resolvedId) && resolvedId !== predictionId) {
+              const nextSearch = location.search || '';
+              navigate(`/p/${resolvedId}${nextSearch}`, { replace: true });
+              return;
+            }
+          }
+        } catch {
+          // continue to 404 state
+        }
         setNotFound(true);
         return;
       }
