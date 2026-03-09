@@ -226,7 +226,25 @@ async function handlePlaceBet(req: any, res: any) {
 
     // Serialize same-market stake mutations in this app server to reduce race conditions on
     // pooled totals / aggregated positions before a full DB transaction rewrite.
-    mutationLock = await beginPredictionStakeLock(predictionId);
+    try {
+      mutationLock = await beginPredictionStakeLock(predictionId);
+    } catch (lockError: any) {
+      const lockMessage = String(lockError?.message || lockError || '');
+      console.warn('[FCZ-BET] stake lock unavailable:', { requestId: reqId, fundingMode, lockMessage });
+      // In staging environments where direct PG pool connectivity is flaky (e.g. IPv6 reachability),
+      // allow demo/fiat to proceed without advisory lock rather than surfacing a hard 500.
+      if (fundingMode === 'demo' || fundingMode === 'fiat') {
+        mutationLock = null;
+      } else {
+        return res.status(503).json({
+          code: 'FCZ_DATABASE_ERROR',
+          error: 'DB_LOCK_UNAVAILABLE',
+          message: 'Database transaction lock is temporarily unavailable',
+          requestId: reqId,
+          version: VERSION,
+        });
+      }
+    }
 
     let quoteUsed: any = null;
     let quoteSameOutcomeEntry: any = null;
